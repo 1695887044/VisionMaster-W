@@ -1,0 +1,1057 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>公共消息弹窗（MessageDialog）· 设计基线 v1</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #md-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="md-design-root">
+<style>
+  /* =====================================================================
+     公共消息弹窗 · Web 设计基线 v1
+     设计媒介，不是交付物（AGENTS.md R126）。
+     所有颜色/间距先以 CSS 变量表达，再在 README 的令牌映射表里
+     一一对应到 UI/Controls/Themes/Colors.xaml。
+     ===================================================================== */
+  #md-design-root{
+    color-scheme:light;
+    --md-bg:#EEF2F7;
+    --md-surface:#FFFFFF;
+    --md-surface-2:#F8FAFC;
+    --md-surface-3:#F1F5F9;
+    --md-border:#E2E8F0;
+    --md-border-soft:#EEF2F7;
+    --md-border-strong:#CBD5E1;
+    --md-card-border:#E3E9F2;
+    --md-text:#0F172A;
+    --md-text-2:#475569;
+    --md-text-3:#94A3B8;
+    --md-text-4:#64748B;
+    --md-primary:#0EA5E9;
+    --md-primary-strong:#0284C7;
+    --md-primary-deep:#0369A1;
+    --md-primary-soft:#F0F9FF;
+    --md-primary-light:#E0F2FE;
+    --md-primary-border:#BAE6FD;
+    --md-success:#22C55E;
+    --md-success-text:#15803D;
+    --md-success-soft:#F0FDF4;
+    --md-success-border:#BBF7D0;
+    --md-warning:#F59E0B;
+    --md-warning-text:#B45309;
+    --md-warning-soft:#FFF4E5;
+    --md-warning-border:#FDE68A;
+    --md-danger:#EF4444;
+    --md-danger-strong:#DC2626;
+    --md-danger-text:#B91C1C;
+    --md-danger-soft:#FEF2F2;
+    --md-danger-border:#FECACA;
+    --md-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --md-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+    --md-radius-sm:6px;
+    --md-radius-md:8px;
+    --md-radius-lg:10px;
+    --md-radius-xl:12px;
+    --md-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+    font-family:var(--md-font);
+    font-size:13px;
+    line-height:1.5;
+    color:var(--md-text);
+    -webkit-font-smoothing:antialiased;
+  }
+  #md-design-root *{box-sizing:border-box;}
+  #md-design-root button,#md-design-root input{font-family:inherit;}
+  #md-design-root button{color:inherit;}
+  #md-design-root [hidden]{display:none !important;}
+  #md-design-root :focus-visible{outline:2px solid var(--md-primary-strong);outline-offset:2px;}
+  #md-design-root svg{display:block;}
+  #md-design-root code{font-family:var(--md-mono);}
+  #md-design-root .md-page-sub code,
+  #md-design-root .md-section-note code,
+  #md-design-root .md-page-foot code,
+  #md-design-root .md-problems code{
+    padding:1px 4px;border-radius:4px;background:var(--md-surface-3);color:var(--md-primary-deep);font-size:.95em;
+  }
+
+  /* ===================== 页面骨架（不属于应用界面） ===================== */
+  #md-design-root .md-page{max-width:1088px;margin:0 auto;padding:26px 24px 64px;}
+  #md-design-root .md-page-kicker{
+    display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+    background:var(--md-primary-light);color:var(--md-primary-deep);
+    font-size:10.5px;font-weight:700;letter-spacing:.06em;
+  }
+  #md-design-root .md-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  #md-design-root .md-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--md-text);}
+  #md-design-root .md-ver{
+    display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+    background:var(--md-primary-light);color:var(--md-primary-deep);
+    font-size:11px;font-weight:700;letter-spacing:.02em;
+  }
+  #md-design-root .md-page-sub{margin:8px 0 14px;font-size:12.5px;line-height:1.7;color:var(--md-text-2);max-width:900px;}
+  #md-design-root .md-page-sub b{color:var(--md-text);font-weight:600;}
+  #md-design-root .md-demo-bar{display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
+  #md-design-root .md-demo-group{display:flex;align-items:center;gap:8px;}
+  #md-design-root .md-demo-label{font-size:11.5px;color:var(--md-text-4);}
+  #md-design-root .md-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--md-radius-md);background:var(--md-surface-3);}
+  #md-design-root .md-seg button{
+    height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--md-text-2);
+    font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;
+  }
+  #md-design-root .md-seg button:hover{color:var(--md-text);}
+  #md-design-root .md-seg button.is-on{background:#FFFFFF;color:var(--md-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+  #md-design-root .md-seg button:disabled{opacity:.45;cursor:default;}
+  #md-design-root .md-scope{display:flex;align-items:flex-start;gap:6px;margin:12px 0 0;font-size:11.5px;line-height:1.6;color:var(--md-text-2);}
+  #md-design-root .md-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--md-warning-text);}
+  #md-design-root .md-scope b{color:var(--md-text);font-weight:600;}
+
+  /* ===================== 舞台：应用壳 + 遮罩 + 弹窗 ===================== */
+  #md-design-root .md-stage{
+    position:relative;width:1040px;max-width:100%;height:640px;margin:18px auto 0;
+    border-radius:16px;overflow:hidden;background:#E9EEF5;
+    box-shadow:var(--md-shadow-window);
+    isolation:isolate;
+  }
+
+  /* ---- 背景应用壳（示意：真实界面由 Shell.xaml 提供） ---- */
+  #md-design-root .md-app{position:absolute;inset:0;display:flex;flex-direction:column;background:#F4F7FB;}
+  #md-design-root .md-app-titlebar{
+    height:38px;flex:none;display:flex;align-items:center;gap:10px;padding:0 14px;
+    background:#FFFFFF;border-bottom:1px solid var(--md-border);
+  }
+  #md-design-root .md-app-logo{
+    width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,#0EA5E9,#0369A1);
+    color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;
+  }
+  #md-design-root .md-app-name{font-size:12px;font-weight:600;color:var(--md-text);}
+  #md-design-root .md-app-menu{display:flex;gap:14px;margin-left:10px;font-size:11.5px;color:var(--md-text-4);}
+  #md-design-root .md-app-user{margin-left:auto;font-size:11px;color:var(--md-text-3);}
+  #md-design-root .md-app-body{flex:1;min-height:0;display:flex;}
+  #md-design-root .md-app-left{width:220px;flex:none;background:#FFFFFF;border-right:1px solid var(--md-border);padding:10px 8px;}
+  #md-design-root .md-app-right{width:236px;flex:none;background:#FFFFFF;border-left:1px solid var(--md-border);padding:10px 12px;}
+  #md-design-root .md-app-panel-title{font-size:10.5px;font-weight:700;letter-spacing:.08em;color:var(--md-text-3);padding:6px 8px;}
+  #md-design-root .md-app-flow{
+    display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border-radius:7px;
+    font-size:12px;color:var(--md-text-2);
+  }
+  #md-design-root .md-app-flow em{margin-left:auto;font-style:normal;font-size:10px;color:var(--md-text-3);}
+  #md-design-root .md-app-flow.is-on{background:var(--md-primary-light);color:var(--md-primary-deep);font-weight:600;}
+  #md-design-root .md-app-flow.is-on em{color:var(--md-primary-deep);}
+  #md-design-root .md-app-dot{width:6px;height:6px;border-radius:50%;background:var(--md-success);flex:none;}
+  #md-design-root .md-app-canvas{
+    position:relative;flex:1;min-width:0;
+    background:
+      radial-gradient(circle at 1px 1px, rgba(148,163,184,.28) 1px, transparent 0) 0 0/22px 22px,
+      #F7F9FC;
+  }
+  #md-design-root .md-app-node{
+    position:absolute;width:132px;padding:9px 10px;border-radius:9px;background:#fff;
+    border:1px solid var(--md-border);box-shadow:0 1px 2px rgba(15,23,42,.05);
+    font-size:11.5px;font-weight:600;color:var(--md-text);
+  }
+  #md-design-root .md-app-node small{display:block;margin-top:2px;font-size:10px;font-weight:400;color:var(--md-text-3);}
+  #md-design-root .md-app-node.is-sel{border-color:var(--md-primary);box-shadow:0 0 0 3px rgba(14,165,233,.14);}
+  #md-design-root .md-app-wire{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+  #md-design-root .md-app-prop{display:flex;align-items:center;gap:8px;height:30px;border-bottom:1px solid var(--md-border-soft);font-size:11.5px;}
+  #md-design-root .md-app-prop span{width:66px;flex:none;color:var(--md-text-3);}
+  #md-design-root .md-app-prop b{font-weight:500;color:var(--md-text-2);}
+  #md-design-root .md-app-status{
+    height:26px;flex:none;display:flex;align-items:center;gap:16px;padding:0 14px;
+    background:#FFFFFF;border-top:1px solid var(--md-border);font-size:10.5px;color:var(--md-text-3);
+  }
+  #md-design-root .md-app-status .is-ok{color:var(--md-success-text);}
+
+  /* ---- 遮罩 ---- */
+  #md-design-root .md-scrim{
+    position:absolute;inset:0;background:rgba(15,23,42,.44);
+    transition:opacity 160ms ease;
+  }
+  #md-design-root .md-scrim.is-off{opacity:0;pointer-events:none;}
+
+  /* ---- 弹窗宿主 ---- */
+  #md-design-root .md-host{position:absolute;inset:0;display:grid;place-items:center;padding:24px;}
+
+  /* ===================== 弹窗卡片 ===================== */
+  #md-design-root .md-dialog{
+    background:var(--md-surface);
+    border:1px solid var(--md-card-border);
+    border-radius:var(--md-radius-xl);
+    box-shadow:0 26px 64px rgba(15,23,42,.30),0 4px 14px rgba(15,23,42,.12);
+    overflow:hidden;
+    animation:md-in 180ms cubic-bezier(.2,0,0,1);
+  }
+  @keyframes md-in{
+    from{opacity:0;transform:translateY(8px) scale(.985);}
+    to{opacity:1;transform:none;}
+  }
+  #md-design-root .md-head{display:flex;align-items:flex-start;gap:12px;padding:20px 20px 0;}
+  #md-design-root .md-icon{
+    width:36px;height:36px;flex:none;border-radius:10px;border:1px solid transparent;
+    display:grid;place-items:center;
+  }
+  #md-design-root .md-icon svg{width:18px;height:18px;}
+  #md-design-root .md-icon--info{background:var(--md-primary-soft);border-color:var(--md-primary-border);color:var(--md-primary-strong);}
+  #md-design-root .md-icon--success{background:var(--md-success-soft);border-color:var(--md-success-border);color:var(--md-success-text);}
+  #md-design-root .md-icon--warning{background:var(--md-warning-soft);border-color:var(--md-warning-border);color:var(--md-warning-text);}
+  #md-design-root .md-icon--danger{background:var(--md-danger-soft);border-color:var(--md-danger-border);color:var(--md-danger-text);}
+  #md-design-root .md-title{
+    flex:1;min-width:0;margin:0;padding-top:7px;
+    font-size:16px;line-height:1.35;font-weight:600;letter-spacing:-.01em;color:var(--md-text);
+  }
+  #md-design-root .md-close{
+    width:30px;height:30px;flex:none;padding:0;border:1px solid transparent;border-radius:var(--md-radius-md);
+    background:transparent;color:var(--md-text-4);display:inline-flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;
+  }
+  #md-design-root .md-close svg{width:13px;height:13px;}
+  #md-design-root .md-close:hover{background:var(--md-surface-3);border-color:var(--md-border);color:var(--md-text-2);}
+
+  #md-design-root .md-body{padding:12px 20px 0;}
+  #md-design-root .md-lead{margin:0;font-size:13px;line-height:1.75;color:var(--md-text-2);}
+  #md-design-root .md-lead b{color:var(--md-text);font-weight:600;}
+
+  /* ---- 详情面板：把"归档到哪"从一段话变成可读、可复制的结构 ---- */
+  #md-design-root .md-details{
+    margin-top:12px;padding:10px 12px;border-radius:var(--md-radius-lg);
+    background:var(--md-surface-2);border:1px solid var(--md-border-soft);
+  }
+  #md-design-root .md-detail-row{display:flex;align-items:center;gap:8px;min-height:28px;min-width:0;}
+  #md-design-root .md-detail-row + .md-detail-row{border-top:1px solid var(--md-border-soft);padding-top:2px;margin-top:2px;}
+  #md-design-root .md-detail-label{width:56px;flex:none;font-size:11.5px;color:var(--md-text-4);}
+  #md-design-root .md-chip{
+    display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:9px;flex:none;
+    font-size:10.5px;font-weight:600;letter-spacing:.01em;
+  }
+  #md-design-root .md-chip--accent{background:var(--md-primary-light);color:var(--md-primary-deep);}
+  #md-design-root .md-chip--neutral{background:var(--md-surface-3);color:var(--md-text-4);}
+  #md-design-root .md-chip--danger{background:var(--md-danger-soft);color:var(--md-danger-text);}
+  #md-design-root .md-chip--success{background:var(--md-success-soft);color:var(--md-success-text);}
+  #md-design-root .md-path{
+    flex:1;min-width:0;height:24px;display:flex;align-items:center;padding:0 7px;
+    background:#FFFFFF;border:1px solid var(--md-border);border-radius:var(--md-radius-sm);
+    font-size:11px;color:var(--md-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  #md-design-root .md-copy{
+    width:24px;height:24px;flex:none;padding:0;border:1px solid transparent;border-radius:var(--md-radius-sm);
+    background:transparent;color:var(--md-text-4);display:inline-flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:background 150ms ease,color 150ms ease,border-color 150ms ease;
+  }
+  #md-design-root .md-copy svg{width:12px;height:12px;}
+  #md-design-root .md-copy:hover{background:#FFFFFF;border-color:var(--md-border);color:var(--md-primary-deep);}
+  #md-design-root .md-copy.is-done{color:var(--md-success-text);}
+  #md-design-root .md-hint{margin:10px 0 0;font-size:11.5px;line-height:1.6;color:var(--md-text-4);}
+  #md-design-root .md-question{margin:14px 0 0;font-size:13px;line-height:1.6;font-weight:500;color:var(--md-text);}
+
+  /* ---- 底栏 ---- */
+  #md-design-root .md-foot{
+    display:flex;align-items:center;gap:12px;margin-top:16px;padding:14px 20px 18px;
+    border-top:1px solid var(--md-border-soft);
+  }
+  #md-design-root .md-foot-hint{flex:1;min-width:0;font-size:11px;line-height:1.5;color:var(--md-text-4);}
+  #md-design-root .md-actions{display:flex;gap:8px;flex:none;}
+
+  /* ---- 按钮：五态齐全 ---- */
+  #md-design-root .md-btn{
+    height:32px;padding:0 14px;border:1px solid transparent;border-radius:var(--md-radius-md);
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    font-size:12.5px;font-weight:600;line-height:1;cursor:pointer;white-space:nowrap;
+    transition:background 150ms ease,border-color 150ms ease,color 150ms ease,box-shadow 150ms ease;
+  }
+  #md-design-root .md-btn--primary{background:var(--md-primary);border-color:var(--md-primary);color:#FFFFFF;}
+  #md-design-root .md-btn--primary:hover,#md-design-root .md-btn--primary.is-hover{background:var(--md-primary-strong);border-color:var(--md-primary-strong);}
+  #md-design-root .md-btn--primary:active,#md-design-root .md-btn--primary.is-pressed{background:var(--md-primary-deep);border-color:var(--md-primary-deep);}
+  #md-design-root .md-btn--secondary{background:#FFFFFF;border-color:var(--md-border);color:var(--md-text-2);}
+  #md-design-root .md-btn--secondary:hover,#md-design-root .md-btn--secondary.is-hover{background:var(--md-surface-2);border-color:var(--md-border-strong);color:var(--md-text);}
+  #md-design-root .md-btn--secondary:active,#md-design-root .md-btn--secondary.is-pressed{background:var(--md-surface-3);border-color:var(--md-border-strong);color:var(--md-text);}
+  #md-design-root .md-btn--danger{background:var(--md-danger);border-color:var(--md-danger);color:#FFFFFF;}
+  #md-design-root .md-btn--danger:hover,#md-design-root .md-btn--danger.is-hover{background:var(--md-danger-strong);border-color:var(--md-danger-strong);}
+  #md-design-root .md-btn--danger:active,#md-design-root .md-btn--danger.is-pressed{background:var(--md-danger-text);border-color:var(--md-danger-text);}
+  #md-design-root .md-btn--ghost{background:transparent;border-color:transparent;color:var(--md-text-2);}
+  #md-design-root .md-btn--ghost:hover,#md-design-root .md-btn--ghost.is-hover{background:var(--md-surface-3);color:var(--md-text);}
+  #md-design-root .md-btn.is-focus{box-shadow:0 0 0 2px #FFFFFF,0 0 0 4px rgba(14,165,233,.45);}
+  #md-design-root .md-btn--danger.is-focus{box-shadow:0 0 0 2px #FFFFFF,0 0 0 4px rgba(239,68,68,.45);}
+  #md-design-root .md-btn.is-disabled,#md-design-root .md-btn:disabled{opacity:.42;cursor:default;}
+
+  /* ---- 关闭后的结果态 ---- */
+  #md-design-root .md-result{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    display:none;align-items:center;gap:12px;padding:10px 12px 10px 14px;
+    background:#FFFFFF;border:1px solid var(--md-border);border-radius:10px;
+    box-shadow:0 12px 32px rgba(15,23,42,.16);
+  }
+  #md-design-root .md-result.is-on{display:flex;}
+  #md-design-root .md-result-dot{width:7px;height:7px;border-radius:50%;background:var(--md-success);}
+  #md-design-root .md-result-text{font-size:12px;color:var(--md-text-2);}
+  #md-design-root .md-result button{
+    height:26px;padding:0 10px;border:1px solid var(--md-border);border-radius:6px;background:#fff;
+    font-size:11.5px;font-weight:600;color:var(--md-primary-deep);cursor:pointer;
+  }
+  #md-design-root .md-result button:hover{background:var(--md-primary-soft);border-color:var(--md-primary-border);}
+
+  /* ===================== 规格区 ===================== */
+  #md-design-root .md-section{margin:34px auto 0;}
+  #md-design-root .md-section-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+  #md-design-root .md-section-title{margin:0;font-size:15px;font-weight:600;color:var(--md-text);}
+  #md-design-root .md-section-note{font-size:11.5px;color:var(--md-text-4);}
+  #md-design-root .md-card{
+    background:#FFFFFF;border:1px solid var(--md-border);border-radius:var(--md-radius-xl);padding:16px;
+  }
+
+  /* 审查清单 */
+  #md-design-root .md-check-list{display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;margin:0;padding:0;list-style:none;}
+  #md-design-root .md-check-list li{display:flex;align-items:flex-start;gap:9px;font-size:12px;line-height:1.65;color:var(--md-text-2);}
+  #md-design-root .md-check-box{
+    width:14px;height:14px;flex:none;margin-top:3px;border:1px solid var(--md-border-strong);
+    border-radius:4px;background:#FFFFFF;
+  }
+  #md-design-root .md-check-list b{color:var(--md-text);font-weight:600;}
+
+  /* 变体 */
+  #md-design-root .md-variants{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  #md-design-root .md-variant{display:flex;align-items:flex-start;gap:11px;padding:14px;}
+  #md-design-root .md-variant .md-icon{width:32px;height:32px;border-radius:9px;}
+  #md-design-root .md-variant .md-icon svg{width:16px;height:16px;}
+  #md-design-root .md-variant-name{font-size:12.5px;font-weight:600;color:var(--md-text);}
+  #md-design-root .md-variant-use{margin-top:3px;font-size:11px;line-height:1.55;color:var(--md-text-4);}
+
+  /* 按钮组合 */
+  #md-design-root .md-combos{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  #md-design-root .md-combo{display:flex;flex-direction:column;gap:10px;}
+  #md-design-root .md-combo-title{font-size:12.5px;font-weight:600;color:var(--md-text);}
+  #md-design-root .md-combo-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;min-height:32px;}
+  #md-design-root .md-combo-note{font-size:11px;line-height:1.6;color:var(--md-text-4);}
+
+  /* 五态 */
+  #md-design-root .md-states{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+  #md-design-root .md-state{display:flex;flex-direction:column;align-items:flex-start;gap:9px;}
+  #md-design-root .md-state-label{font-size:11px;color:var(--md-text-4);}
+  #md-design-root .md-state-label b{display:block;font-size:12px;font-weight:600;color:var(--md-text);margin-bottom:2px;}
+
+  /* 尺寸表 */
+  #md-design-root .md-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+  #md-design-root .md-table th{
+    text-align:left;font-weight:600;color:var(--md-text-4);font-size:10.5px;letter-spacing:.06em;
+    padding:8px 10px;border-bottom:1px solid var(--md-border);background:var(--md-surface-2);
+  }
+  #md-design-root .md-table td{padding:8px 10px;border-bottom:1px solid var(--md-border-soft);color:var(--md-text-2);vertical-align:top;}
+  #md-design-root .md-table tr:last-child td{border-bottom:0;}
+  #md-design-root .md-table td:first-child{color:var(--md-text);font-weight:500;}
+  #md-design-root .md-table code{font-size:10.5px;background:var(--md-surface-3);padding:1px 5px;border-radius:4px;color:var(--md-primary-deep);}
+  #md-design-root .md-table .md-num{font-family:var(--md-mono);white-space:nowrap;}
+
+  /* API 代码 */
+  #md-design-root .md-code{
+    margin:0;padding:14px 16px;border-radius:var(--md-radius-lg);
+    background:#0F172A;color:#E2E8F0;font-family:var(--md-mono);font-size:11px;line-height:1.75;
+    overflow:auto;
+  }
+  #md-design-root .md-code .k{color:#7DD3FC;}
+  #md-design-root .md-code .s{color:#BBF7D0;}
+  #md-design-root .md-code .c{color:#94A3B8;}
+
+  /* 改前 / 改后 */
+  #md-design-root .md-compare{display:grid;grid-template-columns:440px 1fr;gap:20px;align-items:start;}
+  #md-design-root .md-native{
+    width:420px;background:#F0F0F0;border:1px solid #8C8C8C;border-radius:0;
+    box-shadow:0 10px 30px rgba(15,23,42,.18);font-family:"Segoe UI","Microsoft YaHei UI",sans-serif;
+  }
+  #md-design-root .md-native-title{
+    height:30px;display:flex;align-items:center;padding:0 10px;background:#FFFFFF;
+    border-bottom:1px solid #E4E4E4;font-size:12px;color:#1B1B1B;
+  }
+  #md-design-root .md-native-title span:last-child{margin-left:auto;color:#666;font-size:13px;}
+  #md-design-root .md-native-body{display:flex;gap:14px;padding:18px 20px 14px;}
+  #md-design-root .md-native-icon{width:32px;height:32px;flex:none;color:#E5B800;}
+  #md-design-root .md-native-icon svg{width:32px;height:32px;}
+  #md-design-root .md-native-text{font-size:12px;line-height:1.6;color:#1B1B1B;white-space:pre-line;}
+  #md-design-root .md-native-foot{display:flex;justify-content:center;gap:10px;padding:0 20px 18px;}
+  #md-design-root .md-native-btn{
+    width:92px;height:26px;border:1px solid #ADADAD;background:#E1E1E1;border-radius:0;
+    font-size:12px;color:#1B1B1B;
+  }
+  #md-design-root .md-native-btn.is-default{border-color:#0078D4;box-shadow:inset 0 0 0 1px #0078D4;}
+  #md-design-root .md-problems{margin:0;padding:0 0 0 18px;font-size:12px;line-height:1.9;color:var(--md-text-2);}
+  #md-design-root .md-problems b{color:var(--md-text);font-weight:600;}
+
+  /* 页脚 */
+  #md-design-root .md-page-foot{
+    margin-top:36px;padding-top:14px;border-top:1px solid var(--md-border);
+    font-size:11px;line-height:1.7;color:var(--md-text-4);
+  }
+
+  @media (max-width:1080px){
+    #md-design-root .md-stage{height:auto;aspect-ratio:1040/640;}
+    #md-design-root .md-variants{grid-template-columns:repeat(2,1fr);}
+    #md-design-root .md-combos{grid-template-columns:1fr;}
+    #md-design-root .md-compare{grid-template-columns:1fr;}
+  }
+</style>
+
+<div class="md-page">
+  <header class="md-page-head">
+    <div class="md-page-title-row">
+      <span class="md-page-kicker">UI 设计基线</span>
+      <h1>公共消息弹窗 · MessageDialog</h1>
+      <span class="md-ver">v1</span>
+    </div>
+    <p class="md-page-sub">
+      把散落的系统 <code>MessageBox</code> 与 <code>EasyDialog</code> 纯代码弹窗，收成 UI 库里的<strong>一个公共组件</strong>：
+      语义图标 + 结构化的「详情」区 + 主次分明的按钮 + 键盘可达。本页是<strong>设计媒介，不是交付物</strong>（R126）；
+      确认后再按本基线复刻到 WPF，复刻证据与差异清单另附。
+    </p>
+
+    <div class="md-demo-bar">
+      <div class="md-demo-group">
+        <span class="md-demo-label">场景</span>
+        <div class="md-seg" id="md-scene-seg" role="group" aria-label="场景">
+          <button type="button" data-scene="recovery" class="is-on">现场恢复</button>
+          <button type="button" data-scene="info">信息</button>
+          <button type="button" data-scene="success">成功</button>
+          <button type="button" data-scene="warning">警示</button>
+          <button type="button" data-scene="danger">危险确认</button>
+        </div>
+      </div>
+      <div class="md-demo-group">
+        <span class="md-demo-label">宽度</span>
+        <div class="md-seg" id="md-width-seg" role="group" aria-label="宽度">
+          <button type="button" data-width="480" class="is-on">480</button>
+          <button type="button" data-width="560">560</button>
+        </div>
+      </div>
+      <div class="md-demo-group">
+        <span class="md-demo-label">详情区</span>
+        <div class="md-seg" id="md-detail-seg" role="group" aria-label="详情区">
+          <button type="button" data-detail="1" class="is-on">显示</button>
+          <button type="button" data-detail="0">隐藏</button>
+        </div>
+      </div>
+    </div>
+
+    <p class="md-scope">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      <span>键盘可直接操作：<b>Enter</b> 主操作、<b>Esc</b> 关闭、<b>Y / N</b> 保留旧 MessageBox 的肌肉记忆（不出现在界面上）。危险场景默认焦点落在「取消」，<b>Enter 不会删除</b>。</span>
+    </p>
+  </header>
+
+  <!-- ======================= 舞台 ======================= -->
+  <main class="md-stage" aria-label="弹窗预览">
+    <div class="md-app" aria-hidden="true">
+      <div class="md-app-titlebar">
+        <span class="md-app-logo">V</span>
+        <span class="md-app-name">VisionMaster</span>
+        <nav class="md-app-menu"><span>文件</span><span>编辑</span><span>视图</span><span>运行</span><span>帮助</span></nav>
+        <span class="md-app-user">操作员 · 张工</span>
+      </div>
+      <div class="md-app-body">
+        <aside class="md-app-left">
+          <div class="md-app-panel-title">流程</div>
+          <div class="md-app-flow is-on"><span class="md-app-dot"></span>检测主流程<em>12</em></div>
+          <div class="md-app-flow"><span class="md-app-dot"></span>上料定位<em>8</em></div>
+          <div class="md-app-flow"><span class="md-app-dot"></span>结果上传<em>5</em></div>
+          <div class="md-app-panel-title">程序</div>
+          <div class="md-app-flow">图像采集<em>CAM-01</em></div>
+          <div class="md-app-flow">斑点检测<em>Blob</em></div>
+          <div class="md-app-flow">结果判断<em>If</em></div>
+        </aside>
+        <div class="md-app-canvas">
+          <svg class="md-app-wire" viewBox="0 0 584 576" preserveAspectRatio="none">
+            <path d="M180 48 H 400" fill="none" stroke="#CBD5E1" stroke-width="1.5"/>
+            <path d="M466 72 V 522 H 180" fill="none" stroke="#CBD5E1" stroke-width="1.5" stroke-dasharray="4 4"/>
+          </svg>
+          <div class="md-app-node" style="left:48px;top:24px;">图像采集<small>CAM-01 · 12.3 ms</small></div>
+          <div class="md-app-node" style="left:400px;top:24px;">斑点检测<small>BlobDetect</small></div>
+          <div class="md-app-node is-sel" style="left:48px;top:520px;">结果判断<small>Score &gt; 80</small></div>
+          <div class="md-app-node" style="left:400px;top:520px;">结果上传<small>FTP</small></div>
+        </div>
+        <aside class="md-app-right">
+          <div class="md-app-panel-title">属性</div>
+          <div class="md-app-prop"><span>算子</span><b>斑点检测</b></div>
+          <div class="md-app-prop"><span>运行状态</span><b style="color:#15803D;">成功</b></div>
+          <div class="md-app-prop"><span>耗时</span><b>12.3 ms</b></div>
+          <div class="md-app-prop"><span>输出</span><b>Count = 3</b></div>
+          <div class="md-app-panel-title" style="margin-top:8px;">图层</div>
+          <div class="md-app-prop"><span>标注</span><b>显示</b></div>
+          <div class="md-app-prop"><span>图像</span><b>原始</b></div>
+        </aside>
+      </div>
+      <div class="md-app-status"><span class="is-ok">● 就绪</span><span>方案：视觉检测线-2026</span><span>流程：检测主流程</span><span style="margin-left:auto;">CPU 12% · 内存 486 MB</span></div>
+    </div>
+
+    <div class="md-scrim" id="md-scrim"></div>
+    <div class="md-host" id="md-host"></div>
+    <div class="md-result" id="md-result">
+      <span class="md-result-dot"></span>
+      <span class="md-result-text">已选择：打开目录</span>
+      <button type="button" id="md-reopen">重新打开弹窗</button>
+    </div>
+  </main>
+
+  <!-- ======================= 审查清单 ======================= -->
+  <section class="md-section">
+    <div class="md-section-head">
+      <h2 class="md-section-title">审查清单</h2>
+      <span class="md-section-note">请重点看这几项，确认后冻结 v1</span>
+    </div>
+    <div class="md-card">
+      <ul class="md-check-list">
+        <li><span class="md-check-box"></span><span><b>详情区是否成立</b>：路径从一段话里拎出来，做成「标签 + 数量 + 等宽路径 + 复制」，比原对话框更好扫读。</span></li>
+        <li><span class="md-check-box"></span><span><b>主次是否清楚</b>：「打开目录」是唯一主色按钮，「稍后再说」是次要按钮；不再出现两颗同宽的「是(Y)/否(N)」。</span></li>
+        <li><span class="md-check-box"></span><span><b>危险确认是否安全</b>：红色只给「删除分组」，且默认焦点在「取消」，Enter 不会执行删除。</span></li>
+        <li><span class="md-check-box"></span><span><b>四种语义是否够用</b>：信息 / 成功 / 警示 / 危险，图标底色与语义一一对应，不再用系统黄三角。</span></li>
+        <li><span class="md-check-box"></span><span><b>480 宽是否够</b>：现场恢复的两行详情在 480 下完整可读；560 档留给更长的路径或多行说明。</span></li>
+        <li><span class="md-check-box"></span><span><b>是否保留 Y / N</b>：界面只显示动作文字，Y/N 作为隐藏快捷键保留，老用户不必改习惯。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ======================= 四种语义 ======================= -->
+  <section class="md-section">
+    <div class="md-section-head">
+      <h2 class="md-section-title">四种语义</h2>
+      <span class="md-section-note">图标块 36 × 36 / 圆角 10；底色取语义浅底，描边同族</span>
+    </div>
+    <div class="md-variants">
+      <div class="md-card md-variant">
+        <span class="md-icon md-icon--info">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        </span>
+        <div><div class="md-variant-name">信息 Info</div><div class="md-variant-use">流程提示、可继续的说明、需要用户选择下一步。</div></div>
+      </div>
+      <div class="md-card md-variant">
+        <span class="md-icon md-icon--success">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg>
+        </span>
+        <div><div class="md-variant-name">成功 Success</div><div class="md-variant-use">保存完成、编译通过、上传成功；通常只有一个「好」。</div></div>
+      </div>
+      <div class="md-card md-variant">
+        <span class="md-icon md-icon--warning">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        </span>
+        <div><div class="md-variant-name">警示 Warning</div><div class="md-variant-use">现场恢复、通讯未连接、参数可能不生效。</div></div>
+      </div>
+      <div class="md-card md-variant">
+        <span class="md-icon md-icon--danger">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>
+        </span>
+        <div><div class="md-variant-name">危险 Danger</div><div class="md-variant-use">删除、覆盖、放弃未保存修改；主按钮红色，默认焦点在取消。</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= 按钮组合 ======================= -->
+  <section class="md-section">
+    <div class="md-section-head">
+      <h2 class="md-section-title">按钮组合</h2>
+      <span class="md-section-note">按钮高 32 / 圆角 8 / 间距 8；主操作永远在最右</span>
+    </div>
+    <div class="md-combos">
+      <div class="md-card md-combo">
+        <div class="md-combo-title">单按钮 · 告知</div>
+        <div class="md-combo-row"><button type="button" class="md-btn md-btn--primary">好</button></div>
+        <div class="md-combo-note">只报告结果，不需要决策。Enter / Esc 都关闭。</div>
+      </div>
+      <div class="md-card md-combo">
+        <div class="md-combo-title">双按钮 · 选择</div>
+        <div class="md-combo-row">
+          <button type="button" class="md-btn md-btn--secondary">稍后再说</button>
+          <button type="button" class="md-btn md-btn--primary">打开目录</button>
+        </div>
+        <div class="md-combo-note">本组件的主形态。取消在左、主操作在右；Esc 走取消。</div>
+      </div>
+      <div class="md-card md-combo">
+        <div class="md-combo-title">三按钮 · 保存决策</div>
+        <div class="md-combo-row">
+          <button type="button" class="md-btn md-btn--ghost">取消</button>
+          <button type="button" class="md-btn md-btn--secondary">不保存</button>
+          <button type="button" class="md-btn md-btn--primary">保存</button>
+        </div>
+        <div class="md-combo-note">用于「关闭前有未保存修改」。不保存是次要按钮，不涂红。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= 五态 ======================= -->
+  <section class="md-section">
+    <div class="md-section-head">
+      <h2 class="md-section-title">组件五态</h2>
+      <span class="md-section-note">主操作按钮；其余变体共用同一套状态表现（R115）</span>
+    </div>
+    <div class="md-card">
+      <div class="md-states">
+        <div class="md-state">
+          <button type="button" class="md-btn md-btn--primary">打开目录</button>
+          <div class="md-state-label"><b>Normal</b>#0EA5E9</div>
+        </div>
+        <div class="md-state">
+          <button type="button" class="md-btn md-btn--primary is-hover">打开目录</button>
+          <div class="md-state-label"><b>Hover</b>#0284C7</div>
+        </div>
+        <div class="md-state">
+          <button type="button" class="md-btn md-btn--primary is-pressed">打开目录</button>
+          <div class="md-state-label"><b>Pressed</b>#0369A1</div>
+        </div>
+        <div class="md-state">
+          <button type="button" class="md-btn md-btn--primary is-focus">打开目录</button>
+          <div class="md-state-label"><b>Focus</b>2px 外环 + 2px 间隙</div>
+        </div>
+        <div class="md-state">
+          <button type="button" class="md-btn md-btn--primary is-disabled" disabled>打开目录</button>
+          <div class="md-state-label"><b>Disabled</b>整体 42%</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= 尺寸与间距 ======================= -->
+  <section class="md-section">
+    <div class="md-section-head">
+      <h2 class="md-section-title">尺寸与间距</h2>
+      <span class="md-section-note">4 的倍数刻度；WPF 复刻按同一组数字，不按 px 硬套字体</span>
+    </div>
+    <div class="md-card" style="padding:0;overflow:hidden;">
+      <table class="md-table">
+        <thead><tr><th style="width:200px;">元素</th><th style="width:180px;">尺寸 / 值</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>卡片宽度</td><td class="md-num">480 / 560</td><td>两档。默认 480；详情路径更长或多行说明时用 560。</td></tr>
+          <tr><td>卡片圆角</td><td class="md-num">12px</td><td>与 <code>DialogCardShadow</code> 的既有圆角一致，不另造一档。</td></tr>
+          <tr><td>卡片内边距</td><td class="md-num">20 / 20 / 18</td><td>左右 20；头部上 20；底栏下 18。</td></tr>
+          <tr><td>图标块</td><td class="md-num">36 × 36 · r10</td><td>字形 18px 描边图标，语义色 + 同族浅底。</td></tr>
+          <tr><td>图标 ↔ 标题</td><td class="md-num">12px</td><td>标题 16px / 600 / 行高 22。</td></tr>
+          <tr><td>正文</td><td class="md-num">13px / 1.75</td><td>颜色 <code>DialogTextSecondaryBrush</code>；强调词用主文本色 + 600。</td></tr>
+          <tr><td>详情面板</td><td class="md-num">r10 · p10/12</td><td>底 <code>DialogRowAlternateBrush</code>，描边 <code>DialogBorderLightBrush</code>；行高 28。</td></tr>
+          <tr><td>路径框</td><td class="md-num">h24 · 11px 等宽</td><td>白底 + 1px 描边 + 6px 圆角；超长省略，悬停显示全路径。</td></tr>
+          <tr><td>问题行</td><td class="md-num">13px / 500</td><td>与上文间隔 14；这是「要用户回答的那句话」，用主文本色。</td></tr>
+          <tr><td>底栏</td><td class="md-num">分隔线 1px + p14/20/18</td><td>分隔线 <code>DialogBorderLightBrush</code>，只做安静的分区，不抢视觉。</td></tr>
+          <tr><td>按钮</td><td class="md-num">h32 · p0/14 · r8</td><td>字 12.5 / 600；按钮间距 8；主操作永远最右。</td></tr>
+          <tr><td>关闭按钮</td><td class="md-num">30 × 30 · r8</td><td>距右 20、距上 20；复用 <code>DialogIconButton</code>（MinWidth/MinHeight=30），悬停出浅灰底，不做红底。</td></tr>
+          <tr><td>快捷键提示</td><td class="md-num">11px</td><td>底栏左侧，<code>DialogTextMutedBrush</code>；危险场景文案改成「Enter 取消」。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ======================= 令牌映射 ======================= -->
+  <section class="md-section">
+    <div class="md-section-head">
+      <h2 class="md-section-title">令牌映射</h2>
+      <span class="md-section-note">CSS 变量 → <code>UI/Controls/Themes/Colors.xaml</code>；新增 1 个颜色键 <code>DialogTextTertiaryBrush</code></span>
+    </div>
+    <div class="md-card" style="padding:0;overflow:hidden;">
+      <table class="md-table">
+        <thead><tr><th style="width:210px;">设计变量</th><th style="width:150px;">值</th><th>WPF 资源键</th></tr></thead>
+        <tbody>
+          <tr><td><code>--md-surface</code></td><td class="md-num">#FFFFFF</td><td><code>DialogSurfaceBrush</code></td></tr>
+          <tr><td><code>--md-card-border</code></td><td class="md-num">#E3E9F2</td><td><code>DialogCardBorderBrush</code></td></tr>
+          <tr><td><code>--md-surface-2</code></td><td class="md-num">#F8FAFC</td><td><code>DialogRowAlternateBrush</code></td></tr>
+          <tr><td><code>--md-surface-3</code></td><td class="md-num">#F1F5F9</td><td><code>DialogRowHoverBrush</code></td></tr>
+          <tr><td><code>--md-border</code></td><td class="md-num">#E2E8F0</td><td><code>DialogBorderBrush</code></td></tr>
+          <tr><td><code>--md-border-soft</code></td><td class="md-num">#EEF2F7</td><td><code>DialogBorderLightBrush</code></td></tr>
+          <tr><td><code>--md-border-strong</code></td><td class="md-num">#CBD5E1</td><td><code>DialogBorderStrongBrush</code></td></tr>
+          <tr><td><code>--md-text</code></td><td class="md-num">#0F172A</td><td><code>DialogTextPrimaryBrush</code></td></tr>
+          <tr><td><code>--md-text-2</code></td><td class="md-num">#475569</td><td><code>DialogTextSecondaryBrush</code></td></tr>
+          <tr><td><code>--md-text-3</code></td><td class="md-num">#94A3B8</td><td><code>DialogTextMutedBrush</code>（仅占位 / 禁用）</td></tr>
+          <tr><td><code>--md-text-4</code></td><td class="md-num">#64748B</td><td><code>DialogTextTertiaryBrush</code>（新增，11~12px 说明文字，4.8:1）</td></tr>
+          <tr><td><code>--md-primary</code></td><td class="md-num">#0EA5E9</td><td><code>DialogAccentBrush</code></td></tr>
+          <tr><td><code>--md-primary-strong</code></td><td class="md-num">#0284C7</td><td><code>DialogAccentDarkBrush</code></td></tr>
+          <tr><td><code>--md-primary-deep</code></td><td class="md-num">#0369A1</td><td><code>DialogAccentTextBrush</code></td></tr>
+          <tr><td><code>--md-primary-soft</code></td><td class="md-num">#F0F9FF</td><td><code>DialogAccentSoftBrush</code></td></tr>
+          <tr><td><code>--md-primary-light</code></td><td class="md-num">#E0F2FE</td><td><code>DialogAccentLightBrush</code></td></tr>
+          <tr><td><code>--md-primary-border</code></td><td class="md-num">#BAE6FD</td><td><code>DialogAccentBorderBrush</code></td></tr>
+          <tr><td><code>--md-success*</code></td><td class="md-num">#22C55E / #15803D<br>#F0FDF4 / #BBF7D0</td><td><code>DialogSuccessBrush</code> / <code>DialogSuccessTextBrush</code><br><code>DialogSuccessSubtleBrush</code> / <code>DialogSuccessBorderBrush</code></td></tr>
+          <tr><td><code>--md-warning*</code></td><td class="md-num">#F59E0B / #B45309<br>#FFF4E5 / #FDE68A</td><td><code>DialogWarningBrush</code> / <code>DialogWarningTextBrush</code><br><code>DialogWarningSubtleBrush</code> / <code>DialogWarningBorderBrush</code></td></tr>
+          <tr><td><code>--md-danger*</code></td><td class="md-num">#EF4444 / #B91C1C<br>#FEF2F2 / #FECACA</td><td><code>DialogDangerBrush</code> / <code>DialogDangerTextBrush</code><br><code>DialogDangerSubtleBrush</code> / <code>DialogDangerBorderBrush</code></td></tr>
+          <tr><td>投影</td><td class="md-num">0 26 64 / .30</td><td><code>DropShadowEffect</code> + <code>DialogShadowColor</code>（单层，WPF 不做多层阴影）</td></tr>
+          <tr><td>字体</td><td class="md-num">Segoe UI / 微软雅黑</td><td>系统字体族；路径用 Cascadia Mono / Consolas</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ======================= API ======================= -->
+  <section class="md-section">
+    <div class="md-section-head">
+      <h2 class="md-section-title">组件 API 建议</h2>
+      <span class="md-section-note">宿主沿用 EasyDialog 的透明遮罩窗口与线程保护，只替换卡片视觉</span>
+    </div>
+    <div class="md-card" style="padding:0;overflow:hidden;">
+      <pre class="md-code"><span class="c">// UI 库：UI.CustomControl.MessageDialog</span>
+<span class="c">// 不新建第二套弹窗引擎：内部仍走 EasyDialog 的遮罩窗口 / 并发锁 / 取消保护，</span>
+<span class="c">// 只把 BuildDialogUI 的纯代码视觉树换成这套卡片。</span>
+var result = <span class="k">MessageDialog</span>.Show(<span class="k">new</span> MessageDialogOptions
+{
+    Severity      = MessageSeverity.Warning,
+    Title         = <span class="s">"上次运行的现场"</span>,
+    Message       = <span class="s">"检测到 1 份未保存的方案草稿，已归档到下面的位置。"</span>,
+    Details       =
+    {
+        <span class="k">new</span>(<span class="s">"方案草稿"</span>, <span class="s">"1 份"</span>, <span class="s">@"Autosave\recovered"</span>),
+        <span class="k">new</span>(<span class="s">"崩溃现场"</span>, <span class="s">"1 个"</span>, <span class="s">@"crash_reports\20261020-091233"</span>),
+    },
+    Hint          = <span class="s">"可用「打开方案」载入草稿继续编辑。"</span>,
+    Question      = <span class="s">"现在打开草稿所在目录吗？"</span>,
+    PrimaryText   = <span class="s">"打开目录"</span>,
+    SecondaryText = <span class="s">"稍后再说"</span>,
+    <span class="c">// 危险动作：PrimaryTone = MessageTone.Danger，且默认焦点自动落在取消</span>
+});
+
+<span class="k">if</span> (result == MessageResult.Primary)
+    Process.Start(<span class="k">new</span> ProcessStartInfo(<span class="s">"explorer.exe"</span>, <span class="s">$"\""{dir}\""</span>) { UseShellExecute = <span class="k">true</span> });</pre>
+    </div>
+  </section>
+
+  <!-- ======================= 改前 / 改后 ======================= -->
+  <section class="md-section">
+    <div class="md-section-head">
+      <h2 class="md-section-title">改前 → 改后</h2>
+      <span class="md-section-note">同一个「上次运行的现场」场景</span>
+    </div>
+    <div class="md-card md-compare">
+      <div>
+        <div class="md-native">
+          <div class="md-native-title"><span>上次运行的现场</span><span>✕</span></div>
+          <div class="md-native-body">
+            <span class="md-native-icon">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6 1.5 21h21L12 2.6Zm-1.1 6.3h2.2v6.2h-2.2V8.9Zm0 7.6h2.2v2.2h-2.2v-2.2Z"/></svg>
+            </span>
+            <div class="md-native-text">检测到 1 份未保存的方案草稿，已归档到：
+Autosave\recovered
+可用「打开方案」载入继续编辑。
+
+是否现在打开所在目录？</div>
+          </div>
+          <div class="md-native-foot">
+            <button type="button" class="md-native-btn is-default">是(Y)</button>
+            <button type="button" class="md-native-btn">否(N)</button>
+          </div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--md-text-3);">改前：系统 MessageBox（不可样式化）</div>
+      </div>
+      <div>
+        <ul class="md-problems">
+          <li><b>系统字体与方角按钮</b>：和青蓝设计系统不是一套语言，同屏切换像两个软件。</li>
+          <li><b>黄三角是唯一语义</b>：信息 / 成功 / 警示 / 危险全用同一颗图标，分不出轻重。</li>
+          <li><b>路径埋在正文里</b>：不可复制、不可悬停看全，长路径直接换行。</li>
+          <li><b>「是(Y)/否(N)」不可自解释</b>：用户得先读完整段话才知道「是」是什么动作。</li>
+          <li><b>没有主次</b>：两颗按钮同宽同色，「是」还被系统默认框包住。</li>
+          <li><b>没有焦点与键盘契约</b>：Esc、Enter、Y/N 的行为由系统决定，无法和产品口径对齐。</li>
+        </ul>
+        <p class="md-page-sub" style="margin:14px 0 0;font-size:11.5px;">
+          改后（见上方舞台）：语义图标块 + 结构化详情 + 动作化按钮 + 明确键盘契约；
+          全部走 <code>Dialog*</code> 令牌，换肤时跟着变。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= WPF 复刻 ======================= -->
+  <section class="md-section">
+    <div class="md-section-head">
+      <h2 class="md-section-title">WPF 复刻映射</h2>
+      <span class="md-section-note">第 ③ 步计划；本页只冻结设计，不改桌面端</span>
+    </div>
+    <div class="md-card" style="padding:0;overflow:hidden;">
+      <table class="md-table">
+        <thead><tr><th style="width:210px;">设计项</th><th>WPF 实现</th></tr></thead>
+        <tbody>
+          <tr><td>宿主与遮罩</td><td>沿用 <code>EasyDialog.InternalExecuteAsync</code> 的透明遮罩窗口（Owner 跟随、并发锁、Esc 取消、关闭兜底），只替换 <code>BuildDialogUI</code> 的视觉树；不新建弹窗引擎。</td></tr>
+          <tr><td>卡片</td><td>新增 <code>DialogMessageCard</code>（<code>Dialog.Message.xaml</code>）：白底、12px 圆角、1px <code>DialogCardBorderBrush</code>、单层 <code>DropShadowEffect</code>。</td></tr>
+          <tr><td>图标块</td><td><code>DialogMessageIcon</code> + 四个语义变体（Info/Success/Warning/Danger）：36×36、r10、浅底 + 同族描边；字形走 <code>DialogIconFont</code>。</td></tr>
+          <tr><td>标题 / 正文 / 问题</td><td><code>DialogMessageTitle</code> / <code>DialogMessageLead</code> / <code>DialogMessageHint</code> / <code>DialogMessageQuestion</code>（<code>Dialog.Message.xaml</code>）。</td></tr>
+          <tr><td>详情面板</td><td><code>DialogMessageDetails</code>（<code>Dialog.Message.xaml</code>）+ 行模板：标签 56 / 数量 chip（视图层引用 <code>DialogChip*</code>）/ 等宽路径 / 复制按钮（<code>DialogMessageCopyButton</code>，24×24，定义在 <code>FluentAliases.xaml</code>）。</td></tr>
+          <tr><td>按钮</td><td>新增组件按钮族 <code>DialogMessagePrimaryButton</code> / <code>DialogMessageSecondaryButton</code> / <code>DialogMessageDangerButton</code>（定义在 <code>FluentAliases.xaml</code>，基于 <code>FluentButtonStyle</code>，分别用 <code>DialogAccentBrush</code> / Dialog 描边与文字令牌 / <code>DialogDangerBrush</code>）；<b>不复用 <code>DialogPrimaryButton</code></b>——它指向 Fluent 的 <code>#0078D4</code>，会把青蓝体系劈成两套蓝（见 README 决策 D1）。</td></tr>
+          <tr><td>焦点 / ToolTip</td><td>所有可聚焦控件挂 <code>DialogFocusVisual</code>；复制、关闭、超长路径挂 <code>DialogToolTipStyle</code>（R135）。</td></tr>
+          <tr><td>键盘</td><td>主按钮 <code>IsDefault</code>、次按钮 <code>IsCancel</code>；危险场景把 <code>IsDefault</code> 放到取消；<code>PreviewKeyDown</code> 里接 Y/N。</td></tr>
+          <tr><td>危险场景</td><td>默认焦点 = 取消；主按钮红色但<b>不</b>是 <code>IsDefault</code>；文案「删除分组」明确动作对象。</td></tr>
+          <tr><td>迁移调用点</td><td>先接 <code>EasyDialog.ShowSync</code> 家族（视觉统一），再逐处替换 <code>MessageBox.Show</code>（App 现场恢复、布局加载/重置、图像视图、报警历史）。每处保留原命令与返回值语义。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="md-page-foot">
+    <p style="margin:0;">
+      本页是设计基线（Web 形式），不参与构建、不部署（R126-R128）。确认后升版规则：
+      改设计 → <code>design.html</code> 升 v2 + 本目录 README 更新版本/日期/确认人 + 同步已复刻的 WPF 页面与令牌映射表。
+    </p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var root = document.getElementById('md-design-root');
+  var host = root.querySelector('#md-host');
+  var scrim = root.querySelector('#md-scrim');
+  var result = root.querySelector('#md-result');
+  var resultText = result.querySelector('.md-result-text');
+  var reopen = root.querySelector('#md-reopen');
+  var sceneSeg = root.querySelector('#md-scene-seg');
+  var widthSeg = root.querySelector('#md-width-seg');
+  var detailSeg = root.querySelector('#md-detail-seg');
+
+  var ICONS = {
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+    success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg>',
+    warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
+    danger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>',
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>'
+  };
+
+  var SCENES = {
+    recovery: {
+      severity: 'warning',
+      title: '上次运行的现场',
+      lead: '检测到 <b>1 份</b>未保存的方案草稿，已归档到下面的位置。',
+      details: [
+        { label: '方案草稿', chip: '1 份', tone: 'accent', path: 'Autosave\\recovered' },
+        { label: '崩溃现场', chip: '1 个', tone: 'neutral', path: 'crash_reports\\20261020-091233' }
+      ],
+      hint: '可用「打开方案」载入草稿继续编辑。',
+      question: '现在打开草稿所在目录吗？',
+      primary: { text: '打开目录', tone: 'primary', action: '打开目录' },
+      secondary: { text: '稍后再说', tone: 'secondary', action: '稍后再说' },
+      defaultAction: 'primary',
+      footHint: 'Enter 打开目录 · Esc 稍后再说'
+    },
+    info: {
+      severity: 'info',
+      title: '流程尚未编译',
+      lead: '当前流程还没有编译。编译通过后即可运行，结果会显示在下方输出面板。',
+      details: null,
+      hint: '',
+      question: '是否立即编译并运行？',
+      primary: { text: '编译并运行', tone: 'primary', action: '编译并运行' },
+      secondary: { text: '取消', tone: 'secondary', action: '取消' },
+      defaultAction: 'primary',
+      footHint: 'Enter 编译并运行 · Esc 取消'
+    },
+    success: {
+      severity: 'success',
+      title: '方案已保存',
+      lead: '方案「视觉检测线-2026」已写入磁盘，共 <b>12 个流程</b>、<b>86 个算子</b>。',
+      details: [
+        { label: '文件', chip: '已写入', tone: 'success', path: 'D:\\Projects\\现场方案\\视觉检测线-2026.vms' }
+      ],
+      hint: '',
+      question: '',
+      primary: { text: '好', tone: 'primary', action: '好' },
+      secondary: null,
+      defaultAction: 'primary',
+      footHint: 'Enter 关闭'
+    },
+    warning: {
+      severity: 'warning',
+      title: '通讯未连接',
+      lead: '相机 CAM-01 与 PLC（192.168.1.10）均未连接。流程仍可运行，但图像采集会失败。',
+      details: [
+        { label: '相机', chip: '离线', tone: 'danger', path: 'CAM-01 · GigE' },
+        { label: 'PLC', chip: '离线', tone: 'danger', path: '192.168.1.10:502' }
+      ],
+      hint: '',
+      question: '现在打开通讯设置吗？',
+      primary: { text: '打开通讯设置', tone: 'primary', action: '打开通讯设置' },
+      secondary: { text: '忽略并继续', tone: 'secondary', action: '忽略并继续' },
+      defaultAction: 'primary',
+      footHint: 'Enter 打开通讯设置 · Esc 忽略并继续'
+    },
+    danger: {
+      severity: 'danger',
+      title: '删除并行分组「分拣」',
+      lead: '该分组包含 <b>3 条分支</b>、共 <b>12 个算子</b>。删除后可以用 Ctrl+Z 撤销。',
+      details: null,
+      hint: '',
+      question: '确定要删除这个分组吗？',
+      primary: { text: '删除分组', tone: 'danger', action: '删除分组' },
+      secondary: { text: '取消', tone: 'secondary', action: '取消' },
+      defaultAction: 'secondary',
+      footHint: 'Enter 取消 · 删除需点击或 Tab 到「删除分组」'
+    }
+  };
+
+  var state = { scene: 'recovery', width: 480, details: true, open: true, resultText: '已选择：打开目录' };
+
+  function esc(text) {
+    return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function detailsHtml(scene) {
+    if (!state.details || !scene.details || !scene.details.length) return '';
+    var rows = scene.details.map(function (d) {
+      return '<div class="md-detail-row">' +
+        '<span class="md-detail-label">' + esc(d.label) + '</span>' +
+        '<span class="md-chip md-chip--' + d.tone + '">' + esc(d.chip) + '</span>' +
+        '<code class="md-path" title="' + esc(d.path) + '">' + esc(d.path) + '</code>' +
+        '<button type="button" class="md-copy" data-copy="' + esc(d.path) + '" title="复制路径" aria-label="复制路径">' + ICONS.copy + '</button>' +
+        '</div>';
+    }).join('');
+    return '<div class="md-details">' + rows + '</div>';
+  }
+
+  function dialogHtml(scene) {
+    var actions = '';
+    if (scene.secondary) {
+      actions += '<button type="button" class="md-btn md-btn--' + scene.secondary.tone + '" data-act="secondary">' + esc(scene.secondary.text) + '</button>';
+    }
+    actions += '<button type="button" class="md-btn md-btn--' + scene.primary.tone + '" data-act="primary">' + esc(scene.primary.text) + '</button>';
+
+    return '<div class="md-dialog" role="dialog" aria-modal="true" aria-labelledby="md-title" style="width:' + state.width + 'px">' +
+      '<div class="md-head">' +
+        '<span class="md-icon md-icon--' + scene.severity + '">' + ICONS[scene.severity] + '</span>' +
+        '<h2 class="md-title" id="md-title">' + esc(scene.title) + '</h2>' +
+        '<button type="button" class="md-close" data-act="close" title="关闭（Esc）" aria-label="关闭">' + ICONS.close + '</button>' +
+      '</div>' +
+      '<div class="md-body">' +
+        '<p class="md-lead">' + scene.lead + '</p>' +
+        detailsHtml(scene) +
+        (scene.hint ? '<p class="md-hint">' + esc(scene.hint) + '</p>' : '') +
+        (scene.question ? '<p class="md-question">' + esc(scene.question) + '</p>' : '') +
+      '</div>' +
+      '<div class="md-foot">' +
+        '<span class="md-foot-hint">' + esc(scene.footHint) + '</span>' +
+        '<div class="md-actions">' + actions + '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function syncSegs() {
+    Array.prototype.forEach.call(sceneSeg.querySelectorAll('button'), function (b) {
+      var on = b.getAttribute('data-scene') === state.scene;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    Array.prototype.forEach.call(widthSeg.querySelectorAll('button'), function (b) {
+      var on = Number(b.getAttribute('data-width')) === state.width;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    Array.prototype.forEach.call(detailSeg.querySelectorAll('button'), function (b) {
+      var on = (b.getAttribute('data-detail') === '1') === state.details;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.disabled = !SCENES[state.scene].details;
+    });
+  }
+
+  function render() {
+    var scene = SCENES[state.scene];
+    host.innerHTML = state.open ? dialogHtml(scene) : '';
+    scrim.classList.toggle('is-off', !state.open);
+    result.classList.toggle('is-on', !state.open);
+    resultText.textContent = state.resultText;
+    syncSegs();
+
+    if (state.open) {
+      var which = scene.defaultAction === 'secondary' ? 'secondary' : 'primary';
+      var target = host.querySelector('[data-act="' + which + '"]');
+      if (target) target.focus({ preventScroll: true });
+    }
+  }
+
+  function closeWith(which) {
+    var scene = SCENES[state.scene];
+    var action = which === 'primary' ? scene.primary.action : (scene.secondary ? scene.secondary.action : '关闭');
+    state.open = false;
+    state.resultText = '已选择：' + action;
+    render();
+  }
+
+  host.addEventListener('click', function (e) {
+    var copy = e.target.closest('[data-copy]');
+    if (copy) {
+      var text = copy.getAttribute('data-copy');
+      var done = function () {
+        copy.classList.add('is-done');
+        copy.innerHTML = ICONS.check;
+        setTimeout(function () {
+          copy.classList.remove('is-done');
+          copy.innerHTML = ICONS.copy;
+        }, 1400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, done);
+      } else {
+        done();
+      }
+      return;
+    }
+    var act = e.target.closest('[data-act]');
+    if (!act) return;
+    var which = act.getAttribute('data-act');
+    closeWith(which === 'close' ? 'secondary' : which);
+  });
+
+  sceneSeg.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-scene]');
+    if (!b) return;
+    state.scene = b.getAttribute('data-scene');
+    state.open = true;
+    render();
+  });
+
+  widthSeg.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-width]');
+    if (!b) return;
+    state.width = Number(b.getAttribute('data-width'));
+    render();
+  });
+
+  detailSeg.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-detail]');
+    if (!b || b.disabled) return;
+    state.details = b.getAttribute('data-detail') === '1';
+    render();
+  });
+
+  reopen.addEventListener('click', function () {
+    state.open = true;
+    render();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (!state.open) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeWith('secondary');
+      return;
+    }
+    if (e.key === 'Enter') {
+      if (document.activeElement && document.activeElement.tagName === 'BUTTON') return;
+      e.preventDefault();
+      closeWith(SCENES[state.scene].defaultAction);
+      return;
+    }
+    if (e.key === 'y' || e.key === 'Y') {
+      e.preventDefault();
+      closeWith('primary');
+      return;
+    }
+    if (e.key === 'n' || e.key === 'N') {
+      e.preventDefault();
+      closeWith('secondary');
+    }
+  });
+
+  // 深链接：?scene=danger&w=560&details=0&open=0（截图与评审都可复现）
+  try {
+    var q = new URLSearchParams(window.location.search);
+    if (q.get('scene') && SCENES[q.get('scene')]) state.scene = q.get('scene');
+    if (q.get('w') === '560') state.width = 560;
+    if (q.get('details') === '0') state.details = false;
+    if (q.get('open') === '0') {
+      state.open = false;
+      state.resultText = '已选择：' + SCENES[state.scene].primary.action;
+    }
+  } catch (err) { /* file:// 下没有 URLSearchParams 也不影响默认视图 */ }
+
+  render();
+})();
+</script>
+</div>
+</body>
+</html>

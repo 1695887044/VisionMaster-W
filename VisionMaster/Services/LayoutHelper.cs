@@ -40,8 +40,12 @@ namespace VisionMaster.Services
         ///
         /// v4（2026-10-19）：图层并入属性 pane 做标签页（原独立 240px 列），
         /// 右侧从 260+240+300 收成 260+260——面板归属变了，必须让旧布局让位。
+        /// v5（2026-10-20）：新增「运行驾驶舱」文档（Panel_RunCockpitView），
+        /// 文档区多了一个 ContentId，旧 Layout.xml 必须让位。
+        /// v6（2026-10-20）：程序面板并入流程导航、右侧三列收成单列检查器，
+        /// 面板归属/停靠语义再次变化，旧 Layout.xml 必须让位。
         /// </summary>
-        private const int CurrentLayoutSchemaVersion = 4;
+        private const int CurrentLayoutSchemaVersion = 6;
 
         /// <summary>
         /// 流程栏所在列的默认宽度（与 Shell.xaml 的 DockWidth 一致）。
@@ -80,16 +84,29 @@ namespace VisionMaster.Services
         /// <summary>
         /// ContentId → 面板内容工厂（加载布局后按 ContentId 重建面板内容）
         /// </summary>
+        /// <summary>
+        /// 四个中央文档的身份清单。布局文件可能因为历史保存路径缺项（例如组态/驾驶舱
+        /// 在某次保存时已从树里摘出、缓存又丢了），加载后必须按清单补齐，否则模式切换
+        /// 只能看到一个空文档窗格——表现就是“明明打开了方案，组态画面却空白”。
+        /// </summary>
+        private static readonly (string Id, string Title)[] CoreDocuments =
+        {
+            ("Panel_ImageView", "视觉图像"),
+            ("Panel_FlowCanvasView", "流程画布"),
+            ("Panel_ScadaEditorView", "组态画面"),
+            ("Panel_RunCockpitView", "运行驾驶舱"),
+        };
+
         private static readonly Dictionary<string, Func<object>> ContentFactories = new()
         {
             ["Panel_ToolView"] = () => new Views.ToolView(),
             ["Panel_ProcessView"] = () => new Views.ProcessView(),
             ["Panel_FlowCanvasView"] = () => new Views.FlowCanvasView(),
-            ["Panel_FlowListView"] = () => new Views.FlowListView(),
             ["Panel_ImageView"] = () => new Views.ImageView(),
             ["Panel_LogView"] = () => new Views.LogView(),
             ["Panel_MonitorView"] = () => new Views.MonitorView(),
             ["Panel_ScadaEditorView"] = () => new Views.ScadaEditorView(),
+            ["Panel_RunCockpitView"] = () => new Views.RunCockpitView(),
             ["Panel_ScadaToolboxView"] = () => new Views.ScadaToolboxView(),
             ["Panel_ScadaPropertyView"] = () => new Views.ScadaPropertyView(),
             // 图层面板：原先漏登记。反序列化后 FillContents 靠本表回填内容，缺它 = 每次
@@ -197,20 +214,48 @@ namespace VisionMaster.Services
         /// </summary>
         /// <returns>布局 XML；失败返回 null</returns>
         public static string SaveToString()
+            => SaveToString(FindManager());
+
+        /// <summary><see cref="SaveToString()"/> 的指定宿主重载（断言宿主用）</summary>
+        internal static string? SaveToString(DockingManager? manager)
         {
             try
             {
-                var manager = FindManager();
                 if (manager == null) return null;
 
-                var serializer = new XmlLayoutSerializer(manager);
-                using (var writer = new StringWriter())
+                // 模式隔离会把非当前模式的文档暂时摘出布局树；保存布局前必须全部放回，
+                // 否则在组态模式退出时写出的 Layout.xml 只有组态画面，下次启动会被
+                // “未覆盖全部面板”闸门拒绝（用户布局被误伤）。
+                var mode = _currentShellMode;
+                var previousApplying = IsApplyingShellMode;
+                IsApplyingShellMode = true;
+                try
                 {
-                    serializer.Serialize(writer);
-                    // 出厂前打上结构版本戳：这是升级时判定"旧布局必须让位"的唯一依据
-                    var doc = XDocument.Parse(writer.ToString());
-                    doc.Root?.SetAttributeValue(LayoutSchemaVersionAttributeName, CurrentLayoutSchemaVersion);
-                    return doc.ToString();
+                    EnsureCoreDocuments(manager);
+                    RestoreAllDocuments(manager);
+
+                    // 组态模式会把日志 pane 收成 1px；序列化会把该瞬态写进 Layout.xml，
+                    // 下次启动（Debug）因没有“收起前高度”记忆而无法恢复。保存前先还原高度。
+                    RestoreLogPane(manager);
+
+                    var serializer = new XmlLayoutSerializer(manager);
+                    using (var writer = new StringWriter())
+                    {
+                        serializer.Serialize(writer);
+                        // 出厂前打上结构版本戳：这是升级时判定"旧布局必须让位"的唯一依据
+                        var doc = XDocument.Parse(writer.ToString());
+                        doc.Root?.SetAttributeValue(LayoutSchemaVersionAttributeName, CurrentLayoutSchemaVersion);
+                        var xml = doc.ToString();
+
+                        // 序列化完成后恢复当前模式的文档可见性与日志高度；只动这两项，不动其它面板。
+                        ApplyDocumentMode(manager, DocumentsForMode(mode), ActiveDocumentForMode(mode));
+                        if (mode == ShellMode.Config) CollapseLogPane(manager);
+                        return xml;
+                    }
+                }
+                finally
+                {
+                    IsApplyingShellMode = previousApplying;
                 }
             }
             catch (Exception ex)
@@ -220,18 +265,30 @@ namespace VisionMaster.Services
             }
         }
 
+        private static void RestoreAllDocuments(DockingManager manager)
+        {
+            foreach (var id in HiddenDocuments.Keys.ToList())
+            {
+                if (HiddenDocuments.TryGetValue(id, out var entry))
+                    RestoreDocument(manager, entry.Document);
+            }
+        }
+
         /// <summary>
         /// 从 XML 文本恢复布局（供解决方案加载时调用）
         /// </summary>
         /// <param name="layoutXml">布局 XML 文本</param>
         /// <param name="deleteFileOnError">加载失败时是否删除布局文件（仅 Layout.xml 场景使用）</param>
         public static bool LoadFromString(string layoutXml, bool deleteFileOnError = false)
+            => LoadFromString(FindManager(), layoutXml, deleteFileOnError);
+
+        /// <summary><see cref="LoadFromString(string, bool)"/> 的指定宿主重载（断言宿主用）</summary>
+        internal static bool LoadFromString(DockingManager? manager, string layoutXml, bool deleteFileOnError = false)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(layoutXml)) return false;
 
-                var manager = FindManager();
                 if (manager == null) return false;
 
                 // 布局文件是"结构快照"：AvalonDock 只会还原文件里声明过的面板，不会凭空补出
@@ -251,14 +308,31 @@ namespace VisionMaster.Services
                 var doc = XDocument.Parse(layoutXml);
                 doc.Root?.Attribute(LayoutSchemaVersionAttributeName)?.Remove();
 
-                var serializer = new XmlLayoutSerializer(manager);
-                using (var reader = new StringReader(doc.ToString()))
+                var previousApplying = IsApplyingShellMode;
+                IsApplyingShellMode = true;
+                try
                 {
-                    serializer.Deserialize(reader);
+                    var serializer = new XmlLayoutSerializer(manager);
+                    using (var reader = new StringReader(doc.ToString()))
+                    {
+                        serializer.Deserialize(reader);
+                    }
+
+                    // 反序列化成功 = 布局树已被整体替换：此前摘出的 LayoutDocument 实例作废。
+                    // 必须在 Deserialize 成功之后清：版本拒绝/解析失败时树没换，缓存仍指向有效文档，
+                    // 清早了会让「组态画面」「运行驾驶舱」永久丢失（升级启动 + 每次保存的闭环）。
+                    HiddenDocuments.Clear();
+
+                    // 反序列化只还原结构，按 ContentId 回填面板内容
+                    FillContents(manager);
+                }
+                finally
+                {
+                    IsApplyingShellMode = previousApplying;
                 }
 
-                // 反序列化只还原结构，按 ContentId 回填面板内容
-                FillContents(manager);
+                // 新树里的日志 pane 高度来自文件，旧的“收起前高度”记忆不再适用
+                _savedLogPaneHeight = null;
 
                 // 双保险（A 方案第 2 层）：对已经被旧 vms 持久化到 Hidden 的关键面板强制拉回可见。
                 // CanHide=False 只能从源头禁止后续关闭，已持久化的 Hidden 条目仍需此处兜底。
@@ -309,11 +383,11 @@ namespace VisionMaster.Services
 
                 // 属性缺失 = 版本机制引入之前的历史布局，视为 0 版
                 int version = versionAttr != null && int.TryParse(versionAttr.Value, out var parsed) ? parsed : 0;
-                if (version < CurrentLayoutSchemaVersion)
+                if (version != CurrentLayoutSchemaVersion)
                 {
                     reason = versionAttr == null
                         ? $"布局文件无结构版本属性（历史版本，视为 0），当前要求版本 {CurrentLayoutSchemaVersion}"
-                        : $"布局结构版本 {version} 落后于当前版本 {CurrentLayoutSchemaVersion}";
+                        : $"布局结构版本 {version} 与当前版本 {CurrentLayoutSchemaVersion} 不一致";
                     return false;
                 }
 
@@ -444,18 +518,17 @@ namespace VisionMaster.Services
         /// </summary>
         private static readonly string[] ScadaDesignPanels =
         {
-            "Panel_ScadaLayerView",      // 图层（属性 pane 的第二个标签）
-            "Panel_ScadaPropertyView",   // 属性（主标签，最后显示以取得选中态）
+            "Panel_ScadaLayerView",      // 图层
             "Panel_ScadaToolboxView",    // 图元工具箱
+            "Panel_ScadaPropertyView",   // 属性（主标签，最后显示以取得选中态）
         };
 
         /// <summary>
-        /// 左侧工作面板（程序 / 流程栏）：组态设计时不参与，收起后把整列 340px 让给画布。
+        /// 左侧工作面板（流程导航）：组态设计时不参与，收起后把整列 340px 让给画布。
         /// 退出组态设计时按原位置恢复（走 ShowAnchorable，R58）。
         /// </summary>
         private static readonly string[] LeftWorkPanels =
         {
-            "Panel_FlowListView",
             "Panel_ProcessView",
         };
 
@@ -485,6 +558,191 @@ namespace VisionMaster.Services
         public static void ApplyScadaPanelMode(bool scadaDesign)
             => ApplyScadaPanelMode(FindManager(), scadaDesign);
 
+        /// <summary>
+        /// 四种工作模式的上下文收敛：文档标签 + 左右面板 + 底部面板。
+        /// 只改可见性/文档集合，不改面板归属与停靠结构（R43 不触发）。
+        /// </summary>
+        public static void ApplyShellMode(ShellMode mode) => ApplyShellMode(FindManager(), mode);
+
+        private static ShellMode _currentShellMode = ShellMode.Debug;
+
+        /// <summary>模式收敛进行中：ShellViewModel 的文档选中监听必须让路，避免递归。</summary>
+        public static bool IsApplyingShellMode { get; private set; }
+
+        private static string[] DocumentsForMode(ShellMode mode) => mode switch
+        {
+            ShellMode.Debug => new[] { "Panel_ImageView", "Panel_FlowCanvasView" },
+            ShellMode.Run => new[] { "Panel_RunCockpitView" },
+            ShellMode.Config => new[] { "Panel_ScadaEditorView" },
+            _ => new[] { "Panel_ImageView", "Panel_FlowCanvasView", "Panel_ScadaEditorView", "Panel_RunCockpitView" },
+        };
+
+        private static string? ActiveDocumentForMode(ShellMode mode) => mode switch
+        {
+            ShellMode.Debug => "Panel_ImageView",
+            ShellMode.Run => "Panel_RunCockpitView",
+            ShellMode.Config => "Panel_ScadaEditorView",
+            _ => null,
+        };
+
+        public static void ApplyShellMode(DockingManager? manager, ShellMode mode)
+        {
+            if (manager == null) return;
+            if (IsApplyingShellMode) return;
+
+            _currentShellMode = mode;
+
+            var previousApplying = IsApplyingShellMode;
+            IsApplyingShellMode = true;
+            try
+            {
+                switch (mode)
+                {
+                    // 调试/组态的面板收敛语义与 ApplyScadaPanelMode 完全一致（R56）：
+                    // 调试 = 非组态态（左栏 + 算子工具箱，隐藏组态三面板）；
+                    // 组态 = 组态态（左栏收起、日志收 1px、属性/图层/图元显示、算子工具箱隐藏）。
+                    // 运行/自由不是组态二态能表达的（Run 要藏左栏与工具箱，Free 要全显示），
+                    // 因此保留显式编排，避免用 false 分支把 Run/Free 做坏。
+                    case ShellMode.Debug:
+                        ApplyDocumentMode(manager, DocumentsForMode(mode), ActiveDocumentForMode(mode));
+                        ApplyScadaPanelMode(manager, false);
+                        break;
+
+                    case ShellMode.Config:
+                        ApplyDocumentMode(manager, DocumentsForMode(mode), ActiveDocumentForMode(mode));
+                        ApplyScadaPanelMode(manager, true);
+                        break;
+
+                    case ShellMode.Run:
+                        ApplyDocumentMode(manager, DocumentsForMode(mode), ActiveDocumentForMode(mode));
+                        HidePanel(manager, "Panel_ProcessView");
+                        HidePanel(manager, "Panel_ToolView");
+                        HidePanel(manager, "Panel_ScadaToolboxView");
+                        HidePanel(manager, "Panel_ScadaPropertyView");
+                        HidePanel(manager, "Panel_ScadaLayerView");
+                        RestoreLogPane(manager);
+                        break;
+
+                    case ShellMode.Free:
+                        ApplyDocumentMode(manager, DocumentsForMode(mode), ActiveDocumentForMode(mode));
+                        ShowPanel(manager, "Panel_ProcessView");
+                        // 同一 pane 内最后 Show 的标签胜出：属性主标签放最后
+                        ShowPanel(manager, "Panel_ToolView");
+                        ShowPanel(manager, "Panel_ScadaToolboxView");
+                        ShowPanel(manager, "Panel_ScadaLayerView");
+                        ShowPanel(manager, "Panel_ScadaPropertyView");
+                        RestoreLogPane(manager);
+                        break;
+                }
+            }
+            finally
+            {
+                IsApplyingShellMode = previousApplying;
+            }
+        }
+
+        /// <summary>
+        /// 文档标签收敛：只保留 allowed 里的文档；其余从 LayoutDocumentPane 摘出并缓存，
+        /// 切回该模式时按原 pane/原索引放回。文档不能走 HidePanel（它只处理 anchorable）。
+        /// </summary>
+        private static void ApplyDocumentMode(DockingManager manager, string[] allowed, string? activeContentId)
+        {
+            EnsureCoreDocuments(manager);
+            var allowedSet = new HashSet<string>(allowed, StringComparer.Ordinal);
+            foreach (var doc in EnumerateContents(manager).OfType<LayoutDocument>().ToList())
+            {
+                if (doc.ContentId == null) continue;
+
+                if (allowedSet.Contains(doc.ContentId))
+                {
+                    if (doc.Parent == null) RestoreDocument(manager, doc);
+                }
+                else
+                {
+                    HideDocument(doc);
+                }
+            }
+
+            // 被上一模式摘出布局的文档不在 EnumerateContents 里；按缓存补回本模式允许的文档。
+            foreach (var id in HiddenDocuments.Keys.ToList())
+            {
+                if (allowedSet.Contains(id) && HiddenDocuments.TryGetValue(id, out var entry))
+                    RestoreDocument(manager, entry.Document);
+            }
+
+            // 只在“允许集里没有任何已选中文档”时才改活动标签：
+            // 每次收敛都强行 IsSelected 会把用户正在看的图像/画布拽走（保存布局时也会翻标签）。
+            var hasSelected = EnumerateContents(manager)
+                .OfType<LayoutDocument>()
+                .Any(d => d.ContentId != null && allowedSet.Contains(d.ContentId) && d.IsSelected);
+
+            if (!hasSelected
+                && !string.IsNullOrEmpty(activeContentId)
+                && FindPanel(manager, activeContentId) is LayoutDocument active)
+            {
+                active.IsSelected = true;
+                active.IsActive = true;
+            }
+        }
+
+        private static readonly Dictionary<string, (LayoutDocument Document, LayoutDocumentPane Pane, int Index)> HiddenDocuments = new(StringComparer.Ordinal);
+
+        private static void HideDocument(LayoutDocument doc)
+        {
+            if (doc.ContentId == null || doc.Parent == null) return;
+            var pane = FindAncestorDocumentPane(doc);
+            if (pane == null) return;
+
+            var index = pane.Children.IndexOf(doc);
+            if (index < 0) return;
+
+            HiddenDocuments[doc.ContentId] = (doc, pane, index);
+            pane.Children.Remove(doc);
+        }
+
+        private static void RestoreDocument(DockingManager manager, LayoutDocument doc)
+        {
+            if (doc.ContentId == null) return;
+
+            if (!HiddenDocuments.TryGetValue(doc.ContentId, out var entry))
+                return;
+
+            if (IsAttachedTo(entry.Pane, manager.Layout))
+            {
+                entry.Pane.Children.Insert(Math.Min(entry.Index, entry.Pane.Children.Count), doc);
+            }
+            else
+            {
+                // 原 pane 已不在树上（布局重载/拆分）：挂到主文档窗格；找不到就新建一个，
+                // 绝不静默丢文档（丢了就是“组态/驾驶舱标签消失”）。
+                var target = manager.Layout.Descendents()
+                    .OfType<LayoutDocumentPane>()
+                    .FirstOrDefault(p => IsAttachedTo(p, manager.Layout));
+
+                if (target == null)
+                {
+                    if (manager.Layout.RootPanel == null) return;
+                    target = new LayoutDocumentPane();
+                    manager.Layout.RootPanel.InsertChildAt(manager.Layout.RootPanel.ChildrenCount, target);
+                }
+
+                target.Children.Add(doc);
+            }
+
+            HiddenDocuments.Remove(doc.ContentId);
+        }
+
+        private static LayoutDocumentPane? FindAncestorDocumentPane(LayoutDocument doc)
+        {
+            ILayoutElement? current = doc;
+            while (current?.Parent is ILayoutContainer parent)
+            {
+                if (parent is LayoutDocumentPane pane) return pane;
+                current = parent as ILayoutElement;
+            }
+            return null;
+        }
+
         /// <summary><see cref="ApplyScadaPanelMode(bool)"/> 的指定宿主重载（断言宿主用）</summary>
         public static void ApplyScadaPanelMode(DockingManager? manager, bool scadaDesign)
         {
@@ -493,6 +751,17 @@ namespace VisionMaster.Services
             if (scadaDesign)
             {
                 foreach (var id in ScadaDesignPanels) ShowPanel(manager, id);
+                // ShowPanel 逐个把 IsSelected 置 true；同 pane 内多个标签会同时为 true（AvalonDock
+                // 的 IsSelected 不是互斥位）。属性是主标签，最后把它之外的组态标签显式压掉。
+                foreach (var id in ScadaDesignPanels)
+                {
+                    if (id == "Panel_ScadaPropertyView") continue;
+                    if (FindPanel(manager, id) is LayoutAnchorable other)
+                        other.IsSelected = false;
+                }
+                if (FindPanel(manager, "Panel_ScadaPropertyView") is LayoutAnchorable property)
+                    property.IsSelected = true;
+
                 HidePanel(manager, OperatorToolboxPanel);
 
                 // 组态设计时左栏（程序/流程栏）不参与，收起后整列宽度让给画布；
@@ -523,23 +792,56 @@ namespace VisionMaster.Services
             var pane = FindAncestorAnchorablePane(manager, LogPanelContentId);
             if (pane == null) return;
 
-            _savedLogPaneHeight = pane.DockHeight;
+            // 已经是伪值（1~29，多为上次收起写盘后被夹出来的）就别把它当“收起前高度”记下来
+            _savedLogPaneHeight = pane.DockHeight.IsAbsolute && pane.DockHeight.Value < 30
+                ? new GridLength(200)
+                : pane.DockHeight;
 
             // 为什么是 1 而不是 0：AvalonDock 的 DockHeight 会把 0 夹回原值（实测 set0 读回 200），
             // 1px 则正常生效——视觉上就是一条边线，高度已经还给画布。
             pane.DockHeight = new GridLength(1);
         }
 
-        /// <summary>恢复底部日志 pane 的高度（没收起过则空操作）。</summary>
+        /// <summary>
+        /// 恢复底部日志 pane 的高度。
+        /// 有“收起前高度”记忆时按记忆恢复；没有记忆但当前高度明显是被夹出来的伪值（1~29）时，
+        /// 回到默认 200——否则组态模式退出/重启后日志条会永久停在一条缝。
+        /// </summary>
         private static void RestoreLogPane(DockingManager manager)
         {
-            if (_savedLogPaneHeight == null) return;
+            var pane = FindAncestorAnchorablePane(manager, LogPanelContentId);
+            if (pane == null) return;
+
+            if (_savedLogPaneHeight != null)
+            {
+                pane.DockHeight = _savedLogPaneHeight.Value;
+                _savedLogPaneHeight = null;
+                return;
+            }
+
+            // 只治“伪值”，不碰用户合法拖窄（>=30 视为用户选择）
+            if (pane.DockHeight.IsAbsolute && pane.DockHeight.Value < 30)
+                pane.DockHeight = new GridLength(200);
+        }
+
+        /// <summary>
+        /// 底部控制台展开 / 收起（32 ↔ 240）。只改 pane 高度，不改可见性与标签选择；
+        /// 与组态模式的 CollapseLogPane 分开：后者用 1px 且带"保存前高度"记忆。
+        /// </summary>
+        public static void ToggleConsole() => ToggleConsole(FindManager());
+
+        /// <summary><see cref="ToggleConsole()"/> 的指定宿主重载（断言宿主用）。</summary>
+        public static void ToggleConsole(DockingManager? manager)
+        {
+            if (manager == null) return;
+            // 组态模式的底部面板是刻意隐藏的，命令面板/状态栏都不该把它临时叫出来。
+            if (_currentShellMode == ShellMode.Config) return;
 
             var pane = FindAncestorAnchorablePane(manager, LogPanelContentId);
             if (pane == null) return;
 
-            pane.DockHeight = _savedLogPaneHeight.Value;
-            _savedLogPaneHeight = null;
+            var expanded = pane.DockHeight.IsAbsolute && pane.DockHeight.Value > 60;
+            pane.DockHeight = new GridLength(expanded ? 32 : 240);
         }
 
         /// <summary>按 ContentId 找到锚定面板所在的 LayoutAnchorablePane（沿 Parent 链）。</summary>
@@ -759,7 +1061,7 @@ namespace VisionMaster.Services
 
         /// <summary>
         /// 流程栏列宽兜底：旧 Layout.xml / .vms 里这一列可能是用户拖窄的绝对宽度（实测 230），
-        /// 反序列化后按 ContentId 找到流程栏，沿父链找到它所在的 LayoutPanel，把宽度拉回最小值以上。
+        /// 反序列化后按 ContentId 找到流程栏，沿父链找到它所在的 LayoutAnchorablePane，把宽度拉回最小值以上。
         ///
         /// 为什么不能只改 Shell.xaml 的默认值：AvalonDock 恢复布局时用的是文件里的宽度，
         /// 会把默认布局整个覆盖掉；只改 XAML 对老用户等于没发生（与 R43 的"旧布局抵消改造"同族）。
@@ -778,15 +1080,17 @@ namespace VisionMaster.Services
                 ILayoutElement current = anchorable;
                 while (current?.Parent is ILayoutContainer parent)
                 {
-                    if (parent is LayoutPanel panel)
+                    // v6：程序面板并入流程导航后，流程栏直接就是 LayoutAnchorablePane 的宽度；
+                    // 旧结构里那层竖向 LayoutPanel 已不存在，不能再按 LayoutPanel 改宽。
+                    if (parent is LayoutAnchorablePane pane)
                     {
-                        panel.DockMinWidth = MinProcessColumnWidth;
+                        pane.DockMinWidth = MinProcessColumnWidth;
 
                         // 只纠正"绝对且过窄"的宽度；星号宽度交给 AvalonDock 按窗口分配
-                        if (panel.DockWidth.IsAbsolute && panel.DockWidth.Value < MinProcessColumnWidth)
+                        if (pane.DockWidth.IsAbsolute && pane.DockWidth.Value < MinProcessColumnWidth)
                         {
-                            var oldWidth = panel.DockWidth.Value;
-                            panel.DockWidth = new GridLength(DefaultProcessColumnWidth);
+                            var oldWidth = pane.DockWidth.Value;
+                            pane.DockWidth = new GridLength(DefaultProcessColumnWidth);
                             Console.WriteLine(
                                 $"流程栏列宽过窄（{oldWidth:0.#}），已拉回 {DefaultProcessColumnWidth}");
                         }
@@ -820,6 +1124,42 @@ namespace VisionMaster.Services
                 {
                     content.Content = factory();
                 }
+            }
+        }
+
+        /// <summary>
+        /// 确保四个核心文档都在布局树里（缺失就按 ContentFactories 新建）。
+        /// 这是“空文档窗格”的兜底：布局文件是结构快照，AvalonDock 不会凭 ContentId
+        /// 自动补出文件里没写过的文档；而 SaveToString 一旦在缺项状态下跑过一次，
+        /// 缺项就会永久留在 Layout.xml 里。
+        /// </summary>
+        private static void EnsureCoreDocuments(DockingManager manager)
+        {
+            foreach (var (id, title) in CoreDocuments)
+            {
+                if (FindPanel(manager, id) != null) continue;
+                if (HiddenDocuments.ContainsKey(id)) continue;
+                if (!ContentFactories.TryGetValue(id, out var factory)) continue;
+
+                var pane = manager.Layout.Descendents()
+                    .OfType<LayoutDocumentPane>()
+                    .FirstOrDefault(p => IsAttachedTo(p, manager.Layout));
+                if (pane == null)
+                {
+                    if (manager.Layout.RootPanel == null) return;
+                    pane = new LayoutDocumentPane();
+                    manager.Layout.RootPanel.InsertChildAt(manager.Layout.RootPanel.ChildrenCount, pane);
+                }
+
+                var document = new LayoutDocument
+                {
+                    Title = title,
+                    ContentId = id,
+                    CanClose = false,
+                    Content = factory(),
+                };
+                pane.Children.Add(document);
+                Console.WriteLine($"布局缺少核心文档 {id}，已按 ContentFactories 补回");
             }
         }
 

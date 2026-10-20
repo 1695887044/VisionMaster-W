@@ -24,7 +24,7 @@
         键盘焦点环：替代 WPF 默认的虚线矩形
         ==========================================================================
         默认 FocusVisualStyle 画的是黑色/虚线矩形，在现代圆角界面上非常突兀（真机截图里
-        关闭按钮外面那个方框）。这里改成 2px 强调色圆角环、外扩 2px，与控件圆角一致。
+        关闭按钮外面那个方框）。这里改成 2px 强调色圆角环、向内收 2px，与控件圆角一致。
         用法：FocusVisualStyle="{StaticResource DialogFocusVisual}"。
         注意 FocusVisualStyle 的 TargetType 必须是 Control（模板会被应用到 Adorner 上）。  -->
   <Style x:Key="DialogFocusVisual">

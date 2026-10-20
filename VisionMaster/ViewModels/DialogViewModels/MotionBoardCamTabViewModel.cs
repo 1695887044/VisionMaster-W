@@ -149,7 +149,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public bool HasTable => SelectedTable != null;
 
-        /// <summary>外壳打开时把方案里的表搬进界面集合（含空库 seed 已由外壳完成）</summary>
+        /// <summary>外壳打开时把方案里的表搬进界面集合；空库不自动 seed，用户点「新建凸轮表」创建。</summary>
         public void LoadTables()
         {
             Tables.Clear();

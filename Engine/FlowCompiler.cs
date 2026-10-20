@@ -1,10 +1,12 @@
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Core.Interfaces;
 using DynamicExpresso;
+using Newtonsoft.Json.Linq;
 using VisionMaster.Helpers;
 using VisionMaster.Models;
 using Parameter = DynamicExpresso.Parameter;
@@ -1538,58 +1540,28 @@ namespace VisionMaster.Services
 
 
         ///
-        /// 同一 ParallelStep（ExecutionMode==Parallel）下，多个 VariableAssignmentPlugin 步骤的
-        /// VariableName 端口可静态解析出同名常量（值非链接）时：
-        ///  · Scope=Runtime → [并行变量写冲突] 编译错误；
-        ///  · Scope=Global  → [并行全局变量写冲突] 编译错误（F13 已核对：全局写路径无锁，
-        ///    LocalVariableModel.Value setter 直接触发 ValueChanged 多播，通信回写/SCADA/监视
-        ///    订阅者会被多线程调用）。
-        /// 变量名来自链接/脚本等运行期来源 → 无法静态判定，运行期 Warn 兜底
-        /// （合并冲突告警只覆盖 Runtime 影子；Global 写无运行期拦截——写全局的插件已被
-        /// 标注清单挡在并行分支外）。
-        /// 图纸纪律：并行分支内避免写全局变量；确需写时每轮只允许一个分支写同一变量。
+        /// 同一 ParallelStep（ExecutionMode==Parallel）下，多个步骤写同一个共享变量：
+        ///  · 「变量赋值」Scope=Runtime → [并行变量写冲突]；
+        ///  · 「变量赋值」Scope=Global / C#脚本「共享变量」声明（方向=读写）→ [并行全局变量写冲突]。
+        ///
+        /// 全局写路径无锁（LocalVariableModel.Value setter 直接触发 ValueChanged 多播，
+        /// 通信回写 / SCADA / 监视订阅者会被多线程调用），并行写同名全局变量必然互踩。
+        /// **脚本的写集合来自声明表**——这正是"声明式共享变量"的核心收益：
+        /// 旧模型里脚本直接写全局是隐形的，编译期闸门看不见它。
+        ///
+        /// 扫描是**递归**的：If/For/嵌套并行里的步骤同样参与（旧实现只看直接分支步骤，
+        /// 嵌一层就漏检）。变量名来自链接/运行期来源 → 无法静态判定，跳过（不误报）。
         /// </summary>
-        private static void CheckParallelVariableWriteConflicts(
+        private void CheckParallelVariableWriteConflicts(
             ParallelStep parallelModel,
             List<CompilationError> errors)
         {
             if (parallelModel.ExecutionMode != VisionMaster.Models.ParallelExecutionMode.Parallel || parallelModel.Children == null)
                 return;
 
-            // 静态可解析口径：端口键 "Name" 有常量值且未连线（连线/运行期来源跳过——不误报，
-            // 运行期有记账告警兜底）。Scope 缺省按 Runtime（端口默认值即 Runtime）。
-            var runtimeWrites = new Dictionary<string, List<StepModel>>(StringComparer.Ordinal);
-            var globalWrites = new Dictionary<string, List<StepModel>>(StringComparer.Ordinal);
+            var writes = CollectParallelWrites(parallelModel, ResolveGlobalWriteKey);
 
-            foreach (var branch in parallelModel.Children)
-            {
-                if (branch?.Steps == null) continue;
-                foreach (var step in branch.Steps)
-                {
-                    if (step == null || step.IsDisEnable) continue;
-                    // 只查 VariableAssignmentPlugin（按类型 FullName 字符串认——与 IsParallelSafe
-                    // 同理由：两份 Core.Interfaces.dll 场景下类型身份不可靠，且编译器不引用插件工程）
-                    if (!IsVariableAssignmentPlugin(step)) continue;
-
-                    if (step.LinkedSources != null && step.LinkedSources.ContainsKey("Name"))
-                        continue; // 变量名来自连线：无法静态判定
-
-                    if (!(step.InputValues != null && step.InputValues.TryGetValue("Name", out var nameObj)
-                          && nameObj is string varName && !string.IsNullOrWhiteSpace(varName)))
-                        continue; // 没填变量名：既有必填检查会另报，这里不重复
-
-                    bool isGlobal = step.InputValues != null
-                        && step.InputValues.TryGetValue("Scope", out var scopeObj)
-                        && string.Equals(scopeObj?.ToString(), "Global", StringComparison.OrdinalIgnoreCase);
-
-                    var target = isGlobal ? globalWrites : runtimeWrites;
-                    if (!target.TryGetValue(varName, out var list))
-                        target[varName] = list = new List<StepModel>();
-                    list.Add(step);
-                }
-            }
-
-            foreach (var kvp in runtimeWrites)
+            foreach (var kvp in writes.Runtime)
             {
                 if (kvp.Value.Count >= 2)
                     errors.Add(Err(kvp.Value[1],
@@ -1598,7 +1570,7 @@ namespace VisionMaster.Services
                         + "并行汇合按分支声明序取后者覆盖，取值随调度时序漂移——请各分支写各自变量，汇合后再聚合。"));
             }
 
-            foreach (var kvp in globalWrites)
+            foreach (var kvp in writes.Global)
             {
                 if (kvp.Value.Count >= 2)
                     errors.Add(Err(kvp.Value[1],
@@ -1610,12 +1582,170 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
+        /// 收集并行分组内的写集合（递归到嵌套容器）。
+        ///
+        /// 抽成 internal static 便于断言直调：纯函数，只有 <paramref name="resolveGlobalKey"/>
+        /// 是外部注入的"变量 Id → 冲突键"解析（产线传注册表，断言传纯函数）。
+        /// </summary>
+        internal static (
+            Dictionary<string, List<StepModel>> Runtime,
+            Dictionary<string, List<StepModel>> Global)
+            CollectParallelWrites(ParallelStep parallelModel, Func<Guid, string, string> resolveGlobalKey)
+        {
+            var runtime = new Dictionary<string, List<StepModel>>(StringComparer.Ordinal);
+            var global = new Dictionary<string, List<StepModel>>(StringComparer.Ordinal);
+
+            if (parallelModel?.Children == null)
+                return (runtime, global);
+
+            foreach (var branch in parallelModel.Children)
+            {
+                foreach (var step in EnumerateStepsRecursive(branch?.Steps))
+                {
+                    if (step == null || step.IsDisEnable) continue;
+
+                    // 按 PluginTypeName 字符串认插件（编译器不引用插件工程，
+                    // 与 IsParallelSafe 的字符串口径同理）
+                    if (IsVariableAssignmentPlugin(step))
+                        CollectAssignmentWrite(step, runtime, global);
+                    else if (IsCSharpScriptPlugin(step))
+                        CollectScriptGlobalWrites(step, global, resolveGlobalKey);
+                }
+            }
+
+            return (runtime, global);
+        }
+
+        /// <summary>深度优先枚举步骤（含容器内部的分支步骤）。</summary>
+        private static IEnumerable<StepModel> EnumerateStepsRecursive(IEnumerable<StepModel> steps)
+        {
+            if (steps == null) yield break;
+
+            foreach (var step in steps)
+            {
+                if (step == null) continue;
+                yield return step;
+
+                if (step is not IContainerStep container || container.Children == null) continue;
+                foreach (var branch in container.Children)
+                {
+                    foreach (var inner in EnumerateStepsRecursive(branch?.Steps))
+                        yield return inner;
+                }
+            }
+        }
+
+        /// <summary>「变量赋值」的写集合（变量名来自常量；连线/运行期来源跳过）。</summary>
+        private static void CollectAssignmentWrite(
+            StepModel step,
+            Dictionary<string, List<StepModel>> runtime,
+            Dictionary<string, List<StepModel>> global)
+        {
+            if (step.LinkedSources != null && step.LinkedSources.ContainsKey("Name"))
+                return; // 变量名来自连线：无法静态判定
+
+            if (!(step.InputValues != null && step.InputValues.TryGetValue("Name", out var nameObj)
+                  && nameObj is string varName && !string.IsNullOrWhiteSpace(varName)))
+                return; // 没填变量名：既有必填检查会另报，这里不重复
+
+            bool isGlobal = step.InputValues != null
+                && step.InputValues.TryGetValue("Scope", out var scopeObj)
+                && string.Equals(scopeObj?.ToString(), "Global", StringComparison.OrdinalIgnoreCase);
+
+            var target = isGlobal ? global : runtime;
+            if (!target.TryGetValue(varName, out var list))
+                target[varName] = list = new List<StepModel>();
+            list.Add(step);
+        }
+
+        /// <summary>
+        /// C#脚本的共享变量写声明（方向=读写）。
+        ///
+        /// 为什么用反射/JSON 而不是引用插件类型：编译器不引用插件工程
+        /// （与 <see cref="IsVariableAssignmentPlugin"/> 按类型名字符串认同一理由）。
+        /// <c>InputValues["SharedVars"]</c> 有两种形态：刚确认过是
+        /// <c>ObservableCollection&lt;ScriptSharedVarDef&gt;</c>，从 .vms 加载未确认时是 JArray。
+        /// 两种都要认，否则"打开旧方案直接编译"会漏检。
+        /// </summary>
+        private static void CollectScriptGlobalWrites(
+            StepModel step,
+            Dictionary<string, List<StepModel>> global,
+            Func<Guid, string, string> resolveGlobalKey)
+        {
+            if (step?.InputValues == null) return;
+            if (!step.InputValues.TryGetValue("SharedVars", out var raw) || raw is not IEnumerable items)
+                return;
+
+            foreach (var item in items)
+            {
+                if (item == null) continue;
+                if (!TryReadSharedWrite(item, out var variableId, out var savedName)) continue;
+
+                string key = resolveGlobalKey?.Invoke(variableId, savedName);
+                if (string.IsNullOrWhiteSpace(key)) key = savedName?.Trim();
+                if (string.IsNullOrWhiteSpace(key)) continue;
+
+                if (!global.TryGetValue(key, out var list))
+                    global[key] = list = new List<StepModel>();
+                list.Add(step);
+            }
+        }
+
+        /// <summary>从一条共享变量声明里读"是否可写 + 变量身份"（兼容 POCO 与 JObject 两种形态）。</summary>
+        private static bool TryReadSharedWrite(object item, out Guid variableId, out string savedName)
+        {
+            variableId = Guid.Empty;
+            savedName = null;
+
+            if (item is JObject jo)
+            {
+                var access = jo["Access"];
+                bool writable = access != null
+                    && (access.Type == JTokenType.Integer
+                        ? access.Value<int>() == 1          // ScriptSharedAccess.ReadWrite
+                        : string.Equals(access.ToString(), "ReadWrite", StringComparison.Ordinal));
+                if (!writable) return false;
+
+                variableId = jo.Value<Guid?>("VariableId") ?? Guid.Empty;
+                savedName = jo.Value<string>("Name");
+                return true;
+            }
+
+            var type = item.GetType();
+            var accessValue = type.GetProperty("Access")?.GetValue(item)?.ToString();
+            if (!string.Equals(accessValue, "ReadWrite", StringComparison.Ordinal))
+                return false;
+
+            if (type.GetProperty("VariableId")?.GetValue(item) is Guid id)
+                variableId = id;
+            savedName = type.GetProperty("Name")?.GetValue(item) as string;
+            return true;
+        }
+
+        /// <summary>脚本声明的冲突键：Id 优先解析成**当前**变量名（改名后两条声明仍要撞上）。</summary>
+        private string ResolveGlobalWriteKey(Guid variableId, string savedName)
+        {
+            if (variableId != Guid.Empty)
+            {
+                var variable = workspaceManager?.VariableRegistry?.FindById(variableId);
+                if (variable != null && !string.IsNullOrWhiteSpace(variable.Name))
+                    return variable.Name;
+            }
+            return string.IsNullOrWhiteSpace(savedName) ? null : savedName.Trim();
+        }
+
+        /// <summary>
         /// 是否「变量赋值」步骤：按 PluginTypeName 含 VariableAssignmentPlugin 判
         /// （AssemblyQualifiedName 前缀即类型全名的一部分，与 IsParallelSafe 的字符串口径同理）。
         /// </summary>
         private static bool IsVariableAssignmentPlugin(StepModel step) =>
             step.PluginTypeName != null
             && step.PluginTypeName.Contains("VariableAssignmentPlugin", StringComparison.Ordinal);
+
+        /// <summary>是否「C#脚本」步骤（与上面同一口径）。</summary>
+        private static bool IsCSharpScriptPlugin(StepModel step) =>
+            step.PluginTypeName != null
+            && step.PluginTypeName.Contains("CSharpScriptPlugin", StringComparison.Ordinal);
 
         /// <summary>
         /// 结构层取数合法性检查：把「数据依赖倒序」与「跨分支取数」挡在编译期。

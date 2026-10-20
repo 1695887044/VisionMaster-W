@@ -43,6 +43,34 @@ namespace Plugin.CSharpScript
             },
             new ApiMember
             {
+                Name = "GetGlobal",
+                Signature = "object Context.GetGlobal(string alias)",
+                Summary = "读共享变量（全局/系统）的当前值，参数是左侧「共享变量」表里的别名；未声明会抛异常。",
+                Insert = "GetGlobal(\u0001\"alias\"\u0001)",
+            },
+            new ApiMember
+            {
+                Name = "GetGlobal<T>",
+                Signature = "T Context.GetGlobal<T>(string alias)",
+                Summary = "读共享变量并转成 T（如 GetGlobal<int>(\"imageIndex\")），类型不符会抛异常。",
+                Insert = "GetGlobal<\u0001int\u0001>(\u0001\"alias\"\u0001)",
+            },
+            new ApiMember
+            {
+                Name = "SetGlobal",
+                Signature = "void Context.SetGlobal(string alias, object value)",
+                Summary = "写共享变量（全局/系统）：需在「共享变量」表声明为「读写」；系统变量只读。失败抛异常。",
+                Insert = "SetGlobal(\u0001\"alias\"\u0001, \u0001value\u0001)",
+            },
+            new ApiMember
+            {
+                Name = "TrySetGlobal",
+                Signature = "bool Context.TrySetGlobal(string alias, object value, out string error)",
+                Summary = "写共享变量，失败返回 false 并带原因（不抛异常），适合脚本里分支处理。",
+                Insert = "TrySetGlobal(\u0001\"alias\"\u0001, \u0001value\u0001, out var \u0001error\u0001)",
+            },
+            new ApiMember
+            {
                 Name = "SetOutput",
                 Signature = "void Context.SetOutput(string name, object value)",
                 Summary = "写输出变量（传给下游连线的端口），名字需与右侧输出变量表一致。",

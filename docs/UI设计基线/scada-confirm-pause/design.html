@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SCADA P0 交互 · 二次确认与流程暂停/恢复 · Web 设计基线 v1</title>
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1100px 620px at 50% -12%, #F8FAFC 0%, rgba(248,250,252,0) 62%),
+      radial-gradient(circle at 1px 1px, rgba(148,163,184,.14) 1px, transparent 0) 0 0/24px 24px,
+      #E9EEF5;
+    color:#0F172A;
+    font-family:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    font-size:13px;line-height:1.5;padding:28px 28px 80px;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit;}
+  a{color:inherit;}
+
+  /* ---------- 页头 / 页签 ---------- */
+  .page-head{max-width:1560px;margin:0 auto 16px;}
+  .eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#0369A1;margin-bottom:8px;}
+  .eyebrow::before{content:"";width:18px;height:2px;border-radius:1px;background:#0EA5E9;}
+  .page-head h1{margin:0;font-size:24px;font-weight:600;letter-spacing:-.02em;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:#E0F2FE;color:#0369A1;font-size:11px;font-weight:700;}
+  .page-head .meta{margin:8px 0 0;color:#475569;font-size:13px;max-width:1180px;line-height:1.65;}
+  .page-head .meta b{color:#0F172A;font-weight:600;}
+  .page-head .meta code{font-family:"Cascadia Mono","Consolas",monospace;font-size:11.5px;padding:1px 5px;border:1px solid #E2E8F0;border-radius:4px;background:rgba(255,255,255,.72);white-space:nowrap;}
+  .meta-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;}
+  .meta-chip{display:inline-flex;align-items:center;height:24px;padding:0 9px;border:1px solid #E2E8F0;border-radius:12px;background:rgba(255,255,255,.72);color:#475569;font-size:11px;}
+  .meta-chip strong{color:#0F172A;font-weight:600;margin-right:3px;}
+  .tabs{max-width:1560px;margin:0 auto 18px;display:flex;gap:6px;flex-wrap:wrap;padding:7px;background:rgba(255,255,255,.72);border:1px solid #E2E8F0;border-radius:10px;}
+  .tabs button{appearance:none;border:1px solid transparent;background:transparent;color:#475569;height:30px;padding:0 12px;border-radius:7px;font-size:11.5px;cursor:pointer;}
+  .tabs button:hover{background:#F1F5F9;}
+  .tabs button.is-on{background:#0F172A;color:#fff;border-color:#0F172A;font-weight:600;}
+  .tab-page{display:none;max-width:1560px;margin:0 auto;}
+  .tab-page.is-on{display:block;}
+  .tpl-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:2px 0 12px;}
+  .tpl-head h2{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em;}
+  .tpl-head h2 span{color:#0EA5E9;font-family:"Cascadia Mono","Consolas",monospace;font-size:13px;margin-right:6px;}
+  .tpl-head p{margin:4px 0 0;color:#475569;font-size:11.5px;max-width:980px;}
+  .tpl-meta{display:flex;gap:6px;flex-wrap:wrap;}
+  .tpl-meta span{display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;background:#fff;color:#475569;font-size:10px;}
+  .tpl-meta b{color:#0F172A;font-weight:600;margin-right:3px;}
+
+  /* ---------- 亮色工作台（事件/动作编辑器） ---------- */
+  .editor-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .panel{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px;box-shadow:0 1px 2px rgba(15,23,42,.05);}
+  .panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px;}
+  .panel-head b{display:block;font-size:12.5px;font-weight:600;color:#0F172A;}
+  .panel-head span{display:block;font-size:10px;color:#94A3B8;margin-top:1px;}
+  .state-chip{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:#F1F5F9;border:1px solid #E2E8F0;color:#475569;font-size:9px;font-weight:600;white-space:nowrap;}
+  .state-chip.warn{background:#FFF7ED;border-color:#FED7AA;color:#9A3412;}
+  .state-chip.danger{background:#FEF2F2;border-color:#FECACA;color:#B91C1C;}
+  .state-chip.ok{background:#F0FDF4;border-color:#BBF7D0;color:#15803D;}
+  .event-box{border:1px solid #EEF2F7;border-radius:8px;padding:10px 12px;background:#FCFDFE;}
+  .event-box + .event-box{margin-top:8px;}
+  .event-title{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:#0F172A;}
+  .check{width:14px;height:14px;border-radius:4px;border:1px solid #CBD5E1;background:#fff;display:inline-flex;align-items:center;justify-content:center;flex:none;font-size:9px;color:#fff;line-height:1;}
+  .check.on{background:#0EA5E9;border-color:#0EA5E9;}
+  .check.on::after{content:"✓";}
+  .check.disabled{opacity:.45;}
+  .confirm-row{display:flex;align-items:center;gap:8px;margin:9px 0 0 22px;font-size:11px;color:#475569;}
+  .confirm-row .check{width:13px;height:13px;}
+  .field{flex:1;min-width:0;height:28px;border:1px solid #CBD5E1;border-radius:6px;background:#fff;padding:0 9px;display:flex;align-items:center;color:#475569;font-size:10.5px;}
+  .field.placeholder{color:#94A3B8;}
+  .helper{margin:5px 0 0 22px;font-size:10px;color:#94A3B8;line-height:1.55;}
+  .helper.warn{color:#B45309;}
+  .action-title{margin:10px 0 4px 22px;font-size:10px;color:#64748B;}
+  .action-row{display:flex;align-items:center;gap:7px;margin:0 0 5px 22px;padding:5px 7px;border:1px solid #E2E8F0;border-radius:6px;background:#fff;font-size:10px;color:#475569;}
+  .action-row .type{display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:4px;background:#F1F5F9;border:1px solid #E2E8F0;color:#0F172A;font-weight:600;white-space:nowrap;}
+  .action-row .target{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:"Cascadia Mono","Consolas",monospace;font-size:9.5px;color:#475569;}
+  .action-row .link{font-size:9px;color:#0284C7;white-space:nowrap;}
+  .danger-tag{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:4px;background:#FEF2F2;border:1px solid #FECACA;color:#B91C1C;font-size:8.5px;font-weight:700;}
+  .empty-note{margin:8px 0 0 22px;padding:7px 9px;border-radius:5px;background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;font-size:10px;line-height:1.55;}
+
+  /* ---------- 暗色运行画面（确认弹窗 / 自动页） ---------- */
+  .screen{
+    --c-bg:#0E1318;--c-surface:#151C23;--c-surface-2:#1B242D;--c-surface-3:#222D38;
+    --c-border:#2A3745;--c-border-2:#3A4A5C;--c-outline:#526274;
+    --c-text:#E6EEF7;--c-text-2:#A9B7C6;--c-text-3:#7C8A99;
+    --c-accent:#38BDF8;--c-accent-2:#0EA5E9;--c-accent-strong:#0284C7;
+    --c-success:#22C55E;--c-success-fill:#15803D;
+    --c-warning:#F59E0B;--c-danger:#EF4444;--c-info:#3B82F6;--c-off:#64748B;--c-track:#26313D;
+    --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+    position:relative;width:1440px;height:900px;margin:0 auto;overflow:hidden;background:var(--c-bg);color:var(--c-text);
+    border:1px solid #1E2A36;border-radius:12px;box-shadow:0 18px 50px rgba(15,23,42,.18);font-size:12px;line-height:1.45;
+  }
+  .topbar{height:56px;display:flex;align-items:center;gap:14px;padding:0 18px;background:var(--c-surface);border-bottom:1px solid var(--c-border);}
+  .brand{display:flex;align-items:center;gap:9px;flex:none;}
+  .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#0EA5E9,#0284C7);display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;color:#fff;letter-spacing:.04em;}
+  .brand b{display:block;font-size:13px;font-weight:600;line-height:1.2;}
+  .brand small{display:block;font-size:9px;color:var(--c-text-3);line-height:1.3;}
+  .status-chip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;font-size:10px;font-weight:600;white-space:nowrap;}
+  .status-chip i{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor;}
+  .status-chip.run{background:rgba(34,197,94,.14);color:#86EFAC;border:1px solid rgba(34,197,94,.3);}
+  .status-chip.warn{background:rgba(245,158,11,.14);color:#FCD34D;border:1px solid rgba(245,158,11,.32);}
+  .mode-pill{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:5px;background:var(--c-surface-2);border:1px solid var(--c-border);color:var(--c-text-2);font-family:var(--mono);font-size:9.5px;white-space:nowrap;}
+  .spacer{flex:1;}
+  .top-stat{display:flex;flex-direction:column;gap:1px;padding:0 10px;border-left:1px solid var(--c-border);white-space:nowrap;}
+  .top-stat span{font-size:8.5px;color:var(--c-text-3);}
+  .top-stat b{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--c-text);}
+  .alarm-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:6px;background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.32);color:#FCA5A5;font-size:9.5px;font-weight:600;white-space:nowrap;}
+  .alarm-chip i{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor;}
+  .user{display:flex;flex-direction:column;gap:1px;padding-left:10px;border-left:1px solid var(--c-border);white-space:nowrap;}
+  .user span{font-size:8.5px;color:var(--c-text-3);}
+  .user b{font-size:10.5px;font-weight:600;color:var(--c-text-2);}
+  .clock{font-family:var(--mono);font-size:12px;color:var(--c-text-2);white-space:nowrap;}
+  .shell{display:flex;height:814px;}
+  .nav{width:200px;flex:none;background:#111820;border-right:1px solid var(--c-border);padding:10px 8px;display:flex;flex-direction:column;gap:3px;}
+  .nav-item{display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border-radius:6px;color:var(--c-text-3);font-size:11px;white-space:nowrap;}
+  .nav-item .ico{width:16px;text-align:center;font-size:13px;color:var(--c-text-3);flex:none;}
+  .nav-item.active{background:var(--c-surface-2);color:var(--c-text);box-shadow:inset 2px 0 0 var(--c-accent);}
+  .nav-item.active .ico{color:var(--c-accent);}
+  .nav-sep{height:1px;background:var(--c-border);margin:8px 6px;}
+  .nav-foot{margin-top:auto;padding:10px 8px 4px;border-top:1px solid var(--c-border);}
+  .conn{display:flex;align-items:center;gap:6px;font-size:9.5px;color:#86EFAC;}
+  .conn i{width:6px;height:6px;border-radius:50%;background:#22C55E;box-shadow:0 0 6px rgba(34,197,94,.8);}
+  .conn-sub{font-size:8.5px;color:var(--c-text-3);margin-top:2px;padding-left:12px;}
+  .main{flex:1;min-width:0;padding:14px;display:flex;flex-direction:column;gap:12px;overflow:hidden;}
+  .rail{width:320px;flex:none;background:#111820;border-left:1px solid var(--c-border);padding:12px;display:flex;flex-direction:column;gap:12px;overflow:hidden;}
+  .bottombar{height:30px;display:flex;align-items:center;gap:16px;padding:0 18px;background:#0B1015;border-top:1px solid var(--c-border);font-size:9.5px;color:var(--c-text-3);}
+  .bottombar .dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:#22C55E;margin-right:5px;vertical-align:1px;}
+  .card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:8px;padding:12px;display:flex;flex-direction:column;min-height:0;overflow:hidden;}
+  .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;flex:none;}
+  .card-head b{display:block;font-size:12px;font-weight:600;color:var(--c-text);line-height:1.3;}
+  .card-head span{display:block;font-size:9.5px;color:var(--c-text-3);margin-top:1px;line-height:1.35;}
+  .chip{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:var(--c-surface-2);border:1px solid var(--c-border);color:var(--c-text-2);font-size:9px;font-weight:600;white-space:nowrap;}
+  .chip.ok{background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.3);color:#86EFAC;}
+  .chip.warn{background:rgba(245,158,11,.13);border-color:rgba(245,158,11,.3);color:#FCD34D;}
+  .chip.danger{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.32);color:#FCA5A5;}
+  .sequence-card{height:210px;flex:none;}
+  .seq-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;height:22px;padding:0 7px;border-radius:4px;border:1px solid var(--c-border-2);background:var(--c-surface-2);color:var(--c-text-2);font-size:8.5px;white-space:nowrap;}
+  .btn.primary{background:var(--c-accent-2);border-color:var(--c-accent-2);color:#fff;font-weight:600;}
+  .btn.danger{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.38);color:#FCA5A5;font-weight:600;}
+  .btn.disabled{opacity:.38;}
+  .steps{display:flex;align-items:flex-start;gap:0;margin-top:12px;}
+  .step{display:flex;flex-direction:column;align-items:center;gap:5px;flex:none;width:64px;}
+  .step i{width:28px;height:28px;border-radius:50%;border:1px solid var(--c-border-2);background:var(--c-surface-2);display:flex;align-items:center;justify-content:center;font-style:normal;font-size:10px;color:var(--c-text-3);}
+  .step span{font-size:9px;color:var(--c-text-3);white-space:nowrap;}
+  .step.done i{background:var(--c-success-fill);border-color:var(--c-success);color:#fff;font-weight:700;}
+  .step.on i{background:var(--c-warning);border-color:var(--c-warning);color:#1F1300;font-weight:700;box-shadow:0 0 0 4px rgba(245,158,11,.14);}
+  .step.on span{color:var(--c-text);font-weight:600;}
+  .step-line{flex:1;height:1px;background:var(--c-border-2);margin-top:14px;min-width:18px;}
+  .step-line.on{background:var(--c-success);}
+  .step-line.paused{background:repeating-linear-gradient(90deg,var(--c-warning) 0 5px,transparent 5px 10px);}
+  .seq-foot{display:flex;gap:18px;margin-top:auto;font-size:9px;color:var(--c-text-3);}
+  .seq-foot b{font-family:var(--mono);color:var(--c-text);font-weight:500;}
+  .batch-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;}
+  .batch-cell{background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:6px;padding:7px 9px;}
+  .batch-cell span{font-size:8.5px;color:var(--c-text-3);}
+  .batch-cell b{display:block;font-family:var(--mono);font-size:14px;font-weight:600;color:var(--c-text);line-height:1.25;}
+  .progress{height:6px;border-radius:999px;background:var(--c-track);overflow:hidden;margin:9px 0 6px;}
+  .progress i{display:block;height:100%;border-radius:999px;background:var(--c-warning);}
+  .recipe-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+  .recipe-item{display:flex;justify-content:space-between;gap:8px;background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:5px;padding:6px 8px;font-size:9px;color:var(--c-text-3);}
+  .recipe-item b{font-family:var(--mono);color:var(--c-text);font-weight:500;}
+  .interlock-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;}
+  .interlock-item{display:flex;align-items:center;gap:6px;background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:5px;padding:6px 8px;font-size:9px;color:var(--c-text-2);}
+  .interlock-item i{width:6px;height:6px;border-radius:50%;background:var(--c-success);flex:none;}
+  .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1;}
+  .kpi{background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;justify-content:center;min-height:0;}
+  .kpi span{font-size:9px;color:var(--c-text-3);}
+  .kpi b{font-family:var(--mono);font-size:21px;font-weight:600;color:var(--c-text);line-height:1.15;}
+  .kpi b small{font-size:10px;color:var(--c-text-3);font-weight:400;margin-left:1px;}
+  .kpi em{font-style:normal;font-size:8.5px;color:#86EFAC;}
+  .alarm-card{height:228px;flex:none;}
+  .alarm-list{display:flex;flex-direction:column;gap:6px;overflow:hidden;}
+  .alarm-row{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;gap:7px;align-items:center;padding:6px 8px;border-radius:5px;background:var(--c-surface-2);border-left:3px solid var(--c-off);font-size:9.5px;color:var(--c-text-2);}
+  .alarm-row.critical{border-left-color:var(--c-danger);}
+  .alarm-row.warning{border-left-color:var(--c-warning);}
+  .alarm-row.info{border-left-color:var(--c-info);}
+  .alarm-row .sev{font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;border:1px solid currentColor;white-space:nowrap;}
+  .alarm-row.critical .sev{color:#FCA5A5;}
+  .alarm-row.warning .sev{color:#FCD34D;}
+  .alarm-row.info .sev{color:#93C5FD;}
+  .alarm-row .time{font-family:var(--mono);font-size:8.5px;color:var(--c-text-3);white-space:nowrap;}
+  .alarm-row .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--c-text);}
+  .alarm-row .state{font-size:8.5px;color:var(--c-text-3);white-space:nowrap;}
+
+  /* ---------- 确认弹窗 ---------- */
+  .dialog-stage{position:relative;height:560px;border-radius:12px;overflow:hidden;background:linear-gradient(135deg,#0E1318,#0B1015);border:1px solid #1E2A36;box-shadow:0 18px 50px rgba(15,23,42,.18);display:flex;align-items:center;justify-content:center;}
+  .dialog-stage::before{content:"";position:absolute;inset:0;background:rgba(2,6,12,.58);}
+  .dialog-stage .ghost{position:absolute;inset:0;opacity:.30;pointer-events:none;background:
+    linear-gradient(180deg,rgba(21,28,35,.95),rgba(14,19,24,.95)),
+    repeating-linear-gradient(90deg,transparent 0 119px,rgba(42,55,69,.5) 119px 120px);}
+  .dialog{position:relative;z-index:2;width:480px;background:#fff;border:1px solid #E2E8F0;border-radius:12px;box-shadow:0 24px 70px rgba(2,6,12,.42);padding:18px 20px 14px;color:#0F172A;}
+  .dialog-close{position:absolute;top:10px;right:12px;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#94A3B8;font-size:16px;line-height:1;}
+  .dialog-question{margin:10px 0 0;font-size:12px;font-weight:600;color:#0F172A;}
+  .dialog-head{display:flex;align-items:flex-start;gap:10px;}
+  .dialog-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;flex:none;}
+  .dialog-icon.warn{background:#FFF7ED;border:1px solid #FED7AA;color:#B45309;}
+  .dialog-icon.danger{background:#FEF2F2;border:1px solid #FECACA;color:#B91C1C;}
+  .dialog-title{font-size:14px;font-weight:600;color:#0F172A;line-height:1.35;}
+  .dialog-sub{font-size:11px;color:#64748B;margin-top:2px;}
+  .dialog-msg{margin:12px 0 0;font-size:12px;line-height:1.65;color:#334155;}
+  .dialog-hint{margin:7px 0 0;font-size:10.5px;line-height:1.6;color:#B45309;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;padding:7px 9px;}
+  .dialog-hint.danger{background:#FEF2F2;border-color:#FECACA;color:#B91C1C;}
+  .dialog-details{margin:10px 0 0;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;}
+  .dialog-detail{display:grid;grid-template-columns:56px 1fr;gap:8px;padding:6px 9px;font-size:10px;color:#64748B;border-bottom:1px solid #EEF2F7;}
+  .dialog-detail:last-child{border-bottom:0;}
+  .dialog-detail b{font-family:"Cascadia Mono","Consolas",monospace;font-size:10px;color:#0F172A;font-weight:500;}
+  .dialog-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid #EEF2F7;}
+  .dialog-foot .hint{font-size:9.5px;color:#64748B;}
+  .dialog-actions{display:flex;gap:8px;}
+  .dbtn{display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 14px;border-radius:8px;font-size:12.5px;font-weight:600;border:1px solid #CBD5E1;background:#fff;color:#475569;}
+  .dbtn.primary{background:#0EA5E9;border-color:#0EA5E9;color:#fff;}
+  .dbtn.danger{background:#DC2626;border-color:#DC2626;color:#fff;}
+  .dbtn.focus{box-shadow:0 0 0 2px #BAE6FD;border-color:#0EA5E9;}
+  .dialog-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+
+  /* ---------- 状态矩阵 ---------- */
+  .matrix{width:100%;border-collapse:collapse;font-size:10.5px;color:#475569;background:#fff;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;}
+  .matrix th,.matrix td{padding:7px 9px;border-bottom:1px solid #EEF2F7;text-align:left;vertical-align:top;}
+  .matrix th{background:#F8FAFC;color:#0F172A;font-weight:600;font-size:10px;}
+  .matrix tr:last-child td{border-bottom:0;}
+  .matrix td:first-child{font-weight:600;color:#0F172A;white-space:nowrap;}
+  .matrix .yes{color:#15803D;font-weight:600;}
+  .matrix .no{color:#B91C1C;font-weight:600;}
+  .matrix .muted{color:#94A3B8;}
+  .matrix-wrap{overflow:auto;}
+
+  /* ---------- 说明 ---------- */
+  .notes{max-width:1440px;margin:14px auto 0;display:grid;grid-template-columns:1.1fr .9fr;gap:14px;}
+  .note-card{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px;box-shadow:0 1px 2px rgba(15,23,42,.05);}
+  .note-card h3{margin:0 0 8px;font-size:12.5px;font-weight:600;color:#0F172A;}
+  .note-card h3:not(:first-child){margin-top:14px;}
+  .note-card p,.note-card li{font-size:11px;line-height:1.7;color:#475569;}
+  .note-card ul,.note-card ol{margin:0 0 8px;padding-left:18px;}
+  .note-card code{font-family:"Cascadia Mono","Consolas",monospace;font-size:10px;padding:1px 4px;border:1px solid #E2E8F0;border-radius:3px;background:#F8FAFC;white-space:nowrap;}
+  .tag-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;}
+  .tag-list span{display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:4px;background:#F1F5F9;border:1px solid #E2E8F0;color:#475569;font-family:"Cascadia Mono","Consolas",monospace;font-size:9px;white-space:nowrap;}
+
+  /* ---------- 截图模式 ---------- */
+  body.shot{padding:0;background:#E9EEF5;}
+  body.shot .page-head,body.shot .tabs,body.shot .tpl-head,body.shot .notes{display:none !important;}
+  body.shot .tab-page{max-width:none;}
+  body.shot .screen{margin:0;border:0;border-radius:0;box-shadow:none;}
+  body.shot .dialog-stage{height:560px;border-radius:0;}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <div class="eyebrow">SCADA P0 · Interaction Design Baseline</div>
+  <h1>SCADA P0 交互 · 二次确认与流程暂停/恢复 <span class="ver">v1</span></h1>
+  <p class="meta">
+    覆盖两个 P0 能力：<b>事件钩子级二次确认</b>（执行前弹确认框，取消则整串动作都不执行）与 <b>流程暂停/恢复</b>（暂停流程 / 恢复流程两个动作）。
+    本页是 UI-SOP 第 ① 步的 Web 设计基线；评审通过后再复刻 WPF，WPF 以本页为视觉与状态对照。
+  </p>
+  <div class="meta-row">
+    <span class="meta-chip"><strong>视口</strong>1440 × 900</span>
+    <span class="meta-chip"><strong>UI 面</strong>4 个</span>
+    <span class="meta-chip"><strong>日期</strong>2026-10-21</span>
+    <span class="meta-chip"><strong>状态</strong>待确认</span>
+    <span class="meta-chip"><strong>令牌</strong>不新增</span>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs" role="tablist" aria-label="P0 交互设计">
+  <button type="button" class="is-on" data-page="editor">01 事件编辑器</button>
+  <button type="button" data-page="dialog">02 确认弹窗</button>
+  <button type="button" data-page="autopause">03 自动页暂停/恢复</button>
+  <button type="button" data-page="actions">04 动作与状态矩阵</button>
+</nav>
+
+<!-- ============================================================ -->
+<!-- 01 事件编辑器                                                -->
+<!-- ============================================================ -->
+<section class="tab-page is-on" id="page-editor" data-page="editor">
+  <div class="tpl-head">
+    <div>
+      <h2><span>01</span>事件编辑器 · 执行前确认</h2>
+      <p>在现有「事件 + 动作表」编辑器里加一行：勾选「执行前确认」后，运行态命中该事件先弹确认框；取消则整串动作都不执行。</p>
+    </div>
+    <div class="tpl-meta"><span><b>位置</b>属性面板事件行</span><span><b>新增</b>确认开关 + 提示文案</span><span><b>默认</b>不开启</span></div>
+  </div>
+
+  <div class="editor-grid">
+    <div class="panel">
+      <div class="panel-head"><div><b>未开启确认</b><span>默认状态：与现有行为完全一致</span></div><span class="state-chip">默认</span></div>
+      <div class="event-box">
+        <div class="event-title"><span class="check on"></span>按下</div>
+        <div class="confirm-row"><span class="check"></span><span>执行前确认</span><span class="state-chip">关闭</span></div>
+        <div class="helper">关闭时不弹确认框，命中后按动作表顺序直接执行。</div>
+        <div class="action-title">动作（自上而下依次执行）：</div>
+        <div class="action-row"><span class="type">记录日志</span><span class="target">启动 P-101</span><span class="link">编辑</span></div>
+        <div class="action-row"><span class="type">写变量</span><span class="target">Line3.Mode := 1</span><span class="link">编辑</span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><div><b>已开启确认</b><span>运行态先弹确认框；取消则整串动作都不执行</span></div><span class="state-chip warn">危险动作</span></div>
+      <div class="event-box">
+        <div class="event-title"><span class="check on"></span>按下</div>
+        <div class="confirm-row"><span class="check on"></span><span>执行前确认</span><span class="danger-tag">含停止动作</span></div>
+        <div class="confirm-row" style="margin-top:7px;"><span class="field">停止后进料中断，当前批次将暂停。</span></div>
+        <div class="helper">留空则使用默认提示：确定执行「对象」的「事件」操作吗？</div>
+        <div class="action-title">动作（自上而下依次执行）：</div>
+        <div class="action-row"><span class="type">停止流程</span><span class="target">3# 灌装线</span><span class="link">选择流程</span></div>
+        <div class="action-row"><span class="type">记录日志</span><span class="target">P-101 已停止</span><span class="link">编辑</span></div>
+        <div class="helper warn">确认框默认焦点在「取消」；按 Enter 不会执行停止动作。</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><div><b>未配置事件</b><span>勾选事件后才出现确认行</span></div><span class="state-chip">空态</span></div>
+      <div class="event-box">
+        <div class="event-title"><span class="check"></span>按下</div>
+        <div class="helper">事件未勾选时，确认行与动作表都不出现；画面运行态不会命中该事件。</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><div><b>已开启确认但无动作</b><span>确认框不会出现，必须先补动作</span></div><span class="state-chip danger">需处理</span></div>
+      <div class="event-box">
+        <div class="event-title"><span class="check on"></span>按下</div>
+        <div class="confirm-row"><span class="check on"></span><span>执行前确认</span><span class="state-chip warn">已开启</span></div>
+        <div class="empty-note">还没有动作，运行态命中该事件时不会有任何反应，也不会弹确认框。请先添加动作。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <h3>交互规则</h3>
+      <ul>
+        <li>确认开关挂在<b>事件钩子</b>上，不是单条动作上；一次确认覆盖整串动作。</li>
+        <li>默认<b>关闭</b>，老工程行为不变；勾选后才弹窗。</li>
+        <li>确认文案可自定义；留空走默认「确定执行『对象』的『事件』操作吗？」。</li>
+        <li>动作表里出现 <code>停止流程</code> / <code>轴停止</code> / <code>轴失能</code> 时，编辑器显示「危险动作」标记，弹窗用红色主按钮。</li>
+        <li>无动作时不弹确认框（执行侧本来就把空动作表当没配）。</li>
+      </ul>
+    </div>
+    <div class="note-card">
+      <h3>复刻约束</h3>
+      <ul>
+        <li>复用现有 <code>ScadaEventEditor</code> 与 <code>ScadaEventEditorViewModel</code>，只加一行开关 + 一个文本框，不新开控件。</li>
+        <li>文案与错误提示复用现有 <code>ScadaSecondaryTextBrush</code> / <code>ScadaWarningBrush</code>，不新增颜色。</li>
+        <li>不改变现有事件勾选/动作表的布局与顺序；确认行放在事件勾选框下方、动作表上方。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 02 确认弹窗                                                  -->
+<!-- ============================================================ -->
+<section class="tab-page" id="page-dialog" data-page="dialog">
+  <div class="tpl-head">
+    <div>
+      <h2><span>02</span>确认弹窗 · 普通 / 危险</h2>
+      <p>复用已确认的 <code>MessageDialog</code> 基线：Warning / Danger 两种语义，双按钮，默认焦点在「取消」，Esc 取消。</p>
+    </div>
+    <div class="tpl-meta"><span><b>组件</b>MessageDialog</span><span><b>宽度</b>480</span><span><b>默认焦点</b>取消</span></div>
+  </div>
+
+  <div class="dialog-grid">
+    <div class="dialog-stage">
+      <div class="ghost"></div>
+      <div class="dialog">
+        <div class="dialog-head">
+          <div class="dialog-icon warn">!</div>
+          <div><div class="dialog-title">确认操作</div></div>
+          <span class="dialog-close">×</span>
+        </div>
+        <div class="dialog-msg">P-101 进料泵 · 按下</div>
+        <div class="dialog-hint">将执行：记录日志「启动 P-101」、写变量 Line3.Mode := 1。取消后整串动作都不执行。</div>
+        <div class="dialog-question">是否继续？</div>
+        <div class="dialog-foot"><span class="hint">Enter 取消 · Esc 取消 · Y 取消</span><div class="dialog-actions"><span class="dbtn focus">取消</span><span class="dbtn primary">确认执行</span></div></div>
+      </div>
+    </div>
+
+    <div class="dialog-stage">
+      <div class="ghost"></div>
+      <div class="dialog">
+        <div class="dialog-head">
+          <div class="dialog-icon danger">!</div>
+          <div><div class="dialog-title">确认停止流程？</div></div>
+          <span class="dialog-close">×</span>
+        </div>
+        <div class="dialog-msg">3# 灌装线 · 按下</div>
+        <div class="dialog-hint danger">将执行：停止流程 3# 灌装线。停止后进料中断，当前批次将暂停。</div>
+        <div class="dialog-question">是否继续？</div>
+        <div class="dialog-foot"><span class="hint">Enter 取消 · Esc 取消 · Y 取消</span><div class="dialog-actions"><span class="dbtn focus">取消</span><span class="dbtn danger">确认停止</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <h3>弹窗规则</h3>
+      <ul>
+        <li>字段只用 MessageDialog 现有槽：<code>Title</code> / <code>Message</code>（对象·事件）/ <code>Hint</code>（动作摘要 + 后果）/ <code>Question</code>（是否继续）/ 双按钮。</li>
+        <li>普通动作：Warning 图标 + 主色主按钮；危险动作：Danger 图标 + 红色主按钮。</li>
+        <li><b>默认焦点始终在「取消」</b>；Enter = 取消，Esc = 取消，<b>Y 也取消</b>（危险场景不再无条件触发主操作）。</li>
+        <li>确认 = 按动作表顺序执行；取消 = 一条动作都不执行，记 Warn 日志 + 一条审计「Skipped」。</li>
+        <li>权限不足：不弹确认、不执行、提示无权限（权限闸门在扫钩子之前）。</li>
+        <li>无弹窗环境（断言/离线）→ 返回 false，按取消处理，绝不静默放行。</li>
+      </ul>
+    </div>
+    <div class="note-card">
+      <h3>复刻约束</h3>
+      <ul>
+        <li>弹窗走 <code>MessageDialog.Show(options)</code>，替换现有 <code>ScadaConfirmationService</code> 里的 <code>EasyDialog</code>。</li>
+        <li>不新增弹窗控件；沿用 <code>Dialog*</code> 令牌与 <code>MessageDialog</code> 的焦点/键盘契约。</li>
+        <li><b>不承诺副标题/结构化详情</b>：MessageDialog 现有槽位只有 Message/Hint/Question；设计稿已按此收敛。</li>
+        <li>480 为默认宽；轴控台长文案实测不够时用 560 宽档。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 03 自动页暂停/恢复                                           -->
+<!-- ============================================================ -->
+<section class="tab-page" id="page-autopause" data-page="autopause">
+  <div class="tpl-head">
+    <div>
+      <h2><span>03</span>自动页 · 暂停 / 恢复</h2>
+      <p>自动页暂停态：状态从「运行中」变「已暂停」，主按钮从「暂停」变「恢复」；步序停在当前步，批次进度冻结。</p>
+    </div>
+    <div class="tpl-meta"><span><b>页面</b>自动</span><span><b>状态</b>运行中 / 已暂停</span><span><b>动作</b>暂停流程 / 恢复流程</span></div>
+  </div>
+
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>1# 装配单元</b><small>SCADA · 自动运行</small></div></div>
+      <span class="status-chip warn"><i></i>已暂停</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>当前步</span><b>3 / 5 搅拌</b></div>
+      <div class="top-stat"><span>批次</span><b>B20261020-01</b></div>
+      <div class="alarm-chip"><i></i>3 条未确认</div>
+      <div class="user"><span>操作员</span><b>张三</b></div>
+      <div class="clock">14:32:08</div>
+    </div>
+
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item"><span class="ico">▦</span>总览</div>
+        <div class="nav-item"><span class="ico">◔</span>监控</div>
+        <div class="nav-item"><span class="ico">✥</span>手动</div>
+        <div class="nav-item active"><span class="ico">⌁</span>自动</div>
+        <div class="nav-item"><span class="ico">△</span>报警条</div>
+        <div class="nav-item"><span class="ico">▤</span>报警日志</div>
+        <div class="nav-item"><span class="ico">▥</span>操作记录</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">≡</span>设置</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">12 ms · 0 丢包</div></div>
+      </aside>
+
+      <main class="main">
+        <section class="card sequence-card">
+          <div class="card-head">
+            <div><b>自动流程</b><span>已暂停 · 当前步 3/5 · 搅拌 · 本步已运行 2.4 s</span></div>
+            <div class="seq-actions">
+              <span class="btn disabled">启动</span>
+              <span class="btn primary">恢复</span>
+              <span class="btn danger">停止</span>
+              <span class="btn disabled">复位</span>
+              <span class="btn">切换手动</span>
+            </div>
+          </div>
+          <div class="steps">
+            <div class="step done"><i>✓</i><span>上料</span></div><span class="step-line on"></span>
+            <div class="step done"><i>✓</i><span>定位</span></div><span class="step-line paused"></span>
+            <div class="step on"><i>Ⅱ</i><span>搅拌</span></div><span class="step-line"></span>
+            <div class="step"><i>4</i><span>检测</span></div><span class="step-line"></span>
+            <div class="step"><i>5</i><span>下料</span></div>
+          </div>
+          <div class="seq-foot"><span>暂停在节点边界生效</span><span>本步耗时 <b>2.4 s</b></span><span>批次进度 <b>冻结 68%</b></span><span>恢复后从当前步继续</span></div>
+        </section>
+
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>当前批次</b><span>B20261020-01 · 草莓 500mL</span></div><span class="chip warn">暂停中</span></div>
+          <div class="batch-grid">
+            <div class="batch-cell"><span>配方</span><b>草莓 500mL</b></div>
+            <div class="batch-cell"><span>目标</span><b>12,840</b></div>
+            <div class="batch-cell"><span>已生产</span><b>8,740</b></div>
+            <div class="batch-cell"><span>进度</span><b>68%</b></div>
+          </div>
+          <div class="progress"><i style="width:68%"></i></div>
+          <div class="recipe-grid">
+            <div class="recipe-item"><span>温度</span><b>72.5 °C</b></div>
+            <div class="recipe-item"><span>时间</span><b>30 min</b></div>
+            <div class="recipe-item"><span>搅拌</span><b>320 rpm</b></div>
+            <div class="recipe-item"><span>灌装量</span><b>500 mL</b></div>
+          </div>
+          <div style="font-size:8.5px;color:var(--c-text-3);margin-top:8px;">暂停期间配方只读；恢复后继续当前批次。</div>
+          <div style="margin-top:10px;padding:8px 10px;border-radius:6px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);font-size:9px;color:#FCD34D;line-height:1.6;">暂停期间：已下发的动作不撤回；恢复后从当前步继续；停止后不能恢复。</div>
+        </section>
+
+        <section class="card" style="height:180px;flex:none;">
+          <div class="card-head"><div><b>自动运行条件</b><span>启动许可 · 实时</span></div><span class="chip ok">6/6 满足</span></div>
+          <div class="interlock-grid">
+            <div class="interlock-item"><i></i>安全门闭合</div>
+            <div class="interlock-item"><i></i>液位 &gt; 10%</div>
+            <div class="interlock-item"><i></i>气压 0.62 MPa</div>
+            <div class="interlock-item"><i></i>无未确认报警</div>
+            <div class="interlock-item"><i></i>灌装机就绪</div>
+            <div class="interlock-item"><i></i>下料通道畅通</div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="rail">
+        <section class="card" style="height:188px;flex:none;">
+          <div class="card-head"><div><b>生产 KPI</b><span>当前班次</span></div><span class="chip">08:00–16:00</span></div>
+          <div class="kpi-grid">
+            <div class="kpi"><span>OEE</span><b>92.4<small>%</small></b><em>↑ 1.2%</em></div>
+            <div class="kpi"><span>产量</span><b>12,840</b><em>目标 15,000</em></div>
+            <div class="kpi"><span>良率</span><b>99.1<small>%</small></b><em>↑ 0.3%</em></div>
+            <div class="kpi"><span>停机</span><b>12<small>min</small></b><em>↓ 4 min</em></div>
+          </div>
+        </section>
+
+        <section class="card alarm-card">
+          <div class="card-head"><div><b>报警</b><span>按严重度排序</span></div><span class="chip danger">3 条未确认</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row critical"><span class="sev">严重</span><span class="time">14:31:42</span><span class="name">1# 主轴温度高</span><span class="state">激活</span></div>
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:30:17</span><span class="name">2# 泵出口压力低</span><span class="state">激活</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:28:03</span><span class="name">3# 线换型完成</span><span class="state">激活</span></div>
+          </div>
+        </section>
+
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>批次历史</b><span>最近 3 批</span></div></div>
+          <div class="recipe-item" style="margin-bottom:5px;"><span>B20261019-03</span><b>12,800 · OK</b></div>
+          <div class="recipe-item" style="margin-bottom:5px;"><span>B20261019-02</span><b>12,760 · OK</b></div>
+          <div class="recipe-item"><span>B20261019-01</span><b>12,500 · NG</b></div>
+        </section>
+      </aside>
+    </div>
+
+    <div class="bottombar">
+      <span><i class="dot"></i>PLC 已连接 · 12 ms</span>
+      <span>自动模式 · 已暂停</span>
+      <span>暂停在节点边界生效</span>
+      <span class="spacer"></span>
+      <span>方案：1#装配单元.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <h3>状态规则</h3>
+      <ul>
+        <li>运行中：「启动」禁用、「暂停」可用、「恢复」隐藏/禁用、「停止」可用、「复位」禁用。</li>
+        <li>已暂停：「恢复」变主按钮、「暂停」禁用、「启动」禁用、「停止」仍可用、「复位」禁用。</li>
+        <li>暂停在<b>节点边界</b>生效，不是立即冻结当前节点；页面状态以引擎回报为准。</li>
+        <li><b>只有连续运行可暂停</b>；单次执行（RunOnce）不支持暂停，动作会跳过并记 Warn，不能报“已暂停”假成功。</li>
+        <li>恢复从当前步继续；停止后不能恢复，只能复位/重新启动。</li>
+        <li>切换手动：运行中先确认并暂停；已暂停可直接切。</li>
+        <li><b>状态驱动</b>：推荐在「暂停」钩子里同时放 <code>PauseFlow</code> + <code>WriteVariable(Paused=1)</code>，「恢复」钩子放 <code>ResumeFlow</code> + <code>WriteVariable(Paused=0)</code>；页面用该变量 + 可见性/外观动画显示“已暂停”。P0 不新增流程状态源。</li>
+      </ul>
+    </div>
+    <div class="note-card">
+      <h3>复刻边界</h3>
+      <ul>
+        <li>自动页是<b>用户组态页面模板</b>，不是固定 WPF 视图；WPF P0 提供的是「暂停流程/恢复流程」动作类型与运行态行为。</li>
+        <li>“已暂停”由同钩子的 <code>WriteVariable</code> 驱动，不依赖新的流程状态源；模板演示该配置。</li>
+        <li>设计稿为同屏缩略，按钮高 22px；WPF 复刻用 <code>Hmi.Button</code> 的 30px 档，禁用不隐藏。</li>
+        <li>按钮的五态（Normal/Hover/Pressed/Focus/Disabled）沿用现有按钮样式，不新造。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 04 动作与状态矩阵                                            -->
+<!-- ============================================================ -->
+<section class="tab-page" id="page-actions" data-page="actions">
+  <div class="tpl-head">
+    <div>
+      <h2><span>04</span>动作编辑器与状态矩阵</h2>
+      <p>动作类型追加「暂停流程 / 恢复流程」；两者与启动/停止/执行一次共用同一个「目标流程」编辑块。</p>
+    </div>
+    <div class="tpl-meta"><span><b>动作</b>PauseFlow / ResumeFlow</span><span><b>目标</b>流程</span><span><b>落盘</b>末尾追加</span></div>
+  </div>
+
+  <div class="editor-grid">
+    <div class="panel">
+      <div class="panel-head"><div><b>动作下拉</b><span>在现有动作类型末尾追加两项</span></div><span class="state-chip ok">新增</span></div>
+      <div class="action-row" style="margin-left:0;"><span class="type">暂停流程</span><span class="target">3# 灌装线</span><span class="link">选择流程</span></div>
+      <div class="action-row" style="margin-left:0;"><span class="type">恢复流程</span><span class="target">3# 灌装线</span><span class="link">选择流程</span></div>
+      <div class="helper" style="margin-left:0;">暂停在节点边界生效；未运行时跳过并记日志；单次执行不支持暂停。恢复对未暂停的运行中流程是幂等空操作。</div>
+      <div class="helper" style="margin-left:0;">推荐同钩子追加 <code>WriteVariable(Paused=1/0)</code>，页面用该变量驱动“已暂停”状态；不新增流程状态源。</div>
+      <div style="margin-top:12px;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;">
+        <div class="action-row" style="margin:0;border:0;border-bottom:1px solid #EEF2F7;border-radius:0;"><span class="type">记录日志</span><span class="target">—</span></div>
+        <div class="action-row" style="margin:0;border:0;border-bottom:1px solid #EEF2F7;border-radius:0;"><span class="type">写变量</span><span class="target">Line3.Mode := 1</span></div>
+        <div class="action-row" style="margin:0;border:0;border-bottom:1px solid #EEF2F7;border-radius:0;"><span class="type">切换画面</span><span class="target">报警日志</span></div>
+        <div class="action-row" style="margin:0;border:0;border-bottom:1px solid #EEF2F7;border-radius:0;"><span class="type">启动流程</span><span class="target">3# 灌装线</span></div>
+        <div class="action-row" style="margin:0;border:0;border-bottom:1px solid #EEF2F7;border-radius:0;background:#F0F9FF;"><span class="type" style="background:#E0F2FE;border-color:#BAE6FD;color:#0369A1;">暂停流程</span><span class="target">3# 灌装线</span></div>
+        <div class="action-row" style="margin:0;border:0;border-bottom:1px solid #EEF2F7;border-radius:0;background:#F0F9FF;"><span class="type" style="background:#E0F2FE;border-color:#BAE6FD;color:#0369A1;">恢复流程</span><span class="target">3# 灌装线</span></div>
+        <div class="action-row" style="margin:0;border:0;border-bottom:1px solid #EEF2F7;border-radius:0;"><span class="type">停止流程</span><span class="target">3# 灌装线</span></div>
+        <div class="action-row" style="margin:0;border:0;border-radius:0;"><span class="type">执行一次</span><span class="target">3# 灌装线</span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><div><b>确认闸门状态</b><span>取消/无弹窗环境都不执行</span></div><span class="state-chip">fail-safe</span></div>
+      <div class="matrix-wrap">
+        <table class="matrix">
+          <tr><th>配置 / 环境</th><th>运行态行为</th><th>结果</th></tr>
+          <tr><td>未勾选确认</td><td>直接执行动作表</td><td class="muted">与现有行为一致</td></tr>
+          <tr><td>勾选确认 → 确认</td><td>按顺序执行整串动作</td><td class="yes">执行</td></tr>
+          <tr><td>勾选确认 → 取消 / Esc</td><td>一条动作都不执行</td><td class="no">不执行 + 日志 + 审计 Skipped</td></tr>
+          <tr><td>勾选确认 → 无弹窗环境</td><td>按取消处理</td><td class="no">不执行</td></tr>
+        <tr><td>勾选确认但无动作</td><td>不弹窗（空动作表当没配）</td><td class="muted">无反应</td></tr>
+        <tr><td>权限不足（图元 RequiredRole）</td><td>权限闸门先于确认闸门</td><td class="no">不弹确认、不执行、提示无权限</td></tr>
+      </table>
+      </div>
+      <div class="helper" style="margin-left:0;margin-top:10px;">动作表含 <b>停止流程 / 轴停止 / 轴失能</b> 时，编辑器显示「危险动作」，弹窗用红色主按钮；危险判定由领域层 <code>IsDangerous()</code> 单源给出，不在视图硬编码。确认文案可自定义。</div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:14px;">
+    <div class="panel-head"><div><b>自动页按钮状态矩阵</b><span>运行中 / 已暂停 / 已停止 / 故障</span></div><span class="state-chip">按钮五态沿用现有样式</span></div>
+    <div class="matrix-wrap">
+      <table class="matrix">
+        <tr><th>状态</th><th>启动</th><th>暂停</th><th>恢复</th><th>停止</th><th>复位</th><th>切换手动</th></tr>
+        <tr><td>运行中</td><td class="no">禁用</td><td class="yes">可用</td><td class="muted">隐藏/禁用</td><td class="yes">可用</td><td class="no">禁用</td><td class="yes">可用（先确认暂停）</td></tr>
+        <tr><td>已暂停</td><td class="no">禁用</td><td class="no">禁用</td><td class="yes">可用（主按钮）</td><td class="yes">可用</td><td class="no">禁用</td><td class="yes">可用</td></tr>
+        <tr><td>已停止</td><td class="yes">可用（许可满足）</td><td class="no">禁用</td><td class="no">禁用</td><td class="no">禁用</td><td class="yes">可用</td><td class="yes">可用</td></tr>
+        <tr><td>故障</td><td class="no">禁用</td><td class="no">禁用</td><td class="no">禁用</td><td class="yes">可用（安全停止）</td><td class="yes">清故障后可用</td><td class="no">禁用</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <h3>暂停 / 恢复语义</h3>
+      <ul>
+        <li><b>暂停</b>：流程存在且<b>连续运行中</b> → 请求引擎暂停；未运行/单次执行 → 跳过并记 Warn；已暂停 → 幂等成功。</li>
+        <li><b>恢复</b>：流程存在且运行中 → 请求引擎恢复；未运行 → 跳过并记 Warn；未暂停 → 幂等成功（本就运行）。</li>
+        <li>暂停不是急停：它停在节点边界，已下发的动作不撤回；急停仍走停止/轴停止。</li>
+        <li>停止后不能恢复，只能复位或重新启动。</li>
+      </ul>
+    </div>
+    <div class="note-card">
+      <h3>复刻映射</h3>
+      <ul>
+        <li><code>ScadaEventHook.RequireConfirmation</code> + <code>ConfirmationMessage</code>：事件钩子字段，老 .vms 缺省为关闭/空。</li>
+        <li><code>ScadaActionType.PauseFlow = 16</code> / <code>ResumeFlow = 17</code>：末尾追加，不改既有数值。</li>
+        <li><code>IScadaFlowRunner.Pause/Resume</code> → <code>IFlowEngine.PauseSession/ResumeSession</code>。</li>
+        <li><code>ScadaActionDispatcher.Dispatch</code>：动作执行前过确认闸门；取消则整串跳过。</li>
+        <li><code>ScadaConfirmationService</code>：由 <code>EasyDialog</code> 换成 <code>MessageDialog</code>（Warning/Danger，默认焦点取消）。</li>
+        <li><code>ScadaEventEditor</code>：事件勾选框下方加确认开关 + 提示文本框；动作行加两个流程动作触发器。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+  var tabs=Array.prototype.slice.call(document.querySelectorAll('#tabs [data-page]'));
+  var pages=Array.prototype.slice.call(document.querySelectorAll('.tab-page'));
+  var map={editor:'page-editor',dialog:'page-dialog',autopause:'page-autopause',actions:'page-actions'};
+  function show(page){
+    if(!map[page]){page='editor';}
+    pages.forEach(function(p){p.classList.toggle('is-on',p.id===map[page]);});
+    tabs.forEach(function(t){t.classList.toggle('is-on',t.getAttribute('data-page')===page);});
+    if(history.replaceState){history.replaceState(null,'','#'+page);}
+  }
+  tabs.forEach(function(t){t.addEventListener('click',function(){show(t.getAttribute('data-page'));});});
+  var hash=(location.hash||'').replace('#','');
+  show(map[hash]?hash:'editor');
+  if(location.search.indexOf('shot=1')>=0){document.body.classList.add('shot');}
+})();
+</script>
+</body>
+</html>

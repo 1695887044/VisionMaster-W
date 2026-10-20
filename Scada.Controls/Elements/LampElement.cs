@@ -57,7 +57,7 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>当前状态</summary>
         [ScadaProperty(Key = "State", DisplayName = "状态", Kind = ElementPropertyKind.Choice,
-                       Group = "状态", DefaultValue = "Off", IsBindable = true,
+                       Group = ScadaPropertyGroups.State, DefaultValue = "Off", IsBindable = true,
                        Choices = new[] { "Off", "On", "Warning", "Alarm" },
                        Description = "运行态把工程变量绑到这里：整数 0=熄灭 1=点亮 2=警告 3=报警，"
                                    + "写枚举名（On/Warning/Alarm）也认")]
@@ -65,27 +65,27 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>熄灭色</summary>
         [ScadaProperty(Key = "OffColor", DisplayName = "熄灭色", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FF3A3A3A", IsBindable = true)]
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FF3A3A3A", IsBindable = true)]
         public partial Brush? OffColor { get; set; }
 
         /// <summary>点亮色</summary>
         [ScadaProperty(Key = "OnColor", DisplayName = "点亮色", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FF34C759", IsBindable = true)]
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FF34C759", IsBindable = true)]
         public partial Brush? OnColor { get; set; }
 
         /// <summary>警告色</summary>
         [ScadaProperty(Key = "WarningColor", DisplayName = "警告色", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FFFFB020", IsBindable = true)]
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FFFFB020", IsBindable = true)]
         public partial Brush? WarningColor { get; set; }
 
         /// <summary>报警色</summary>
         [ScadaProperty(Key = "AlarmColor", DisplayName = "报警色", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FFE03A2B", IsBindable = true)]
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FFE03A2B", IsBindable = true)]
         public partial Brush? AlarmColor { get; set; }
 
         /// <summary>灯体形状（与指示灯共用同一套形状词汇）</summary>
         [ScadaProperty(Key = "Shape", DisplayName = "形状", Kind = ElementPropertyKind.Choice,
-                       Group = "外观", DefaultValue = "Circle", Choices = new[] { "Circle", "Square" },
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "Circle", Choices = new[] { "Circle", "Square" },
                        Description = "与指示灯共用同一套形状词汇：多灯密集排列时方形更省地方")]
         public partial IndicatorShape Shape { get; set; }
 

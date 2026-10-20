@@ -124,7 +124,7 @@ namespace Plugin.Ocr
         // ==================================================================
 
         /// <summary>待识别的图像（运行期由上游连入）</summary>
-        public InputPort<HImage> Image { get; } = new("Image", null, "待识别的图像") { IsRequired = false };
+        public InputPort<HImage> Image { get; } = new("Image", default!, "待识别的图像") { IsRequired = false };
 
         /// <summary>识别出的文本</summary>
         public OutputPort<string> Text { get; } = new("Text", "识别文本");
@@ -360,7 +360,12 @@ namespace Plugin.Ocr
         }
 
         /// <summary>清空识别区（界面按钮）</summary>
-        public void ClearRoi() => CanvasRois.Clear();
+        public void ClearRoi()
+        {
+            CanvasRois.Clear();
+            ResultSummary = "尚未试算";
+            Hint = "识别区已清空：在右侧画布右键 → 新建矩形重新框住整行字符";
+        }
 
         // ==================================================================
         //  配置期的试算
@@ -377,13 +382,15 @@ namespace Plugin.Ocr
         {
             if (DisplayImage == null || !DisplayImage.IsInitialized())
             {
-                ResultSummary = "先点「载入」把示意图读进来再试算";
+                ResultSummary = "先在「图像输入」绑定上游图像（或点「执行」试运行把图带进来）再试算";
+                Hint = "还没有图像：先在「图像输入」绑定上游图像，或点宿主「执行」把图带进来，再试算";
                 return;
             }
 
             if (!TryRecognize(DisplayImage, out var outcome, out string error))
             {
                 ResultSummary = "试算失败：" + error;
+                Hint = "试算失败：先确认识别区是否框住整行字符、极性是否选对，再调整字符尺寸或阈值";
                 return;
             }
 
@@ -392,6 +399,10 @@ namespace Plugin.Ocr
                 + $"字符 {outcome.Count} 个（拒识 {outcome.RejectedCount} 个）　均值置信 {outcome.AverageConfidence:0.00}　"
                 + $"实际阈值 {outcome.UsedThreshold:0}\r\n"
                 + $"逐字符：{outcome.Detail}";
+
+            Hint = outcome.RejectedCount > 0
+                ? $"识别完成：认出 {outcome.Count} 个字符（其中 {outcome.RejectedCount} 个拒识），平均置信度 {outcome.AverageConfidence:0.00}"
+                : $"识别完成：认出 {outcome.Count} 个字符，平均置信度 {outcome.AverageConfidence:0.00}";
         }
 
         // ==================================================================

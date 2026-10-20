@@ -8,13 +8,14 @@
     xmlns:local="clr-namespace:Plugin.PoseTransform"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="http://schemas.UI.com/ui"
-    MinWidth="620"
-    MinHeight="300"
+    MinWidth="560"
+    MinHeight="280"
     d:Background="Gray"
     mc:Ignorable="d">
     <!--
-        尺寸只给下限，交给宿主对话框（初始 880×600、最小 640×420）：
-        左列 340 + 右列 240 + 外边距 24 = 604，落在宿主最小内容区 624×304 之内。
+        两栏：左配置轨（1*，300~356）+ 右叠加预览（1.5*）。
+        960 宿主内容区约 920 → 左 356 / 右 548；640 宿主内容区约 600 → 左 300 / 右 284。
+        所有颜色/字号走 UI 公共令牌，视图内不写十六进制。
     -->
     <UserControl.Resources>
         <ResourceDictionary>
@@ -23,292 +24,860 @@
                 <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <local:ModeLabelConverter x:Key="ModeLabelConverter" />
+            <local:StatusMessageConverter x:Key="StatusMessageConverter" />
+
+            <!--
+                模式卡片：两个 RadioButton 共用模板。
+                IsChecked 仍由 ui:EnumConverter 写回 Mode（见下方 RadioButton 的绑定），
+                模板只负责外观，不改变任何功能路径。
+            -->
+            <Style x:Key="ModeCardStyle" TargetType="RadioButton">
+                <Setter Property="GroupName" Value="PoseTransformMode" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+                <Setter Property="MinHeight" Value="56" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border
+                                x:Name="Card"
+                                Padding="9,8"
+                                Background="{StaticResource DialogSurfaceBrush}"
+                                BorderBrush="{StaticResource DialogBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{StaticResource PluginCardCornerRadius}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ContentPresenter
+                                        Grid.Column="0"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center" />
+                                    <Border
+                                        x:Name="Check"
+                                        Grid.Column="1"
+                                        Width="16"
+                                        Height="16"
+                                        Margin="6,0,0,0"
+                                        Background="{StaticResource DialogAccentBrush}"
+                                        CornerRadius="8"
+                                        Visibility="Collapsed">
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            FontFamily="{StaticResource DialogIconFont}"
+                                            FontSize="9"
+                                            Foreground="{StaticResource DialogSurfaceBrush}"
+                                            Text="&#xf00c;" />
+                                    </Border>
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource DialogBorderStrongBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Card" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                    <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+                                    <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Card" Property="Opacity" Value="0.45" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ModeIconChipStyle" TargetType="Border">
+                <Setter Property="Width" Value="24" />
+                <Setter Property="Height" Value="24" />
+                <Setter Property="Margin" Value="0,0,6,0" />
+                <Setter Property="CornerRadius" Value="7" />
+                <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=RadioButton}}" Value="True">
+                        <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ModeIconGlyphStyle" TargetType="TextBlock">
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=RadioButton}}" Value="True">
+                        <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ModeTitleStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+
+            <Style x:Key="ModeSubtitleStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,2,0,0" />
+                <Setter Property="FontSize" Value="10" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+
+            <Style x:Key="SectionCardStyle" TargetType="Border">
+                <Setter Property="Margin" Value="0,10,0,0" />
+                <Setter Property="Padding" Value="12" />
+                <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="{StaticResource PluginCardCornerRadius}" />
+            </Style>
+
+            <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            </Style>
+
+            <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,10,0,6" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            </Style>
+
+            <Style x:Key="HelpTextStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,6,0,0" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style x:Key="OptionCheckBoxStyle" TargetType="CheckBox">
+                <Setter Property="Margin" Value="0,10,0,0" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            </Style>
+
+            <Style x:Key="LocalButtonStyle" TargetType="Button">
+                <Setter Property="Height" Value="36" />
+                <Setter Property="Padding" Value="12,0" />
+                <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                <Setter Property="FontSize" Value="12.5" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border
+                                x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{StaticResource PluginCardCornerRadius}">
+                                <ContentPresenter
+                                    Margin="{TemplateBinding Padding}"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.90" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.80" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ToolbarButtonStyle" TargetType="Button">
+                <Setter Property="Width" Value="30" />
+                <Setter Property="Height" Value="30" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border
+                                x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                    <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogBorderLightBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.40" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ToolbarTextButtonStyle" TargetType="Button">
+                <Setter Property="Height" Value="26" />
+                <Setter Property="Padding" Value="0,7" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                <Setter Property="FontSize" Value="10.5" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border
+                                x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                    <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogBorderLightBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="StatusDotStyle" TargetType="Ellipse">
+                <Setter Property="Width" Value="7" />
+                <Setter Property="Height" Value="7" />
+                <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Warning}">
+                        <Setter Property="Fill" Value="{StaticResource DialogWarningBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Error}">
+                        <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="StatusMessageStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Warning}">
+                        <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Error}">
+                        <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="CalibrationInfoTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="LineHeight" Value="18" />
+                <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding CalibrationInfoLevel}" Value="{x:Static local:StatusLevel.Warning}">
+                        <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding CalibrationInfoLevel}" Value="{x:Static local:StatusLevel.Error}">
+                        <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
-    <Grid Margin="12">
+
+    <Grid Margin="0" Typography.NumeralAlignment="Tabular">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="1.3*" MinWidth="340" MaxWidth="520" />
-            <ColumnDefinition Width="1*" MinWidth="240" />
+            <ColumnDefinition Width="1*" MinWidth="300" MaxWidth="356" />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="1.5*" MinWidth="240" />
         </Grid.ColumnDefinitions>
 
-        <ScrollViewer
+        <!-- ================= 左：配置轨 ================= -->
+        <Border
             Grid.Column="0"
-            HorizontalScrollBarVisibility="Disabled"
-            VerticalScrollBarVisibility="Auto">
-            <StackPanel>
-                <!--  ① 模式与选项  -->
-                <Border Style="{StaticResource PluginCard}">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="① 模式与选项" />
-                        <WrapPanel Margin="0,8,0,0">
-                            <RadioButton
-                                Content="位姿跟随"
-                                IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:TransformMode.FollowRoi}}" />
-                            <RadioButton
-                                Margin="16,0,0,0"
-                                Content="像素→机械"
-                                IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:TransformMode.ToMechanical}}" />
-                        </WrapPanel>
+            Padding="14"
+            Background="{StaticResource DialogRowAlternateBrush}"
+            BorderBrush="{StaticResource DialogBorderLightBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource PluginCardCornerRadius}">
+            <ScrollViewer
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="变换模式" />
+                    <UniformGrid Margin="0,9,0,0" Columns="2">
+                        <RadioButton
+                            Margin="0,0,4,0"
+                            IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:TransformMode.FollowRoi}}"
+                            Style="{StaticResource ModeCardStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{StaticResource ModeIconChipStyle}">
+                                    <TextBlock Style="{StaticResource ModeIconGlyphStyle}" Text="&#xf05b;" />
+                                </Border>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource ModeTitleStyle}" Text="位姿跟随" />
+                                    <TextBlock Style="{StaticResource ModeSubtitleStyle}" Text="ROI 跟随" />
+                                </StackPanel>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton
+                            Margin="4,0,0,0"
+                            IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:TransformMode.ToMechanical}}"
+                            Style="{StaticResource ModeCardStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{StaticResource ModeIconChipStyle}">
+                                    <TextBlock Style="{StaticResource ModeIconGlyphStyle}" Text="&#xf546;" />
+                                </Border>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource ModeTitleStyle}" Text="像素→机械" />
+                                    <TextBlock Style="{StaticResource ModeSubtitleStyle}" Text="标定换算" />
+                                </StackPanel>
+                            </StackPanel>
+                        </RadioButton>
+                    </UniformGrid>
 
-                        <!--  位姿跟随选项  -->
-                        <StackPanel Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:TransformMode.FollowRoi}}">
-                            <CheckBox
-                                Margin="0,8,0,0"
-                                Content="输出对齐图（把当前图重采样回模板参考位姿）"
-                                IsChecked="{Binding EmitFollowedImage}"
-                                ToolTip="默认关：少一次重采样、少一次内存拷贝；需要标准位姿的图时才勾" />
-                            <TextBlock
-                                Margin="0,6,0,0"
-                                FontSize="{StaticResource PluginHintFontSize}"
-                                Foreground="{StaticResource PluginLabelTextBrush}"
-                                Text="与「模板匹配」输出对齐图的分工：那边把目标重采样成标准位姿（适合内部 ROI 固定的算子）；本插件跟随保留原图坐标、只跟随 ROI/点位（MaskRegion、机器人引导用这个）。"
-                                TextWrapping="Wrap" />
+                    <!-- ================= 位姿跟随 ================= -->
+                    <StackPanel Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:TransformMode.FollowRoi}}">
+                        <Border Style="{StaticResource SectionCardStyle}">
+                            <StackPanel>
+                                <DockPanel>
+                                    <TextBlock
+                                        DockPanel.Dock="Right"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="端口 / 变量链接" />
+                                    <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="位姿跟随输入" />
+                                </DockPanel>
 
-                            <CheckBox
-                                Margin="0,8,0,0"
-                                Content="模板参考点由基准 ROI 中心派生"
-                                IsChecked="{Binding TemplateRefFromRegionCenter}"
-                                ToolTip="默认开：避免手填两张数；关掉后用下面两个参考点端口的数值" />
-                            <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="基准 ROI *" />
+                                <cv:LinkableValueEditor
+                                    HorizontalAlignment="Stretch"
+                                    Label=""
+                                    Port="{Binding BaseRegion}"
+                                    StepData="{Binding StepData}"
+                                    ToolTip="必须画在模板图上（画在别的图会系统性偏移）" />
+
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock
+                                            Margin="0,0,0,6"
+                                            FontSize="12"
+                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                            Text="位姿 Row" />
+                                        <cv:LinkableValueEditor
+                                            HorizontalAlignment="Stretch"
+                                            Label=""
+                                            Port="{Binding PoseRow}"
+                                            StepData="{Binding StepData}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock
+                                            Margin="0,0,0,6"
+                                            FontSize="12"
+                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                            Text="位姿 Col" />
+                                        <cv:LinkableValueEditor
+                                            HorizontalAlignment="Stretch"
+                                            Label=""
+                                            Port="{Binding PoseCol}"
+                                            StepData="{Binding StepData}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="位姿角度（度）" />
+                                <cv:LinkableValueEditor
+                                    HorizontalAlignment="Stretch"
+                                    Label=""
+                                    Port="{Binding PoseAngle}"
+                                    StepData="{Binding StepData}" />
+
+                                <TextBlock Style="{StaticResource HelpTextStyle}" Text="基准 ROI 必须画在模板图上（画在别的图会系统性偏移）；位姿=模板参考点且角度 0 时，跟随 ROI 与基准 ROI 完全重合（验收自检）。" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionCardStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="模板参考点" />
+                                <CheckBox
+                                    Content="模板参考点由基准 ROI 中心派生"
+                                    IsChecked="{Binding TemplateRefFromRegionCenter}"
+                                    Style="{StaticResource OptionCheckBoxStyle}"
+                                    ToolTip="默认开：避免手填两张数；关掉后用下面两个参考点端口的数值" />
+                                <TextBlock Style="{StaticResource HelpTextStyle}" Text="开启时参考点 = 基准 ROI 中心；关闭后用下面两个端口的值。" />
+
                                 <Button
-                                    Padding="10,2"
+                                    Margin="0,10,0,0"
+                                    HorizontalAlignment="Left"
                                     Command="{Binding TakeRefFromRegionCenterCommand}"
-                                    Content="取基准 ROI 中心"
-                                    ToolTip="把基准 ROI 的中心填入模板参考点端口（即使派生开着，也可先填好备用）" />
+                                    Style="{StaticResource LocalButtonStyle}"
+                                    ToolTip="把基准 ROI 的中心填入模板参考点端口（即使派生开着，也可先填好备用）">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock
+                                            Margin="0,0,6,0"
+                                            VerticalAlignment="Center"
+                                            FontFamily="{StaticResource DialogIconFont}"
+                                            FontSize="12"
+                                            Text="&#xf05b;" />
+                                        <TextBlock VerticalAlignment="Center" Text="取基准 ROI 中心" />
+                                    </StackPanel>
+                                </Button>
+
+                                <StackPanel Margin="0,10,0,0">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="IsEnabled" Value="True" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TemplateRefFromRegionCenter}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="False" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock
+                                                Margin="0,0,0,6"
+                                                FontSize="12"
+                                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                Text="参考点 Row" />
+                                            <cv:LinkableValueEditor
+                                                HorizontalAlignment="Stretch"
+                                                Label=""
+                                                Port="{Binding TemplateRefRow}"
+                                                StepData="{Binding StepData}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock
+                                                Margin="0,0,0,6"
+                                                FontSize="12"
+                                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                Text="参考点 Col" />
+                                            <cv:LinkableValueEditor
+                                                HorizontalAlignment="Stretch"
+                                                Label=""
+                                                Port="{Binding TemplateRefCol}"
+                                                StepData="{Binding StepData}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
                             </StackPanel>
-                            <StackPanel Margin="0,6,0,0">
-                                <StackPanel.Style>
-                                    <Style TargetType="StackPanel">
-                                        <Setter Property="IsEnabled" Value="True" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding TemplateRefFromRegionCenter}" Value="True">
-                                                <Setter Property="IsEnabled" Value="False" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </StackPanel.Style>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionCardStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="输出" />
+                                <CheckBox
+                                    Content="输出对齐图（把当前图重采样回模板参考位姿）"
+                                    IsChecked="{Binding EmitFollowedImage}"
+                                    Style="{StaticResource OptionCheckBoxStyle}"
+                                    ToolTip="默认关：少一次重采样、少一次内存拷贝；需要标准位姿的图时才勾" />
+                                <TextBlock Style="{StaticResource HelpTextStyle}" Text="与「模板匹配」输出对齐图的分工：那边把目标重采样成标准位姿（适合内部 ROI 固定的算子）；本插件跟随保留原图坐标、只跟随 ROI/点位（MaskRegion、机器人引导用这个）。" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ================= 像素→机械 ================= -->
+                    <StackPanel Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:TransformMode.ToMechanical}}">
+                        <Border Style="{StaticResource SectionCardStyle}">
+                            <StackPanel>
+                                <DockPanel>
+                                    <TextBlock
+                                        DockPanel.Dock="Right"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="端口 / 变量链接" />
+                                    <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="标定与像素点" />
+                                </DockPanel>
+
+                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="标定 *" />
                                 <cv:LinkableValueEditor
                                     HorizontalAlignment="Stretch"
-                                    Label="参考点 Row"
-                                    Port="{Binding TemplateRefRow}"
-                                    StepData="{Binding StepData}" />
+                                    Label=""
+                                    Port="{Binding Transform}"
+                                    StepData="{Binding StepData}"
+                                    ToolTip="只接「标定」插件的 Transform 输出（不允许手填矩阵）" />
+                                <TextBlock Style="{StaticResource HelpTextStyle}" Text="只接「标定」插件的 Transform 输出（不允许手填矩阵——单一事实源）。" />
+
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock
+                                            Margin="0,0,0,6"
+                                            FontSize="12"
+                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                            Text="像素点 Row" />
+                                        <cv:LinkableValueEditor
+                                            HorizontalAlignment="Stretch"
+                                            Label=""
+                                            Port="{Binding PixelPointRow}"
+                                            StepData="{Binding StepData}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock
+                                            Margin="0,0,0,6"
+                                            FontSize="12"
+                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                            Text="像素点 Col" />
+                                        <cv:LinkableValueEditor
+                                            HorizontalAlignment="Stretch"
+                                            Label=""
+                                            Port="{Binding PixelPointCol}"
+                                            StepData="{Binding StepData}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="像素角度（度，可选）" />
                                 <cv:LinkableValueEditor
-                                    Margin="{StaticResource PluginFieldRowMargin}"
                                     HorizontalAlignment="Stretch"
-                                    Label="参考点 Col"
-                                    Port="{Binding TemplateRefCol}"
+                                    Label=""
+                                    Port="{Binding PixelAngle}"
                                     StepData="{Binding StepData}" />
+
+                                <TextBlock Style="{StaticResource HelpTextStyle}" Text="接了或有非零值才输出机械角；输出机械坐标的同时给反向回显，偏差超容差才算过（不带内参 / division 为 1e-6px，polynomial 为 1e-3px）。" />
                             </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionCardStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="标定信息" />
+                                <Border
+                                    Margin="0,9,0,0"
+                                    Padding="10"
+                                    Background="{StaticResource DialogRowAlternateBrush}"
+                                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
+                                    <TextBlock Style="{StaticResource CalibrationInfoTextStyle}" Text="{Binding CalibrationInfoText}" />
+                                </Border>
+                                <TextBlock Style="{StaticResource HelpTextStyle}" Text="与预览图尺寸不符、残差偏大或未接标定时，这里会给出原因。" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ================= 公共：参考图 / 预览底图 ================= -->
+                    <Border Style="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <DockPanel>
+                                <TextBlock
+                                    DockPanel.Dock="Right"
+                                    FontSize="10.5"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text="配置态" />
+                                <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="参考图与预览底图" />
+                            </DockPanel>
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="参考图 SrcImage（可选）" />
+                            <cv:LinkableValueEditor
+                                HorizontalAlignment="Stretch"
+                                Label=""
+                                Port="{Binding SrcImage}"
+                                StepData="{Binding StepData}" />
+                            <TextBlock Style="{StaticResource HelpTextStyle}" Text="位姿跟随：勾了「输出对齐图」才用；像素→机械：接了才做图像尺寸失配校验（换分辨率必须失败）。不接也能工作。" />
+
+                            <Border
+                                Height="1"
+                                Margin="0,12,0,0"
+                                Background="{StaticResource DialogBorderBrush}" />
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="预览底图（不参与运行）" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox
+                                    Grid.Column="0"
+                                    Height="36"
+                                    Style="{StaticResource DialogInput}"
+                                    Text="{Binding PreviewImagePath, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="配置态叠加预览的底图；不参与运行（运行只用端口）" />
+                                <Button
+                                    Grid.Column="1"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding BrowsePreviewCommand}"
+                                    Style="{StaticResource LocalButtonStyle}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock
+                                            Margin="0,0,6,0"
+                                            VerticalAlignment="Center"
+                                            FontFamily="{StaticResource DialogIconFont}"
+                                            FontSize="12"
+                                            Text="&#xf07c;" />
+                                        <TextBlock VerticalAlignment="Center" Text="浏览" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                            <TextBlock Style="{StaticResource HelpTextStyle}" Text="叠加显示：基准 ROI（绿）、跟随 ROI（橙）、模板参考点十字（黄）。没载预览图时，若已接参考图 SrcImage 且其有值，就直接拿它当底图。" />
                         </StackPanel>
-                    </StackPanel>
-                </Border>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
 
-                <!--  ② 参考图（可选，两种模式都可能用）  -->
-                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="② 参考图（可选）" />
-                        <cv:LinkableValueEditor
-                            Margin="{StaticResource PluginFirstRowMargin}"
-                            HorizontalAlignment="Stretch"
-                            Label="参考图"
-                            Port="{Binding SrcImage}"
-                            StepData="{Binding StepData}" />
+        <!-- ================= 右：叠加预览 ================= -->
+        <Border
+            Grid.Column="2"
+            Background="{StaticResource DialogSurfaceBrush}"
+            BorderBrush="{StaticResource DialogBorderBrush}"
+            BorderThickness="1"
+            ClipToBounds="True"
+            CornerRadius="{StaticResource PluginCardCornerRadius}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="44" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="40" />
+                </Grid.RowDefinitions>
+
+                <!-- 预览头：标题 + 模式标签 + 工具条 -->
+                <Grid Grid.Row="0" Margin="10,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border
+                        Grid.Column="0"
+                        Width="26"
+                        Height="26"
+                        Background="{StaticResource DialogRowHoverBrush}"
+                        CornerRadius="7">
                         <TextBlock
-                            Margin="0,6,0,0"
-                            FontSize="{StaticResource PluginHintFontSize}"
-                            Foreground="{StaticResource PluginLabelTextBrush}"
-                            Text="位姿跟随：勾了「输出对齐图」才用；像素→机械：接了才做图像尺寸失配校验（换分辨率必须失败）。不接也能工作。"
-                            TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-
-                <!--  ③ 位姿跟随输入  -->
-                <Border
-                    Margin="{StaticResource PluginSectionMargin}"
-                    Style="{StaticResource PluginCard}"
-                    Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:TransformMode.FollowRoi}}">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="③ 位姿跟随输入" />
-                        <cv:LinkableValueEditor
-                            Margin="{StaticResource PluginFirstRowMargin}"
-                            HorizontalAlignment="Stretch"
-                            Label="基准 ROI*"
-                            Port="{Binding BaseRegion}"
-                            ToolTip="必须画在模板图上（画在别的图会系统性偏移）"
-                            StepData="{Binding StepData}" />
-                        <cv:LinkableValueEditor
-                            Margin="{StaticResource PluginFieldRowMargin}"
-                            HorizontalAlignment="Stretch"
-                            Label="位姿 Row"
-                            Port="{Binding PoseRow}"
-                            StepData="{Binding StepData}" />
-                        <cv:LinkableValueEditor
-                            Margin="{StaticResource PluginFieldRowMargin}"
-                            HorizontalAlignment="Stretch"
-                            Label="位姿 Col"
-                            Port="{Binding PoseCol}"
-                            StepData="{Binding StepData}" />
-                        <cv:LinkableValueEditor
-                            Margin="{StaticResource PluginFieldRowMargin}"
-                            HorizontalAlignment="Stretch"
-                            Label="位姿角度(度)"
-                            Port="{Binding PoseAngle}"
-                            StepData="{Binding StepData}" />
-                        <TextBlock
-                            Margin="0,6,0,0"
-                            FontSize="{StaticResource PluginHintFontSize}"
-                            Foreground="{StaticResource PluginLabelTextBrush}"
-                            Text="基准 ROI 必须画在模板图上（画在别的图会系统性偏移）；位姿=模板参考点且角度 0 时，跟随 ROI 与基准 ROI 完全重合（验收自检）。"
-                            TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-
-                <!--  ④ 像素→机械输入  -->
-                <Border
-                    Margin="{StaticResource PluginSectionMargin}"
-                    Style="{StaticResource PluginCard}"
-                    Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:TransformMode.ToMechanical}}">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="④ 像素→机械输入" />
-                        <cv:LinkableValueEditor
-                            Margin="{StaticResource PluginFirstRowMargin}"
-                            HorizontalAlignment="Stretch"
-                            Label="标定*"
-                            Port="{Binding Transform}"
-                            ToolTip="只接「标定」插件的 Transform 输出（不允许手填矩阵）"
-                            StepData="{Binding StepData}" />
-                        <cv:LinkableValueEditor
-                            Margin="{StaticResource PluginFieldRowMargin}"
-                            HorizontalAlignment="Stretch"
-                            Label="像素点 Row"
-                            Port="{Binding PixelPointRow}"
-                            StepData="{Binding StepData}" />
-                        <cv:LinkableValueEditor
-                            Margin="{StaticResource PluginFieldRowMargin}"
-                            HorizontalAlignment="Stretch"
-                            Label="像素点 Col"
-                            Port="{Binding PixelPointCol}"
-                            StepData="{Binding StepData}" />
-                        <cv:LinkableValueEditor
-                            Margin="{StaticResource PluginFieldRowMargin}"
-                            HorizontalAlignment="Stretch"
-                            Label="像素角度(度，可选)"
-                            Port="{Binding PixelAngle}"
-                            StepData="{Binding StepData}" />
-                        <TextBlock
-                            Margin="0,6,0,0"
-                            FontSize="{StaticResource PluginHintFontSize}"
-                            Foreground="{StaticResource PluginLabelTextBrush}"
-                            Text="只接「标定」插件的 Transform 输出（不允许手填矩阵——单一事实源）；输出机械坐标的同时给反向回显，偏差超容差才算过（不带内参 / division 为 1e-6px，polynomial 为 1e-3px）。"
-                            TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-
-                <!--  ⑤ 标定信息（ToMechanical）  -->
-                <Border
-                    Margin="{StaticResource PluginSectionMargin}"
-                    Style="{StaticResource PluginCard}"
-                    Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:TransformMode.ToMechanical}}">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="⑤ 标定信息" />
-                        <TextBlock
-                            Margin="0,8,0,0"
-                            FontSize="{StaticResource PluginLabelFontSize}"
-                            Text="{Binding CalibrationInfoText}"
-                            TextWrapping="Wrap">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{StaticResource PluginOkBrush}" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding CalibrationInfoLevel}" Value="{x:Static local:StatusLevel.Warning}">
-                                            <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding CalibrationInfoLevel}" Value="{x:Static local:StatusLevel.Error}">
-                                            <Setter Property="Foreground" Value="{StaticResource PluginErrorBrush}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </StackPanel>
-                </Border>
-
-                <!--  ⑥ 预览图（配置态；不参与运行）  -->
-                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="⑥ 预览图（配置态叠加用）" />
-                        <StackPanel Margin="{StaticResource PluginFirstRowMargin}" Orientation="Horizontal">
-                            <TextBox
-                                Width="240"
-                                Style="{StaticResource PluginNumericBox}"
-                                Text="{Binding PreviewImagePath, UpdateSourceTrigger=PropertyChanged}"
-                                ToolTip="配置态叠加预览的底图；不参与运行（运行只用端口）" />
-                            <Button
-                                Margin="8,0,0,0"
-                                Padding="10,2"
-                                Command="{Binding BrowsePreviewCommand}"
-                                Content="浏览" />
-                        </StackPanel>
-                        <TextBlock
-                            Margin="0,6,0,0"
-                            FontSize="{StaticResource PluginHintFontSize}"
-                            Foreground="{StaticResource PluginLabelTextBrush}"
-                            Text="叠加显示：基准 ROI（绿）、跟随 ROI（橙）、模板参考点十字（黄）。没载预览图时，若已接参考图 SrcImage 且其有值，就直接拿它当底图。"
-                            TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-            </StackPanel>
-        </ScrollViewer>
-
-        <!--  右侧：画布 + 信息栏  -->
-        <Grid Grid.Column="1">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-            <Border
-                Padding="8"
-                Background="{StaticResource PluginSurfaceBrush}"
-                BorderBrush="#E0E0E0"
-                BorderThickness="1"
-                CornerRadius="6">
-                <h:ImageEdit
-                    HImage="{Binding DisplayImage, Mode=OneWay}"
-                    ToolTip="滑轮缩放 / 右键菜单可适应图片；叠加：绿=基准 ROI，橙=跟随 ROI，黄=模板参考点" />
-            </Border>
-            <Border
-                Grid.Row="1"
-                Margin="{StaticResource PluginSectionMargin}"
-                Style="{StaticResource PluginStatusPanel}">
-                <DockPanel>
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="12"
+                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                            Text="&#xf1c5;" />
+                    </Border>
                     <TextBlock
-                        DockPanel.Dock="Right"
-                        FontSize="{StaticResource PluginLabelFontSize}"
-                        Text="{Binding StatusMessage}"
-                        TextWrapping="Wrap">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="{StaticResource PluginOkBrush}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Warning}">
-                                        <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Error}">
-                                        <Setter Property="Foreground" Value="{StaticResource PluginErrorBrush}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <TextBlock
-                        MaxWidth="420"
+                        Grid.Column="1"
+                        Margin="8,0,0,0"
                         VerticalAlignment="Center"
-                        FontSize="{StaticResource PluginHintFontSize}"
-                        Foreground="{StaticResource PluginLabelTextBrush}"
-                        Text="{Binding FollowedInfoText}"
+                        FontSize="12.5"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                        Text="叠加预览" />
+                    <TextBlock
+                        Grid.Column="2"
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="{Binding Mode, Converter={StaticResource ModeLabelConverter}}"
                         TextTrimming="CharacterEllipsis" />
-                </DockPanel>
-            </Border>
-        </Grid>
+                    <StackPanel
+                        Grid.Column="3"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
+                        <Button
+                            Style="{StaticResource ToolbarButtonStyle}"
+                            Click="FitWindow_Click"
+                            Content="&#xf065;">
+                            <Button.ToolTip>
+                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="适应窗口" />
+                            </Button.ToolTip>
+                        </Button>
+                        <Button
+                            Margin="2,0,0,0"
+                            Style="{StaticResource ToolbarTextButtonStyle}"
+                            Click="FitImage_Click"
+                            Content="1:1">
+                            <Button.ToolTip>
+                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="实际像素 1:1" />
+                            </Button.ToolTip>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <!-- 空态提示条：ImageEdit 常驻，不折叠、不替换 -->
+                <Border
+                    Grid.Row="1"
+                    Padding="12,7"
+                    Background="{StaticResource DialogRowAlternateBrush}"
+                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                    BorderThickness="0,0,0,1">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding DisplayImage}" Value="{x:Null}" />
+                                        <Condition Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Info}" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </MultiDataTrigger>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding DisplayImage}" Value="{x:Null}" />
+                                        <Condition Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Warning}" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <DockPanel>
+                        <TextBlock
+                            DockPanel.Dock="Left"
+                            Margin="0,0,6,0"
+                            VerticalAlignment="Top"
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="12"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            Text="&#xf05a;" />
+                        <TextBlock
+                            FontSize="11.5"
+                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                            Text="预览底图未加载：在左侧选择预览图，或接入参考图 SrcImage。配置态叠加不参与运行。"
+                            TextWrapping="Wrap" />
+                    </DockPanel>
+                </Border>
+
+                <!-- 错误态提示条：仅无图且 StatusLevel=Error -->
+                <Border
+                    Grid.Row="1"
+                    Padding="12,7"
+                    Background="{StaticResource DialogDangerSubtleBrush}"
+                    BorderBrush="{StaticResource DialogDangerBorderBrush}"
+                    BorderThickness="0,0,0,1">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding DisplayImage}" Value="{x:Null}" />
+                                        <Condition Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Error}" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <DockPanel>
+                        <TextBlock
+                            DockPanel.Dock="Left"
+                            Margin="0,0,6,0"
+                            VerticalAlignment="Top"
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="12"
+                            Foreground="{StaticResource DialogDangerBrush}"
+                            Text="&#xf071;" />
+                        <TextBlock
+                            FontSize="11.5"
+                            Foreground="{StaticResource DialogDangerTextBrush}"
+                            Text="预览底图加载失败：请检查左侧路径，或重新选择图片。"
+                            TextWrapping="Wrap" />
+                    </DockPanel>
+                </Border>
+
+                <!-- 画布：ImageEdit 常驻；HImage 绑定逐字保留 -->
+                <Border Grid.Row="2" Background="{StaticResource PluginPreviewCanvasBrush}">
+                    <h:ImageEdit
+                        x:Name="PreviewCanvas"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch"
+                        HImage="{Binding DisplayImage, Mode=OneWay}"
+                        ToolTip="滑轮缩放 / 右键菜单可适应图片；叠加：绿=基准 ROI，橙=跟随 ROI，黄=模板参考点" />
+                </Border>
+
+                <!-- 状态栏：Info=绿 / Warning=橙 / Error=红，不新增第四档 -->
+                <Border
+                    Grid.Row="3"
+                    Padding="12,0"
+                    Background="{StaticResource DialogSurfaceBrush}"
+                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                    BorderThickness="0,1,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Ellipse
+                            Grid.Column="0"
+                            Margin="0,0,8,0"
+                            Style="{StaticResource StatusDotStyle}" />
+                        <TextBlock
+                            Grid.Column="1"
+                            Style="{StaticResource StatusMessageStyle}"
+                            Text="{Binding StatusMessage, Converter={StaticResource StatusMessageConverter}}"
+                            ToolTip="{Binding StatusMessage, Converter={StaticResource StatusMessageConverter}}" />
+                        <TextBlock
+                            Grid.Column="2"
+                            MaxWidth="200"
+                            Margin="12,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="10.5"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            Text="{Binding FollowedInfoText}"
+                            TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding FollowedInfoText}"
+                            Typography.NumeralAlignment="Tabular" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

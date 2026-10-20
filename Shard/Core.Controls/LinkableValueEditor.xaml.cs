@@ -160,6 +160,23 @@ namespace Core.Controls
         }
 
         /// <summary>
+        /// 是否允许把全局/系统变量绑到这个端口（默认 true，兼容既有行为）。
+        ///
+        /// 置 false 时绑定弹窗隐藏「全局变量」节点：C#脚本的输入只接上游数据流，
+        /// 全局/系统变量走它自己的「共享变量」声明表（按 VariableId 寻址，见 ScriptSharedVarDef）。
+        /// </summary>
+        public static readonly DependencyProperty AllowGlobalsProperty =
+            DependencyProperty.Register(
+                nameof(AllowGlobals), typeof(bool), typeof(LinkableValueEditor),
+                new PropertyMetadata(true));
+
+        public bool AllowGlobals
+        {
+            get => (bool)GetValue(AllowGlobalsProperty);
+            set => SetValue(AllowGlobalsProperty, value);
+        }
+
+        /// <summary>
         /// 可选的浏览命令（如打开文件/文件夹对话框），设置后双击下划线区域触发
         /// </summary>
         public static readonly DependencyProperty BrowseCommandProperty =
@@ -376,6 +393,7 @@ namespace Core.Controls
             {
                 InputPortName = port.Name,
                 TargetType = port.DataType ?? typeof(object),
+                AllowGlobals = AllowGlobals,
                 OnBound = link =>
                 {
                     stepData.SetLink(port.Name, link);

@@ -29,6 +29,35 @@
     -->
 
     <!--  ==================== Button ====================  -->
+    <!--
+        键盘焦点环：Fluent 默认那支是 1px 黑色虚线矩形（SystemParameters.FocusVisualStyleKey），
+        在圆角按钮上既不是圆角、又和按钮形状对不上。这里统一换成 2px 强调色圆角环。
+        两层的原因：强调色环在 Accent 主按钮上会"蓝环叠蓝底"看不见，所以内圈再压 1px 白线——
+        浅底按钮看外圈强调色，深底/主按钮看内圈白线，两种背景都保证有可见焦点。
+        Margin=2 是**向内收 2px**（FocusVisualStyle 的 Adorner 与控件同尺寸，正 Margin 内缩），
+        这样环不会画到相邻控件上；圆角取与按钮模板同一个 FluentRadiusMedium。
+    -->
+    <Style x:Key="FluentButtonFocusVisual">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Grid Margin="2">
+                        <Border
+                            BorderBrush="{StaticResource FluentAccentBrush}"
+                            BorderThickness="2"
+                            CornerRadius="{StaticResource FluentRadiusMedium}"
+                            SnapsToDevicePixels="True" />
+                        <Border
+                            Margin="2"
+                            BorderBrush="{StaticResource FluentOnAccentTextBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            SnapsToDevicePixels="True" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
     <Style x:Key="FluentButtonStyle" TargetType="Button">
         <Setter Property="FontFamily" Value="{StaticResource FluentFontFamily}" />
         <Setter Property="FontSize" Value="14" />
@@ -40,18 +69,24 @@
         <Setter Property="BorderThickness" Value="{StaticResource FluentBorderThickness}" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FluentButtonFocusVisual}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
+                    <!--
+                        悬停/按下叠加层必须铺满**整颗按钮**，不能放在带 Padding 的 Border 里：
+                        Border 的 Padding 会把子级（含叠加层）的可用区域缩掉，
+                        于是 96x32 的按钮悬停时只亮中间 70x19 的一颗小胶囊（真机反馈"悬浮区域怪怪的"）。
+                        正解：Padding 挪到 ContentPresenter.Margin（内容位置不变），
+                        叠加层与内容同级铺满 Border 的内容区（BorderThickness 内）。
+                    -->
                     <Border
                         x:Name="Root"
-                        Padding="{TemplateBinding Padding}"
                         Background="{TemplateBinding Background}"
                         BorderBrush="{TemplateBinding BorderBrush}"
                         BorderThickness="{TemplateBinding BorderThickness}"
                         CornerRadius="{StaticResource FluentRadiusMedium}">
                         <Grid>
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True" />
                             <!--  状态叠加层：与变体颜色无关，所有变体共用同一套状态表现  -->
                             <Border
                                 x:Name="HoverOverlay"
@@ -65,6 +100,12 @@
                                 CornerRadius="{StaticResource FluentRadiusMedium}"
                                 IsHitTestVisible="False"
                                 Opacity="0" />
+                            <ContentPresenter
+                                x:Name="ContentHost"
+                                Margin="{TemplateBinding Padding}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                RecognizesAccessKey="True" />
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>

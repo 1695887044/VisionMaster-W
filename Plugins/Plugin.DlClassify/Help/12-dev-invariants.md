@@ -2,7 +2,7 @@
 
 > 分类：图像处理 ｜ 来源：插件 Plugin.DlClassify ｜ 读者：开发
 
-守门文件：`FlowCanvasChecks\ClassifyChecks.cs`（39 条）。逐条给"症状 → 机理 → 断言名"。
+守门文件：`FlowCanvasChecks\ClassifyChecks.cs`（49 条）。逐条给"症状 → 机理 → 断言名"。
 
 ## A 组：违反就报错或结果明显不对
 
@@ -53,6 +53,44 @@
     **机理** 预处理要先补成 3 通道再喂模型（与 YOLO 同一族坑，`#3122` 类错误的分类侧版本）。
     **守门断言名** 无断言，靠人工核对。
 
+## C 组：模型状态契约（DL1，违反不报错，只是界面判据静默失效）
+
+18. **症状** 模型路径错了，模型信息卡却仍是灰色；或模型可用，界面却一直红着。
+    **机理** 旧视图用 `ModelSummary == "模型加载失败，详见提示"` 判失败态——文案一改（或换了本地化）就静默失效。
+    **守门断言名** `状态契约：新建 → ModelState=NotLoaded`、`状态契约：ModelPath 为空 → RefreshModelState 后仍是 NotLoaded（不判失败）`、`状态契约：模型路径不存在 → ModelState=Failed`。
+
+19. **症状** 模型加载失败后点「试算一下」，界面没有任何额外反馈。
+    **机理** 试算的会话级失败必须把 `ModelState` 置 `Failed`。
+    **守门断言名** `状态契约：模型失败时试算 → ModelState=Failed（会话级失败）`。
+
+20. **症状** 保存配置后 `.vms` 里多出 `ModelState` 键。
+    **机理** 运行态属性误加了 `[StepConfig]`。
+    **守门断言名** `状态契约：OnConfirm 不写 ModelState（运行态不落盘）`、`状态契约：ModelState 不带 [StepConfig]（源生成器不会收它）`。
+
+21. **症状** 视图又退回"按中文文案判状态"，编译期全绿、界面状态全错。
+    **机理** 4 处失败态曾各自匹配固定中文；漏改一处就出现"卡片红了、覆盖层不显示"这类半截状态。
+    **守门断言名** `状态契约：4 处失败态改绑 ModelState（中文 Value=0 / 枚举 Trigger=4）`、`状态契约：ModelSummary 仅作文本绑定，不再参与状态判断`。
+    **变异反证**：把任一处 `Value="{x:Static local:DlModelState.Failed}"` 改回 `Value="模型加载失败，详见提示"`，
+    中文 Value 计数与枚举 Trigger 计数会同时不满足（0/4）。
+
+22. **症状** 模型加载成功但还没试算，状态就显示"Ready"却实际不可用。
+    **机理** `RefreshModelState()` 以"会话是否真的建起来"为准，而不是以"路径字符串非空"为准。
+    **守门断言名** `状态契约：真实模型加载 → ModelState=Ready`（需要 `CLASSIFY_TEST_MODEL`）。
+
+## D 组：状态契约断言的执行口径
+
+- 状态断言全部在 `FlowCanvasChecks\ClassifyChecks.cs` 的 `RunStateContractChecks()` 里，不依赖真实模型：
+  `NotLoaded`（新建/空路径）与 `Failed`（路径不存在）用假路径即可覆盖；`Ready` 需要 `CLASSIFY_TEST_MODEL`，
+  没有模型时该条以"跳过"记通过（不是静默放行，理由写在断言详情里）。
+- `TryPreviewClassify()` 的会话级失败用"有图 + 不存在的模型路径"构造：先 `Image.Value = image`
+  让 `ShowUpstreamImage()` 建好预览，再点试算，断言 `ModelState=Failed`。
+- `OnConfirm` 断言用 `FakeStepData` 真跑一遍基类的写回循环，检查 `InputValues` 的键集合里没有 `ModelState`；
+  这比反射查特性更接近真实落盘路径。
+- 静态扫描读的是**磁盘上的 XAML 源文件**（不是编译产物），所以改了视图不需要重建断言工程也能验；
+  但也意味着 CI 必须保证源码目录与运行目录的相对层级不变（`..\..\..\..\`）。
+- 变异反证：把任意一处 `Value="{x:Static local:DlModelState.Failed}"` 改回固定中文，
+  `中文 Value=0 / 枚举 Trigger=4` 与 `ModelSummary 仅作文本绑定` 两条会同时变红。
+
 ## 并行安全声明
 
 带 `[ParallelSafe]`，注释理由是"会话带锁、推理无共享可变状态"。
@@ -61,7 +99,7 @@
 ## 改后必做动作
 
 ```
-1) 改 PostProcess 任一支：跑 FlowCanvasChecks，ClassifyChecks 39 条必须全绿
+1) 改 PostProcess 任一支或模型状态：跑 FlowCanvasChecks，ClassifyChecks 49 条必须全绿
 2) 改 [StepConfig] 属性写法（手写换 partial 或反之）：用旧 .vms 开一次，确认四个键都读回来了
 3) 改置信度阈值或 Warn 文案：与判定/记录上传的下游对一次口径，别让人误读成"节点失败了"
 4) 改 Help\ 页面：HM5 HM6 HM7 HM8 HM9 HM12b HM13（M 档 ≥150 行）

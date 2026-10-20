@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using Core.Interfaces;
 using Prism.Dialogs;
+using UI.Converters;
 using UI.CustomControl;
 using VisionMaster.Helpers;
 using VisionMaster.Models;
@@ -17,6 +20,12 @@ namespace VisionMaster.ViewModels
         private readonly IPluginProvider pluginProvider;
         private LinkReference _lastBoundLink;
         private bool _isSingleBindMode = false;
+
+        /// <summary>
+        /// 元素类型友好名的唯一来源与视图里的类型标签一致（如「小数 (Double)」），
+        /// 避免索引面板自造一套叫法。
+        /// </summary>
+        private static readonly TypeNameToFriendlyNameConverter FriendlyNameConverter = new();
 
         public string Title => "变量绑定";
         public IWorkspaceManager Workspace { get; init; }
@@ -41,7 +50,11 @@ namespace VisionMaster.ViewModels
         public string ConstantValue
         {
             get => _constantValue;
-            set => SetProperty(ref _constantValue, value);
+            set
+            {
+                if (SetProperty(ref _constantValue, value))
+                    RaisePropertyChanged(nameof(SelectedPresetDisplay));
+            }
         }
 
         private bool _hasFunctionalEnumPort;
@@ -51,6 +64,133 @@ namespace VisionMaster.ViewModels
             set => SetProperty(ref _hasFunctionalEnumPort, value);
         }
 
+        // ── 绑定进度（顶部上下文条 / 列脚「已绑定 M / N」） ──
+
+        /// <summary>当前步骤的输入端口总数。</summary>
+        public int TotalPortCount => DisplayDataPort.Count;
+
+        /// <summary>当前步骤已绑定的输入端口数（LinkedAddress 非空即算已绑定）。</summary>
+        public int BoundPortCount => DisplayDataPort.Count(p => p.IsBound);
+
+        // ── 右栏「还有 N 个端口因类型不兼容被隐藏」 ──
+
+        private int _hiddenByTypeCount;
+
+        /// <summary>
+        /// 当前来源下被类型过滤隐藏的输出端口数。
+        /// 注意：与「显示全部」无关——勾选显示全部时这些端口会以置灰形式出现，
+        /// 但计数仍表示"默认视图看不到的那批"，否则提示条会随勾选忽隐忽现。
+        /// </summary>
+        public int HiddenByTypeCount => _hiddenByTypeCount;
+
+        // ── 数组 → 标量：行内索引面板 ──
+
+        private PortDefinition? _pendingArrayPort;
+
+        /// <summary>正在等待输入下标的数组输出端口；非空即表示行内索引面板展开。</summary>
+        public PortDefinition? PendingArrayPort
+        {
+            get => _pendingArrayPort;
+            private set
+            {
+                if (SetProperty(ref _pendingArrayPort, value))
+                    RaisePropertyChanged(nameof(HasPendingArrayBind));
+            }
+        }
+
+        private string _pendingArrayElementTypeName = string.Empty;
+
+        /// <summary>待取元素的类型友好名（如「小数 (Double)」），仅供索引面板显示。</summary>
+        public string PendingArrayElementTypeName
+        {
+            get => _pendingArrayElementTypeName;
+            private set => SetProperty(ref _pendingArrayElementTypeName, value);
+        }
+
+        private string _arrayIndexText = string.Empty;
+
+        /// <summary>行内索引输入框的文本；确认时按非负整数解析。</summary>
+        public string ArrayIndexText
+        {
+            get => _arrayIndexText;
+            set => SetProperty(ref _arrayIndexText, value);
+        }
+
+        /// <summary>行内索引面板是否展开。</summary>
+        public bool HasPendingArrayBind => PendingArrayPort != null;
+
+        // ── 绑定方式：上游端口 / 常量值（显式二选一） ──
+
+        private bool _isConstantMode;
+
+        /// <summary>
+        /// true = 右栏按「常量值」编辑；false = 按「上游端口」编辑。
+        /// 关掉常量模式必须清空 ConstantValue —— Confirm 的规则是"常量框非空就写常量"，
+        /// 不清空会让"上游模式下点确定"把残留常量写进去（静默拆掉上游连线）。
+        /// </summary>
+        public bool IsConstantMode
+        {
+            get => _isConstantMode;
+            set
+            {
+                if (!SetProperty(ref _isConstantMode, value))
+                    return;
+
+                if (!value)
+                {
+                    ConstantValue = string.Empty;
+                }
+                else if (GetExistingConstantLink() is { } constantLink)
+                {
+                    // 只在真有常量连线时回显。无条件回填会把 UpdatePresetOptions 刚填的
+                    // 枚举首项冲掉（用户看到的就不是实际生效的值了）。
+                    ConstantValue = ExtractConstantText(constantLink);
+                }
+
+                RaisePropertyChanged(nameof(IsUpstreamMode));
+            }
+        }
+
+        /// <summary>绑定方式分段控件另一侧（IsConstantMode 的反值）。</summary>
+        public bool IsUpstreamMode
+        {
+            get => !IsConstantMode;
+            set => IsConstantMode = !value;
+        }
+
+        // ── 单绑定模式 / 当前步骤 ──
+
+        /// <summary>单绑定模式：只回传 BoundLink，不写活模型（目标可能是条件节点）。</summary>
+        public bool IsSingleBindMode
+        {
+            get => _isSingleBindMode;
+            private set => SetProperty(ref _isSingleBindMode, value);
+        }
+
+        private bool _allowGlobals = true;
+        /// <summary>
+        /// 是否允许全局/系统变量进入候选（默认 true，兼容既有行为）。
+        /// C#脚本的输入只接上游数据流 → 传 false，弹窗里「全局变量」节点整块隐藏。
+        /// </summary>
+        public bool AllowGlobals
+        {
+            get => _allowGlobals;
+            private set => SetProperty(ref _allowGlobals, value);
+        }
+
+        private string _targetStepName = "当前步骤";
+
+        /// <summary>顶部上下文条显示的当前步骤名（单绑定模式固定为「插件视图绑定请求」）。</summary>
+        public string TargetStepName
+        {
+            get => _targetStepName;
+            private set => SetProperty(ref _targetStepName, value);
+        }
+
+        /// <summary>枚举端口当前选中预设的显示名；没有选中预设时回退到 ConstantValue。</summary>
+        public string SelectedPresetDisplay =>
+            PresetOptions.FirstOrDefault(p => p.IsSelected)?.Display ?? ConstantValue;
+
         public DelegateCommand ConfirmCommand { get; set; }
         public DelegateCommand CancelCommand { get; set; }
         public DelegateCommand<string> SelectPresetCommand { get; set; }
@@ -58,16 +198,31 @@ namespace VisionMaster.ViewModels
         public DelegateCommand<InputPortUIModel> UnbindCommand =>
             new(port =>
             {
-                if (port == null || _isSingleBindMode)
+                if (port == null || IsSingleBindMode)
                     return;
                 // 必须走 RemoveLink（内部 RaisePropertyChanged(LinkedSources)）而不是直改字典：
                 // FlowModel 的版本递增唯一来源是步骤 PropertyChanged，裸写字典会让"解绑"看不见 →
                 // 已编译会话继续用旧连线跑（静默错结果）
-                _targetStep?.RemoveLink(port.Definition.Name);
+                // 键口径必须与 DoFinalBind / Confirm 一致：条件节点与等待节点用端口 Description（变量 Guid），
+                // 其余用端口名。用 Definition.Name 会让这两类节点"界面上清掉了、模型里还留着"。
+                string bindKey = ResolveBindKey(port.Definition);
+                _targetStep?.RemoveLink(bindKey);
+                // 只删连线不删 InputValues 会留下"界面未绑定、运行期却回落到旧手填值"的幽灵值。
+                // 清除绑定 = 清掉这个端口的全部来源（连线 + 手填值），与 UI 语义一致。
+                _targetStep?.RemoveInputValue(bindKey);
                 port.LinkedAddress = null;
+                _lastBoundLink = null;
+                _lastBoundPort = null;
+                ConstantValue = string.Empty;
             });
 
         public DelegateCommand<PortDefinition> DoublockClickBindCommand { get; set; }
+
+        /// <summary>行内索引面板的「确认绑定」。</summary>
+        public DelegateCommand ConfirmArrayBindCommand { get; set; }
+
+        /// <summary>行内索引面板的「取消」（不写模型）。</summary>
+        public DelegateCommand CancelArrayBindCommand { get; set; }
 
         private ObservableCollection<PortDefinition> _displayPorts = new();
         public ObservableCollection<PortDefinition> DisplayPorts
@@ -82,9 +237,17 @@ namespace VisionMaster.ViewModels
             get => _selectedInputPort;
             set
             {
+                // 切端口必须先收起索引面板：旧端口的下标面板若留着，
+                // 用户会以为它还是给新端口准备的（确认后绑到错误的数组端口上）
+                ClearPendingArray();
                 SetProperty(ref _selectedInputPort, value);
                 LoadExistingConstant();
                 UpdatePresetOptions();
+                // 绑定方式跟着端口自身的值走：有常量（连线/手填）或是功能枚举端口 → 常量模式；
+                // 否则是上游模式。必须放在 LoadExistingConstant/UpdatePresetOptions 之后，
+                // 否则它们刚填进来的值会被这里提前判成"空"。
+                IsConstantMode = !string.IsNullOrWhiteSpace(ConstantValue)
+                    || value?.Definition?.IsFunctionalEnum == true;
                 // 换端口必须重算候选：右侧列表是按"当前端口的类型"过滤出来的，
                 // 不重算就会把上一个端口的过滤结果带过来（类型不符的项照样能双击）
                 RefreshDisplayPorts();
@@ -95,7 +258,13 @@ namespace VisionMaster.ViewModels
         public PortDefinition SelectedOutputPort
         {
             get => _selectedOutputPort;
-            set => SetProperty(ref _selectedOutputPort, value);
+            set
+            {
+                // 换候选时收起数组索引面板：面板里的 PendingArrayPort 属于上一个候选，
+                // 留着会让「确认绑定」把旧数组端口写进当前选中的目标。
+                if (SetProperty(ref _selectedOutputPort, value))
+                    ClearPendingArray();
+            }
         }
 
         private ToolItemModel _selectedNode;
@@ -104,6 +273,9 @@ namespace VisionMaster.ViewModels
             get => _selectedNode;
             set
             {
+                // 切来源同样收起索引面板：面板里的 port 属于上一个来源，
+                // 留着会让"确认"把旧来源的端口名写进新来源的连线
+                ClearPendingArray();
                 SetProperty(ref _selectedNode, value);
                 RefreshDisplayPorts();
             }
@@ -140,6 +312,7 @@ namespace VisionMaster.ViewModels
             if (source == null || source.Count == 0)
             {
                 DisplayPorts = new ObservableCollection<PortDefinition>();
+                UpdateHiddenByTypeCount(0);
                 return;
             }
 
@@ -150,6 +323,7 @@ namespace VisionMaster.ViewModels
                 : typeof(object);
 
             var list = new List<PortDefinition>(source.Count);
+            int hiddenByType = 0;
             foreach (var schema in source)
             {
                 // 复制一份再判定：OutputDefinitions 是节点持有的共享对象，
@@ -161,6 +335,9 @@ namespace VisionMaster.ViewModels
 
                 if (!ok)
                 {
+                    // 计数与「显示全部」无关：提示条说的是"默认视图还藏了多少个"，
+                    // 勾选显示全部后这些项会以置灰形式出现，但"被类型隐藏"的事实不变。
+                    hiddenByType++;
                     candidate.IncompatibleReason =
                         $"类型不匹配：{Describe(outputType)} 无法绑到 {Describe(targetType)} 端口";
                     // "显示全部"时才把不兼容项摆出来（置灰），默认直接不进列表
@@ -176,6 +353,15 @@ namespace VisionMaster.ViewModels
             }
 
             DisplayPorts = new ObservableCollection<PortDefinition>(list);
+            UpdateHiddenByTypeCount(hiddenByType);
+        }
+
+        private void UpdateHiddenByTypeCount(int count)
+        {
+            // 每次重算都通知：计数可能"看起来没变"但来源已经换了，
+            // 视图侧的提示条文案/可见性需要重新求值（与 SetProperty 的"变化才通知"不同）。
+            _hiddenByTypeCount = count;
+            RaisePropertyChanged(nameof(HiddenByTypeCount));
         }
 
         private static PortDefinition CloneForCandidate(PortDefinition src) => new()
@@ -209,6 +395,8 @@ namespace VisionMaster.ViewModels
             ConfirmCommand = new DelegateCommand(Confirm);
             DoublockClickBindCommand = new DelegateCommand<PortDefinition>(DoublockClickBind);
             SelectPresetCommand = new DelegateCommand<string>(SelectPresetOption);
+            ConfirmArrayBindCommand = new DelegateCommand(ConfirmArrayBind);
+            CancelArrayBindCommand = new DelegateCommand(ClearPendingArray);
         }
 
         private void SelectPresetOption(string option)
@@ -219,6 +407,8 @@ namespace VisionMaster.ViewModels
             {
                 preset.IsSelected = preset.Option == option;
             }
+
+            RaisePropertyChanged(nameof(SelectedPresetDisplay));
         }
 
         /// <summary>
@@ -262,6 +452,23 @@ namespace VisionMaster.ViewModels
         }
 
         /// <summary>
+        /// 当前选中端口是否存在「常量」连线（供 IsConstantMode 回显用）。
+        /// 只认 Constant：上游/变量连线不能把值塞进常量框，否则点确定会把线悄悄改成常量。
+        /// </summary>
+        private LinkReference? GetExistingConstantLink()
+        {
+            if (_targetStep?.LinkedSources == null || SelectedInputPort?.Definition == null)
+                return null;
+
+            string key = ResolveBindKey(SelectedInputPort.Definition);
+            return _targetStep.LinkedSources.TryGetValue(key, out var link)
+                && link != null
+                && link.NormalizeKind() == LinkKind.Constant
+                    ? link
+                    : null;
+        }
+
+        /// <summary>
         /// 端口在 LinkedSources 里的键：条件节点/等待节点用的是端口的描述（变量 Guid），其余用端口名。
         /// 与 DoFinalBind / Confirm 里的取法保持一致，三处必须是同一口径。
         /// </summary>
@@ -291,7 +498,10 @@ namespace VisionMaster.ViewModels
             HasFunctionalEnumPort = false;
 
             if (SelectedInputPort == null || SelectedInputPort.Definition == null)
+            {
+                RaisePropertyChanged(nameof(SelectedPresetDisplay));
                 return;
+            }
 
             var portDef = SelectedInputPort.Definition;
 
@@ -313,8 +523,13 @@ namespace VisionMaster.ViewModels
             if (portDef.IsFunctionalEnum && items.Count > 0)
             {
                 // 已有值（上面回显来的）优先，只有在空着的时候才退到第一个预设项 ——
-                // 无条件取第一个会把刚回显出来的值冲掉，用户看到的就不是实际生效的值了
-                if (string.IsNullOrWhiteSpace(ConstantValue))
+                // 无条件取第一个会把刚回显出来的值冲掉，用户看到的就不是实际生效的值了。
+                // 另外：端口已有非常量连线（上游/全局/运行时）时不能自动填首项 ——
+                // 否则点确定会用一个"用户没选过"的预设把原连线静默覆盖。
+                bool hasExistingLink = _targetStep?.LinkedSources != null
+                    && _targetStep.LinkedSources.TryGetValue(ResolveBindKey(portDef), out var existing)
+                    && existing != null;
+                if (string.IsNullOrWhiteSpace(ConstantValue) && !hasExistingLink)
                     ConstantValue = items[0].Value;
                 HasFunctionalEnumPort = true;
                 foreach (var item in items)
@@ -329,6 +544,10 @@ namespace VisionMaster.ViewModels
                     );
                 }
             }
+
+            // 预设集合整体重建，IsSelected 的变化不会自动传到 VM 上（子项是独立 BindableBase），
+            // 这里统一通知一次，避免构造/批量填充阶段逐项通知造成递归。
+            RaisePropertyChanged(nameof(SelectedPresetDisplay));
         }
 
         /// <summary>
@@ -357,9 +576,14 @@ namespace VisionMaster.ViewModels
 
         private void DoublockClickBind(PortDefinition outputSchema)
         {
-            if (!_isSingleBindMode && SelectedInputPort == null)
+            if (SelectedInputPort == null)
             {
                 EasyDialog.ShowSync("提示", "请先在左侧选择需要绑定的输入端口！");
+                return;
+            }
+            if (SelectedNode == null)
+            {
+                EasyDialog.ShowSync("提示", "请先在中间选择数据来源！");
                 return;
             }
 
@@ -369,8 +593,12 @@ namespace VisionMaster.ViewModels
                 TypeHelper.ResolveType(SelectedInputPort.Definition.DataTypeName);
             Type outputType = TypeHelper.ResolveType(outputSchema.DataTypeName);
 
-            // 数组 → 标量：允许"按下标取一个元素"
-            bool isIndexing = outputType.IsArray && !targetType.IsArray;
+            // 数组 → 标量：允许"按下标取一个元素"。
+            // object 端口是"整值装箱"语义（TypeHelper 对 object 双向放行），
+            // 不能强制走索引 —— 否则 double[] 到 object 只能取一个元素，整数组永远绑不进去。
+            bool isIndexing = outputType.IsArray
+                && !targetType.IsArray
+                && targetType != typeof(object);
 
             if (isIndexing)
             {
@@ -384,17 +612,18 @@ namespace VisionMaster.ViewModels
                     return;
                 }
 
-                var (isConfirmed, indexStr) = EasyDialog.ShowTextInputSync("索引选择", "0");
-                if (!isConfirmed)
-                    return;
-
-                if (!int.TryParse(indexStr, out int index) || index < 0)
-                {
-                    EasyDialog.ShowSync("格式错误", "索引必须是非负整数！");
-                    return;
-                }
-
-                DoFinalBind(outputSchema, index);
+                // 行内索引面板：不再弹二级对话框（弹窗会遮住"选的是哪个数组端口"）。
+                // 这里只负责展开面板并记住待绑定的端口，真正的写模型在 ConfirmArrayBindCommand。
+                PendingArrayPort = outputSchema;
+                PendingArrayElementTypeName = FriendlyNameConverter.Convert(
+                        elementType,
+                        typeof(string),
+                        null!,
+                        CultureInfo.CurrentCulture
+                    )?.ToString()
+                    ?? Describe(elementType);
+                ArrayIndexText = "0";
+                return;
             }
             else
             {
@@ -410,10 +639,43 @@ namespace VisionMaster.ViewModels
                 DoFinalBind(outputSchema);
             }
 
-            if (_isSingleBindMode)
+            if (IsSingleBindMode)
             {
                 Confirm();
             }
+        }
+
+        /// <summary>
+        /// 行内索引面板的「确认绑定」：解析非负下标 → 收起面板 → 走原有的 DoFinalBind。
+        /// 单绑定模式沿用旧行为（选定后自动 Confirm 回传 BoundLink）。
+        /// </summary>
+        private void ConfirmArrayBind()
+        {
+            if (!int.TryParse(ArrayIndexText, out var index) || index < 0)
+            {
+                EasyDialog.ShowSync("格式错误", "索引必须是非负整数！");
+                return;
+            }
+
+            var port = PendingArrayPort;
+            if (port == null)
+                return;
+
+            // 先收起面板再写模型：DoFinalBind 会改 LinkedAddress/连线，
+            // 面板状态若在写完后才清，异常路径下会残留一个"看似还能确认"的旧端口。
+            ClearPendingArray();
+            DoFinalBind(port, index);
+
+            if (IsSingleBindMode)
+                Confirm();
+        }
+
+        /// <summary>收起行内索引面板（切端口 / 切来源 / 取消时调用）。</summary>
+        private void ClearPendingArray()
+        {
+            PendingArrayPort = null;
+            PendingArrayElementTypeName = string.Empty;
+            ArrayIndexText = string.Empty;
         }
 
         private void DoFinalBind(PortDefinition port, int index = -1)
@@ -449,7 +711,7 @@ namespace VisionMaster.ViewModels
             // P0-③：单绑模式下弹窗只负责"把用户选的变量还给出题人"（经 BoundLink 回传），
             // 绝不能直写目标步骤的 LinkedSources——此时目标可能是条件节点，
             // bindKey 会落到中文描述上（如"当前准备绑定的变量"），在活模型里留下垃圾键
-            if (!_isSingleBindMode && _targetStep != null)
+            if (!IsSingleBindMode && _targetStep != null)
             {
                 string bindKey;
                 // 条件节点与等待节点的连线键都是"变量 Guid"（借 Description 承载）；
@@ -487,18 +749,20 @@ namespace VisionMaster.ViewModels
                 var linkRef = new LinkReference(LinkKind.Constant, Guid.Empty, ConstantValue, displayName);
                 // P0-③：同 DoFinalBind，单绑模式下常量也只回传、不写活模型；
                 // 写活模型时走 SetLink（直改字典不递增版本 → 复用的已编译会话看不到这次修改）
-                if (!_isSingleBindMode && _targetStep != null)
+                if (!IsSingleBindMode && _targetStep != null)
                     _targetStep.SetLink(bindKey, linkRef);
                 SelectedInputPort.LinkedAddress = displayName;
                 _lastBoundLink = linkRef;
                 _lastBoundPort = new PortDefinition
                 {
                     Name = bindKey,
-                    DataTypeName = "System.String",
+                    // 常量文本回传给单绑定调用方时，类型必须按目标端口声明走。
+                    // 无条件写 System.String 会让 Int32 条件变量被声明成字符串。
+                    DataTypeName = SelectedInputPort.Definition.DataTypeName ?? "System.String",
                 };
             }
 
-            if (_lastBoundLink == null && SelectedOutputPort != null && _isSingleBindMode)
+            if (_lastBoundLink == null && SelectedOutputPort != null && IsSingleBindMode)
             {
                 DoFinalBind(SelectedOutputPort);
             }
@@ -513,38 +777,45 @@ namespace VisionMaster.ViewModels
 
         public void BuildTree(IDialogParameters parameters = null)
         {
-            if (DisplayDataPort == null || TreeNodes == null || _targetStep == null)
+            // 重建端口表前先收起索引面板：面板里的 PendingArrayPort 属于上一轮构建，
+            // 留着会在新一轮端口表上"确认"一个已经不存在的端口。
+            ClearPendingArray();
+
+            if (DisplayDataPort == null || TreeNodes == null)
                 return;
+
+            // 单绑定模式的目标端口来自 TargetPortName/TargetTypeName，不依赖 _targetStep：
+            // 插件视图发起绑定（ProcessViewModel.OnLinkPathEvent / ConditionEditorViewModel.OnBindVariable）
+            // 可能只传 IsSingleBindMode，此时 Workspace.CurrentStep 也可能为空。
+            if (_targetStep == null && !IsSingleBindMode)
+                return;
+
+            // 先退订再清空：端口模型是每次重建都新造的，旧对象若不退订，
+            // 会继续向 VM 推 PropertyChanged（BoundPortCount 在已丢弃对象上重算）。
+            foreach (var port in DisplayDataPort)
+                port.PropertyChanged -= OnInputPortPropertyChanged;
 
             DisplayDataPort.Clear();
             TreeNodes.Clear();
 
-            if (!_isSingleBindMode)
+            if (!IsSingleBindMode)
             {
                 // 等待节点：没有插件端口表，它的"输入脚"就是条件变量表本身。
                 // 键口径与 FlowCompiler 的消费方分支一致——用变量 Guid 的字符串
                 //（这里借 PortDefinition.Description 承载，与 ConditionStep 的"描述即键"同一手法），
                 // 名字只用于界面显示。漏掉这一支的表现是绑定窗口左侧一个端口都没有 →
                 // 等待节点的条件变量永远连不上（条件恒取默认 false，必等到超时）。
-                if (_targetStep is WaitStep wait)
+                if (_targetStep is ConditionStep condition)
                 {
-                    foreach (var variable in wait.LocalVariables)
-                    {
-                        if (variable == null) continue;
-
-                        wait.LinkedSources.TryGetValue(variable.Id.ToString(), out var existingLink);
-                        DisplayDataPort.Add(
-                            new InputPortUIModel(
-                                new PortDefinition
-                                {
-                                    Name = variable.Name,
-                                    DataTypeName = variable.DataTypeName,
-                                    Description = variable.Id.ToString(),
-                                },
-                                existingLink?.DisplayAddress
-                            )
-                        );
-                    }
+                    // ConditionStep 的"输入脚"同样是条件变量表（不是 BuiltIn_If 的
+                    // 虚拟变量/中间变量插件端口）：FlowCompiler 与条件编辑器都按变量 Guid 解析。
+                    // 若这里走插件端口表，ResolveBindKey 写的是 Description（Guid），
+                    // 回读却按 Name（虚拟变量）查，绑定会"写进去但重开不回显、解绑也清不掉"。
+                    AddLocalVariablePorts(condition.LocalVariables, condition.LinkedSources);
+                }
+                else if (_targetStep is WaitStep wait)
+                {
+                    AddLocalVariablePorts(wait.LocalVariables, wait.LinkedSources);
                 }
                 else if (
                     pluginProvider.ModulePlugins.TryGetValue(
@@ -561,7 +832,7 @@ namespace VisionMaster.ViewModels
                                 schema.Name,
                                 out var existingLink
                             );
-                            DisplayDataPort.Add(
+                            AddDisplayPort(
                                 new InputPortUIModel(schema, existingLink?.DisplayAddress)
                             );
                         }
@@ -599,26 +870,92 @@ namespace VisionMaster.ViewModels
                     ""
                 );
 
-                DisplayDataPort.Add(mockNode);
+                AddDisplayPort(mockNode);
             }
-            if (DisplayDataPort.Count > 0)
-            {
-                SelectedInputPort = DisplayDataPort[0];
-            }
+            // 空端口表也要把旧选中项清掉，否则重开/重建后 VM 还指着已经不在表里的端口。
+            SelectedInputPort = DisplayDataPort.Count > 0 ? DisplayDataPort[0] : null;
 
             // 用户变量 + 系统变量（运动/IO）都进入绑定候选；系统变量按 VariableId 解析。
-            var allVariables = Workspace.GlobalVariables
-                .Concat(Workspace.SystemVariables)
+            var allVariables = (Workspace?.GlobalVariables ?? Enumerable.Empty<IVariable>())
+                .Concat(Workspace?.SystemVariables ?? Enumerable.Empty<IVariable>())
                 .ToList();
 
+            // 没有目标步骤（插件视图单绑定且 Workspace.CurrentStep 为空）时无法计算"上游"，
+            // 只给全局变量候选；这也避免 FlowQueryHelper 在无 Prism 容器的测试宿主里解析插件。
+            var allSteps = _targetStep == null
+                ? Enumerable.Empty<StepModel>()
+                : Workspace?.CurrentFlow?.Steps ?? Enumerable.Empty<StepModel>();
             var availableVars = FlowQueryHelper.GetAvailableVariablesTree(
                 allVariables,
-                Workspace.CurrentFlow.Steps,
+                allSteps,
                 _targetStep
             );
-            foreach (var item in availableVars)
+            foreach (var item in FlowQueryHelper.FilterGlobalNodes(availableVars, AllowGlobals))
             {
                 TreeNodes.Add(item);
+            }
+
+            // 设计默认态是"已选第一个来源"，打开即可看到候选端口；用户仍可随时切换。
+            if (TreeNodes.Count > 0
+                && (SelectedNode == null || !TreeNodes.Contains(SelectedNode)))
+            {
+                SelectedNode = TreeNodes[0];
+            }
+
+            // 端口集合已重建完毕：一次性通知两个计数（逐项 Add 时集合尚未定型，
+            // 在中间态通知会让进度条闪一串中间数字）。
+            RaisePropertyChanged(nameof(TotalPortCount));
+            RaisePropertyChanged(nameof(BoundPortCount));
+        }
+
+        /// <summary>
+        /// 条件/等待节点的"输入脚"：把 LocalVariables 铺成端口，Description 承载变量 Guid。
+        /// 两者共用同一份键口径（FlowCompiler 按 Guid 解析，ResolveBindKey 取 Description）。
+        /// </summary>
+        private void AddLocalVariablePorts(
+            IEnumerable<LocalVariableItem> variables,
+            IDictionary<string, LinkReference> linkedSources)
+        {
+            if (variables == null)
+                return;
+
+            foreach (var variable in variables)
+            {
+                if (variable == null)
+                    continue;
+
+                LinkReference? existingLink = null;
+                if (linkedSources != null)
+                    linkedSources.TryGetValue(variable.Id.ToString(), out existingLink);
+                AddDisplayPort(
+                    new InputPortUIModel(
+                        new PortDefinition
+                        {
+                            Name = variable.Name,
+                            DataTypeName = variable.DataTypeName,
+                            Description = variable.Id.ToString(),
+                        },
+                        existingLink?.DisplayAddress
+                    )
+                );
+            }
+        }
+
+        /// <summary>加入端口表并订阅其属性变化（BoundPortCount 依赖 LinkedAddress/IsBound）。</summary>
+        private void AddDisplayPort(InputPortUIModel port)
+        {
+            DisplayDataPort.Add(port);
+            port.PropertyChanged += OnInputPortPropertyChanged;
+        }
+
+        private void OnInputPortPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (
+                e.PropertyName == nameof(InputPortUIModel.LinkedAddress)
+                || e.PropertyName == nameof(InputPortUIModel.IsBound)
+            )
+            {
+                RaisePropertyChanged(nameof(BoundPortCount));
             }
         }
 
@@ -628,7 +965,12 @@ namespace VisionMaster.ViewModels
 
         public void OnDialogOpened(IDialogParameters parameters)
         {
-            _isSingleBindMode = parameters.GetValue<bool>("IsSingleBindMode");
+            IsSingleBindMode = parameters.GetValue<bool>("IsSingleBindMode");
+
+            // 缺省 true：只有显式传 false 的插件（C#脚本输入）才隐藏全局/系统变量候选
+            AllowGlobals = parameters == null
+                || !parameters.TryGetValue<bool>("AllowGlobals", out var allowGlobals)
+                || allowGlobals;
 
             // 目标步骤：外部显式传入优先（For/条件弹窗的下钻场景），否则退回 Workspace.CurrentStep。
             // 单靠 CurrentStep 会在"下钻进容器"时指错人：它指向的是容器本身，不是被双击的那个步骤。
@@ -638,6 +980,12 @@ namespace VisionMaster.ViewModels
                 && explicitTarget != null
                     ? explicitTarget
                     : Workspace?.CurrentStep;
+
+            // 顶部上下文条：单绑定没有"当前步骤"语义（目标来自插件视图的绑定请求），
+            // 显示固定文案，避免露出 Workspace.CurrentStep 这种不相干的名字。
+            TargetStepName = IsSingleBindMode
+                ? "插件视图绑定请求"
+                : _targetStep?.StepName ?? "当前步骤";
 
             BuildTree(parameters);
         }

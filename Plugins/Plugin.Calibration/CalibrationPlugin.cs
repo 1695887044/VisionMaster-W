@@ -591,7 +591,7 @@ namespace Plugin.Calibration
             // 模型族判据走契约的单一真源（CalibrationKinds.Base），别手写 "Mesh or MeshUndistorted"
             var matrix = t != null && CalibrationKinds.Base(t.Kind) == CalibrationKind.Mesh
                 ? _meshAffineBaseline : t?.Matrix;
-            if (t == null || !CalibrationMath.IsUsableMatrix(matrix))
+            if (t == null || matrix == null || !CalibrationMath.IsUsableMatrix(matrix))
             {
                 ResidualAnnotations = null;
                 return;
@@ -1753,7 +1753,7 @@ namespace Plugin.Calibration
             }
 
             return CalibrationMath.TrySolveAffine(rows, cols, xs, ys,
-                out baseline, out rmsPx, out maxPx, out bands, out bandCounts, out _);
+                out baseline, out rmsPx, out maxPx, out bands!, out bandCounts!, out _);
         }
 
         /// <summary>
@@ -1866,7 +1866,7 @@ namespace Plugin.Calibration
         /// <summary>按给定仿射矩阵回写逐行残差（px 口径：mm 偏差 ÷ 当量）</summary>
         private void ApplyRowResidualsFromMatrix(CalibrationTransform t, double[]? matrix)
         {
-            if (!CalibrationMath.IsUsableMatrix(matrix))
+            if (matrix == null || !CalibrationMath.IsUsableMatrix(matrix))
                 return;
 
             foreach (var row in PointRows)

@@ -44,23 +44,23 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>当前状态（true = 点亮）</summary>
         [ScadaProperty(Key = "IsOn", DisplayName = "点亮", Kind = ElementPropertyKind.Bool,
-                       Group = "状态", DefaultValue = "False", IsBindable = true,
+                       Group = ScadaPropertyGroups.State, DefaultValue = "False", IsBindable = true,
                        Description = "运行态把工程变量的布尔值绑到这里")]
         public partial bool IsOn { get; set; }
 
         /// <summary>点亮色</summary>
         [ScadaProperty(Key = "OnColor", DisplayName = "点亮色", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FF34C759", IsBindable = true)]
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FF34C759", IsBindable = true)]
         public partial Brush? OnColor { get; set; }
 
         /// <summary>熄灭色</summary>
         [ScadaProperty(Key = "OffColor", DisplayName = "熄灭色", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FF3A3A3A", IsBindable = true)]
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FF3A3A3A", IsBindable = true)]
         public partial Brush? OffColor { get; set; }
 
         /// <summary>灯体形状</summary>
         [ScadaProperty(Key = "Shape", DisplayName = "形状", Kind = ElementPropertyKind.Choice,
-                       Group = "外观", DefaultValue = "Circle", Choices = new[] { "Circle", "Square" })]
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "Circle", Choices = new[] { "Circle", "Square" })]
         public partial IndicatorShape Shape { get; set; }
 
         private static readonly DependencyPropertyKey LampBrushPropertyKey = DependencyProperty.RegisterReadOnly(

@@ -1,0 +1,1334 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>结果上报 · 配置窗口 · 设计基线 v1</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #ru-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="ru-design-root">
+  <style>
+    #ru-design-root{
+      color-scheme: light dark;
+      --ru-surface:#FFFFFF;
+      --ru-surface-2:#F8FAFC;
+      --ru-surface-3:#F1F5F9;
+      --ru-border:#E2E8F0;
+      --ru-border-soft:#EEF2F7;
+      --ru-border-strong:#CBD5E1;
+      --ru-text:#0F172A;
+      --ru-text-2:#475569;
+      --ru-text-3:#94A3B8;
+      --ru-text-4:#64748B;
+      --ru-primary:#0EA5E9;
+      --ru-primary-strong:#0284C7;
+      --ru-primary-text:#0369A1;
+      --ru-primary-soft:#F0F9FF;
+      --ru-primary-light:#E0F2FE;
+      --ru-primary-border:#BAE6FD;
+      --ru-success:#22C55E;
+      --ru-success-text:#15803D;
+      --ru-success-soft:#F0FDF4;
+      --ru-success-border:#BBF7D0;
+      --ru-danger:#EF4444;
+      --ru-danger-text:#B91C1C;
+      --ru-danger-soft:#FEF2F2;
+      --ru-danger-border:#FECACA;
+      --ru-warning:#F59E0B;
+      --ru-warning-text:#B45309;
+      --ru-warning-soft:#FFF4E5;
+      --ru-warning-border:#FDE68A;
+      --ru-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --ru-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --ru-radius-sm:6px;
+      --ru-radius-md:8px;
+      --ru-radius-lg:10px;
+      --ru-radius-xl:12px;
+      --ru-radius-window:16px;
+      --ru-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--ru-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #ru-design-root *{box-sizing:border-box;}
+    #ru-design-root button,
+    #ru-design-root input,
+    #ru-design-root select,
+    #ru-design-root textarea{font-family:inherit;}
+    #ru-design-root button{color:inherit;}
+    #ru-design-root [hidden]{display:none !important;}
+    #ru-design-root :focus-visible{outline:2px solid var(--ru-primary);outline-offset:2px;}
+
+    #ru-design-root .ru-page{
+      max-width:1360px;margin:0 auto;padding:24px 24px 44px;background:transparent;
+    }
+    #ru-design-root .ru-page-head{max-width:1360px;margin:0 auto 16px;}
+    #ru-design-root .ru-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #ru-design-root .ru-page-title-row h1{
+      margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;
+      color:light-dark(#0F172A,#E2E8F0);
+    }
+    #ru-design-root .ru-ver{
+      display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+      background:light-dark(var(--ru-primary-light),rgba(14,165,233,.18));
+      color:light-dark(var(--ru-primary-text),#7DD3FC);
+      font-size:11px;font-weight:700;letter-spacing:.02em;
+    }
+    #ru-design-root .ru-page-sub{
+      margin:7px 0 14px;font-size:12.5px;line-height:1.6;
+      color:light-dark(var(--ru-text-2),#94A3B8);
+    }
+    #ru-design-root .ru-page-sub b{color:light-dark(var(--ru-text),#E2E8F0);font-weight:600;}
+    #ru-design-root .ru-demo-bar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+    #ru-design-root .ru-demo-group{display:flex;align-items:center;gap:8px;}
+    #ru-design-root .ru-demo-label{font-size:11.5px;color:light-dark(var(--ru-text-4),#94A3B8);}
+    #ru-design-root .ru-scope{
+      display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;
+      font-size:11.5px;line-height:1.55;
+      color:light-dark(var(--ru-text-2),#94A3B8);
+    }
+    #ru-design-root .ru-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:light-dark(var(--ru-warning-text),#FBBF24);}
+    #ru-design-root .ru-scope b{color:light-dark(var(--ru-text),#E2E8F0);font-weight:600;}
+    #ru-design-root .ru-seg{
+      display:inline-flex;gap:2px;padding:2px;border-radius:var(--ru-radius-md);
+      background:light-dark(var(--ru-surface-3),#1E293B);
+    }
+    #ru-design-root .ru-seg button{
+      height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;
+      color:light-dark(var(--ru-text-2),#CBD5E1);font-size:11.5px;line-height:1;cursor:pointer;
+      transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;
+    }
+    #ru-design-root .ru-seg button:hover{color:light-dark(var(--ru-text),#F8FAFC);}
+    #ru-design-root .ru-seg button.is-on{
+      background:light-dark(#FFFFFF,#334155);
+      color:light-dark(var(--ru-text),#F8FAFC);
+      font-weight:600;
+      box-shadow:0 1px 2px rgba(15,23,42,.10);
+    }
+
+    /* ================= 产品窗口 ================= */
+    #ru-design-root .ru-window{
+      width:960px;max-width:100%;height:680px;margin:0 auto;
+      display:flex;flex-direction:column;overflow:hidden;
+      background:var(--ru-surface);
+      border-radius:var(--ru-radius-window);
+      box-shadow:var(--ru-shadow-window);
+      transition:width 200ms ease;
+    }
+    #ru-design-root .ru-window.is-narrow{width:640px;}
+
+    #ru-design-root .ru-titlebar{
+      height:72px;flex:none;display:flex;align-items:center;
+      padding:0 20px;background:var(--ru-surface);
+      border-bottom:1px solid var(--ru-border-soft);
+    }
+    #ru-design-root .ru-app-icon{
+      width:40px;height:40px;flex:none;border-radius:12px;
+      display:flex;align-items:center;justify-content:center;
+      background:var(--ru-primary-light);color:var(--ru-primary-text);
+    }
+    #ru-design-root .ru-app-icon svg{width:19px;height:19px;}
+    #ru-design-root .ru-title-text{margin-left:12px;min-width:0;flex:1;}
+    #ru-design-root .ru-title{
+      font-size:16px;font-weight:600;line-height:1.3;color:var(--ru-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ru-design-root .ru-subtitle{
+      margin-top:2px;font-size:12px;line-height:1.4;color:var(--ru-text-2);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ru-design-root .ru-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+    #ru-design-root .ru-icon-btn{
+      width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--ru-radius-md);
+      display:inline-flex;align-items:center;justify-content:center;
+      background:transparent;color:var(--ru-text-4);cursor:pointer;
+      transition:background 150ms ease,color 150ms ease;
+    }
+    #ru-design-root .ru-icon-btn svg{width:15px;height:15px;}
+    #ru-design-root .ru-icon-btn:hover{background:var(--ru-surface-3);color:var(--ru-text);}
+    #ru-design-root .ru-icon-btn:active{background:var(--ru-border);}
+    #ru-design-root .ru-icon-btn:disabled{opacity:.4;cursor:not-allowed;}
+
+    /* ---- 内容 ---- */
+    #ru-design-root .ru-content{
+      flex:1;min-height:0;display:grid;
+      grid-template-columns:356px minmax(0,1fr);
+      gap:16px;padding:16px 20px 20px;background:var(--ru-surface);
+    }
+    #ru-design-root .ru-window.is-narrow .ru-content{
+      grid-template-columns:300px minmax(0,1fr);
+      gap:12px;padding:14px 16px 16px;
+    }
+    #ru-design-root .ru-rail{
+      min-height:0;overflow-y:auto;overflow-x:hidden;
+      display:flex;flex-direction:column;
+      padding:14px;border:1px solid var(--ru-border-soft);border-radius:var(--ru-radius-xl);
+      background:var(--ru-surface-2);
+      scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;
+    }
+    #ru-design-root .ru-rail::-webkit-scrollbar{width:8px;}
+    #ru-design-root .ru-rail::-webkit-scrollbar-thumb{
+      background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;
+    }
+    #ru-design-root .ru-rail::-webkit-scrollbar-track{background:transparent;}
+
+    /* 模式卡片 */
+    #ru-design-root .ru-mode-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+    #ru-design-root .ru-mode{
+      position:relative;display:flex;align-items:center;gap:8px;
+      min-height:56px;padding:8px 10px;border:1px solid var(--ru-border);border-radius:var(--ru-radius-lg);
+      background:var(--ru-surface);text-align:left;cursor:pointer;
+      transition:border-color 150ms ease,background 150ms ease,box-shadow 150ms ease;
+    }
+    #ru-design-root .ru-mode:hover{border-color:var(--ru-border-strong);background:#FBFDFF;}
+    #ru-design-root .ru-mode:active{background:var(--ru-surface-3);}
+    #ru-design-root .ru-mode.is-active{
+      border-color:var(--ru-primary);background:var(--ru-primary-soft);
+      box-shadow:0 0 0 3px rgba(14,165,233,.10);
+    }
+    #ru-design-root .ru-mode-icon{
+      width:28px;height:28px;flex:none;border-radius:8px;
+      display:flex;align-items:center;justify-content:center;
+      background:var(--ru-surface-3);color:var(--ru-text-4);
+      transition:background 150ms ease,color 150ms ease;
+    }
+    #ru-design-root .ru-mode-icon svg{width:15px;height:15px;}
+    #ru-design-root .ru-mode.is-active .ru-mode-icon{background:var(--ru-primary-light);color:var(--ru-primary-text);}
+    #ru-design-root .ru-mode-text{display:flex;flex-direction:column;min-width:0;padding-right:14px;}
+    #ru-design-root .ru-mode-text b{
+      font-size:12.5px;font-weight:600;line-height:1.35;color:var(--ru-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ru-design-root .ru-mode-text small{
+      margin-top:2px;font-size:10.5px;line-height:1.3;color:var(--ru-text-4);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ru-design-root .ru-mode-check{
+      position:absolute;right:9px;top:50%;transform:translateY(-50%);
+      width:16px;height:16px;border-radius:50%;display:none;align-items:center;justify-content:center;
+      background:var(--ru-primary);color:#fff;
+    }
+    #ru-design-root .ru-mode-check svg{width:10px;height:10px;}
+    #ru-design-root .ru-mode.is-active .ru-mode-check{display:flex;}
+
+    #ru-design-root .ru-panel{margin-top:14px;}
+    #ru-design-root .ru-section-head{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      margin-bottom:9px;font-size:12px;font-weight:600;color:var(--ru-text-2);
+    }
+    #ru-design-root .ru-section-hint{font-size:10.5px;font-weight:400;color:var(--ru-text-3);white-space:nowrap;}
+    #ru-design-root .ru-field{margin-bottom:12px;}
+    #ru-design-root .ru-field:last-child{margin-bottom:0;}
+    #ru-design-root .ru-label{
+      display:flex;align-items:center;gap:5px;margin-bottom:6px;
+      font-size:12px;font-weight:500;line-height:1.3;color:var(--ru-text-2);
+    }
+    #ru-design-root .ru-input,
+    #ru-design-root .ru-select,
+    #ru-design-root .ru-textarea{
+      width:100%;height:36px;padding:0 10px;
+      border:1px solid var(--ru-border);border-radius:var(--ru-radius-md);
+      background:var(--ru-surface);color:var(--ru-text);
+      font-size:12.5px;line-height:1;outline:none;
+      transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;
+    }
+    #ru-design-root .ru-input::placeholder{color:var(--ru-text-3);}
+    #ru-design-root .ru-input:hover,
+    #ru-design-root .ru-select:hover,
+    #ru-design-root .ru-textarea:hover{border-color:var(--ru-border-strong);}
+    #ru-design-root .ru-input:focus,
+    #ru-design-root .ru-select:focus,
+    #ru-design-root .ru-textarea:focus{
+      border-color:var(--ru-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);
+    }
+    #ru-design-root .ru-input:disabled{background:var(--ru-surface-3);color:var(--ru-text-3);cursor:not-allowed;}
+    #ru-design-root .ru-select{
+      appearance:none;-webkit-appearance:none;padding-right:30px;cursor:pointer;
+    }
+    #ru-design-root .ru-select-wrap{position:relative;flex:1;min-width:0;}
+    #ru-design-root .ru-select-wrap > svg{
+      position:absolute;right:10px;top:50%;transform:translateY(-50%);
+      width:13px;height:13px;color:var(--ru-text-3);pointer-events:none;
+    }
+    #ru-design-root .ru-input-suffix{position:relative;}
+    #ru-design-root .ru-input-suffix .ru-input{padding-right:34px;}
+    #ru-design-root .ru-input-suffix span{
+      position:absolute;right:10px;top:50%;transform:translateY(-50%);
+      font-size:11px;color:var(--ru-text-3);pointer-events:none;
+    }
+    #ru-design-root .ru-help{
+      display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;
+      font-size:11.5px;line-height:1.5;color:var(--ru-text-4);
+    }
+    #ru-design-root .ru-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--ru-text-3);}
+    #ru-design-root .ru-help code{
+      font-family:var(--ru-mono);font-size:10.5px;color:var(--ru-primary-text);
+      background:var(--ru-primary-soft);padding:1px 4px;border-radius:4px;
+    }
+
+    /* 按钮 */
+    #ru-design-root .ru-btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:6px;
+      height:36px;padding:0 13px;border:1px solid var(--ru-border);border-radius:var(--ru-radius-md);
+      background:var(--ru-surface);color:var(--ru-text);font-size:12.5px;font-weight:500;
+      line-height:1;cursor:pointer;white-space:nowrap;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;
+    }
+    #ru-design-root .ru-btn svg{width:14px;height:14px;}
+    #ru-design-root .ru-btn:hover{background:var(--ru-surface-2);border-color:var(--ru-border-strong);}
+    #ru-design-root .ru-btn:active{background:var(--ru-surface-3);}
+    #ru-design-root .ru-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #ru-design-root .ru-btn-primary{
+      background:var(--ru-primary);border-color:var(--ru-primary);color:#fff;font-weight:600;
+    }
+    #ru-design-root .ru-btn-primary:hover{background:var(--ru-primary-strong);border-color:var(--ru-primary-strong);}
+    #ru-design-root .ru-btn-sm{height:30px;padding:0 10px;font-size:11.5px;}
+    #ru-design-root .ru-btn-block{width:100%;}
+    #ru-design-root .ru-btn-danger{
+      border-color:var(--ru-danger-border);background:var(--ru-danger-soft);color:var(--ru-danger-text);
+    }
+    #ru-design-root .ru-btn-danger:hover{background:#FEE2E2;border-color:var(--ru-danger);}
+    #ru-design-root .ru-btn-square{
+      width:30px;height:30px;flex:none;padding:0;border:1px solid var(--ru-border);
+      border-radius:var(--ru-radius-md);background:var(--ru-surface);color:var(--ru-text-4);
+      display:flex;align-items:center;justify-content:center;cursor:pointer;
+    }
+    #ru-design-root .ru-btn-square:hover{background:var(--ru-primary-soft);border-color:var(--ru-primary-border);color:var(--ru-primary-text);}
+    #ru-design-root .ru-btn-square svg{width:14px;height:14px;}
+    #ru-design-root .ru-row-remove{
+      width:26px;height:26px;flex:none;padding:0;border:0;border-radius:6px;
+      background:transparent;color:var(--ru-text-3);cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+    }
+    #ru-design-root .ru-row-remove:hover{background:var(--ru-danger-soft);color:var(--ru-danger-text);}
+    #ru-design-root .ru-row-remove svg{width:12px;height:12px;}
+
+    /* 折叠区 */
+    #ru-design-root .ru-details{
+      margin-top:10px;border:1px solid var(--ru-border);border-radius:var(--ru-radius-lg);
+      background:var(--ru-surface);overflow:hidden;
+    }
+    #ru-design-root .ru-details summary{
+      display:flex;align-items:center;gap:8px;padding:10px 12px;
+      font-size:12px;font-weight:500;color:var(--ru-text-2);cursor:pointer;list-style:none;
+    }
+    #ru-design-root .ru-details summary::-webkit-details-marker{display:none;}
+    #ru-design-root .ru-details summary:hover{background:var(--ru-surface-2);}
+    #ru-design-root .ru-details summary svg{width:14px;height:14px;color:var(--ru-text-3);}
+    #ru-design-root .ru-details summary .ru-chev{margin-left:auto;transition:transform 150ms ease;}
+    #ru-design-root .ru-details[open] summary .ru-chev{transform:rotate(180deg);}
+    #ru-design-root .ru-details-body{padding:0 12px 12px;border-top:1px solid var(--ru-border-soft);}
+    #ru-design-root .ru-details-sub{
+      margin:10px 0 7px;font-size:10.5px;font-weight:600;letter-spacing:.03em;color:var(--ru-text-3);
+    }
+
+    /* 复选 */
+    #ru-design-root .ru-check{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--ru-text-2);cursor:pointer;}
+    #ru-design-root .ru-check input{margin:2px 0 0;accent-color:var(--ru-primary);}
+    #ru-design-root .ru-check small{display:block;margin-top:2px;font-size:10.5px;line-height:1.4;color:var(--ru-text-3);}
+    #ru-design-root .ru-warn-line{
+      display:flex;align-items:center;gap:5px;margin-top:6px;font-size:11px;color:var(--ru-danger-text);
+    }
+    #ru-design-root .ru-warn-line svg{width:12px;height:12px;flex:none;}
+
+    /* 头表 */
+    #ru-design-root .ru-card{
+      min-height:0;display:flex;flex-direction:column;overflow:hidden;
+      background:var(--ru-surface);border:1px solid var(--ru-border);border-radius:var(--ru-radius-xl);
+    }
+    #ru-design-root .ru-card-head{
+      flex:none;display:flex;align-items:center;gap:8px;padding:10px 12px;
+      border-bottom:1px solid var(--ru-border-soft);
+    }
+    #ru-design-root .ru-card-title{font-size:12.5px;font-weight:600;color:var(--ru-text);}
+    #ru-design-root .ru-card-hint{font-size:10.5px;color:var(--ru-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #ru-design-root .ru-badge{
+      display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:999px;
+      background:var(--ru-primary-light);color:var(--ru-primary-text);
+      font-size:10.5px;font-weight:600;white-space:nowrap;
+    }
+    #ru-design-root .ru-card-body{flex:1;min-height:0;overflow:auto;padding:10px 12px;}
+    #ru-design-root .ru-card-body::-webkit-scrollbar{width:8px;}
+    #ru-design-root .ru-card-body::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+
+    /* 字段表 */
+    #ru-design-root .ru-field-table{display:flex;flex-direction:column;gap:4px;}
+    #ru-design-root .ru-field-head,
+    #ru-design-root .ru-field-row{
+      display:grid;grid-template-columns:22px minmax(58px,1fr) 74px minmax(70px,1fr) 26px;
+      gap:6px;align-items:center;
+    }
+    #ru-design-root .ru-field-head{
+      padding:0 2px 4px;font-size:10px;font-weight:600;letter-spacing:.03em;color:var(--ru-text-3);
+    }
+    #ru-design-root .ru-field-row .ru-input,
+    #ru-design-root .ru-field-row .ru-select{height:30px;font-size:11.5px;padding:0 8px;}
+    #ru-design-root .ru-field-row .ru-select{padding-right:24px;}
+    #ru-design-root .ru-field-row.is-disabled{opacity:.55;}
+    #ru-design-root .ru-cell-hint{
+      display:flex;align-items:center;gap:5px;min-width:0;height:30px;padding:0 2px;
+      font-size:10.5px;color:var(--ru-success-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ru-design-root .ru-cell-hint svg{width:11px;height:11px;flex:none;}
+    #ru-design-root .ru-empty-row{
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+      min-height:96px;border:1.5px dashed var(--ru-border);border-radius:var(--ru-radius-lg);
+      background:var(--ru-surface-2);color:var(--ru-text-3);font-size:11.5px;text-align:center;
+    }
+    #ru-design-root .ru-empty-row svg{width:20px;height:20px;}
+    #ru-design-root .ru-add-row{margin-top:8px;}
+    #ru-design-root .ru-template-block{
+      margin-top:10px;padding-top:10px;border-top:1px solid var(--ru-border-soft);
+    }
+    #ru-design-root .ru-textarea{
+      height:auto;min-height:56px;padding:8px 10px;resize:vertical;
+      font-family:var(--ru-mono);font-size:11px;line-height:1.55;
+      background:var(--ru-surface-2);color:var(--ru-text-2);
+    }
+    #ru-design-root .ru-inline-row{display:flex;align-items:center;gap:8px;}
+    #ru-design-root .ru-inline-row .ru-input{flex:1;min-width:0;}
+    #ru-design-root .ru-inline-row .ru-check{flex:none;}
+
+    /* 报文预览 */
+    #ru-design-root .ru-preview-body{
+      flex:1;min-height:0;padding:0;display:flex;flex-direction:column;
+      background:#0B1220;
+    }
+    #ru-design-root .ru-preview-meta{
+      flex:none;display:flex;align-items:center;gap:6px;padding:6px 10px;
+      border-bottom:1px solid rgba(148,163,184,.16);
+      font-size:10.5px;color:#94A3B8;font-variant-numeric:tabular-nums;
+    }
+    #ru-design-root .ru-preview-meta .ru-dot{width:6px;height:6px;border-radius:50%;background:var(--ru-success);}
+    #ru-design-root .ru-payload{
+      flex:1;min-height:0;margin:0;padding:9px 11px;overflow:auto;
+      font-family:var(--ru-mono);font-size:10.5px;line-height:1.65;
+      color:#E2E8F0;white-space:pre-wrap;word-break:break-all;
+    }
+    #ru-design-root .ru-payload .k{color:#7DD3FC;}
+    #ru-design-root .ru-payload .s{color:#86EFAC;}
+    #ru-design-root .ru-payload .n{color:#FDE68A;}
+    #ru-design-root .ru-payload.is-error{color:#FCA5A5;}
+
+    /* 测试发送 */
+    #ru-design-root .ru-test-head{display:flex;align-items:center;gap:8px;}
+    #ru-design-root .ru-test-head .ru-btn{margin-left:auto;}
+    #ru-design-root .ru-result{
+      margin-top:8px;min-height:34px;padding:7px 9px;border-radius:var(--ru-radius-md);
+      background:var(--ru-surface-2);border:1px solid var(--ru-border-soft);
+      font-size:11.5px;line-height:1.5;color:var(--ru-text-3);white-space:pre-wrap;
+    }
+    #ru-design-root .ru-result.is-ok{background:var(--ru-success-soft);border-color:var(--ru-success-border);color:var(--ru-success-text);}
+    #ru-design-root .ru-result.is-err{background:var(--ru-danger-soft);border-color:var(--ru-danger-border);color:var(--ru-danger-text);}
+    #ru-design-root .ru-log-head{display:flex;align-items:center;gap:8px;margin-top:8px;}
+    #ru-design-root .ru-log-head .ru-section-hint{margin-left:auto;}
+    #ru-design-root .ru-logs{
+      margin-top:4px;height:54px;overflow:auto;padding:4px 6px;
+      border:1px solid var(--ru-border-soft);border-radius:var(--ru-radius-md);
+      background:var(--ru-surface-2);font-family:var(--ru-mono);font-size:10.5px;
+    }
+    #ru-design-root .ru-log-row{display:grid;grid-template-columns:104px 38px minmax(0,1fr);gap:6px;padding:1px 0;}
+    #ru-design-root .ru-log-row .t{color:var(--ru-text-3);font-variant-numeric:tabular-nums;}
+    #ru-design-root .ru-log-row .l{font-weight:700;}
+    #ru-design-root .ru-log-row .l.info{color:var(--ru-text-4);}
+    #ru-design-root .ru-log-row .l.warn{color:var(--ru-warning-text);}
+    #ru-design-root .ru-log-row .l.error{color:var(--ru-danger-text);}
+    #ru-design-root .ru-log-row .m{color:var(--ru-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+    /* 底部宿主栏 */
+    #ru-design-root .ru-footer{
+      height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;
+      border-top:1px solid var(--ru-border-soft);background:var(--ru-surface-2);
+    }
+    #ru-design-root .ru-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #ru-design-root .ru-status-chip{
+      display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;
+      background:var(--ru-surface);border:1px solid var(--ru-border);
+      font-size:11.5px;color:var(--ru-text-2);white-space:nowrap;
+    }
+    #ru-design-root .ru-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--ru-text-3);}
+    #ru-design-root .ru-elapsed{
+      font-family:var(--ru-mono);font-size:11px;color:var(--ru-text-3);font-variant-numeric:tabular-nums;
+    }
+    #ru-design-root .ru-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #ru-design-root .ru-footer .ru-btn{height:32px;padding:0 16px;font-size:12.5px;}
+    #ru-design-root .ru-footer .ru-btn-primary{padding:0 18px;}
+
+    /* 窄档 */
+    #ru-design-root .ru-window.is-narrow .ru-card-hint{display:none;}
+    #ru-design-root .ru-window.is-narrow .ru-field-head,
+    #ru-design-root .ru-window.is-narrow .ru-field-row{grid-template-columns:20px minmax(52px,1fr) 64px minmax(54px,1fr) 24px;gap:4px;}
+    #ru-design-root .ru-window.is-narrow .ru-log-row{grid-template-columns:86px 34px minmax(0,1fr);gap:4px;}
+
+    /* 说明区 */
+    #ru-design-root .ru-notes{
+      max-width:1360px;margin:26px auto 0;
+      display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+      column-gap:28px;row-gap:0;
+    }
+    #ru-design-root .ru-notes-head{
+      grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;
+      color:light-dark(var(--ru-text-2),#94A3B8);
+    }
+    #ru-design-root .ru-note{
+      display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;
+      border-top:1px solid light-dark(var(--ru-border),#1E293B);
+    }
+    #ru-design-root .ru-note-num{
+      width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      background:light-dark(var(--ru-primary-light),rgba(14,165,233,.18));
+      color:light-dark(var(--ru-primary-text),#7DD3FC);
+      font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;
+    }
+    #ru-design-root .ru-note b{
+      display:block;font-size:12.5px;font-weight:600;line-height:1.4;
+      color:light-dark(var(--ru-text),#E2E8F0);
+    }
+    #ru-design-root .ru-note span{
+      display:block;margin-top:3px;font-size:11.5px;line-height:1.55;
+      color:light-dark(var(--ru-text-2),#94A3B8);
+    }
+    #ru-design-root .ru-toast{
+      position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(8px);
+      padding:9px 14px;border-radius:10px;background:#0F172A;color:#F8FAFC;
+      font-size:12px;opacity:0;pointer-events:none;transition:opacity 180ms ease,transform 180ms ease;
+      box-shadow:0 10px 28px rgba(15,23,42,.28);z-index:50;
+    }
+    #ru-design-root .ru-toast.is-on{opacity:1;transform:translateX(-50%) translateY(0);}
+
+    @media (prefers-reduced-motion: reduce){
+      #ru-design-root *{animation:none !important;transition:none !important;}
+    }
+    @media (max-width:1024px){
+      #ru-design-root .ru-page{padding:18px 14px 32px;}
+      #ru-design-root .ru-window{height:auto;min-height:640px;}
+      #ru-design-root .ru-content{grid-template-columns:1fr;}
+      #ru-design-root .ru-rail{overflow:visible;}
+    }
+  </style>
+
+  <div class="ru-page">
+    <header class="ru-page-head">
+      <div class="ru-page-title-row">
+        <h1>结果上报 · 配置窗口</h1>
+        <span class="ru-ver">v1</span>
+      </div>
+      <p class="ru-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、字段表 / 请求头集合、
+        <b>TriggerPort</b> 的 <code>LinkableValueEditor</code>、全部命令与 <b>LastResult / RecentLogs</b>；
+        不新增功能、不改端口名、不改持久化。窗口 <b>960 × 680</b>，左侧配置轨 <b>356px</b>，右侧报文工作区自适应。
+      </p>
+      <div class="ru-demo-bar">
+        <div class="ru-demo-group" role="group" aria-label="窗口宽度">
+          <span class="ru-demo-label">窗口宽度</span>
+          <div class="ru-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="ru-demo-group" role="group" aria-label="运行状态">
+          <span class="ru-demo-label">运行状态</span>
+          <div class="ru-seg">
+            <button type="button" data-run="default" class="is-on" aria-pressed="true">默认</button>
+            <button type="button" data-run="sending" aria-pressed="false">发送中</button>
+            <button type="button" data-run="ok" aria-pressed="false">成功</button>
+            <button type="button" data-run="err" aria-pressed="false">失败</button>
+          </div>
+        </div>
+        <div class="ru-demo-group" role="group" aria-label="边界态">
+          <span class="ru-demo-label">边界态</span>
+          <div class="ru-seg">
+            <button type="button" data-boundary="standard" class="is-on" aria-pressed="true">标准</button>
+            <button type="button" data-boundary="emptyurl" aria-pressed="false">空 URL</button>
+            <button type="button" data-boundary="emptyfields" aria-pressed="false">空字段</button>
+          </div>
+        </div>
+      </div>
+      <div class="ru-scope">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span><b>本版未纳入（需新增功能或契约）：</b>加载骨架、字段拖拽排序、模板语法高亮、日志导出 / 清空、请求头导入导出、连通性探测。
+        这些都要改插件 VM 或新增命令，本稿只做纯 UI。</span>
+      </div>
+    </header>
+
+    <div class="ru-window" id="ru-window">
+      <div class="ru-titlebar">
+        <div class="ru-app-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 13v8"></path><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path><path d="m8 17 4-4 4 4"></path></svg>
+        </div>
+        <div class="ru-title-text">
+          <div class="ru-title">结果上报</div>
+          <div class="ru-subtitle">把检测结果 POST 成 JSON 上报：MES 字段表 / 钉钉·企业微信机器人 / 自定义报文，异步队列不占节拍</div>
+        </div>
+        <div class="ru-title-actions">
+          <button type="button" class="ru-icon-btn" data-tooltip="关闭（宿主按钮）" aria-label="关闭" data-host="关闭">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="ru-content">
+        <aside class="ru-rail" aria-label="上报配置">
+          <div class="ru-mode-grid" role="group" aria-label="报文预设">
+            <button type="button" class="ru-mode is-active" data-mode="fieldtable" aria-pressed="true">
+              <span class="ru-mode-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14a9 3 0 0 0 18 0V5"></path><path d="M3 12a9 3 0 0 0 18 0"></path></svg></span>
+              <span class="ru-mode-text"><b>MES 字段表</b><small>字段表 = 载荷</small></span>
+              <span class="ru-mode-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+            </button>
+            <button type="button" class="ru-mode" data-mode="dingtalk" aria-pressed="false">
+              <span class="ru-mode-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>
+              <span class="ru-mode-text"><b>钉钉文本</b><small>群机器人通知</small></span>
+              <span class="ru-mode-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+            </button>
+            <button type="button" class="ru-mode" data-mode="wecom" aria-pressed="false">
+              <span class="ru-mode-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></svg></span>
+              <span class="ru-mode-text"><b>企业微信</b><small>群机器人通知</small></span>
+              <span class="ru-mode-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+            </button>
+            <button type="button" class="ru-mode" data-mode="rawjson" aria-pressed="false">
+              <span class="ru-mode-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"></path><path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"></path></svg></span>
+              <span class="ru-mode-text"><b>原始 JSON</b><small>自定义报文</small></span>
+              <span class="ru-mode-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+            </button>
+          </div>
+
+          <section class="ru-panel">
+            <div class="ru-section-head"><span>目标与连接</span><span class="ru-section-hint">URL / 超时 / 鉴权</span></div>
+            <div class="ru-field">
+              <label class="ru-label" for="ru-url">目标 URL</label>
+              <input class="ru-input" id="ru-url" type="text" value="https://mes.example.com/api/result" spellcheck="false" placeholder="https://…">
+              <p class="ru-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                MES 接口地址，或钉钉 / 企业微信机器人 webhook。
+              </p>
+            </div>
+            <div class="ru-field">
+              <label class="ru-label" for="ru-timeout">单次请求超时</label>
+              <div class="ru-input-suffix">
+                <input class="ru-input" id="ru-timeout" type="number" value="3000" min="1" step="100">
+                <span>ms</span>
+              </div>
+              <p class="ru-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
+                默认 3000；≤ 0 会被插件自动拉回 3000。
+              </p>
+            </div>
+
+            <details class="ru-details">
+              <summary>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 17H5"></path><path d="M19 7h-9"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>
+                高级连接（请求头 / 加签 / 证书）
+                <svg class="ru-chev" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </summary>
+              <div class="ru-details-body">
+                <div class="ru-details-sub">请求头（MES 常要 Authorization）</div>
+                <div id="ru-headers">
+                  <div class="ru-field" style="margin-bottom:6px;">
+                    <div class="ru-inline-row">
+                      <input class="ru-input" type="text" value="Authorization" aria-label="请求头名">
+                      <input class="ru-input" type="password" value="Bearer demo-token" aria-label="请求头值">
+                      <button type="button" class="ru-row-remove" data-remove-header aria-label="删除请求头">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="ru-field" style="margin-bottom:0;">
+                    <div class="ru-inline-row">
+                      <input class="ru-input" type="text" value="X-Station" aria-label="请求头名">
+                      <input class="ru-input" type="password" value="LINE-A" aria-label="请求头值">
+                      <button type="button" class="ru-row-remove" data-remove-header aria-label="删除请求头">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <button type="button" class="ru-btn ru-btn-sm ru-btn-block" id="ru-add-header" style="margin-top:8px;">+ 添加请求头</button>
+
+                <div class="ru-details-sub">钉钉加签（可选）</div>
+                <input class="ru-input" type="password" value="" placeholder="SEC 开头密钥；MES / 企微留空" aria-label="加签密钥">
+                <p class="ru-help">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                  非空时每次发送自动拼 timestamp + sign（重试会重签防过期）。
+                </p>
+
+                <div class="ru-details-sub">安全</div>
+                <label class="ru-check">
+                  <input type="checkbox" id="ru-skipcert">
+                  <span>跳过 HTTPS 证书校验<small>自签证书内网调试用，非必要不开。</small></span>
+                </label>
+                <div class="ru-warn-line" id="ru-cert-warn" hidden>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+                  有中间人风险，仅自签证书调试用。
+                </div>
+              </div>
+            </details>
+          </section>
+
+          <section class="ru-panel">
+            <div class="ru-section-head"><span>发送策略</span><span class="ru-section-hint">时机 / 队列 / 失败处置</span></div>
+            <div class="ru-field">
+              <label class="ru-label" for="ru-timing">上报时机</label>
+              <div class="ru-select-wrap">
+                <select class="ru-select" id="ru-timing">
+                  <option value="each">每次执行</option>
+                  <option value="ng">仅 NG 上报</option>
+                  <option value="trigger">触发端口</option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+            </div>
+
+            <div class="ru-field" id="ru-trigger-row" hidden>
+              <label class="ru-label">触发信号</label>
+              <div class="ru-inline-row">
+                <input class="ru-input" type="text" value="上报触发（bool）" readonly>
+                <button type="button" class="ru-btn-square" data-tooltip="变量链接（LinkableValueEditor）" aria-label="变量链接">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+                </button>
+              </div>
+              <p class="ru-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                仍由 <code>LinkableValueEditor</code> 承载；不连线 = 该次不上报。
+              </p>
+            </div>
+
+            <div class="ru-field" id="ru-ng-row" hidden>
+              <label class="ru-label" for="ru-judge">判定字段 / NG 值</label>
+              <div class="ru-inline-row">
+                <input class="ru-input" id="ru-judge" type="text" value="result" list="ru-judge-list">
+                <span style="font-size:11px;color:var(--ru-text-3);">等于</span>
+                <input class="ru-input" type="text" value="NG" style="max-width:70px;">
+              </div>
+              <datalist id="ru-judge-list"><option value="sn"></option><option value="result"></option><option value="time"></option></datalist>
+              <p class="ru-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                数值 / 布尔 / 文本三路智能比对，不区分大小写。
+              </p>
+            </div>
+
+            <div class="ru-field">
+              <label class="ru-check" style="margin-bottom:8px;">
+                <input type="checkbox" checked>
+                <span>异步队列（推荐）<small>组报文入队微秒级返回，网络再烂也拖不垮节拍。</small></span>
+              </label>
+              <label class="ru-check">
+                <input type="checkbox">
+                <span>上报失败阻断流程<small>默认不勾：宁漏报不停线；MES 没收到就停线的场合才勾。</small></span>
+              </label>
+            </div>
+
+            <div class="ru-field">
+              <div class="ru-inline-row">
+                <div style="flex:0 0 88px;">
+                  <label class="ru-label" for="ru-retry">失败重试</label>
+                  <input class="ru-input" id="ru-retry" type="number" value="3" min="0" max="10">
+                </div>
+                <div style="flex:1;min-width:0;">
+                  <label class="ru-label" for="ru-keyword">成功关键字</label>
+                  <input class="ru-input" id="ru-keyword" type="text" value="&quot;errcode&quot;:0" placeholder="留空 = 2xx 即成功">
+                </div>
+              </div>
+              <p class="ru-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                重试退避 0.5s / 1s / 1.5s… 封顶 3s；关键字命中才算业务成功。
+              </p>
+            </div>
+
+            <div class="ru-field">
+              <label class="ru-check">
+                <input type="checkbox" checked>
+                <span>断网续传<small>重试穷尽落盘，网络恢复后自动补传；每条带幂等 ID。</small></span>
+              </label>
+            </div>
+          </section>
+        </aside>
+
+        <section class="ru-workspace" aria-label="报文工作区" style="min-width:0;min-height:0;display:flex;flex-direction:column;gap:8px;">
+          <div class="ru-card" style="flex:1;">
+            <div class="ru-card-head">
+              <span class="ru-card-title">上报内容</span>
+              <span class="ru-badge" id="ru-field-badge">字段表</span>
+              <span class="ru-card-hint" id="ru-field-hint">字段表就是 JSON 载荷本身，数字不带引号</span>
+            </div>
+            <div class="ru-card-body">
+              <div class="ru-field-table">
+                <div class="ru-field-head">
+                  <span>启用</span><span>字段名</span><span>来源</span><span>取值</span><span></span>
+                </div>
+                <div id="ru-field-rows">
+                  <div class="ru-field-row">
+                    <input type="checkbox" checked aria-label="启用 sn">
+                    <input class="ru-input" type="text" value="sn" aria-label="字段名">
+                    <div class="ru-select-wrap">
+                      <select class="ru-select" aria-label="来源"><option selected>端口</option><option>变量</option><option>内置</option></select>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                    </div>
+                    <span class="ru-cell-hint"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>画布上连线供值</span>
+                    <button type="button" class="ru-row-remove" data-remove-field aria-label="删除字段">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+                    </button>
+                  </div>
+                  <div class="ru-field-row">
+                    <input type="checkbox" checked aria-label="启用 result">
+                    <input class="ru-input" type="text" value="result" aria-label="字段名">
+                    <div class="ru-select-wrap">
+                      <select class="ru-select" aria-label="来源"><option selected>端口</option><option>变量</option><option>内置</option></select>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                    </div>
+                    <span class="ru-cell-hint"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>画布上连线供值</span>
+                    <button type="button" class="ru-row-remove" data-remove-field aria-label="删除字段">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+                    </button>
+                  </div>
+                  <div class="ru-field-row">
+                    <input type="checkbox" checked aria-label="启用 time">
+                    <input class="ru-input" type="text" value="time" aria-label="字段名">
+                    <div class="ru-select-wrap">
+                      <select class="ru-select" aria-label="来源"><option>端口</option><option>变量</option><option selected>内置</option></select>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                    </div>
+                    <div class="ru-select-wrap">
+                      <select class="ru-select" aria-label="内置字段"><option selected>时间戳</option><option>步骤名</option></select>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                    </div>
+                    <button type="button" class="ru-row-remove" data-remove-field aria-label="删除字段">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+                    </button>
+                  </div>
+                  <div class="ru-field-row is-disabled">
+                    <input type="checkbox" aria-label="启用 diameter">
+                    <input class="ru-input" type="text" value="diameter" aria-label="字段名">
+                    <div class="ru-select-wrap">
+                      <select class="ru-select" aria-label="来源"><option>端口</option><option selected>变量</option><option>内置</option></select>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                    </div>
+                    <input class="ru-input" type="text" value="value1" aria-label="变量名">
+                    <button type="button" class="ru-row-remove" data-remove-field aria-label="删除字段">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="ru-empty-row" id="ru-field-empty" hidden>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg>
+                  还没有启用字段，至少添加一个字段才有东西可上报
+                </div>
+              </div>
+              <button type="button" class="ru-btn ru-btn-sm ru-add-row" id="ru-add-field">+ 添加字段</button>
+
+              <div class="ru-template-block" id="ru-template-notify" hidden>
+                <label class="ru-label" for="ru-message">通知内容模板</label>
+                <textarea class="ru-textarea" id="ru-message" rows="2">件{sn}判定{result}</textarea>
+                <p class="ru-help">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                  占位符：<code>{字段名}</code> <code>{时间}</code> <code>{日期}</code> <code>{步骤名}</code>。
+                </p>
+              </div>
+
+              <div class="ru-template-block" id="ru-template-raw" hidden>
+                <label class="ru-label" for="ru-raw">JSON 模板</label>
+                <textarea class="ru-textarea" id="ru-raw" rows="4">{
+  "sn": "{sn}",
+  "result": "{result}",
+  "value": {#diameter}
+}</textarea>
+                <p class="ru-help">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                  <code>{名}</code> = 转义字符串注入；<code>{#名}</code> = 原样注入（数字 / 布尔 / JSON 片段）。
+                </p>
+              </div>
+
+              <div class="ru-template-block">
+                <div class="ru-inline-row">
+                  <div style="flex:1;min-width:0;">
+                    <label class="ru-label" for="ru-timefmt">时间格式</label>
+                    <input class="ru-input" id="ru-timefmt" type="text" value="yyyy-MM-dd HH:mm:ss.fff">
+                  </div>
+                  <label class="ru-check" style="margin-top:16px;">
+                    <input type="checkbox">
+                    <span>UTC</span>
+                  </label>
+                </div>
+                <p class="ru-help">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
+                  影响内置「时间戳」字段与 <code>{时间}</code> / <code>{时间戳}</code> 占位符；留空用默认格式。
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="ru-card" style="height:120px;flex:none;">
+            <div class="ru-card-head" style="padding:8px 12px;">
+              <span class="ru-card-title">实际发出</span>
+              <span class="ru-badge" style="background:var(--ru-success-soft);color:var(--ru-success-text);">实时预览</span>
+              <span class="ru-card-hint" id="ru-preview-meta">POST · application/json · 异步队列</span>
+            </div>
+            <div class="ru-preview-body">
+              <div class="ru-preview-meta">
+                <span class="ru-dot"></span>
+                <span id="ru-preview-target">https://mes.example.com/api/result</span>
+                <span style="margin-left:auto;" id="ru-preview-kind">MES 字段表</span>
+              </div>
+              <pre class="ru-payload" id="ru-payload"></pre>
+            </div>
+          </div>
+
+          <div class="ru-card" style="height:188px;flex:none;">
+            <div class="ru-card-head" style="padding:8px 12px;">
+              <div class="ru-test-head" style="flex:1;min-width:0;">
+                <span class="ru-card-title">测试发送</span>
+                <span class="ru-card-hint">按当前配置真发一条，当场验证 URL / 报文 / 鉴权</span>
+                <button type="button" class="ru-btn ru-btn-sm ru-btn-primary" id="ru-test">立即发送</button>
+              </div>
+            </div>
+            <div class="ru-card-body" style="padding:8px 12px;">
+              <div class="ru-result" id="ru-result">尚未测试发送。端口没值时会用「(空)」占位。</div>
+              <div class="ru-log-head">
+                <span style="font-size:11px;font-weight:600;color:var(--ru-text-2);">最近上报日志</span>
+                <span class="ru-section-hint">最近 50 条 · 测试发送也留痕</span>
+                <button type="button" class="ru-btn ru-btn-sm" id="ru-refresh-logs" style="height:24px;padding:0 8px;font-size:10.5px;">刷新</button>
+              </div>
+              <div class="ru-logs" id="ru-logs"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="ru-footer">
+        <div class="ru-footer-left">
+          <span class="ru-status-chip"><span class="ru-footer-dot"></span><span>状态: 待执行</span></span>
+          <span class="ru-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="ru-footer-right">
+          <button type="button" class="ru-btn" data-host="执行">执行</button>
+          <button type="button" class="ru-btn" data-host="取消">取消</button>
+          <button type="button" class="ru-btn ru-btn-primary" data-host="确认">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ru-notes">
+      <div class="ru-notes-head">关键改动（v1）</div>
+      <div class="ru-note">
+        <div class="ru-note-num">01</div>
+        <div><b>报文预设改为 2×2 卡片</b><span>4 个 <code>RadioButton</code> 套卡片模板，<code>IsChecked</code> 仍走 <code>EnumConverter</code> 写 <code>PayloadKind</code>；切换后的 <code>IsFieldTable / IsNotify / IsRawJson</code> 与预览刷新逻辑原样触发。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">02</div>
+        <div><b>左配置、右报文</b><span>左侧回答「发到哪、怎么发、什么时候发」；右侧把「字段表 + 模板 + 实际发出 + 测试发送」放在同一工作区，字段表获得完整宽度，不再挤在 540px 的单列里。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">03</div>
+        <div><b>字段表仍是唯一入口</b><span><code>Fields</code> / <code>Headers</code> 的 <code>ObservableCollection</code> 绑定、<code>AddField()</code> / <code>AddHeader()</code>、行内删除事件全部保留；来源=端口的字段仍生成动态输入端口。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">04</div>
+        <div><b>报文预览升级为深色工作区</b><span>绑 <code>PayloadPreview</code>（只读、实时）；组报文失败时以红色显示「无法预览：原因」，与真实发送共用同一套 <code>HttpPayloadBuilder</code>。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">05</div>
+        <div><b>连接参数分层</b><span>URL / 超时常驻；请求头、钉钉加签、证书校验收进「高级连接」折叠区。四个属性与命令绑定不变，生产参数不再和发送策略混在一起。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">06</div>
+        <div><b>测试发送与日志同卡</b><span><code>TestSend()</code>、<code>IsTesting</code>（置灰）、<code>LastResult</code>（成功绿 / 失败红）、<code>RecentLogs</code>（最近 50 条）集中展示；刷新按钮只调既有 <code>RefreshRecentLogs()</code>。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">07</div>
+        <div><b>颜色全部令牌化</b><span>映射 <code>Colors.xaml</code> / <code>PluginConfigColors.xaml</code>；只在本视图派生样式，不改共享字典与共享控件。视图 XAML 十六进制颜色 = 0。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">08</div>
+        <div><b>五态与可达性</b><span>hover / pressed / focus / disabled 全量定义；图标按钮 30×30 且 <code>Padding=0</code>（R68），焦点环走 <code>DialogFocusVisual</code>，ToolTip 走 <code>DialogToolTipStyle</code>。</span></div>
+      </div>
+
+      <div class="ru-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="ru-note">
+        <div class="ru-note-num">C1</div>
+        <div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不引入独立 VM。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">C2</div>
+        <div><b>TriggerPort 的 LinkableValueEditor</b><span><code>Port</code> / <code>StepData</code> 原样保留；只在「上报时机=触发端口」时显示。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">C3</div>
+        <div><b>字段表 / 请求头集合</b><span><code>ObservableCollection&lt;UploadFieldDef&gt;</code> / <code>ObservableCollection&lt;HttpHeaderDef&gt;</code>；行内删除走 <code>Fields.Remove</code> / <code>Headers.Remove</code>，不换集合、不改持久化。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">C4</div>
+        <div><b>枚举与 int 类型</b><span><code>PayloadKind</code> / <code>SendTiming</code> / <code>FieldSource</code> / <code>BuiltInField</code> 仍是枚举；<code>TimeoutMs</code> / <code>RetryCount</code> 仍是 int，setter 的夹取规则不变。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">C5</div>
+        <div><b>命令与结果</b><span><code>TestSend()</code>、<code>IsTesting</code>、<code>LastResult</code>、<code>RecentLogs</code>、<code>RefreshRecentLogs()</code> 原样消费；不新增命令。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">C6</div>
+        <div><b>PasswordBox 桥</b><span>请求头值仍走 <code>PasswordBoxHelper.BoundPassword</code>（只打码不加密，持久化仍是明文随方案保存）。</span></div>
+      </div>
+
+      <div class="ru-notes-head" style="margin-top:20px;">明确延后（需新增功能或契约）</div>
+      <div class="ru-note">
+        <div class="ru-note-num">D1</div>
+        <div><b>加载骨架 / 发送进度条</b><span>需要 VM 新增 <code>IsPreviewLoading</code> 或进度属性；本版只用 <code>IsTesting</code> 置灰 + 「正在发送…」文案。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">D2</div>
+        <div><b>字段拖拽排序</b><span>需要新的拖拽行为与集合重排逻辑；本版保持「添加 / 删除」两动作。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">D3</div>
+        <div><b>模板语法高亮</b><span>需要自绘编辑器；本版用等宽文本框 + 帮助文字说明占位符。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">D4</div>
+        <div><b>日志导出 / 清空</b><span>需要新命令；本版只保留「刷新」。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">D5</div>
+        <div><b>请求头导入 / 导出</b><span>需要文件 IO 与新的持久化格式；本版保持手工增删。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">D6</div>
+        <div><b>连通性探测</b><span>需要新的网络行为；本版用「立即发送」做真实验证。</span></div>
+      </div>
+
+      <div class="ru-notes-head" style="margin-top:20px;">状态清单（本页可点击）</div>
+      <div class="ru-note">
+        <div class="ru-note-num">S1</div>
+        <div><b>默认态</b><span>MES 字段表；sn / result 走端口，time 走内置时间戳；URL 已填；预览显示三字段 JSON；日志为空或最近三条。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">S2</div>
+        <div><b>发送中</b><span>「立即发送」置灰，结果区显示「正在发送…」，日志追加 INFO。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">S3</div>
+        <div><b>成功</b><span>结果区绿色「✔ HTTP 200（业务成功）」，日志 INFO；成功关键字命中。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">S4</div>
+        <div><b>失败</b><span>结果区红色「✘ HTTP 500 …」，日志 ERROR；失败原因可读。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">S5</div>
+        <div><b>空 URL</b><span>URL 清空；预览仍可看；点「立即发送」返回「✘ 请先填目标 URL」，不发起请求。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">S6</div>
+        <div><b>空字段</b><span>字段表删空；预览显示「无法预览：字段表没有启用的字段…」；仍可继续编辑。</span></div>
+      </div>
+      <div class="ru-note">
+        <div class="ru-note-num">S7</div>
+        <div><b>通知 / 原始 JSON</b><span>字段表变成占位符值池；通知模式显示内容模板，原始 JSON 模式显示 JSON 模板；预览随之切换。</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ru-toast" id="ru-toast" role="status"></div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('ru-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#ru-window');
+      var modeButtons = Array.prototype.slice.call(root.querySelectorAll('.ru-mode'));
+      var widthButtons = Array.prototype.slice.call(root.querySelectorAll('[data-width]'));
+      var runButtons = Array.prototype.slice.call(root.querySelectorAll('[data-run]'));
+      var boundaryButtons = Array.prototype.slice.call(root.querySelectorAll('[data-boundary]'));
+
+      var urlInput = root.querySelector('#ru-url');
+      var timingSelect = root.querySelector('#ru-timing');
+      var triggerRow = root.querySelector('#ru-trigger-row');
+      var ngRow = root.querySelector('#ru-ng-row');
+      var fieldBadge = root.querySelector('#ru-field-badge');
+      var fieldHint = root.querySelector('#ru-field-hint');
+      var templateNotify = root.querySelector('#ru-template-notify');
+      var templateRaw = root.querySelector('#ru-template-raw');
+      var payloadEl = root.querySelector('#ru-payload');
+      var previewTarget = root.querySelector('#ru-preview-target');
+      var previewKind = root.querySelector('#ru-preview-kind');
+      var previewMeta = root.querySelector('#ru-preview-meta');
+      var resultEl = root.querySelector('#ru-result');
+      var logsEl = root.querySelector('#ru-logs');
+      var testButton = root.querySelector('#ru-test');
+      var fieldRows = root.querySelector('#ru-field-rows');
+      var fieldEmpty = root.querySelector('#ru-field-empty');
+      var toast = root.querySelector('#ru-toast');
+      var certWarn = root.querySelector('#ru-cert-warn');
+      var skipCert = root.querySelector('#ru-skipcert');
+
+      var state = { mode: 'fieldtable', run: 'default', boundary: 'standard' };
+      var modeMeta = {
+        fieldtable: { badge: '字段表', hint: '字段表就是 JSON 载荷本身，数字不带引号', kind: 'MES 字段表', meta: 'POST · application/json · 异步队列' },
+        dingtalk: { badge: '值池', hint: '字段表是模板占位符的值池；来源=端口会生成输入端口', kind: '钉钉文本', meta: 'POST · application/json · msgtype=text' },
+        wecom: { badge: '值池', hint: '字段表是模板占位符的值池；来源=端口会生成输入端口', kind: '企业微信文本', meta: 'POST · application/json · msgtype=text' },
+        rawjson: { badge: '值池', hint: '字段表是占位符值池；报文完全由 JSON 模板决定', kind: '原始 JSON', meta: 'POST · application/json · 自定义模板' }
+      };
+
+      function pad(n) { return n < 10 ? '0' + n : String(n); }
+      function nowText() {
+        var d = new Date();
+        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' +
+          pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+      }
+      function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+      function jsonHighlight(text) {
+        return esc(text)
+          .replace(/(&quot;[^&]*?&quot;)(\s*:)/g, '<span class="k">$1</span>$2')
+          .replace(/:\s*(&quot;.*?&quot;)/g, ': <span class="s">$1</span>')
+          .replace(/:\s*(-?\d+(?:\.\d+)?)/g, ': <span class="n">$1</span>')
+          .replace(/:\s*(true|false|null)/g, ': <span class="n">$1</span>');
+      }
+
+      function activeFieldNames() {
+        var rows = Array.prototype.slice.call(fieldRows.querySelectorAll('.ru-field-row'));
+        return rows.filter(function (row) {
+          var cb = row.querySelector('input[type=checkbox]');
+          var name = row.querySelector('input.ru-input');
+          return cb && cb.checked && name && name.value.trim().length > 0;
+        }).map(function (row) {
+          return row.querySelector('input.ru-input').value.trim();
+        });
+      }
+
+      function buildPayload() {
+        if (state.boundary === 'emptyfields' || activeFieldNames().length === 0) {
+          return { error: '（无法预览：字段表没有启用的字段，至少要有一个字段才有东西可上报）' };
+        }
+        var ts = nowText();
+        if (state.mode === 'fieldtable') {
+          return { json: '{"sn": "SN-0042", "result": "NG", "time": "' + ts + '"}' };
+        }
+        if (state.mode === 'dingtalk' || state.mode === 'wecom') {
+          return { json: '{"msgtype": "text", "text": {"content": "件SN-0042判定NG"}}' };
+        }
+        return { json: '{\n  "sn": "SN-0042",\n  "result": "NG",\n  "value": 12.34\n}' };
+      }
+
+      function renderPayload() {
+        var built = buildPayload();
+        if (built.error) {
+          payloadEl.className = 'ru-payload is-error';
+          payloadEl.textContent = built.error;
+        } else {
+          payloadEl.className = 'ru-payload';
+          payloadEl.innerHTML = jsonHighlight(built.json);
+        }
+        var target = urlInput.value.trim();
+        previewTarget.textContent = target || '未配置目标 URL';
+        previewKind.textContent = modeMeta[state.mode].kind;
+        previewMeta.textContent = modeMeta[state.mode].meta;
+      }
+
+      function renderLogs() {
+        var base = [
+          { t: '2026-10-20 09:41:02', l: 'INFO', m: '上报成功：HTTP 200，SN-0041' },
+          { t: '2026-10-20 09:40:58', l: 'INFO', m: '上报成功：HTTP 200，SN-0040' },
+          { t: '2026-10-20 09:40:51', l: 'WARN', m: 'MES 响应较慢：812 ms' }
+        ];
+        if (state.run === 'sending') {
+          base.unshift({ t: nowText(), l: 'INFO', m: '正在发送测试报文…' });
+        } else if (state.run === 'ok') {
+          base.unshift({ t: nowText(), l: 'INFO', m: '测试发送成功：HTTP 200，业务成功' });
+        } else if (state.run === 'err') {
+          base.unshift({ t: nowText(), l: 'ERROR', m: '测试发送失败：HTTP 500，Internal Server Error' });
+        }
+        logsEl.innerHTML = base.map(function (row) {
+          var cls = row.l === 'ERROR' ? 'error' : row.l === 'WARN' ? 'warn' : 'info';
+          return '<div class="ru-log-row"><span class="t">' + row.t + '</span><span class="l ' + cls + '">' + row.l + '</span><span class="m" title="' + esc(row.m) + '">' + esc(row.m) + '</span></div>';
+        }).join('');
+      }
+
+      function renderResult() {
+        resultEl.className = 'ru-result';
+        if (state.run === 'sending') {
+          resultEl.textContent = '正在发送…';
+        } else if (state.run === 'ok') {
+          resultEl.classList.add('is-ok');
+          resultEl.textContent = '✔ HTTP 200（业务成功）\n→ {"sn":"SN-0042","result":"NG","time":"' + nowText() + '"}\n← {"errcode":0,"errmsg":"ok"}';
+        } else if (state.run === 'err') {
+          resultEl.classList.add('is-err');
+          resultEl.textContent = '✘ HTTP 500 Internal Server Error\n→ 请求已发出，服务器返回错误\n← {"error":"internal"}';
+        } else if (state.boundary === 'emptyurl') {
+          resultEl.textContent = '尚未测试发送。当前 URL 为空，点「立即发送」会提示先填目标 URL。';
+        } else {
+          resultEl.textContent = '尚未测试发送。端口没值时会用「(空)」占位。';
+        }
+        testButton.disabled = state.run === 'sending';
+        testButton.textContent = state.run === 'sending' ? '发送中…' : '立即发送';
+      }
+
+      function render() {
+        modeButtons.forEach(function (btn) {
+          var on = btn.dataset.mode === state.mode;
+          btn.classList.toggle('is-active', on);
+          btn.setAttribute('aria-pressed', String(on));
+        });
+        runButtons.forEach(function (btn) {
+          var on = btn.dataset.run === state.run;
+          btn.classList.toggle('is-on', on);
+          btn.setAttribute('aria-pressed', String(on));
+        });
+        boundaryButtons.forEach(function (btn) {
+          var on = btn.dataset.boundary === state.boundary;
+          btn.classList.toggle('is-on', on);
+          btn.setAttribute('aria-pressed', String(on));
+        });
+
+        var meta = modeMeta[state.mode];
+        fieldBadge.textContent = meta.badge;
+        fieldHint.textContent = meta.hint;
+        templateNotify.hidden = !(state.mode === 'dingtalk' || state.mode === 'wecom');
+        templateRaw.hidden = state.mode !== 'rawjson';
+
+        var timing = timingSelect.value;
+        triggerRow.hidden = timing !== 'trigger';
+        ngRow.hidden = timing !== 'ng';
+
+        var emptyFields = state.boundary === 'emptyfields';
+        fieldRows.hidden = emptyFields;
+        fieldEmpty.hidden = !emptyFields;
+        if (emptyFields) {
+          urlInput.value = 'https://mes.example.com/api/result';
+        } else if (state.boundary === 'emptyurl') {
+          urlInput.value = '';
+        } else if (!urlInput.value) {
+          urlInput.value = 'https://mes.example.com/api/result';
+        }
+
+        renderPayload();
+        renderResult();
+        renderLogs();
+      }
+
+      modeButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          state.mode = btn.dataset.mode;
+          if (state.boundary === 'emptyfields' && state.mode !== 'fieldtable') {
+            // 通知/原始 JSON 模式字段表仍可空着，但本设计稿保持一致的边界演示
+          }
+          render();
+        });
+      });
+      runButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () { state.run = btn.dataset.run; render(); });
+      });
+      boundaryButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          state.boundary = btn.dataset.boundary;
+          state.run = 'default';
+          if (state.boundary === 'emptyfields') {
+            fieldRows.querySelectorAll('input[type=checkbox]').forEach(function (cb) { cb.checked = false; });
+          }
+          render();
+        });
+      });
+      widthButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var narrow = btn.dataset.width === '640';
+          win.classList.toggle('is-narrow', narrow);
+          widthButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+        });
+      });
+
+      timingSelect.addEventListener('change', render);
+      urlInput.addEventListener('input', renderPayload);
+      skipCert.addEventListener('change', function () { certWarn.hidden = !skipCert.checked; });
+
+      root.querySelector('#ru-add-field').addEventListener('click', function () {
+        state.boundary = 'standard';
+        var row = document.createElement('div');
+        row.className = 'ru-field-row';
+        row.innerHTML = '<input type="checkbox" checked aria-label="启用新字段">' +
+          '<input class="ru-input" type="text" value="field' + (fieldRows.querySelectorAll('.ru-field-row').length + 1) + '" aria-label="字段名">' +
+          '<div class="ru-select-wrap"><select class="ru-select" aria-label="来源"><option selected>端口</option><option>变量</option><option>内置</option></select>' +
+          '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></div>' +
+          '<span class="ru-cell-hint">画布上连线供值</span>' +
+          '<button type="button" class="ru-row-remove" data-remove-field aria-label="删除字段"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>';
+        fieldRows.appendChild(row);
+        render();
+      });
+      fieldRows.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-remove-field]');
+        if (!btn) return;
+        btn.closest('.ru-field-row').remove();
+        render();
+      });
+
+      var headers = root.querySelector('#ru-headers');
+      root.querySelector('#ru-add-header').addEventListener('click', function () {
+        var wrap = document.createElement('div');
+        wrap.className = 'ru-field';
+        wrap.style.marginBottom = '6px';
+        wrap.innerHTML = '<div class="ru-inline-row">' +
+          '<input class="ru-input" type="text" value="X-Custom" aria-label="请求头名">' +
+          '<input class="ru-input" type="password" value="" aria-label="请求头值">' +
+          '<button type="button" class="ru-row-remove" data-remove-header aria-label="删除请求头"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>' +
+          '</div>';
+        headers.appendChild(wrap);
+      });
+      headers.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-remove-header]');
+        if (!btn) return;
+        btn.closest('.ru-field').remove();
+      });
+
+      root.querySelector('#ru-refresh-logs').addEventListener('click', function () {
+        renderLogs();
+        showToast('日志已刷新（最近 50 条）');
+      });
+
+      testButton.addEventListener('click', function () {
+        if (state.run === 'sending') return;
+        if (!urlInput.value.trim()) {
+          state.run = 'err';
+          render();
+          resultEl.className = 'ru-result is-err';
+          resultEl.textContent = '✘ 请先填目标 URL';
+          return;
+        }
+        if (state.boundary === 'emptyfields') {
+          state.run = 'err';
+          render();
+          resultEl.className = 'ru-result is-err';
+          resultEl.textContent = '✘ 字段表没有启用的字段，无法组报文';
+          return;
+        }
+        state.run = 'sending';
+        render();
+        setTimeout(function () {
+          state.run = 'ok';
+          render();
+        }, 900);
+      });
+
+      root.querySelectorAll('[data-host]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          showToast('「' + btn.dataset.host + '」是宿主外壳按钮，插件视图不接管');
+        });
+      });
+
+      var toastTimer = 0;
+      function showToast(text) {
+        toast.textContent = text;
+        toast.classList.add('is-on');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { toast.classList.remove('is-on'); }, 1800);
+      }
+
+      render();
+    })();
+  </script>
+</div>
+</body>
+</html>

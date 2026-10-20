@@ -7,7 +7,7 @@ namespace VisionMaster.Scada.Controls
     ///
     /// <code>
     /// [ScadaProperty(Key = "OffColor", DisplayName = "熄灭色", Kind = ElementPropertyKind.Color,
-    ///                Group = "状态", DefaultValue = "#FF3A3A3A", IsBindable = true)]
+    ///                Group = ScadaPropertyGroups.State, DefaultValue = "#FF3A3A3A", IsBindable = true)]
     /// public partial Brush? OffColor { get; set; }
     ///
     /// partial void OnOffColorPropertyChanged() =&gt; UpdateLampBrush();   // 可选副作用
@@ -49,7 +49,7 @@ namespace VisionMaster.Scada.Controls
         public ElementPropertyKind Kind { get; set; } = ElementPropertyKind.Text;
 
         /// <summary>属性面板里的分组标题</summary>
-        public string Group { get; set; } = "外观";
+        public string Group { get; set; } = ScadaPropertyGroups.Appearance;
 
         /// <summary>
         /// 默认值（字符串形态）。同时喂给两处：依赖属性的元数据默认值、以及描述符的 DefaultValue。
@@ -68,8 +68,8 @@ namespace VisionMaster.Scada.Controls
         /// 能否绑定工程变量（决定属性面板这一行显不显示「ƒx」）。
         ///
         /// <b>这不是随手填的默认值，是一条产品口径</b>：设计期语言不可绑、运行期语言可绑——
-        /// 「位置与尺寸」与「外观」两组一律不声明可绑（见 <see cref="GeometryProperties"/> 的类注释）。
-        /// 口径由 <see cref="ElementDescriptor.NonBindableGroups"/> 在注册期兜底校验。
+        /// 「布局」与「外观」两组一律不声明可绑（见 <see cref="GeometryProperties"/> 的类注释）。
+        /// 口径由 <see cref="ScadaPropertyGroups.NonBindable"/> 在注册期兜底校验。
         /// </summary>
         public bool IsBindable { get; set; }
 

@@ -1062,6 +1062,9 @@ namespace FlowCanvasChecks
             // 全局变量写入口：最小实现（写入即失败）——本用例不触发任何全局写
             public Core.Interfaces.IGlobalVariableWriter GlobalVariables { get; } =
                 new NullGlobalWriter();
+            // 共享变量按 Id 读写：断言桩无工作区，读写即失败
+            public Core.Interfaces.ISharedVariableAccess SharedVariables { get; } =
+                Core.Interfaces.NullSharedVariableAccess.Instance;
             public Core.Interfaces.ICameraProvider Cameras => Core.Interfaces.NullCameraProvider.Instance;
             public Core.Interfaces.IMotionProvider Motions => Core.Interfaces.NullMotionProvider.Instance;
         }

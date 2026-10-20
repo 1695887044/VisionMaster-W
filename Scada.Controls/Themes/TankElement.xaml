@@ -1,0 +1,95 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        罐体 / 料仓图元的外观（Hmi.Tank）。
+
+        几何全部由 TankElement.UpdateTank() 算好（罐体轮廓、按液位裁好的填充），
+        模板只做两件事：把两段几何画出来、把读数摆上去。
+          · PART_TankBody：罐体轮廓（Fill = TrackColor 空腔色，Stroke = 用户描边）
+          · PART_TankFill：液位填充（Fill = 用户填充色，几何已裁在轮廓内）
+          · PART_Value   ：容量读数（ShowValue 由控件代码翻显隐）
+
+        圆角参与的是代码里的几何计算（CornerRadius 会夹到短边一半），这里再用一个同圆角的
+        Border 包一层，保证任何自定义几何/描边都不会溢出图元边界。
+        颜色一律走 ScadaTokens.xaml（本文件 hex=0，R140）；本分册就地合并令牌（R30）。
+    -->
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <Style x:Key="TankCaptionStyle" TargetType="TextBlock">
+        <Setter Property="Visibility" Value="Visible" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}" Value="">
+                <Setter Property="Visibility" Value="Collapsed" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="{x:Type local:TankElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+        <Setter Property="FontFamily" Value="Microsoft YaHei" />
+        <Setter Property="FontSize" Value="12" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:TankElement}">
+                    <Border
+                        x:Name="TankFrame"
+                        ClipToBounds="True"
+                        CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}">
+                        <Grid>
+                            <!-- 罐体轮廓：空腔色由 TrackColor 提供，描边宽度/颜色沿用基类外观属性 -->
+                            <Path
+                                x:Name="PART_TankBody"
+                                Data="{TemplateBinding TankBodyGeometry}"
+                                Fill="{TemplateBinding TrackColor}"
+                                SnapsToDevicePixels="True"
+                                Stroke="{TemplateBinding Stroke}"
+                                StrokeThickness="{TemplateBinding StrokeThickness}" />
+
+                            <!-- 液位填充：几何是“罐体 ∩ 液面矩形”，底部圆角天然保留 -->
+                            <Path
+                                x:Name="PART_TankFill"
+                                Data="{TemplateBinding FillGeometry}"
+                                Fill="{TemplateBinding Fill}"
+                                SnapsToDevicePixels="True" />
+
+                            <!-- 读数 + 位号：读数（PART_Value）的显隐由控件代码翻（模板不写 Visibility 初值） -->
+                            <StackPanel
+                                Margin="8,0,8,6"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Bottom">
+                                <TextBlock
+                                    x:Name="PART_Value"
+                                    HorizontalAlignment="Center"
+                                    FontFamily="Cascadia Mono, Consolas"
+                                    FontSize="{TemplateBinding FontSize}"
+                                    FontWeight="{TemplateBinding FontWeight}"
+                                    Foreground="{TemplateBinding Foreground}"
+                                    Text="{TemplateBinding ValueText}"
+                                    TextAlignment="Center"
+                                    TextTrimming="CharacterEllipsis" />
+                                <TextBlock
+                                    Margin="0,1,0,0"
+                                    HorizontalAlignment="Center"
+                                    FontSize="11.5"
+                                    Foreground="{StaticResource HmiTextSecondaryBrush}"
+                                    Style="{StaticResource TankCaptionStyle}"
+                                    Text="{TemplateBinding Text}"
+                                    TextAlignment="Center"
+                                    TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

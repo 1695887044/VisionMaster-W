@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        ============================================================================
+        MessageDialog 卡片域样式（公共消息弹窗）
+        ============================================================================
+        设计基线：docs/UI设计基线/message-dialog/design.html（v1）
+
+        纪律（R30/R31）：
+        · 本分册只就地 merge Colors.xaml，样式里的 {StaticResource K} 只能解析到
+          「Colors.xaml 的 Dialog* 令牌 + 本文件自己定义的键」。
+        · 不许 BasedOn 兄弟分册的键（DialogChip* 在 Dialog.Chip.xaml、按钮族在
+          FluentAliases.xaml、焦点环 / ToolTip 在 Dialog.Misc.xaml）——它们在本文件
+          解析时还不可见，会抛 XamlParseException 或静默失效。
+        · 按钮族放 FluentAliases.xaml（BasedOn FluentButtonStyle）；chip 在视图层
+          （MessageDialogView.xaml）引用；本文件只负责卡片 / 图标 / 文字 / 详情 / 底栏。
+    -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--  ==================== 卡片 ====================  -->
+    <!--
+        白底 + 12px 圆角 + 1px 卡片描边 + 单层柔和投影。
+        投影刻意只留一层（BlurRadius=28 / ShadowDepth=6 / Opacity=.18）：
+        Web 是两层 box-shadow，WPF 多层阴影会明显拖慢首帧，且离屏渲染里容易糊成一团。
+    -->
+    <Style x:Key="DialogMessageCard" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogCardBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect
+                    BlurRadius="28"
+                    Direction="270"
+                    Opacity="0.18"
+                    ShadowDepth="6"
+                    Color="{StaticResource DialogShadowColor}" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  ==================== 语义图标块 ====================  -->
+    <!--  36 × 36 · r10 · 1px 同族描边；字形 18px 由视图挂 DialogIconFont  -->
+    <Style x:Key="DialogMessageIconGlyph" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{StaticResource DialogAccentDarkBrush}" />
+    </Style>
+    <!--
+        危险主按钮的焦点环：与共享 DialogFocusVisual 同形（2px 描边 + 2px 外扩），
+        只把颜色换成 DialogDangerBrush。设计基线：危险按钮的焦点环是红色，
+        普通按钮仍是共享的蓝色环（R135 的统一焦点样式）。
+    -->
+    <Style x:Key="DialogMessageDangerFocusVisual">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border
+                        Margin="2"
+                        BorderBrush="{StaticResource DialogDangerBrush}"
+                        BorderThickness="2"
+                        CornerRadius="6"
+                        Opacity="0.45"
+                        SnapsToDevicePixels="True" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="DialogMessageIcon" TargetType="Border">
+        <Setter Property="Width" Value="36" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+    <Style
+        x:Key="DialogMessageIconInfo"
+        BasedOn="{StaticResource DialogMessageIcon}"
+        TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+    </Style>
+    <Style
+        x:Key="DialogMessageIconSuccess"
+        BasedOn="{StaticResource DialogMessageIcon}"
+        TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
+    </Style>
+    <Style
+        x:Key="DialogMessageIconWarning"
+        BasedOn="{StaticResource DialogMessageIcon}"
+        TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogWarningBorderBrush}" />
+    </Style>
+    <Style
+        x:Key="DialogMessageIconDanger"
+        BasedOn="{StaticResource DialogMessageIcon}"
+        TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBorderBrush}" />
+    </Style>
+
+    <!--  ==================== 文字层级 ====================  -->
+    <!--  标题 16 / 600 / 行高 22；与 36 图标块垂直居中对齐  -->
+    <Style x:Key="DialogMessageTitle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+        <Setter Property="LineHeight" Value="22" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!--  正文 13 / 行高 23（13 × 1.75），次要色  -->
+    <Style x:Key="DialogMessageLead" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        <Setter Property="LineHeight" Value="23" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!--  补充说明 11.5 / 第三级说明色；与正文间隔 10  -->
+    <Style x:Key="DialogMessageHint" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+        <Setter Property="LineHeight" Value="18" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Margin" Value="0,10,0,0" />
+    </Style>
+
+    <!--  问题行 13 / 500 / 主文本色；与上文间隔 14  -->
+    <Style x:Key="DialogMessageQuestion" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+        <Setter Property="LineHeight" Value="21" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Margin" Value="0,14,0,0" />
+    </Style>
+
+    <!--  ==================== 详情面板 ====================  -->
+    <!--  浅底 + 1px 细描边 + r10 + p10/12；与正文间隔 12  -->
+    <Style x:Key="DialogMessageDetails" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="12,10" />
+        <Setter Property="Margin" Value="0,12,0,0" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!--  详情行外壳：28 高、上下 2px、行间 1px 顶部细线（第一行由视图触发器去掉）  -->
+    <Style x:Key="DialogMessageDetailRow" TargetType="Border">
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Padding" Value="0,2" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+        <Setter Property="BorderThickness" Value="0,1,0,0" />
+    </Style>
+
+    <!--  详情行标签：56 宽、11.5、第三级说明色  -->
+    <Style x:Key="DialogMessageDetailLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <!--
+        路径框：h24 · 白底 + 1px 描边 + r6。
+        注意键名挂在 Border 上（不是 TextBlock）：TextBlock 没有 BorderBrush /
+        BorderThickness / CornerRadius，做不出设计稿那个"可复制的路径框"。
+        里面那行等宽文字用 DialogMessagePathText。
+    -->
+    <Style x:Key="DialogMessagePath" TargetType="Border">
+        <Setter Property="Height" Value="24" />
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="7,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+    <Style x:Key="DialogMessagePathText" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, Microsoft YaHei UI" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!--  ==================== 详情行 chip ====================  -->
+    <!--
+        组件专用 chip 族，不复用 DialogChip*：
+        DialogChip* 在 FluentAliases.xaml（最后合并）被转发到 FluentChip*Style，
+        底色与文字会变成 Fluent 令牌（如成功绿 #0E7A0D），与设计基线的 Dialog 令牌
+        （DialogSuccessTextBrush #15803D）不一致。这里用唯一键 + Dialog 令牌重做一份，
+        只服务 MessageDialog，不改既有 DialogChip* 的语义（R141③）。
+    -->
+    <Style x:Key="DialogMessageChip" TargetType="Border">
+        <Setter Property="MinHeight" Value="20" />
+        <Setter Property="Padding" Value="7,2" />
+        <Setter Property="CornerRadius" Value="9" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+    <Style
+        x:Key="DialogMessageChipAccent"
+        BasedOn="{StaticResource DialogMessageChip}"
+        TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+    </Style>
+    <Style
+        x:Key="DialogMessageChipNeutral"
+        BasedOn="{StaticResource DialogMessageChip}"
+        TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+    </Style>
+    <Style
+        x:Key="DialogMessageChipSuccess"
+        BasedOn="{StaticResource DialogMessageChip}"
+        TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+    </Style>
+    <Style
+        x:Key="DialogMessageChipDanger"
+        BasedOn="{StaticResource DialogMessageChip}"
+        TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+    </Style>
+    <Style x:Key="DialogMessageChipText" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style
+        x:Key="DialogMessageChipTextAccent"
+        BasedOn="{StaticResource DialogMessageChipText}"
+        TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+    </Style>
+    <Style
+        x:Key="DialogMessageChipTextNeutral"
+        BasedOn="{StaticResource DialogMessageChipText}"
+        TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+    </Style>
+    <Style
+        x:Key="DialogMessageChipTextSuccess"
+        BasedOn="{StaticResource DialogMessageChipText}"
+        TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+    </Style>
+    <Style
+        x:Key="DialogMessageChipTextDanger"
+        BasedOn="{StaticResource DialogMessageChipText}"
+        TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+    </Style>
+
+    <!--  ==================== 底栏 ====================  -->
+    <!--
+        1px 分隔线（DialogBorderLightBrush）+ p20,14,20,18。
+        WPF Thickness 是「左,上,右,下」，与 CSS 的 padding:14px 20px 18px 换算后
+        是 20,14,20,18 —— 不要照抄 CSS 的简写顺序。
+    -->
+    <Style x:Key="DialogMessageFooter" TargetType="Border">
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+        <Setter Property="BorderThickness" Value="0,1,0,0" />
+        <Setter Property="Padding" Value="20,14,20,18" />
+        <Setter Property="Margin" Value="0,16,0,0" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!--  底栏左侧快捷键提示：11 / 第三级说明色  -->
+    <Style x:Key="DialogMessageFootHint" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+</ResourceDictionary>

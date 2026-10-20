@@ -70,6 +70,12 @@ namespace VisionMaster.Scada
 
         /// <summary>点动结束（已接通：停是安全动作，不走门禁）</summary>
         MotionJogStop = 15,
+
+        /// <summary>暂停流程（P0）：只对连续运行的流程生效；停在节点边界。</summary>
+        PauseFlow = 16,
+
+        /// <summary>恢复流程（P0）：把已暂停的连续运行流程从当前步继续。</summary>
+        ResumeFlow = 17,
     }
 
     /// <summary>
@@ -101,10 +107,26 @@ namespace VisionMaster.Scada
             ScadaActionType.MotionClearAlarm => "清轴报警",
             ScadaActionType.MotionJogStart => "点动开始",
             ScadaActionType.MotionJogStop => "点动结束",
+            ScadaActionType.PauseFlow => "暂停流程",
+            ScadaActionType.ResumeFlow => "恢复流程",
             // 高版本软件存下的动作类型读进低版本会落到这里（Newtonsoft 按数值反序列化，不校验取值范围）。
             // 报出数值而不是抛异常：坏在一条动作上，不该让整张画面打不开。
             _ => $"未知动作({(int)type})",
         };
+
+        /// <summary>
+        /// 这条动作是不是“危险动作”（P0 确认框的红色语气判据）。
+        ///
+        /// 口径：会启停流程、会让轴动、会让轴失能的动作算危险；日志/写变量/切画面/
+        /// 清报警/点动结束不算。暂停/恢复只改流程运行状态，不算设备动作，故不算危险。
+        /// 这份清单只写一遍：事件编辑器的「危险动作」标记与确认弹窗的 PrimaryTone
+        /// 都从这里取，不在视图或分发器里各写一套。
+        /// </summary>
+        public static bool IsDangerous(this ScadaActionType type) => type is
+            ScadaActionType.StartFlow or ScadaActionType.StopFlow or ScadaActionType.RunFlowOnce
+            or ScadaActionType.MotionStop or ScadaActionType.MotionDisable
+            or ScadaActionType.MotionMoveAbsolute or ScadaActionType.MotionMoveRelative
+            or ScadaActionType.MotionHome or ScadaActionType.MotionJogStart;
 
         /// <summary>
         /// 这条动作"在运行侧还没接通"的一句话原因；<c>null</c> = 已经接通。
@@ -144,6 +166,8 @@ namespace VisionMaster.Scada
             ScadaActionType.MotionClearAlarm => null,
             ScadaActionType.MotionJogStart => null,
             ScadaActionType.MotionJogStop => null,
+            ScadaActionType.PauseFlow => null,
+            ScadaActionType.ResumeFlow => null,
             _ => "本版本不认识该动作",
         };
     }

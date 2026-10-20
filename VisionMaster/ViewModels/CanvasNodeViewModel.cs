@@ -1,8 +1,10 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Windows;
+using Core.Interfaces;
 using VisionMaster.Models;
 
 namespace VisionMaster.ViewModels
@@ -45,6 +47,9 @@ namespace VisionMaster.ViewModels
             // 画布只订集合增删不订属性变更，改名/禁用发生在流程栏时画布不重建——
             // 节点自己跟随模型刷标题相关投影。PrunePool 摘池时 UnhookModel 释放
             model.PropertyChanged += OnModelPropertyChanged;
+
+            // 容器摘要的实时刷新由 StepModel 统一订阅（自身属性 + 分支 Expression），
+            // 画布节点只转发模型通知，见 OnModelPropertyChanged。
         }
 
         private void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -66,7 +71,24 @@ namespace VisionMaster.ViewModels
             // 必填参数的判定原料变了：手填常量（InputValues）或上游连线（LinkedSources）。
             // StepModel 的统一写路径（SetInputValue/RemoveInputValue/SetLink/RemoveLink）都会发这两条通知
             if (e.PropertyName is nameof(StepModel.InputValues) or nameof(StepModel.LinkedSources))
+            {
                 RefreshMissingRequired();
+                // 比较/逻辑节点的操作徽标与副标题都吃这两个字典：改完参数要即时重投影
+                RaisePropertyChanged(nameof(OpBadge));
+                RaisePropertyChanged(nameof(OpBadgeVisibility));
+                RaisePropertyChanged(nameof(SubTitle));
+                RaisePropertyChanged(nameof(CardTooltip));
+            }
+
+            // 容器摘要的唯一通知源在 StepModel（自身属性 + 分支 Expression 都在那里订阅）；
+            // 这里只把模型的通知转发给画布节点，避免画布再维护第二套分支订阅。
+            if (e.PropertyName is nameof(StepModel.ContainerSummary)
+                or nameof(StepModel.ContainerSummaryVisibility))
+            {
+                RaisePropertyChanged(e.PropertyName);
+                RaisePropertyChanged(nameof(ContainerMetaText));
+                RaisePropertyChanged(nameof(HasMissingCondition));
+            }
         }
 
         /// <summary>
@@ -79,15 +101,32 @@ namespace VisionMaster.ViewModels
         }
 
         /// <summary>泳道装饰节点专用</summary>
-        private CanvasNodeViewModel(StepCollection branch)
+        private CanvasNodeViewModel(StepCollection branch, StepModel parent, int branchIndex)
         {
             Kind = CanvasNodeKind.Lane;
             Branch = branch;
+            LaneParent = parent;
+            LaneBranchIndex = branchIndex;
 
             // 泳道每帧新建（见主 VM 渲染阶段注释），订阅必须可摘：
             // UnhookBranch 由主 VM 在丢弃旧泳道前统一调用，否则引擎跨线程打标的
             // PropertyChanged 会钉住整帧旧泳道 VM 阻止 GC（与 UnhookModel 同一条纪律）
             branch.PropertyChanged += OnBranchPropertyChanged;
+            // 父容器失败/条件缺失时泳道整列红染：订阅 State 与 ContainerSummary（后者由容器
+            // 在分支 Expression 变化时补发），与分支订阅一起在 UnhookBranch 摘除
+            parent.PropertyChanged += OnLaneParentPropertyChanged;
+        }
+
+        private void OnLaneParentPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(StepModel.State)
+                or nameof(StepModel.ContainerSummary)
+                or nameof(StepModel.ContainerSummaryVisibility))
+            {
+                RaisePropertyChanged(nameof(IsLaneParentFailed));
+                RaisePropertyChanged(nameof(IsLaneParentMissing));
+                RaisePropertyChanged(nameof(IsLaneParentFaulted));
+            }
         }
 
         private void OnBranchPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -96,17 +135,25 @@ namespace VisionMaster.ViewModels
             // 引擎分支线程发通知、WPF 自动编组，与 StepModel.State 同款
             if (e.PropertyName == nameof(StepCollection.IsRunning))
                 RaisePropertyChanged(nameof(IsBranchRunning));
+
+            if (e.PropertyName == nameof(StepCollection.BranchType))
+                RaisePropertyChanged(nameof(IsNeutralLane));
+
+            if (e.PropertyName is nameof(StepCollection.StepName) or nameof(StepCollection.DisplayName))
+                RaisePropertyChanged(nameof(LaneName));
         }
 
-        /// <summary>泳道退出渲染时摘掉分支订阅（主 VM 在清旧泳道列表前逐个调用）</summary>
+        /// <summary>泳道退出渲染时摘掉分支/父容器订阅（主 VM 在清旧泳道列表前逐个调用）</summary>
         public void UnhookBranch()
         {
             if (Branch != null) Branch.PropertyChanged -= OnBranchPropertyChanged;
+            if (LaneParent != null) LaneParent.PropertyChanged -= OnLaneParentPropertyChanged;
         }
 
         /// <summary>造一条分支泳道。branch 引用用于认人（同名分支可能有多个，实例才是唯一身份），
-        /// 泳道标题绑 branch.DisplayName，分支改名即时生效</summary>
-        public static CanvasNodeViewModel CreateLane(StepCollection branch) => new(branch);
+        /// 泳道标题绑 branch.DisplayName，分支改名即时生效；parent/index 供类型配色与 A/B/C 徽标</summary>
+        public static CanvasNodeViewModel CreateLane(StepCollection branch, StepModel parent, int branchIndex)
+            => new(branch, parent, branchIndex);
 
         /// <summary>
         /// 分支执行中（并行扇出打标）：泳道模板据此把底色/边框染成运行色。
@@ -114,11 +161,51 @@ namespace VisionMaster.ViewModels
         /// </summary>
         public bool IsBranchRunning => Kind == CanvasNodeKind.Lane && Branch?.IsRunning == true;
 
+        /// <summary>
+        /// 中性泳道：If 容器的 Else/ElseIf 分支、Case 容器的默认分支。
+        /// flow-logic 里这些分支不套类型色（灰底灰边灰徽标），避免“非条件命中路径”抢走类型识别。
+        /// </summary>
+        public bool IsNeutralLane
+        {
+            get
+            {
+                if (Kind != CanvasNodeKind.Lane) return false;
+
+                if (LaneParent is CaseStep)
+                    return Branch?.BranchType is BranchType.Default or BranchType.Else;
+
+                if (LaneParent is ConditionStep && LaneParent is not WhileStep)
+                    return Branch?.BranchType is BranchType.Else or BranchType.ElseIf;
+
+                return false;
+            }
+        }
+
+        /// <summary>父容器运行态失败：泳道整列红染（设计状态矩阵“失败组头 + 子分支保留自己的状态”）</summary>
+        public bool IsLaneParentFailed
+            => Kind == CanvasNodeKind.Lane && LaneParent?.State == StepState.Failed;
+
+        /// <summary>父容器条件缺失（编译前硬错误）：与失败同色红染，让缺条件在画布上一眼可见</summary>
+        public bool IsLaneParentMissing
+            => Kind == CanvasNodeKind.Lane
+               && LaneParent is IContainerStep container
+               && container.Children != null
+               && container.Children.Any(branch => branch?.IsConditionMissing == true);
+
+        /// <summary>父容器失败或条件缺失（模板单触发器用；两个独立属性保留给断言/检查器）</summary>
+        public bool IsLaneParentFaulted => IsLaneParentFailed || IsLaneParentMissing;
+
         /// <summary>背后的步骤模型；泳道为 null</summary>
         public StepModel? Model { get; }
 
         /// <summary>泳道对应的分支集合；非泳道为 null</summary>
         public StepCollection? Branch { get; }
+
+        /// <summary>泳道所属容器（决定类型配色与说明条）；非泳道为 null</summary>
+        public StepModel? LaneParent { get; }
+
+        /// <summary>泳道在父容器 Children 里的下标（并行分支 A/B/C 徽标用）</summary>
+        private int LaneBranchIndex { get; }
 
         /// <summary>节点身份，决定模板选择与拖拽/选中规则</summary>
         public CanvasNodeKind Kind { get; }
@@ -139,8 +226,203 @@ namespace VisionMaster.ViewModels
             }
         }
 
-        /// <summary>副标题：步骤的插件名（真实步骤）；泳道为空</summary>
-        public string SubTitle => Kind == CanvasNodeKind.Step ? Model?.PluginName ?? string.Empty : string.Empty;
+        // ------------------------------------------------------------------
+        //  节点副标题 / 操作徽标（flow-logic）：比较与逻辑插件把端口值拼成表达式，
+        //  其它节点回退插件名。值一律来自 StepModel.InputValues / LinkedSources，
+        //  不造演示数据；徽标显示大写成员名（EQ/NEQ/AND/OR…），不显示中文。
+        // ------------------------------------------------------------------
+
+        private static readonly string[] ComparisonMembers =
+        {
+            "Equal", "NotEqual", "GreaterThan", "LessThan", "GreaterThanOrEqual", "LessThanOrEqual",
+        };
+
+        private static readonly string[] LogicMembers =
+        {
+            "And", "Or", "Not", "Xor", "Nand", "Nor",
+        };
+
+        private bool IsComparisonPlugin
+            => Kind == CanvasNodeKind.Step
+               && Model is ActionStep
+               && ((Model.PluginTypeName?.Contains("ComparisonPlugin", StringComparison.OrdinalIgnoreCase) ?? false)
+                   || string.Equals(Model.PluginName, "数值比较", StringComparison.Ordinal));
+
+        private bool IsLogicPlugin
+            => Kind == CanvasNodeKind.Step
+               && Model is ActionStep
+               && ((Model.PluginTypeName?.Contains("LogicOperationPlugin", StringComparison.OrdinalIgnoreCase) ?? false)
+                   || string.Equals(Model.PluginName, "逻辑运算", StringComparison.Ordinal));
+
+        /// <summary>操作徽标：EQ/NEQ/GT/LT/GTE/LTE、AND/OR/NOT/XOR/NAND/NOR；其它节点为空串（不占位）</summary>
+        public string OpBadge
+        {
+            get
+            {
+                if (IsComparisonPlugin)
+                {
+                    return ResolveEnumMember("Type", ComparisonMembers, 0) switch
+                    {
+                        "Equal" => "EQ",
+                        "NotEqual" => "NEQ",
+                        "GreaterThan" => "GT",
+                        "LessThan" => "LT",
+                        "GreaterThanOrEqual" => "GTE",
+                        "LessThanOrEqual" => "LTE",
+                        _ => "EQ",
+                    };
+                }
+
+                if (IsLogicPlugin)
+                {
+                    return ResolveEnumMember("Operation", LogicMembers, 0) switch
+                    {
+                        "And" => "AND",
+                        "Or" => "OR",
+                        "Not" => "NOT",
+                        "Xor" => "XOR",
+                        "Nand" => "NAND",
+                        "Nor" => "NOR",
+                        _ => "AND",
+                    };
+                }
+
+                return string.Empty;
+            }
+        }
+
+        public Visibility OpBadgeVisibility
+            => string.IsNullOrEmpty(OpBadge) ? Visibility.Collapsed : Visibility.Visible;
+
+        /// <summary>副标题：比较/逻辑插件拼 A/B/Tolerance 或上游端口；无可用摘要时回退插件名</summary>
+        public string SubTitle
+        {
+            get
+            {
+                if (Kind != CanvasNodeKind.Step) return string.Empty;
+
+                var summary = BuildOperationSummary();
+                return string.IsNullOrWhiteSpace(summary)
+                    ? Model?.PluginName ?? string.Empty
+                    : summary;
+            }
+        }
+
+        private string BuildOperationSummary()
+        {
+            if (IsComparisonPlugin)
+            {
+                var a = ResolveOperand("A");
+                var b = ResolveOperand("B");
+                if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b))
+                    return string.Empty;
+
+                var text = $"{a} {ComparisonSymbol} {b}";
+                var tolerance = ResolveOperand("Tolerance");
+                if (!string.IsNullOrWhiteSpace(tolerance) && !IsDefaultTolerance(tolerance))
+                    text += $" ± {tolerance}";
+
+                return text;
+            }
+
+            if (IsLogicPlugin)
+            {
+                var a = ResolveOperand("A");
+                var b = ResolveOperand("B");
+                var operation = ResolveEnumMember("Operation", LogicMembers, 0);
+
+                if (operation == "Not")
+                    return string.IsNullOrWhiteSpace(a) ? string.Empty : $"NOT {a}";
+
+                if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b))
+                    return string.Empty;
+
+                return $"{a} {operation.ToUpperInvariant()} {b}";
+            }
+
+            // 等待节点不是容器，但条件表达式是它最有信息量的摘要（真实模型字段，不伪造）
+            if (Model is WaitStep wait && !string.IsNullOrWhiteSpace(wait.ConditionExpression))
+                return wait.ConditionExpression;
+
+            return string.Empty;
+        }
+
+        private string ComparisonSymbol => ResolveEnumMember("Type", ComparisonMembers, 0) switch
+        {
+            "NotEqual" => "≠",
+            "GreaterThan" => ">",
+            "LessThan" => "<",
+            "GreaterThanOrEqual" => "≥",
+            "LessThanOrEqual" => "≤",
+            _ => "=",
+        };
+
+        /// <summary>
+        /// 解析枚举型输入值：InputValues 可能存成员名、整数（Newtonsoft 默认）或枚举对象。
+        /// 解析不到时回退到插件默认成员（比较=Equal、逻辑=And），与实际执行语义一致。
+        /// </summary>
+        private string ResolveEnumMember(string key, string[] members, int fallbackIndex)
+        {
+            if (Model?.InputValues != null
+                && Model.InputValues.TryGetValue(key, out var raw)
+                && raw != null)
+            {
+                var text = raw switch
+                {
+                    Enum e => e.ToString(),
+                    string s => s,
+                    IConvertible c => c.ToInt32(CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture),
+                    _ => raw.ToString() ?? string.Empty,
+                };
+
+                if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index)
+                    && index >= 0 && index < members.Length)
+                    return members[index];
+
+                var matched = members.FirstOrDefault(m => string.Equals(m, text, StringComparison.OrdinalIgnoreCase));
+                if (matched != null) return matched;
+            }
+
+            return members[Math.Clamp(fallbackIndex, 0, members.Length - 1)];
+        }
+
+        /// <summary>端口摘要：上游连线优先（运行期以连线为准），否则手填常量；常量前缀只用于显示</summary>
+        private string ResolveOperand(string portName)
+        {
+            if (Model?.LinkedSources != null
+                && Model.LinkedSources.TryGetValue(portName, out var link)
+                && link != null)
+            {
+                var address = link.DisplayAddress;
+                if (!string.IsNullOrWhiteSpace(address))
+                {
+                    return address.StartsWith(LinkProtocol.ConstantDisplayPrefix, StringComparison.Ordinal)
+                        ? address.Substring(LinkProtocol.ConstantDisplayPrefix.Length).Trim()
+                        : address;
+                }
+
+                if (!string.IsNullOrWhiteSpace(link.TargetPortName))
+                    return link.TargetPortName;
+            }
+
+            if (Model?.InputValues != null
+                && Model.InputValues.TryGetValue(portName, out var value)
+                && value != null)
+            {
+                return value switch
+                {
+                    double d => d.ToString("0.######", CultureInfo.InvariantCulture),
+                    float f => f.ToString("0.######", CultureInfo.InvariantCulture),
+                    IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
+                    _ => value.ToString() ?? string.Empty,
+                };
+            }
+
+            return string.Empty;
+        }
+
+        private static bool IsDefaultTolerance(string text)
+            => text is "1E-06" or "1E-6" or "0.000001" or "0" or "0.0";
 
         /// <summary>图标字形（与流程栏同一份 Icon 资源字体）；泳道为空串</summary>
         public string IconGlyph
@@ -153,23 +435,176 @@ namespace VisionMaster.ViewModels
             }
         }
 
-        /// <summary>容器类型徽标（If / While / For / Parallel / 分支匹配 / 等待）；非容器且非等待为空串</summary>
+        /// <summary>容器类型徽标（IF / WHILE / FOR / PAR / CASE / WAIT）；非容器且非等待为空串</summary>
         public string TypeBadge => Model switch
         {
             // WhileStep / CaseStep 都继承 ConditionStep，必须先判子类
-            WhileStep => "While",
-            CaseStep => "分支匹配",
-            ParallelStep => "Parallel",
-            ConditionStep => "If",
-            ForStep => "For",
+            WhileStep => "WHILE",
+            CaseStep => "CASE",
+            ParallelStep => "PAR",
+            ConditionStep => "IF",
+            ForStep => "FOR",
             // 等待节点不是容器，但带一条条件表达式 + 两个输出端口，值得在画布上给个身份徽标
-            WaitStep => "等待",
+            WaitStep => "WAIT",
             _ => string.Empty,
         };
 
+        /// <summary>容器头部的条件/模式摘要（flow-logic 条件胶囊）；无摘要时折叠</summary>
+        public string ContainerSummary => Model?.ContainerSummary ?? string.Empty;
+
+        public Visibility ContainerSummaryVisibility
+            => string.IsNullOrWhiteSpace(ContainerSummary) ? Visibility.Collapsed : Visibility.Visible;
+
+        /// <summary>容器分支数（flow-logic 组头右侧 "N 分支"）</summary>
+        public int BranchCount
+            => Kind == CanvasNodeKind.Container && Model is IContainerStep container && container.Children != null
+                ? container.Children.Count
+                : 0;
+
+        /// <summary>容器内算子总数（含嵌套容器；flow-logic 组头右侧 "M 算子"）</summary>
+        public int DescendantCount => CountDescendants(Model);
+
+        private static int CountDescendants(StepModel? step)
+        {
+            if (step is not IContainerStep container || container.Children == null) return 0;
+
+            var count = 0;
+            foreach (var branch in container.Children)
+            {
+                if (branch?.Steps == null) continue;
+                foreach (var child in branch.Steps)
+                {
+                    if (child == null) continue;
+                    count += 1 + CountDescendants(child);
+                }
+            }
+
+            return count;
+        }
+
+        /// <summary>条件缺失（If/ElseIf/Case/WhileLoop 的 Expression 为空）= 编译前硬错误，容器红边红点</summary>
+        public bool HasMissingCondition
+            => Kind == CanvasNodeKind.Container
+               && Model is IContainerStep container
+               && container.Children != null
+               && container.Children.Any(branch => branch?.IsConditionMissing == true);
+
+        /// <summary>组头右侧统计：正常显示 "N 分支 · M 算子"，条件缺失时改为 "缺条件"</summary>
+        public string ContainerMetaText
+            => Kind == CanvasNodeKind.Container
+                ? (HasMissingCondition ? "缺条件" : $"{BranchCount} 分支 · {DescendantCount} 算子")
+                : string.Empty;
+
+        /// <summary>并行分组底部汇合条文案（只用分支数，不伪造完成数/耗时）</summary>
+        public string JoinBarText
+            => Model is ParallelStep parallel && parallel.Children != null
+                ? $"汇合 · {parallel.Children.Count} 分支"
+                : string.Empty;
+
+        /// <summary>汇合条只在展开的并行分组里显示（折叠后只剩头带）</summary>
+        public Visibility JoinBarVisibility
+            => Kind == CanvasNodeKind.Container && Model is ParallelStep && !IsCollapsed
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+        // ---- 泳道头：分支徽标 / 名称 / 计数 / 类型配色 / 底部说明条 ----
+
+        /// <summary>泳道父容器类型（模板触发器按它选 soft/border/badge/text 四色）</summary>
+        public string LaneParentKind => LaneParent switch
+        {
+            ParallelStep => "Parallel",
+            CaseStep => "Case",
+            WhileStep => "While",
+            ForStep => "For",
+            ConditionStep => "If",
+            _ => string.Empty,
+        };
+
+        /// <summary>泳道分支徽标：If/Else/ElseIf、Case 序号/默认、While/For 的 BODY、并行 A/B/C</summary>
+        public string BranchBadge
+        {
+            get
+            {
+                if (Kind != CanvasNodeKind.Lane) return string.Empty;
+
+                return LaneParent switch
+                {
+                    WhileStep or ForStep => "BODY",
+                    ParallelStep => LaneBranchIndex < 26
+                        ? ((char)('A' + LaneBranchIndex)).ToString()
+                        : (LaneBranchIndex + 1).ToString(CultureInfo.InvariantCulture),
+                    CaseStep => Branch?.BranchType == BranchType.Else ? "默认" : $"CASE {CaseOrdinal()}",
+                    ConditionStep => Branch?.BranchType switch
+                    {
+                        BranchType.Else => "ELSE",
+                        BranchType.ElseIf => "ELSEIF",
+                        BranchType.If => "IF",
+                        _ => "分支",
+                    },
+                    _ => "分支",
+                };
+            }
+        }
+
+        private int CaseOrdinal()
+        {
+            if (LaneParent is not IContainerStep container || container.Children == null) return 1;
+
+            var ordinal = 0;
+            for (var i = 0; i < LaneBranchIndex && i < container.Children.Count; i++)
+            {
+                if (container.Children[i]?.BranchType == BranchType.Case)
+                    ordinal++;
+            }
+
+            return ordinal + 1;
+        }
+
+        /// <summary>泳道名称：分支 DisplayName；Case 分支用匹配值（徽标已表达 CASE 序号，避免重复）</summary>
+        public string LaneName
+        {
+            get
+            {
+                if (Kind != CanvasNodeKind.Lane) return string.Empty;
+
+                if (LaneParent is CaseStep && Branch?.BranchType == BranchType.Case)
+                {
+                    return string.IsNullOrWhiteSpace(Branch.Expression)
+                        ? Branch.StepName
+                        : $"[ {Branch.Expression} ]";
+                }
+
+                return Branch?.DisplayName ?? string.Empty;
+            }
+        }
+
+        /// <summary>泳道右侧计数（flow-logic：N 算子）</summary>
+        public string LaneCountText => $"{Branch?.Steps.Count ?? 0} 算子";
+
+        /// <summary>泳道底部说明条（While / For）；只用现有模型字段，不伪造运行数据</summary>
+        public string LaneNoteText => LaneParent switch
+        {
+            WhileStep => string.IsNullOrWhiteSpace(Branch?.Expression)
+                ? "条件未绑定 · 编译前必须补齐"
+                : $"条件：{Branch.Expression} · 每轮执行前重新判断",
+            // LoopCount 已被上游连线接管时，DefaultLoopCount 只是“未连线时的兜底值”，
+            // 不能当成真实循环次数显示（否则界面在撒谎）
+            ForStep forStep when forStep.LinkedSources?.ContainsKey("LoopCount") == true
+                => "运行时/上游连线",
+            ForStep forStep => $"循环 {forStep.DefaultLoopCount} 次 · Index 0 → {Math.Max(0, forStep.DefaultLoopCount - 1)}",
+            _ => string.Empty,
+        };
+
+        public string LaneNoteGlyph => LaneParent is ForStep ? "\uf01e" : "\uf071";
+
+        public Visibility LaneNoteVisibility
+            => Kind == CanvasNodeKind.Lane && LaneParent is WhileStep or ForStep
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
         /// <summary>类型徽标可见性（模板触发器用）</summary>
         public System.Windows.Visibility TypeBadgeVisibility
-            => string.IsNullOrEmpty(TypeBadge)
+            => Kind == CanvasNodeKind.Step && string.IsNullOrEmpty(TypeBadge)
                 ? System.Windows.Visibility.Collapsed
                 : System.Windows.Visibility.Visible;
 
@@ -208,6 +643,7 @@ namespace VisionMaster.ViewModels
                     RaisePropertyChanged(nameof(CollapseGlyph));
                     RaisePropertyChanged(nameof(Header));
                     RaisePropertyChanged(nameof(CardTooltip));
+                    RaisePropertyChanged(nameof(JoinBarVisibility));
                     RaisePropertyChanged(nameof(SideConnectorMarginLeft));
                     RaisePropertyChanged(nameof(SideConnectorMarginRight));
                 }
@@ -372,6 +808,16 @@ namespace VisionMaster.ViewModels
         {
             RaisePropertyChanged(nameof(Header));
             RaisePropertyChanged(nameof(CardTooltip));
+            // 渲染期重算的派生投影：分支增删/条件编辑后，即使节点从池里复用也要刷新
+            RaisePropertyChanged(nameof(SubTitle));
+            RaisePropertyChanged(nameof(OpBadge));
+            RaisePropertyChanged(nameof(OpBadgeVisibility));
+            RaisePropertyChanged(nameof(ContainerMetaText));
+            RaisePropertyChanged(nameof(HasMissingCondition));
+            RaisePropertyChanged(nameof(BranchCount));
+            RaisePropertyChanged(nameof(DescendantCount));
+            RaisePropertyChanged(nameof(JoinBarText));
+            RaisePropertyChanged(nameof(JoinBarVisibility));
         }
 
         // ---- 算子注释：StepModel.Description 的画布投影，节点卡片下方的灰色小字 ----
@@ -393,13 +839,23 @@ namespace VisionMaster.ViewModels
         public Visibility CommentVisibility
             => HasUserComment ? Visibility.Visible : Visibility.Collapsed;
 
-        /// <summary>卡片悬停提示：名称 / 插件名 / 自定义注释 逐行拼合，空行跳过</summary>
+        /// <summary>卡片悬停提示：名称 / 插件名 / 操作摘要 / 自定义注释 逐行拼合，空行跳过</summary>
         public string CardTooltip
         {
             get
             {
                 if (Kind == CanvasNodeKind.Lane) return string.Empty;
-                var lines = new List<string> { Header, SubTitle };
+
+                var lines = new List<string> { Header };
+                var pluginName = Model?.PluginName ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(pluginName))
+                    lines.Add(pluginName);
+
+                var subTitle = SubTitle;
+                if (!string.IsNullOrWhiteSpace(subTitle)
+                    && !string.Equals(subTitle, pluginName, StringComparison.Ordinal))
+                    lines.Add(subTitle);
+
                 if (HasUserComment) lines.Add(Comment);
                 return string.Join("\n", lines);
             }

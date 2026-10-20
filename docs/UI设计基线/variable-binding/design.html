@@ -1,0 +1,1477 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>变量绑定 · 设计基线 v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #vb-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="vb-design-root">
+  <style>
+    #vb-design-root{
+      color-scheme:light;
+      --vb-surface:#FFFFFF;
+      --vb-surface-2:#F8FAFC;
+      --vb-surface-3:#F1F5F9;
+      --vb-border:#E2E8F0;
+      --vb-border-soft:#EEF2F7;
+      --vb-border-strong:#CBD5E1;
+      --vb-text:#0F172A;
+      --vb-text-2:#475569;
+      --vb-text-3:#94A3B8;
+      --vb-text-4:#64748B;
+      --vb-primary:#0EA5E9;
+      --vb-primary-strong:#0284C7;
+      --vb-primary-text:#0369A1;
+      --vb-primary-soft:#F0F9FF;
+      --vb-primary-light:#E0F2FE;
+      --vb-primary-border:#BAE6FD;
+      --vb-success:#22C55E;
+      --vb-success-text:#15803D;
+      --vb-success-soft:#F0FDF4;
+      --vb-success-border:#BBF7D0;
+      --vb-danger:#EF4444;
+      --vb-danger-text:#B91C1C;
+      --vb-danger-soft:#FEF2F2;
+      --vb-danger-border:#FECACA;
+      --vb-warning:#F59E0B;
+      --vb-warning-text:#B45309;
+      --vb-warning-soft:#FFF4E5;
+      --vb-warning-border:#FDE68A;
+      --vb-violet:#8B5CF6;
+      --vb-violet-soft:#F5F3FF;
+      --vb-violet-text:#6D28D9;
+      --vb-cyan:#06B6D4;
+      --vb-cyan-soft:#ECFEFF;
+      --vb-cyan-text:#0E7490;
+      --vb-slate:#64748B;
+      --vb-slate-soft:#F1F5F9;
+      --vb-slate-text:#475569;
+      --vb-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --vb-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --vb-radius-sm:6px;
+      --vb-radius-md:8px;
+      --vb-radius-lg:10px;
+      --vb-radius-xl:12px;
+      --vb-radius-window:16px;
+      --vb-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--vb-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #vb-design-root *{box-sizing:border-box;}
+    #vb-design-root button,
+    #vb-design-root input,
+    #vb-design-root select,
+    #vb-design-root textarea{font-family:inherit;}
+    #vb-design-root button{color:inherit;}
+    #vb-design-root [hidden]{display:none !important;}
+    #vb-design-root :focus-visible{outline:2px solid var(--vb-primary);outline-offset:2px;}
+    #vb-design-root svg{display:block;}
+
+    /* ================= 页面骨架 ================= */
+    #vb-design-root .vb-page{max-width:1400px;margin:0 auto;padding:24px 24px 44px;}
+    #vb-design-root .vb-page-head{max-width:1360px;margin:0 auto 16px;}
+    #vb-design-root .vb-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #vb-design-root .vb-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--vb-text);}
+    #vb-design-root .vb-ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--vb-primary-light);color:var(--vb-primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;}
+    #vb-design-root .vb-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--vb-text-2);}
+    #vb-design-root .vb-page-sub b{color:var(--vb-text);font-weight:600;}
+    #vb-design-root .vb-demo-bar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+    #vb-design-root .vb-demo-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+    #vb-design-root .vb-demo-label{font-size:11.5px;color:var(--vb-text-4);}
+    #vb-design-root .vb-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--vb-radius-md);background:var(--vb-surface-3);}
+    #vb-design-root .vb-seg button{height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--vb-text-2);font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;white-space:nowrap;}
+    #vb-design-root .vb-seg button:hover{color:var(--vb-text);}
+    #vb-design-root .vb-seg button.is-on{background:#FFFFFF;color:var(--vb-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+    #vb-design-root .vb-seg-sm button{height:24px;padding:0 9px;font-size:10.5px;}
+    #vb-design-root .vb-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--vb-text-2);}
+    #vb-design-root .vb-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--vb-warning-text);}
+    #vb-design-root .vb-scope b{color:var(--vb-text);font-weight:600;}
+
+    /* ================= 产品窗口 ================= */
+    #vb-design-root .vb-window{
+      width:1180px;max-width:100%;height:760px;margin:0 auto;
+      display:flex;flex-direction:column;overflow:hidden;position:relative;
+      background:var(--vb-surface);border-radius:var(--vb-radius-window);
+      box-shadow:var(--vb-shadow-window);
+      transition:width 200ms ease;
+    }
+    #vb-design-root .vb-window.is-narrow{width:1000px;}
+
+    /* ---- 标题栏 ---- */
+    #vb-design-root .vb-titlebar{height:64px;flex:none;display:flex;align-items:center;padding:0 18px;background:var(--vb-surface);border-bottom:1px solid var(--vb-border-soft);}
+    #vb-design-root .vb-app-icon{width:36px;height:36px;flex:none;border-radius:10px;display:flex;align-items:center;justify-content:center;background:var(--vb-primary-light);color:var(--vb-primary-text);}
+    #vb-design-root .vb-app-icon svg{width:18px;height:18px;}
+    #vb-design-root .vb-title-text{margin-left:12px;min-width:0;flex:1;}
+    #vb-design-root .vb-title-line{display:flex;align-items:center;gap:8px;min-width:0;}
+    #vb-design-root .vb-title{font-size:15.5px;font-weight:600;line-height:1.3;color:var(--vb-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #vb-design-root .vb-subtitle{margin-top:2px;font-size:11.5px;line-height:1.4;color:var(--vb-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #vb-design-root .vb-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+    #vb-design-root .vb-icon-btn{width:30px;height:30px;flex:none;padding:0;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--vb-text-4);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;}
+    #vb-design-root .vb-icon-btn svg{width:14px;height:14px;}
+    #vb-design-root .vb-icon-btn:hover{background:var(--vb-surface-3);border-color:var(--vb-border);color:var(--vb-text-2);}
+    #vb-design-root .vb-icon-btn.is-danger:hover{background:var(--vb-danger-soft);border-color:var(--vb-danger-border);color:var(--vb-danger-text);}
+
+    /* ---- 上下文条 ---- */
+    #vb-design-root .vb-contextbar{height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 18px;background:var(--vb-surface-2);border-bottom:1px solid var(--vb-border-soft);}
+    #vb-design-root .vb-context-label{font-size:10.5px;color:var(--vb-text-3);white-space:nowrap;}
+    #vb-design-root .vb-context-step{display:inline-flex;align-items:center;gap:6px;min-width:0;font-size:12px;font-weight:600;color:var(--vb-text);}
+    #vb-design-root .vb-context-step svg{width:13px;height:13px;color:var(--vb-primary);flex:none;}
+    #vb-design-root .vb-context-type{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:4px;background:var(--vb-surface-3);color:var(--vb-text-4);font-size:9.5px;font-weight:600;}
+    #vb-design-root .vb-context-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #vb-design-root .vb-progress{width:108px;height:5px;border-radius:999px;background:var(--vb-surface-3);overflow:hidden;}
+    #vb-design-root .vb-progress i{display:block;height:100%;width:0;border-radius:999px;background:var(--vb-success);transition:width 200ms ease;}
+    #vb-design-root .vb-context-meta{font-size:10.5px;color:var(--vb-text-3);white-space:nowrap;}
+
+    /* ---- 三栏 ---- */
+    #vb-design-root .vb-content{flex:1;min-height:0;display:grid;grid-template-columns:280px 300px minmax(0,1fr);gap:12px;padding:14px 16px 16px;background:var(--vb-surface-2);}
+    #vb-design-root .vb-window.is-narrow .vb-content{grid-template-columns:264px 280px minmax(0,1fr);gap:10px;padding:12px 14px 14px;}
+    #vb-design-root .vb-col{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:var(--vb-surface);border:1px solid var(--vb-border);border-radius:var(--vb-radius-xl);}
+    #vb-design-root .vb-col-head{flex:none;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:12px 12px 0;}
+    #vb-design-root .vb-col-title{display:flex;align-items:center;gap:8px;min-width:0;font-size:12.5px;font-weight:600;color:var(--vb-text);white-space:nowrap;}
+    #vb-design-root .vb-step-num{width:20px;height:20px;flex:none;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--vb-primary-light);color:var(--vb-primary-text);font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;}
+    #vb-design-root .vb-col-sub{margin:3px 0 0 28px;font-size:10.5px;line-height:1.35;color:var(--vb-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #vb-design-root .vb-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--vb-surface-3);color:var(--vb-text-3);font-size:10.5px;font-weight:600;font-variant-numeric:tabular-nums;flex:none;}
+    #vb-design-root .vb-search{position:relative;height:32px;margin:10px 12px 0;flex:none;}
+    #vb-design-root .vb-search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--vb-text-3);pointer-events:none;}
+    #vb-design-root .vb-search input{width:100%;height:32px;padding:0 10px 0 31px;border:1px solid var(--vb-border);border-radius:var(--vb-radius-md);background:var(--vb-surface);color:var(--vb-text);font-size:12px;outline:none;transition:border-color 150ms ease,box-shadow 150ms ease;}
+    #vb-design-root .vb-search input::placeholder{color:var(--vb-text-3);}
+    #vb-design-root .vb-search input:hover{border-color:var(--vb-border-strong);}
+    #vb-design-root .vb-search input:focus{border-color:var(--vb-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #vb-design-root .vb-search-sm{height:30px;margin:8px 0 0;}
+    #vb-design-root .vb-search-sm input{height:30px;font-size:11.5px;}
+    #vb-design-root .vb-filter{display:flex;gap:4px;margin:8px 12px 0;flex:none;}
+    #vb-design-root .vb-filter button{height:24px;padding:0 8px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--vb-text-3);font-size:10.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,border-color 150ms ease;white-space:nowrap;}
+    #vb-design-root .vb-filter button:hover{background:var(--vb-surface-3);color:var(--vb-text-2);}
+    #vb-design-root .vb-filter button.is-on{background:var(--vb-primary-soft);border-color:var(--vb-primary-border);color:var(--vb-primary-text);font-weight:600;}
+    #vb-design-root .vb-tabs{display:flex;gap:2px;margin:8px 12px 0;padding:2px;flex:none;border-radius:var(--vb-radius-md);background:var(--vb-surface-3);}
+    #vb-design-root .vb-tabs button{flex:1;height:24px;padding:0 6px;border:0;border-radius:6px;background:transparent;color:var(--vb-text-3);font-size:10.5px;line-height:1;cursor:pointer;white-space:nowrap;}
+    #vb-design-root .vb-tabs button:hover{color:var(--vb-text-2);}
+    #vb-design-root .vb-tabs button.is-on{background:#FFFFFF;color:var(--vb-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.08);}
+
+    /* ---- 列表 ---- */
+    #vb-design-root .vb-list{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:4px 6px 6px;scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+    #vb-design-root .vb-list::-webkit-scrollbar{width:8px;}
+    #vb-design-root .vb-list::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+    #vb-design-root .vb-list::-webkit-scrollbar-track{background:transparent;}
+    #vb-design-root .vb-group-label{display:flex;align-items:center;gap:8px;margin:8px 6px 4px;font-size:10px;font-weight:600;color:var(--vb-text-3);letter-spacing:.02em;}
+    #vb-design-root .vb-group-label::after{content:"";height:1px;flex:1;background:var(--vb-border);}
+    #vb-design-root .vb-row{position:relative;display:flex;align-items:center;gap:9px;width:100%;min-height:54px;margin:2px 0;padding:7px 8px 7px 10px;border:1px solid transparent;border-radius:9px;background:transparent;text-align:left;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,box-shadow 150ms ease;}
+    #vb-design-root .vb-row:hover{background:var(--vb-surface-2);border-color:var(--vb-border-soft);}
+    #vb-design-root .vb-row.is-selected{background:var(--vb-surface);border-color:var(--vb-primary-border);box-shadow:0 1px 2px rgba(15,23,42,.06);}
+    #vb-design-root .vb-row.is-selected::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:3px;background:var(--vb-primary);}
+    #vb-design-root .vb-row-icon{width:28px;height:28px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--vb-surface-3);color:var(--vb-text-4);}
+    #vb-design-root .vb-row-icon svg{width:14px;height:14px;}
+    #vb-design-root .tone-cyan{background:var(--vb-cyan-soft);color:var(--vb-cyan-text);}
+    #vb-design-root .tone-violet{background:var(--vb-violet-soft);color:var(--vb-violet-text);}
+    #vb-design-root .tone-sky{background:var(--vb-primary-soft);color:var(--vb-primary-text);}
+    #vb-design-root .tone-amber{background:var(--vb-warning-soft);color:var(--vb-warning-text);}
+    #vb-design-root .tone-slate{background:var(--vb-slate-soft);color:var(--vb-slate-text);}
+    #vb-design-root .tone-green{background:var(--vb-success-soft);color:var(--vb-success-text);}
+    #vb-design-root .vb-row-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px;}
+    #vb-design-root .vb-row-line{display:flex;align-items:center;gap:5px;min-width:0;}
+    #vb-design-root .vb-row-name{font-size:12.5px;font-weight:600;line-height:1.3;color:var(--vb-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #vb-design-root .vb-row.is-selected .vb-row-name{color:var(--vb-primary-text);}
+    #vb-design-root .vb-row-sub{display:flex;align-items:center;gap:5px;font-size:10.5px;line-height:1.3;color:var(--vb-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #vb-design-root .vb-row-check{width:13px;height:13px;flex:none;color:var(--vb-success);}
+    #vb-design-root .vb-dot{width:6px;height:6px;flex:none;border-radius:50%;background:var(--vb-text-3);}
+    #vb-design-root .vb-dot.is-on{background:var(--vb-success);}
+    #vb-design-root .vb-tag{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radius:4px;background:var(--vb-surface-3);color:var(--vb-text-4);font-size:9.5px;font-weight:600;white-space:nowrap;flex:none;}
+    #vb-design-root .vb-chip{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:999px;border:1px solid transparent;font-size:10px;font-weight:600;white-space:nowrap;flex:none;}
+    #vb-design-root .vb-chip-accent{background:var(--vb-primary-soft);border-color:var(--vb-primary-border);color:var(--vb-primary-text);}
+    #vb-design-root .vb-chip-ok{background:var(--vb-success-soft);border-color:var(--vb-success-border);color:var(--vb-success-text);}
+    #vb-design-root .vb-chip-warn{background:var(--vb-warning-soft);border-color:var(--vb-warning-border);color:var(--vb-warning-text);}
+    #vb-design-root .vb-chip-neutral{background:var(--vb-surface-3);border-color:var(--vb-border);color:var(--vb-text-4);}
+    #vb-design-root .vb-col-foot{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:34px;padding:0 12px;border-top:1px solid var(--vb-border-soft);font-size:10.5px;color:var(--vb-text-3);white-space:nowrap;overflow:hidden;}
+
+    /* ---- 绑定设置 ---- */
+    #vb-design-root .vb-binding-head{height:48px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 14px;border-bottom:1px solid var(--vb-border-soft);}
+    #vb-design-root .vb-head-actions{display:flex;align-items:center;gap:8px;flex:none;}
+    #vb-design-root .vb-text-btn{height:24px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--vb-text-3);font-size:10.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,opacity 150ms ease;white-space:nowrap;}
+    #vb-design-root .vb-text-btn:hover{background:var(--vb-danger-soft);color:var(--vb-danger-text);}
+    #vb-design-root .vb-text-btn:disabled{opacity:.4;cursor:not-allowed;background:transparent;color:var(--vb-text-3);}
+    #vb-design-root .vb-binding-body{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:14px;scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+    #vb-design-root .vb-binding-body::-webkit-scrollbar{width:8px;}
+    #vb-design-root .vb-binding-body::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+    #vb-design-root .vb-binding-body::-webkit-scrollbar-track{background:transparent;}
+    #vb-design-root .vb-binding-foot{flex:none;display:flex;align-items:center;gap:6px;min-height:34px;padding:0 14px;border-top:1px solid var(--vb-border-soft);font-size:10.5px;color:var(--vb-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+    /* ---- 连线英雄区 ---- */
+    #vb-design-root .vb-hero{display:grid;grid-template-columns:minmax(0,1fr) 30px minmax(0,1.12fr);align-items:stretch;gap:6px;padding:10px;border:1px solid var(--vb-primary-border);border-radius:var(--vb-radius-lg);background:linear-gradient(180deg,#F8FCFF 0%,#F0F9FF 100%);}
+    #vb-design-root .vb-hero-side{min-width:0;display:flex;flex-direction:column;gap:3px;padding:8px 9px;border:1px solid var(--vb-border);border-radius:var(--vb-radius-md);background:var(--vb-surface);}
+    #vb-design-root .vb-hero-side.is-source.is-bound{border-color:var(--vb-success-border);background:var(--vb-success-soft);}
+    #vb-design-root .vb-hero-side.is-source.is-unbound{border-style:dashed;background:var(--vb-surface-2);}
+    #vb-design-root .vb-hero-top{display:flex;align-items:center;gap:5px;min-width:0;}
+    #vb-design-root .vb-hero-label{font-size:9.5px;font-weight:600;color:var(--vb-text-3);letter-spacing:.02em;white-space:nowrap;}
+    #vb-design-root .vb-hero-top .vb-chip{margin-left:auto;height:18px;padding:0 6px;font-size:9.5px;}
+    #vb-design-root .vb-hero-main{display:flex;align-items:center;gap:6px;min-width:0;}
+    #vb-design-root .vb-hero-icon{width:20px;height:20px;flex:none;border-radius:6px;display:flex;align-items:center;justify-content:center;}
+    #vb-design-root .vb-hero-icon svg{width:11px;height:11px;}
+    #vb-design-root .vb-hero-name{font-size:12.5px;font-weight:600;line-height:1.3;color:var(--vb-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #vb-design-root .vb-hero-sub{font-size:10.5px;line-height:1.35;color:var(--vb-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #vb-design-root .vb-hero-arrow{display:flex;align-items:center;justify-content:center;color:var(--vb-primary);}
+    #vb-design-root .vb-hero-arrow span{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--vb-surface);border:1px solid var(--vb-primary-border);box-shadow:0 1px 2px rgba(15,23,42,.05);}
+    #vb-design-root .vb-hero-arrow svg{width:12px;height:12px;}
+    #vb-design-root .vb-hero-meta{display:flex;align-items:center;gap:5px;margin:6px 2px 0;font-size:10px;line-height:1.4;color:var(--vb-text-3);}
+    #vb-design-root .vb-hero-meta svg{width:11px;height:11px;flex:none;}
+
+    /* ---- 绑定方式 ---- */
+    #vb-design-root .vb-method-row{display:flex;align-items:center;gap:8px;margin:14px 0 0;min-width:0;}
+    #vb-design-root .vb-section-label{font-size:11.5px;font-weight:600;color:var(--vb-text-2);white-space:nowrap;}
+    #vb-design-root .vb-method-hint{margin-left:auto;font-size:10px;color:var(--vb-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+    /* ---- 候选端口 ---- */
+    #vb-design-root .vb-cand-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 0 0;}
+    #vb-design-root .vb-cand-title{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--vb-text-2);white-space:nowrap;}
+    #vb-design-root .vb-switch{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--vb-text-4);cursor:pointer;user-select:none;white-space:nowrap;}
+    #vb-design-root .vb-switch input{width:13px;height:13px;accent-color:var(--vb-primary);margin:0;cursor:pointer;}
+    #vb-design-root .vb-filter-note{display:flex;align-items:center;gap:5px;margin-top:8px;padding:7px 9px;border:1px solid var(--vb-border-soft);border-radius:7px;background:var(--vb-surface-2);font-size:10.5px;line-height:1.4;color:var(--vb-text-3);}
+    #vb-design-root .vb-filter-note svg{width:11px;height:11px;flex:none;}
+    #vb-design-root .vb-filter-note b{color:var(--vb-text-2);font-weight:600;}
+    #vb-design-root .vb-link-btn{margin-left:auto;padding:0;border:0;background:transparent;color:var(--vb-primary-text);font-size:10.5px;font-weight:600;cursor:pointer;white-space:nowrap;}
+    #vb-design-root .vb-link-btn:hover{text-decoration:underline;}
+    #vb-design-root .vb-cand-list{margin-top:8px;display:flex;flex-direction:column;gap:4px;}
+    #vb-design-root .vb-cand{display:flex;align-items:center;gap:9px;min-height:52px;padding:7px 9px;border:1px solid var(--vb-border-soft);border-radius:var(--vb-radius-md);background:var(--vb-surface);cursor:pointer;transition:background 150ms ease,border-color 150ms ease,box-shadow 150ms ease;}
+    #vb-design-root .vb-cand:hover{border-color:var(--vb-border-strong);background:#FBFDFF;}
+    #vb-design-root .vb-cand.is-selected{border-color:var(--vb-primary);background:var(--vb-primary-soft);box-shadow:0 0 0 2px rgba(14,165,233,.08);}
+    #vb-design-root .vb-cand.is-disabled{opacity:.55;cursor:not-allowed;background:var(--vb-surface-2);}
+    #vb-design-root .vb-cand.is-disabled:hover{border-color:var(--vb-border-soft);background:var(--vb-surface-2);}
+    #vb-design-root .vb-cand.is-disabled.is-selected{border-color:var(--vb-warning-border);background:var(--vb-warning-soft);box-shadow:none;}
+    #vb-design-root .vb-cand-icon{width:26px;height:26px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;background:var(--vb-surface-3);color:var(--vb-text-4);}
+    #vb-design-root .vb-cand-icon svg{width:13px;height:13px;}
+    #vb-design-root .vb-cand-main{min-width:0;flex:1;}
+    #vb-design-root .vb-cand-line{display:flex;align-items:center;gap:5px;min-width:0;}
+    #vb-design-root .vb-cand-name{font-size:12px;font-weight:600;line-height:1.3;color:var(--vb-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #vb-design-root .vb-cand-desc{margin-top:2px;font-size:10.5px;line-height:1.3;color:var(--vb-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #vb-design-root .vb-cand-actions{flex:none;display:flex;align-items:center;gap:4px;}
+    #vb-design-root .vb-cand-reason{font-size:9.5px;color:var(--vb-text-3);white-space:nowrap;}
+
+    /* ---- 按钮 ---- */
+    #vb-design-root .vb-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:30px;padding:0 11px;border:1px solid var(--vb-border);border-radius:7px;background:var(--vb-surface);color:var(--vb-text);font-size:11.5px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;}
+    #vb-design-root .vb-btn svg{width:12px;height:12px;}
+    #vb-design-root .vb-btn:hover{background:var(--vb-surface-2);border-color:var(--vb-border-strong);}
+    #vb-design-root .vb-btn:active{background:var(--vb-surface-3);}
+    #vb-design-root .vb-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #vb-design-root .vb-btn-primary{background:var(--vb-primary);border-color:var(--vb-primary);color:#FFFFFF;font-weight:600;}
+    #vb-design-root .vb-btn-primary:hover{background:var(--vb-primary-strong);border-color:var(--vb-primary-strong);}
+    #vb-design-root .vb-btn-sm{height:26px;padding:0 9px;font-size:10.5px;border-radius:6px;}
+
+    /* ---- 表单 / 预设 ---- */
+    #vb-design-root .vb-form{margin-top:14px;}
+    #vb-design-root .vb-label{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;font-size:11.5px;font-weight:600;color:var(--vb-text-2);}
+    #vb-design-root .vb-label-type{font-size:10px;font-weight:500;color:var(--vb-text-3);}
+    #vb-design-root .vb-input-wrap{position:relative;}
+    #vb-design-root .vb-input{width:100%;height:34px;padding:0 58px 0 10px;border:1px solid var(--vb-border);border-radius:7px;background:var(--vb-surface);color:var(--vb-text);font-size:12px;outline:none;transition:border-color 150ms ease,box-shadow 150ms ease;}
+    #vb-design-root .vb-input::placeholder{color:var(--vb-text-3);}
+    #vb-design-root .vb-input:hover{border-color:var(--vb-border-strong);}
+    #vb-design-root .vb-input:focus{border-color:var(--vb-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #vb-design-root .vb-input-suffix{position:absolute;right:9px;top:50%;transform:translateY(-50%);padding:2px 5px;border-radius:4px;background:var(--vb-surface-3);color:var(--vb-text-3);font-size:9.5px;font-weight:600;pointer-events:none;}
+    #vb-design-root .vb-hint{display:flex;align-items:flex-start;gap:5px;margin-top:6px;font-size:10.5px;line-height:1.5;color:var(--vb-text-3);}
+    #vb-design-root .vb-hint svg{width:11px;height:11px;flex:none;margin-top:1px;}
+    #vb-design-root .vb-warn-box{display:flex;align-items:flex-start;gap:6px;margin-top:10px;padding:8px 9px;border:1px solid var(--vb-warning-border);border-radius:7px;background:var(--vb-warning-soft);font-size:10.5px;line-height:1.5;color:var(--vb-warning-text);}
+    #vb-design-root .vb-warn-box svg{width:12px;height:12px;flex:none;margin-top:1px;}
+    #vb-design-root .vb-preview-card{margin-top:12px;padding:9px 10px;border:1px dashed var(--vb-primary-border);border-radius:var(--vb-radius-md);background:var(--vb-primary-soft);}
+    #vb-design-root .vb-preview-label{display:block;font-size:9.5px;font-weight:600;color:var(--vb-primary-text);letter-spacing:.02em;}
+    #vb-design-root .vb-preview-value{display:block;margin-top:3px;font-family:var(--vb-mono);font-size:11px;line-height:1.4;color:var(--vb-text);word-break:break-all;}
+    #vb-design-root .vb-preset-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px;}
+    #vb-design-root .vb-preset{display:flex;align-items:center;gap:8px;min-height:46px;padding:7px 9px;border:1px solid var(--vb-border);border-radius:var(--vb-radius-md);background:var(--vb-surface);text-align:left;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,box-shadow 150ms ease;}
+    #vb-design-root .vb-preset:hover{border-color:var(--vb-border-strong);background:#FBFDFF;}
+    #vb-design-root .vb-preset.is-selected{border-color:var(--vb-primary);background:var(--vb-primary-soft);box-shadow:0 0 0 2px rgba(14,165,233,.08);}
+    #vb-design-root .vb-radio{width:14px;height:14px;flex:none;border:1.5px solid var(--vb-border-strong);border-radius:50%;background:var(--vb-surface);}
+    #vb-design-root .vb-preset.is-selected .vb-radio{border:4px solid var(--vb-primary);}
+    #vb-design-root .vb-preset-main{min-width:0;flex:1;}
+    #vb-design-root .vb-preset-name{display:block;font-size:12px;font-weight:600;line-height:1.3;color:var(--vb-text);}
+    #vb-design-root .vb-preset-value{display:block;margin-top:1px;font-family:var(--vb-mono);font-size:9.5px;color:var(--vb-text-3);}
+    #vb-design-root .vb-preset-check{width:13px;height:13px;flex:none;color:var(--vb-primary);opacity:0;}
+    #vb-design-root .vb-preset.is-selected .vb-preset-check{opacity:1;}
+
+    /* ---- 数组索引 ---- */
+    #vb-design-root .vb-index-panel{margin-top:8px;padding:10px;border:1px solid var(--vb-warning-border);border-radius:var(--vb-radius-md);background:var(--vb-warning-soft);}
+    #vb-design-root .vb-index-head{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--vb-warning-text);}
+    #vb-design-root .vb-index-head svg{width:12px;height:12px;flex:none;}
+    #vb-design-root .vb-index-row{display:flex;align-items:center;gap:6px;margin-top:8px;}
+    #vb-design-root .vb-index-row .vb-input{width:110px;height:30px;padding:0 10px;background:#FFFFFF;font-size:11.5px;}
+    #vb-design-root .vb-index-panel .vb-hint{color:var(--vb-warning-text);}
+
+    /* ---- 空态 ---- */
+    #vb-design-root .vb-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:22px 16px;text-align:center;}
+    #vb-design-root .vb-empty-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--vb-surface-3);color:var(--vb-text-3);}
+    #vb-design-root .vb-empty-icon svg{width:20px;height:20px;}
+    #vb-design-root .vb-empty b{font-size:12px;font-weight:600;line-height:1.4;color:var(--vb-text-2);}
+    #vb-design-root .vb-empty span{max-width:260px;font-size:10.5px;line-height:1.5;color:var(--vb-text-3);}
+    #vb-design-root .vb-empty .vb-btn{margin-top:4px;}
+
+    /* ---- 底部 ---- */
+    #vb-design-root .vb-footer{height:56px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;border-top:1px solid var(--vb-border);background:var(--vb-surface);}
+    #vb-design-root .vb-footer-left{min-width:0;font-size:11px;color:var(--vb-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #vb-design-root .vb-footer-left b{color:var(--vb-text-2);font-weight:600;}
+    #vb-design-root .vb-footer-left code{font-family:var(--vb-mono);font-size:10.5px;color:var(--vb-primary-text);background:var(--vb-primary-soft);padding:1px 4px;border-radius:4px;}
+    #vb-design-root .vb-footer-right{display:flex;align-items:center;gap:10px;flex:none;}
+    #vb-design-root .vb-footer-right .vb-btn{height:32px;padding:0 16px;font-size:12px;}
+    #vb-design-root .vb-footer-right .vb-btn-primary{min-width:88px;}
+    #vb-design-root .vb-kbd{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;border:1px solid var(--vb-border);border-radius:4px;background:var(--vb-surface-2);color:var(--vb-text-3);font-size:9.5px;font-family:var(--vb-mono);}
+    #vb-design-root .vb-keyhint{display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--vb-text-3);white-space:nowrap;}
+
+    /* ---- 单绑模式 ---- */
+    #vb-design-root .vb-window.is-single .vb-col-targets .vb-search,
+    #vb-design-root .vb-window.is-single .vb-col-targets .vb-filter{display:none;}
+    #vb-design-root .vb-window.is-single .vb-col-targets .vb-list{padding-top:8px;}
+
+    /* ---- Toast ---- */
+    #vb-design-root .vb-toast{position:absolute;left:50%;bottom:70px;z-index:20;max-width:70%;padding:8px 14px;border-radius:8px;background:rgba(15,23,42,.92);color:#FFFFFF;font-size:11.5px;line-height:1.3;opacity:0;pointer-events:none;transform:translateX(-50%) translateY(6px);transition:opacity 180ms ease,transform 180ms ease;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #vb-design-root .vb-toast.is-on{opacity:1;transform:translateX(-50%) translateY(0);}
+
+    /* ================= 说明区 ================= */
+    #vb-design-root .vb-notes{max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;}
+    #vb-design-root .vb-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--vb-text-2);}
+    #vb-design-root .vb-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--vb-border);}
+    #vb-design-root .vb-note-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--vb-primary-light);color:var(--vb-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}
+    #vb-design-root .vb-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--vb-text);}
+    #vb-design-root .vb-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--vb-text-2);}
+    #vb-design-root .vb-note code{font-family:var(--vb-mono);font-size:10.5px;color:var(--vb-primary-text);background:var(--vb-primary-soft);padding:1px 4px;border-radius:4px;}
+
+    #vb-design-root .vb-matrix{grid-column:1/-1;width:100%;margin:8px 0 0;border-collapse:separate;border-spacing:0;border:1px solid var(--vb-border);border-radius:10px;overflow:hidden;font-size:11.5px;line-height:1.45;}
+    #vb-design-root .vb-matrix th{background:var(--vb-surface-2);color:var(--vb-text-3);font-size:10.5px;font-weight:600;text-align:left;padding:8px 10px;border-bottom:1px solid var(--vb-border);}
+    #vb-design-root .vb-matrix td{padding:8px 10px;color:var(--vb-text-2);border-bottom:1px solid var(--vb-border-soft);vertical-align:top;}
+    #vb-design-root .vb-matrix tr:last-child td{border-bottom:0;}
+    #vb-design-root .vb-matrix td b{color:var(--vb-text);font-weight:600;}
+
+    @media (prefers-reduced-motion: reduce){#vb-design-root *{animation:none !important;transition:none !important;}}
+    @media (max-width:1100px){
+      #vb-design-root .vb-page{padding:18px 14px 32px;}
+      #vb-design-root .vb-window{height:auto;min-height:760px;}
+      #vb-design-root .vb-content{grid-template-columns:1fr;}
+      #vb-design-root .vb-col{max-height:420px;}
+      #vb-design-root .vb-col-binding{max-height:none;min-height:520px;}
+    }
+  </style>
+
+  <!-- 图标符号（Lucide 风格，内联无外部依赖） -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"></path></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m13 6 6 6-6 6"></path></symbol>
+    <symbol id="i-database" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14a9 3 0 0 0 18 0V5"></path><path d="M3 12a9 3 0 0 0 18 0"></path></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="9" y="9" width="6" height="6"></rect><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"></path></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"></path><circle cx="12" cy="13" r="3"></circle></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-5-5L5 21"></path></symbol>
+    <symbol id="i-region" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2"></path><path d="M16 4h2a2 2 0 0 1 2 2v2"></path><path d="M20 16v2a2 2 0 0 1-2 2h-2"></path><path d="M8 20H6a2 2 0 0 1-2-2v-2"></path><rect x="8" y="8" width="8" height="8" rx="1"></rect></symbol>
+    <symbol id="i-hash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"></path></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></symbol>
+    <symbol id="i-toggle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="5" width="22" height="14" rx="7"></rect><circle cx="16" cy="12" r="3"></circle></symbol>
+    <symbol id="i-type" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"></path></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18M3 15h18M9 3v18M15 3v18"></path></symbol>
+    <symbol id="i-array" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h1"></path><path d="M16 3h1a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-1"></path><path d="M12 8v8"></path></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5M12 22V12"></path></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><path d="M12 9v4M12 17h.01"></path></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"></path><path d="m22 12.5-8.58 3.91a2 2 0 0 1-1.66 0L2 12.5"></path><path d="m22 17.5-8.58 3.91a2 2 0 0 1-1.66 0L2 17.5"></path></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"></path></symbol>
+    <symbol id="i-function" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21c-2 0-3-1-3-3V6c0-2 1-3 3-3"></path><path d="M5 12h8"></path><path d="m14 9 5 6M19 9l-5 6"></path></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1Z"></path><path d="m9 12 2 2 4-4"></path></symbol>
+  </svg>
+
+  <div class="vb-page">
+    <header class="vb-page-head">
+      <div class="vb-page-title-row">
+        <h1>变量绑定 · 输入端口绑定弹窗</h1>
+        <span class="vb-ver">v1</span>
+      </div>
+      <p class="vb-page-sub">
+        Web 设计基线 v1 · <b>纯 UI 重构</b>：保留 <code>VariableBindingViewModel</code> 的全部属性与命令、
+        <code>TypeHelper.CanBindTo</code> 单一类型判据、条件 / 等待节点的 bindKey 口径与 <code>LinkReference</code> 语义；
+        不改流程编译、不改绑定写入。窗口 <b>1180 × 760</b>（最小 1000 × 640），三栏 280 / 300 / 自适应。
+      </p>
+      <div class="vb-demo-bar">
+        <div class="vb-demo-group" role="group" aria-label="场景">
+          <span class="vb-demo-label">场景</span>
+          <div class="vb-seg" id="vb-scene-seg">
+            <button type="button" data-scene="default" class="is-on" aria-pressed="true">默认（已绑定）</button>
+            <button type="button" data-scene="constant" aria-pressed="false">常量值</button>
+            <button type="button" data-scene="enum" aria-pressed="false">功能预设</button>
+            <button type="button" data-scene="incompatible" aria-pressed="false">类型不兼容</button>
+            <button type="button" data-scene="array" aria-pressed="false">数组索引</button>
+            <button type="button" data-scene="empty" aria-pressed="false">空态</button>
+            <button type="button" data-scene="single" aria-pressed="false">单绑定</button>
+          </div>
+        </div>
+        <div class="vb-demo-group" role="group" aria-label="窗口宽度">
+          <span class="vb-demo-label">窗口</span>
+          <div class="vb-seg" id="vb-width-seg">
+            <button type="button" data-width="1180" class="is-on" aria-pressed="true">1180</button>
+            <button type="button" data-width="1000" aria-pressed="false">1000</button>
+          </div>
+        </div>
+      </div>
+      <div class="vb-scope">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span><b>设计稿只演示交互，不产生真实流程修改。</b>「显示全部」「搜索」「筛选」均为视图侧过滤；候选端口是否可绑仍由 <code>TypeHelper.CanBindTo</code> 唯一判定。v1 不纳入多选批量绑定、来源树内联展开、变量当前值预览。</span>
+      </div>
+    </header>
+
+    <div class="vb-window" id="vb-window">
+      <div class="vb-titlebar">
+        <div class="vb-app-icon">
+          <svg><use href="#i-link"></use></svg>
+        </div>
+        <div class="vb-title-text">
+          <div class="vb-title-line"><div class="vb-title">变量绑定</div></div>
+          <div class="vb-subtitle" id="vb-title-sub">模板匹配 · 7 个输入端口 · 已绑定 4 个</div>
+        </div>
+        <div class="vb-title-actions">
+          <button type="button" class="vb-icon-btn is-danger" title="关闭" aria-label="关闭"><svg><use href="#i-close"></use></svg></button>
+        </div>
+      </div>
+
+      <div class="vb-contextbar">
+        <span class="vb-context-label">当前步骤</span>
+        <span class="vb-context-step"><svg><use href="#i-target"></use></svg><span id="vb-context-name">模板匹配</span></span>
+        <span class="vb-context-type" id="vb-context-type">视觉算子</span>
+        <div class="vb-context-right">
+          <span class="vb-context-meta" id="vb-context-meta">输入端口 7 · 已绑定 4</span>
+          <span class="vb-progress" aria-hidden="true"><i id="vb-progress-bar"></i></span>
+        </div>
+      </div>
+
+      <div class="vb-content">
+        <!-- ① 输入端口 -->
+        <aside class="vb-col vb-col-targets" aria-label="输入端口">
+          <div class="vb-col-head">
+            <div>
+              <div class="vb-col-title"><span class="vb-step-num">1</span>输入端口</div>
+              <div class="vb-col-sub" id="vb-target-sub">选择要绑定数据的目标端口</div>
+            </div>
+            <span class="vb-count" id="vb-target-count">7</span>
+          </div>
+          <div class="vb-search">
+            <svg><use href="#i-search"></use></svg>
+            <input id="vb-target-search" type="text" placeholder="搜索端口名 / 类型" spellcheck="false" autocomplete="off">
+          </div>
+          <div class="vb-filter" id="vb-target-filter">
+            <button type="button" data-filter="all" class="is-on">全部 <span id="vb-f-all">7</span></button>
+            <button type="button" data-filter="unbound">未绑定 <span id="vb-f-unbound">4</span></button>
+            <button type="button" data-filter="bound">已绑定 <span id="vb-f-bound">4</span></button>
+          </div>
+          <div class="vb-list" id="vb-target-list"></div>
+          <div class="vb-col-foot" id="vb-target-foot">已绑定 4 / 7</div>
+        </aside>
+
+        <!-- ② 数据来源 -->
+        <aside class="vb-col vb-col-sources" aria-label="数据来源">
+          <div class="vb-col-head">
+            <div>
+              <div class="vb-col-title"><span class="vb-step-num">2</span>数据来源</div>
+              <div class="vb-col-sub">全局变量 / 运行时变量 / 上游算子</div>
+            </div>
+            <span class="vb-count" id="vb-source-count">7</span>
+          </div>
+          <div class="vb-search">
+            <svg><use href="#i-search"></use></svg>
+            <input id="vb-source-search" type="text" placeholder="搜索来源名 / 描述" spellcheck="false" autocomplete="off">
+          </div>
+          <div class="vb-tabs" id="vb-source-tabs">
+            <button type="button" data-tab="all" class="is-on">全部</button>
+            <button type="button" data-tab="variable">变量</button>
+            <button type="button" data-tab="step">上游算子</button>
+          </div>
+          <div class="vb-list" id="vb-source-list"></div>
+          <div class="vb-col-foot"><span>仅显示当前步骤之前的上游</span><span id="vb-source-foot">共 7 个</span></div>
+        </aside>
+
+        <!-- ③ 绑定设置 -->
+        <section class="vb-col vb-col-binding" aria-label="绑定设置">
+          <div class="vb-binding-head">
+            <div class="vb-col-title"><span class="vb-step-num">3</span>绑定设置</div>
+            <div class="vb-head-actions">
+              <span class="vb-chip vb-chip-neutral" id="vb-binding-kind">未绑定</span>
+              <button type="button" class="vb-text-btn" id="vb-clear">清除绑定</button>
+            </div>
+          </div>
+          <div class="vb-binding-body" id="vb-binding-body"></div>
+          <div class="vb-binding-foot" id="vb-binding-foot">单击选中候选端口 · 双击直接绑定</div>
+        </section>
+      </div>
+
+      <div class="vb-footer">
+        <div class="vb-footer-left" id="vb-footer-left">未选择输入端口</div>
+        <div class="vb-footer-right">
+          <span class="vb-keyhint"><span class="vb-kbd">Esc</span> 取消</span>
+          <button type="button" class="vb-btn" id="vb-cancel">取消</button>
+          <button type="button" class="vb-btn vb-btn-primary" id="vb-confirm">确定</button>
+        </div>
+      </div>
+
+      <div class="vb-toast" id="vb-toast"></div>
+    </div>
+
+    <div class="vb-notes">
+      <div class="vb-notes-head">关键改动（v1）</div>
+      <div class="vb-note"><div class="vb-note-num">01</div><div><b>三栏工作流保留，层级重排</b><span>左「输入端口」、中「数据来源」、右「绑定设置」；列头带步骤号与数量徽标，顶部上下文条常驻当前步骤与绑定进度。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">02</div><div><b>输入端口列表升级</b><span>搜索 + 全部 / 未绑定 / 已绑定筛选；行内显示类型标签、绑定状态与地址；已绑定行带绿色勾，未绑定一眼可辨。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">03</div><div><b>数据来源分组与筛选</b><span>全局变量 / 运行时变量 / 上游算子分组；搜索 + 全部 / 变量 / 上游算子页签；每项显示输出端口数量。仍绑 <code>TreeNodes</code> / <code>SelectedNode</code>。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">04</div><div><b>绑定设置英雄区</b><span>目标端口 → 数据来源的连线预览；已绑定 / 常量 / 功能预设三种状态一眼可辨；提供「清除绑定」，走既有 <code>UnbindCommand</code>。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">05</div><div><b>绑定方式显式二选一</b><span>上游端口 / 常量值；常量输入带目标类型提示与「会替换当前上游连线」警示，避免「填了常量把线悄悄拆了」。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">06</div><div><b>候选端口列表</b><span>类型标签、已绑定标记、类型不兼容置灰 + 原因；支持搜索与「显示全部」；单击选中、双击直接绑定，仍走 <code>DoublockClickBindCommand</code>。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">07</div><div><b>功能预设独立成组</b><span>枚举端口不再出现常量框；选项卡片显示中文名 + 写入值（值与显示分离，写入仍是成员名），复用 <code>PresetOptions</code> / <code>SelectPresetCommand</code>。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">08</div><div><b>空态 / 单绑 / 数组索引</b><span>中栏空态与右栏空态分开；单绑定模式收敛为单目标端口；数组→标量用行内索引面板，不再弹二级对话框（VM 需小幅交互编排扩展）。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">09</div><div><b>底部状态条与可达性</b><span>左侧显示当前选择与绑定结果，右侧键盘提示 + 主次按钮；全令牌化、图标按钮 30×30 + <code>Padding=0</code>（R68）、焦点走 <code>DialogFocusVisual</code>。</span></div></div>
+
+      <div class="vb-notes-head" style="margin-top:20px;">状态矩阵</div>
+      <table class="vb-matrix">
+        <thead><tr><th>场景</th><th>左栏</th><th>中栏</th><th>右栏</th></tr></thead>
+        <tbody>
+          <tr><td><b>默认</b></td><td>选中「图像」，已绑定 <code>采集_0.输出图像</code></td><td>选中「采集_0」</td><td>英雄区显示已绑定；候选端口「输出图像」带已绑定标记</td></tr>
+          <tr><td><b>常量值</b></td><td>选中「最小分数」，已有常量 0.75</td><td>选中「全局变量」</td><td>绑定方式 = 常量值；输入框 + 类型提示 + 替换上游连线警示 + 写入预览</td></tr>
+          <tr><td><b>功能预设</b></td><td>选中「查找类型」（枚举角标）</td><td>选中「全局变量」</td><td>不显示常量框；功能预设卡片「圆 / 直线 / 椭圆」，显示中文名 + 写入值</td></tr>
+          <tr><td><b>类型不兼容</b></td><td>选中「图像」</td><td>选中「标定_0」</td><td>勾选「显示全部」；「标定矩阵」置灰 + 类型不匹配原因；无可绑端口提示</td></tr>
+          <tr><td><b>数组索引</b></td><td>选中「最小分数」</td><td>选中「数据记录_0」</td><td>选中「分数列表 Double[]」→ 行内索引面板；写入预览 <code>分数列表[0]</code></td></tr>
+          <tr><td><b>空态</b></td><td>正常显示 7 个输入端口</td><td>没有可用来源的空态</td><td>「先选择一个数据来源」空态，不显示候选列表</td></tr>
+          <tr><td><b>单绑定</b></td><td>仅 1 个「目标变量」端口，隐藏搜索/筛选</td><td>正常来源列表</td><td>选定候选后立即回传插件视图；主按钮「绑定并返回」</td></tr>
+        </tbody>
+      </table>
+
+      <div class="vb-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="vb-note"><div class="vb-note-num">C1</div><div><b>DataContext = VariableBindingViewModel</b><span>Prism <code>AutoWireViewModel</code> 与宿主 <code>RegisterDialog</code> 的绑定不变；不引入独立 VM。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">C2</div><div><b>VM 属性</b><span><code>DisplayDataPort</code> / <code>SelectedInputPort</code> / <code>TreeNodes</code> / <code>SelectedNode</code> / <code>DisplayPorts</code> / <code>SelectedOutputPort</code> / <code>ShowAllPorts</code> / <code>ConstantValue</code> / <code>HasFunctionalEnumPort</code> / <code>PresetOptions</code> 全部保留。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">C3</div><div><b>命令入口</b><span><code>ConfirmCommand</code> / <code>CancelCommand</code> / <code>DoublockClickBindCommand</code> / <code>SelectPresetCommand</code> / <code>UnbindCommand</code> 全部保留；「清除绑定」只是把既有 <code>UnbindCommand</code> 接到界面上。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">C4</div><div><b>类型判据唯一</b><span><code>TypeHelper.CanBindTo</code> 是列表过滤与双击校验的唯一尺子；<code>IsBindable</code> / <code>IncompatibleReason</code> 语义不变。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">C5</div><div><b>bindKey 口径</b><span><code>ConditionStep</code> / <code>WaitStep</code> 用端口 <code>Description</code>（变量 Guid），其余用端口 <code>Name</code>；<code>ResolveBindKey</code> 三处一致。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">C6</div><div><b>连线协议</b><span><code>LinkReference.Kind</code>、<code>TargetVariableId</code>、数组下标写进 <code>TargetPortName</code> 的约定不变；不靠显示串反推类型。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">C7</div><div><b>单绑定模式</b><span>不直写目标步骤的 <code>LinkedSources</code>；只通过 <code>BoundLink</code> 回传，选定后自动确认。条件节点不会被写入中文描述垃圾键。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">C8</div><div><b>窗口行为</b><span>无边框自绘标题栏 + <code>WindowDragBehavior</code>；可缩放、最小 1000 × 640；<code>SizeToContent=Manual</code> 保留。</span></div></div>
+
+      <div class="vb-notes-head" style="margin-top:20px;">v1 明确延后（需新增功能或契约）</div>
+      <div class="vb-note"><div class="vb-note-num">D1</div><div><b>多选批量绑定</b><span>需要 VM 新增选中集合与批量命令；本批保持单端口逐个绑定。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">D2</div><div><b>来源树内联展开</b><span>当前保持「选来源 → 选输出端口」两级；把端口直接展开进来源树需要新的树形模板与 VM 结构。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">D3</div><div><b>变量当前值预览</b><span>候选行显示变量当前值需要运行时读值契约；本批只显示类型与描述。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">D4</div><div><b>最近使用 / 绑定历史</b><span>需要持久化与排序策略；本批不新增状态。</span></div></div>
+      <div class="vb-note"><div class="vb-note-num">D5</div><div><b>从画布拖拽连线到弹窗</b><span>跨窗口拖放需要新的交互契约；本批保留弹窗内选择。</span></div></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+      var root = document.getElementById('vb-design-root');
+      if (!root) return;
+      var win = root.querySelector('#vb-window');
+
+      /* ================= 数据 ================= */
+      function buildTargets() {
+        return [
+          { id: 'image', name: '图像', type: 'HImage', icon: 'image', tone: 'cyan', desc: '待匹配的输入图像',
+            binding: { kind: 'step', sourceId: 'acq', sourceName: '采集_0', port: '输出图像', portType: 'HImage', display: '采集_0.输出图像' } },
+          { id: 'template', name: '模板图像', type: 'HImage', icon: 'image', tone: 'cyan', desc: '模板匹配用的基准图像', binding: null },
+          { id: 'roi', name: '搜索区域', type: 'HRegion', icon: 'region', tone: 'violet', desc: '限定搜索范围，留空则全图',
+            binding: { kind: 'step', sourceId: 'roi', sourceName: 'ROI_0', port: '输出区域', portType: 'HRegion', display: 'ROI_0.输出区域' } },
+          { id: 'minScore', name: '最小分数', type: 'Double', icon: 'hash', tone: 'sky', desc: '低于该分数的匹配结果被丢弃',
+            binding: { kind: 'constant', value: '0.75', display: '常量值: 0.75' } },
+          { id: 'numMatches', name: '匹配数量', type: 'Int32', icon: 'hash', tone: 'sky', desc: '最多返回的匹配结果数', binding: null },
+          { id: 'angle', name: '角度范围', type: 'Double', icon: 'hash', tone: 'sky', desc: '允许的旋转角度范围（度）', binding: null },
+          { id: 'findType', name: '查找类型', type: 'Enum', icon: 'list', tone: 'amber', desc: '匹配目标的几何形状', functionalEnum: true,
+            presets: [
+              { value: 'Circle', display: '圆' },
+              { value: 'Line', display: '直线' },
+              { value: 'Ellipse', display: '椭圆' }
+            ],
+            binding: { kind: 'preset', value: 'Circle', display: '圆' } }
+        ];
+      }
+
+      function buildSingleTarget() {
+        return { id: 'target', name: '目标变量', type: 'Object', icon: 'box', tone: 'slate', desc: '当前准备绑定的输入端口', binding: null };
+      }
+
+      var SOURCES = [
+        { id: 'global', category: 'variable', name: '全局变量 (Global)', icon: 'database', tone: 'sky', desc: '全局共享变量 · 12 个', outputs: [
+          { name: 'CT', type: 'Double', desc: '[本地变量] 节拍时间' },
+          { name: 'OKCount', type: 'Int32', desc: '[本地变量] 良品计数' },
+          { name: 'NGCount', type: 'Int32', desc: '[本地变量] 不良计数' },
+          { name: 'Trigger', type: 'Boolean', desc: '[本地变量] 触发信号' },
+          { name: 'ProductModel', type: 'String', desc: '[本地变量] 当前产品型号' },
+          { name: 'PLC_Heartbeat', type: 'Boolean', desc: '[网络变量] 连接: PLC_Modbus' },
+          { name: 'PLC_Speed', type: 'Double', desc: '[网络变量] 连接: PLC_Modbus' },
+          { name: 'IO_Start', type: 'Boolean', desc: '[IO变量] 启动按钮' },
+          { name: 'IO_Stop', type: 'Boolean', desc: '[IO变量] 停止按钮' },
+          { name: 'Sys_Shift', type: 'String', desc: '[系统变量] 当前班次' },
+          { name: 'Sys_Operator', type: 'String', desc: '[系统变量] 操作员' },
+          { name: 'LastResult', type: 'String', desc: '[本地变量] 上一次结果' }
+        ] },
+        { id: 'runtime', category: 'variable', name: '运行时变量 (Runtime)', icon: 'cpu', tone: 'violet', desc: '流程执行中动态创建 · 3 个', outputs: [
+          { name: 'MatchScore', type: 'Double', desc: '[运行时变量] 由「匹配_0」定义' },
+          { name: 'MatchX', type: 'Double', desc: '[运行时变量] 由「匹配_0」定义' },
+          { name: 'MatchY', type: 'Double', desc: '[运行时变量] 由「匹配_0」定义' }
+        ] },
+        { id: 'acq', category: 'step', name: '采集_0', icon: 'camera', tone: 'cyan', desc: '图像采集 · 3 个输出', outputs: [
+          { name: '输出图像', type: 'HImage', desc: '采集到的原始图像' },
+          { name: '采集时间', type: 'Double', desc: '本次采集的时间戳（ms）' },
+          { name: '帧号', type: 'Int64', desc: '相机帧序号' }
+        ] },
+        { id: 'roi', category: 'step', name: 'ROI_0', icon: 'region', tone: 'violet', desc: '区域创建 · 3 个输出', outputs: [
+          { name: '输出区域', type: 'HRegion', desc: '创建好的 ROI 区域' },
+          { name: '中心X', type: 'Double', desc: '区域中心 X 坐标' },
+          { name: '中心Y', type: 'Double', desc: '区域中心 Y 坐标' }
+        ] },
+        { id: 'pre', category: 'step', name: '预处理_0', icon: 'sliders', tone: 'sky', desc: '图像预处理 · 2 个输出', outputs: [
+          { name: '输出图像', type: 'HImage', desc: '预处理后的图像' },
+          { name: '处理耗时', type: 'Double', desc: '本次处理耗时（ms）' }
+        ] },
+        { id: 'calib', category: 'step', name: '标定_0', icon: 'grid', tone: 'slate', desc: '标定 · 2 个输出', outputs: [
+          { name: '像素当量', type: 'Double', desc: '每像素代表的物理尺寸' },
+          { name: '标定矩阵', type: 'Matrix', desc: '图像坐标到物理坐标的变换矩阵' }
+        ] },
+        { id: 'record', category: 'step', name: '数据记录_0', icon: 'database', tone: 'amber', desc: '数据记录 · 2 个输出', outputs: [
+          { name: '分数列表', type: 'Double[]', desc: '最近 N 次匹配分数' },
+          { name: '记录时间', type: 'DateTime', desc: '最近一次记录时间' }
+        ] }
+      ];
+
+      /* ================= 状态 ================= */
+      var state = {
+        scene: 'default',
+        targets: buildTargets(),
+        selectedTarget: 'image',
+        selectedSource: 'acq',
+        selectedCandidate: 'acq:输出图像',
+        method: 'upstream',
+        constantValue: '',
+        showAll: false,
+        targetFilter: 'all',
+        targetSearch: '',
+        sourceTab: 'all',
+        sourceSearch: '',
+        candidateSearch: '',
+        arrayPanel: false,
+        arrayIndex: '0',
+        sourcesEmpty: false,
+        single: false
+      };
+      var toastTimer = null;
+
+      /* ================= 工具 ================= */
+      function esc(v) {
+        return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+      function q(sel) { return root.querySelector(sel); }
+      function qa(sel) { return Array.prototype.slice.call(root.querySelectorAll(sel)); }
+
+      function currentTarget() {
+        return state.targets.filter(function (t) { return t.id === state.selectedTarget; })[0] || null;
+      }
+      function currentSource() {
+        return SOURCES.filter(function (s) { return s.id === state.selectedSource; })[0] || null;
+      }
+      function sourceById(id) {
+        return SOURCES.filter(function (s) { return s.id === id; })[0] || null;
+      }
+
+      function isNumeric(type) {
+        return ['Double', 'Int32', 'Int64', 'Single', 'Decimal', 'Float'].indexOf(type) >= 0;
+      }
+      function canBind(sourceType, targetType) {
+        if (sourceType === 'Object' || targetType === 'Object') return true;
+        if (sourceType.slice(-2) === '[]') {
+          if (targetType.slice(-2) === '[]') return sourceType === targetType;
+          var elem = sourceType.slice(0, -2);
+          return isNumeric(elem) && isNumeric(targetType);
+        }
+        if (isNumeric(sourceType) && isNumeric(targetType)) return true;
+        if (targetType === 'String') return true;
+        return sourceType === targetType;
+      }
+
+      function bindingText(b) {
+        if (!b) return '未绑定';
+        if (b.kind === 'constant') return '常量值: ' + b.value;
+        if (b.kind === 'preset') return '预设: ' + b.display;
+        return b.sourceName + '.' + b.port + (b.index != null ? '[' + b.index + ']' : '');
+      }
+      function bindingKindLabel(b) {
+        if (!b) return '未绑定';
+        if (b.kind === 'constant') return '常量';
+        if (b.kind === 'preset') return '功能预设';
+        return '步骤输出';
+      }
+      function bindingKindClass(b) {
+        if (!b) return 'vb-chip-neutral';
+        if (b.kind === 'constant') return 'vb-chip-accent';
+        if (b.kind === 'preset') return 'vb-chip-warn';
+        return 'vb-chip-ok';
+      }
+
+      function iconForType(type) {
+        if (type === 'HImage') return 'image';
+        if (type === 'HRegion') return 'region';
+        if (type === 'Boolean') return 'toggle';
+        if (type === 'String') return 'type';
+        if (type === 'DateTime') return 'clock';
+        if (type === 'Matrix') return 'grid';
+        if (type.slice(-2) === '[]') return 'array';
+        if (type === 'Object') return 'box';
+        if (type === 'Enum') return 'list';
+        return 'hash';
+      }
+      function toneForType(type) {
+        if (type === 'HImage') return 'cyan';
+        if (type === 'HRegion') return 'violet';
+        if (type === 'Boolean') return 'green';
+        if (type === 'String') return 'slate';
+        if (type === 'DateTime') return 'slate';
+        if (type === 'Matrix') return 'amber';
+        if (type.slice(-2) === '[]') return 'amber';
+        if (type === 'Object') return 'slate';
+        return 'sky';
+      }
+
+      function toast(text) {
+        var el = q('#vb-toast');
+        if (!el) return;
+        el.textContent = text;
+        el.classList.add('is-on');
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { el.classList.remove('is-on'); }, 2600);
+      }
+
+      function emptyState(icon, title, text, actionHtml) {
+        return '<div class="vb-empty">' +
+          '<div class="vb-empty-icon"><svg><use href="#i-' + icon + '"></use></svg></div>' +
+          '<b>' + esc(title) + '</b>' +
+          '<span>' + esc(text) + '</span>' +
+          (actionHtml || '') +
+          '</div>';
+      }
+
+      /* ================= 渲染：标题 / 上下文 ================= */
+      function renderTitle() {
+        var sub = q('#vb-title-sub');
+        var ctxName = q('#vb-context-name');
+        var ctxType = q('#vb-context-type');
+        if (state.single) {
+          if (sub) sub.textContent = '插件视图请求绑定 · 选定后立即返回';
+          if (ctxName) ctxName.textContent = '插件视图绑定请求';
+          if (ctxType) ctxType.textContent = '单绑定';
+          return;
+        }
+        var bound = state.targets.filter(function (t) { return !!t.binding; }).length;
+        if (sub) sub.textContent = '模板匹配 · ' + state.targets.length + ' 个输入端口 · 已绑定 ' + bound + ' 个';
+        if (ctxName) ctxName.textContent = '模板匹配';
+        if (ctxType) ctxType.textContent = '视觉算子';
+      }
+
+      function renderContext() {
+        var bound = state.targets.filter(function (t) { return !!t.binding; }).length;
+        var total = state.targets.length || 1;
+        var meta = q('#vb-context-meta');
+        var bar = q('#vb-progress-bar');
+        if (meta) meta.textContent = state.single ? '目标端口 1 · 等待回传' : '输入端口 ' + total + ' · 已绑定 ' + bound;
+        if (bar) bar.style.width = Math.round(bound / total * 100) + '%';
+      }
+
+      /* ================= 渲染：输入端口 ================= */
+      function renderTargets() {
+        var list = q('#vb-target-list');
+        var countEl = q('#vb-target-count');
+        var footEl = q('#vb-target-foot');
+        var total = state.targets.length;
+        var bound = state.targets.filter(function (t) { return !!t.binding; }).length;
+        var unbound = total - bound;
+
+        var fAll = q('#vb-f-all'), fUn = q('#vb-f-unbound'), fBound = q('#vb-f-bound');
+        if (fAll) fAll.textContent = total;
+        if (fUn) fUn.textContent = unbound;
+        if (fBound) fBound.textContent = bound;
+
+        qa('#vb-target-filter button').forEach(function (b) {
+          b.classList.toggle('is-on', b.getAttribute('data-filter') === state.targetFilter);
+        });
+
+        var rows = state.targets.filter(function (t) {
+          if (state.targetFilter === 'bound' && !t.binding) return false;
+          if (state.targetFilter === 'unbound' && t.binding) return false;
+          if (state.targetSearch) {
+            var hay = (t.name + ' ' + t.type + ' ' + (t.desc || '')).toLowerCase();
+            if (hay.indexOf(state.targetSearch.toLowerCase()) < 0) return false;
+          }
+          return true;
+        });
+
+        if (countEl) countEl.textContent = rows.length;
+        if (footEl) footEl.textContent = state.single ? '由插件视图发起 · 只能选择一个目标' : '已绑定 ' + bound + ' / ' + total;
+
+        if (!list) return;
+        if (rows.length === 0) {
+          list.innerHTML = emptyState('search', '没有匹配的输入端口', '清空搜索关键词或切换筛选条件后重试。');
+          return;
+        }
+
+        list.innerHTML = rows.map(function (t) {
+          var selected = t.id === state.selectedTarget;
+          var sub = t.binding
+            ? '<span class="vb-dot is-on"></span>已绑定 · ' + esc(bindingText(t.binding))
+            : '<span class="vb-dot"></span>未绑定';
+          return '<button type="button" class="vb-row' + (selected ? ' is-selected' : '') + '" data-target="' + esc(t.id) + '" aria-pressed="' + selected + '">' +
+            '<span class="vb-row-icon tone-' + esc(t.tone) + '"><svg><use href="#i-' + esc(t.icon) + '"></use></svg></span>' +
+            '<span class="vb-row-main">' +
+              '<span class="vb-row-line"><span class="vb-row-name">' + esc(t.name) + '</span><span class="vb-tag">' + esc(t.type) + '</span>' +
+                (t.functionalEnum ? '<span class="vb-chip vb-chip-warn">枚举</span>' : '') +
+              '</span>' +
+              '<span class="vb-row-sub">' + sub + '</span>' +
+            '</span>' +
+            (t.binding ? '<svg class="vb-row-check"><use href="#i-check"></use></svg>' : '') +
+          '</button>';
+        }).join('');
+      }
+
+      /* ================= 渲染：数据来源 ================= */
+      function renderSources() {
+        var list = q('#vb-source-list');
+        var countEl = q('#vb-source-count');
+        var footEl = q('#vb-source-foot');
+        if (!list) return;
+
+        qa('#vb-source-tabs button').forEach(function (b) {
+          b.classList.toggle('is-on', b.getAttribute('data-tab') === state.sourceTab);
+        });
+
+        if (state.sourcesEmpty) {
+          if (countEl) countEl.textContent = '0';
+          if (footEl) footEl.textContent = '共 0 个';
+          list.innerHTML = emptyState('database', '没有可用的数据来源', '当前步骤之前还没有可绑定的全局变量或上游算子。请先在流程中添加算子。');
+          return;
+        }
+
+        var visible = SOURCES.filter(function (s) {
+          if (state.sourceTab === 'variable' && s.category !== 'variable') return false;
+          if (state.sourceTab === 'step' && s.category !== 'step') return false;
+          if (state.sourceSearch) {
+            var hay = (s.name + ' ' + s.desc).toLowerCase();
+            if (hay.indexOf(state.sourceSearch.toLowerCase()) < 0) return false;
+          }
+          return true;
+        });
+
+        if (countEl) countEl.textContent = visible.length;
+        if (footEl) footEl.textContent = '共 ' + visible.length + ' 个';
+
+        if (visible.length === 0) {
+          list.innerHTML = emptyState('search', '没有匹配的数据来源', '清空搜索关键词或切换页签后重试。');
+          return;
+        }
+
+        var html = '';
+        var variableRows = visible.filter(function (s) { return s.category === 'variable'; });
+        var stepRows = visible.filter(function (s) { return s.category === 'step'; });
+
+        if (variableRows.length) {
+          html += '<div class="vb-group-label">变量来源</div>';
+          html += variableRows.map(sourceRowHtml).join('');
+        }
+        if (stepRows.length) {
+          html += '<div class="vb-group-label">上游算子</div>';
+          html += stepRows.map(sourceRowHtml).join('');
+        }
+        list.innerHTML = html;
+      }
+
+      function sourceRowHtml(s) {
+        var selected = s.id === state.selectedSource;
+        return '<button type="button" class="vb-row' + (selected ? ' is-selected' : '') + '" data-source="' + esc(s.id) + '" aria-pressed="' + selected + '">' +
+          '<span class="vb-row-icon tone-' + esc(s.tone) + '"><svg><use href="#i-' + esc(s.icon) + '"></use></svg></span>' +
+          '<span class="vb-row-main">' +
+            '<span class="vb-row-line"><span class="vb-row-name">' + esc(s.name) + '</span></span>' +
+            '<span class="vb-row-sub">' + esc(s.desc) + '</span>' +
+          '</span>' +
+          '<span class="vb-count">' + s.outputs.length + '</span>' +
+        '</button>';
+      }
+
+      /* ================= 渲染：绑定设置 ================= */
+      function renderBinding() {
+        var t = currentTarget();
+        var body = q('#vb-binding-body');
+        var kindChip = q('#vb-binding-kind');
+        var clearBtn = q('#vb-clear');
+        var foot = q('#vb-binding-foot');
+        if (!body) return;
+
+        if (!t) {
+          if (kindChip) { kindChip.textContent = '未选择'; kindChip.className = 'vb-chip vb-chip-neutral'; }
+          if (clearBtn) clearBtn.disabled = true;
+          body.innerHTML = emptyState('target', '先选择一个输入端口', '从左侧选择一个要绑定数据的目标端口，再选择数据来源。');
+          if (foot) foot.textContent = '等待选择输入端口';
+          return;
+        }
+
+        if (kindChip) {
+          kindChip.textContent = bindingKindLabel(t.binding);
+          kindChip.className = 'vb-chip ' + bindingKindClass(t.binding);
+        }
+        if (clearBtn) clearBtn.disabled = !t.binding;
+
+        var html = heroHtml(t) + heroMetaHtml(t);
+
+        if (t.functionalEnum) {
+          html += '<div class="vb-method-row"><span class="vb-section-label">功能预设</span><span class="vb-chip vb-chip-warn">枚举端口</span><span class="vb-method-hint">无需连接上游输出</span></div>';
+          html += presetHtml(t);
+          if (foot) foot.textContent = '选择预设后点「确定」写入枚举成员名';
+        } else {
+          html += methodRowHtml();
+          if (state.method === 'constant') {
+            html += constantHtml(t);
+            if (foot) foot.textContent = '填写常量后点「确定」写入 · 留空保持现有绑定';
+          } else {
+            html += candidateHtml(t);
+            if (foot) foot.textContent = state.single ? '选择候选后立即回传插件视图' : '单击选中候选端口 · 双击直接绑定';
+          }
+        }
+        body.innerHTML = html;
+      }
+
+      function heroHtml(t) {
+        var b = t.binding;
+        var statusChip = '';
+        var sourceTop = '';
+        var sourceMain = '';
+        var sourceSub = '';
+        var sourceClass = 'is-unbound';
+
+        if (t.functionalEnum) {
+          var preset = b && b.kind === 'preset' ? b : null;
+          statusChip = preset ? '<span class="vb-chip vb-chip-warn">已选择</span>' : '<span class="vb-chip vb-chip-neutral">未选择</span>';
+          sourceClass = preset ? 'is-bound' : 'is-unbound';
+          sourceMain = '<span class="vb-hero-name">' + esc(preset ? preset.display : '尚未选择') + '</span>';
+          sourceSub = preset ? '枚举成员：' + esc(preset.value) : '从下方选择一个功能预设';
+        } else if (state.method === 'constant') {
+          var val = state.constantValue.trim();
+          var hasStep = b && b.kind === 'step';
+          statusChip = val ? '<span class="vb-chip vb-chip-accent">待写入</span>' : '<span class="vb-chip vb-chip-neutral">未填写</span>';
+          sourceClass = val ? 'is-bound' : 'is-unbound';
+          sourceMain = '<span class="vb-hero-name">' + esc(val || (hasStep ? '常量值未填写' : '尚未填写')) + '</span>';
+          sourceSub = hasStep && !val
+            ? '当前上游：' + esc(b.sourceName + '.' + b.port) + ' · 填写后将替换'
+            : '目标类型：' + esc(t.type);
+        } else if (b && b.kind === 'step') {
+          statusChip = '<span class="vb-chip vb-chip-ok">已绑定</span>';
+          sourceClass = 'is-bound';
+          sourceMain = '<span class="vb-hero-name">' + esc(b.sourceName) + ' · ' + esc(b.port) + '</span>';
+          sourceSub = esc(b.portType || '') + (b.index != null ? ' · 下标 [' + b.index + ']' : '');
+        } else if (b && b.kind === 'constant') {
+          statusChip = '<span class="vb-chip vb-chip-accent">当前常量</span>';
+          sourceClass = 'is-bound';
+          sourceMain = '<span class="vb-hero-name">常量值: ' + esc(b.value) + '</span>';
+          sourceSub = '当前为常量绑定 · 选择上游端口将替换';
+        } else {
+          statusChip = '<span class="vb-chip vb-chip-neutral">未绑定</span>';
+          sourceMain = '<span class="vb-hero-name">尚未绑定</span>';
+          sourceSub = '从下方选择候选输出端口';
+        }
+
+        return '<div class="vb-hero">' +
+          '<div class="vb-hero-side">' +
+            '<div class="vb-hero-top"><span class="vb-hero-label">目标端口</span></div>' +
+            '<div class="vb-hero-main"><span class="vb-hero-icon tone-' + esc(t.tone) + '"><svg><use href="#i-' + esc(t.icon) + '"></use></svg></span><span class="vb-hero-name">' + esc(t.name) + '</span><span class="vb-tag">' + esc(t.type) + '</span></div>' +
+            '<div class="vb-hero-sub">' + esc(t.desc) + '</div>' +
+          '</div>' +
+          '<div class="vb-hero-arrow"><span><svg><use href="#i-arrow-right"></use></svg></span></div>' +
+          '<div class="vb-hero-side is-source ' + sourceClass + '">' +
+            '<div class="vb-hero-top"><span class="vb-hero-label">数据来源</span>' + statusChip + '</div>' +
+            '<div class="vb-hero-main">' + sourceMain + '</div>' +
+            '<div class="vb-hero-sub">' + sourceSub + '</div>' +
+          '</div>' +
+        '</div>';
+      }
+
+      function heroMetaHtml(t) {
+        var text = '';
+        if (t.functionalEnum) text = '连线类型：功能预设 · 写入枚举成员名，不连接上游';
+        else if (state.method === 'constant') {
+          if (state.constantValue.trim()) text = '连线类型：常量 · 确定后写入固定值';
+          else if (t.binding && t.binding.kind === 'step') text = '连线类型：常量 · 填写后确定写入（当前为上游连线）';
+          else text = '连线类型：常量 · 填写后确定写入';
+        } else if (t.binding && t.binding.kind === 'step') text = '连线类型：步骤输出 · 运行期读取上游结果';
+        else if (t.binding && t.binding.kind === 'constant') text = '连线类型：常量 · 当前端口使用固定值，选择上游端口将替换';
+        else text = '尚未建立连线';
+        return '<div class="vb-hero-meta"><svg><use href="#i-info"></use></svg>' + esc(text) + '</div>';
+      }
+
+      function methodRowHtml() {
+        return '<div class="vb-method-row">' +
+          '<span class="vb-section-label">绑定方式</span>' +
+          '<div class="vb-seg vb-seg-sm">' +
+            '<button type="button" data-method="upstream" class="' + (state.method === 'upstream' ? 'is-on' : '') + '">上游端口</button>' +
+            '<button type="button" data-method="constant" class="' + (state.method === 'constant' ? 'is-on' : '') + '">常量值</button>' +
+          '</div>' +
+          '<span class="vb-method-hint">' + (state.method === 'constant' ? '常量会替换当前上游连线' : '从上游输出端口取值') + '</span>' +
+        '</div>';
+      }
+
+      function presetHtml(t) {
+        var current = t.binding && t.binding.kind === 'preset' ? t.binding.value : null;
+        var cards = t.presets.map(function (p) {
+          return '<button type="button" class="vb-preset' + (current === p.value ? ' is-selected' : '') + '" data-preset="' + esc(p.value) + '">' +
+            '<span class="vb-radio"></span>' +
+            '<span class="vb-preset-main"><span class="vb-preset-name">' + esc(p.display) + '</span><span class="vb-preset-value">' + esc(p.value) + '</span></span>' +
+            '<svg class="vb-preset-check"><use href="#i-check"></use></svg>' +
+          '</button>';
+        }).join('');
+        var currentDisplay = '';
+        if (current) {
+          var found = t.presets.filter(function (p) { return p.value === current; })[0];
+          currentDisplay = found ? found.display : current;
+        }
+        return '<div class="vb-hint" style="margin-top:12px;"><svg><use href="#i-info"></use></svg>该端口自带系统内置预设，直接从下面选一项即可，无需连接上游输出。</div>' +
+          '<div class="vb-preset-list">' + cards + '</div>' +
+          '<div class="vb-preview-card"><span class="vb-preview-label">写入预览</span><span class="vb-preview-value">' +
+            esc(t.name) + ' ← ' + (current ? esc(current) + '（' + esc(currentDisplay) + '）' : '尚未选择') +
+          '</span></div>';
+      }
+
+      function constantHtml(t) {
+        var val = state.constantValue || '';
+        return '<div class="vb-form">' +
+          '<label class="vb-label"><span>常量值</span><span class="vb-label-type">目标类型 ' + esc(t.type) + '</span></label>' +
+          '<div class="vb-input-wrap"><input id="vb-constant-input" class="vb-input" type="text" value="' + esc(val) + '" placeholder="数值 / 字符串 / true|false" autocomplete="off" spellcheck="false"><span class="vb-input-suffix">' + esc(t.type) + '</span></div>' +
+          '<div class="vb-hint"><svg><use href="#i-info"></use></svg>支持数值、字符串与 true / false；留空表示保持当前上游连线不变。</div>' +
+          '<div class="vb-warn-box"><svg><use href="#i-alert"></use></svg>填写常量并点「确定」会用常量替换当前上游连线。</div>' +
+        '</div>' +
+        '<div class="vb-preview-card"><span class="vb-preview-label">写入预览</span><span class="vb-preview-value" id="vb-constant-preview">' +
+          (val.trim() ? esc(t.name) + ' ← 常量值: ' + esc(val.trim()) : esc(t.name) + ' ← （保持现有绑定）') +
+        '</span></div>';
+      }
+
+      function visiblePorts(t, source) {
+        return source.outputs.filter(function (o) {
+          var ok = canBind(o.type, t.type);
+          if (!ok && !state.showAll) return false;
+          if (state.candidateSearch) {
+            var hay = (o.name + ' ' + o.type + ' ' + o.desc).toLowerCase();
+            if (hay.indexOf(state.candidateSearch.toLowerCase()) < 0) return false;
+          }
+          return true;
+        });
+      }
+
+      function candidateHtml(t) {
+        if (!state.selectedSource) {
+          return emptyState('link', '先选择一个数据来源', '从中间的「数据来源」列表中选择全局变量、运行时变量或上游算子。');
+        }
+        var source = currentSource();
+        if (!source || !source.outputs.length) {
+          return emptyState('database', '该来源没有输出端口', '换一个数据来源，或先检查上游算子是否已配置输出。');
+        }
+        var ports = visiblePorts(t, source);
+        var hiddenByType = source.outputs.filter(function (o) { return !canBind(o.type, t.type); }).length;
+        var filterNote = (!state.showAll && !state.candidateSearch && hiddenByType > 0)
+          ? '<div class="vb-filter-note"><svg><use href="#i-info"></use></svg><span>当前来源还有 <b>' + hiddenByType + '</b> 个端口因类型不兼容被隐藏。</span><button type="button" class="vb-link-btn" data-show-all>显示全部</button></div>'
+          : '';
+        var listHtml;
+        if (ports.length === 0) {
+          listHtml = emptyState('search', '没有匹配的候选端口',
+            state.candidateSearch ? '清空搜索关键词后重试。' : '当前来源没有类型兼容的输出端口；可勾选「显示全部」查看不兼容项。');
+        } else {
+          listHtml = '<div class="vb-cand-list">' + ports.map(function (o) { return candRowHtml(t, source, o); }).join('') + '</div>';
+        }
+        return '<div class="vb-cand-head">' +
+            '<div class="vb-cand-title">候选输出端口 <span class="vb-count" id="vb-cand-count">' + ports.length + '</span></div>' +
+            '<label class="vb-switch"><input type="checkbox" id="vb-show-all" ' + (state.showAll ? 'checked' : '') + '><span>显示全部</span></label>' +
+          '</div>' +
+          '<div class="vb-search vb-search-sm"><svg><use href="#i-search"></use></svg><input id="vb-cand-search" type="text" value="' + esc(state.candidateSearch) + '" placeholder="搜索端口名 / 类型" autocomplete="off" spellcheck="false"></div>' +
+          filterNote +
+          '<div id="vb-array-host">' + (state.arrayPanel ? indexPanelHtml(t, source) : '') + '</div>' +
+          '<div id="vb-cand-list-host">' + listHtml + '</div>' +
+          '<div class="vb-hint"><svg><use href="#i-info"></use></svg>双击候选端口直接绑定；也可单击选中后点「绑定」。</div>';
+      }
+
+      function candRowHtml(t, source, o) {
+        var id = source.id + ':' + o.name;
+        var selected = state.selectedCandidate === id;
+        var bound = t.binding && t.binding.kind === 'step' && t.binding.sourceId === source.id && t.binding.port === o.name;
+        var compatible = canBind(o.type, t.type);
+        var isArray = o.type.slice(-2) === '[]' && t.type.slice(-2) !== '[]';
+        var reason = '类型不匹配：' + o.type + ' 无法绑到 ' + t.type + ' 端口';
+        var action;
+        if (!compatible) {
+          action = '<span class="vb-cand-reason">类型不匹配</span>';
+        } else if (bound) {
+          action = '';
+        } else {
+          action = '<button type="button" class="vb-btn vb-btn-sm" data-bind="' + esc(id) + '">' + (isArray ? '选择索引' : '绑定') + '</button>';
+        }
+        return '<div class="vb-cand' + (selected ? ' is-selected' : '') + (compatible ? '' : ' is-disabled') + '" data-cand="' + esc(id) + '" title="' + esc(compatible ? (o.desc || '') : reason) + '">' +
+          '<span class="vb-cand-icon tone-' + esc(toneForType(o.type)) + '"><svg><use href="#i-' + esc(iconForType(o.type)) + '"></use></svg></span>' +
+          '<div class="vb-cand-main">' +
+            '<div class="vb-cand-line"><span class="vb-cand-name">' + esc(o.name) + '</span><span class="vb-tag">' + esc(o.type) + '</span>' +
+              (isArray ? '<span class="vb-chip vb-chip-warn">数组</span>' : '') +
+              (bound ? '<span class="vb-chip vb-chip-ok">已绑定</span>' : '') +
+            '</div>' +
+            '<div class="vb-cand-desc">' + esc(o.desc) + '</div>' +
+          '</div>' +
+          '<div class="vb-cand-actions">' + action + '</div>' +
+        '</div>';
+      }
+
+      function indexPanelHtml(t, source) {
+        var id = state.selectedCandidate || '';
+        var portName = id.split(':')[1] || '分数列表';
+        return '<div class="vb-index-panel">' +
+          '<div class="vb-index-head"><svg><use href="#i-array"></use></svg>数组 → 标量：选择元素下标</div>' +
+          '<div class="vb-index-row">' +
+            '<input id="vb-index-input" class="vb-input" type="number" min="0" step="1" value="' + esc(state.arrayIndex) + '">' +
+            '<button type="button" class="vb-btn vb-btn-primary vb-btn-sm" id="vb-index-confirm">确认绑定</button>' +
+            '<button type="button" class="vb-btn vb-btn-sm" id="vb-index-cancel">取消</button>' +
+          '</div>' +
+          '<div class="vb-hint"><svg><use href="#i-info"></use></svg>写入连线：' + esc(t.name) + ' ← ' + esc(portName) + '[' + esc(state.arrayIndex) + ']</div>' +
+        '</div>';
+      }
+
+      function refreshCandidates() {
+        var t = currentTarget();
+        var source = currentSource();
+        if (!t || !source) return;
+        var ports = visiblePorts(t, source);
+        var countEl = q('#vb-cand-count');
+        if (countEl) countEl.textContent = ports.length;
+        var host = q('#vb-cand-list-host');
+        if (host) {
+          if (ports.length === 0) {
+            host.innerHTML = emptyState('search', '没有匹配的候选端口',
+              state.candidateSearch ? '清空搜索关键词后重试。' : '当前来源没有类型兼容的输出端口；可勾选「显示全部」查看不兼容项。');
+          } else {
+            host.innerHTML = '<div class="vb-cand-list">' + ports.map(function (o) { return candRowHtml(t, source, o); }).join('') + '</div>';
+          }
+        }
+        var arrayHost = q('#vb-array-host');
+        if (arrayHost) arrayHost.innerHTML = state.arrayPanel ? indexPanelHtml(t, source) : '';
+      }
+
+      /* ================= 渲染：底部 ================= */
+      function renderFooter() {
+        var left = q('#vb-footer-left');
+        var confirmBtn = q('#vb-confirm');
+        var t = currentTarget();
+        if (left) {
+          if (!t) left.textContent = '未选择输入端口';
+          else left.innerHTML = '已选：<b>' + esc(t.name) + '</b> · ' + esc(bindingText(t.binding));
+        }
+        if (confirmBtn) confirmBtn.textContent = state.single ? '绑定并返回' : '确定';
+      }
+
+      function ensureVisible(listEl, rowEl) {
+        if (!listEl || !rowEl) return;
+        var lr = listEl.getBoundingClientRect();
+        var rr = rowEl.getBoundingClientRect();
+        if (rr.top < lr.top) listEl.scrollTop += rr.top - lr.top;
+        else if (rr.bottom > lr.bottom) listEl.scrollTop += rr.bottom - lr.bottom;
+      }
+
+      function scrollSelectedIntoView() {
+        ensureVisible(q('#vb-target-list'), q('#vb-target-list .vb-row.is-selected'));
+        ensureVisible(q('#vb-source-list'), q('#vb-source-list .vb-row.is-selected'));
+      }
+
+      function render() {
+        renderTitle();
+        renderContext();
+        renderTargets();
+        renderSources();
+        renderBinding();
+        renderFooter();
+        requestAnimationFrame(scrollSelectedIntoView);
+      }
+
+      /* ================= 交互动作 ================= */
+      function selectTarget(id) {
+        state.selectedTarget = id;
+        var t = currentTarget();
+        if (!t) return;
+        state.method = t.binding && t.binding.kind === 'constant' ? 'constant' : 'upstream';
+        state.constantValue = t.binding && t.binding.kind === 'constant' ? t.binding.value : '';
+        state.selectedCandidate = null;
+        state.arrayPanel = false;
+        render();
+      }
+
+      function selectSource(id) {
+        state.selectedSource = id;
+        state.selectedCandidate = null;
+        state.arrayPanel = false;
+        renderSources();
+        renderBinding();
+        renderFooter();
+      }
+
+      function selectCandidate(id) {
+        state.selectedCandidate = id;
+        renderBinding();
+      }
+
+      function selectPreset(value) {
+        var t = currentTarget();
+        if (!t || !t.presets) return;
+        var p = t.presets.filter(function (x) { return x.value === value; })[0];
+        if (!p) return;
+        t.binding = { kind: 'preset', value: p.value, display: p.display };
+        renderTargets();
+        renderBinding();
+        renderFooter();
+        toast('已选择预设：' + p.display + '（' + p.value + '）');
+      }
+
+      function applyBinding(source, port, index) {
+        var t = currentTarget();
+        if (!t) return;
+        t.binding = {
+          kind: 'step',
+          sourceId: source.id,
+          sourceName: source.name,
+          port: port.name,
+          portType: port.type,
+          index: index == null ? null : index,
+          display: source.name + '.' + port.name + (index == null ? '' : '[' + index + ']')
+        };
+        state.selectedCandidate = source.id + ':' + port.name;
+        state.arrayPanel = false;
+        render();
+        toast((state.single ? '已回传绑定：' : '已绑定：') + t.name + ' ← ' + bindingText(t.binding));
+      }
+
+      function handleBind(id, fromDouble) {
+        if (!id) return;
+        var parts = id.split(':');
+        var source = sourceById(parts[0]);
+        if (!source) return;
+        var port = source.outputs.filter(function (o) { return o.name === parts[1]; })[0];
+        var t = currentTarget();
+        if (!port || !t) return;
+        if (!canBind(port.type, t.type)) {
+          toast('类型不匹配：' + port.type + ' 无法绑到 ' + t.type + ' 端口');
+          return;
+        }
+        if (port.type.slice(-2) === '[]' && t.type.slice(-2) !== '[]') {
+          state.selectedCandidate = id;
+          state.arrayPanel = true;
+          state.arrayIndex = '0';
+          renderBinding();
+          toast('数组端口：请选择要取的元素下标');
+          return;
+        }
+        applyBinding(source, port, null);
+      }
+
+      function confirmIndex() {
+        var id = state.selectedCandidate;
+        if (!id) { toast('请先选择一个数组端口'); return; }
+        var parts = id.split(':');
+        var source = sourceById(parts[0]);
+        if (!source) return;
+        var port = source.outputs.filter(function (o) { return o.name === parts[1]; })[0];
+        var idx = parseInt(state.arrayIndex, 10);
+        if (!port) return;
+        if (isNaN(idx) || idx < 0) { toast('索引必须是非负整数'); return; }
+        applyBinding(source, port, idx);
+      }
+
+      function clearBinding() {
+        var t = currentTarget();
+        if (!t || !t.binding) { toast('当前端口没有绑定'); return; }
+        t.binding = null;
+        state.constantValue = '';
+        state.selectedCandidate = null;
+        state.arrayPanel = false;
+        render();
+        toast('已清除绑定：' + t.name);
+      }
+
+      function confirm() {
+        var t = currentTarget();
+        if (!t) { toast('请先选择输入端口'); return; }
+        if (!t.functionalEnum && state.method === 'constant') {
+          var v = state.constantValue.trim();
+          if (!v) {
+            toast('常量值为空：将保持当前上游连线不变');
+          } else {
+            t.binding = { kind: 'constant', value: v, display: '常量值: ' + v };
+          }
+        }
+        render();
+        toast((state.single ? '已回传绑定：' : '绑定已保存（设计稿）：') + t.name + ' ← ' + bindingText(t.binding));
+      }
+
+      function setWidth(w) {
+        win.classList.toggle('is-narrow', String(w) === '1000');
+        qa('#vb-width-seg button').forEach(function (b) {
+          var on = b.getAttribute('data-width') === String(w);
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', on);
+        });
+      }
+
+      function setScene(scene) {
+        state.scene = scene;
+        state.targets = buildTargets();
+        state.targetSearch = '';
+        state.sourceSearch = '';
+        state.candidateSearch = '';
+        state.targetFilter = 'all';
+        state.sourceTab = 'all';
+        state.showAll = false;
+        state.arrayPanel = false;
+        state.arrayIndex = '0';
+        state.sourcesEmpty = false;
+        state.single = false;
+        win.classList.remove('is-single');
+
+        if (scene === 'default') {
+          state.selectedTarget = 'image';
+          state.selectedSource = 'acq';
+          state.selectedCandidate = 'acq:输出图像';
+          state.method = 'upstream';
+          state.constantValue = '';
+        } else if (scene === 'constant') {
+          state.selectedTarget = 'minScore';
+          state.selectedSource = 'global';
+          state.selectedCandidate = null;
+          state.method = 'constant';
+          state.constantValue = '0.75';
+        } else if (scene === 'enum') {
+          state.selectedTarget = 'findType';
+          state.selectedSource = 'global';
+          state.selectedCandidate = null;
+          state.method = 'upstream';
+          state.constantValue = '';
+        } else if (scene === 'incompatible') {
+          state.selectedTarget = 'image';
+          state.selectedSource = 'calib';
+          state.selectedCandidate = 'calib:标定矩阵';
+          state.method = 'upstream';
+          state.showAll = true;
+        } else if (scene === 'array') {
+          state.selectedTarget = 'minScore';
+          state.selectedSource = 'record';
+          state.selectedCandidate = 'record:分数列表';
+          state.method = 'upstream';
+          state.arrayPanel = true;
+          state.arrayIndex = '0';
+        } else if (scene === 'empty') {
+          state.targets.forEach(function (t) { t.binding = null; });
+          state.selectedTarget = 'image';
+          state.selectedSource = null;
+          state.selectedCandidate = null;
+          state.method = 'upstream';
+          state.sourcesEmpty = true;
+        } else if (scene === 'single') {
+          state.single = true;
+          state.targets = [buildSingleTarget()];
+          state.selectedTarget = 'target';
+          state.selectedSource = 'global';
+          state.selectedCandidate = 'global:CT';
+          state.method = 'upstream';
+          win.classList.add('is-single');
+        }
+
+        qa('#vb-scene-seg button').forEach(function (b) {
+          var on = b.getAttribute('data-scene') === scene;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', on);
+        });
+
+        var targetSearch = q('#vb-target-search');
+        var sourceSearch = q('#vb-source-search');
+        if (targetSearch) targetSearch.value = '';
+        if (sourceSearch) sourceSearch.value = '';
+        render();
+      }
+
+      /* ================= 事件 ================= */
+      root.addEventListener('click', function (e) {
+        var el;
+        if ((el = e.target.closest('[data-scene]'))) { setScene(el.getAttribute('data-scene')); return; }
+        if ((el = e.target.closest('[data-width]'))) { setWidth(el.getAttribute('data-width')); return; }
+        if ((el = e.target.closest('[data-target]'))) { selectTarget(el.getAttribute('data-target')); return; }
+        if ((el = e.target.closest('[data-source]'))) { selectSource(el.getAttribute('data-source')); return; }
+        if ((el = e.target.closest('[data-bind]'))) { e.stopPropagation(); handleBind(el.getAttribute('data-bind')); return; }
+        if ((el = e.target.closest('[data-cand]'))) { selectCandidate(el.getAttribute('data-cand')); return; }
+        if ((el = e.target.closest('[data-preset]'))) { selectPreset(el.getAttribute('data-preset')); return; }
+        if ((el = e.target.closest('[data-method]'))) {
+          state.method = el.getAttribute('data-method');
+          if (state.method === 'constant') {
+            var t = currentTarget();
+            state.constantValue = t && t.binding && t.binding.kind === 'constant' ? t.binding.value : '';
+          }
+          renderBinding();
+          renderFooter();
+          return;
+        }
+        if ((el = e.target.closest('[data-filter]'))) { state.targetFilter = el.getAttribute('data-filter'); renderTargets(); return; }
+        if ((el = e.target.closest('[data-tab]'))) { state.sourceTab = el.getAttribute('data-tab'); renderSources(); return; }
+        if (e.target.closest('[data-show-all]')) { state.showAll = true; renderBinding(); return; }
+        if (e.target.closest('#vb-clear')) { clearBinding(); return; }
+        if (e.target.closest('#vb-confirm')) { confirm(); return; }
+        if (e.target.closest('#vb-cancel')) { toast('取消（设计稿不关闭窗口）'); return; }
+        if (e.target.closest('#vb-index-confirm')) { confirmIndex(); return; }
+        if (e.target.closest('#vb-index-cancel')) { state.arrayPanel = false; renderBinding(); return; }
+      });
+
+      root.addEventListener('dblclick', function (e) {
+        if (e.target.closest('[data-bind]')) return;
+        var el = e.target.closest('[data-cand]');
+        if (!el) return;
+        handleBind(el.getAttribute('data-cand'), true);
+      });
+
+      root.addEventListener('input', function (e) {
+        if (e.target.id === 'vb-target-search') {
+          state.targetSearch = e.target.value;
+          renderTargets();
+        } else if (e.target.id === 'vb-source-search') {
+          state.sourceSearch = e.target.value;
+          renderSources();
+        } else if (e.target.id === 'vb-cand-search') {
+          state.candidateSearch = e.target.value;
+          refreshCandidates();
+        } else if (e.target.id === 'vb-constant-input') {
+          state.constantValue = e.target.value;
+          var preview = q('#vb-constant-preview');
+          if (preview) {
+            var t = currentTarget();
+            preview.textContent = e.target.value.trim()
+              ? t.name + ' ← 常量值: ' + e.target.value.trim()
+              : t.name + ' ← （保持现有绑定）';
+          }
+        } else if (e.target.id === 'vb-index-input') {
+          state.arrayIndex = e.target.value;
+          var hint = q('.vb-index-panel .vb-hint');
+          if (hint) {
+            var tt = currentTarget();
+            var id = state.selectedCandidate || '';
+            var portName = id.split(':')[1] || '分数列表';
+            hint.textContent = '写入连线：' + tt.name + ' ← ' + portName + '[' + e.target.value + ']';
+          }
+        }
+      });
+
+      root.addEventListener('change', function (e) {
+        if (e.target.id === 'vb-show-all') {
+          state.showAll = e.target.checked;
+          refreshCandidates();
+        }
+      });
+
+      /* ================= 启动 ================= */
+      setScene('default');
+    })();
+  </script>
+</div>
+</body>
+</html>

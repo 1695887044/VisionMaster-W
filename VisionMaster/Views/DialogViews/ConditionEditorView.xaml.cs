@@ -20,6 +20,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using VisionMaster.Helpers;
 using VisionMaster.Models;
 using VisionMaster.Services;
@@ -73,6 +74,21 @@ namespace VisionMaster.Views.DialogViews
 
                         vm.SelectedBranch = waitBranch;
                     }
+
+                    // 初始焦点落在主输入区：弹窗一打开就能直接输入，键盘 Tab 的起点也从这里开始，
+                    // 不会先停在底栏按钮上（否则焦点环第一眼就画在「取消」上）。
+                    // 用 Input 优先级排到布局完成之后——Case/For 面板的可见性这时才是最终值。
+                    Dispatcher.BeginInvoke(
+                        new Action(() =>
+                        {
+                            if (vm.IsCaseMode)
+                                cmbJudge.Focus();
+                            else if (vm.IsForMode)
+                                txtLoopCount.Focus();
+                            else if (txtExpression.IsVisible)
+                                txtExpression.Focus();
+                        }),
+                        DispatcherPriority.Input);
                 }
             };
 
@@ -278,6 +294,10 @@ namespace VisionMaster.Views.DialogViews
                 {
                     target.Expression = txtExpression.Text;
                 }
+
+                // v2：表达式写回后重算卡内错误条与底栏摘要（只读展示，不拦保存）。
+                // 判据/匹配值走的是 SelectedBranch.Expression，同一条路径即可覆盖。
+                vm.RefreshDraftDiagnostics();
             }
         }
 
@@ -329,6 +349,22 @@ namespace VisionMaster.Views.DialogViews
             }
         }
     }
+    /// <summary>
+    /// 分支序号显示：AlternationIndex 是 0 基，设计稿（和用户直觉）是 1 基。
+    /// 只做 +1 显示，不参与任何模型数据。
+    /// </summary>
+    public sealed class ZeroBasedIndexToOrdinalConverter : System.Windows.Data.IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            if (value is int i) return (i + 1).ToString(culture);
+            return value?.ToString() ?? string.Empty;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+            => System.Windows.Data.Binding.DoNothing;
+    }
+
     public class VariableColorizer : DocumentColorizingTransformer
     {
         public HashSet<string> Variables { get; set; } = new HashSet<string>();

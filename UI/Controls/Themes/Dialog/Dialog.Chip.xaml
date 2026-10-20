@@ -153,7 +153,6 @@
   <Style x:Key="DialogChipTextDanger" TargetType="TextBlock" BasedOn="{StaticResource DialogChipText}">
     <Setter Property="Foreground" Value="{StaticResource DialogDangerBrush}" />
   </Style>
-
   <!--
       DialogTag / DialogTagText：**带底色的小方圆角标签**（如端口数据类型「图像 (HImage)」）。
       与 Chip 的分工（踩过坑才分出来的）：
@@ -177,5 +176,68 @@
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+  </Style>
+
+  <!--
+      文字按钮：变量绑定右栏的「清除绑定」与候选提示条上的「显示全部」。
+      为什么不用 BasedOn FluentButtonSubtleStyle：本分册只就地 merge Colors.xaml 与
+      Dialog.Text.xaml，BasedOn 兄弟分册的键会在模板实例化时断链（R30/R31）。
+      所以这里自带最小模板：透明底、悬停 RowHover 底、禁用 40% 透明。
+      焦点环由使用方显式挂 DialogFocusVisual（与全仓可聚焦控件同一口径）。
+  -->
+  <Style x:Key="DialogTextButton" TargetType="Button">
+    <Setter Property="Height" Value="24" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+    <Setter Property="FontSize" Value="10.5" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="FocusVisualStyle">
+      <Setter.Value>
+        <!--  与 DialogFocusVisual 同形；本分册不能跨册 StaticResource（R30），故就地内联。  -->
+        <Style TargetType="Control">
+          <Setter Property="Template">
+            <Setter.Value>
+              <ControlTemplate>
+                <Border
+                    Margin="2"
+                    BorderBrush="{StaticResource DialogAccentBrush}"
+                    BorderThickness="2"
+                    CornerRadius="6"
+                    SnapsToDevicePixels="True" />
+              </ControlTemplate>
+            </Setter.Value>
+          </Setter>
+        </Style>
+      </Setter.Value>
+    </Setter>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border
+              x:Name="Bg"
+              Padding="{TemplateBinding Padding}"
+              Background="{TemplateBinding Background}"
+              CornerRadius="6"
+              SnapsToDevicePixels="True">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bg" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+              <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Bg" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.4" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
   </Style>
 </ResourceDictionary>

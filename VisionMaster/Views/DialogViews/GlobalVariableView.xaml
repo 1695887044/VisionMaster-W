@@ -3,39 +3,31 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:helpers="clr-namespace:VisionMaster.Helpers"
+    xmlns:local="clr-namespace:VisionMaster.Views.DialogViews"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:ui="http://schemas.UI.com/ui"
-    xmlns:helpers="clr-namespace:VisionMaster.Helpers"
     prism:ViewModelLocator.AutoWireViewModel="True"
-    Background="{StaticResource DialogBackgroundBrush}"
+    Background="{StaticResource DialogSurfaceBrush}"
     mc:Ignorable="d">
 
     <!--
-        窗口尺寸挂在 Window 上，不写在 UserControl 根节点上。
-        UserControl 的 HorizontalAlignment 默认是 Stretch（撑满父容器），
-        但一旦显式写了 Width，Stretch 就退化成"居中"——窗口一拉大/最大化，
-        两栏内容就整体居中、四周一圈留白，而且永远不跟着窗口变宽。
-        搬到 Window 后 UserControl 自然撑满，最右一栏（* 列）吸收全部多余宽度；
-        左栏（来源列表 216）保持固定像素，是主从布局的标准做法。
-        刻意不用 SizeToContent：它会让窗口随内容自己改大小，且手动放大后内容不重排。
+        ============================================================================
+        变量管理（Web 设计基线 v1：来源导航 + 变量明细）
+        ============================================================================
+        结构：左栏 232 来源导航（按 IsNetwork 分「本地与系统 / 通信连接」两组）；
+              右栏 60 卡片头 + DataGrid + 34 状态条（设计 64/40，按一屏行数取舍）。
+        纪律：本视图属于 VariableBindingCheck 的 CollectedDialogViews——
+              禁止本地 <Style x:Key=...>；只用无 key 内联 Style / DataTemplate / ControlTemplate。
+              颜色一律 Dialog* / Logic* / DialogTypeArray* 令牌，视图零十六进制。
     -->
     <prism:Dialog.WindowStyle>
         <Style TargetType="Window">
-            <!--
-                WindowStyle=None：去掉系统原生标题栏（那条灰蓝渐变的老式窗框）。
-                代价是窗口失去系统提供的拖动区域与关闭按钮，两者都必须在视图里自绘补齐 ——
-                见下方标题栏的 ui:WindowDragBehavior 与 CloseCommand。
-                变量绑定 / 插件配置壳 / 扫描组编辑等弹窗都是这么做的，本视图此前是漏网的一个。
-            -->
             <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
             <Setter Property="SizeToContent" Value="Manual" />
-            <!--
-                默认宽 1300：右栏"变量明细"表 6 个固定列（来源/扫描组/地址收起后）约 500，
-                加"当前值"列的可读下限，右栏视口需要 ~700 起。小屏（如 1920@150% 的逻辑
-                桌面只有 1280）由代码后置的 ClampToWorkArea 收敛到工作区宽度，列显隐随之自适应。
-            -->
             <Setter Property="Width" Value="1300" />
             <Setter Property="Height" Value="700" />
             <Setter Property="MinWidth" Value="1200" />
@@ -43,90 +35,255 @@
         </Style>
     </prism:Dialog.WindowStyle>
 
-    <!--
-        ============================================================================
-        变量管理（两栏：来源树 / 变量明细）
-        ============================================================================
+    <UserControl.Resources>
+        <local:TypeAbbreviationConverter x:Key="TypeAbbreviationConverter" />
+        <local:DataTypeBrushConverter x:Key="DataTypeBrushConverter" />
+        <local:GlobalVariableValueModeConverter x:Key="GlobalVariableValueModeConverter" />
+        <local:EmptyStateVisibilityConverter x:Key="EmptyStateVisibilityConverter" />
+        <local:StringNotEmptyToVisibilityConverter x:Key="StringNotEmptyToVisibilityConverter" />
 
-        原"中栏 新建变量表单"整栏已撤（含顶部的「本地/网络」分段胶囊）：
-        变量种类由**左栏当前选中的来源**决定，录入动作改为右栏卡片头的
-        「＋ 添加变量」→ EasyDialog 属性网格弹窗（草稿类见 VariableDraft.cs）。
-        这样右栏明细表拿回了全部横向空间，来源（左）与内容（右）的从属关系也更直白。
+        <!--
+            来源卡片：48px，图标块 + 名称 + 副行 + 计数。
+            选中 = 白卡 + 主色左条；悬停 = 白卡；键盘焦点 = 主色描边；禁用 = 半透明。
+        -->
+        <DataTemplate x:Key="GvSourceNodeTemplate">
+            <Grid>
+                <Border
+                    x:Name="NodeBorder"
+                    Height="48"
+                    Margin="0,2"
+                    Padding="10,6,8,6"
+                    BorderThickness="1"
+                    CornerRadius="10">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="BorderBrush" Value="Transparent" />
+                        </Style>
+                    </Border.Style>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
 
-        本视图不再自带 UserControl.Resources：
-        颜色一律取 Colors.xaml 的 Dialog* 令牌节，控件皮肤一律取 DialogStyles.xaml，
-        两者都挂在 UI/Controls/Themes/Generic.xaml 的合并链上，全应用共享。
-        这么做是为了消灭"三套蓝并存"：连接管理曾用 #17A2F2、本画面用 #0EA5E9、
-        扫描组编辑用 #409EFF，而扫描组编辑又是从连接管理点进去的，两套蓝会直接照面。
+                        <Border
+                            x:Name="IconTile"
+                            Grid.Column="0"
+                            Width="28"
+                            Height="28"
+                            Margin="0,0,9,0"
+                            CornerRadius="8">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Key}" Value="System">
+                                            <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="13"
+                                Text="{Binding Icon}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Key}" Value="System">
+                                                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Border>
 
-        注意 DataGrid 四件套（DataGrid / Row / Cell / ColumnHeader）：
-        以前这里写的是"不带 x:Key 的隐式样式"，作用域只在本视图内，安全。
-        但共享皮肤放进全局合并字典后，隐式样式会盖掉 DefaultStyle.xaml 里那支
-        全局 DataGrid 皮肤，波及全应用每个表格 —— 所以共享版一律带 Dialog 键名，
-        本视图通过 Style / CellStyle / RowStyle / ColumnHeaderStyle 显式引用。
-    -->
+                        <StackPanel
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Orientation="Vertical">
+                            <TextBlock
+                                x:Name="SourceName"
+                                Text="{Binding DisplayName}"
+                                TextTrimming="CharacterEllipsis">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontSize" Value="12.5" />
+                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <StackPanel
+                                Margin="0,2,0,0"
+                                Orientation="Horizontal">
+                                <Ellipse
+                                    Width="6"
+                                    Height="6"
+                                    Margin="0,0,5,0"
+                                    VerticalAlignment="Center">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsNetwork}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsOnline}" Value="False">
+                                                    <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Key}" Value="System">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Setter Property="Fill" Value="{StaticResource DialogTextMutedBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock
+                                    FontSize="10.5"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text="{Binding Subtitle}"
+                                    TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </StackPanel>
 
-    <Grid Margin="0">
+                        <Border
+                            x:Name="CountBadge"
+                            Grid.Column="2"
+                            MinWidth="20"
+                            Height="20"
+                            Padding="6,0"
+                            VerticalAlignment="Center"
+                            CornerRadius="10">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                </Style>
+                            </Border.Style>
+                            <TextBlock
+                                x:Name="CountText"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Text="{Binding Count}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontSize" Value="10.5" />
+                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                        <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <Border
+                    x:Name="Indicator"
+                    Width="3"
+                    Margin="0,10,0,10"
+                    HorizontalAlignment="Left"
+                    Background="{StaticResource DialogAccentBrush}"
+                    CornerRadius="2">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </Style>
+                    </Border.Style>
+                </Border>
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                    <Setter TargetName="NodeBorder" Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                    <Setter TargetName="NodeBorder" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                    <Setter TargetName="Indicator" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="SourceName" Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                    <Setter TargetName="CountBadge" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                    <Setter TargetName="CountText" Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                </DataTrigger>
+                <Trigger SourceName="NodeBorder" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="NodeBorder" Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                    <Setter TargetName="NodeBorder" Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                </Trigger>
+                <DataTrigger Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                    <Setter TargetName="NodeBorder" Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsEnabled, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="False">
+                    <Setter TargetName="NodeBorder" Property="Opacity" Value="0.5" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="52" />
+            <RowDefinition Height="64" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!--
-            自绘标题栏（替代原来那条系统窗框）。
-            无边框窗口没有系统标题栏可拖，也没有系统关闭按钮，所以这两件事必须自己提供：
-              · 拖动 → ui:WindowDragBehavior.IsWindowDraggable（整条都可拖）；
-              · 关闭 → 右侧 × → VM 的 CloseCommand。本弹窗改的是活对象（增删改变量即时生效），
-                "关闭"就是完成，不需要二次确认。
-        -->
+        <!--  自绘标题栏（无系统窗框：拖动 + 关闭都在这里）  -->
         <Border
             Grid.Row="0"
-            ui:WindowDragBehavior.IsWindowDraggable="True"
             Background="{StaticResource DialogRowAlternateBrush}"
             BorderBrush="{StaticResource DialogBorderLightBrush}"
-            BorderThickness="0,0,0,1">
-            <Grid Margin="20,0">
+            BorderThickness="0,0,0,1"
+            ui:WindowDragBehavior.IsWindowDraggable="True">
+            <Grid Margin="18,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock
+                <Border
+                    Width="36"
+                    Height="36"
                     VerticalAlignment="Center"
-                    FontFamily="{StaticResource Icon}"
-                    FontSize="15"
-                    Foreground="{StaticResource DialogAccentBrush}"
-                    Text="&#xf0ac;" />
+                    Background="{StaticResource DialogAccentLightBrush}"
+                    CornerRadius="10">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource DialogIconFont}"
+                        FontSize="18"
+                        Foreground="{StaticResource DialogAccentTextBrush}"
+                        Text="&#xf1c0;" />
+                </Border>
 
                 <StackPanel
                     Grid.Column="1"
-                    Margin="10,0,0,0"
-                    VerticalAlignment="Center"
-                    Orientation="Horizontal">
-                    <!--  标题走 VM 的 Title（IDialogAware），不写死：系统标题栏没了之后，
-                          这一处就是唯一的标题来源，写死等于把标题抄成两份  -->
+                    Margin="12,0,0,0"
+                    VerticalAlignment="Center">
                     <TextBlock
-                        FontSize="15"
-                        FontWeight="Bold"
+                        FontSize="15.5"
+                        FontWeight="SemiBold"
                         Foreground="{StaticResource DialogTextPrimaryBrush}"
                         Text="{Binding Title}" />
                     <TextBlock
-                        Margin="10,0,0,0"
-                        VerticalAlignment="Center"
+                        Margin="0,2,0,0"
                         FontSize="11.5"
-                        Foreground="{StaticResource DialogTextMutedBrush}"
-                        Text="本地变量与设备变量统一维护：新建 / 编辑 / 监视 / 写值" />
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="本地变量与设备变量统一维护 · 新建 / 监视 / 写值" />
                 </StackPanel>
 
                 <Button
                     Grid.Column="2"
                     VerticalAlignment="Center"
                     Command="{Binding CloseCommand}"
-                    Style="{StaticResource DialogIconButton}"
-                    ToolTip="关闭">
+                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                    Style="{StaticResource DialogIconButton}">
+                    <Button.ToolTip>
+                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="关闭" />
+                    </Button.ToolTip>
                     <TextBlock
-                        FontFamily="{StaticResource Icon}"
+                        FontFamily="{StaticResource DialogIconFont}"
                         FontSize="13"
                         Foreground="{StaticResource DialogTextSecondaryBrush}"
                         Text="&#xf00d;" />
@@ -134,54 +291,73 @@
             </Grid>
         </Border>
 
-        <!--  以下即原两栏内容：外层多了一层"行定义"用于放标题栏，所以 Margin 从根 Grid 挪到这里  -->
-        <Grid Grid.Row="1" Margin="14">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="216" />
-            <ColumnDefinition Width="12" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
+        <Grid Grid.Row="1" Margin="16,12,16,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="232" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-        <!--  ============ 左栏：变量来源树  ============  -->
-        <Grid Grid.Column="0">
-            <Border Style="{StaticResource DialogCardShadow}" />
-            <Border Style="{StaticResource DialogCardBorder}">
-                <Grid>
+            <!--  ============ 左栏：来源导航  ============  -->
+            <Border
+                Grid.Column="0"
+                Background="{StaticResource DialogRowAlternateBrush}"
+                BorderBrush="{StaticResource DialogBorderLightBrush}"
+                BorderThickness="1"
+                CornerRadius="12">
+                <Grid Margin="12">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <Border Grid.Row="0" Style="{StaticResource DialogCardHeader}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Style="{StaticResource DialogCardTitleIcon}" Text="&#xf0c9;" />
-                            <TextBlock Style="{StaticResource DialogCardTitle}" Text="变量来源" />
-                        </StackPanel>
-                    </Border>
+                    <Grid Grid.Row="0" Height="32">
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                            Text="变量来源" />
+                        <Border
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource DialogSuccessSubtleBrush}"
+                            BorderBrush="{StaticResource DialogSuccessBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="10"
+                            Padding="7,1">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse
+                                    Width="5"
+                                    Height="5"
+                                    Margin="0,0,5,0"
+                                    VerticalAlignment="Center"
+                                    Fill="{StaticResource DialogSuccessBrush}" />
+                                <TextBlock
+                                    FontSize="10"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource DialogSuccessTextBrush}"
+                                    Text="实时" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
 
-                    <!--
-                        ItemContainerStyle 用一个空 ContentPresenter 把 ListBoxItem 的
-                        默认外观（选中蓝底、焦点框）整个剥掉 —— 选中态由节点模板自己画
-                        （左侧色条 + 浅蓝底），否则会出现"系统蓝 + 设计蓝"两层底色。
-
-                        HorizontalContentAlignment 必须显式写 Stretch：
-                        它的默认值是 Left，配合下面那个裸 ContentPresenter，
-                        节点模板的根 Border 只会按"内容宽度"排版，Grid 里的 * 列
-                        随之塌缩成 0 —— 右侧计数徽标就紧贴在文字后面，而不是
-                        右对齐到行尾；同时浅蓝高亮底也不会铺满整行。
-                    -->
                     <ListBox
+                        x:Name="SourceList"
                         Grid.Row="1"
-                        Margin="8"
+                        Margin="0,4,0,0"
                         Background="Transparent"
                         BorderThickness="0"
-                        ItemTemplate="{StaticResource DialogSourceNodeTemplate}"
-                        ItemsSource="{Binding SourceNodes}"
+                        IsSynchronizedWithCurrentItem="False"
+                        ItemTemplate="{StaticResource GvSourceNodeTemplate}"
                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                        SelectedItem="{Binding SelectedSource}">
+                        SelectedItem="{Binding SelectedSource, Mode=TwoWay}">
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListBoxItem">
@@ -191,458 +367,1228 @@
                                 </Setter>
                             </Style>
                         </ListBox.ItemContainerStyle>
-                    </ListBox>
-                </Grid>
-            </Border>
-        </Grid>
-
-        <!--  ============ 右栏：变量明细  ============  -->
-        <Grid Grid.Column="2">
-            <Border Style="{StaticResource DialogCardShadow}" />
-            <Border Style="{StaticResource DialogCardBorder}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <!--  标题 + 搜索  -->
-                    <Border Grid.Row="0" Style="{StaticResource DialogCardHeader}">
-                        <Grid>
-                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
-                                <TextBlock Style="{StaticResource DialogCardTitleIcon}" Text="&#xf0ce;" />
-                                <TextBlock Style="{StaticResource DialogCardTitle}" Text="变量明细" />
-                                <!--  变量数徽标  -->
-                                <Border
-                                    Margin="8,0,0,0"
-                                    MinWidth="22"
-                                    Padding="6,2"
-                                    VerticalAlignment="Center"
-                                    Background="{StaticResource DialogAccentLightBrush}"
-                                    CornerRadius="11">
-                                    <TextBlock
-                                        HorizontalAlignment="Center"
-                                        FontSize="11"
-                                        FontWeight="SemiBold"
-                                        Foreground="{StaticResource DialogAccentTextBrush}"
-                                        Text="{Binding SelectedSource.Count, FallbackValue=0}" />
-                                </Border>
-                            </StackPanel>
-
-                            <!--
-                                搜索框：外层 Border 画框 + 放大镜，内层 TextBox 完全透明撑满 * 列。
-                                占位提示靠 Tag 传进 TextBox 自己的模板里，输入后自动消失。
-                                老写法把提示做成"旁边一个常驻 TextBlock"，用户一输入就出现
-                                "提示和内容并排"的鬼影，而且 TextBox 塞在横向 StackPanel 里宽度不受控。
-
-                                「＋ 添加变量」常驻在搜索框右侧（原来在中栏表单底部）：
-                                它是本弹窗唯一的录入入口，必须一直可见可点——跟着搜索框一起
-                                右对齐，比塞进明细表工具条更不容易被列宽/滚动条挤掉。
-                            -->
-                            <StackPanel
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center"
-                                Orientation="Horizontal">
-                                <Border
-                                    Width="220"
-                                    VerticalAlignment="Center"
-                                    Style="{StaticResource DialogSearchChrome}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock
-                                            Grid.Column="0"
-                                            Style="{StaticResource DialogSearchIcon}"
-                                            Text="&#xf002;" />
-                                        <TextBox
-                                            Grid.Column="1"
-                                            Style="{StaticResource DialogSearchInput}"
-                                            Tag="搜索变量名 / 地址"
-                                            Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
-                                    </Grid>
-                                </Border>
-
-                                <!--  管理扫描组（只对网络来源有意义，本地来源下整颗按钮收起）：
-                                      它原来在中栏「扫描组」下拉旁边，中栏删除后必须在这里补一个常驻入口 ——
-                                      否则用户在添加变量弹窗里发现只有默认组时，没有任何直达组表编辑器的路。
-                                      作用对象 = 左栏选中的连接（VM 侧 SelectedConnection），与选中项天然一致。  -->
-                                <Button
-                                    Margin="10,0,0,0"
-                                    VerticalAlignment="Center"
-                                    Command="{Binding ManageScanGroupsCommand}"
-                                    Style="{StaticResource DialogIconButton}"
-                                    ToolTip="管理扫描组：新增 / 改名 / 删除组、改周期（作用对象 = 左栏选中的连接）"
-                                    Visibility="{Binding IsNetworkSource, Converter={ui:BooleanToVisibilityConverter}}">
-                                    <TextBlock
-                                        FontFamily="{StaticResource Icon}"
-                                        FontSize="14"
-                                        Foreground="{StaticResource DialogAccentBrush}"
-                                        Text="&#xf5fd;" />
-                                </Button>
-
-                                <!--  变量种类由左栏当前选中的来源决定：选中「本地变量」→ 本地草稿；
-                                      选中某条连接 → 网络草稿（连接默认就是它），弹窗里不再有本地/网络选择  -->
-                                <Button
-                                    Margin="10,0,0,0"
-                                    VerticalAlignment="Center"
-                                    Command="{Binding AddCommand}"
-                                    Content="＋ 添加变量"
-                                    Style="{StaticResource DialogPrimaryButton}"
-                                    ToolTip="按左栏当前选中的来源新建变量：选中「本地变量」建本地变量，选中某条连接建该连接的网络变量" />
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-
-                    <!--
-                        HorizontalScrollBarVisibility=Auto：固定列合计超过视口时（网络来源下
-                        列更多，或窗口被压到最小宽）横向滚动兜底，而不是静默裁掉最右的"操作"列。
-                        本地来源下"来源/扫描组/地址"三列整列收起（见代码后置），正常不会出滚动条。
-                    -->
-                    <DataGrid
-                        Grid.Row="1"
-                        HorizontalScrollBarVisibility="Auto"
-                        ItemsSource="{Binding FilteredDisplayNodes}"
-                        Style="{StaticResource DialogDataGrid}">
-                        <DataGrid.Columns>
-                            <!--
-                                变量名（树形缩进 + 展开按钮）。
-                                根容器必须是 Grid 而不是横向 StackPanel：StackPanel 给 TextBlock
-                                的是"无限宽"，TextTrimming 永远不生效，超长名只会被单元格硬裁掉
-                                半个字；换成 Grid 让名称列拿 *，截断才走省略号。
-                            -->
-                            <DataGridTemplateColumn Width="146" Header="变量名">
-                                <DataGridTemplateColumn.CellTemplate>
+                        <ListBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
                                     <DataTemplate>
-                                        <Grid Background="Transparent">
+                                        <Grid Margin="4,10,4,6">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <Border
-                                                Grid.Column="0"
-                                                Width="{Binding Level, Converter={ui:LevelToIndentConverter}}" />
-                                            <ToggleButton
-                                                Grid.Column="1"
-                                                Width="14"
-                                                Height="14"
-                                                Margin="0,0,8,0"
-                                                Command="{Binding DataContext.ToggleNodeCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding}"
-                                                Cursor="Hand"
-                                                IsChecked="{Binding IsExpanded, Mode=TwoWay}"
-                                                Template="{StaticResource ExpandToggleButtonTemplate}"
-                                                Visibility="{Binding IsContainer, Converter={ui:BooleanToVisibilityConverter}}" />
-                                            <Border
-                                                Grid.Column="2"
-                                                Width="{Binding IsContainer, Converter={ui:BooleanToWidthConverter}, ConverterParameter=22}" />
                                             <TextBlock
-                                                Grid.Column="3"
+                                                x:Name="GroupTitle"
                                                 VerticalAlignment="Center"
-                                                Text="{Binding Name}"
-                                                TextTrimming="CharacterEllipsis"
-                                                ToolTip="{Binding Name}">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="FontSize" Value="13" />
-                                                        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
-                                                        <Style.Triggers>
-                                                            <!--  子节点（数组成员）压成次要色，与父节点拉开层级  -->
-                                                            <DataTrigger Binding="{Binding Level}" Value="1">
-                                                                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </Grid>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-
-                            <!--  类型（64：装得下 "Boolean"/"String[]"，再长的走省略号）  -->
-                            <DataGridTextColumn
-                                Width="64"
-                                Binding="{Binding TypeName}"
-                                Header="类型"
-                                IsReadOnly="True">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="VerticalAlignment" Value="Center" />
-                                        <Setter Property="FontSize" Value="12" />
-                                        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-                                        <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
-
-                            <!--  来源徽标（本地/连接名 + 在线圆点）。本地来源下整列收起（每行都是"本地"）  -->
-                            <DataGridTemplateColumn
-                                x:Name="SourceColumn"
-                                Width="104"
-                                Header="来源">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel
-                                            VerticalAlignment="Center"
-                                            Orientation="Horizontal"
-                                            Visibility="{Binding IsRootNode, Converter={ui:BooleanToVisibilityConverter}}">
-                                            <Ellipse Style="{StaticResource DialogStatusDot}" />
+                                                FontSize="10.5"
+                                                FontWeight="SemiBold"
+                                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                                Text="本地与系统" />
                                             <Border
-                                                MaxWidth="88"
-                                                Margin="6,0,0,0"
-                                                Padding="7,2"
+                                                Grid.Column="1"
+                                                Height="1"
+                                                Margin="8,0,0,0"
                                                 VerticalAlignment="Center"
-                                                CornerRadius="4">
-                                                <Border.Style>
-                                                    <Style TargetType="Border">
-                                                        <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsNetwork}" Value="True">
-                                                                <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Border.Style>
-                                                <TextBlock
-                                                    FontSize="11"
-                                                    TextTrimming="CharacterEllipsis">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
-                                                            <Setter Property="Text" Value="{Binding SourceLabel}" />
+                                                Background="{StaticResource DialogBorderBrush}" />
+                                        </Grid>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding Name}" Value="True">
+                                                <Setter TargetName="GroupTitle" Property="Text" Value="通信连接" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ListBox.GroupStyle>
+                    </ListBox>
+
+                    <Border
+                        Grid.Row="2"
+                        Margin="0,8,0,0"
+                        Padding="10"
+                        Background="{StaticResource DialogSurfaceBrush}"
+                        BorderBrush="{StaticResource DialogBorderLightBrush}"
+                        BorderThickness="1"
+                        CornerRadius="10">
+                        <StackPanel>
+                            <TextBlock
+                                FontSize="11"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="轮询镜像" />
+                            <TextBlock
+                                Margin="0,4,0,0"
+                                FontSize="10.5"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                Text="网络变量当前值来自轮询镜像；本地变量直接写内存；系统变量只读。"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel
+                        Grid.Row="3"
+                        Margin="4,10,4,0"
+                        Visibility="{Binding IsNetworkSource, Converter={ui:BooleanToVisibilityConverter}}">
+                        <TextBlock
+                            Margin="0,0,0,5"
+                            FontSize="10"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            Text="采集质量" />
+                        <StackPanel
+                            Margin="0,2,0,0"
+                            Orientation="Horizontal">
+                            <Ellipse
+                                Width="6"
+                                Height="6"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                Fill="{StaticResource DialogSuccessBrush}" />
+                            <TextBlock
+                                FontSize="10.5"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="正常" />
+                        </StackPanel>
+                        <StackPanel
+                            Margin="0,2,0,0"
+                            Orientation="Horizontal">
+                            <Ellipse
+                                Width="6"
+                                Height="6"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                Fill="{StaticResource DialogWarningBrush}" />
+                            <TextBlock
+                                FontSize="10.5"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="读取失败（显示上次值）" />
+                        </StackPanel>
+                        <StackPanel
+                            Margin="0,2,0,0"
+                            Orientation="Horizontal">
+                            <Ellipse
+                                Width="6"
+                                Height="6"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                Fill="{StaticResource DialogTextMutedBrush}" />
+                            <TextBlock
+                                FontSize="10.5"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="断线 / 从未读到" />
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!--  ============ 右栏：变量明细  ============  -->
+            <Grid Grid.Column="2">
+                <Border Style="{StaticResource DialogCardShadow}" />
+                <Border Style="{StaticResource DialogCardBorder}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="60" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="34" />
+                        </Grid.RowDefinitions>
+
+                        <!--  卡片头：标题 / 数量 / 来源 + 搜索 / 管理扫描组 / 添加变量  -->
+                        <Border Grid.Row="0" Style="{StaticResource DialogCardHeader}" Height="60">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource DialogCardTitleIcon}" Text="&#xf0ce;" />
+                                        <TextBlock Style="{StaticResource DialogCardTitle}" Text="变量明细" />
+                                        <Border
+                                            MinWidth="22"
+                                            Height="20"
+                                            Margin="8,0,0,0"
+                                            Padding="6,0"
+                                            VerticalAlignment="Center"
+                                            Style="{StaticResource DialogChipAccent}">
+                                            <TextBlock
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                Style="{StaticResource DialogChipTextAccent}"
+                                                Text="{Binding SelectedSource.Count, FallbackValue=0}" />
+                                        </Border>
+                                        <Border
+                                            Margin="8,0,0,0"
+                                            VerticalAlignment="Center"
+                                            Style="{StaticResource DialogTag}">
+                                            <TextBlock Style="{StaticResource DialogTagText}" Text="{Binding SelectedSource.DisplayName}" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock
+                                        Margin="0,3,0,0"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="{Binding SelectedSource.Subtitle}"
+                                        TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+
+                                <StackPanel
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal">
+                                    <Border
+                                        Width="238"
+                                        Height="32"
+                                        Style="{StaticResource DialogSearchChrome}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock
+                                                Grid.Column="0"
+                                                Style="{StaticResource DialogSearchIcon}"
+                                                Text="&#xf002;" />
+                                            <TextBox
+                                                Grid.Column="1"
+                                                Height="30"
+                                                VerticalContentAlignment="Center"
+                                                FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                                Style="{StaticResource DialogSearchInput}"
+                                                Tag="搜索变量名 / 描述 / 地址"
+                                                Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                                        </Grid>
+                                    </Border>
+
+                                    <Button
+                                        x:Name="ManageGroupsButton"
+                                        Margin="10,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding ManageScanGroupsCommand}"
+                                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                        Style="{StaticResource DialogIconButton}"
+                                        Visibility="{Binding IsNetworkSource, Converter={ui:BooleanToVisibilityConverter}}">
+                                        <Button.ToolTip>
+                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="管理扫描组：新增 / 改名 / 删除组、改周期（作用对象 = 左栏选中的连接）" />
+                                        </Button.ToolTip>
+                                        <TextBlock
+                                            FontFamily="{StaticResource DialogIconFont}"
+                                            FontSize="14"
+                                            Foreground="{StaticResource DialogAccentBrush}"
+                                            Text="&#xf5fd;" />
+                                    </Button>
+
+                                    <Button
+                                        x:Name="AddButton"
+                                        Height="32"
+                                        Margin="10,0,0,0"
+                                        Padding="12,0"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding AddCommand}"
+                                        Content="＋ 添加变量"
+                                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                        FontSize="12"
+                                        Style="{StaticResource DialogPrimaryButton}">
+                                        <Button.ToolTip>
+                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="按左栏当前选中的来源新建变量：选中「本地变量」建本地变量，选中某条连接建该连接的网络变量" />
+                                        </Button.ToolTip>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!--  系统变量只读横幅  -->
+                        <Border
+                            x:Name="SystemBanner"
+                            Grid.Row="1"
+                            Height="34"
+                            Padding="16,0"
+                            Background="{StaticResource DialogWarningSubtleBrush}"
+                            BorderBrush="{StaticResource DialogWarningBorderBrush}"
+                            BorderThickness="0,0,0,1">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedSource.Key}" Value="System">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,7,0"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="12"
+                                    Foreground="{StaticResource DialogWarningTextBrush}"
+                                    Text="&#xf023;" />
+                                <TextBlock
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogWarningTextBrush}"
+                                    Text="系统变量由宿主维护（运动 / IO），此处只读展示；重命名 / 删除不可用。新建请使用右上角「添加变量」（会切到本地变量）。"
+                                    TextTrimming="CharacterEllipsis">
+                                    <TextBlock.ToolTip>
+                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="系统变量由宿主维护（运动 / IO），此处只读展示；重命名 / 删除不可用。新建请使用右上角「添加变量」（会切到本地变量）。" />
+                                    </TextBlock.ToolTip>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <!--  明细表 + 空态覆盖层  -->
+                        <Grid Grid.Row="2">
+                            <DataGrid
+                                x:Name="DetailGrid"
+                                AlternationCount="1"
+                                CanUserReorderColumns="False"
+                                CanUserResizeColumns="False"
+                                CanUserSortColumns="False"
+                                HorizontalScrollBarVisibility="Auto"
+                                ItemsSource="{Binding FilteredDisplayNodes}"
+                                MinRowHeight="40"
+                                RowHeight="{x:Static sys:Double.NaN}"
+                                Style="{StaticResource DialogDataGrid}">
+                                <DataGrid.RowStyle>
+                                    <Style TargetType="DataGridRow" BasedOn="{StaticResource DialogDataGridRow}">
+                                        <!--
+                                            共享皮肤给的是 Margin="0,1"（上下各 1px）。本表根行 54 / 子行 40 是硬指标，
+                                            再叠 2px 会让默认 9 行（6 根 + 3 子）超出视口、末行被状态条裁掉。
+                                            行分隔已由 GridLinesVisibility=Horizontal 画，这里把 Margin 归零。
+                                        -->
+                                        <Setter Property="Margin" Value="0" />
+                                        <Setter Property="Height" Value="54" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsChildNode}" Value="True">
+                                                <Setter Property="Height" Value="40" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.RowStyle>
+                                <DataGrid.ColumnHeaderStyle>
+                                    <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource DialogDataGridColumnHeader}">
+                                        <Setter Property="Height" Value="34" />
+                                        <Setter Property="FontSize" Value="11" />
+                                    </Style>
+                                </DataGrid.ColumnHeaderStyle>
+                                <DataGrid.Columns>
+                                    <!--  变量名：缩进 + 展开箭头 + 类型图标块 + 名称/描述 + N 项  -->
+                                    <DataGridTemplateColumn Width="220" MinWidth="220" Header="变量名">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Grid Background="Transparent">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <Border Grid.Column="0" Width="{Binding Level, Converter={ui:LevelToIndentConverter}}" />
+
+                                                    <ToggleButton
+                                                        Grid.Column="1"
+                                                        Width="16"
+                                                        Height="16"
+                                                        Margin="0,0,6,0"
+                                                        Padding="0"
+                                                        Command="{Binding DataContext.ToggleNodeCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"
+                                                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                                        IsChecked="{Binding IsExpanded, Mode=OneWay}"
+                                                        Visibility="{Binding IsContainer, Converter={ui:BooleanToVisibilityConverter}}">
+                                                        <ToggleButton.ToolTip>
+                                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="展开 / 折叠数组元素" />
+                                                        </ToggleButton.ToolTip>
+                                                        <ToggleButton.Template>
+                                                            <ControlTemplate TargetType="ToggleButton">
+                                                                <Border Background="Transparent" Width="16" Height="16">
+                                                                    <TextBlock
+                                                                        x:Name="Chevron"
+                                                                        HorizontalAlignment="Center"
+                                                                        VerticalAlignment="Center"
+                                                                        FontFamily="{StaticResource DialogIconFont}"
+                                                                        FontSize="9"
+                                                                        RenderTransformOrigin="0.5,0.5"
+                                                                        Text="&#xf054;">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                        <TextBlock.RenderTransform>
+                                                                            <RotateTransform Angle="0" />
+                                                                        </TextBlock.RenderTransform>
+                                                                    </TextBlock>
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsChecked" Value="True">
+                                                                        <Setter TargetName="Chevron" Property="RenderTransform">
+                                                                            <Setter.Value>
+                                                                                <RotateTransform Angle="90" />
+                                                                            </Setter.Value>
+                                                                        </Setter>
+                                                                    </Trigger>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter TargetName="Chevron" Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </ToggleButton.Template>
+                                                    </ToggleButton>
+
+                                                    <Border
+                                                        Grid.Column="2"
+                                                        Width="{Binding IsContainer, Converter={ui:BooleanToWidthConverter}, ConverterParameter=22}">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsChildNode}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                    </Border>
+
+                                                    <Border
+                                                        Grid.Column="3"
+                                                        Width="28"
+                                                        Height="28"
+                                                        Margin="0,0,8,0"
+                                                        CornerRadius="8">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                <Setter Property="Background" Value="{Binding TypeName, Converter={StaticResource DataTypeBrushConverter}, ConverterParameter=Soft}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsChildNode}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <TextBlock
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            FontFamily="Consolas"
+                                                            FontSize="9.5"
+                                                            FontWeight="Bold"
+                                                            Foreground="{Binding TypeName, Converter={StaticResource DataTypeBrushConverter}, ConverterParameter=Text}"
+                                                            Text="{Binding TypeName, Converter={StaticResource TypeAbbreviationConverter}}" />
+                                                    </Border>
+
+                                                    <StackPanel
+                                                        Grid.Column="4"
+                                                        VerticalAlignment="Center">
+                                                        <TextBlock
+                                                            Text="{Binding Name}"
+                                                            TextTrimming="CharacterEllipsis">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="FontSize" Value="12.5" />
+                                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                                    <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsChildNode}" Value="True">
+                                                                            <Setter Property="FontSize" Value="11" />
+                                                                            <Setter Property="FontWeight" Value="Normal" />
+                                                                            <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                            <TextBlock.ToolTip>
+                                                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="{Binding Name}" />
+                                                            </TextBlock.ToolTip>
+                                                        </TextBlock>
+                                                        <TextBlock
+                                                            Margin="0,1,0,0"
+                                                            FontSize="10.5"
+                                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                                            Text="{Binding Description}"
+                                                            TextTrimming="CharacterEllipsis"
+                                                            Visibility="{Binding Description, Converter={StaticResource StringNotEmptyToVisibilityConverter}}" />
+                                                    </StackPanel>
+
+                                                    <Border
+                                                        Grid.Column="5"
+                                                        Height="18"
+                                                        Padding="6,0"
+                                                        VerticalAlignment="Center"
+                                                        Background="{StaticResource DialogTypeArraySoftBrush}"
+                                                        CornerRadius="5"
+                                                        Visibility="{Binding IsArrayRootNode, Converter={ui:BooleanToVisibilityConverter}}">
+                                                        <TextBlock
+                                                            VerticalAlignment="Center"
+                                                            FontSize="9.5"
+                                                            FontWeight="SemiBold"
+                                                            Foreground="{StaticResource DialogTypeArrayTextBrush}"
+                                                            Text="{Binding Children.Count, StringFormat={}{0} 项}" />
+                                                    </Border>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
+                                    <!--  类型：中性 chip + 类型色点  -->
+                                    <DataGridTemplateColumn Width="104" MinWidth="104" Header="类型">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Border
+                                                    MaxWidth="92"
+                                                    HorizontalAlignment="Left"
+                                                    Style="{StaticResource DialogTag}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Ellipse
+                                                            Grid.Column="0"
+                                                            Width="6"
+                                                            Height="6"
+                                                            Margin="0,0,5,0"
+                                                            VerticalAlignment="Center"
+                                                            Fill="{Binding TypeName, Converter={StaticResource DataTypeBrushConverter}, ConverterParameter=Strong}" />
+                                                        <!--  Grid 的 * 列才能让 TextTrimming 生效：横向 StackPanel 给的是无限宽，数组后缀 [] 会被直接裁掉  -->
+                                                        <TextBlock
+                                                            Grid.Column="1"
+                                                            Style="{StaticResource DialogTagText}"
+                                                            Text="{Binding TypeName}"
+                                                            TextTrimming="CharacterEllipsis">
+                                                            <TextBlock.ToolTip>
+                                                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="{Binding TypeName}" />
+                                                            </TextBlock.ToolTip>
+                                                        </TextBlock>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
+                                    <!--  来源：仅网络来源显示  -->
+                                    <DataGridTemplateColumn
+                                        x:Name="SourceColumn"
+                                        Width="120"
+                                        MinWidth="120"
+                                        Header="来源">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Border
+                                                    MaxWidth="108"
+                                                    HorizontalAlignment="Left">
+                                                    <Border.ToolTip>
+                                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="{Binding SourceLabel}" />
+                                                    </Border.ToolTip>
+                                                    <Border.Style>
+                                                        <Style TargetType="Border" BasedOn="{StaticResource DialogTag}">
+                                                            <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsNetwork}" Value="True">
-                                                                    <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                                                                    <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                                                                    <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsConnected}" Value="False">
+                                                                    <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                                                                    <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBorderBrush}" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
-                                                    </TextBlock.Style>
+                                                    </Border.Style>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Ellipse
+                                                            Grid.Column="0"
+                                                            Width="6"
+                                                            Height="6"
+                                                            Margin="0,0,5,0"
+                                                            VerticalAlignment="Center">
+                                                            <Ellipse.Style>
+                                                                <Style TargetType="Ellipse">
+                                                                    <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsNetwork}" Value="True">
+                                                                            <Setter Property="Fill" Value="{StaticResource DialogAccentBrush}" />
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding IsConnected}" Value="False">
+                                                                            <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Ellipse.Style>
+                                                        </Ellipse>
+                                                        <TextBlock
+                                                            Grid.Column="1"
+                                                            Text="{Binding SourceLabel}"
+                                                            TextTrimming="CharacterEllipsis">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock" BasedOn="{StaticResource DialogTagText}">
+                                                                    <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsNetwork}" Value="True">
+                                                                            <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding IsConnected}" Value="False">
+                                                                            <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
+                                    <!--  扫描组：仅网络来源根节点显示  -->
+                                    <DataGridTemplateColumn
+                                        x:Name="ScanGroupColumn"
+                                        Width="104"
+                                        MinWidth="104"
+                                        Header="扫描组">
+                                        <DataGridTemplateColumn.CellStyle>
+                                            <Style TargetType="DataGridCell" BasedOn="{StaticResource DialogDataGridCell}">
+                                                <Setter Property="Padding" Value="6,0,0,0" />
+                                            </Style>
+                                        </DataGridTemplateColumn.CellStyle>
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <ComboBox
+                                                    Width="92"
+                                                    Height="30"
+                                                    Padding="8,0,20,0"
+                                                    VerticalContentAlignment="Center"
+                                                    FontSize="11.5"
+                                                    ItemsSource="{Binding ScanGroupOptions}"
+                                                    SelectedItem="{Binding ScanGroupText, UpdateSourceTrigger=PropertyChanged}"
+                                                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                                    Style="{StaticResource DialogCombo}"
+                                                    Visibility="{Binding ShowScanGroup, Converter={ui:BooleanToVisibilityConverter}}">
+                                                    <ComboBox.ToolTip>
+                                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="{Binding ScanGroupText}" />
+                                                    </ComboBox.ToolTip>
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" />
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
+                                    <!--  地址：仅网络来源显示  -->
+                                    <DataGridTemplateColumn
+                                        x:Name="AddressColumn"
+                                        Width="88"
+                                        MinWidth="88"
+                                        Header="地址">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontFamily="Consolas"
+                                                    FontSize="11"
+                                                    Foreground="{StaticResource DialogWarningTextBrush}"
+                                                    Text="{Binding Address}"
+                                                    TextTrimming="CharacterEllipsis">
+                                                    <TextBlock.ToolTip>
+                                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="{Binding Address}" />
+                                                    </TextBlock.ToolTip>
                                                 </TextBlock>
-                                            </Border>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
 
-                            <!--  扫描组（网络变量根节点才有；空组名 = 默认组，显示成"默认组"）。本地来源下整列收起  -->
-                            <DataGridTemplateColumn
-                                x:Name="ScanGroupColumn"
-                                Width="96"
-                                Header="扫描组">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <ComboBox
-                                            Height="30"
-                                            Padding="8,0,24,0"
+                                    <!--
+                                        当前值：六态互斥
+                                        系统 / 图像 / 只读存储区 > 本地数组根 > 子行 > 可编辑根（含网络可写标量）
+                                    -->
+                                    <DataGridTemplateColumn
+                                        Width="*"
+                                        MinWidth="160"
+                                        Header="当前值">
+                                        <DataGridTemplateColumn.CellStyle>
+                                            <Style TargetType="DataGridCell" BasedOn="{StaticResource DialogDataGridCell}">
+                                                <Setter Property="Padding" Value="8,0,0,0" />
+                                            </Style>
+                                        </DataGridTemplateColumn.CellStyle>
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <!--  可编辑根（本地 / 网络可写标量）  -->
+                                                    <StackPanel
+                                                        VerticalAlignment="Center"
+                                                        Orientation="Horizontal">
+                                                        <StackPanel.Visibility>
+                                                            <MultiBinding Converter="{StaticResource GlobalVariableValueModeConverter}" ConverterParameter="EditableRoot">
+                                                                <Binding Path="IsRootNode" />
+                                                                <Binding Path="IsChildNode" />
+                                                                <Binding Path="IsArrayRootNode" />
+                                                                <Binding Path="IsEditableNode" />
+                                                                <Binding Path="IsValueReadOnly" />
+                                                                <Binding Path="IsSystemOwned" />
+                                                                <Binding Path="TypeName" />
+                                                                <Binding Path="OriginalModel" />
+                                                            </MultiBinding>
+                                                        </StackPanel.Visibility>
+                                                        <Ellipse
+                                                            Width="6"
+                                                            Height="6"
+                                                            Margin="0,0,6,0"
+                                                            VerticalAlignment="Center">
+                                                            <Ellipse.Style>
+                                                                <Style TargetType="Ellipse">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                    <Setter Property="Fill" Value="{StaticResource DialogTextMutedBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsNetwork}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Good">
+                                                                            <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Uncertain">
+                                                                            <Setter Property="Fill" Value="{StaticResource DialogWarningBrush}" />
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Bad">
+                                                                            <Setter Property="Fill" Value="{StaticResource DialogTextMutedBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Ellipse.Style>
+                                                            <Ellipse.ToolTip>
+                                                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="采集质量：绿=正常 / 黄=最近一次读取失败（显示旧值） / 灰=断线或从未读到" />
+                                                            </Ellipse.ToolTip>
+                                                        </Ellipse>
+                                                        <TextBox
+                                                            Width="104"
+                                                            Height="30"
+                                                            Padding="8,0"
+                                                            VerticalContentAlignment="Center"
+                                                            Background="{StaticResource DialogRowAlternateBrush}"
+                                                            BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                                            helpers:CellValueEditBehavior.Active="True"
+                                                            Style="{StaticResource DialogCellInputQuiet}"
+                                                            Text="{Binding CurrentValueText, Mode=OneWay}" />
+                                                        <Button
+                                                            Width="30"
+                                                            Height="30"
+                                                            Margin="6,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            Command="{Binding DataContext.ResetCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                            CommandParameter="{Binding}"
+                                                            Style="{StaticResource DialogIconButton}"
+                                                            FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                                            Visibility="{Binding IsValueDeviated, Converter={ui:BooleanToVisibilityConverter}}">
+                                                            <Button.ToolTip>
+                                                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="当前值已偏离初始值：点击恢复为创建时设定的初始值" />
+                                                            </Button.ToolTip>
+                                                            <TextBlock
+                                                                FontFamily="{StaticResource DialogIconFont}"
+                                                                FontSize="12"
+                                                                Foreground="{StaticResource DialogWarningTextBrush}"
+                                                                Text="&#xf0e2;" />
+                                                        </Button>
+                                                    </StackPanel>
+
+                                                    <!--  数组子行  -->
+                                                    <StackPanel
+                                                        VerticalAlignment="Center"
+                                                        Orientation="Horizontal">
+                                                        <StackPanel.Visibility>
+                                                            <MultiBinding Converter="{StaticResource GlobalVariableValueModeConverter}" ConverterParameter="EditableChild">
+                                                                <Binding Path="IsRootNode" />
+                                                                <Binding Path="IsChildNode" />
+                                                                <Binding Path="IsArrayRootNode" />
+                                                                <Binding Path="IsEditableNode" />
+                                                                <Binding Path="IsValueReadOnly" />
+                                                                <Binding Path="IsSystemOwned" />
+                                                                <Binding Path="TypeName" />
+                                                                <Binding Path="OriginalModel" />
+                                                            </MultiBinding>
+                                                        </StackPanel.Visibility>
+                                                        <TextBox
+                                                            Width="104"
+                                                            Height="30"
+                                                            Padding="8,0"
+                                                            VerticalContentAlignment="Center"
+                                                            Background="{StaticResource DialogRowAlternateBrush}"
+                                                            BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                                            helpers:CellValueEditBehavior.Active="True"
+                                                            Style="{StaticResource DialogCellInputQuiet}"
+                                                            Text="{Binding CurrentValueText, Mode=OneWay}" />
+                                                    </StackPanel>
+
+                                                    <!--  本地数组根：强制覆盖集合  -->
+                                                    <Button
+                                                        HorizontalAlignment="Left"
+                                                        VerticalAlignment="Center"
+                                                        Command="{Binding DataContext.EditArrayCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"
+                                                        Cursor="Hand"
+                                                        FontSize="11"
+                                                        FontWeight="SemiBold"
+                                                        Foreground="{StaticResource DialogAccentTextBrush}"
+                                                        Content="强制覆盖集合...">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button">
+                                                                <Setter Property="Background" Value="Transparent" />
+                                                                <Setter Property="BorderThickness" Value="0" />
+                                                                <Setter Property="Padding" Value="0" />
+                                                                <Setter Property="Template">
+                                                                    <Setter.Value>
+                                                                        <ControlTemplate TargetType="Button">
+                                                                            <Border Background="Transparent">
+                                                                                <ContentPresenter />
+                                                                            </Border>
+                                                                        </ControlTemplate>
+                                                                    </Setter.Value>
+                                                                </Setter>
+                                                            </Style>
+                                                        </Button.Style>
+                                                        <Button.Visibility>
+                                                            <MultiBinding Converter="{StaticResource GlobalVariableValueModeConverter}" ConverterParameter="ArrayRoot">
+                                                                <Binding Path="IsRootNode" />
+                                                                <Binding Path="IsChildNode" />
+                                                                <Binding Path="IsArrayRootNode" />
+                                                                <Binding Path="IsEditableNode" />
+                                                                <Binding Path="IsValueReadOnly" />
+                                                                <Binding Path="IsSystemOwned" />
+                                                                <Binding Path="TypeName" />
+                                                                <Binding Path="OriginalModel" />
+                                                            </MultiBinding>
+                                                        </Button.Visibility>
+                                                        <Button.ToolTip>
+                                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="增删元素、批量修改并整体覆盖当前值" />
+                                                        </Button.ToolTip>
+                                                    </Button>
+
+                                                    <!--  系统 / 只读存储区：锁 + 值  -->
+                                                    <StackPanel
+                                                        VerticalAlignment="Center"
+                                                        Orientation="Horizontal">
+                                                        <StackPanel.Visibility>
+                                                            <MultiBinding Converter="{StaticResource GlobalVariableValueModeConverter}" ConverterParameter="ReadOnlyRoot">
+                                                                <Binding Path="IsRootNode" />
+                                                                <Binding Path="IsChildNode" />
+                                                                <Binding Path="IsArrayRootNode" />
+                                                                <Binding Path="IsEditableNode" />
+                                                                <Binding Path="IsValueReadOnly" />
+                                                                <Binding Path="IsSystemOwned" />
+                                                                <Binding Path="TypeName" />
+                                                                <Binding Path="OriginalModel" />
+                                                            </MultiBinding>
+                                                        </StackPanel.Visibility>
+                                                        <TextBlock
+                                                            Margin="0,0,5,0"
+                                                            VerticalAlignment="Center"
+                                                            FontFamily="{StaticResource DialogIconFont}"
+                                                            FontSize="11"
+                                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                                            Text="&#xf023;" />
+                                                        <TextBlock
+                                                            VerticalAlignment="Center"
+                                                            FontSize="11.5"
+                                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                                            Text="{Binding CurrentValueText}"
+                                                            TextTrimming="CharacterEllipsis">
+                                                            <TextBlock.ToolTip>
+                                                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="只读：系统变量或只读存储区，不可写值" />
+                                                            </TextBlock.ToolTip>
+                                                        </TextBlock>
+                                                    </StackPanel>
+
+                                                    <!--  图像：由流程写入  -->
+                                                    <StackPanel
+                                                        VerticalAlignment="Center"
+                                                        Orientation="Horizontal">
+                                                        <StackPanel.Visibility>
+                                                            <MultiBinding Converter="{StaticResource GlobalVariableValueModeConverter}" ConverterParameter="Image">
+                                                                <Binding Path="IsRootNode" />
+                                                                <Binding Path="IsChildNode" />
+                                                                <Binding Path="IsArrayRootNode" />
+                                                                <Binding Path="IsEditableNode" />
+                                                                <Binding Path="IsValueReadOnly" />
+                                                                <Binding Path="IsSystemOwned" />
+                                                                <Binding Path="TypeName" />
+                                                                <Binding Path="OriginalModel" />
+                                                            </MultiBinding>
+                                                        </StackPanel.Visibility>
+                                                        <TextBlock
+                                                            Margin="0,0,5,0"
+                                                            VerticalAlignment="Center"
+                                                            FontFamily="{StaticResource DialogIconFont}"
+                                                            FontSize="11"
+                                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                                            Text="&#xf03e;" />
+                                                        <TextBlock
+                                                            VerticalAlignment="Center"
+                                                            FontSize="11.5"
+                                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                                            Text="图像由流程写入" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
+                                    <!--  操作：复制保留；系统行只隐藏重命名/删除，显示只读 chip  -->
+                                    <DataGridTemplateColumn
+                                        Width="100"
+                                        MinWidth="100"
+                                        Header="操作"
+                                        CellStyle="{StaticResource DialogDataGridCellFlush}">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <StackPanel
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    Orientation="Horizontal"
+                                                    Visibility="{Binding IsRootNode, Converter={ui:BooleanToVisibilityConverter}}">
+                                                    <Button
+                                                        Command="{Binding DataContext.CopyNameCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"
+                                                        Style="{StaticResource DialogIconButton}"
+                                                            FocusVisualStyle="{StaticResource DialogFocusVisual}">
+                                                        <Button.ToolTip>
+                                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="复制变量名（供画布组态绑定）" />
+                                                        </Button.ToolTip>
+                                                        <TextBlock
+                                                            FontFamily="{StaticResource DialogIconFont}"
+                                                            FontSize="13"
+                                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                                            Text="&#xf0c5;" />
+                                                    </Button>
+
+                                                    <Button
+                                                        Margin="2,0,0,0"
+                                                        Command="{Binding DataContext.RenameCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button" BasedOn="{StaticResource DialogIconButton}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSystemOwned}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                        <Button.ToolTip>
+                                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="重命名变量" />
+                                                        </Button.ToolTip>
+                                                        <TextBlock
+                                                            FontFamily="{StaticResource DialogIconFont}"
+                                                            FontSize="13"
+                                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                                            Text="&#xf044;" />
+                                                    </Button>
+
+                                                    <Button
+                                                        Margin="2,0,0,0"
+                                                        Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button" BasedOn="{StaticResource DialogIconButton}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSystemOwned}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                        <Button.ToolTip>
+                                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="删除" />
+                                                        </Button.ToolTip>
+                                                        <TextBlock
+                                                            FontFamily="{StaticResource DialogIconFont}"
+                                                            FontSize="13"
+                                                            Foreground="{StaticResource DialogDangerBrush}"
+                                                            Text="&#xf1f8;" />
+                                                    </Button>
+
+                                                    <Border
+                                                        Margin="2,0,0,0"
+                                                        VerticalAlignment="Center">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border" BasedOn="{StaticResource DialogTag}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSystemOwned}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock
+                                                                Margin="0,0,4,0"
+                                                                FontFamily="{StaticResource DialogIconFont}"
+                                                                FontSize="9"
+                                                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                                Text="&#xf023;" />
+                                                            <TextBlock
+                                                                FontSize="10"
+                                                                FontWeight="SemiBold"
+                                                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                                Text="只读" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <!--  空来源覆盖层  -->
+                            <Grid
+                                x:Name="EmptySourceOverlay"
+                                Margin="0,34,0,0"
+                                Panel.ZIndex="2"
+                                Background="{StaticResource DialogSurfaceBrush}">
+                                <Grid.Visibility>
+                                    <MultiBinding Converter="{StaticResource EmptyStateVisibilityConverter}" ConverterParameter="Empty">
+                                        <Binding Path="FilteredDisplayNodes.Count" />
+                                        <Binding Path="SearchText" />
+                                    </MultiBinding>
+                                </Grid.Visibility>
+                                <StackPanel
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                                    <Border
+                                        Width="46"
+                                        Height="46"
+                                        HorizontalAlignment="Center"
+                                        Background="{StaticResource DialogRowAlternateBrush}"
+                                        BorderBrush="{StaticResource DialogBorderStrongBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="14">
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
-                                            FontSize="12"
-                                            ItemsSource="{Binding ScanGroupOptions}"
-                                            SelectedItem="{Binding ScanGroupText, UpdateSourceTrigger=PropertyChanged}"
-                                            Style="{StaticResource DialogCombo}"
-                                            ToolTip="该点由哪个扫描周期采集（默认组周期取连接的默认组周期）"
-                                            Visibility="{Binding ShowScanGroup, Converter={ui:BooleanToVisibilityConverter}}">
-                                            <ComboBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" />
-                                                </DataTemplate>
-                                            </ComboBox.ItemTemplate>
-                                        </ComboBox>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
+                                            FontFamily="{StaticResource DialogIconFont}"
+                                            FontSize="20"
+                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                            Text="&#xf1c0;" />
+                                    </Border>
+                                    <TextBlock
+                                        Margin="0,10,0,0"
+                                        HorizontalAlignment="Center"
+                                        FontSize="13"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                        Text="还没有变量" />
+                                    <TextBlock
+                                        MaxWidth="420"
+                                        Margin="0,5,0,0"
+                                        HorizontalAlignment="Center"
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="点击右上角「＋ 添加变量」创建第一个变量。"
+                                        TextAlignment="Center"
+                                        TextWrapping="Wrap" />
+                                    <Button
+                                        Height="32"
+                                        Margin="0,10,0,0"
+                                        Padding="12,0"
+                                        HorizontalAlignment="Center"
+                                        Command="{Binding AddCommand}"
+                                        Content="＋ 添加变量"
+                                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                        FontSize="12"
+                                        Style="{StaticResource DialogPrimaryButton}">
+                                        <Button.ToolTip>
+                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="打开「添加变量」属性网格弹窗" />
+                                        </Button.ToolTip>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
 
-                            <!--  设备地址（仅网络变量有值）。本地来源下整列收起  -->
-                            <DataGridTemplateColumn
-                                x:Name="AddressColumn"
-                                Width="74"
-                                Header="地址">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
+                            <!--  搜索无结果覆盖层  -->
+                            <Grid
+                                x:Name="SearchEmptyOverlay"
+                                Margin="0,34,0,0"
+                                Panel.ZIndex="3"
+                                Background="{StaticResource DialogSurfaceBrush}">
+                                <Grid.Visibility>
+                                    <MultiBinding Converter="{StaticResource EmptyStateVisibilityConverter}" ConverterParameter="Search">
+                                        <Binding Path="FilteredDisplayNodes.Count" />
+                                        <Binding Path="SearchText" />
+                                    </MultiBinding>
+                                </Grid.Visibility>
+                                <StackPanel
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                                    <Border
+                                        Width="46"
+                                        Height="46"
+                                        HorizontalAlignment="Center"
+                                        Background="{StaticResource DialogRowAlternateBrush}"
+                                        BorderBrush="{StaticResource DialogBorderStrongBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="14">
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            FontFamily="{StaticResource DialogIconFont}"
+                                            FontSize="18"
+                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                            Text="&#xf002;" />
+                                    </Border>
+                                    <TextBlock
+                                        Margin="0,10,0,0"
+                                        HorizontalAlignment="Center"
+                                        FontSize="13"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                        Text="没有匹配的变量" />
+                                    <TextBlock
+                                        MaxWidth="420"
+                                        Margin="0,5,0,0"
+                                        HorizontalAlignment="Center"
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="按名称 / 描述 / 地址搜索，或清空搜索框查看全部。"
+                                        TextAlignment="Center"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+
+                        <!--  底部状态条  -->
+                        <Border
+                            Grid.Row="3"
+                            Background="{StaticResource DialogRowAlternateBrush}"
+                            BorderBrush="{StaticResource DialogBorderLightBrush}"
+                            BorderThickness="0,1,0,0"
+                            Padding="16,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal">
+                                    <TextBlock
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="{Binding SelectedSource.Count, FallbackValue=0}" />
+                                    <TextBlock
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text=" 个变量 · " />
+                                    <TextBlock
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="{Binding SelectedSource.DisplayName}" />
+                                    <Border
+                                        Width="1"
+                                        Height="12"
+                                        Margin="10,0"
+                                        VerticalAlignment="Center"
+                                        Background="{StaticResource DialogBorderBrush}" />
+                                    <TextBlock
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="当前值写入内存" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsNetworkSource}" Value="True">
+                                                        <Setter Property="Text" Value="轮询镜像实时刷新" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SelectedSource.Key}" Value="System">
+                                                        <Setter Property="Text" Value="只读 · 不参与新建 / 删除" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+
+                                <StackPanel
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal">
+                                    <Border
+                                        Height="18"
+                                        MinWidth="18"
+                                        Padding="5,0"
+                                        Background="{StaticResource DialogSurfaceBrush}"
+                                        BorderBrush="{StaticResource DialogBorderBrush}"
+                                        BorderThickness="1,1,1,2"
+                                        CornerRadius="4">
                                         <TextBlock
                                             VerticalAlignment="Center"
                                             FontFamily="Consolas"
-                                            FontSize="12"
-                                            Foreground="{StaticResource DialogWarningTextBrush}"
-                                            Text="{Binding Address}"
-                                            ToolTip="{Binding Address}" />
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-
-                            <!--
-                                初始值。
-                                三态各有一个控件：标量根节点=可直接改；数组根=进"编辑集合"（能改长度）；
-                                数组元素行=就地改这一项。
-                                原来元素行是只读 TextBlock —— 改一个数字也得打开整个弹窗，
-                                而那个弹窗又因为 PropertyGrid 不渲染集合而根本用不了（见 VM 注释）。
-                            -->
-                            <!--  （"初始值"列已撤：基准在「＋ 添加变量」弹窗的「初始值（选填）」项设定，明细表只看当前值）  -->
-
-                            <!--
-                                当前值：就地编辑（2026-10-11 交互收敛，第二轮：撤掉"初始值"列）。
-                                - 标量根 = 提交式编辑框：回车/失焦提交，本地写内存、网络下发设备，
-                                  失败红框如实留痕；编辑中轮询推送暂停，草稿不被冲掉（CellValueEditBehavior）；
-                                - 数组元素行 = 同样的编辑框，就地改这一项（只写 Value，不碰基准）；
-                                - 当前值 ≠ 初始值时才出现 ↺（基准在「＋ 添加变量」弹窗的「初始值（选填）」项设定）；
-                                - 数组根 = 强制覆盖集合（增删元素、基准与当前值一起换）。
-                                * 列 + MinWidth=80：这是"固定列吃光视口、星号列静默变 0"事故
-                                  （2026-10-11 变量明细显示不全）的守门——低于 80 宁可出横向滚动条。
-                            -->
-                            <DataGridTemplateColumn Width="*" MinWidth="80" Header="当前值">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Grid>
-                                            <StackPanel
-                                                VerticalAlignment="Center"
-                                                Orientation="Horizontal"
-                                                Visibility="{Binding IsEditableNode, Converter={ui:BooleanToVisibilityConverter}}">
-                                                <!--  质量色点：绿=采集正常 / 黄=最近一次读取失败(显示旧值) / 灰=断线或从未读到；
-                                                      本地变量无质量概念 → 不显示  -->
-                                                <Ellipse
-                                                    Width="5"
-                                                    Height="5"
-                                                    Margin="0,0,5,0"
-                                                    VerticalAlignment="Center"
-                                                    ToolTip="采集质量：绿=正常 / 黄=最近一次读取失败（显示旧值） / 灰=断线或从未读到">
-                                                    <!--
-                                                        色值刻意不走 Dialog* 令牌：这套绿/黄/灰是"采集质量"的
-                                                        全项目统一约定，SCADA 图层面板、流程画布、属性面板都用同一组，
-                                                        换肤时应整体一起动，不能只让弹窗变。
-                                                    -->
-                                                    <Ellipse.Style>
-                                                        <Style TargetType="Ellipse">
-                                                            <Setter Property="Fill" Value="#FFC0C4CC" />
-                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Good">
-                                                                    <Setter Property="Fill" Value="#FF67C23A" />
-                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                </DataTrigger>
-                                                                <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Uncertain">
-                                                                    <Setter Property="Fill" Value="#FFE6A23C" />
-                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                </DataTrigger>
-                                                                <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Bad">
-                                                                    <Setter Property="Fill" Value="#FFC0C4CC" />
-                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Ellipse.Style>
-                                                </Ellipse>
-                                                <TextBox
-                                                    Width="110"
-                                                    helpers:CellValueEditBehavior.Active="True"
-                                                    IsReadOnly="{Binding IsValueReadOnly}"
-                                                    Style="{StaticResource DialogCellInputQuiet}"
-                                                    Text="{Binding CurrentValueText, Mode=OneWay}"
-                                                    ToolTip="当前值就地编辑：点击进入编辑，回车或移开焦点提交（成功后自动回到读取模式）。本地变量写入内存；网络变量直接下发设备（失败标红并给出原因）。只读存储区（如 Modbus 离散输入）不可编辑。" />
-                                                <!--  回到基准：仅当当前值 ≠ 初始值时出现（基准在「＋ 添加变量」弹窗的「初始值（选填）」项设定）  -->
-                                                <Button
-                                                    Command="{Binding DataContext.ResetCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                    CommandParameter="{Binding}"
-                                                    Style="{StaticResource DialogIconButton}"
-                                                    ToolTip="当前值已偏离初始值：点击恢复为创建时设定的初始值"
-                                                    Visibility="{Binding IsValueDeviated, Converter={ui:BooleanToVisibilityConverter}}">
-                                                    <TextBlock
-                                                        FontFamily="{StaticResource Icon}"
-                                                        FontSize="12"
-                                                        Foreground="{StaticResource DialogWarningTextBrush}"
-                                                        Text="&#xf0e2;" />
-                                                </Button>
-                                            </StackPanel>
-
-                                            <!--  数组根：整体覆盖当前值的入口（能改长度与元素）  -->
-                                            <Button
-                                                Command="{Binding DataContext.EditArrayCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding}"
-                                                Content="强制覆盖集合..."
-                                                Style="{StaticResource LinkButtonStyle}"
-                                                ToolTip="增删元素、批量修改并整体覆盖当前值（元素多时比逐行改方便）"
-                                                Visibility="{Binding IsArrayRootNode, Converter={ui:BooleanToVisibilityConverter}}" />
-
-                                            <!--  数组元素行：就地改这一项的当前值（只写 Value；增删元素走父行「强制覆盖集合...」）  -->
-                                            <TextBox
-                                                Width="110"
-                                                helpers:CellValueEditBehavior.Active="True"
-                                                Style="{StaticResource DialogCellInputQuiet}"
-                                                Text="{Binding CurrentValueText, Mode=OneWay}"
-                                                ToolTip="数组元素当前值：点击进入编辑，回车或移开焦点提交（成功后自动回到读取模式）。要增删元素请点父行的「强制覆盖集合...」"
-                                                Visibility="{Binding IsChildNode, Converter={ui:BooleanToVisibilityConverter}}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-
-                            <!--  操作（2026-10-11 收敛：写值走"当前值"单元格就地编辑、"恢复初始值"收进当前值单元格，
-                                      此列只剩 复制 / 重命名 / 删除 三个通用动作）  -->
-                            <DataGridTemplateColumn Width="126" Header="操作">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel
-                                            HorizontalAlignment="Center"
+                                            FontSize="9.5"
+                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                            Text="Enter" />
+                                    </Border>
+                                    <TextBlock
+                                        Margin="4,0,10,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="提交" />
+                                    <Border
+                                        Height="18"
+                                        MinWidth="18"
+                                        Padding="5,0"
+                                        Background="{StaticResource DialogSurfaceBrush}"
+                                        BorderBrush="{StaticResource DialogBorderBrush}"
+                                        BorderThickness="1,1,1,2"
+                                        CornerRadius="4">
+                                        <TextBlock
                                             VerticalAlignment="Center"
-                                            Orientation="Horizontal"
-                                            Visibility="{Binding IsRootNode, Converter={ui:BooleanToVisibilityConverter}}">
-                                            <!--  复制变量名（HMI 组态预留入口）  -->
-                                            <Button
-                                                Command="{Binding DataContext.CopyNameCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding}"
-                                                Style="{StaticResource DialogIconButton}"
-                                                ToolTip="复制变量名（供画布组态绑定）">
-                                                <TextBlock
-                                                    FontFamily="{StaticResource Icon}"
-                                                    FontSize="13"
-                                                    Foreground="{StaticResource DialogTextMutedBrush}"
-                                                    Text="&#xf0c5;" />
-                                            </Button>
-                                            <!--  重命名（经注册表统一入口，连线/监视项/轮询注册自动跟随）  -->
-                                            <Button
-                                                Command="{Binding DataContext.RenameCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding}"
-                                                Style="{StaticResource DialogIconButton}"
-                                                ToolTip="重命名变量">
-                                                <TextBlock
-                                                    FontFamily="{StaticResource Icon}"
-                                                    FontSize="13"
-                                                    Foreground="{StaticResource DialogTextMutedBrush}"
-                                                    Text="&#xf044;" />
-                                            </Button>
-                                            <!--  删除  -->
-                                            <Button
-                                                Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding}"
-                                                Style="{StaticResource DialogIconButton}"
-                                                ToolTip="删除">
-                                                <TextBlock
-                                                    FontFamily="{StaticResource Icon}"
-                                                    FontSize="13"
-                                                    Foreground="{StaticResource DialogDangerBrush}"
-                                                    Text="&#xf1f8;" />
-                                            </Button>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
-
-                    <!--  底部提示  -->
-                    <TextBlock
-                        Grid.Row="2"
-                        Margin="16,12"
-                        FontSize="11"
-                        Foreground="{StaticResource DialogTextMutedBrush}"
-                        Text="* 在「当前值」格里直接改值：本地变量写入内存，网络变量直达设备（失败会标红并给出原因）。↺ 恢复为建变量时设定的初始值。流程内插件创建的运行时变量（Runtime.*）不在此列，请到监视栏查看。"
-                        TextWrapping="Wrap" />
-                </Grid>
-            </Border>
-        </Grid>
+                                            FontFamily="Consolas"
+                                            FontSize="9.5"
+                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                            Text="Esc" />
+                                    </Border>
+                                    <TextBlock
+                                        Margin="4,0,10,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="取消" />
+                                    <Border
+                                        Height="18"
+                                        MinWidth="18"
+                                        Padding="5,0"
+                                        Background="{StaticResource DialogSurfaceBrush}"
+                                        BorderBrush="{StaticResource DialogBorderBrush}"
+                                        BorderThickness="1,1,1,2"
+                                        CornerRadius="4">
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontFamily="{StaticResource DialogIconFont}"
+                                            FontSize="9"
+                                            Foreground="{StaticResource DialogWarningTextBrush}"
+                                            Text="&#xf0e2;" />
+                                    </Border>
+                                    <TextBlock
+                                        Margin="4,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="恢复初始值" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>

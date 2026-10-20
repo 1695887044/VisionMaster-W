@@ -1,0 +1,1049 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>深度学习分类 · 配置窗口 · 设计基线 v1</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #dc-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="dc-design-root">
+  <style>
+    #dc-design-root{
+      color-scheme: light dark;
+      --dc-surface:#FFFFFF;
+      --dc-surface-2:#F8FAFC;
+      --dc-surface-3:#F1F5F9;
+      --dc-border:#E2E8F0;
+      --dc-border-soft:#EEF2F7;
+      --dc-border-strong:#CBD5E1;
+      --dc-text:#0F172A;
+      --dc-text-2:#475569;
+      --dc-text-3:#94A3B8;
+      --dc-text-4:#64748B;
+      --dc-primary:#0EA5E9;
+      --dc-primary-strong:#0284C7;
+      --dc-primary-text:#0369A1;
+      --dc-primary-soft:#F0F9FF;
+      --dc-primary-light:#E0F2FE;
+      --dc-primary-border:#BAE6FD;
+      --dc-success:#22C55E;
+      --dc-success-text:#15803D;
+      --dc-success-soft:#F0FDF4;
+      --dc-success-border:#BBF7D0;
+      --dc-danger:#EF4444;
+      --dc-danger-text:#B91C1C;
+      --dc-danger-soft:#FEF2F2;
+      --dc-danger-border:#FECACA;
+      --dc-warning:#F59E0B;
+      --dc-warning-text:#B45309;
+      --dc-warning-soft:#FFF4E5;
+      --dc-warning-border:#FDE68A;
+      --dc-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --dc-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --dc-radius-sm:6px;
+      --dc-radius-md:8px;
+      --dc-radius-lg:10px;
+      --dc-radius-xl:12px;
+      --dc-radius-window:16px;
+      --dc-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--dc-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #dc-design-root *{box-sizing:border-box;}
+    #dc-design-root button,
+    #dc-design-root input,
+    #dc-design-root select,
+    #dc-design-root textarea{font-family:inherit;}
+    #dc-design-root button{color:inherit;}
+    #dc-design-root [hidden]{display:none !important;}
+    #dc-design-root :focus-visible{outline:2px solid var(--dc-primary);outline-offset:2px;}
+
+    #dc-design-root .dc-page{
+      max-width:1360px;margin:0 auto;padding:24px 24px 44px;background:transparent;
+    }
+    #dc-design-root .dc-page-head{max-width:1360px;margin:0 auto 16px;}
+    #dc-design-root .dc-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #dc-design-root .dc-page-title-row h1{
+      margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;
+      color:light-dark(#0F172A,#E2E8F0);
+    }
+    #dc-design-root .dc-ver{
+      display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+      background:light-dark(var(--dc-primary-light),rgba(14,165,233,.18));
+      color:light-dark(var(--dc-primary-text),#7DD3FC);
+      font-size:11px;font-weight:700;letter-spacing:.02em;
+    }
+    #dc-design-root .dc-page-sub{
+      margin:7px 0 14px;font-size:12.5px;line-height:1.6;
+      color:light-dark(var(--dc-text-2),#94A3B8);
+    }
+    #dc-design-root .dc-page-sub b{color:light-dark(var(--dc-text),#E2E8F0);font-weight:600;}
+    #dc-design-root .dc-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #dc-design-root .dc-demo-group{display:flex;align-items:center;gap:8px;}
+    #dc-design-root .dc-demo-label{font-size:11.5px;color:light-dark(var(--dc-text-4),#94A3B8);}
+    #dc-design-root .dc-scope{
+      display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;
+      font-size:11.5px;line-height:1.55;
+      color:light-dark(var(--dc-text-2),#94A3B8);
+    }
+    #dc-design-root .dc-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:light-dark(var(--dc-warning-text),#FBBF24);}
+    #dc-design-root .dc-scope b{color:light-dark(var(--dc-text),#E2E8F0);font-weight:600;}
+    #dc-design-root .dc-seg{
+      display:inline-flex;gap:2px;padding:2px;border-radius:var(--dc-radius-md);
+      background:light-dark(var(--dc-surface-3),#1E293B);
+    }
+    #dc-design-root .dc-seg button{
+      height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;
+      color:light-dark(var(--dc-text-2),#CBD5E1);font-size:11.5px;line-height:1;cursor:pointer;
+      transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;
+    }
+    #dc-design-root .dc-seg button:hover{color:light-dark(var(--dc-text),#F8FAFC);}
+    #dc-design-root .dc-seg button.is-on{
+      background:light-dark(#FFFFFF,#334155);
+      color:light-dark(var(--dc-text),#F8FAFC);
+      font-weight:600;
+      box-shadow:0 1px 2px rgba(15,23,42,.10);
+    }
+
+    /* ================= 产品窗口 ================= */
+    #dc-design-root .dc-window{
+      width:960px;max-width:100%;height:680px;margin:0 auto;
+      display:flex;flex-direction:column;overflow:hidden;
+      background:var(--dc-surface);
+      border-radius:var(--dc-radius-window);
+      box-shadow:var(--dc-shadow-window);
+      transition:width 200ms ease;
+    }
+    #dc-design-root .dc-window.is-narrow{width:640px;}
+
+    /* ---- 标题栏 ---- */
+    #dc-design-root .dc-titlebar{
+      height:72px;flex:none;display:flex;align-items:center;
+      padding:0 20px;background:var(--dc-surface);
+      border-bottom:1px solid var(--dc-border-soft);
+    }
+    #dc-design-root .dc-app-icon{
+      width:40px;height:40px;flex:none;border-radius:12px;
+      display:flex;align-items:center;justify-content:center;
+      background:var(--dc-primary-light);color:var(--dc-primary-text);
+    }
+    #dc-design-root .dc-app-icon svg{width:19px;height:19px;}
+    #dc-design-root .dc-title-text{margin-left:12px;min-width:0;flex:1;}
+    #dc-design-root .dc-title-line{display:flex;align-items:center;gap:8px;min-width:0;}
+    #dc-design-root .dc-title{
+      font-size:16px;font-weight:600;line-height:1.3;color:var(--dc-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #dc-design-root .dc-subtitle{
+      margin-top:2px;font-size:12px;line-height:1.4;color:var(--dc-text-2);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #dc-design-root .dc-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+
+    /* ---- 内容 ---- */
+    #dc-design-root .dc-content{
+      flex:1;min-height:0;display:grid;
+      grid-template-columns:356px minmax(0,1fr);
+      gap:16px;padding:16px 20px 20px;background:var(--dc-surface);
+    }
+    #dc-design-root .dc-window.is-narrow .dc-content{
+      grid-template-columns:300px minmax(0,1fr);
+      gap:12px;padding:14px 16px 16px;
+    }
+
+    /* ---- 左栏 ---- */
+    #dc-design-root .dc-rail{
+      min-height:0;overflow-y:auto;overflow-x:hidden;
+      display:flex;flex-direction:column;
+      padding:14px;border:1px solid var(--dc-border-soft);border-radius:var(--dc-radius-xl);
+      background:var(--dc-surface-2);
+      scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;
+    }
+    #dc-design-root .dc-rail::-webkit-scrollbar{width:8px;}
+    #dc-design-root .dc-rail::-webkit-scrollbar-thumb{
+      background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;
+    }
+    #dc-design-root .dc-rail::-webkit-scrollbar-track{background:transparent;}
+
+    #dc-design-root .dc-section{margin-top:16px;}
+    #dc-design-root .dc-section:first-child{margin-top:0;}
+    #dc-design-root .dc-section-head{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      margin-bottom:9px;font-size:12px;font-weight:600;color:var(--dc-text-2);
+    }
+    #dc-design-root .dc-section-hint{font-size:10.5px;font-weight:400;color:var(--dc-text-3);white-space:nowrap;}
+
+    #dc-design-root .dc-field{margin-bottom:12px;}
+    #dc-design-root .dc-field:last-child{margin-bottom:0;}
+    #dc-design-root .dc-label{
+      display:flex;align-items:center;gap:5px;margin-bottom:6px;
+      font-size:12px;font-weight:500;line-height:1.3;color:var(--dc-text-2);
+    }
+    #dc-design-root .dc-link-hint{width:12px;height:12px;color:var(--dc-text-3);margin-left:2px;}
+    #dc-design-root .dc-input-row{display:flex;align-items:center;gap:8px;}
+    #dc-design-root .dc-link-row{
+      display:flex;align-items:center;gap:8px;
+      min-height:36px;padding:0 8px 0 10px;border:1px solid var(--dc-border);
+      border-radius:var(--dc-radius-md);background:var(--dc-surface);
+    }
+    #dc-design-root .dc-link-value{
+      min-width:0;flex:1;font-size:12.5px;color:var(--dc-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #dc-design-root .dc-link-value.is-empty{color:var(--dc-text-3);}
+    #dc-design-root .dc-input,
+    #dc-design-root .dc-select{
+      width:100%;height:36px;padding:0 10px;
+      border:1px solid var(--dc-border);border-radius:var(--dc-radius-md);
+      background:var(--dc-surface);color:var(--dc-text);
+      font-size:12.5px;line-height:1;outline:none;
+      transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;
+    }
+    #dc-design-root .dc-input::placeholder{color:var(--dc-text-3);}
+    #dc-design-root .dc-input:hover,
+    #dc-design-root .dc-select:hover{border-color:var(--dc-border-strong);}
+    #dc-design-root .dc-input:focus,
+    #dc-design-root .dc-select:focus{
+      border-color:var(--dc-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);
+    }
+    #dc-design-root .dc-input:disabled{background:var(--dc-surface-3);color:var(--dc-text-3);cursor:not-allowed;}
+    #dc-design-root .dc-select{
+      appearance:none;-webkit-appearance:none;padding-right:30px;cursor:pointer;
+    }
+    #dc-design-root .dc-select-wrap{position:relative;}
+    #dc-design-root .dc-select-wrap > svg{
+      position:absolute;right:10px;top:50%;transform:translateY(-50%);
+      width:13px;height:13px;color:var(--dc-text-3);pointer-events:none;
+    }
+    #dc-design-root .dc-help{
+      display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;
+      font-size:11.5px;line-height:1.5;color:var(--dc-text-4);
+    }
+    #dc-design-root .dc-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--dc-text-3);}
+
+    /* 按钮 */
+    #dc-design-root .dc-btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:6px;
+      height:36px;padding:0 13px;border:1px solid var(--dc-border);border-radius:var(--dc-radius-md);
+      background:var(--dc-surface);color:var(--dc-text);font-size:12.5px;font-weight:500;
+      line-height:1;cursor:pointer;white-space:nowrap;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;
+    }
+    #dc-design-root .dc-btn svg{width:14px;height:14px;}
+    #dc-design-root .dc-btn:hover{background:var(--dc-surface-2);border-color:var(--dc-border-strong);}
+    #dc-design-root .dc-btn:active{background:var(--dc-surface-3);}
+    #dc-design-root .dc-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #dc-design-root .dc-btn-primary{
+      background:var(--dc-primary);border-color:var(--dc-primary);color:#fff;font-weight:600;
+    }
+    #dc-design-root .dc-btn-primary:hover{background:var(--dc-primary-strong);border-color:var(--dc-primary-strong);}
+    #dc-design-root .dc-btn-sm{height:36px;padding:0 11px;font-size:12px;}
+    #dc-design-root .dc-btn-block{width:100%;}
+    #dc-design-root .dc-btn-square{
+      width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--dc-radius-md);
+      background:transparent;color:var(--dc-text-4);
+      display:flex;align-items:center;justify-content:center;cursor:pointer;
+      transition:background 150ms ease,color 150ms ease;
+    }
+    #dc-design-root .dc-btn-square:hover{background:var(--dc-surface-3);color:var(--dc-text);}
+    #dc-design-root .dc-btn-square svg{width:15px;height:15px;}
+    #dc-design-root .dc-icon-btn{
+      width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--dc-radius-md);
+      display:inline-flex;align-items:center;justify-content:center;
+      background:transparent;color:var(--dc-text-4);cursor:pointer;
+      transition:background 150ms ease,color 150ms ease;
+    }
+    #dc-design-root .dc-icon-btn svg{width:15px;height:15px;}
+    #dc-design-root .dc-icon-btn:hover{background:var(--dc-surface-3);color:var(--dc-text);}
+    #dc-design-root .dc-icon-btn:active{background:var(--dc-border);}
+    #dc-design-root .dc-tool-text{
+      height:26px;padding:0 7px;border:0;border-radius:6px;background:transparent;
+      color:var(--dc-text-4);font-size:10.5px;font-weight:600;line-height:1;cursor:pointer;
+      font-variant-numeric:tabular-nums;transition:background 150ms ease,color 150ms ease;
+    }
+    #dc-design-root .dc-tool-text:hover{background:var(--dc-surface-3);color:var(--dc-text);}
+
+    /* 模型信息卡 */
+    #dc-design-root .dc-model-card{
+      margin-top:10px;padding:10px 11px;border:1px solid var(--dc-border);
+      border-radius:var(--dc-radius-lg);background:var(--dc-surface);
+      transition:background 150ms ease,border-color 150ms ease;
+    }
+    #dc-design-root .dc-model-card.is-error{
+      background:var(--dc-danger-soft);border-color:var(--dc-danger-border);
+    }
+    #dc-design-root .dc-model-name{
+      font-size:12px;font-weight:600;line-height:1.35;color:var(--dc-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #dc-design-root .dc-model-card.is-error .dc-model-name{color:var(--dc-danger-text);}
+    #dc-design-root .dc-model-shape{
+      margin-top:5px;font-family:var(--dc-mono);font-size:10.5px;line-height:1.55;
+      color:var(--dc-text-2);white-space:pre-wrap;word-break:break-all;
+    }
+    #dc-design-root .dc-model-meta{
+      margin-top:4px;font-size:10.5px;line-height:1.45;color:var(--dc-text-4);
+      white-space:pre-wrap;word-break:break-all;
+    }
+    #dc-design-root .dc-model-card.is-error .dc-model-shape,
+    #dc-design-root .dc-model-card.is-error .dc-model-meta{color:var(--dc-danger-text);}
+
+    /* 折叠区 */
+    #dc-design-root .dc-details{
+      margin-top:12px;border:1px solid var(--dc-border);border-radius:var(--dc-radius-lg);
+      background:var(--dc-surface);overflow:hidden;
+    }
+    #dc-design-root .dc-details summary{
+      display:flex;align-items:center;gap:8px;padding:10px 12px;
+      font-size:12px;font-weight:500;color:var(--dc-text-2);cursor:pointer;list-style:none;
+    }
+    #dc-design-root .dc-details summary::-webkit-details-marker{display:none;}
+    #dc-design-root .dc-details summary:hover{background:var(--dc-surface-2);}
+    #dc-design-root .dc-details summary svg{width:14px;height:14px;color:var(--dc-text-3);}
+    #dc-design-root .dc-details summary .dc-chev{margin-left:auto;transition:transform 150ms ease;}
+    #dc-design-root .dc-details[open] summary .dc-chev{transform:rotate(180deg);}
+    #dc-design-root .dc-details-body{padding:0 12px 12px;border-top:1px solid var(--dc-border-soft);}
+    #dc-design-root .dc-details-body .dc-field{margin-top:10px;}
+
+    /* 试算 */
+    #dc-design-root .dc-hint{
+      margin:8px 0 0;padding:8px 10px;border-radius:var(--dc-radius-md);
+      background:var(--dc-surface-3);font-size:11.5px;line-height:1.55;color:var(--dc-text-2);
+    }
+    #dc-design-root .dc-result{
+      margin-top:10px;border:1px solid var(--dc-border);border-radius:var(--dc-radius-lg);
+      background:var(--dc-surface);overflow:hidden;
+    }
+    #dc-design-root .dc-result-head{
+      display:flex;align-items:center;justify-content:space-between;gap:8px;
+      padding:8px 11px;border-bottom:1px solid var(--dc-border-soft);
+      font-size:11px;font-weight:600;color:var(--dc-text-2);
+    }
+    #dc-design-root .dc-result-state{
+      font-size:10.5px;font-weight:600;color:var(--dc-text-3);
+    }
+    #dc-design-root .dc-result-state.is-ok{color:var(--dc-success-text);}
+    #dc-design-root .dc-result-state.is-err{color:var(--dc-danger-text);}
+    #dc-design-root .dc-result-body{
+      margin:0;padding:10px 11px;min-height:62px;max-height:132px;overflow:auto;
+      font-family:var(--dc-mono);font-size:10.5px;line-height:1.6;
+      color:var(--dc-text-2);white-space:pre-wrap;word-break:break-all;
+    }
+
+    /* ---- 预览区 ---- */
+    #dc-design-root .dc-preview{
+      min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+      border:1px solid var(--dc-border);border-radius:var(--dc-radius-xl);background:var(--dc-surface);
+    }
+    #dc-design-root .dc-preview-head{
+      height:44px;flex:none;display:flex;align-items:center;gap:8px;
+      padding:0 10px;border-bottom:1px solid var(--dc-border-soft);background:var(--dc-surface);
+    }
+    #dc-design-root .dc-file-chip{
+      width:26px;height:26px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;
+      background:var(--dc-surface-3);color:var(--dc-text-2);
+    }
+    #dc-design-root .dc-file-chip svg{width:13px;height:13px;}
+    #dc-design-root .dc-file-name{
+      font-size:12.5px;font-weight:600;line-height:1.3;color:var(--dc-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;
+    }
+    #dc-design-root .dc-file-meta{
+      flex:none;font-size:10.5px;line-height:1.3;color:var(--dc-text-3);
+      font-variant-numeric:tabular-nums;white-space:nowrap;
+    }
+    #dc-design-root .dc-preview-tools{margin-left:auto;display:flex;align-items:center;gap:1px;flex:none;}
+    #dc-design-root .dc-window.is-narrow .dc-file-name{max-width:110px;}
+    #dc-design-root .dc-window.is-narrow .dc-file-meta{display:none;}
+    #dc-design-root .dc-window.is-narrow .dc-status-path{display:none;}
+
+    #dc-design-root .dc-canvas{
+      position:relative;flex:1;min-height:0;overflow:hidden;background:#0B1220;
+    }
+    #dc-design-root .dc-canvas-view{
+      position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      text-align:center;
+    }
+    #dc-design-root .dc-canvas-view:not([data-view="image"]){padding:24px;}
+    #dc-design-root .dc-canvas-view[data-view="image"]{display:block;}
+    #dc-design-root .dc-scene{width:100%;height:100%;display:block;}
+    #dc-design-root .dc-overlay{
+      position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:6px;pointer-events:none;
+    }
+    #dc-design-root .dc-overlay-right{
+      position:absolute;top:10px;right:10px;display:flex;align-items:center;gap:6px;pointer-events:none;
+    }
+    #dc-design-root .dc-chip{
+      display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;
+      background:rgba(15,23,42,.58);border:1px solid rgba(148,163,184,.22);color:#E2E8F0;
+      font-size:10.5px;line-height:1;font-variant-numeric:tabular-nums;
+      backdrop-filter:blur(6px);
+    }
+    #dc-design-root .dc-chip svg{width:11px;height:11px;color:#7DD3FC;}
+    #dc-design-root .dc-chip.is-ok{
+      background:rgba(34,197,94,.16);border-color:rgba(34,197,94,.42);color:#BBF7D0;
+    }
+
+    #dc-design-root .dc-dropzone{
+      width:min(420px,82%);padding:26px 24px;border:1.5px dashed #334155;border-radius:14px;
+      background:rgba(30,41,59,.35);display:flex;flex-direction:column;align-items:center;text-align:center;
+      transition:border-color 150ms ease,background 150ms ease;
+    }
+    #dc-design-root .dc-dropzone:hover{border-color:var(--dc-primary);background:rgba(14,165,233,.08);}
+    #dc-design-root .dc-state-icon{
+      width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+      background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.18);color:#94A3B8;margin-bottom:13px;
+    }
+    #dc-design-root .dc-state-icon svg{width:22px;height:22px;}
+    #dc-design-root .dc-state-title{font-size:14px;font-weight:600;line-height:1.4;color:#E2E8F0;margin-bottom:4px;}
+    #dc-design-root .dc-state-sub{
+      max-width:340px;font-size:11.5px;line-height:1.6;color:#94A3B8;margin:0;
+    }
+    #dc-design-root .dc-state-sub code{
+      font-family:var(--dc-mono);font-size:10.5px;color:#BAE6FD;background:rgba(14,165,233,.12);
+      padding:1px 5px;border-radius:4px;
+    }
+    #dc-design-root .dc-error .dc-state-icon{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.30);color:#F87171;}
+    #dc-design-root .dc-error .dc-state-title{color:#FCA5A5;}
+
+    #dc-design-root .dc-statusbar{
+      height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;
+      border-top:1px solid var(--dc-border-soft);background:var(--dc-surface);
+      font-size:11.5px;min-width:0;
+    }
+    #dc-design-root .dc-status-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--dc-text-3);}
+    #dc-design-root .dc-status-dot.is-ok{background:var(--dc-success);}
+    #dc-design-root .dc-status-dot.is-warn{background:var(--dc-warning);}
+    #dc-design-root .dc-status-dot.is-err{background:var(--dc-danger);}
+    #dc-design-root .dc-status-msg{
+      min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--dc-text-2);
+    }
+    #dc-design-root .dc-status-msg.is-ok{color:var(--dc-success-text);}
+    #dc-design-root .dc-status-msg.is-warn{color:var(--dc-warning-text);}
+    #dc-design-root .dc-status-msg.is-err{color:var(--dc-danger-text);}
+    #dc-design-root .dc-status-path{
+      margin-left:auto;max-width:42%;flex:none;
+      font-family:var(--dc-mono);font-size:10.5px;color:var(--dc-text-3);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+
+    /* ---- 底部宿主栏 ---- */
+    #dc-design-root .dc-footer{
+      height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;
+      border-top:1px solid var(--dc-border-soft);background:var(--dc-surface-2);
+    }
+    #dc-design-root .dc-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #dc-design-root .dc-status-chip{
+      display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;
+      background:var(--dc-surface);border:1px solid var(--dc-border);
+      font-size:11.5px;color:var(--dc-text-2);white-space:nowrap;
+    }
+    #dc-design-root .dc-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--dc-text-3);}
+    #dc-design-root .dc-elapsed{
+      font-family:var(--dc-mono);font-size:11px;color:var(--dc-text-3);font-variant-numeric:tabular-nums;
+      white-space:nowrap;
+    }
+    #dc-design-root .dc-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #dc-design-root .dc-footer .dc-btn{height:32px;padding:0 16px;font-size:12.5px;}
+    #dc-design-root .dc-footer .dc-btn-primary{padding:0 18px;}
+
+    /* ---- 改动说明 ---- */
+    #dc-design-root .dc-notes{
+      max-width:1360px;margin:26px auto 0;
+      display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+      column-gap:28px;row-gap:0;
+    }
+    #dc-design-root .dc-notes-head{
+      grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;
+      color:light-dark(var(--dc-text-2),#94A3B8);
+    }
+    #dc-design-root .dc-note{
+      display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;
+      border-top:1px solid light-dark(var(--dc-border),#1E293B);
+    }
+    #dc-design-root .dc-note-num{
+      width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      background:light-dark(var(--dc-primary-light),rgba(14,165,233,.18));
+      color:light-dark(var(--dc-primary-text),#7DD3FC);
+      font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;
+    }
+    #dc-design-root .dc-note b{
+      display:block;font-size:12.5px;font-weight:600;line-height:1.4;
+      color:light-dark(var(--dc-text),#E2E8F0);
+    }
+    #dc-design-root .dc-note span{
+      display:block;margin-top:3px;font-size:11.5px;line-height:1.55;
+      color:light-dark(var(--dc-text-2),#94A3B8);
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      #dc-design-root *{animation:none !important;transition:none !important;}
+    }
+    @media (max-width:1024px){
+      #dc-design-root .dc-page{padding:18px 14px 32px;}
+      #dc-design-root .dc-window{height:auto;min-height:640px;}
+      #dc-design-root .dc-content{grid-template-columns:1fr;}
+      #dc-design-root .dc-rail{overflow:visible;}
+      #dc-design-root .dc-preview{min-height:420px;}
+    }
+  </style>
+
+  <div class="dc-page">
+    <header class="dc-page-head">
+      <div class="dc-page-title-row">
+        <h1>深度学习分类 · 配置窗口</h1>
+        <span class="dc-ver">v1</span>
+      </div>
+      <p class="dc-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、<b>LinkableValueEditor（Image）</b>、
+        <b>ImageReadOnly</b> 与 <b>ModelPath / ResizeMode / TopK / InputSize</b> 全部绑定；不新增功能、不改绑定类型。
+        窗口 <b>960 × 680</b>，左侧配置轨 <b>356px</b>，右侧预览工作区自适应。
+      </p>
+      <div class="dc-demo-bar">
+        <div class="dc-demo-group" role="group" aria-label="窗口宽度">
+          <span class="dc-demo-label">窗口宽度</span>
+          <div class="dc-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="dc-demo-group" role="group" aria-label="界面状态">
+          <span class="dc-demo-label">界面状态</span>
+          <div class="dc-seg">
+            <button type="button" data-state="normal" class="is-on" aria-pressed="true">默认</button>
+            <button type="button" data-state="empty" aria-pressed="false">空态</button>
+            <button type="button" data-state="error" aria-pressed="false">模型错误</button>
+          </div>
+        </div>
+      </div>
+      <div class="dc-scope">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span><b>V1 未纳入（需新增功能或契约）：</b>加载骨架 / 图像尺寸与文件大小 / 放大缩小 / 打开所在文件夹 /
+        系统导航 / ROI 画框 / 模型库选择器。本稿覆盖 960×680 与 640×680；宿主最小档 640×560 需真机复核左栏滚动与预览高度。</span>
+      </div>
+    </header>
+
+    <div class="dc-window" id="dc-window">
+      <div class="dc-titlebar">
+        <div class="dc-app-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"></path><path d="M9 13a4.5 4.5 0 0 0 3-4"></path><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"></path><path d="M3.477 10.896a4 4 0 0 1 .585-.396"></path><path d="M6 18a4 4 0 0 1-1.967-.516"></path><path d="M12 13h4"></path><path d="M12 18h6a2 2 0 0 1 2 2v1"></path><path d="M12 8h8"></path><path d="M16 8V5a2 2 0 0 1 2-2"></path><circle cx="16" cy="13" r=".5"></circle><circle cx="18" cy="3" r=".5"></circle><circle cx="20" cy="21" r=".5"></circle><circle cx="20" cy="8" r=".5"></circle></svg>
+        </div>
+        <div class="dc-title-text">
+          <div class="dc-title-line">
+            <div class="dc-title">深度学习分类</div>
+          </div>
+          <div class="dc-subtitle">用 ONNX 分类模型判断图像属于哪一类（OK/NG 或多类别），输出类别与置信度</div>
+        </div>
+        <div class="dc-title-actions">
+          <button type="button" class="dc-icon-btn" data-tooltip="关闭" aria-label="关闭">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="dc-content">
+        <aside class="dc-rail" aria-label="分类配置">
+          <!-- 图像输入 -->
+          <section class="dc-section">
+            <div class="dc-section-head"><span>图像输入</span><span class="dc-section-hint">上游端口 / 变量</span></div>
+            <div class="dc-field">
+              <label class="dc-label">输入图像</label>
+              <div class="dc-link-row">
+                <span class="dc-link-value" id="dc-link-value">上游：图像处理.输出图像</span>
+                <button type="button" class="dc-btn-square" id="dc-link-btn" data-tooltip="绑定 / 解除变量" aria-label="绑定或解除变量">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+                </button>
+              </div>
+              <p class="dc-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                本节点分类整幅图，不吃 ROI；要只分某个区域，请上游先用「创建ROI」裁好。
+              </p>
+            </div>
+          </section>
+
+          <!-- 模型 -->
+          <section class="dc-section">
+            <div class="dc-section-head"><span>分类模型（.onnx）</span><span class="dc-section-hint">客户资产</span></div>
+            <div class="dc-field">
+              <label class="dc-label" for="dc-model-path">模型路径</label>
+              <div class="dc-input-row">
+                <input class="dc-input" id="dc-model-path" type="text" value="D:\Models\ok-ng-classify.onnx" spellcheck="false">
+                <button type="button" class="dc-btn dc-btn-sm" id="dc-browse">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></svg>浏览
+                </button>
+              </div>
+              <p class="dc-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                支持相对路径（相对宿主程序目录），换机器部署时不用改配置。
+              </p>
+            </div>
+            <div class="dc-model-card" id="dc-model-card">
+              <div class="dc-model-name" id="dc-model-name">ok-ng-classify.onnx</div>
+              <div class="dc-model-shape" id="dc-model-shape">input: 1×3×224×224　output: 1×2</div>
+              <div class="dc-model-meta" id="dc-model-meta">task=classify　2 个类别名（OK,NG）</div>
+            </div>
+            <p class="dc-help">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              只支持「图像分类」模型。检测 / 分割模型的输出格式不同，会被明确拒绝（不会拿错格式硬算）。
+            </p>
+          </section>
+
+          <!-- 分类参数 -->
+          <section class="dc-section">
+            <div class="dc-section-head"><span>分类参数</span><span class="dc-section-hint">预处理</span></div>
+            <div class="dc-field">
+              <label class="dc-label" for="dc-resize">缩放模式</label>
+              <div class="dc-select-wrap">
+                <select class="dc-select" id="dc-resize">
+                  <option>Letterbox · 等比补边（推荐）</option>
+                  <option>Stretch · 拉伸填充</option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+              <p class="dc-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                Letterbox = 等比缩放 + 补边（默认，不改变长宽比，最稳）；Stretch = 直接拉成方形。按训练该模型时的预处理来选，选错会让精度静默下降。
+              </p>
+            </div>
+            <div class="dc-field">
+              <label class="dc-label" for="dc-topk">结果保留前 K 类</label>
+              <input class="dc-input" id="dc-topk" type="number" value="3" min="1" max="100" style="font-variant-numeric:tabular-nums;">
+              <p class="dc-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                试算结果与 TopKText 里列出前 K 个类别。K 会被夹到 [1, 类别数]。
+              </p>
+            </div>
+            <details class="dc-details">
+              <summary>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 17H5"></path><path d="M19 7h-9"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>
+                高级参数（多数场景不用动）
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="dc-chev" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </summary>
+              <div class="dc-details-body">
+                <div class="dc-field">
+                  <label class="dc-label" for="dc-inputsize">输入尺寸（0 = 用模型自带的）</label>
+                  <input class="dc-input" id="dc-inputsize" type="number" value="0" min="0" max="4096" style="font-variant-numeric:tabular-nums;">
+                  <p class="dc-help">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                    模型元数据里有静态尺寸时留 0 即可；模型是动态形状才需要手填（分类模型常见 224）。
+                  </p>
+                </div>
+              </div>
+            </details>
+          </section>
+
+          <!-- 试算 -->
+          <section class="dc-section">
+            <div class="dc-section-head"><span>试算</span><span class="dc-section-hint">不上流程</span></div>
+            <p class="dc-help" style="margin-top:0;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              图像来自上方「图像输入」：链接上游输出、或手动指定一张图；绑定后点宿主底部「执行」跑一遍，图会自动显示进来。
+            </p>
+            <button type="button" class="dc-btn dc-btn-primary dc-btn-block" id="dc-try" style="margin-top:10px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></svg>
+              试算一下
+            </button>
+            <p class="dc-hint" id="dc-hint">先选模型（.onnx），再在「图像输入」里点 🔗 手动绑定图像来源（选上游端口或变量），然后「试算一下」看分类结果</p>
+            <div class="dc-result">
+              <div class="dc-result-head">
+                <span>试算结果</span>
+                <span class="dc-result-state" id="dc-result-state">尚未试算</span>
+              </div>
+              <pre class="dc-result-body" id="dc-result-body">尚未试算</pre>
+            </div>
+          </section>
+        </aside>
+
+        <!-- 预览工作区 -->
+        <section class="dc-preview" aria-label="图像预览">
+          <div class="dc-preview-head">
+            <div class="dc-file-chip">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg>
+            </div>
+            <span class="dc-file-name">图像预览</span>
+            <span class="dc-file-meta">只读 · 整幅图</span>
+            <div class="dc-preview-tools">
+              <button type="button" class="dc-icon-btn" id="dc-fit-window" data-tooltip="适应窗口" aria-label="适应窗口">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
+              </button>
+              <button type="button" class="dc-tool-text" id="dc-fit-image" data-tooltip="实际像素 1:1" aria-label="实际像素">1:1</button>
+            </div>
+          </div>
+
+          <div class="dc-canvas">
+            <div class="dc-canvas-view" data-view="image">
+              <svg class="dc-scene" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="dc-scene-title dc-scene-desc">
+                <title id="dc-scene-title">工业零件分类预览</title>
+                <desc id="dc-scene-desc">深色背景上有一个带六个螺栓孔的金属圆形零件，带测量十字线与取景角标。</desc>
+                <defs>
+                  <radialGradient id="dc-metal" cx="42%" cy="38%" r="66%">
+                    <stop offset="0%" stop-color="#E8EDF3"></stop>
+                    <stop offset="45%" stop-color="#AEB9C6"></stop>
+                    <stop offset="75%" stop-color="#7B8794"></stop>
+                    <stop offset="100%" stop-color="#4B5563"></stop>
+                  </radialGradient>
+                  <linearGradient id="dc-bg" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#0B1220"></stop>
+                    <stop offset="100%" stop-color="#151F31"></stop>
+                  </linearGradient>
+                  <pattern id="dc-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293B" stroke-width="1"></path>
+                  </pattern>
+                  <filter id="dc-soft" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="9"></feGaussianBlur>
+                  </filter>
+                </defs>
+                <rect width="800" height="520" fill="url(#dc-bg)"></rect>
+                <rect width="800" height="520" fill="url(#dc-grid)" opacity=".55"></rect>
+                <ellipse cx="400" cy="278" rx="232" ry="205" fill="#000000" opacity=".45" filter="url(#dc-soft)"></ellipse>
+                <circle cx="400" cy="260" r="190" fill="url(#dc-metal)" stroke="#D7DEE8" stroke-width="2"></circle>
+                <circle cx="400" cy="260" r="160" fill="none" stroke="#5B6675" stroke-width="2" opacity=".7"></circle>
+                <circle cx="400" cy="260" r="118" fill="#8C97A5" stroke="#D7DEE8" stroke-width="1.5"></circle>
+                <circle cx="400" cy="260" r="92" fill="#5F6B7A" stroke="#AEB9C6" stroke-width="1.5"></circle>
+                <circle cx="400" cy="260" r="52" fill="#2F3947" stroke="#7B8794" stroke-width="2"></circle>
+                <g fill="#1F2937" stroke="#C7D0DB" stroke-width="1.2">
+                  <circle cx="400" cy="118" r="15"></circle>
+                  <circle cx="523" cy="189" r="15"></circle>
+                  <circle cx="523" cy="331" r="15"></circle>
+                  <circle cx="400" cy="402" r="15"></circle>
+                  <circle cx="277" cy="331" r="15"></circle>
+                  <circle cx="277" cy="189" r="15"></circle>
+                </g>
+                <circle cx="400" cy="260" r="24" fill="#111827" stroke="#94A3B8" stroke-width="1"></circle>
+                <g fill="none" stroke="#FFFFFF" stroke-opacity=".18" stroke-width="1">
+                  <path d="M 245 260 A 155 155 0 0 1 400 105"></path>
+                  <path d="M 555 260 A 155 155 0 0 0 400 415"></path>
+                  <path d="M 300 260 A 100 100 0 0 1 400 160"></path>
+                </g>
+                <g stroke="#38BDF8" stroke-opacity=".85" stroke-width="1">
+                  <path d="M 400 40 V 110"></path>
+                  <path d="M 400 410 V 480"></path>
+                  <path d="M 180 260 H 240"></path>
+                  <path d="M 560 260 H 620"></path>
+                </g>
+                <circle cx="400" cy="260" r="6" fill="none" stroke="#38BDF8" stroke-width="1.5"></circle>
+                <g stroke="#38BDF8" stroke-opacity=".55" stroke-width="2" fill="none">
+                  <path d="M 30 30 H 70 M 30 30 V 70"></path>
+                  <path d="M 770 30 H 730 M 770 30 V 70"></path>
+                  <path d="M 30 490 H 70 M 30 490 V 450"></path>
+                  <path d="M 770 490 H 730 M 770 490 V 450"></path>
+                </g>
+              </svg>
+              <div class="dc-overlay">
+                <span class="dc-chip">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path></svg>
+                  只读预览
+                </span>
+                <span class="dc-chip">整幅图</span>
+                <span class="dc-chip" id="dc-zoom-note">适应窗口</span>
+              </div>
+            </div>
+
+            <div class="dc-canvas-view" data-view="empty" hidden>
+              <div class="dc-dropzone">
+                <div class="dc-state-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5h6"></path><path d="M19 2v6"></path><path d="M21 11.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5"></path><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path><circle cx="9" cy="9" r="2"></circle></svg>
+                </div>
+                <div class="dc-state-title">还没有图像</div>
+                <p class="dc-state-sub">在「图像输入」里点 <code>🔗</code> 绑定上游端口或变量；也可以先点宿主底部「执行」把试运行图像带进来。</p>
+              </div>
+            </div>
+
+            <div class="dc-canvas-view dc-error" data-view="error" hidden role="alert">
+              <div class="dc-state-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+              </div>
+              <div class="dc-state-title">模型加载失败</div>
+              <p class="dc-state-sub">请检查「模型路径」是否存在，或重新选择一个 .onnx 分类模型。模型不可用时不会退回任何默认模型。</p>
+            </div>
+          </div>
+
+          <div class="dc-statusbar" aria-live="polite">
+            <span class="dc-status-dot is-ok" id="dc-status-dot"></span>
+            <span class="dc-status-msg is-ok" id="dc-status-msg">已显示上游图像（点「执行」试运行带进来的）：可直接点「试算一下」看分类结果</span>
+            <span class="dc-status-path">整幅图 · 只读</span>
+          </div>
+        </section>
+      </div>
+
+      <div class="dc-footer">
+        <div class="dc-footer-left">
+          <span class="dc-status-chip">
+            <span class="dc-footer-dot"></span>
+            <span>状态: 待执行</span>
+          </span>
+          <span class="dc-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="dc-footer-right">
+          <button type="button" class="dc-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></svg>执行
+          </button>
+          <button type="button" class="dc-btn dc-btn-ghost">取消</button>
+          <button type="button" class="dc-btn dc-btn-primary">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="dc-notes">
+      <div class="dc-notes-head">关键改动（V1）</div>
+      <div class="dc-note">
+        <div class="dc-note-num">01</div>
+        <div><b>两栏固定分工</b><span>左 356px 配置轨（输入 → 模型 → 参数 → 试算），右侧预览工作区自适应；窗口窄档左栏 300px，左栏内部滚动。</span></div>
+      </div>
+      <div class="dc-note">
+        <div class="dc-note-num">02</div>
+        <div><b>图像输入保持 LinkableValueEditor</b><span><code>Port=Image</code> / <code>StepData</code> 原样；只把内部 Label 置空、外置标签，🔗/✕ 仍由控件自带。</span></div>
+      </div>
+      <div class="dc-note">
+        <div class="dc-note-num">03</div>
+        <div><b>模型信息卡</b><span><code>ModelSummary</code> 原绑定；输入 / 输出形状、task、类别名在卡内等宽显示。加载失败时整卡切红（仅由既有摘要文本触发，不新增状态属性）。</span></div>
+      </div>
+      <div class="dc-note">
+        <div class="dc-note-num">04</div>
+        <div><b>参数表单三件套</b><span>标签 12px / 控件 36px / 帮助 11.5px；<code>ResizeMode</code> 仍是枚举，<code>TopK</code> / <code>InputSize</code> 仍是 int；高级参数收进折叠区。</span></div>
+      </div>
+      <div class="dc-note">
+        <div class="dc-note-num">05</div>
+        <div><b>试算结果独立成卡</b><span><code>Hint</code> 与 <code>ResultSummary</code> 原绑定；结果卡等宽显示 TopK 概率，不做假进度条、不新增加载态。</span></div>
+      </div>
+      <div class="dc-note">
+        <div class="dc-note-num">06</div>
+        <div><b>预览按需创建</b><span><code>ContentControl PreviewHost</code> 绑 <code>DisplayImage</code>，模板内 <code>ImageReadOnly HImage="{Binding Mode=OneWay}"</code>；有图才创建，避免折叠后不重绘。空态/错误态是纯 WPF 覆盖层。</span></div>
+      </div>
+      <div class="dc-note">
+        <div class="dc-note-num">07</div>
+        <div><b>颜色全部令牌化</b><span>映射 <code>Colors.xaml</code> / <code>PluginConfigColors.xaml</code>；视图 XAML 零十六进制；图标按钮 30×30 + <code>Padding=0</code>，焦点环走 <code>DialogFocusVisual</code>。</span></div>
+      </div>
+
+      <div class="dc-notes-head" style="margin-top:20px;">V1 契约保留（一个都不能改）</div>
+      <div class="dc-note">
+        <div class="dc-note-num">C1</div>
+        <div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不引入独立 VM。</span></div>
+      </div>
+      <div class="dc-note">
+        <div class="dc-note-num">C2</div>
+        <div><b>LinkableValueEditor（Image）</b><span><code>Port</code> / <code>StepData</code> 原样；端口持久化、类型转换、变量链接与解除链接都在控件里。</span></div>
+      </div>
+      <div class="dc-note">
+        <div class="dc-note-num">C3</div>
+        <div><b>ImageReadOnly.HImage = DisplayImage</b><span>保留 HALCON 显示 / 缩放 / 右键菜单；控件类型与 <code>DisplayImage</code> 的释放语义不变。</span></div>
+      </div>
+      <div class="dc-note">
+        <div class="dc-note-num">C4</div>
+        <div><b>ModelPath / ResizeMode / TopK / InputSize</b><span>四个 <code>[StepConfig]</code> 属性绑定与类型不变：string / 枚举 / int / int；<code>UpdateSourceTrigger=PropertyChanged</code> 不变。</span></div>
+      </div>
+      <div class="dc-note">
+        <div class="dc-note-num">C5</div>
+        <div><b>浏览 / 试算 / Hint / ResultSummary</b><span>「浏览」仍写 <code>ModelPath</code> 并刷新摘要；「试算一下」仍走 <code>TryPreviewClassify()</code>；<code>Hint</code> / <code>ResultSummary</code> 原样消费。</span></div>
+      </div>
+
+      <div class="dc-notes-head" style="margin-top:20px;">V1 明确延后（需新增功能或契约）</div>
+      <div class="dc-note">
+        <div class="dc-note-num">D1</div>
+        <div><b>加载骨架 / 推理进度</b><span>需要 VM 新增 <code>IsPreviewLoading</code> 或 <code>PreviewState</code>；当前只有 <code>Hint</code> / <code>ResultSummary</code> 文本。</span></div>
+      </div>
+      <div class="dc-note">
+        <div class="dc-note-num">D2</div>
+        <div><b>图像尺寸 / 文件大小</b><span>需要 VM 新增只读属性（<code>HImage.GetImageSize</code>）；预览头只显示「只读 · 整幅图」。</span></div>
+      </div>
+      <div class="dc-note">
+        <div class="dc-note-num">D3</div>
+        <div><b>放大 / 缩小按钮</b><span><code>HalconBase</code> 只有 <code>FitToWindow()</code> / <code>FitToImage()</code>，没有公开 zoom 方法；只做「适应窗口 / 1:1」。</span></div>
+      </div>
+      <div class="dc-note">
+        <div class="dc-note-num">D4</div>
+        <div><b>打开所在文件夹</b><span>需要新增 <code>Process.Start("explorer.exe", ...)</code> 行为；V1 不做。</span></div>
+      </div>
+      <div class="dc-note">
+        <div class="dc-note-num">D5</div>
+        <div><b>模型库 / 系统导航 / ROI 画框</b><span>模型仍是外部文件路径；相机、系统设置等导航不进入本插件；分类整幅图，不吃 ROI。</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('dc-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#dc-window');
+      var stateButtons = Array.prototype.slice.call(root.querySelectorAll('[data-state]'));
+      var sizeButtons = Array.prototype.slice.call(root.querySelectorAll('[data-width]'));
+      var views = Array.prototype.slice.call(root.querySelectorAll('.dc-canvas-view'));
+      var modelCard = root.querySelector('#dc-model-card');
+      var modelPath = root.querySelector('#dc-model-path');
+      var modelName = root.querySelector('#dc-model-name');
+      var modelShape = root.querySelector('#dc-model-shape');
+      var modelMeta = root.querySelector('#dc-model-meta');
+      var hint = root.querySelector('#dc-hint');
+      var resultState = root.querySelector('#dc-result-state');
+      var resultBody = root.querySelector('#dc-result-body');
+      var statusDot = root.querySelector('#dc-status-dot');
+      var statusMsg = root.querySelector('#dc-status-msg');
+      var linkValue = root.querySelector('#dc-link-value');
+      var zoomNote = root.querySelector('#dc-zoom-note');
+
+      var state = 'normal';
+      var linked = true;
+
+      var initialHint = '先选模型（.onnx），再在「图像输入」里点 🔗 手动绑定图像来源（选上游端口或变量），然后「试算一下」看分类结果';
+      var normalResult = '预测：OK（置信度 0.982，耗时 14 ms）\n  OK  0.982\n  NG  0.018';
+
+      var meta = {
+        normal: {
+          path: 'D:\\Models\\ok-ng-classify.onnx',
+          name: 'ok-ng-classify.onnx',
+          shape: 'input: 1×3×224×224　output: 1×2',
+          modelMeta: 'task=classify　2 个类别名（OK,NG）',
+          view: 'image',
+          level: 'ok',
+          status: '已显示上游图像（点「执行」试运行带进来的）：可直接点「试算一下」看分类结果',
+          hint: '已显示上游图像（点「执行」试运行带进来的）：可直接点「试算一下」看分类结果',
+          resultState: '完成',
+          resultStateClass: 'is-ok',
+          result: normalResult,
+          chip: 'OK · 0.982'
+        },
+        empty: {
+          path: '',
+          name: '尚未选择模型',
+          shape: '—',
+          modelMeta: '选择 .onnx 分类模型后显示输入输出形状',
+          view: 'empty',
+          level: 'warn',
+          status: '先选模型（.onnx），再在「图像输入」里点 🔗 手动绑定图像来源',
+          hint: initialHint,
+          resultState: '尚未试算',
+          resultStateClass: '',
+          result: '尚未试算',
+          chip: '—'
+        },
+        error: {
+          path: 'D:\\Models\\missing.onnx',
+          name: 'missing.onnx',
+          shape: '模型加载失败，详见提示',
+          modelMeta: '请检查路径是否存在，或重新选择 .onnx 文件',
+          view: 'error',
+          level: 'err',
+          status: '模型加载失败：模型文件不存在',
+          hint: '模型不可用：请重新选择 .onnx 文件',
+          resultState: '失败',
+          resultStateClass: 'is-err',
+          result: '试算失败：模型文件不存在：D:\\Models\\missing.onnx。请重新选择，或把模型放到该路径',
+          chip: '—'
+        }
+      };
+
+      function setStatus(level, msg) {
+        statusDot.className = 'dc-status-dot is-' + level;
+        statusMsg.className = 'dc-status-msg is-' + level;
+        statusMsg.textContent = msg;
+      }
+
+      function render() {
+        var item = meta[state];
+        modelPath.value = item.path;
+        modelName.textContent = item.name;
+        modelShape.textContent = item.shape;
+        modelMeta.textContent = item.modelMeta;
+        modelCard.className = 'dc-model-card' + (state === 'error' ? ' is-error' : '');
+
+        hint.textContent = item.hint;
+        resultState.textContent = item.resultState;
+        resultState.className = 'dc-result-state ' + item.resultStateClass;
+        resultBody.textContent = item.result;
+
+        views.forEach(function (view) {
+          view.hidden = view.dataset.view !== item.view;
+        });
+
+        if (linked) {
+          linkValue.textContent = '上游：图像处理.输出图像';
+          linkValue.className = 'dc-link-value';
+        } else {
+          linkValue.textContent = '未绑定（点 🔗 选择上游端口或变量）';
+          linkValue.className = 'dc-link-value is-empty';
+        }
+
+        setStatus(item.level, item.status);
+      }
+
+      stateButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          state = btn.dataset.state;
+          stateButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          render();
+        });
+      });
+
+      sizeButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var narrow = btn.dataset.width === '640';
+          win.classList.toggle('is-narrow', narrow);
+          sizeButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+        });
+      });
+
+      root.querySelector('#dc-browse').addEventListener('click', function () {
+        state = 'normal';
+        stateButtons.forEach(function (b) {
+          var on = b.dataset.state === 'normal';
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        render();
+        statusMsg.textContent = '已选择模型：ok-ng-classify.onnx';
+      });
+
+      root.querySelector('#dc-try').addEventListener('click', function () {
+        if (state === 'empty') {
+          resultState.textContent = '尚未试算';
+          resultState.className = 'dc-result-state';
+          resultBody.textContent = '先点「载入」把示意图读进来再试算';
+          setStatus('warn', '还没有可试算的图像');
+          return;
+        }
+        if (state === 'error') {
+          resultState.textContent = '失败';
+          resultState.className = 'dc-result-state is-err';
+          resultBody.textContent = meta.error.result;
+          setStatus('err', '试算失败：模型不可用');
+          return;
+        }
+        resultState.textContent = '完成';
+        resultState.className = 'dc-result-state is-ok';
+        resultBody.textContent = normalResult;
+        setStatus('ok', '试算完成：OK · 0.982（14 ms）');
+      });
+
+      root.querySelector('#dc-link-btn').addEventListener('click', function () {
+        linked = !linked;
+        render();
+      });
+
+      root.querySelector('#dc-fit-window').addEventListener('click', function () {
+        zoomNote.textContent = '适应窗口';
+      });
+      root.querySelector('#dc-fit-image').addEventListener('click', function () {
+        zoomNote.textContent = '1:1 实际像素';
+      });
+
+      render();
+    })();
+  </script>
+</div>
+</body>
+</html>

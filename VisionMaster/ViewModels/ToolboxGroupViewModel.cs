@@ -34,6 +34,13 @@ namespace VisionMaster.ViewModels
         /// <summary>该分组下的算子（元素类型必须是原始 ToolItemModel——拖拽链路的硬约束）</summary>
         public ObservableCollection<ToolItemModel> Children { get; } = new();
 
+        public ToolboxGroupViewModel()
+        {
+            // 分组是**原地复用**的（ToolViewModel.ApplyFilter 只增删 Children 里变化的条目），
+            // 而 Count 是派生属性、自己不会通知——不补这一句，分组头上的数量胶囊会停在旧数字上。
+            Children.CollectionChanged += (_, _) => RaisePropertyChanged(nameof(Count));
+        }
+
         /// <summary>分组内算子数（分组头右侧的数量胶囊）</summary>
         public int Count => Children.Count;
 

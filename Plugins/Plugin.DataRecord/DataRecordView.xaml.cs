@@ -3,7 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Media;
+using System.Windows.Input;
 
 namespace Plugin.DataRecord
 {
@@ -78,38 +78,114 @@ namespace Plugin.DataRecord
             => throw new NotSupportedException();
     }
 
+    /// <summary>集合数量为 0 → 显示空态；否则隐藏。只服务列定义空态层。</summary>
+    public class ZeroToVisibilityConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            int count = value is int i ? i : 0;
+            return count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>TestResult 三态：空 = idle；✔ 前缀 = ok；✘ 前缀 = error。</summary>
+    public class TestResultStateConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            string text = value as string;
+            if (string.IsNullOrWhiteSpace(text)) return "idle";
+            if (text.StartsWith("✔", StringComparison.Ordinal)) return "ok";
+            if (text.StartsWith("✘", StringComparison.Ordinal)) return "error";
+            return "idle";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>TestResult 展示文案：空串显示为引导语，其它原样显示。</summary>
+    public class TestResultDisplayConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            string text = value as string;
+            return string.IsNullOrWhiteSpace(text)
+                ? "尚未试写。点击「测试写一行」验证目录、表头与列宽。"
+                : text;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>TestResult 三态图标：idle = info，ok = check，error = xmark（Font Awesome 6 Solid）。</summary>
+    public class TestResultIconConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            string text = value as string;
+            if (string.IsNullOrWhiteSpace(text)) return "\uf05a";
+            if (text.StartsWith("✔", StringComparison.Ordinal)) return "\uf00c";
+            if (text.StartsWith("✘", StringComparison.Ordinal)) return "\uf00d";
+            return "\uf05a";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
     /// <summary>
     /// CSV 记录配置视图：账本文件 / 列定义表（行内连线）/ 图片记录 / 测试写一行。
     /// 本视图不含"执行"按钮——试运行由主程序外壳提供。
+    ///
+    /// 契约：DataContext 必须是 DataRecordPlugin（宿主靠它取 IPluginConfigView 的 OnConfirm）。
+    /// 视图只加命令转发与转换器，不引入独立 VM、不改业务逻辑。
     /// </summary>
     public partial class DataRecordView : UserControl
     {
         private DataRecordPlugin Plugin => DataContext as DataRecordPlugin;
 
+        /// <summary>新增一列：转发到既有 AddColumn()。</summary>
+        public ICommand AddColumnCommand { get; }
+
+        /// <summary>删除一列：参数为 RecordColumnDef，转发到既有 Columns.Remove()。</summary>
+        public ICommand DeleteColumnCommand { get; }
+
+        /// <summary>测试写一行：转发到既有 TestWriteOneRow()。</summary>
+        public ICommand TestWriteCommand { get; }
+
         public DataRecordView()
         {
+            AddColumnCommand = new RelayCommand(_ => Plugin?.AddColumn());
+            DeleteColumnCommand = new RelayCommand(p =>
+            {
+                if (p is RecordColumnDef col && Plugin?.Columns != null)
+                    Plugin.Columns.Remove(col);
+            });
+            TestWriteCommand = new RelayCommand(_ => Plugin?.TestWriteOneRow());
             InitializeComponent();
         }
 
-        private void AddColumn_Click(object sender, RoutedEventArgs e)
+        /// <summary>最小 ICommand 实现：本视图只有"转发到插件既有方法"这一种用途。</summary>
+        private sealed class RelayCommand : ICommand
         {
-            Plugin?.AddColumn();
-        }
+            private readonly Action<object> _execute;
 
-        private void DelColumn_Click(object sender, RoutedEventArgs e)
-        {
-            if (Plugin?.Columns == null) return;
-            if ((sender as FrameworkElement)?.Tag is RecordColumnDef col)
-                Plugin.Columns.Remove(col);
-        }
+            public RelayCommand(Action<object> execute) => _execute = execute;
 
-        private void TestWrite_Click(object sender, RoutedEventArgs e)
-        {
-            if (Plugin == null) return;
-            string result = Plugin.TestWriteOneRow();
-            TestResultText.Foreground = result != null && result.StartsWith("✔")
-                ? new SolidColorBrush(Color.FromRgb(0x2E, 0x7D, 0x32))
-                : Brushes.Red;
+            public event EventHandler CanExecuteChanged
+            {
+                add => CommandManager.RequerySuggested += value;
+                remove => CommandManager.RequerySuggested -= value;
+            }
+
+            public bool CanExecute(object parameter) => true;
+
+            public void Execute(object parameter) => _execute(parameter);
         }
     }
 }

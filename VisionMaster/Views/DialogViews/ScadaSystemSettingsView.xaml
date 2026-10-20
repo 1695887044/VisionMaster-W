@@ -1,0 +1,154 @@
+<UserControl
+    x:Class="VisionMaster.Views.DialogViews.ScadaSystemSettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:prism="http://prismlibrary.com/"
+    xmlns:ui="http://schemas.UI.com/ui"
+    Width="760"
+    prism:ViewModelLocator.AutoWireViewModel="True"
+    mc:Ignorable="d">
+
+    <!--  ==========================================  -->
+    <!--  组态「系统设置」弹窗  -->
+    <!--  合并了原来的「运行窗口设置」与「系统参数设置」：两者写的都是程序目录 AppConfig.json，  -->
+    <!--  口径也逐条相同（草稿 + 确定才落盘 / 只把真变了的项写进审计 / 写盘失败留窗重试）。  -->
+    <!--  正文由 CardPropertyGrid 按 SystemSettingsDraft 上的 [SuperDisplay] 反射生成 ——  -->
+    <!--  以后新增一项只需要改草稿类，这个文件一行都不用动。  -->
+    <!--  ==========================================  -->
+
+    <prism:Dialog.WindowStyle>
+        <Style TargetType="Window">
+            <Setter Property="WindowStyle" Value="None" />
+            <Setter Property="ResizeMode" Value="NoResize" />
+            <Setter Property="SizeToContent" Value="WidthAndHeight" />
+        </Style>
+    </prism:Dialog.WindowStyle>
+
+    <!--  回车 = 确定、Esc = 取消：设置页的标准键位。
+          主键盘回车与小键盘回车是两个不同的 Key，两个都要写（对照 ScadaLoginView）。  -->
+    <UserControl.InputBindings>
+        <KeyBinding Key="Return" Command="{Binding ConfirmCommand}" />
+        <KeyBinding Key="Enter" Command="{Binding ConfirmCommand}" />
+        <KeyBinding Key="Escape" Command="{Binding CancelCommand}" />
+    </UserControl.InputBindings>
+
+    <Grid Margin="15">
+        <Border Background="White" CornerRadius="8">
+            <Border.Effect>
+                <DropShadowEffect
+                    BlurRadius="15"
+                    Direction="270"
+                    Opacity="0.15"
+                    ShadowDepth="3"
+                    Color="Black" />
+            </Border.Effect>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="45" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="56" />
+                </Grid.RowDefinitions>
+
+                <!--  标题栏（无系统边框的弹窗靠它拖动）  -->
+                <Border
+                    Grid.Row="0"
+                    ui:WindowDragBehavior.IsWindowDraggable="True"
+                    Background="#F8F9FA"
+                    BorderBrush="#EBEEF5"
+                    BorderThickness="0,0,0,1"
+                    CornerRadius="8,8,0,0">
+                    <TextBlock
+                        Margin="20,0"
+                        VerticalAlignment="Center"
+                        FontSize="15"
+                        FontWeight="Bold"
+                        Foreground="#303133"
+                        Text="{Binding Title}" />
+                </Border>
+
+                <!--  内容区：说明 + 反射生成的属性面板 + 失败红字条  -->
+                <StackPanel Grid.Row="1" Margin="20,14,20,0">
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="#909399"
+                        Text="这几项是软件级设置（存程序目录 AppConfig.json，与方案文件无关）。点「确定」立即生效，不必重启软件。"
+                        TextWrapping="Wrap" />
+
+                    <!--  字段清单只存在于 SystemSettingsDraft：新增一项 = 加一个属性，这里不用改。
+                          SelectedGroup 决定落在哪一页（旧的两个菜单入口各自指向一页）。  -->
+                    <ui:CardPropertyGrid
+                        Height="420"
+                        Margin="0,12,0,0"
+                        BindingObject="{Binding Draft}"
+                        SelectedGroup="{Binding InitialGroup}" />
+
+                    <!--  数值项的公共约定只写这一行，不逐项重复：
+                          属性面板的 [SuperDisplay(Description)] 只落到标签的 ToolTip，
+                          而这句"0 或负数 = 不限制"必须不悬停就能看见（最容易被猜错的那个语义）。  -->
+                    <TextBlock
+                        Margin="0,8,0,0"
+                        FontSize="11"
+                        Foreground="#909399"
+                        Text="数值项：填 0 或负数 = 不限制 / 永不清理。字段的详细说明见鼠标悬停在字段名上的提示。"
+                        TextWrapping="Wrap" />
+
+                    <!--  校验 / 写盘失败：红底红字，说清是哪个字段、当前填的是什么  -->
+                    <Border
+                        Margin="0,12,0,0"
+                        Padding="10,8"
+                        Background="#FEF0F0"
+                        BorderBrush="#FDE2E2"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Visibility="{Binding HasError, Converter={ui:BooleanToVisibilityConverter}}">
+                        <TextBlock
+                            FontSize="12"
+                            Foreground="#F56C6C"
+                            Text="{Binding ErrorMessage}"
+                            TextWrapping="Wrap" />
+                    </Border>
+                </StackPanel>
+
+                <!--  底部按钮  -->
+                <StackPanel
+                    Grid.Row="2"
+                    Margin="20,10"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+                    <Button
+                        Margin="0,0,12,0"
+                        Padding="28,8"
+                        Background="#FFFFFF"
+                        BorderBrush="#DCDFE6"
+                        Command="{Binding CancelCommand}"
+                        Content="取消"
+                        Cursor="Hand">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4" />
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                    <Button
+                        Padding="28,8"
+                        Background="#409EFF"
+                        BorderThickness="0"
+                        Command="{Binding ConfirmCommand}"
+                        Content="确定"
+                        Cursor="Hand"
+                        FontWeight="SemiBold"
+                        Foreground="White">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4" />
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,28 +1,30 @@
-﻿<UserControl
+<UserControl
     x:Class="Plugin.Ocr.OcrView"
+    x:Name="OcrRoot"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:cv="clr-namespace:Core.Controls;assembly=Core.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    Width="1000"
-    Height="620"
+    MinWidth="560"
+    MinHeight="280"
+    d:Background="Gray"
     d:DesignHeight="620"
-    d:DesignWidth="1000"
+    d:DesignWidth="960"
     mc:Ignorable="d">
 
     <!--
-        OCR 文本识别的配置视图。
+        OCR 文本识别 · 配置视图（Web 基线 v1 复刻）。
 
-        左列参数、右列图像编辑器 —— 与 Plugin.CreateRoi / Plugin.ColorCheck 同一布局范式：
-        图像上的框选由 Core.Halcon 的 ImageEdit 控件提供（右键 → 新建矩形），
-        本视图只负责把控件的能力绑上、把结果呈现出来，业务逻辑全在 OcrPlugin。
+        左栏：图像输入 / 识别区 / 常用参数 / 高级参数 / 试算。
+        右栏：ImageEdit 识别区画布（常驻）+ 画布头 + 无图提示条 + 状态行。
 
-        参数的露法（与用户确认过的口径一致）：常用 6 项默认可见，其余收进「高级参数」。
-        为什么必须分层：OCR 的成败 90% 在分割，而那几十个可调项里，
-        现场真正会动的只有"极性 + 字符尺寸"三四个；把阈值/形态学/模型的旋钮也摊在面前，
-        出事时反而不知道该动哪个。每个高级项都写了 ToolTip 说明"什么情况下该动它"。
+        约束：
+        · DataContext 仍是 OcrPlugin（宿主靠它取 IPluginConfigView.OnConfirm），不引入独立 VM；
+        · LinkableValueEditor 只包裹，Port / StepData 原绑定；
+        · ImageEdit 的 ActiveRoi / DrawObjectList / HImage 原绑定，控件常驻，不做 Visibility 折叠；
+        · 颜色只引用公共令牌，本文件不出现十六进制颜色。
     -->
     <UserControl.Resources>
         <ResourceDictionary>
@@ -31,156 +33,314 @@
                 <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            
+            <Style TargetType="ToolTip" BasedOn="{StaticResource DialogToolTipStyle}" />
 
-            
-
-            
-
-            <Style x:Key="ParamLabel" TargetType="TextBlock" BasedOn="{StaticResource PluginHintText}">
-                <Setter Property="VerticalAlignment" Value="Center" />
-                <Setter Property="Foreground" Value="{StaticResource PluginLabelTextBrush}" />
+            <Style x:Key="CardStyle" TargetType="Border">
+                <Setter Property="Margin" Value="0,0,0,10" />
+                <Setter Property="Padding" Value="12" />
+                <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="10" />
             </Style>
 
-            <Style x:Key="ParamBox" TargetType="TextBox">
+            <Style x:Key="CardIconChipStyle" TargetType="Border">
+                <Setter Property="Width" Value="24" />
                 <Setter Property="Height" Value="24" />
-                <Setter Property="VerticalContentAlignment" Value="Center" />
-                <Setter Property="Padding" Value="4,0,0,0" />
+                <Setter Property="Margin" Value="0,0,8,0" />
+                <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                <Setter Property="CornerRadius" Value="7" />
+            </Style>
+
+            <Style x:Key="CardIconStyle" TargetType="TextBlock">
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+            </Style>
+
+            <Style x:Key="CardTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource DialogSectionTitle}" />
+
+            <Style x:Key="FieldLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource DialogFormLabel}">
+                <Setter Property="Margin" Value="0,0,0,6" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="Normal" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            </Style>
+
+            <Style x:Key="HelpTextStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,6,0,0" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="LineHeight" Value="17" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style x:Key="NumericInputStyle" TargetType="TextBox" BasedOn="{StaticResource DialogInput}">
+                <Setter Property="Height" Value="36" />
+                <Setter Property="Padding" Value="10,0" />
+                <Setter Property="FontSize" Value="12.5" />
+                <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+            </Style>
+
+            <Style x:Key="MonoBoxStyle" TargetType="Border">
+                <Setter Property="Margin" Value="0,2,0,0" />
+                <Setter Property="Padding" Value="9,7" />
+                <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+            </Style>
+
+            <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogPrimaryButton}">
+                <Setter Property="Height" Value="36" />
+                <Setter Property="Padding" Value="12,0" />
+                <Setter Property="FontSize" Value="12.5" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            </Style>
+
+            <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogSecondaryButton}">
+                <Setter Property="Height" Value="36" />
+                <Setter Property="Padding" Value="12,0" />
+                <Setter Property="FontSize" Value="12.5" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            </Style>
+
+            <Style x:Key="ButtonGlyphStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,0,6,0" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
+
+            <Style x:Key="ResultTextStyle" TargetType="TextBlock" BasedOn="{StaticResource DialogMonoText}">
+                <Setter Property="FontSize" Value="10.5" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid Margin="12">
+    <Grid Margin="16">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="330" />
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="1*" MinWidth="280" MaxWidth="356" />
+            <ColumnDefinition Width="1.45*" MinWidth="200" />
         </Grid.ColumnDefinitions>
 
-        <!--  左列：参数卡片（内容较长，套滚动条）  -->
-        <ScrollViewer Grid.Column="0" Margin="0,0,8,0" VerticalScrollBarVisibility="Auto">
+        <!--  ═══════════════════ 左栏：配置轨  ═══════════════════  -->
+        <ScrollViewer
+            Grid.Column="0"
+            HorizontalScrollBarVisibility="Disabled"
+            VerticalScrollBarVisibility="Auto">
             <StackPanel>
 
-                <!--  ── 图像输入：配置窗口内直接链接上游，不必回画布拖线 ──  -->
-                <Border Margin="0,0,0,8" Style="{StaticResource PluginCard}">
+                <!--  ── 图像输入 ──  -->
+                <Border Style="{StaticResource CardStyle}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="图像输入" />
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource CardIconChipStyle}">
+                                <TextBlock Style="{StaticResource CardIconStyle}" Text="&#xf03e;" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Style="{StaticResource CardTitleStyle}" Text="图像输入" />
+                            <Border Grid.Column="2" Style="{StaticResource DialogChipNeutral}">
+                                <TextBlock
+                                    FontSize="10"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text="HImage" />
+                            </Border>
+                        </Grid>
+
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="输入图像" />
                         <cv:LinkableValueEditor
-                            Margin="{StaticResource PluginFirstRowMargin}"
                             HorizontalAlignment="Stretch"
-                            Label="输入图像"
+                            Label=""
                             Port="{Binding Image}"
                             StepData="{Binding StepData}" />
+                        <TextBlock
+                            Style="{StaticResource HelpTextStyle}"
+                            Text="链接上游输出或变量；试运行时上游图会自动显示到右侧画布。" />
                     </StackPanel>
                 </Border>
 
                 <!--  ── 识别区 ──  -->
-                <Border Margin="0,0,0,8" Style="{StaticResource PluginCard}">
+                <Border Style="{StaticResource CardStyle}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="识别区" />
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource CardIconChipStyle}">
+                                <TextBlock Style="{StaticResource CardIconStyle}" Text="&#xf125;" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Style="{StaticResource CardTitleStyle}" Text="识别区" />
+                            <Border Grid.Column="2" Style="{StaticResource DialogChipAccent}">
+                                <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource DialogAccentTextBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="已框选" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CanvasRois.Count}" Value="0">
+                                                    <Setter Property="Text" Value="未框选" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                        </Grid>
+
                         <TextBlock
-                            Margin="0,6,0,0"
-                            Style="{StaticResource PluginHintText}"
+                            Margin="0"
+                            Style="{StaticResource HelpTextStyle}"
                             Text="只框住一行字符。框太松会带进背景纹理，框太紧会把字切掉一半。" />
-                        <TextBlock
-                            Margin="0,6,0,0"
-                            Style="{StaticResource ParamLabel}"
-                            Text="{Binding RoiSummary}" />
+
+                        <Border Style="{StaticResource MonoBoxStyle}">
+                            <TextBlock
+                                Style="{StaticResource ResultTextStyle}"
+                                Text="{Binding RoiSummary}"
+                                TextWrapping="Wrap" />
+                        </Border>
+
                         <Button
-                            Margin="0,8,0,0"
-                            Style="{StaticResource PluginButton}"
-                            Click="OnClearRoiClick"
-                            Content="清空识别区" />
+                            Margin="0,9,0,0"
+                            Command="{Binding ClearRoiCommand, ElementName=OcrRoot}"
+                            Style="{StaticResource SecondaryButtonStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource ButtonGlyphStyle}" Text="&#xf12d;" />
+                                <TextBlock VerticalAlignment="Center" Text="清空识别区" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </Border>
 
                 <!--  ── 常用参数 ──  -->
-                <Border Margin="0,0,0,8" Style="{StaticResource PluginCard}">
+                <Border Style="{StaticResource CardStyle}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="常用参数" />
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource CardIconChipStyle}">
+                                <TextBlock Style="{StaticResource CardIconStyle}" Text="&#xf1de;" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Style="{StaticResource CardTitleStyle}" Text="常用参数" />
+                        </Grid>
 
-                        <TextBlock
-                            Margin="0,8,0,0"
-                            Style="{StaticResource PluginHintText}"
-                            Text="图像来自上方「图像输入」：链接上游输出、或手动指定一张图；绑定后点「执行」跑一遍，图会自动显示进来" />
-
-                        <TextBlock
-                            Margin="0,8,0,0"
-                            Style="{StaticResource ParamLabel}"
-                            Text="极性"
-                            ToolTip="决定「字是深色还是浅色」。选错时一个字都切不出来 —— 报错信息会提示这一条。" />
                         <CheckBox
-                            Margin="0,4,0,0"
                             Content="暗字亮底（不勾 = 亮字暗底）"
-                            IsChecked="{Binding TextIsDark}" />
+                            IsChecked="{Binding TextIsDark}"
+                            Style="{StaticResource DialogCheckBox}"
+                            ToolTip="决定「字是深色还是浅色」。选错时一个字都切不出来 —— 报错信息会提示这一条。" />
+                        <TextBlock
+                            Style="{StaticResource HelpTextStyle}"
+                            Text="选错极性时一个字都切不出来；报错信息会提示这一条。" />
 
-                        <Grid Margin="0,8,0,0">
+                        <Grid Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                <TextBlock Style="{StaticResource ParamLabel}" Text="字符最小高度(px)" />
-                                <TextBox Style="{StaticResource ParamBox}" Text="{Binding MinCharHeight}" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Margin="4,0,0,0">
-                                <TextBlock Style="{StaticResource ParamLabel}" Text="字符最大高度(px)" />
-                                <TextBox Style="{StaticResource ParamBox}" Text="{Binding MaxCharHeight}" />
-                            </StackPanel>
-                        </Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
 
-                        <Grid Margin="0,8,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                <TextBlock Style="{StaticResource ParamLabel}" Text="字符最小宽度(px)" />
-                                <TextBox Style="{StaticResource ParamBox}" Text="{Binding MinCharWidth}" />
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,4,8">
+                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="字符最小高度(px)" />
+                                <TextBox
+                                    Style="{StaticResource NumericInputStyle}"
+                                    Text="{Binding MinCharHeight}"
+                                    ToolTip="按实际字符高度收紧，挡掉背景纹理与脏点。" />
                             </StackPanel>
-                            <StackPanel Grid.Column="1" Margin="4,0,0,0">
-                                <TextBlock Style="{StaticResource ParamLabel}" Text="字符最大宽度(px)" />
-                                <TextBox Style="{StaticResource ParamBox}" Text="{Binding MaxCharWidth}" />
+                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="4,0,0,8">
+                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="字符最大高度(px)" />
+                                <TextBox
+                                    Style="{StaticResource NumericInputStyle}"
+                                    Text="{Binding MaxCharHeight}"
+                                    ToolTip="超过这个高度的连通域不会被当作字符。" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,4,0">
+                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="字符最小宽度(px)" />
+                                <TextBox
+                                    Style="{StaticResource NumericInputStyle}"
+                                    Text="{Binding MinCharWidth}"
+                                    ToolTip="太窄的连通域会被当作脏点过滤掉。" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="4,0,0,0">
+                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="字符最大宽度(px)" />
+                                <TextBox
+                                    Style="{StaticResource NumericInputStyle}"
+                                    Text="{Binding MaxCharWidth}"
+                                    ToolTip="太宽的连通域通常是背景纹理或字符粘连。" />
                             </StackPanel>
                         </Grid>
 
                         <TextBlock
-                            Margin="0,8,0,0"
-                            Style="{StaticResource PluginHintText}"
+                            Style="{StaticResource HelpTextStyle}"
                             Text="字符尺寸按实际大小收紧，是挡掉背景纹理与脏点最有效的一招。试算后从「逐字符明细」里能看到实际切出了几个。" />
                     </StackPanel>
                 </Border>
 
                 <!--  ── 高级参数（折叠）  ──  -->
-                <Expander Margin="0,0,0,8" Header="高级参数（多数场景不用动）">
-                    <Border Margin="0,8,0,0" Style="{StaticResource PluginCard}">
+                <Expander Margin="0,0,0,10" IsExpanded="False">
+                    <Expander.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                Margin="0,0,7,0"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="12"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                Text="&#xf1de;" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="高级参数（多数场景不用动）" />
+                        </StackPanel>
+                    </Expander.Header>
+                    <Border Margin="0,8,0,0" Padding="12" Background="{StaticResource DialogSurfaceBrush}" BorderBrush="{StaticResource DialogBorderLightBrush}" BorderThickness="1" CornerRadius="10">
                         <StackPanel>
                             <CheckBox
-                                Content="用固定阈值（不勾 = 按直方图自动找分界）"
+                                Content="用固定阈值（不勾 = 自动阈值）"
                                 IsChecked="{Binding UseFixedThreshold}"
+                                Style="{StaticResource DialogCheckBox}"
                                 ToolTip="光照均匀时自动即可；光照不匀、自动阈值切得乱七八糟时才改固定。" />
-                            <TextBlock Margin="0,8,0,0" Style="{StaticResource ParamLabel}" Text="固定阈值(0-255)" />
-                            <TextBox Style="{StaticResource ParamBox}" Text="{Binding FixedThreshold}" />
 
-                            <TextBlock
-                                Margin="0,8,0,0"
-                                Style="{StaticResource ParamLabel}"
-                                Text="闭运算半径(px) —— 点阵字必备"
+                            <TextBlock Margin="0,8,0,0" Style="{StaticResource FieldLabelStyle}" Text="固定阈值(0-255)" />
+                            <TextBox
+                                Style="{StaticResource NumericInputStyle}"
+                                Text="{Binding FixedThreshold}"
+                                ToolTip="暗字时取灰度小于等于本值，亮字时取大于等于本值。" />
+
+                            <TextBlock Margin="0,8,0,0" Style="{StaticResource FieldLabelStyle}" Text="闭运算半径(px) —— 点阵字必备" />
+                            <TextBox
+                                Style="{StaticResource NumericInputStyle}"
+                                Text="{Binding ClosingRadius}"
                                 ToolTip="针打/喷码的字由小圆点拼成，不做闭运算会切成一堆点碎片。从 1.5 起试；过头会把相邻字粘成一个。" />
-                            <TextBox Style="{StaticResource ParamBox}" Text="{Binding ClosingRadius}" />
 
-                            <TextBlock
-                                Margin="0,8,0,0"
-                                Style="{StaticResource ParamLabel}"
-                                Text="腐蚀半径(px) —— 字符粘连时断开"
+                            <TextBlock Margin="0,8,0,0" Style="{StaticResource FieldLabelStyle}" Text="腐蚀半径(px) —— 字符粘连时断开" />
+                            <TextBox
+                                Style="{StaticResource NumericInputStyle}"
+                                Text="{Binding ErosionRadius}"
                                 ToolTip="印刷字互相粘连、被切成一个大块时用。从 1 起试。" />
-                            <TextBox Style="{StaticResource ParamBox}" Text="{Binding ErosionRadius}" />
 
-                            <TextBlock
-                                Margin="0,8,0,0"
-                                Style="{StaticResource ParamLabel}"
-                                Text="膨胀半径(px) —— 笔画过细时加粗"
+                            <TextBlock Margin="0,8,0,0" Style="{StaticResource FieldLabelStyle}" Text="膨胀半径(px) —— 笔画过细时加粗" />
+                            <TextBox
+                                Style="{StaticResource NumericInputStyle}"
+                                Text="{Binding DilationRadius}"
                                 ToolTip="会把字形一起外扩，所以点阵字请优先用上面的闭运算。" />
-                            <TextBox Style="{StaticResource ParamBox}" Text="{Binding DilationRadius}" />
 
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
@@ -188,60 +348,245 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                    <TextBlock Style="{StaticResource ParamLabel}" Text="最小面积(px²)" />
-                                    <TextBox Style="{StaticResource ParamBox}" Text="{Binding MinArea}" />
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="最小面积(px²)" />
+                                    <TextBox Style="{StaticResource NumericInputStyle}" Text="{Binding MinArea}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Margin="4,0,0,0">
-                                    <TextBlock Style="{StaticResource ParamLabel}" Text="最大面积(px²)" />
-                                    <TextBox Style="{StaticResource ParamBox}" Text="{Binding MaxArea}" />
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="最大面积(px²)" />
+                                    <TextBox Style="{StaticResource NumericInputStyle}" Text="{Binding MaxArea}" />
                                 </StackPanel>
                             </Grid>
 
-                            <TextBlock
-                                Margin="0,8,0,0"
-                                Style="{StaticResource ParamLabel}"
-                                Text="外部模型路径（留空 = 内置 0-9/A-Z）"
+                            <TextBlock Margin="0,8,0,0" Style="{StaticResource FieldLabelStyle}" Text="外部模型路径（留空 = 内置 0-9/A-Z）" />
+                            <TextBox
+                                Style="{StaticResource NumericInputStyle}"
+                                Tag="留空 = 内置模型"
+                                Text="{Binding ModelPath}"
                                 ToolTip="换中文或自训练模型时填这里。填了却找不到会直接报错，不会静默退回内置模型。" />
-                            <TextBox Style="{StaticResource ParamBox}" Text="{Binding ModelPath}" />
 
                             <CheckBox
-                                Margin="0,8,0,0"
+                                Margin="0,10,0,0"
                                 Content="按列优先排序（竖排文本）"
-                                IsChecked="{Binding ColumnFirst}" />
+                                IsChecked="{Binding ColumnFirst}"
+                                Style="{StaticResource DialogCheckBox}" />
                         </StackPanel>
                     </Border>
                 </Expander>
 
                 <!--  ── 试算 ──  -->
-                <Border Style="{StaticResource PluginCard}">
+                <Border Style="{StaticResource CardStyle}">
                     <StackPanel>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource CardIconChipStyle}">
+                                <TextBlock Style="{StaticResource CardIconStyle}" Text="&#xf0c3;" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Style="{StaticResource CardTitleStyle}" Text="试算" />
+                        </Grid>
+
                         <Button
-                            Style="{StaticResource PluginButton}"
-                            Click="OnTryRecognizeClick"
-                            Content="试算一下" />
+                            Command="{Binding TryRecognizeCommand, ElementName=OcrRoot}"
+                            Style="{StaticResource PrimaryButtonStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource ButtonGlyphStyle}" Text="&#xf0d0;" />
+                                <TextBlock VerticalAlignment="Center" Text="试算一下" />
+                            </StackPanel>
+                        </Button>
+
                         <TextBlock
-                            Margin="0,8,0,0"
-                            Style="{StaticResource PluginHintText}"
-                            Text="{Binding Hint}" />
-                        <TextBlock
-                            Margin="0,6,0,0"
-                            FontFamily="Consolas"
-                            FontSize="11"
-                            Foreground="{StaticResource PluginTitleTextBrush }"
-                            Text="{Binding ResultSummary}"
-                            TextWrapping="Wrap" />
+                            Style="{StaticResource HelpTextStyle}"
+                            Text="{Binding Hint}"
+                            ToolTip="{Binding Hint}" />
+
+                        <TextBlock Margin="0,10,0,0" Style="{StaticResource FieldLabelStyle}" Text="试算结果" />
+                        <ScrollViewer
+                            MaxHeight="110"
+                            HorizontalScrollBarVisibility="Disabled"
+                            VerticalScrollBarVisibility="Auto">
+                            <TextBlock Style="{StaticResource ResultTextStyle}" Text="{Binding ResultSummary}" />
+                        </ScrollViewer>
                     </StackPanel>
                 </Border>
             </StackPanel>
         </ScrollViewer>
 
-        <!--  右列：图像编辑器（能力全部来自控件 DP，插件只做绑定）  -->
-        <Border Grid.Column="1" Margin="8,0,0,0" Style="{StaticResource PluginCard}">
-            <h:ImageEdit
-                x:Name="ImageEditor"
-                ActiveRoi="{Binding CanvasActiveRoi, Mode=TwoWay}"
-                DrawObjectList="{Binding CanvasRois}"
-                HImage="{Binding DisplayImage, Mode=OneWay}" />
+        <!--  ═══════════════════ 右栏：识别区画布  ═══════════════════  -->
+        <Border
+            Grid.Column="1"
+            Margin="16,0,0,0"
+            Background="{StaticResource DialogSurfaceBrush}"
+            BorderBrush="{StaticResource DialogBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="44" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="40" />
+                </Grid.RowDefinitions>
+
+                <!--  画布头  -->
+                <Border
+                    Grid.Row="0"
+                    Padding="10,0"
+                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                    BorderThickness="0,0,0,1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border
+                            Grid.Column="0"
+                            Width="26"
+                            Height="26"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource DialogRowHoverBrush}"
+                            CornerRadius="7">
+                            <TextBlock Style="{StaticResource CardIconStyle}" Text="&#xf031;" />
+                        </Border>
+                        <TextBlock
+                            Grid.Column="1"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="12.5"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                            Text="识别区画布" />
+                        <Border Grid.Column="2" Margin="8,0,0,0" Style="{StaticResource DialogChipAccent}">
+                            <TextBlock
+                                FontSize="10"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource DialogAccentTextBrush}"
+                                Text="ROI · 可编辑" />
+                        </Border>
+                        <Border Grid.Column="3" Margin="6,0,0,0" Style="{StaticResource DialogChipNeutral}">
+                            <TextBlock
+                                FontSize="10"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                Text="ImageEdit" />
+                        </Border>
+                        <TextBlock
+                            Grid.Column="4"
+                            Margin="8,0,0,0"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            FontSize="10.5"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            Text="右键 → 新建矩形"
+                            TextTrimming="CharacterEllipsis"
+                            ToolTip="在图像上右键 → 新建矩形；拖拽句柄可调整识别区。" />
+                    </Grid>
+                </Border>
+
+                <!--  无图提示条：不覆盖 HALCON HwndHost，也不折叠画布  -->
+                <Border
+                    Grid.Row="1"
+                    Padding="12,9"
+                    Background="{StaticResource DialogWarningSubtleBrush}"
+                    BorderBrush="{StaticResource DialogWarningBorderBrush}"
+                    BorderThickness="0,0,0,1">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DisplayImage}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Grid.Column="0"
+                            Margin="0,1,7,0"
+                            VerticalAlignment="Top"
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="12"
+                            Foreground="{StaticResource DialogWarningTextBrush}"
+                            Text="&#xf071;" />
+                        <TextBlock
+                            Grid.Column="1"
+                            FontSize="11.5"
+                            Foreground="{StaticResource DialogWarningTextBrush}"
+                            Text="还没有图像：在左侧「图像输入」绑定上游图像，或点「执行」试运行把图带进来。画布常驻，绑定后无需重新打开窗口。"
+                            TextWrapping="Wrap" />
+                    </Grid>
+                </Border>
+
+                <!--  识别区画布：ImageEdit 常驻，原绑定  -->
+                <Border Grid.Row="2" Background="{StaticResource PluginPreviewCanvasBrush}">
+                    <h:ImageEdit
+                        x:Name="ImageEditor"
+                        ActiveRoi="{Binding CanvasActiveRoi, Mode=TwoWay}"
+                        DrawObjectList="{Binding CanvasRois}"
+                        HImage="{Binding DisplayImage, Mode=OneWay}" />
+                </Border>
+
+                <!--  状态行：Hint + 识别区状态  -->
+                <Border
+                    Grid.Row="3"
+                    Padding="12,0"
+                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                    BorderThickness="0,1,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Ellipse
+                            Grid.Column="0"
+                            Width="7"
+                            Height="7"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Center"
+                            Fill="{StaticResource DialogTextMutedBrush}" />
+
+                        <TextBlock
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            FontSize="11.5"
+                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                            Text="{Binding Hint}"
+                            TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding Hint}" />
+
+                        <TextBlock
+                            Grid.Column="2"
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="10.5"
+                            Foreground="{StaticResource DialogTextMutedBrush}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="识别区：已框选" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CanvasRois.Count}" Value="0">
+                                            <Setter Property="Text" Value="识别区：未框选" />
+                                            <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                </Border>
+            </Grid>
         </Border>
     </Grid>
 </UserControl>

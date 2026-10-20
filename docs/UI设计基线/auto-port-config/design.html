@@ -1,0 +1,1194 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>无自定义视图插件 · 自动参数面板 · 设计基线 v1</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #ap-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="ap-root">
+  <svg width="0" height="0" style="position:absolute;overflow:hidden" aria-hidden="true">
+    <defs>
+      <symbol id="i-geometry" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="7"></circle>
+        <circle cx="12" cy="12" r="2.2"></circle>
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+        <path d="m16.8 7.2 2.1-2.1M5.1 18.9l2.1-2.1"></path>
+      </symbol>
+      <symbol id="i-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z"></path>
+        <path d="M19 16.5 19.7 18.3 21.5 19l-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8Z"></path>
+      </symbol>
+      <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M18 6 6 18M6 6l12 12"></path>
+      </symbol>
+      <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+        <circle cx="9" cy="9" r="1.6"></circle>
+        <path d="m21 15-4.2-4.2a2 2 0 0 0-2.8 0L6 19"></path>
+      </symbol>
+      <symbol id="i-region" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"></path>
+        <rect x="8" y="8" width="8" height="8" rx="1" stroke-dasharray="2 2"></rect>
+      </symbol>
+      <symbol id="i-enum" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 6h11M9 12h11M9 18h11"></path>
+        <circle cx="4.5" cy="6" r="1"></circle>
+        <circle cx="4.5" cy="12" r="1"></circle>
+        <circle cx="4.5" cy="18" r="1"></circle>
+      </symbol>
+      <symbol id="i-number" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 3 8 21M16 3l-2 18M4 9h16M3 15h16"></path>
+      </symbol>
+      <symbol id="i-bool" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="7" width="18" height="10" rx="5"></rect>
+        <circle cx="16" cy="12" r="2.2"></circle>
+      </symbol>
+      <symbol id="i-integer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 4 6 20M16 4l-2 16M4 9h16M3 15h16"></path>
+      </symbol>
+      <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9.5 14.5 14.5 9.5"></path>
+        <path d="M7 17H5.5a3.5 3.5 0 0 1 0-7H8"></path>
+        <path d="M17 7h1.5a3.5 3.5 0 0 1 0 7H16"></path>
+      </symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="5" y="10" width="14" height="10" rx="2"></rect>
+        <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+      </symbol>
+      <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"></circle>
+        <path d="M12 11v5M12 8h.01"></path>
+      </symbol>
+      <symbol id="i-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7 4.8a1 1 0 0 1 1.5-.9l10 7.2a1 1 0 0 1 0 1.8l-10 7.2A1 1 0 0 1 7 19.2V4.8Z"></path>
+      </symbol>
+      <symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m6 9 6 6 6-6"></path>
+      </symbol>
+      <symbol id="i-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 5h16l1.5 8v4a2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2v-4L4 5Z"></path>
+        <path d="M3 13h5l1.2 2h5.6L16 13h5"></path>
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m5 12 4 4L19 6"></path>
+      </symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"></path>
+        <path d="M12 9v4M12 17h.01"></path>
+      </symbol>
+      <symbol id="i-step" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="4" width="16" height="16" rx="4"></rect>
+        <path d="M8 9h8M8 13h5M8 17h3"></path>
+      </symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14M13 6l6 6-6 6"></path>
+      </symbol>
+      <symbol id="i-tune" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h7M15 18h5"></path>
+        <circle cx="16" cy="6" r="2"></circle>
+        <circle cx="8" cy="12" r="2"></circle>
+        <circle cx="13" cy="18" r="2"></circle>
+      </symbol>
+    </defs>
+  </svg>
+
+  <style>
+    #ap-root{
+      --ap-surface:#FFFFFF;
+      --ap-surface-2:#F8FAFC;
+      --ap-surface-3:#F1F5F9;
+      --ap-border:#E2E8F0;
+      --ap-border-soft:#EEF2F7;
+      --ap-border-strong:#CBD5E1;
+      --ap-text:#0F172A;
+      --ap-text-2:#475569;
+      --ap-text-3:#94A3B8;
+      --ap-text-4:#64748B;
+      --ap-primary:#0EA5E9;
+      --ap-primary-strong:#0284C7;
+      --ap-primary-text:#0369A1;
+      --ap-primary-soft:#F0F9FF;
+      --ap-primary-light:#E0F2FE;
+      --ap-primary-border:#BAE6FD;
+      --ap-success:#22C55E;
+      --ap-success-text:#15803D;
+      --ap-success-soft:#F0FDF4;
+      --ap-success-border:#BBF7D0;
+      --ap-danger:#EF4444;
+      --ap-danger-text:#B91C1C;
+      --ap-danger-soft:#FEF2F2;
+      --ap-danger-border:#FECACA;
+      --ap-warning:#F59E0B;
+      --ap-warning-text:#B45309;
+      --ap-warning-soft:#FFF4E5;
+      --ap-warning-border:#FDE68A;
+      --ap-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --ap-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --ap-radius-sm:6px;
+      --ap-radius-md:8px;
+      --ap-radius-lg:10px;
+      --ap-radius-xl:12px;
+      --ap-radius-window:16px;
+      --ap-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      --ap-window-width:560px;
+      font-family:var(--ap-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #ap-root *{box-sizing:border-box;}
+    #ap-root button,
+    #ap-root input,
+    #ap-root select{font-family:inherit;}
+    #ap-root button{color:inherit;}
+    #ap-root [hidden]{display:none !important;}
+    #ap-root :focus-visible{outline:2px solid var(--ap-primary);outline-offset:2px;}
+    #ap-root .ap-ico{width:16px;height:16px;display:block;flex:none;}
+
+    /* ================= 展示页 ================= */
+    #ap-root .ap-page{
+      max-width:1280px;margin:0 auto;padding:24px 24px 48px;background:transparent;
+    }
+    #ap-root .ap-page-head{max-width:1280px;margin:0 auto 16px;}
+    #ap-root .ap-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #ap-root .ap-page-title-row h1{
+      margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--ap-text);
+    }
+    #ap-root .ap-ver{
+      display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+      background:var(--ap-primary-light);color:var(--ap-primary-text);
+      font-size:11px;font-weight:700;letter-spacing:.02em;
+    }
+    #ap-root .ap-page-sub{
+      margin:7px 0 14px;font-size:12.5px;line-height:1.65;color:var(--ap-text-2);
+    }
+    #ap-root .ap-page-sub b{color:var(--ap-text);font-weight:600;}
+    #ap-root .ap-demo-bar{display:flex;align-items:center;gap:24px;flex-wrap:wrap;}
+    #ap-root .ap-demo-group{display:flex;align-items:center;gap:8px;}
+    #ap-root .ap-demo-label{font-size:11.5px;color:var(--ap-text-4);}
+    #ap-root .ap-seg{
+      display:inline-flex;gap:2px;padding:2px;border-radius:var(--ap-radius-md);
+      background:var(--ap-surface-3);
+    }
+    #ap-root .ap-seg button{
+      height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;
+      color:var(--ap-text-2);font-size:11.5px;line-height:1;cursor:pointer;
+      transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;
+    }
+    #ap-root .ap-seg button:hover{color:var(--ap-text);}
+    #ap-root .ap-seg button.is-on{
+      background:#FFFFFF;color:var(--ap-text);font-weight:600;
+      box-shadow:0 1px 2px rgba(15,23,42,.10);
+    }
+    #ap-root .ap-scope{
+      display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;
+      font-size:11.5px;line-height:1.55;color:var(--ap-text-2);
+    }
+    #ap-root .ap-scope .ap-ico{width:13px;height:13px;margin-top:2px;color:var(--ap-warning-text);}
+    #ap-root .ap-scope b{color:var(--ap-text);font-weight:600;}
+
+    /* ================= 产品窗口 ================= */
+    #ap-root .ap-stage{display:flex;justify-content:center;padding:8px 0 6px;}
+    #ap-root .ap-window{
+      width:var(--ap-window-width);max-width:100%;
+      display:flex;flex-direction:column;overflow:hidden;
+      background:var(--ap-surface);
+      border-radius:var(--ap-radius-window);
+      box-shadow:var(--ap-shadow-window);
+      transition:width 200ms ease;
+    }
+    #ap-root .ap-window.is-wide{--ap-window-width:640px;}
+
+    /* ---- 标题栏 ---- */
+    #ap-root .ap-titlebar{
+      height:72px;flex:none;display:flex;align-items:center;padding:0 16px;
+      background:var(--ap-surface);border-bottom:1px solid var(--ap-border-soft);
+    }
+    #ap-root .ap-app-icon{
+      width:40px;height:40px;flex:none;border-radius:12px;
+      display:flex;align-items:center;justify-content:center;
+      background:var(--ap-primary-light);color:var(--ap-primary-text);
+    }
+    #ap-root .ap-app-icon .ap-ico{width:19px;height:19px;}
+    #ap-root .ap-title-text{margin-left:12px;min-width:0;flex:1;}
+    #ap-root .ap-title-line{display:flex;align-items:center;gap:8px;min-width:0;}
+    #ap-root .ap-title{
+      font-size:16px;font-weight:600;line-height:1.3;color:var(--ap-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ap-root .ap-subtitle{
+      margin-top:2px;font-size:12px;line-height:1.4;color:var(--ap-text-2);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ap-root .ap-title-actions{display:flex;align-items:center;gap:6px;margin-left:12px;flex:none;}
+    #ap-root .ap-auto-chip{
+      display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;
+      border-radius:999px;background:var(--ap-primary-soft);
+      border:1px solid var(--ap-primary-border);
+      color:var(--ap-primary-text);font-size:10.5px;font-weight:600;white-space:nowrap;
+    }
+    #ap-root .ap-auto-chip .ap-ico{width:12px;height:12px;}
+    #ap-root .ap-icon-btn{
+      width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--ap-radius-md);
+      display:inline-flex;align-items:center;justify-content:center;
+      background:transparent;color:var(--ap-text-4);cursor:pointer;
+      transition:background 150ms ease,color 150ms ease,transform 80ms ease;
+    }
+    #ap-root .ap-icon-btn .ap-ico{width:15px;height:15px;}
+    #ap-root .ap-icon-btn:hover{background:var(--ap-surface-3);color:var(--ap-text);}
+    #ap-root .ap-icon-btn:active{background:var(--ap-border);transform:scale(.96);}
+    #ap-root .ap-icon-btn:disabled{opacity:.4;cursor:not-allowed;}
+    #ap-root .ap-icon-btn.is-active{background:var(--ap-primary-soft);color:var(--ap-primary-text);}
+
+    /* ---- 内容区 ---- */
+    #ap-root .ap-content{
+      flex:none;display:flex;flex-direction:column;min-height:0;
+      padding:8px 20px 8px;background:var(--ap-surface);
+    }
+
+    /* 步骤概览 */
+    #ap-root .ap-step-card{
+      display:flex;align-items:center;gap:12px;min-height:56px;padding:6px 14px;
+      border:1px solid var(--ap-border-soft);border-radius:var(--ap-radius-xl);
+      background:linear-gradient(180deg,var(--ap-surface-2) 0%,#FBFCFE 100%);
+    }
+    #ap-root .ap-step-icon{
+      width:38px;height:38px;flex:none;border-radius:11px;
+      display:flex;align-items:center;justify-content:center;
+      background:#FFFFFF;border:1px solid var(--ap-primary-border);
+      color:var(--ap-primary-text);
+    }
+    #ap-root .ap-step-icon .ap-ico{width:18px;height:18px;}
+    #ap-root .ap-step-main{min-width:0;flex:1;}
+    #ap-root .ap-step-kicker{
+      display:flex;align-items:center;gap:6px;
+      font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--ap-text-3);
+    }
+    #ap-root .ap-step-name{
+      margin-top:3px;font-size:14px;font-weight:600;line-height:1.3;color:var(--ap-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ap-root .ap-step-sub{
+      margin-top:2px;font-size:11.5px;line-height:1.4;color:var(--ap-text-2);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ap-root .ap-step-metrics{display:flex;align-items:center;gap:6px;flex:none;flex-wrap:wrap;justify-content:flex-end;max-width:190px;}
+    #ap-root .ap-metric{
+      display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;
+      border-radius:999px;background:#FFFFFF;border:1px solid var(--ap-border);
+      color:var(--ap-text-2);font-size:10.5px;font-weight:600;white-space:nowrap;
+    }
+    #ap-root .ap-metric b{color:var(--ap-text);font-weight:700;font-variant-numeric:tabular-nums;}
+    #ap-root .ap-metric.is-link{border-color:var(--ap-primary-border);background:var(--ap-primary-soft);color:var(--ap-primary-text);}
+    #ap-root .ap-metric.is-link b{color:var(--ap-primary-text);}
+
+    /* 区块头 */
+    #ap-root .ap-section-head{
+      display:flex;align-items:center;gap:8px;min-height:22px;margin:6px 0 4px;
+    }
+    #ap-root .ap-section-title{font-size:13px;font-weight:600;color:var(--ap-text);}
+    #ap-root .ap-count{
+      display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:19px;padding:0 6px;
+      border-radius:999px;background:var(--ap-surface-3);color:var(--ap-text-4);
+      font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;
+    }
+    #ap-root .ap-section-hint{
+      margin-left:auto;display:flex;align-items:center;gap:5px;
+      font-size:11px;color:var(--ap-text-3);white-space:nowrap;
+    }
+    #ap-root .ap-section-hint .ap-ico{width:12px;height:12px;}
+
+    /* 参数列表 */
+    #ap-root .ap-list{
+      border:1px solid var(--ap-border);border-radius:var(--ap-radius-xl);
+      background:var(--ap-surface);overflow:hidden;
+    }
+    #ap-root .ap-row{
+      display:grid;grid-template-columns:minmax(0,1fr) 190px 64px;
+      gap:8px;align-items:center;min-height:48px;padding:4px 12px;
+      border-bottom:1px solid var(--ap-border-soft);
+      transition:background 150ms ease;
+    }
+    #ap-root .ap-row:last-child{border-bottom:0;}
+    #ap-root .ap-row:hover{background:#FBFCFE;}
+    #ap-root .ap-row-main{min-width:0;display:flex;flex-direction:column;justify-content:center;gap:2px;}
+    #ap-root .ap-row-label-line{display:flex;align-items:center;gap:6px;min-width:0;}
+    #ap-root .ap-row-label{
+      min-width:0;font-size:12px;font-weight:500;line-height:1.35;color:var(--ap-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ap-root .ap-row-meta{display:flex;align-items:center;gap:6px;min-width:0;}
+    #ap-root .ap-port-key{
+      font-family:var(--ap-mono);font-size:10px;line-height:1;color:var(--ap-text-3);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ap-root .ap-type{
+      display:inline-flex;align-items:center;gap:3px;height:16px;padding:0 5px;border-radius:4px;
+      background:var(--ap-surface-3);color:var(--ap-text-4);
+      font-size:9.5px;font-weight:600;line-height:1;white-space:nowrap;
+    }
+    #ap-root .ap-type .ap-ico{width:9px;height:9px;}
+    #ap-root .ap-required{
+      display:inline-flex;align-items:center;height:16px;padding:0 5px;border-radius:4px;
+      background:var(--ap-danger-soft);color:var(--ap-danger-text);
+      font-size:9.5px;font-weight:700;line-height:1;white-space:nowrap;
+    }
+    #ap-root .ap-optional{
+      display:inline-flex;align-items:center;height:16px;padding:0 5px;border-radius:4px;
+      background:var(--ap-surface-2);color:var(--ap-text-3);
+      font-size:9.5px;font-weight:600;line-height:1;white-space:nowrap;
+    }
+    #ap-root .ap-control{min-width:0;position:relative;}
+    #ap-root .ap-input,
+    #ap-root .ap-select{
+      width:100%;height:36px;padding:0 9px;
+      border:1px solid var(--ap-border);border-radius:var(--ap-radius-md);
+      background:var(--ap-surface);color:var(--ap-text);
+      font-size:11.5px;line-height:1;outline:none;
+      transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;
+    }
+    #ap-root .ap-input::placeholder{color:var(--ap-text-3);}
+    #ap-root .ap-input:hover,
+    #ap-root .ap-select:hover{border-color:var(--ap-border-strong);}
+    #ap-root .ap-input:focus,
+    #ap-root .ap-select:focus{border-color:var(--ap-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #ap-root .ap-input:disabled{background:var(--ap-surface-3);color:var(--ap-text-3);cursor:not-allowed;}
+    #ap-root .ap-input.is-number{font-variant-numeric:tabular-nums;}
+    #ap-root .ap-select{
+      appearance:none;-webkit-appearance:none;padding-right:28px;cursor:pointer;
+    }
+    #ap-root .ap-select-wrap{position:relative;width:100%;min-width:0;}
+    #ap-root .ap-select-wrap > .ap-ico{
+      position:absolute;right:9px;top:50%;transform:translateY(-50%);
+      width:12px;height:12px;color:var(--ap-text-3);pointer-events:none;
+    }
+    #ap-root .ap-linked{
+      display:flex;align-items:center;gap:6px;width:100%;height:36px;padding:0 9px;
+      border:1px solid var(--ap-primary-border);border-radius:var(--ap-radius-md);
+      background:var(--ap-primary-soft);color:var(--ap-primary-text);
+      font-size:11px;font-weight:500;line-height:1;white-space:nowrap;overflow:hidden;
+    }
+    #ap-root .ap-linked .ap-ico{width:12px;height:12px;flex:none;}
+    #ap-root .ap-linked span{overflow:hidden;text-overflow:ellipsis;}
+    #ap-root .ap-need{
+      display:flex;align-items:center;justify-content:center;gap:6px;width:100%;height:36px;
+      border:1px dashed var(--ap-border-strong);border-radius:var(--ap-radius-md);
+      background:var(--ap-surface-2);color:var(--ap-text-4);
+      font-size:11px;font-weight:500;line-height:1;cursor:pointer;
+      transition:border-color 150ms ease,background 150ms ease,color 150ms ease;
+    }
+    #ap-root .ap-need:hover{border-color:var(--ap-primary);background:var(--ap-primary-soft);color:var(--ap-primary-text);}
+    #ap-root .ap-need .ap-ico{width:12px;height:12px;}
+    #ap-root .ap-actions{display:flex;align-items:center;justify-content:flex-end;gap:2px;}
+    #ap-root .ap-actions .ap-icon-btn{width:28px;height:28px;border-radius:6px;}
+    #ap-root .ap-actions .ap-icon-btn .ap-ico{width:14px;height:14px;}
+    #ap-root .ap-actions .ap-lock{
+      width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;
+      color:var(--ap-text-3);cursor:default;
+    }
+    #ap-root .ap-actions .ap-lock .ap-ico{width:13px;height:13px;}
+
+    /* 空态 */
+    #ap-root .ap-empty{
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      min-height:250px;padding:28px 24px;border:1px dashed var(--ap-border-strong);
+      border-radius:var(--ap-radius-xl);background:var(--ap-surface-2);text-align:center;
+    }
+    #ap-root .ap-empty-icon{
+      width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+      background:#FFFFFF;border:1px solid var(--ap-border);color:var(--ap-text-3);
+      box-shadow:0 1px 2px rgba(15,23,42,.04);
+    }
+    #ap-root .ap-empty-icon .ap-ico{width:21px;height:21px;}
+    #ap-root .ap-empty-title{margin-top:12px;font-size:13px;font-weight:600;color:var(--ap-text);}
+    #ap-root .ap-empty-sub{margin:5px 0 0;max-width:360px;font-size:11.5px;line-height:1.6;color:var(--ap-text-2);}
+    #ap-root .ap-empty-hint{
+      display:inline-flex;align-items:center;gap:5px;margin-top:12px;height:24px;padding:0 9px;
+      border-radius:999px;background:#FFFFFF;border:1px solid var(--ap-border);
+      font-size:10.5px;color:var(--ap-text-3);
+    }
+    #ap-root .ap-empty-hint .ap-ico{width:11px;height:11px;}
+
+    /* ---- 页脚 ---- */
+    #ap-root .ap-footer{
+      height:56px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;
+      padding:0 16px;background:var(--ap-surface-2);
+      border-top:1px solid var(--ap-border-soft);
+    }
+    #ap-root .ap-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #ap-root .ap-status-chip{
+      display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;
+      border-radius:999px;background:#FFFFFF;border:1px solid var(--ap-border);
+      color:var(--ap-text-2);font-size:10.5px;font-weight:500;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:330px;
+    }
+    #ap-root .ap-status-dot{
+      width:6px;height:6px;flex:none;border-radius:50%;background:var(--ap-text-3);
+    }
+    #ap-root .ap-status-chip.is-running{border-color:var(--ap-primary-border);background:var(--ap-primary-soft);color:var(--ap-primary-text);}
+    #ap-root .ap-status-chip.is-running .ap-status-dot{background:var(--ap-primary);animation:ap-pulse 1.1s ease-in-out infinite;}
+    #ap-root .ap-status-chip.is-ok{border-color:var(--ap-success-border);background:var(--ap-success-soft);color:var(--ap-success-text);}
+    #ap-root .ap-status-chip.is-ok .ap-status-dot{background:var(--ap-success);}
+    #ap-root .ap-status-chip.is-err{border-color:var(--ap-danger-border);background:var(--ap-danger-soft);color:var(--ap-danger-text);}
+    #ap-root .ap-status-chip.is-err .ap-status-dot{background:var(--ap-danger);}
+    #ap-root .ap-elapsed{
+      font-family:var(--ap-mono);font-size:11px;color:var(--ap-text-3);
+      font-variant-numeric:tabular-nums;white-space:nowrap;
+    }
+    #ap-root .ap-footer-right{display:flex;align-items:center;gap:6px;flex:none;}
+    #ap-root .ap-btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:5px;
+      height:32px;padding:0 14px;border-radius:var(--ap-radius-md);
+      border:1px solid var(--ap-border);background:var(--ap-surface);color:var(--ap-text-2);
+      font-size:11.5px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease,box-shadow 150ms ease,transform 80ms ease;
+    }
+    #ap-root .ap-btn .ap-ico{width:13px;height:13px;}
+    #ap-root .ap-btn:hover{background:var(--ap-surface-3);border-color:var(--ap-border-strong);color:var(--ap-text);}
+    #ap-root .ap-btn:active{transform:translateY(1px);}
+    #ap-root .ap-btn:disabled{opacity:.45;cursor:not-allowed;transform:none;}
+    #ap-root .ap-btn-ghost{border-color:transparent;background:transparent;color:var(--ap-text-2);}
+    #ap-root .ap-btn-ghost:hover{background:var(--ap-surface-3);border-color:transparent;}
+    #ap-root .ap-btn-primary{
+      border-color:var(--ap-primary-strong);background:var(--ap-primary);color:#FFFFFF;font-weight:600;
+      box-shadow:0 1px 2px rgba(14,165,233,.28);
+    }
+    #ap-root .ap-btn-primary:hover{background:var(--ap-primary-strong);border-color:var(--ap-primary-strong);color:#FFFFFF;}
+    @keyframes ap-pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.45;transform:scale(.8);}}
+
+    /* ================= 说明区 ================= */
+    #ap-root .ap-notes{max-width:1280px;margin:26px auto 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+    #ap-root .ap-note{
+      display:flex;gap:11px;padding:14px 15px;border:1px solid var(--ap-border-soft);
+      border-radius:var(--ap-radius-xl);background:var(--ap-surface);
+    }
+    #ap-root .ap-note-num{
+      width:24px;height:24px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;
+      background:var(--ap-primary-light);color:var(--ap-primary-text);
+      font-family:var(--ap-mono);font-size:10px;font-weight:700;
+    }
+    #ap-root .ap-note-body{min-width:0;}
+    #ap-root .ap-note-body b{display:block;font-size:12px;font-weight:600;color:var(--ap-text);}
+    #ap-root .ap-note-body span{display:block;margin-top:4px;font-size:11.5px;line-height:1.6;color:var(--ap-text-2);}
+    #ap-root .ap-note-body code{
+      font-family:var(--ap-mono);font-size:10.5px;padding:1px 4px;border-radius:4px;
+      background:var(--ap-surface-3);color:var(--ap-text-2);
+    }
+    #ap-root .ap-notes-head{
+      grid-column:1/-1;margin:10px 0 0;font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--ap-text-3);
+    }
+    #ap-root .ap-contract{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;}
+    #ap-root .ap-contract-item{
+      padding:12px 13px;border:1px solid var(--ap-border-soft);border-radius:var(--ap-radius-lg);background:var(--ap-surface);
+    }
+    #ap-root .ap-contract-item b{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ap-primary-text);}
+    #ap-root .ap-contract-item b .ap-ico{width:12px;height:12px;}
+    #ap-root .ap-contract-item span{display:block;margin-top:4px;font-size:10.5px;line-height:1.55;color:var(--ap-text-2);}
+    #ap-root .ap-deferred{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+    #ap-root .ap-deferred-item{
+      padding:12px 13px;border:1px dashed var(--ap-border-strong);border-radius:var(--ap-radius-lg);
+      background:var(--ap-surface-2);
+    }
+    #ap-root .ap-deferred-item b{display:block;font-size:11px;color:var(--ap-text);}
+    #ap-root .ap-deferred-item span{display:block;margin-top:4px;font-size:10.5px;line-height:1.55;color:var(--ap-text-2);}
+    #ap-root .ap-token-strip{grid-column:1/-1;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+    #ap-root .ap-token{
+      display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;
+      border-radius:999px;background:var(--ap-surface);border:1px solid var(--ap-border-soft);
+      font-size:10px;color:var(--ap-text-2);
+    }
+    #ap-root .ap-swatch{width:10px;height:10px;border-radius:3px;border:1px solid rgba(15,23,42,.08);}
+
+    @media (max-width:900px){
+      #ap-root .ap-notes{grid-template-columns:1fr;}
+      #ap-root .ap-contract{grid-template-columns:repeat(2,minmax(0,1fr));}
+      #ap-root .ap-deferred{grid-template-columns:1fr;}
+    }
+    @media (max-width:640px){
+      #ap-root .ap-page{padding:16px 12px 32px;}
+      #ap-root .ap-window{width:100%;}
+      #ap-root .ap-row{grid-template-columns:minmax(0,1fr) 150px 56px;padding:5px 10px;}
+      #ap-root .ap-step-metrics{max-width:120px;}
+      #ap-root .ap-status-chip{max-width:190px;}
+      #ap-root .ap-contract{grid-template-columns:1fr;}
+    }
+  </style>
+
+  <div class="ap-page">
+    <header class="ap-page-head">
+      <div class="ap-page-title-row">
+        <h1>无自定义视图插件 · 自动参数面板</h1>
+        <span class="ap-ver">v1</span>
+      </div>
+      <p class="ap-page-sub">
+        Web 设计基线 v1 · 覆盖 <b>AutoPortConfigView.xaml / .xaml.cs</b> 与 <b>PluginConfigShellView</b> 共用外壳。
+        只重排信息层级与视觉，不改 <b>DataContext</b>、<b>Initialize / OnConfirm</b>、<b>LinkableValueEditor</b> 与窗口尺寸策略。
+        示例数据取自真实兜底场景「几何查找」的 10 个输入端口。
+      </p>
+      <div class="ap-demo-bar">
+        <div class="ap-demo-group" role="group" aria-label="窗口宽度">
+          <span class="ap-demo-label">窗口宽度</span>
+          <div class="ap-seg" id="ap-width-seg">
+            <button type="button" data-width="560" class="is-on" aria-pressed="true">560</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="ap-demo-group" role="group" aria-label="面板状态">
+          <span class="ap-demo-label">面板状态</span>
+          <div class="ap-seg" id="ap-state-seg">
+            <button type="button" data-state="default" class="is-on" aria-pressed="true">默认</button>
+            <button type="button" data-state="linked" aria-pressed="false">已链接</button>
+            <button type="button" data-state="empty" aria-pressed="false">空态</button>
+            <button type="button" data-state="running" aria-pressed="false">执行中</button>
+            <button type="button" data-state="success" aria-pressed="false">成功</button>
+            <button type="button" data-state="failure" aria-pressed="false">失败</button>
+          </div>
+        </div>
+      </div>
+      <div class="ap-scope">
+        <svg class="ap-ico" aria-hidden="true"><use href="#i-info"></use></svg>
+        <span><b>本版边界：</b>「步骤」区只读展示步骤名、描述摘要与端口统计；<b>[StepConfig] 属性的编辑入口不在本版范围</b>（当前兜底面板只渲染输入端口，扩展需宿主契约，见 D1）。窗口保持 560 宽、按内容自适应高度；内容区最大高度由 420 调整为 600，以容纳 10 个端口且不出现“一屏空白”。</span>
+      </div>
+    </header>
+
+    <div class="ap-stage">
+      <div class="ap-window" id="ap-window" data-state="default">
+        <div class="ap-titlebar">
+          <div class="ap-app-icon"><svg class="ap-ico" aria-hidden="true"><use href="#i-geometry"></use></svg></div>
+          <div class="ap-title-text">
+            <div class="ap-title-line">
+              <div class="ap-title">几何查找_0</div>
+            </div>
+            <div class="ap-subtitle">在 ROI 内亚像素找边并拟合，输出可复用的几何基元（直线/圆/椭圆）</div>
+          </div>
+          <div class="ap-title-actions">
+            <span class="ap-auto-chip"><svg class="ap-ico" aria-hidden="true"><use href="#i-sparkles"></use></svg>自动生成</span>
+            <button type="button" class="ap-icon-btn" aria-label="关闭" title="关闭（等价于取消）">
+              <svg class="ap-ico" aria-hidden="true"><use href="#i-x"></use></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="ap-content">
+          <section class="ap-step-card" aria-label="步骤信息">
+            <div class="ap-step-icon"><svg class="ap-ico" aria-hidden="true"><use href="#i-step"></use></svg></div>
+            <div class="ap-step-main">
+              <div class="ap-step-kicker">步骤信息 · STEP</div>
+              <div class="ap-step-name">几何查找_0</div>
+              <div class="ap-step-sub">通用参数面板 · 无自定义配置界面</div>
+            </div>
+            <div class="ap-step-metrics" id="ap-step-metrics">
+              <span class="ap-metric">输入 <b id="ap-metric-input">10</b></span>
+              <span class="ap-metric">必填 <b id="ap-metric-required">1</b></span>
+              <span class="ap-metric is-link">已链接 <b id="ap-metric-linked">1</b></span>
+            </div>
+          </section>
+
+          <div class="ap-section-head" id="ap-section-head">
+            <span class="ap-section-title">输入参数</span>
+            <span class="ap-count" id="ap-section-count">10</span>
+            <span class="ap-section-hint">
+              <svg class="ap-ico" aria-hidden="true"><use href="#i-info"></use></svg>
+              常量直接填 · 需要上游供值点链接
+            </span>
+          </div>
+
+          <div class="ap-list" id="ap-list">
+            <!-- 1. SrcImage：必填、图像、默认已链接 -->
+            <div class="ap-row" data-port="SrcImage" data-kind="image" data-linkable="true" data-linked-default="图像采集_0.Image" data-linked-alt="图像采集_0.Image">
+              <div class="ap-row-main">
+                <div class="ap-row-label-line">
+                  <span class="ap-row-label">待查找图像</span>
+                  <span class="ap-required">必填</span>
+                </div>
+                <div class="ap-row-meta">
+                  <code class="ap-port-key">SrcImage</code>
+                  <span class="ap-type"><svg class="ap-ico" aria-hidden="true"><use href="#i-image"></use></svg>图像</span>
+                </div>
+              </div>
+              <div class="ap-control">
+                <input class="ap-input ap-control-constant" type="text" value="" placeholder="固定值或链接" aria-label="待查找图像">
+                <div class="ap-linked ap-control-linked" hidden><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg><span class="ap-link-address">图像采集_0.Image</span></div>
+                <button type="button" class="ap-need ap-control-need" hidden><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>需链接变量</button>
+              </div>
+              <div class="ap-actions">
+                <button type="button" class="ap-icon-btn ap-link-btn is-active" aria-label="链接变量" title="链接变量">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>
+                </button>
+                <button type="button" class="ap-icon-btn ap-unlink-btn" aria-label="清除或解除链接" title="清除或解除链接">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-x"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- 2. MaskRegion：可选、区域、默认未链接 -->
+            <div class="ap-row" data-port="MaskRegion" data-kind="region" data-linkable="true" data-linked-default="" data-linked-alt="创建ROI_0.Region">
+              <div class="ap-row-main">
+                <div class="ap-row-label-line">
+                  <span class="ap-row-label">查找区域（可选）：只在区域内找；未接=整图</span>
+                </div>
+                <div class="ap-row-meta">
+                  <code class="ap-port-key">MaskRegion</code>
+                  <span class="ap-type"><svg class="ap-ico" aria-hidden="true"><use href="#i-region"></use></svg>区域</span>
+                  <span class="ap-optional">可选</span>
+                </div>
+              </div>
+              <div class="ap-control">
+                <input class="ap-input ap-control-constant" type="text" value="" placeholder="固定值或链接" aria-label="查找区域">
+                <div class="ap-linked ap-control-linked" hidden><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg><span class="ap-link-address">创建ROI_0.Region</span></div>
+                <button type="button" class="ap-need ap-control-need"><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>需链接变量</button>
+              </div>
+              <div class="ap-actions">
+                <button type="button" class="ap-icon-btn ap-link-btn" aria-label="链接变量" title="链接变量">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>
+                </button>
+                <button type="button" class="ap-icon-btn ap-unlink-btn" aria-label="清除或解除链接" title="清除或解除链接" hidden>
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-x"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- 3. Kind：枚举 -->
+            <div class="ap-row" data-port="Kind" data-kind="enum" data-linkable="false">
+              <div class="ap-row-main">
+                <div class="ap-row-label-line"><span class="ap-row-label">查找类型（直线/圆/椭圆）</span></div>
+                <div class="ap-row-meta">
+                  <code class="ap-port-key">Kind</code>
+                  <span class="ap-type"><svg class="ap-ico" aria-hidden="true"><use href="#i-enum"></use></svg>枚举</span>
+                </div>
+              </div>
+              <div class="ap-control">
+                <div class="ap-select-wrap">
+                  <select class="ap-select" aria-label="查找类型">
+                    <option selected>直线</option>
+                    <option>圆</option>
+                    <option>椭圆</option>
+                  </select>
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+                </div>
+              </div>
+              <div class="ap-actions">
+                <span class="ap-lock" title="封闭候选，只能选择" aria-label="封闭候选，只能选择">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-lock"></use></svg>
+                </span>
+              </div>
+            </div>
+
+            <!-- 4. Sigma -->
+            <div class="ap-row" data-port="Sigma" data-kind="number" data-linkable="true" data-linked-default="" data-linked-alt="Global.Sigma">
+              <div class="ap-row-main">
+                <div class="ap-row-label-line"><span class="ap-row-label">边缘提取平滑 Sigma（越大越平滑）</span></div>
+                <div class="ap-row-meta">
+                  <code class="ap-port-key">Sigma</code>
+                  <span class="ap-type"><svg class="ap-ico" aria-hidden="true"><use href="#i-number"></use></svg>数值</span>
+                  <span class="ap-optional">可选</span>
+                </div>
+              </div>
+              <div class="ap-control">
+                <input class="ap-input is-number ap-control-constant" type="text" value="1.0" aria-label="边缘提取平滑 Sigma">
+                <div class="ap-linked ap-control-linked" hidden><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg><span class="ap-link-address">Global.Sigma</span></div>
+                <button type="button" class="ap-need ap-control-need" hidden><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>需链接变量</button>
+              </div>
+              <div class="ap-actions">
+                <button type="button" class="ap-icon-btn ap-link-btn" aria-label="链接变量" title="链接变量">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>
+                </button>
+                <button type="button" class="ap-icon-btn ap-unlink-btn" aria-label="清除或解除链接" title="清除或解除链接">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-x"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- 5. LowThreshold -->
+            <div class="ap-row" data-port="LowThreshold" data-kind="number" data-linkable="true" data-linked-default="" data-linked-alt="Global.LowThreshold">
+              <div class="ap-row-main">
+                <div class="ap-row-label-line"><span class="ap-row-label">边缘低阈值</span></div>
+                <div class="ap-row-meta">
+                  <code class="ap-port-key">LowThreshold</code>
+                  <span class="ap-type"><svg class="ap-ico" aria-hidden="true"><use href="#i-number"></use></svg>数值</span>
+                  <span class="ap-optional">可选</span>
+                </div>
+              </div>
+              <div class="ap-control">
+                <input class="ap-input is-number ap-control-constant" type="text" value="20.0" aria-label="边缘低阈值">
+                <div class="ap-linked ap-control-linked" hidden><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg><span class="ap-link-address">Global.LowThreshold</span></div>
+                <button type="button" class="ap-need ap-control-need" hidden><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>需链接变量</button>
+              </div>
+              <div class="ap-actions">
+                <button type="button" class="ap-icon-btn ap-link-btn" aria-label="链接变量" title="链接变量">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>
+                </button>
+                <button type="button" class="ap-icon-btn ap-unlink-btn" aria-label="清除或解除链接" title="清除或解除链接">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-x"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- 6. HighThreshold -->
+            <div class="ap-row" data-port="HighThreshold" data-kind="number" data-linkable="true" data-linked-default="" data-linked-alt="Global.HighThreshold">
+              <div class="ap-row-main">
+                <div class="ap-row-label-line"><span class="ap-row-label">边缘高阈值</span></div>
+                <div class="ap-row-meta">
+                  <code class="ap-port-key">HighThreshold</code>
+                  <span class="ap-type"><svg class="ap-ico" aria-hidden="true"><use href="#i-number"></use></svg>数值</span>
+                  <span class="ap-optional">可选</span>
+                </div>
+              </div>
+              <div class="ap-control">
+                <input class="ap-input is-number ap-control-constant" type="text" value="40.0" aria-label="边缘高阈值">
+                <div class="ap-linked ap-control-linked" hidden><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg><span class="ap-link-address">Global.HighThreshold</span></div>
+                <button type="button" class="ap-need ap-control-need" hidden><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>需链接变量</button>
+              </div>
+              <div class="ap-actions">
+                <button type="button" class="ap-icon-btn ap-link-btn" aria-label="链接变量" title="链接变量">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>
+                </button>
+                <button type="button" class="ap-icon-btn ap-unlink-btn" aria-label="清除或解除链接" title="清除或解除链接">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-x"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- 7. MinContourLength -->
+            <div class="ap-row" data-port="MinContourLength" data-kind="number" data-linkable="true" data-linked-default="" data-linked-alt="Global.MinContourLength">
+              <div class="ap-row-main">
+                <div class="ap-row-label-line"><span class="ap-row-label">轮廓长度下限(px)</span></div>
+                <div class="ap-row-meta">
+                  <code class="ap-port-key">MinContourLength</code>
+                  <span class="ap-type"><svg class="ap-ico" aria-hidden="true"><use href="#i-number"></use></svg>数值</span>
+                  <span class="ap-optional">可选</span>
+                </div>
+              </div>
+              <div class="ap-control">
+                <input class="ap-input is-number ap-control-constant" type="text" value="30.0" aria-label="轮廓长度下限">
+                <div class="ap-linked ap-control-linked" hidden><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg><span class="ap-link-address">Global.MinContourLength</span></div>
+                <button type="button" class="ap-need ap-control-need" hidden><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>需链接变量</button>
+              </div>
+              <div class="ap-actions">
+                <button type="button" class="ap-icon-btn ap-link-btn" aria-label="链接变量" title="链接变量">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>
+                </button>
+                <button type="button" class="ap-icon-btn ap-unlink-btn" aria-label="清除或解除链接" title="清除或解除链接">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-x"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- 8. FitAlgorithm：枚举 -->
+            <div class="ap-row" data-port="FitAlgorithm" data-kind="enum" data-linkable="false">
+              <div class="ap-row-main">
+                <div class="ap-row-label-line"><span class="ap-row-label">拟合鲁棒算法</span></div>
+                <div class="ap-row-meta">
+                  <code class="ap-port-key">FitAlgorithm</code>
+                  <span class="ap-type"><svg class="ap-ico" aria-hidden="true"><use href="#i-enum"></use></svg>枚举</span>
+                  <span class="ap-optional">可选</span>
+                </div>
+              </div>
+              <div class="ap-control">
+                <div class="ap-select-wrap">
+                  <select class="ap-select" aria-label="拟合鲁棒算法">
+                    <option>最小二乘</option>
+                    <option>Huber 抗离群</option>
+                    <option selected>Tukey 抗离群（推荐）</option>
+                  </select>
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+                </div>
+              </div>
+              <div class="ap-actions">
+                <span class="ap-lock" title="封闭候选，只能选择" aria-label="封闭候选，只能选择">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-lock"></use></svg>
+                </span>
+              </div>
+            </div>
+
+            <!-- 9. FailOnNotFound：布尔 -->
+            <div class="ap-row" data-port="FailOnNotFound" data-kind="bool" data-linkable="true" data-linked-default="" data-linked-alt="Global.FailOnNotFound">
+              <div class="ap-row-main">
+                <div class="ap-row-label-line"><span class="ap-row-label">找不到是否判失败（默认是）</span></div>
+                <div class="ap-row-meta">
+                  <code class="ap-port-key">FailOnNotFound</code>
+                  <span class="ap-type"><svg class="ap-ico" aria-hidden="true"><use href="#i-bool"></use></svg>布尔</span>
+                  <span class="ap-optional">可选</span>
+                </div>
+              </div>
+              <div class="ap-control">
+                <input class="ap-input ap-control-constant" type="text" value="true" aria-label="找不到是否判失败">
+                <div class="ap-linked ap-control-linked" hidden><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg><span class="ap-link-address">Global.FailOnNotFound</span></div>
+                <button type="button" class="ap-need ap-control-need" hidden><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>需链接变量</button>
+              </div>
+              <div class="ap-actions">
+                <button type="button" class="ap-icon-btn ap-link-btn" aria-label="链接变量" title="链接变量">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>
+                </button>
+                <button type="button" class="ap-icon-btn ap-unlink-btn" aria-label="清除或解除链接" title="清除或解除链接">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-x"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- 10. DisplayViewIndex：整数 -->
+            <div class="ap-row" data-port="DisplayViewIndex" data-kind="integer" data-linkable="true" data-linked-default="" data-linked-alt="Global.DisplayViewIndex">
+              <div class="ap-row-main">
+                <div class="ap-row-label-line"><span class="ap-row-label">显示窗口(0=不显示,1~9=窗口号)</span></div>
+                <div class="ap-row-meta">
+                  <code class="ap-port-key">DisplayViewIndex</code>
+                  <span class="ap-type"><svg class="ap-ico" aria-hidden="true"><use href="#i-integer"></use></svg>整数</span>
+                  <span class="ap-optional">可选</span>
+                </div>
+              </div>
+              <div class="ap-control">
+                <input class="ap-input is-number ap-control-constant" type="text" value="1" aria-label="显示窗口">
+                <div class="ap-linked ap-control-linked" hidden><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg><span class="ap-link-address">Global.DisplayViewIndex</span></div>
+                <button type="button" class="ap-need ap-control-need" hidden><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>需链接变量</button>
+              </div>
+              <div class="ap-actions">
+                <button type="button" class="ap-icon-btn ap-link-btn" aria-label="链接变量" title="链接变量">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>
+                </button>
+                <button type="button" class="ap-icon-btn ap-unlink-btn" aria-label="清除或解除链接" title="清除或解除链接">
+                  <svg class="ap-ico" aria-hidden="true"><use href="#i-x"></use></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="ap-empty" id="ap-empty" hidden>
+            <div class="ap-empty-icon"><svg class="ap-ico" aria-hidden="true"><use href="#i-inbox"></use></svg></div>
+            <div class="ap-empty-title">该步骤没有输入参数</div>
+            <p class="ap-empty-sub">插件没有声明任何输入端口，因此没有可编辑的参数。仍可执行、确认或取消；若该插件应有参数，请检查插件是否把配置写成了 <code>[StepConfig]</code>（本版兜底面板只渲染 <code>InputPort</code>）。</p>
+            <span class="ap-empty-hint"><svg class="ap-ico" aria-hidden="true"><use href="#i-info"></use></svg>确认 / 取消 / 执行入口保持可用</span>
+          </div>
+        </div>
+
+        <div class="ap-footer">
+          <div class="ap-footer-left">
+            <span class="ap-status-chip" id="ap-status-chip">
+              <span class="ap-status-dot" id="ap-status-dot"></span>
+              <span id="ap-status-text">状态: 待执行</span>
+            </span>
+            <span class="ap-elapsed" id="ap-elapsed">耗时: 0 ms</span>
+          </div>
+          <div class="ap-footer-right">
+            <button type="button" class="ap-btn" id="ap-execute">
+              <svg class="ap-ico" aria-hidden="true"><use href="#i-play"></use></svg>执行
+            </button>
+            <button type="button" class="ap-btn ap-btn-ghost">取消</button>
+            <button type="button" class="ap-btn ap-btn-primary">确认</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ap-notes">
+      <div class="ap-notes-head">设计要点（V1）</div>
+      <div class="ap-note">
+        <div class="ap-note-num">01</div>
+        <div class="ap-note-body">
+          <b>Step 信息前置，不再只有标题</b>
+          <span>标题下新增只读步骤卡：步骤名、面板来源、输入 / 必填 / 已链接三个统计。数据全部来自 <code>IStepConfigData</code> 与端口集合，不新增业务字段。</span>
+        </div>
+      </div>
+      <div class="ap-note">
+        <div class="ap-note-num">02</div>
+        <div class="ap-note-body">
+          <b>一行一个端口的扫描节奏</b>
+          <span>左侧「中文描述 + 端口键 + 类型徽章」，右侧固定 190px 控件，链接 / 清除固定在行尾。10 个端口一屏可扫，不靠横向滚动。</span>
+        </div>
+      </div>
+      <div class="ap-note">
+        <div class="ap-note-num">03</div>
+        <div class="ap-note-body">
+          <b>三种端口形态一眼分清</b>
+          <span>可填常量 = 输入框；不可文本输入 = 「需链接变量」虚线按钮；枚举 = 下拉 + 锁图标（封闭候选，只能选、不提供链接）。</span>
+        </div>
+      </div>
+      <div class="ap-note">
+        <div class="ap-note-num">04</div>
+        <div class="ap-note-body">
+          <b>已链接状态是“地址”，不是“值”</b>
+          <span>链接后显示只读地址条（如 <code>图像采集_0.Image</code>），颜色与链接按钮同步变为主色；解除后恢复固定值输入，语义与 <code>LinkableValueEditor</code> 一致。</span>
+        </div>
+      </div>
+      <div class="ap-note">
+        <div class="ap-note-num">05</div>
+        <div class="ap-note-body">
+          <b>空态给下一步，不给白板</b>
+          <span>没有端口时显示图标 + 原因 + 提示（确认 / 取消 / 执行仍可用），并指出 <code>[StepConfig]</code> 不会出现在本面板，避免用户误以为界面坏了。</span>
+        </div>
+      </div>
+      <div class="ap-note">
+        <div class="ap-note-num">06</div>
+        <div class="ap-note-body">
+          <b>状态只复用宿主三档</b>
+          <span>执行中 / 成功 / 失败全部由 <code>PluginConfigShellViewModel.StatusText</code> 驱动，不新增 <code>StatusLevel</code> 枚举；执行中禁用「执行」，避免重复点。</span>
+        </div>
+      </div>
+
+      <div class="ap-notes-head">契约保留（一个都不能改）</div>
+      <div class="ap-contract">
+        <div class="ap-contract-item">
+          <b><svg class="ap-ico" aria-hidden="true"><use href="#i-check"></use></svg>C1 生命周期</b>
+          <span><code>AutoPortConfigView</code> 仍实现 <code>IPluginConfigView</code>；<code>Initialize(stepData)</code> 幂等重建，<code>OnConfirm</code> 委托 <code>_plugin.OnConfirm</code>。</span>
+        </div>
+        <div class="ap-contract-item">
+          <b><svg class="ap-ico" aria-hidden="true"><use href="#i-check"></use></svg>C2 端口来源</b>
+          <span>仍从 <code>_plugin.Inputs.Values</code> 取实时端口，按 <code>Name</code> 排序；不使用 <code>PortDefinition</code> 快照。</span>
+        </div>
+        <div class="ap-contract-item">
+          <b><svg class="ap-ico" aria-hidden="true"><use href="#i-check"></use></svg>C3 唯一编辑入口</b>
+          <span><code>LinkableValueEditor</code> 仍是每行唯一编辑控件；<code>Port</code> / <code>StepData</code> / 链接与清除行为原样保留。</span>
+        </div>
+        <div class="ap-contract-item">
+          <b><svg class="ap-ico" aria-hidden="true"><use href="#i-check"></use></svg>C4 窗口策略</b>
+          <span>仍由视图自己设置 <code>Width=560</code>、<code>SizeToContent.Height</code>、<code>MinHeight=180</code>、<code>MaxHeight=760</code>；仅内容滚动上限 420→600。</span>
+        </div>
+        <div class="ap-contract-item">
+          <b><svg class="ap-ico" aria-hidden="true"><use href="#i-check"></use></svg>C5 外壳不动</b>
+          <span><code>PluginConfigShellView</code> 的头部 / 页脚 / 执行 / 取消 / 确认与状态文案全部复用，不在本视图内复制。</span>
+        </div>
+      </div>
+
+      <div class="ap-notes-head">明确延后（需要新增功能或契约）</div>
+      <div class="ap-deferred">
+        <div class="ap-deferred-item">
+          <b>D1 · [StepConfig] 编辑入口</b>
+          <span>当前兜底面板只渲染 <code>InputPort</code>。要显示「轴回零 / 轴停止」等插件的 <code>[StepConfig]</code> 属性，需宿主暴露反射属性表与统一写路径。</span>
+        </div>
+        <div class="ap-deferred-item">
+          <b>D2 · 布尔开关 / 枚举卡片</b>
+          <span>布尔端口当前由 <code>LinkableValueEditor</code> 的文本框承载（显示 <code>true</code>）。改成开关需要扩展共享控件，本版不做。</span>
+        </div>
+        <div class="ap-deferred-item">
+          <b>D3 · 搜索 / 分组 / 校验</b>
+          <span>端口没有分组元数据；搜索、按必填筛选、行内校验提示都需要新契约或 VM 状态，本版保持单列直出。</span>
+        </div>
+        <div class="ap-deferred-item">
+          <b>D4 · 输出端口只读区</b>
+          <span>配置窗口只负责输入；输出端口属于流程连线与运行结果，不在本面板展示。</span>
+        </div>
+        <div class="ap-deferred-item">
+          <b>D5 · 参数说明 Tooltip</b>
+          <span>端口 <code>Description</code> 已是人话标签；更长的帮助文本没有数据来源，需插件侧补元数据。</span>
+        </div>
+        <div class="ap-deferred-item">
+          <b>D6 · 宽窄双档</b>
+          <span>设计稿提供 560 / 640 两档预览；产品仍固定 560，640 只用于说明窄窗口拉伸时的布局行为。</span>
+        </div>
+      </div>
+
+      <div class="ap-notes-head">令牌映射（Web → WPF）</div>
+      <div class="ap-token-strip">
+        <span class="ap-token"><i class="ap-swatch" style="background:#FFFFFF"></i>Surface → DialogSurfaceBrush</span>
+        <span class="ap-token"><i class="ap-swatch" style="background:#F8FAFC"></i>Surface-2 → DialogRowAlternateBrush</span>
+        <span class="ap-token"><i class="ap-swatch" style="background:#F1F5F9"></i>Surface-3 → DialogRowHoverBrush</span>
+        <span class="ap-token"><i class="ap-swatch" style="background:#E2E8F0"></i>Border → DialogBorderBrush</span>
+        <span class="ap-token"><i class="ap-swatch" style="background:#0F172A"></i>Text → DialogTextPrimaryBrush</span>
+        <span class="ap-token"><i class="ap-swatch" style="background:#475569"></i>Text-2 → DialogTextSecondaryBrush</span>
+        <span class="ap-token"><i class="ap-swatch" style="background:#0EA5E9"></i>Primary → DialogAccentBrush</span>
+        <span class="ap-token"><i class="ap-swatch" style="background:#F0F9FF"></i>Primary-soft → DialogAccentSoftBrush</span>
+        <span class="ap-token"><i class="ap-swatch" style="background:#22C55E"></i>Success → DialogSuccessBrush</span>
+        <span class="ap-token"><i class="ap-swatch" style="background:#EF4444"></i>Danger → DialogDangerBrush</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('ap-root');
+      if (!root) return;
+
+      var win = root.querySelector('#ap-window');
+      var list = root.querySelector('#ap-list');
+      var sectionHead = root.querySelector('#ap-section-head');
+      var empty = root.querySelector('#ap-empty');
+      var metrics = {
+        input: root.querySelector('#ap-metric-input'),
+        required: root.querySelector('#ap-metric-required'),
+        linked: root.querySelector('#ap-metric-linked')
+      };
+      var count = root.querySelector('#ap-section-count');
+      var statusChip = root.querySelector('#ap-status-chip');
+      var statusText = root.querySelector('#ap-status-text');
+      var elapsed = root.querySelector('#ap-elapsed');
+      var execute = root.querySelector('#ap-execute');
+      var stateButtons = Array.prototype.slice.call(root.querySelectorAll('#ap-state-seg [data-state]'));
+      var widthButtons = Array.prototype.slice.call(root.querySelectorAll('#ap-width-seg [data-width]'));
+
+      var rows = Array.prototype.slice.call(list.querySelectorAll('.ap-row'));
+
+      function setControl(row, mode, address) {
+        var constant = row.querySelector('.ap-control-constant');
+        var linked = row.querySelector('.ap-control-linked');
+        var need = row.querySelector('.ap-control-need');
+        var linkBtn = row.querySelector('.ap-link-btn');
+        var unlinkBtn = row.querySelector('.ap-unlink-btn');
+
+        if (constant) constant.hidden = mode !== 'constant';
+        if (linked) linked.hidden = mode !== 'linked';
+        if (need) need.hidden = mode !== 'need';
+
+        if (linked && address) {
+          var addressEl = linked.querySelector('.ap-link-address');
+          if (addressEl) addressEl.textContent = address;
+        }
+        if (linkBtn) {
+          linkBtn.classList.toggle('is-active', mode === 'linked');
+          linkBtn.setAttribute('aria-label', mode === 'linked' ? '已链接变量' : '链接变量');
+          linkBtn.title = mode === 'linked' ? '已链接变量' : '链接变量';
+        }
+        if (unlinkBtn) unlinkBtn.hidden = mode === 'need';
+      }
+
+      function applyRowDefault(row) {
+        if (row.dataset.linkable !== 'true') return;
+        var address = row.dataset.linkedDefault || '';
+        if (address) {
+          setControl(row, 'linked', address);
+        } else if (row.dataset.kind === 'image' || row.dataset.kind === 'region') {
+          setControl(row, 'need');
+        } else {
+          setControl(row, 'constant');
+        }
+      }
+
+      function applyRowLinked(row) {
+        if (row.dataset.linkable !== 'true') return;
+        // 演示态只链前三个有代表性的端口：图像 / 区域 / 数值。
+        // 其余端口保持固定值，避免整屏都是蓝色地址条、反而看不出“链接是少数状态”。
+        var demoLinked = ['SrcImage', 'MaskRegion', 'Sigma'];
+        if (demoLinked.indexOf(row.dataset.port) < 0) {
+          applyRowDefault(row);
+          return;
+        }
+        var address = row.dataset.linkedAlt || row.dataset.linkedDefault || '';
+        if (address) {
+          setControl(row, 'linked', address);
+        } else if (row.dataset.kind === 'image' || row.dataset.kind === 'region') {
+          setControl(row, 'need');
+        } else {
+          setControl(row, 'constant');
+        }
+      }
+
+      function updateMetrics(visibleRows, linkedCount) {
+        var required = visibleRows.filter(function (row) {
+          return !!row.querySelector('.ap-required');
+        }).length;
+        metrics.input.textContent = String(visibleRows.length);
+        metrics.required.textContent = String(required);
+        metrics.linked.textContent = String(linkedCount);
+        count.textContent = String(visibleRows.length);
+      }
+
+      function setStatus(kind, text, elapsedText, disabled) {
+        statusChip.classList.remove('is-running', 'is-ok', 'is-err');
+        if (kind) statusChip.classList.add(kind);
+        statusText.textContent = text;
+        elapsed.textContent = elapsedText;
+        execute.disabled = !!disabled;
+      }
+
+      function applyState(state) {
+        win.dataset.state = state;
+
+        if (state === 'empty') {
+          list.hidden = true;
+          sectionHead.hidden = true;
+          empty.hidden = false;
+          updateMetrics([], 0);
+          setStatus('', '状态: 待执行', '耗时: 0 ms', false);
+          return;
+        }
+
+        list.hidden = false;
+        sectionHead.hidden = false;
+        empty.hidden = true;
+
+        if (state === 'linked') {
+          rows.forEach(applyRowLinked);
+        } else {
+          rows.forEach(applyRowDefault);
+        }
+
+        var linkedCount = rows.filter(function (row) {
+          var linked = row.querySelector('.ap-control-linked');
+          return linked && !linked.hidden;
+        }).length;
+        updateMetrics(rows, linkedCount);
+
+        if (state === 'running') {
+          setStatus('is-running', '状态: 执行中...', '耗时: 0 ms', true);
+        } else if (state === 'success') {
+          setStatus('is-ok', '状态: ✅ 成功 - 找到 1 条直线', '耗时: 86 ms', false);
+        } else if (state === 'failure') {
+          setStatus('is-err', '状态: ❌ 失败 - 未找到符合条件的轮廓', '耗时: 42 ms', false);
+        } else {
+          setStatus('', '状态: 待执行', '耗时: 0 ms', false);
+        }
+      }
+
+      stateButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          stateButtons.forEach(function (b) {
+            b.classList.toggle('is-on', b === button);
+            b.setAttribute('aria-pressed', b === button ? 'true' : 'false');
+          });
+          applyState(button.dataset.state);
+        });
+      });
+
+      widthButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          widthButtons.forEach(function (b) {
+            b.classList.toggle('is-on', b === button);
+            b.setAttribute('aria-pressed', b === button ? 'true' : 'false');
+          });
+          win.classList.toggle('is-wide', button.dataset.width === '640');
+        });
+      });
+
+      // 行内链接 / 清除交互：只模拟视觉状态，不涉及真实绑定。
+      rows.forEach(function (row) {
+        var linkBtn = row.querySelector('.ap-link-btn');
+        var unlinkBtn = row.querySelector('.ap-unlink-btn');
+        var need = row.querySelector('.ap-control-need');
+
+        if (linkBtn) {
+          linkBtn.addEventListener('click', function () {
+            if (row.dataset.linkable !== 'true') return;
+            var address = row.dataset.linkedAlt || row.dataset.linkedDefault || '';
+            if (!address) return;
+            setControl(row, 'linked', address);
+            applyState(win.dataset.state === 'linked' ? 'linked' : win.dataset.state);
+          });
+        }
+        if (unlinkBtn) {
+          unlinkBtn.addEventListener('click', function () {
+            if (row.dataset.linkable !== 'true') return;
+            if (row.dataset.kind === 'image' || row.dataset.kind === 'region') {
+              setControl(row, 'need');
+            } else {
+              setControl(row, 'constant');
+            }
+            applyState(win.dataset.state === 'linked' ? 'linked' : win.dataset.state);
+          });
+        }
+        if (need) {
+          need.addEventListener('click', function () {
+            var address = row.dataset.linkedAlt || row.dataset.linkedDefault || '';
+            if (address) setControl(row, 'linked', address);
+            applyState(win.dataset.state === 'linked' ? 'linked' : win.dataset.state);
+          });
+        }
+      });
+
+      applyState('default');
+    })();
+  </script>
+</div>
+</body>
+</html>

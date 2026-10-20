@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CSV记录 · 配置窗口 · 设计基线 v1</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #dr-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="dr-design-root">
+  <style>
+    #dr-design-root{
+      color-scheme: light;
+      --dr-surface:#FFFFFF;
+      --dr-surface-2:#F8FAFC;
+      --dr-surface-3:#F1F5F9;
+      --dr-border:#E2E8F0;
+      --dr-border-soft:#EEF2F7;
+      --dr-border-strong:#CBD5E1;
+      --dr-text:#0F172A;
+      --dr-text-2:#475569;
+      --dr-text-3:#94A3B8;
+      --dr-text-4:#64748B;
+      --dr-primary:#0EA5E9;
+      --dr-primary-strong:#0284C7;
+      --dr-primary-text:#0369A1;
+      --dr-primary-soft:#F0F9FF;
+      --dr-primary-light:#E0F2FE;
+      --dr-primary-border:#BAE6FD;
+      --dr-success:#22C55E;
+      --dr-success-text:#15803D;
+      --dr-success-soft:#F0FDF4;
+      --dr-success-border:#BBF7D0;
+      --dr-danger:#EF4444;
+      --dr-danger-text:#B91C1C;
+      --dr-danger-soft:#FEF2F2;
+      --dr-danger-border:#FECACA;
+      --dr-warning:#F59E0B;
+      --dr-warning-text:#B45309;
+      --dr-warning-soft:#FFF4E5;
+      --dr-warning-border:#FDE68A;
+      --dr-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --dr-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --dr-radius-sm:6px;
+      --dr-radius-md:8px;
+      --dr-radius-lg:10px;
+      --dr-radius-xl:12px;
+      --dr-radius-window:16px;
+      --dr-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--dr-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #dr-design-root *{box-sizing:border-box;}
+    #dr-design-root button,
+    #dr-design-root input,
+    #dr-design-root select,
+    #dr-design-root textarea{font-family:inherit;}
+    #dr-design-root button{color:inherit;}
+    #dr-design-root [hidden]{display:none !important;}
+    #dr-design-root :focus-visible{outline:2px solid var(--dr-primary);outline-offset:2px;}
+
+    #dr-design-root .dr-page{max-width:1360px;margin:0 auto;padding:24px 24px 44px;}
+    #dr-design-root .dr-page-head{max-width:1360px;margin:0 auto 16px;}
+    #dr-design-root .dr-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #dr-design-root .dr-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--dr-text);}
+    #dr-design-root .dr-ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--dr-primary-light);color:var(--dr-primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;}
+    #dr-design-root .dr-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--dr-text-2);}
+    #dr-design-root .dr-page-sub b{color:var(--dr-text);font-weight:600;}
+    #dr-design-root .dr-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #dr-design-root .dr-demo-group{display:flex;align-items:center;gap:8px;}
+    #dr-design-root .dr-demo-label{font-size:11.5px;color:var(--dr-text-4);}
+    #dr-design-root .dr-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--dr-radius-md);background:var(--dr-surface-3);}
+    #dr-design-root .dr-seg button{height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--dr-text-2);font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;}
+    #dr-design-root .dr-seg button:hover{color:var(--dr-text);}
+    #dr-design-root .dr-seg button.is-on{background:#FFFFFF;color:var(--dr-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+    #dr-design-root .dr-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--dr-text-2);}
+    #dr-design-root .dr-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--dr-warning-text);}
+    #dr-design-root .dr-scope b{color:var(--dr-text);font-weight:600;}
+
+    /* ================= 产品窗口 ================= */
+    #dr-design-root .dr-window{width:960px;max-width:100%;height:680px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:var(--dr-surface);border-radius:var(--dr-radius-window);box-shadow:var(--dr-shadow-window);transition:width 200ms ease;}
+    #dr-design-root .dr-window.is-narrow{width:640px;}
+    #dr-design-root .dr-titlebar{height:72px;flex:none;display:flex;align-items:center;padding:0 20px;background:var(--dr-surface);border-bottom:1px solid var(--dr-border-soft);}
+    #dr-design-root .dr-app-icon{width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--dr-primary-light);color:var(--dr-primary-text);}
+    #dr-design-root .dr-app-icon svg{width:19px;height:19px;}
+    #dr-design-root .dr-title-text{margin-left:12px;min-width:0;flex:1;}
+    #dr-design-root .dr-title-line{display:flex;align-items:center;gap:8px;min-width:0;}
+    #dr-design-root .dr-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--dr-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #dr-design-root .dr-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--dr-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #dr-design-root .dr-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+    #dr-design-root .dr-content{flex:1;min-height:0;display:grid;grid-template-columns:356px minmax(0,1fr);gap:16px;padding:16px 20px 20px;background:var(--dr-surface);}
+    #dr-design-root .dr-window.is-narrow .dr-content{grid-template-columns:300px minmax(0,1fr);gap:12px;padding:14px 16px 16px;}
+
+    /* ---- 左栏 ---- */
+    #dr-design-root .dr-rail{min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;padding:14px;border:1px solid var(--dr-border-soft);border-radius:var(--dr-radius-xl);background:var(--dr-surface-2);scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+    #dr-design-root .dr-rail::-webkit-scrollbar{width:8px;}
+    #dr-design-root .dr-rail::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+    #dr-design-root .dr-rail::-webkit-scrollbar-track{background:transparent;}
+    #dr-design-root .dr-section{padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--dr-border);}
+    #dr-design-root .dr-section:last-child{padding-bottom:0;margin-bottom:0;border-bottom:0;}
+    #dr-design-root .dr-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;font-size:12px;font-weight:600;color:var(--dr-text-2);}
+    #dr-design-root .dr-section-hint{font-size:10.5px;font-weight:400;color:var(--dr-text-3);white-space:nowrap;}
+    #dr-design-root .dr-field{margin-bottom:11px;}
+    #dr-design-root .dr-field:last-child{margin-bottom:0;}
+    #dr-design-root .dr-label{display:flex;align-items:center;gap:5px;margin-bottom:5px;font-size:12px;font-weight:500;line-height:1.3;color:var(--dr-text-2);}
+    #dr-design-root .dr-link-hint{font-size:10px;font-weight:600;color:var(--dr-primary-text);background:var(--dr-primary-light);border-radius:4px;padding:1px 4px;}
+    #dr-design-root .dr-input,#dr-design-root .dr-select{width:100%;height:36px;padding:0 10px;border:1px solid var(--dr-border);border-radius:var(--dr-radius-md);background:var(--dr-surface);color:var(--dr-text);font-size:12.5px;line-height:1;outline:none;transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;}
+    #dr-design-root .dr-input::placeholder{color:var(--dr-text-3);}
+    #dr-design-root .dr-input:hover,#dr-design-root .dr-select:hover{border-color:var(--dr-border-strong);}
+    #dr-design-root .dr-input:focus,#dr-design-root .dr-select:focus{border-color:var(--dr-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #dr-design-root .dr-input:disabled{background:var(--dr-surface-3);color:var(--dr-text-3);cursor:not-allowed;}
+    #dr-design-root .dr-select{appearance:none;-webkit-appearance:none;padding-right:28px;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,var(--dr-text-3) 50%),linear-gradient(135deg,var(--dr-text-3) 50%,transparent 50%);background-position:calc(100% - 14px) 15px,calc(100% - 9px) 15px;background-size:5px 5px,5px 5px;background-repeat:no-repeat;}
+    #dr-design-root .dr-input-sm,#dr-design-root .dr-select-sm{height:32px;font-size:12px;border-radius:6px;padding:0 8px;}
+    #dr-design-root .dr-select-sm{padding-right:22px;background-position:calc(100% - 12px) 13px,calc(100% - 8px) 13px;}
+    #dr-design-root .dr-help{display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;font-size:11.5px;line-height:1.5;color:var(--dr-text-4);}
+    #dr-design-root .dr-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--dr-text-3);}
+    #dr-design-root .dr-grid-2{display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:8px;}
+
+    /* 开关 */
+    #dr-design-root .dr-switches{display:flex;flex-direction:column;gap:2px;margin-top:2px;}
+    #dr-design-root .dr-check{display:flex;align-items:center;gap:8px;min-height:28px;padding:3px 4px;border-radius:6px;font-size:12px;color:var(--dr-text-2);cursor:pointer;user-select:none;}
+    #dr-design-root .dr-check:hover{background:var(--dr-surface-3);}
+    #dr-design-root .dr-check input{position:absolute;opacity:0;pointer-events:none;}
+    #dr-design-root .dr-check .box{width:16px;height:16px;flex:none;border:1px solid var(--dr-border-strong);border-radius:4px;background:var(--dr-surface);display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-size:10px;line-height:1;transition:background 150ms ease,border-color 150ms ease;}
+    #dr-design-root .dr-check input:checked + .box{background:var(--dr-primary);border-color:var(--dr-primary);}
+    #dr-design-root .dr-check input:checked + .box::after{content:"✓";}
+    #dr-design-root .dr-check input:focus-visible + .box{outline:2px solid var(--dr-primary);outline-offset:2px;}
+    #dr-design-root .dr-check small{margin-left:auto;font-size:10.5px;color:var(--dr-text-3);}
+
+    /* 图片记录方式卡片 */
+    #dr-design-root .dr-modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
+    #dr-design-root .dr-mode{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:48px;padding:7px 8px;border:1px solid var(--dr-border);border-radius:8px;background:var(--dr-surface);text-align:left;cursor:pointer;transition:border-color 150ms ease,background 150ms ease,box-shadow 150ms ease;}
+    #dr-design-root .dr-mode:hover{border-color:var(--dr-border-strong);background:#FBFDFF;}
+    #dr-design-root .dr-mode:active{background:var(--dr-surface-3);}
+    #dr-design-root .dr-mode.is-active{border-color:var(--dr-primary);background:var(--dr-primary-soft);box-shadow:0 0 0 3px rgba(14,165,233,.10);}
+    #dr-design-root .dr-mode b{font-size:11.5px;font-weight:600;line-height:1.25;color:var(--dr-text);}
+    #dr-design-root .dr-mode small{font-size:9.5px;line-height:1.25;color:var(--dr-text-4);}
+    #dr-design-root .dr-mode.is-active small{color:var(--dr-primary-text);}
+
+    /* 连线行 */
+    #dr-design-root .dr-link-row{display:flex;align-items:center;gap:6px;}
+    #dr-design-root .dr-link-row .dr-input{flex:1;min-width:0;}
+    #dr-design-root .dr-icon-btn{width:30px;height:30px;flex:none;padding:0;border:1px solid var(--dr-border);border-radius:7px;background:var(--dr-surface);color:var(--dr-text-4);display:inline-flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;}
+    #dr-design-root .dr-icon-btn:hover{background:var(--dr-primary-soft);border-color:var(--dr-primary-border);color:var(--dr-primary-text);}
+    #dr-design-root .dr-icon-btn:active{background:var(--dr-surface-3);}
+    #dr-design-root .dr-icon-btn.is-plain{border-color:transparent;background:transparent;}
+    #dr-design-root .dr-icon-btn.is-plain:hover{background:var(--dr-surface-3);color:var(--dr-danger-text);}
+
+    /* 按钮 */
+    #dr-design-root .dr-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 13px;border:1px solid var(--dr-border);border-radius:var(--dr-radius-md);background:var(--dr-surface);color:var(--dr-text);font-size:12.5px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;}
+    #dr-design-root .dr-btn:hover{background:var(--dr-surface-2);border-color:var(--dr-border-strong);}
+    #dr-design-root .dr-btn:active{background:var(--dr-surface-3);}
+    #dr-design-root .dr-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #dr-design-root .dr-btn-primary{background:var(--dr-primary);border-color:var(--dr-primary);color:#FFFFFF;font-weight:600;}
+    #dr-design-root .dr-btn-primary:hover{background:var(--dr-primary-strong);border-color:var(--dr-primary-strong);}
+    #dr-design-root .dr-btn-sm{height:32px;padding:0 11px;font-size:12px;}
+    #dr-design-root .dr-btn-ghost{border-color:transparent;background:transparent;color:var(--dr-text-2);}
+    #dr-design-root .dr-btn-ghost:hover{background:var(--dr-surface-3);border-color:transparent;color:var(--dr-text);}
+
+    /* ---- 右栏工作区 ---- */
+    #dr-design-root .dr-workspace{min-width:0;min-height:0;display:flex;flex-direction:column;gap:12px;}
+    #dr-design-root .dr-card{min-width:0;background:var(--dr-surface);border:1px solid var(--dr-border);border-radius:var(--dr-radius-xl);padding:14px;display:flex;flex-direction:column;}
+    #dr-design-root .dr-columns-card{flex:1;min-height:0;}
+    #dr-design-root .dr-test-card{flex:none;}
+    #dr-design-root .dr-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:4px;}
+    #dr-design-root .dr-card-title{font-size:13px;font-weight:600;line-height:1.3;color:var(--dr-text);}
+    #dr-design-root .dr-card-sub{margin-top:3px;font-size:10.5px;line-height:1.3;color:var(--dr-text-3);font-variant-numeric:tabular-nums;}
+    #dr-design-root .dr-columns-card > .dr-help{margin:2px 0 10px;}
+
+    /* 列定义表 */
+    #dr-design-root .dr-table{flex:1;min-height:0;overflow:auto;border:1px solid var(--dr-border-soft);border-radius:var(--dr-radius-md);background:var(--dr-surface);}
+    #dr-design-root .dr-table-head,#dr-design-root .dr-row{display:grid;grid-template-columns:26px 92px 74px minmax(0,1fr) 62px 28px;align-items:center;gap:4px;min-width:430px;padding:0 8px;}
+    #dr-design-root .dr-table-head{position:sticky;top:0;z-index:1;height:30px;background:var(--dr-surface-2);border-bottom:1px solid var(--dr-border-soft);font-size:10.5px;font-weight:600;color:var(--dr-text-3);}
+    #dr-design-root .dr-row{min-height:42px;border-bottom:1px solid var(--dr-border-soft);transition:background 150ms ease;}
+    #dr-design-root .dr-row:last-child{border-bottom:0;}
+    #dr-design-root .dr-row:hover{background:#FBFDFF;}
+    #dr-design-root .dr-row.is-disabled{opacity:.55;}
+    #dr-design-root .dr-row .dr-check{min-height:24px;padding:0;justify-content:center;}
+    #dr-design-root .dr-row .dr-check:hover{background:transparent;}
+    #dr-design-root .dr-cell{min-width:0;}
+    #dr-design-root .dr-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:180px;color:var(--dr-text-3);font-size:11.5px;text-align:center;padding:20px;}
+    #dr-design-root .dr-empty b{font-size:12.5px;font-weight:600;color:var(--dr-text-2);}
+    #dr-design-root .dr-empty .dr-empty-icon{width:38px;height:38px;border-radius:12px;border:1px dashed var(--dr-border-strong);display:flex;align-items:center;justify-content:center;font-size:17px;color:var(--dr-text-3);}
+
+    /* 试写结果 */
+    #dr-design-root .dr-result{display:flex;align-items:flex-start;gap:8px;margin-top:10px;padding:9px 10px;border:1px solid var(--dr-border-soft);border-radius:8px;background:var(--dr-surface-2);font-size:11.5px;line-height:1.5;color:var(--dr-text-2);}
+    #dr-design-root .dr-result-icon{width:18px;height:18px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--dr-surface-3);color:var(--dr-text-3);font-size:11px;font-weight:700;}
+    #dr-design-root .dr-result.is-ok{background:var(--dr-success-soft);border-color:var(--dr-success-border);color:var(--dr-success-text);}
+    #dr-design-root .dr-result.is-ok .dr-result-icon{background:var(--dr-success);color:#FFFFFF;}
+    #dr-design-root .dr-result.is-error{background:var(--dr-danger-soft);border-color:var(--dr-danger-border);color:var(--dr-danger-text);}
+    #dr-design-root .dr-result.is-error .dr-result-icon{background:var(--dr-danger);color:#FFFFFF;}
+    #dr-design-root .dr-result.is-idle .dr-result-icon{background:var(--dr-surface-3);color:var(--dr-text-3);}
+
+    /* ---- 底部宿主栏 ---- */
+    #dr-design-root .dr-footer{height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid var(--dr-border-soft);background:var(--dr-surface-2);}
+    #dr-design-root .dr-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #dr-design-root .dr-status-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--dr-surface);border:1px solid var(--dr-border);font-size:11.5px;color:var(--dr-text-2);white-space:nowrap;}
+    #dr-design-root .dr-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--dr-text-3);}
+    #dr-design-root .dr-elapsed{font-family:var(--dr-mono);font-size:11px;color:var(--dr-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+    #dr-design-root .dr-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #dr-design-root .dr-footer .dr-btn{height:32px;padding:0 16px;font-size:12.5px;}
+    #dr-design-root .dr-footer .dr-btn-primary{padding:0 18px;}
+
+    /* ---- 说明 ---- */
+    #dr-design-root .dr-notes{max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;}
+    #dr-design-root .dr-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--dr-text-2);}
+    #dr-design-root .dr-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--dr-border);}
+    #dr-design-root .dr-note-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--dr-primary-light);color:var(--dr-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}
+    #dr-design-root .dr-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--dr-text);}
+    #dr-design-root .dr-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--dr-text-2);}
+    #dr-design-root .dr-note code{font-family:var(--dr-mono);font-size:10.5px;color:var(--dr-primary-text);background:var(--dr-primary-soft);padding:1px 4px;border-radius:4px;}
+
+    #dr-design-root .dr-window.is-narrow .dr-table-head,#dr-design-root .dr-window.is-narrow .dr-row{grid-template-columns:24px 78px 62px minmax(0,1fr) 48px 24px;min-width:390px;}
+    #dr-design-root .dr-window.is-narrow .dr-card{padding:12px;}
+    #dr-design-root .dr-window.is-narrow .dr-columns-card > .dr-help{display:none;}
+
+    @media (prefers-reduced-motion: reduce){#dr-design-root *{animation:none !important;transition:none !important;}}
+    @media (max-width:1024px){#dr-design-root .dr-page{padding:18px 14px 32px;}#dr-design-root .dr-window{height:auto;min-height:640px;}#dr-design-root .dr-content{grid-template-columns:1fr;}#dr-design-root .dr-rail{overflow:visible;}#dr-design-root .dr-workspace{min-height:420px;}}
+  </style>
+
+  <div class="dr-page">
+    <header class="dr-page-head">
+      <div class="dr-page-title-row">
+        <h1>CSV记录 · 配置窗口</h1>
+        <span class="dr-ver">v1</span>
+      </div>
+      <p class="dr-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、
+        动态列端口、四个 <b>LinkableValueEditor</b> 入口与全部命令；不新增功能、不改绑定类型。
+        窗口 <b>960 × 680</b>，左侧配置轨 <b>356px</b>，右侧列定义工作区自适应。
+      </p>
+      <div class="dr-demo-bar">
+        <div class="dr-demo-group" role="group" aria-label="窗口宽度">
+          <span class="dr-demo-label">窗口宽度</span>
+          <div class="dr-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="dr-demo-group" role="group" aria-label="试写结果">
+          <span class="dr-demo-label">试写结果</span>
+          <div class="dr-seg">
+            <button type="button" data-test="idle" class="is-on" aria-pressed="true">未试写</button>
+            <button type="button" data-test="ok" aria-pressed="false">成功</button>
+            <button type="button" data-test="error" aria-pressed="false">失败</button>
+          </div>
+        </div>
+        <div class="dr-demo-group" role="group" aria-label="边界态">
+          <span class="dr-demo-label">边界态</span>
+          <div class="dr-seg">
+            <button type="button" data-boundary="default" class="is-on" aria-pressed="true">默认</button>
+            <button type="button" data-boundary="empty" aria-pressed="false">空列</button>
+          </div>
+        </div>
+      </div>
+      <div class="dr-scope">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span><b>v1 未纳入（需新增功能或契约）：</b>加载/写入中骨架、账本文件大小与行数、打开记录目录、列模板导入导出、列拖拽排序、账本内容预览。本稿覆盖 960×680 与 640×680；640×560 下左栏可滚动、右栏表格横向滚动。</span>
+      </div>
+    </header>
+
+    <div class="dr-window" id="dr-window">
+      <div class="dr-titlebar">
+        <div class="dr-app-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M2 15h10"></path><path d="M2 18h10"></path><path d="M2 12h10"></path></svg>
+        </div>
+        <div class="dr-title-text">
+          <div class="dr-title-line"><div class="dr-title">CSV记录</div></div>
+          <div class="dr-subtitle">把每次流程执行的结果按行记录到 CSV 账本，可选同步保存 NG 图片，异步写入不占节拍</div>
+        </div>
+        <div class="dr-title-actions">
+          <button type="button" class="dr-icon-btn is-plain" data-tooltip="关闭" aria-label="关闭" title="关闭">✕</button>
+        </div>
+      </div>
+
+      <div class="dr-content">
+        <aside class="dr-rail" aria-label="记录配置">
+          <section class="dr-section">
+            <div class="dr-section-head"><span>账本文件</span><span class="dr-section-hint">占位符模板</span></div>
+            <p class="dr-help" style="margin:0 0 10px;">目录 / 文件名支持 <code style="font-family:var(--dr-mono);font-size:10.5px;color:var(--dr-primary-text);">&#123;StepName&#125; &#123;yyyy&#125; &#123;yyyy-MM&#125; &#123;yyyy-MM-dd&#125;</code>；UTF-8 带 BOM，Excel 双击直接打开不乱码。</p>
+            <div class="dr-field">
+              <label class="dr-label" for="dr-dir">记录目录</label>
+              <input class="dr-input" id="dr-dir" type="text" value="D:\Records\{StepName}\{yyyy-MM}\" spellcheck="false">
+            </div>
+            <div class="dr-field">
+              <label class="dr-label" for="dr-file">文件名</label>
+              <input class="dr-input" id="dr-file" type="text" value="{yyyy-MM-dd}.csv" spellcheck="false">
+            </div>
+            <div class="dr-field">
+              <label class="dr-label" for="dr-keep">保留天数</label>
+              <div class="dr-grid-2">
+                <input class="dr-input" id="dr-keep" type="number" value="0" min="0" style="font-variant-numeric:tabular-nums;">
+                <span class="dr-help" style="margin:8px 0 0;">0 = 永久保留</span>
+              </div>
+            </div>
+            <div class="dr-switches">
+              <label class="dr-check"><input type="checkbox" checked><span class="box"></span><span>新文件写表头</span></label>
+              <label class="dr-check"><input type="checkbox"><span class="box"></span><span>每行立即落盘</span><small>断电保真，牺牲节拍</small></label>
+              <label class="dr-check"><input type="checkbox" checked><span class="box"></span><span>写入失败阻断流程</span><small>宁停线不丢账</small></label>
+            </div>
+          </section>
+
+          <section class="dr-section">
+            <div class="dr-section-head"><span>图片记录</span><span class="dr-section-hint">可选</span></div>
+            <div class="dr-modes" role="group" aria-label="图片记录方式">
+              <button type="button" class="dr-mode is-active" data-image-mode="off" aria-pressed="true"><b>不存图</b><small>忽略图片端口</small></button>
+              <button type="button" class="dr-mode" data-image-mode="ng" aria-pressed="false"><b>仅NG存图</b><small>结果=NG 才存</small></button>
+              <button type="button" class="dr-mode" data-image-mode="every" aria-pressed="false"><b>每件存图</b><small>每次执行都存</small></button>
+            </div>
+            <div id="dr-image-fields" hidden>
+              <div class="dr-field" style="margin-top:11px;">
+                <label class="dr-label" for="dr-image-source">图片源 <span class="dr-link-hint">可连线</span></label>
+                <div class="dr-link-row">
+                  <input class="dr-input" id="dr-image-source" type="text" placeholder="未连线（运行时由上游提供）">
+                  <button type="button" class="dr-icon-btn" title="绑定变量" aria-label="绑定变量">🔗</button>
+                  <button type="button" class="dr-icon-btn" title="清除" aria-label="清除">✕</button>
+                </div>
+                <p class="dr-help">端口给 HImage=存副本；给文本=只记现成路径。未连线时不报错。</p>
+              </div>
+              <div class="dr-grid-2" style="grid-template-columns:minmax(0,1fr) 92px;">
+                <div class="dr-field">
+                  <label class="dr-label" for="dr-result-col">结果列</label>
+                  <input class="dr-input" id="dr-result-col" type="text" value="结果">
+                </div>
+                <div class="dr-field">
+                  <label class="dr-label" for="dr-ng">NG值</label>
+                  <input class="dr-input" id="dr-ng" type="text" value="NG">
+                </div>
+              </div>
+              <div class="dr-grid-2" style="grid-template-columns:minmax(0,1fr) 92px;">
+                <div class="dr-field">
+                  <label class="dr-label" for="dr-name-tpl">命名模板</label>
+                  <input class="dr-input" id="dr-name-tpl" type="text" value="{序号}_{结果}" spellcheck="false">
+                </div>
+                <div class="dr-field">
+                  <label class="dr-label" for="dr-format">格式</label>
+                  <select class="dr-select" id="dr-format"><option selected>png</option><option>jpg</option><option>bmp</option></select>
+                </div>
+              </div>
+              <div class="dr-field">
+                <label class="dr-label" for="dr-image-dir">图片子目录</label>
+                <input class="dr-input" id="dr-image-dir" type="text" value="img">
+              </div>
+            </div>
+            <p class="dr-help" id="dr-image-help" style="margin-top:9px;">图片不进 CSV：账本里记的是路径，相册靠路径列关联。</p>
+          </section>
+        </aside>
+
+        <section class="dr-workspace" aria-label="列定义工作区">
+          <div class="dr-card dr-columns-card">
+            <div class="dr-card-head">
+              <div>
+                <div class="dr-card-title">列定义</div>
+                <div class="dr-card-sub">一行 = 一次执行 · <span id="dr-col-count">4 列</span></div>
+              </div>
+              <button type="button" class="dr-btn dr-btn-primary dr-btn-sm" id="dr-add-col">+ 添加列</button>
+            </div>
+            <p class="dr-help">来源=端口：列名即输入端口名，连线取上游值；来源=变量：取运行期变量；内置：时间/序号/步骤名/耗时/图片路径。</p>
+            <div class="dr-table" id="dr-table">
+              <div class="dr-table-head">
+                <span>用</span><span>列名</span><span>来源</span><span>取值（连线 / 变量名 / 内置项）</span><span>格式</span><span></span>
+              </div>
+              <div id="dr-rows"></div>
+              <div class="dr-empty" id="dr-empty" hidden>
+                <div class="dr-empty-icon">＋</div>
+                <b>还没有列</b>
+                <span>至少启用一列才能记录。点击右上角「添加列」开始。</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="dr-card dr-test-card">
+            <div class="dr-card-head">
+              <div>
+                <div class="dr-card-title">试写一行验证配置</div>
+                <div class="dr-card-sub">绕过队列，立即追加一行样例</div>
+              </div>
+              <button type="button" class="dr-btn dr-btn-sm" id="dr-test">测试写一行</button>
+            </div>
+            <p class="dr-help" style="margin-top:2px;">写一行后到记录目录打开 CSV，确认表头、列宽与编码；结果只反映本次试写。</p>
+            <div class="dr-result is-idle" id="dr-result" role="status">
+              <span class="dr-result-icon" id="dr-result-icon">i</span>
+              <span id="dr-result-text">尚未试写。点击「测试写一行」验证目录、表头与列宽。</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="dr-footer">
+        <div class="dr-footer-left">
+          <span class="dr-status-chip"><span class="dr-footer-dot"></span><span>状态: 待执行</span></span>
+          <span class="dr-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="dr-footer-right">
+          <button type="button" class="dr-btn">▶ 执行</button>
+          <button type="button" class="dr-btn dr-btn-ghost">取消</button>
+          <button type="button" class="dr-btn dr-btn-primary">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="dr-notes">
+      <div class="dr-notes-head">关键改动（v1）</div>
+      <div class="dr-note"><div class="dr-note-num">01</div><div><b>两栏信息架构</b><span>左栏「账本文件 + 图片记录」配置轨，右栏「列定义 + 试写」工作区；配置与表格分离，列多时只滚表格、不推走配置。</span></div></div>
+      <div class="dr-note"><div class="dr-note-num">02</div><div><b>列定义表重做</b><span>6 列行：启用 / 列名 / 来源 / 取值 / 格式 / 删除；来源切换后取值单元格在「端口编辑器 / 变量名输入 / 内置字段下拉」三态间切换，仍是同一份 <code>RecordColumnDef</code>。</span></div></div>
+      <div class="dr-note"><div class="dr-note-num">03</div><div><b>端口编辑器按需创建</b><span>只有 <code>Source=Port</code> 的行才创建 <code>LinkableValueEditor</code>；非端口行不再实例化空端口编辑器（批量冒烟要求每个编辑器 <code>Port != null</code>）。</span></div></div>
+      <div class="dr-note"><div class="dr-note-num">04</div><div><b>图片记录模式卡片</b><span>3 档「不存图 / 仅NG存图 / 每件存图」卡片；非「不存图」时才创建图片端口编辑器，切回「不存图」立即销毁，端口重建仍由 <code>PortsVersion</code> 驱动。</span></div></div>
+      <div class="dr-note"><div class="dr-note-num">05</div><div><b>试写结果状态化</b><span>把裸文本升级为「未试写 / 成功 / 失败」三态横幅，只消费既有 <code>TestResult</code> 的 ✔/✘ 前缀；不新增 <code>StatusLevel</code> 或写入状态属性。</span></div></div>
+      <div class="dr-note"><div class="dr-note-num">06</div><div><b>全令牌化与可达性</b><span>视图零十六进制；代码后置的硬编码绿/红改为 <code>DialogSuccessTextBrush</code> / <code>DialogDangerTextBrush</code> 查找；图标按钮 30×30 + <code>Padding=0</code>（R68），焦点走 <code>DialogFocusVisual</code>。</span></div></div>
+
+      <div class="dr-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="dr-note"><div class="dr-note-num">C1</div><div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不引入独立 VM。</span></div></div>
+      <div class="dr-note"><div class="dr-note-num">C2</div><div><b>LinkableValueEditor 的 Port / StepData</b><span>列行内编辑器按「列名 + 插件 + PortsVersion」动态取端口；图片编辑器按「图片端口名 + PortsVersion」取端口；<code>StepData</code> 仍来自插件。</span></div></div>
+      <div class="dr-note"><div class="dr-note-num">C3</div><div><b>全部 [StepConfig] 双向绑定</b><span><code>DirectoryTemplate</code> / <code>FileNamePattern</code> / <code>KeepDays</code> / <code>WriteHeader</code> / <code>FlushEveryRow</code> / <code>BlockOnFailure</code> / <code>ImageSaveMode</code> / <code>ResultColumn</code> / <code>NgValue</code> / <code>ImageNameTemplate</code> / <code>ImageFormat</code> / <code>ImageDirName</code> 原样保留。</span></div></div>
+      <div class="dr-note"><div class="dr-note-num">C4</div><div><b>命令入口</b><span><code>AddColumn()</code> / <code>Columns.Remove()</code> / <code>TestWriteOneRow()</code> 保留；按钮改绑视图命令转发，不新增业务逻辑。</span></div></div>
+      <div class="dr-note"><div class="dr-note-num">C5</div><div><b>Columns + PortsVersion</b><span><code>ObservableCollection&lt;RecordColumnDef&gt;</code>、列名/来源/启用变化触发的动态端口重建、<code>PortsVersion</code> 通知锚点全部保留。</span></div></div>
+      <div class="dr-note"><div class="dr-note-num">C6</div><div><b>TestResult 只做视觉三态</b><span>不扩展状态枚举、不改 <code>TestWriteOneRow()</code> 的返回文案与写入行为。</span></div></div>
+
+      <div class="dr-notes-head" style="margin-top:20px;">v1 明确延后（需新增功能或契约）</div>
+      <div class="dr-note"><div class="dr-note-num">D1</div><div><b>加载 / 写入中骨架</b><span>需要 VM 新增 <code>IsWriting</code> 或 <code>WriteState</code>；当前只有 <code>TestResult</code> 文本。</span></div></div>
+      <div class="dr-note"><div class="dr-note-num">D2</div><div><b>账本文件大小 / 行数</b><span>需要 VM 新增只读属性（<code>FileInfo.Length</code> / 行数统计）；v1 不显示。</span></div></div>
+      <div class="dr-note"><div class="dr-note-num">D3</div><div><b>打开记录目录</b><span>需要新增 <code>Process.Start("explorer.exe", ...)</code> 行为；v1 只显示路径模板。</span></div></div>
+      <div class="dr-note"><div class="dr-note-num">D4</div><div><b>列模板导入 / 导出</b><span>需要新的序列化与文件对话框契约；v1 只做逐列编辑。</span></div></div>
+      <div class="dr-note"><div class="dr-note-num">D5</div><div><b>列拖拽排序</b><span>需要拖放行为与撤销；v1 顺序由添加顺序决定，删除后可重新添加。</span></div></div>
+      <div class="dr-note"><div class="dr-note-num">D6</div><div><b>账本内容预览</b><span>需要读取 CSV 的只读服务；v1 用「测试写一行」验证。</span></div></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('dr-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#dr-window');
+      var rowsHost = root.querySelector('#dr-rows');
+      var empty = root.querySelector('#dr-empty');
+      var count = root.querySelector('#dr-col-count');
+      var imageFields = root.querySelector('#dr-image-fields');
+      var imageHelp = root.querySelector('#dr-image-help');
+      var result = root.querySelector('#dr-result');
+      var resultText = root.querySelector('#dr-result-text');
+      var resultIcon = root.querySelector('#dr-result-icon');
+
+      var rows = [
+        { enabled: true, name: '时间', source: 'builtin', builtin: '时间戳', variable: '', format: '' },
+        { enabled: true, name: '序号', source: 'builtin', builtin: '序列号', variable: '', format: '' },
+        { enabled: true, name: '结果', source: 'port', builtin: '时间戳', variable: '', format: '' },
+        { enabled: true, name: '耗时', source: 'builtin', builtin: '本轮耗时ms', variable: '', format: 'F1' }
+      ];
+
+      var builtinOptions = ['时间戳', '序列号', '步骤名', '本轮耗时ms', '图片路径'];
+      var sourceLabels = { port: '端口', variable: '变量', builtin: '内置' };
+
+      function esc(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function valueCell(row, index) {
+        if (row.source === 'port') {
+          return '<div class="dr-link-row">' +
+            '<input class="dr-input dr-input-sm" type="text" placeholder="固定值 / 连线" aria-label="端口值">' +
+            '<button type="button" class="dr-icon-btn" title="绑定变量" aria-label="绑定变量">🔗</button>' +
+            '<button type="button" class="dr-icon-btn" title="清除" aria-label="清除">✕</button>' +
+            '</div>';
+        }
+        if (row.source === 'variable') {
+          return '<input class="dr-input dr-input-sm" type="text" value="' + esc(row.variable) + '" placeholder="变量名" aria-label="变量名" data-field="variable">';
+        }
+        var opts = builtinOptions.map(function (o) {
+          return '<option' + (o === row.builtin ? ' selected' : '') + '>' + esc(o) + '</option>';
+        }).join('');
+        return '<select class="dr-select dr-select-sm" aria-label="内置字段" data-field="builtin">' + opts + '</select>';
+      }
+
+      function render() {
+        rowsHost.innerHTML = rows.map(function (row, i) {
+          var src = ['port', 'variable', 'builtin'].map(function (s) {
+            return '<option value="' + s + '"' + (row.source === s ? ' selected' : '') + '>' + sourceLabels[s] + '</option>';
+          }).join('');
+          return '<div class="dr-row' + (row.enabled ? '' : ' is-disabled') + '" data-index="' + i + '" data-source="' + row.source + '">' +
+            '<label class="dr-check"><input type="checkbox"' + (row.enabled ? ' checked' : '') + ' data-field="enabled"><span class="box"></span></label>' +
+            '<div class="dr-cell"><input class="dr-input dr-input-sm" type="text" value="' + esc(row.name) + '" data-field="name" aria-label="列名"></div>' +
+            '<div class="dr-cell"><select class="dr-select dr-select-sm" data-field="source" aria-label="来源">' + src + '</select></div>' +
+            '<div class="dr-cell">' + valueCell(row, i) + '</div>' +
+            '<div class="dr-cell"><input class="dr-input dr-input-sm" type="text" value="' + esc(row.format) + '" placeholder="默认" data-field="format" aria-label="格式"></div>' +
+            '<div class="dr-cell" style="text-align:right;"><button type="button" class="dr-icon-btn is-plain" data-action="delete" title="删除该列" aria-label="删除该列">✕</button></div>' +
+            '</div>';
+        }).join('');
+        count.textContent = rows.length + ' 列';
+        empty.hidden = rows.length !== 0;
+      }
+
+      rowsHost.addEventListener('change', function (e) {
+        var target = e.target;
+        var rowEl = target.closest ? target.closest('.dr-row') : null;
+        if (!rowEl) return;
+        var i = Number(rowEl.getAttribute('data-index'));
+        var row = rows[i];
+        if (!row) return;
+        var field = target.getAttribute('data-field');
+        if (field === 'enabled') { row.enabled = target.checked; render(); }
+        else if (field === 'source') { row.source = target.value; render(); }
+        else if (field === 'builtin') { row.builtin = target.value; }
+        else if (field === 'variable') { row.variable = target.value; }
+      });
+
+      rowsHost.addEventListener('input', function (e) {
+        var target = e.target;
+        var rowEl = target.closest ? target.closest('.dr-row') : null;
+        if (!rowEl) return;
+        var i = Number(rowEl.getAttribute('data-index'));
+        var row = rows[i];
+        if (!row) return;
+        var field = target.getAttribute('data-field');
+        if (field === 'name') row.name = target.value;
+        else if (field === 'format') row.format = target.value;
+        else if (field === 'variable') row.variable = target.value;
+      });
+
+      rowsHost.addEventListener('click', function (e) {
+        var btn = e.target.closest ? e.target.closest('[data-action="delete"]') : null;
+        if (!btn) return;
+        var rowEl = btn.closest('.dr-row');
+        var i = Number(rowEl.getAttribute('data-index'));
+        rows.splice(i, 1);
+        render();
+      });
+
+      root.querySelector('#dr-add-col').addEventListener('click', function () {
+        var n = 1;
+        while (rows.some(function (r) { return r.name === '列' + n; })) n++;
+        rows.push({ enabled: true, name: '列' + n, source: 'port', builtin: '时间戳', variable: '', format: '' });
+        render();
+      });
+
+      function setImageMode(mode) {
+        root.querySelectorAll('[data-image-mode]').forEach(function (b) {
+          var on = b.getAttribute('data-image-mode') === mode;
+          b.classList.toggle('is-active', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        imageFields.hidden = mode === 'off';
+        imageHelp.textContent = mode === 'off'
+          ? '图片不进 CSV：账本里记的是路径，相册靠路径列关联。'
+          : '图片不进 CSV：账本里记的是路径；给 HImage 存副本，给文本只记现成路径。';
+      }
+      root.querySelectorAll('[data-image-mode]').forEach(function (b) {
+        b.addEventListener('click', function () { setImageMode(b.getAttribute('data-image-mode')); });
+      });
+
+      function setWidth(w) {
+        win.classList.toggle('is-narrow', String(w) === '640');
+        root.querySelectorAll('[data-width]').forEach(function (b) {
+          var on = b.getAttribute('data-width') === String(w);
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+      }
+      root.querySelectorAll('[data-width]').forEach(function (b) {
+        b.addEventListener('click', function () { setWidth(b.getAttribute('data-width')); });
+      });
+
+      var testCopy = {
+        idle: { cls: 'is-idle', icon: 'i', text: '尚未试写。点击「测试写一行」验证目录、表头与列宽。' },
+        ok: { cls: 'is-ok', icon: '✓', text: '✔ 已写入一行：D:\\Records\\检测流程\\2026-10\\2026-10-20.csv' },
+        error: { cls: 'is-error', icon: '✕', text: '✘ 写入失败：目录不可写（检查磁盘空间或文件占用）' }
+      };
+      function setTest(state) {
+        var c = testCopy[state] || testCopy.idle;
+        result.className = 'dr-result ' + c.cls;
+        resultIcon.textContent = c.icon;
+        resultText.textContent = c.text;
+        root.querySelectorAll('[data-test]').forEach(function (b) {
+          var on = b.getAttribute('data-test') === state;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+      }
+      root.querySelectorAll('[data-test]').forEach(function (b) {
+        b.addEventListener('click', function () { setTest(b.getAttribute('data-test')); });
+      });
+      root.querySelector('#dr-test').addEventListener('click', function () {
+        setTest(result.classList.contains('is-ok') ? 'error' : 'ok');
+      });
+
+      var defaultRows = rows.map(function (r) { return Object.assign({}, r); });
+      root.querySelectorAll('[data-boundary]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var emptyMode = b.getAttribute('data-boundary') === 'empty';
+          rows = emptyMode ? [] : defaultRows.map(function (r) { return Object.assign({}, r); });
+          render();
+          root.querySelectorAll('[data-boundary]').forEach(function (x) {
+            var on = x === b;
+            x.classList.toggle('is-on', on);
+            x.setAttribute('aria-pressed', on ? 'true' : 'false');
+          });
+        });
+      });
+
+      render();
+      setImageMode('off');
+      setTest('idle');
+    })();
+  </script>
+</div>
+</body>
+</html>

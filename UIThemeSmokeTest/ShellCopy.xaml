@@ -234,18 +234,10 @@
                         </MenuItem>
                             <MenuItem
                                 CommandParameter="Panel_ProcessView"
-                                Header="流程设计器"
+                                Header="流程导航"
                                  >
                             <MenuItem.Icon>
-                                <TextBlock Text="&#xf542;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                CommandParameter="Panel_FlowListView"
-                                Header="程序"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf00b;" FontFamily="{StaticResource Icon}" />
+                                <TextBlock Text="&#xf0e8;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
                             <MenuItem
@@ -515,15 +507,6 @@
                         </MenuItem>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
-                                CommandParameter="{x:Static local:SystemAction.IoSettings}"
-                                Header="IO 设置"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf0e8;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.SystemHealth}"
                                 Header="系统健康"
                                  >
@@ -534,7 +517,7 @@
                             <MenuItem
                                 Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.HardwareSettings}"
-                                Header="硬件设置"
+                                Header="硬件管理"
                                  >
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf2db;" FontFamily="{StaticResource Icon}" />
@@ -542,17 +525,8 @@
                         </MenuItem>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
-                                CommandParameter="{x:Static local:SystemAction.RuntimeWindowSettings}"
-                                Header="运行窗口设置"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf2d0;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                Command="{Binding SystemCommand}"
-                                CommandParameter="{x:Static local:SystemAction.SystemParameters}"
-                                Header="系统参数设置"
+                                CommandParameter="{x:Static local:SystemAction.SystemSettings}"
+                                Header="系统设置"
                                  >
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf1de;" FontFamily="{StaticResource Icon}" />
@@ -569,29 +543,11 @@
                         </MenuItem>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
-                                CommandParameter="{x:Static local:SystemAction.ReportQuery}"
-                                Header="报表查询"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf200;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.ReturnToZero}"
                                 Header="回零"
                                  >
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf015;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                Command="{Binding SystemCommand}"
-                                CommandParameter="{x:Static local:SystemAction.UIDesign}"
-                                Header="UI 设计"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf53f;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
                         </MenuItem>
@@ -607,7 +563,10 @@
                                 <TextBlock Text="&#xf4ad;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
-                            <MenuItem Header="帮助文档"  >
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.Help}"
+                                Header="帮助文档"  >
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf02d;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
@@ -752,7 +711,7 @@
                 <avalonDock:LayoutRoot>
                     <avalonDock:LayoutPanel Orientation="Horizontal">
 
-                        <!--  1. 左侧栏：程序 / 流程栏 上下堆叠（与设计稿的左栏编排一致）  -->
+                        <!--  1. 左侧栏：流程导航（流程胶囊嵌在 ProcessView 顶部，不再有独立程序窗格）  -->
                         <!--  为什么上下堆叠而不是各占一列：程序列表只有几条流程、天然矮，流程栏是长树、天然高，  -->
                         <!--  并排两列会让"矮的那个"白占一整列高度。上下堆叠后两者共享同一列宽度，  -->
                         <!--  程序固定高度（够放几条流程 + 折叠按钮），流程栏吃掉剩余全部高度。  -->
@@ -761,26 +720,15 @@
                         <!--  那是"二选一"；要"同时可见、上下分"必须拆成两个 pane 再套进竖向 LayoutPanel。  -->
                         <!--  宽度 340 / 最小 320（流程栏 v2）：组头要同时放"类型标签 + 实例名 + N 分支 · M 算子 + 状态图标"，
                               低于 320 右侧统计会把实例名挤到只剩两三个字。  -->
-                        <avalonDock:LayoutPanel Orientation="Vertical" DockWidth="340" DockMinWidth="320">
-                            <avalonDock:LayoutAnchorablePane DockHeight="180">
-                                <avalonDock:LayoutAnchorable
-                                    Title="程序"
-                                    CanClose="False"
-                                    CanHide="True"
-                                    ContentId="Panel_FlowListView">
-                                    <views:FlowListView />
-                                </avalonDock:LayoutAnchorable>
-                            </avalonDock:LayoutAnchorablePane>
-                            <avalonDock:LayoutAnchorablePane>
-                                <avalonDock:LayoutAnchorable
-                                    Title="流程栏"
-                                    CanClose="False"
-                                    CanHide="True"
-                                    ContentId="Panel_ProcessView">
-                                    <views:ProcessView />
-                                </avalonDock:LayoutAnchorable>
-                            </avalonDock:LayoutAnchorablePane>
-                        </avalonDock:LayoutPanel>
+                        <avalonDock:LayoutAnchorablePane DockWidth="340" DockMinWidth="320">
+                            <avalonDock:LayoutAnchorable
+                                Title="流程导航"
+                                CanClose="False"
+                                CanHide="True"
+                                ContentId="Panel_ProcessView">
+                                <views:ProcessView />
+                            </avalonDock:LayoutAnchorable>
+                        </avalonDock:LayoutAnchorablePane>
 
                         <!--  2. 中央工作区：流程画布 / 视觉图像 / 组态画面（文档标签，可拆分/浮动）  -->
                         <!--  流程画布为什么从左侧栏搬到这里：它是节点编辑器的主工作区，面积需求与视觉图像同级，  -->
@@ -813,6 +761,12 @@
                                     ContentId="Panel_ScadaEditorView">
                                     <views:ScadaEditorView />
                                 </avalonDock:LayoutDocument>
+                                <avalonDock:LayoutDocument
+                                    Title="运行驾驶舱"
+                                    CanClose="False"
+                                    ContentId="Panel_RunCockpitView">
+                                    <views:RunCockpitView />
+                                </avalonDock:LayoutDocument>
                             </avalonDock:LayoutDocumentPane>
 
                             <!--  3. 底部面板组：四合一标签（可整体隐藏）  -->
@@ -839,14 +793,8 @@
                             </avalonDock:LayoutAnchorablePane>
                         </avalonDock:LayoutPanel>
 
-                        <!--  4. 右侧属性栏：图元属性面板  -->
-                        <!--  为什么是顶层并列的定宽栏，而不是塞进中央那个竖向 LayoutPanel：  -->
-                        <!--  竖向面板里的子项只有高度方向说话（DockHeight），宽度会被整个面板拉平，  -->
-                        <!--  属性栏就会跟着日志栏一起吞掉工作区宽度。定像素（不用星号）是因为  -->
-                        <!--  一列"标签 + 输入框"需要的是稳定可读宽度，1080 与 2560 下都是 260 最舒服。  -->
-                        <!--  最窄 240：再窄下去 64px 标签列 + 24px 行尾槽位 + 两侧 12px 内边距会吃掉
-                              一半宽度，编辑器只剩 100 出头，"1920" 加一个数值框的步进就顶满了。  -->
-                        <avalonDock:LayoutAnchorablePane DockWidth="260" DockMinWidth="240">
+                        <!--  4. 右侧单列检查器：属性 / 图层 / 工具箱 / 图元工具箱共用一列 320。  -->
+                        <avalonDock:LayoutAnchorablePane DockWidth="320" DockMinWidth="300">
                             <avalonDock:LayoutAnchorable
                                 Title="属性"
                                 CanClose="False"
@@ -861,11 +809,6 @@
                                 ContentId="Panel_ScadaLayerView">
                                 <views:ScadaLayerView />
                             </avalonDock:LayoutAnchorable>
-                        </avalonDock:LayoutAnchorablePane>
-
-                        <!--  6. 右侧工具箱停靠栏：插件工具箱 + 图元工具箱（互斥标签页共享一列宽度）  -->
-                        <!--  宽度 260（原 300）：搜索框 + 分组列表在 260 下足够，省下的 40 还给中央画布。  -->
-                        <avalonDock:LayoutAnchorablePane DockWidth="260">
                             <avalonDock:LayoutAnchorable
                                 Title="工具箱"
                                 CanClose="False"

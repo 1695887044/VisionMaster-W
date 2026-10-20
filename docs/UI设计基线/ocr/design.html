@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OCR 文本识别 · 配置窗口 · 设计基线 v1</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #ocr-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="ocr-design-root">
+  <style>
+    #ocr-design-root{
+      color-scheme: light dark;
+      --ocr-surface:#FFFFFF;
+      --ocr-surface-2:#F8FAFC;
+      --ocr-surface-3:#F1F5F9;
+      --ocr-border:#E2E8F0;
+      --ocr-border-soft:#EEF2F7;
+      --ocr-border-strong:#CBD5E1;
+      --ocr-text:#0F172A;
+      --ocr-text-2:#475569;
+      --ocr-text-3:#94A3B8;
+      --ocr-text-4:#64748B;
+      --ocr-primary:#0EA5E9;
+      --ocr-primary-strong:#0284C7;
+      --ocr-primary-text:#0369A1;
+      --ocr-primary-soft:#F0F9FF;
+      --ocr-primary-light:#E0F2FE;
+      --ocr-primary-border:#BAE6FD;
+      --ocr-success:#22C55E;
+      --ocr-success-text:#15803D;
+      --ocr-success-soft:#F0FDF4;
+      --ocr-success-border:#BBF7D0;
+      --ocr-danger:#EF4444;
+      --ocr-danger-text:#B91C1C;
+      --ocr-danger-soft:#FEF2F2;
+      --ocr-danger-border:#FECACA;
+      --ocr-warning:#F59E0B;
+      --ocr-warning-text:#B45309;
+      --ocr-warning-soft:#FFF4E5;
+      --ocr-warning-border:#FDE68A;
+      --ocr-canvas:#0B1220;
+      --ocr-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --ocr-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --ocr-radius-sm:6px;
+      --ocr-radius-md:8px;
+      --ocr-radius-lg:10px;
+      --ocr-radius-xl:12px;
+      --ocr-radius-window:16px;
+      --ocr-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--ocr-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #ocr-design-root *{box-sizing:border-box;}
+    #ocr-design-root button,
+    #ocr-design-root input,
+    #ocr-design-root textarea{font-family:inherit;}
+    #ocr-design-root button{color:inherit;}
+    #ocr-design-root [hidden]{display:none !important;}
+    #ocr-design-root :focus-visible{outline:2px solid var(--ocr-primary);outline-offset:2px;}
+    #ocr-design-root .i{width:16px;height:16px;display:block;flex:none;}
+
+    #ocr-design-root .ocr-page{max-width:1360px;margin:0 auto;padding:24px 24px 44px;background:transparent;}
+    #ocr-design-root .ocr-page-head{max-width:1360px;margin:0 auto 16px;}
+    #ocr-design-root .ocr-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #ocr-design-root .ocr-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:#0F172A;}
+    #ocr-design-root .ocr-ver{
+      display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+      background:var(--ocr-primary-light);color:var(--ocr-primary-text);
+      font-size:11px;font-weight:700;letter-spacing:.02em;
+    }
+    #ocr-design-root .ocr-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--ocr-text-2);}
+    #ocr-design-root .ocr-page-sub b{color:var(--ocr-text);font-weight:600;}
+    #ocr-design-root .ocr-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #ocr-design-root .ocr-demo-group{display:flex;align-items:center;gap:8px;}
+    #ocr-design-root .ocr-demo-label{font-size:11.5px;color:var(--ocr-text-4);}
+    #ocr-design-root .ocr-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--ocr-radius-md);background:var(--ocr-surface-3);}
+    #ocr-design-root .ocr-seg button{
+      height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;
+      color:var(--ocr-text-2);font-size:11.5px;line-height:1;cursor:pointer;
+      transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;
+    }
+    #ocr-design-root .ocr-seg button:hover{color:var(--ocr-text);}
+    #ocr-design-root .ocr-seg button.is-on{background:var(--ocr-surface);color:var(--ocr-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+    #ocr-design-root .ocr-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--ocr-text-2);}
+    #ocr-design-root .ocr-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--ocr-warning-text);}
+    #ocr-design-root .ocr-scope b{color:var(--ocr-text);font-weight:600;}
+
+    /* ================= 产品窗口 ================= */
+    #ocr-design-root .ocr-window{
+      width:960px;max-width:100%;height:680px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;
+      background:var(--ocr-surface);border-radius:var(--ocr-radius-window);box-shadow:var(--ocr-shadow-window);
+      transition:width 200ms ease;
+    }
+    #ocr-design-root .ocr-window.is-narrow{width:640px;}
+    #ocr-design-root .ocr-titlebar{
+      height:72px;flex:none;display:flex;align-items:center;padding:0 20px;background:var(--ocr-surface);
+      border-bottom:1px solid var(--ocr-border-soft);
+    }
+    #ocr-design-root .ocr-app-icon{
+      width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;
+      background:var(--ocr-primary-light);color:var(--ocr-primary-text);
+    }
+    #ocr-design-root .ocr-app-icon svg{width:19px;height:19px;}
+    #ocr-design-root .ocr-title-text{margin-left:12px;min-width:0;flex:1;}
+    #ocr-design-root .ocr-title-line{display:flex;align-items:center;gap:8px;min-width:0;}
+    #ocr-design-root .ocr-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--ocr-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #ocr-design-root .ocr-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--ocr-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #ocr-design-root .ocr-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+    #ocr-design-root .ocr-icon-btn{
+      width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--ocr-radius-md);
+      display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--ocr-text-4);cursor:pointer;
+      transition:background 150ms ease,color 150ms ease;
+    }
+    #ocr-design-root .ocr-icon-btn:hover{background:var(--ocr-surface-3);color:var(--ocr-text);}
+
+    /* ---- 内容 ---- */
+    #ocr-design-root .ocr-content{
+      flex:1;min-height:0;display:grid;grid-template-columns:356px minmax(0,1fr);
+      gap:16px;padding:16px 20px 20px;background:var(--ocr-surface);
+    }
+    #ocr-design-root .ocr-window.is-narrow .ocr-content{grid-template-columns:300px minmax(0,1fr);gap:12px;padding:14px 16px 16px;}
+    #ocr-design-root .ocr-rail{
+      min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;
+      padding:14px;border:1px solid var(--ocr-border-soft);border-radius:var(--ocr-radius-xl);background:var(--ocr-surface-2);
+      scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;
+    }
+    #ocr-design-root .ocr-rail::-webkit-scrollbar{width:8px;}
+    #ocr-design-root .ocr-rail::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+
+    #ocr-design-root .ocr-card{
+      padding:12px;border:1px solid var(--ocr-border-soft);border-radius:var(--ocr-radius-lg);
+      background:var(--ocr-surface);margin-bottom:10px;
+    }
+    #ocr-design-root .ocr-card:last-child{margin-bottom:0;}
+    #ocr-design-root .ocr-card-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+    #ocr-design-root .ocr-card-icon{
+      width:24px;height:24px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;
+      background:var(--ocr-surface-3);color:var(--ocr-text-4);
+    }
+    #ocr-design-root .ocr-card-icon svg{width:13px;height:13px;}
+    #ocr-design-root .ocr-card-title{font-size:12.5px;font-weight:600;color:var(--ocr-text);}
+    #ocr-design-root .ocr-chip{
+      margin-left:auto;display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:6px;
+      background:var(--ocr-surface-3);border:1px solid var(--ocr-border);color:var(--ocr-text-4);
+      font-size:10px;font-weight:600;white-space:nowrap;
+    }
+    #ocr-design-root .ocr-chip-accent{background:var(--ocr-primary-soft);border-color:var(--ocr-primary-border);color:var(--ocr-primary-text);}
+    #ocr-design-root .ocr-chip-warn{background:var(--ocr-warning-soft);border-color:var(--ocr-warning-border);color:var(--ocr-warning-text);}
+
+    #ocr-design-root .ocr-field{margin-bottom:12px;}
+    #ocr-design-root .ocr-field:last-child{margin-bottom:0;}
+    #ocr-design-root .ocr-label{display:flex;align-items:center;gap:5px;margin-bottom:6px;font-size:12px;font-weight:500;line-height:1.3;color:var(--ocr-text-2);}
+    #ocr-design-root .ocr-label svg{width:12px;height:12px;color:var(--ocr-text-3);}
+    #ocr-design-root .ocr-input{
+      width:100%;height:36px;padding:0 10px;border:1px solid var(--ocr-border);border-radius:var(--ocr-radius-md);
+      background:var(--ocr-surface);color:var(--ocr-text);font-size:12.5px;line-height:1;outline:none;
+      transition:border-color 150ms ease,box-shadow 150ms ease;
+    }
+    #ocr-design-root .ocr-input:hover{border-color:var(--ocr-border-strong);}
+    #ocr-design-root .ocr-input:focus{border-color:var(--ocr-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #ocr-design-root .ocr-input[readonly]{background:var(--ocr-surface-2);color:var(--ocr-text-4);}
+    #ocr-design-root .ocr-input-row{display:flex;align-items:center;gap:8px;}
+    #ocr-design-root .ocr-btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 13px;
+      border:1px solid var(--ocr-border);border-radius:var(--ocr-radius-md);background:var(--ocr-surface);
+      color:var(--ocr-text);font-size:12.5px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;
+    }
+    #ocr-design-root .ocr-btn:hover{background:var(--ocr-surface-2);border-color:var(--ocr-border-strong);}
+    #ocr-design-root .ocr-btn:active{background:var(--ocr-surface-3);}
+    #ocr-design-root .ocr-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #ocr-design-root .ocr-btn-primary{background:var(--ocr-primary);border-color:var(--ocr-primary);color:#fff;font-weight:600;}
+    #ocr-design-root .ocr-btn-primary:hover{background:var(--ocr-primary-strong);border-color:var(--ocr-primary-strong);}
+    #ocr-design-root .ocr-btn-block{width:100%;}
+    #ocr-design-root .ocr-btn-square{
+      width:36px;height:36px;flex:none;padding:0;border:1px solid var(--ocr-border);border-radius:var(--ocr-radius-md);
+      background:var(--ocr-surface);color:var(--ocr-text-4);display:flex;align-items:center;justify-content:center;cursor:pointer;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease;
+    }
+    #ocr-design-root .ocr-btn-square:hover{background:var(--ocr-primary-soft);border-color:var(--ocr-primary-border);color:var(--ocr-primary-text);}
+    #ocr-design-root .ocr-btn-square svg{width:14px;height:14px;}
+    #ocr-design-root .ocr-help{display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;font-size:11.5px;line-height:1.5;color:var(--ocr-text-4);}
+    #ocr-design-root .ocr-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--ocr-text-3);}
+    #ocr-design-root .ocr-mono-box{
+      margin-top:2px;padding:9px 10px;border:1px solid var(--ocr-border-soft);border-radius:var(--ocr-radius-md);
+      background:var(--ocr-surface-2);font-family:var(--ocr-mono);font-size:10.5px;line-height:1.55;color:var(--ocr-text-2);
+      font-variant-numeric:tabular-nums;word-break:break-all;
+    }
+    #ocr-design-root .ocr-grid-2x2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    #ocr-design-root .ocr-grid-2x2 .ocr-label{margin-bottom:5px;}
+    #ocr-design-root .ocr-seg-wide{width:100%;}
+    #ocr-design-root .ocr-seg-wide button{flex:1;height:30px;font-size:11.5px;}
+    #ocr-design-root .ocr-check-row{display:flex;align-items:flex-start;gap:7px;font-size:11.5px;line-height:1.45;color:var(--ocr-text-2);}
+    #ocr-design-root .ocr-check{
+      width:15px;height:15px;flex:none;margin-top:1px;border:1.5px solid var(--ocr-border);border-radius:4px;
+      background:var(--ocr-surface);display:flex;align-items:center;justify-content:center;color:#fff;
+    }
+    #ocr-design-root .ocr-check.is-on{background:var(--ocr-primary);border-color:var(--ocr-primary);}
+    #ocr-design-root .ocr-check svg{width:10px;height:10px;display:none;}
+    #ocr-design-root .ocr-check.is-on svg{display:block;}
+
+    #ocr-design-root .ocr-details{
+      margin-bottom:10px;border:1px solid var(--ocr-border-soft);border-radius:var(--ocr-radius-lg);
+      background:var(--ocr-surface);overflow:hidden;
+    }
+    #ocr-design-root .ocr-details summary{
+      display:flex;align-items:center;gap:8px;padding:11px 12px;font-size:12px;font-weight:500;
+      color:var(--ocr-text-2);cursor:pointer;list-style:none;
+    }
+    #ocr-design-root .ocr-details summary::-webkit-details-marker{display:none;}
+    #ocr-design-root .ocr-details summary:hover{background:var(--ocr-surface-2);}
+    #ocr-design-root .ocr-details summary svg{width:14px;height:14px;color:var(--ocr-text-3);}
+    #ocr-design-root .ocr-details summary .ocr-chev{margin-left:auto;transition:transform 150ms ease;}
+    #ocr-design-root .ocr-details[open] summary .ocr-chev{transform:rotate(180deg);}
+    #ocr-design-root .ocr-details-body{padding:0 12px 12px;border-top:1px solid var(--ocr-border-soft);}
+    #ocr-design-root .ocr-details-body .ocr-field{margin-top:10px;}
+
+    #ocr-design-root .ocr-result{margin-top:9px;border:1px solid var(--ocr-border-soft);border-radius:var(--ocr-radius-md);background:var(--ocr-surface-2);overflow:hidden;}
+    #ocr-design-root .ocr-result-empty{padding:10px;font-size:11.5px;color:var(--ocr-text-3);}
+    #ocr-design-root .ocr-result-body{
+      margin:0;padding:9px 10px;font-family:var(--ocr-mono);font-size:10.5px;line-height:1.6;
+      color:var(--ocr-text-2);white-space:pre-wrap;word-break:break-all;
+    }
+    #ocr-design-root .ocr-result-body.is-error{color:var(--ocr-danger-text);background:var(--ocr-danger-soft);}
+
+    /* ---- 画布工作区 ---- */
+    #ocr-design-root .ocr-canvas-card{
+      min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+      border:1px solid var(--ocr-border);border-radius:var(--ocr-radius-xl);background:var(--ocr-surface);
+    }
+    #ocr-design-root .ocr-canvas-head{
+      height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;
+      border-bottom:1px solid var(--ocr-border-soft);background:var(--ocr-surface);
+    }
+    #ocr-design-root .ocr-canvas-title{font-size:12.5px;font-weight:600;color:var(--ocr-text);white-space:nowrap;}
+    #ocr-design-root .ocr-canvas-head .ocr-chip{margin-left:0;}
+    #ocr-design-root .ocr-canvas-tools{margin-left:auto;display:flex;align-items:center;gap:2px;flex:none;}
+    #ocr-design-root .ocr-tool-text{
+      height:26px;display:inline-flex;align-items:center;padding:0 7px;border-radius:6px;
+      color:var(--ocr-text-4);font-size:10.5px;font-weight:600;white-space:nowrap;
+    }
+    #ocr-design-root .ocr-file-chip{
+      width:26px;height:26px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;
+      background:var(--ocr-surface-3);color:var(--ocr-text-2);
+    }
+    #ocr-design-root .ocr-file-chip svg{width:13px;height:13px;}
+    #ocr-design-root .ocr-empty-banner{
+      flex:none;display:flex;align-items:flex-start;gap:7px;padding:9px 12px;
+      background:var(--ocr-warning-soft);border-bottom:1px solid var(--ocr-warning-border);
+      color:var(--ocr-warning-text);font-size:11.5px;line-height:1.45;
+    }
+    #ocr-design-root .ocr-empty-banner svg{width:13px;height:13px;flex:none;margin-top:1px;}
+    #ocr-design-root .ocr-canvas{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--ocr-canvas);}
+    #ocr-design-root .ocr-canvas-view{position:absolute;inset:0;}
+    #ocr-design-root .ocr-canvas-view[data-view="image"]{display:block;}
+    #ocr-design-root .ocr-scene{width:100%;height:100%;display:block;}
+    #ocr-design-root .ocr-canvas-blank{
+      width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;
+      background:linear-gradient(135deg,#0B1220 0%,#151F31 100%);
+    }
+    #ocr-design-root .ocr-blank-icon{
+      width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+      background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.18);color:#94A3B8;margin-bottom:12px;
+    }
+    #ocr-design-root .ocr-blank-icon svg{width:22px;height:22px;}
+    #ocr-design-root .ocr-blank-title{font-size:14px;font-weight:600;color:#E2E8F0;margin-bottom:4px;}
+    #ocr-design-root .ocr-blank-sub{max-width:340px;margin:0;font-size:11.5px;line-height:1.6;color:#94A3B8;}
+    #ocr-design-root .ocr-canvas-overlay{position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:6px;pointer-events:none;}
+    #ocr-design-root .ocr-canvas-chip{
+      display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;
+      background:rgba(15,23,42,.58);border:1px solid rgba(148,163,184,.22);color:#E2E8F0;
+      font-size:10.5px;line-height:1;font-variant-numeric:tabular-nums;backdrop-filter:blur(6px);
+    }
+    #ocr-design-root .ocr-canvas-chip svg{width:11px;height:11px;color:#7DD3FC;}
+    #ocr-design-root .ocr-canvas-tip{
+      position:absolute;left:10px;bottom:10px;display:flex;align-items:center;gap:6px;
+      padding:6px 9px;border-radius:7px;background:rgba(15,23,42,.66);border:1px solid rgba(148,163,184,.22);
+      color:#CBD5E1;font-size:10.5px;line-height:1.35;pointer-events:none;
+    }
+    #ocr-design-root .ocr-canvas-tip svg{width:12px;height:12px;color:#7DD3FC;}
+
+    #ocr-design-root .ocr-statusbar{
+      height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;
+      border-top:1px solid var(--ocr-border-soft);background:var(--ocr-surface);font-size:11.5px;min-width:0;
+    }
+    #ocr-design-root .ocr-status-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--ocr-text-3);}
+    #ocr-design-root .ocr-status-dot.is-ok{background:var(--ocr-success);}
+    #ocr-design-root .ocr-status-dot.is-warn{background:var(--ocr-warning);}
+    #ocr-design-root .ocr-status-dot.is-err{background:var(--ocr-danger);}
+    #ocr-design-root .ocr-status-msg{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ocr-text-2);}
+    #ocr-design-root .ocr-status-msg.is-ok{color:var(--ocr-success-text);}
+    #ocr-design-root .ocr-status-msg.is-warn{color:var(--ocr-warning-text);}
+    #ocr-design-root .ocr-status-msg.is-err{color:var(--ocr-danger-text);}
+    #ocr-design-root .ocr-status-roi{
+      margin-left:auto;flex:none;font-family:var(--ocr-mono);font-size:10.5px;color:var(--ocr-text-3);
+      font-variant-numeric:tabular-nums;white-space:nowrap;
+    }
+
+    /* ---- 底部宿主栏 ---- */
+    #ocr-design-root .ocr-footer{
+      height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;
+      border-top:1px solid var(--ocr-border-soft);background:var(--ocr-surface-2);
+    }
+    #ocr-design-root .ocr-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #ocr-design-root .ocr-status-chip{
+      display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;
+      background:var(--ocr-surface);border:1px solid var(--ocr-border);font-size:11.5px;color:var(--ocr-text-2);white-space:nowrap;
+    }
+    #ocr-design-root .ocr-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--ocr-text-3);}
+    #ocr-design-root .ocr-elapsed{font-family:var(--ocr-mono);font-size:11px;color:var(--ocr-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+    #ocr-design-root .ocr-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #ocr-design-root .ocr-footer .ocr-btn{height:32px;padding:0 16px;font-size:12.5px;}
+    #ocr-design-root .ocr-footer .ocr-btn-primary{padding:0 18px;}
+
+    /* ---- 说明 ---- */
+    #ocr-design-root .ocr-notes{
+      max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+      column-gap:28px;row-gap:0;
+    }
+    #ocr-design-root .ocr-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--ocr-text-2);}
+    #ocr-design-root .ocr-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--ocr-border);}
+    #ocr-design-root .ocr-note-num{
+      width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      background:var(--ocr-primary-light);color:var(--ocr-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;
+    }
+    #ocr-design-root .ocr-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--ocr-text);}
+    #ocr-design-root .ocr-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--ocr-text-2);}
+    #ocr-design-root .ocr-note code{font-family:var(--ocr-mono);font-size:10.5px;color:var(--ocr-primary-text);background:var(--ocr-primary-soft);padding:1px 4px;border-radius:4px;}
+
+    @media (prefers-reduced-motion: reduce){#ocr-design-root *{animation:none !important;transition:none !important;}}
+    @media (max-width:1024px){
+      #ocr-design-root .ocr-page{padding:18px 14px 32px;}
+      #ocr-design-root .ocr-window{height:auto;min-height:640px;}
+      #ocr-design-root .ocr-content{grid-template-columns:1fr;}
+      #ocr-design-root .ocr-rail{overflow:visible;}
+      #ocr-design-root .ocr-canvas-card{min-height:420px;}
+    }
+  </style>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></symbol>
+      <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 9h10"/><path d="M7 13h7"/><path d="M7 17h4"/></symbol>
+      <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></symbol>
+      <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M14 17H5"/><path d="M19 7h-9"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+      <symbol id="i-flask" viewBox="0 0 24 24"><path d="M10 2v7.5L4.5 19a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9.5V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><path d="M8 12h8"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+      <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+      <symbol id="i-magic" viewBox="0 0 24 24"><path d="m15 4 5 5"/><path d="M3 21 17.5 6.5"/><path d="m14 5 5 5"/><path d="M5 3v4"/><path d="M3 5h4"/><path d="M19 17v4"/><path d="M17 19h4"/></symbol>
+      <symbol id="i-eraser" viewBox="0 0 24 24"><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4L13.4 4.6a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L9 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></symbol>
+    </defs>
+  </svg>
+
+  <div class="ocr-page">
+    <header class="ocr-page-head">
+      <div class="ocr-page-title-row">
+        <h1>OCR 文本识别 · 配置窗口</h1>
+        <span class="ocr-ver">v1</span>
+      </div>
+      <p class="ocr-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、<b>Image 端口</b>的
+        <b>LinkableValueEditor</b>、<b>ImageEdit</b> 识别区画布（DrawObjectList / ActiveRoi）与全部绑定；
+        不新增功能、不改绑定类型。窗口 <b>960 × 680</b>，左侧配置轨 <b>356px</b>，右侧识别区工作区自适应。
+      </p>
+      <div class="ocr-demo-bar">
+        <div class="ocr-demo-group" role="group" aria-label="窗口宽度">
+          <span class="ocr-demo-label">窗口宽度</span>
+          <div class="ocr-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="ocr-demo-group" role="group" aria-label="界面状态">
+          <span class="ocr-demo-label">界面状态</span>
+          <div class="ocr-seg" id="ocr-state-seg">
+            <button type="button" data-state="default" class="is-on" aria-pressed="true">默认</button>
+            <button type="button" data-state="tested" aria-pressed="false">已试算</button>
+            <button type="button" data-state="empty" aria-pressed="false">空态</button>
+            <button type="button" data-state="noroi" aria-pressed="false">未框选</button>
+            <button type="button" data-state="error" aria-pressed="false">试算失败</button>
+          </div>
+        </div>
+      </div>
+      <div class="ocr-scope">
+        <svg class="i"><use href="#i-info"/></svg>
+        <span><b>本版未纳入（需新增功能或契约）：</b>加载骨架、尺寸 / 文件大小、放大 / 缩小、打开所在文件夹、系统导航。
+        本稿覆盖 960×680 与 640×680；宿主最小高度 560。OCR 插件没有 <code>StatusLevel</code>，状态行消费现有 <code>Hint</code>。</span>
+      </div>
+    </header>
+
+    <div class="ocr-window" id="ocr-window">
+      <div class="ocr-titlebar">
+        <div class="ocr-app-icon"><svg class="i"><use href="#i-scan"/></svg></div>
+        <div class="ocr-title-text">
+          <div class="ocr-title-line"><div class="ocr-title">OCR 文本识别</div></div>
+          <div class="ocr-subtitle">在识别区里切分字符并用内置分类器识别（0-9 / A-Z，带拒识）</div>
+        </div>
+        <div class="ocr-title-actions">
+          <button type="button" class="ocr-icon-btn" data-tooltip="关闭" aria-label="关闭"><svg class="i"><use href="#i-x"/></svg></button>
+        </div>
+      </div>
+
+      <div class="ocr-content">
+        <aside class="ocr-rail" aria-label="OCR 配置">
+          <!-- 图像输入 -->
+          <section class="ocr-card">
+            <div class="ocr-card-head">
+              <span class="ocr-card-icon"><svg class="i"><use href="#i-image"/></svg></span>
+              <span class="ocr-card-title">图像输入</span>
+              <span class="ocr-chip">HImage</span>
+            </div>
+            <div class="ocr-field">
+              <label class="ocr-label">输入图像 <svg><use href="#i-link"/></svg></label>
+              <div class="ocr-input-row">
+                <input class="ocr-input" id="ocr-image-input" type="text" value="未绑定（等待上游 Image）" readonly>
+                <button type="button" class="ocr-btn-square" data-tooltip="绑定上游端口 / 变量" aria-label="绑定上游端口或变量"><svg><use href="#i-link"/></svg></button>
+              </div>
+              <p class="ocr-help"><svg><use href="#i-info"/></svg>链接上游输出或变量；试运行时上游图会自动显示到右侧画布。</p>
+            </div>
+          </section>
+
+          <!-- 识别区 -->
+          <section class="ocr-card">
+            <div class="ocr-card-head">
+              <span class="ocr-card-icon"><svg class="i"><use href="#i-crop"/></svg></span>
+              <span class="ocr-card-title">识别区</span>
+              <span class="ocr-chip ocr-chip-accent" id="ocr-roi-chip">已框选</span>
+            </div>
+            <p class="ocr-help" style="margin-top:0;">只框住一行字符。框太松会带进背景纹理，框太紧会把字切掉一半。</p>
+            <div class="ocr-mono-box" id="ocr-roi-summary">中心 (412, 268)  角度 0 度  半长 168  半宽 42</div>
+            <button type="button" class="ocr-btn ocr-btn-block" id="ocr-clear-roi" style="margin-top:9px;">
+              <svg><use href="#i-eraser"/></svg>清空识别区
+            </button>
+          </section>
+
+          <!-- 常用参数 -->
+          <section class="ocr-card">
+            <div class="ocr-card-head">
+              <span class="ocr-card-icon"><svg class="i"><use href="#i-sliders"/></svg></span>
+              <span class="ocr-card-title">常用参数</span>
+            </div>
+            <div class="ocr-field">
+              <label class="ocr-label">极性</label>
+              <div class="ocr-seg ocr-seg-wide" id="ocr-polarity">
+                <button type="button" data-polarity="dark" class="is-on" aria-pressed="true">暗字亮底</button>
+                <button type="button" data-polarity="light" aria-pressed="false">亮字暗底</button>
+              </div>
+              <p class="ocr-help"><svg><use href="#i-info"/></svg>决定「字是深色还是浅色」。选错时一个字都切不出来 —— 报错信息会提示这一条。</p>
+            </div>
+            <div class="ocr-grid-2x2">
+              <div>
+                <label class="ocr-label">字符最小高度 (px)</label>
+                <input class="ocr-input" type="number" value="8" min="1">
+              </div>
+              <div>
+                <label class="ocr-label">字符最大高度 (px)</label>
+                <input class="ocr-input" type="number" value="300" min="1">
+              </div>
+              <div>
+                <label class="ocr-label">字符最小宽度 (px)</label>
+                <input class="ocr-input" type="number" value="4" min="1">
+              </div>
+              <div>
+                <label class="ocr-label">字符最大宽度 (px)</label>
+                <input class="ocr-input" type="number" value="300" min="1">
+              </div>
+            </div>
+            <p class="ocr-help"><svg><use href="#i-info"/></svg>字符尺寸按实际大小收紧，是挡掉背景纹理与脏点最有效的一招。试算后从「逐字符明细」里能看到实际切出了几个。</p>
+          </section>
+
+          <!-- 高级参数 -->
+          <details class="ocr-details" id="ocr-advanced">
+            <summary>
+              <svg><use href="#i-sliders"/></svg>
+              高级参数（多数场景不用动）
+              <svg class="ocr-chev"><use href="#i-chev"/></svg>
+            </summary>
+            <div class="ocr-details-body">
+              <div class="ocr-field">
+                <div class="ocr-check-row">
+                  <span class="ocr-check" data-check="fixed-threshold"><svg><use href="#i-check"/></svg></span>
+                  <span>用固定阈值（不勾 = 按直方图自动找分界）</span>
+                </div>
+                <label class="ocr-label" style="margin-top:8px;">固定阈值 (0-255)</label>
+                <input class="ocr-input" type="number" value="128" min="0" max="255">
+              </div>
+              <div class="ocr-field">
+                <label class="ocr-label">闭运算半径 (px) —— 点阵字必备</label>
+                <input class="ocr-input" type="number" value="0" step="0.5">
+                <p class="ocr-help"><svg><use href="#i-info"/></svg>针打 / 喷码的字由小圆点拼成，不做闭运算会切成一堆点碎片。从 1.5 起试。</p>
+              </div>
+              <div class="ocr-field">
+                <label class="ocr-label">腐蚀半径 (px) —— 字符粘连时断开</label>
+                <input class="ocr-input" type="number" value="0" step="0.5">
+              </div>
+              <div class="ocr-field">
+                <label class="ocr-label">膨胀半径 (px) —— 笔画过细时加粗</label>
+                <input class="ocr-input" type="number" value="0" step="0.5">
+              </div>
+              <div class="ocr-grid-2x2">
+                <div>
+                  <label class="ocr-label">最小面积 (px²)</label>
+                  <input class="ocr-input" type="number" value="20" min="0">
+                </div>
+                <div>
+                  <label class="ocr-label">最大面积 (px²)</label>
+                  <input class="ocr-input" type="number" value="5000" min="0">
+                </div>
+              </div>
+              <div class="ocr-field" style="margin-top:10px;">
+                <label class="ocr-label">外部模型路径（留空 = 内置 0-9/A-Z）</label>
+                <input class="ocr-input" type="text" value="" placeholder="D:\Models\chinese.omc">
+                <p class="ocr-help"><svg><use href="#i-info"/></svg>换中文或自训练模型时填这里。填了却找不到会直接报错，不会静默退回内置模型。</p>
+              </div>
+              <div class="ocr-check-row">
+                <span class="ocr-check" data-check="column-first"><svg><use href="#i-check"/></svg></span>
+                <span>按列优先排序（竖排文本）</span>
+              </div>
+            </div>
+          </details>
+
+          <!-- 试算 -->
+          <section class="ocr-card">
+            <div class="ocr-card-head">
+              <span class="ocr-card-icon"><svg class="i"><use href="#i-flask"/></svg></span>
+              <span class="ocr-card-title">试算</span>
+            </div>
+            <button type="button" class="ocr-btn ocr-btn-primary ocr-btn-block" id="ocr-try">
+              <svg><use href="#i-magic"/></svg>试算一下
+            </button>
+            <p class="ocr-help" id="ocr-hint">已显示上游图像（点「执行」试运行带进来的）：可直接点「试算一下」看识别效果</p>
+            <div class="ocr-result" id="ocr-result">
+              <div class="ocr-result-empty" id="ocr-result-empty">尚未试算</div>
+              <pre class="ocr-result-body" id="ocr-result-body" hidden>识别结果：'A1B2C3'
+字符 6 个（拒识 0 个）　均值置信 0.97　实际阈值 128
+逐字符：1:A(0.99) 2:1(0.98) 3:B(0.97) 4:2(0.96) 5:C(0.95) 6:3(0.94)</pre>
+            </div>
+          </section>
+        </aside>
+
+        <section class="ocr-canvas-card" aria-label="识别区画布">
+          <div class="ocr-canvas-head">
+            <div class="ocr-file-chip"><svg class="i"><use href="#i-scan"/></svg></div>
+            <span class="ocr-canvas-title">识别区画布</span>
+            <span class="ocr-chip ocr-chip-accent">ROI · 可编辑</span>
+            <span class="ocr-chip">HALCON ImageEdit</span>
+            <div class="ocr-canvas-tools"><span class="ocr-tool-text">右键 → 新建矩形</span></div>
+          </div>
+
+          <div class="ocr-empty-banner" id="ocr-empty-banner" hidden>
+            <svg><use href="#i-alert"/></svg>
+            <span>还没有图像：在左侧「图像输入」绑定上游图像，或点「执行」试运行把图带进来。画布常驻，绑定后无需重新打开窗口。</span>
+          </div>
+
+          <div class="ocr-canvas">
+            <div class="ocr-canvas-view" data-view="image">
+              <svg class="ocr-scene" viewBox="0 0 900 520" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="ocr-scene-title ocr-scene-desc">
+                <title id="ocr-scene-title">OCR 识别区画布示意</title>
+                <desc id="ocr-scene-desc">深色背景上有一块浅色铭牌，铭牌上印着 A1B2C3 六个字符，外围是带八个手柄的矩形识别区。</desc>
+                <defs>
+                  <linearGradient id="ocr-bg" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#0B1220"/><stop offset="100%" stop-color="#151F31"/>
+                  </linearGradient>
+                  <linearGradient id="ocr-plate" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#E8EDF3"/><stop offset="100%" stop-color="#B9C4D1"/>
+                  </linearGradient>
+                  <pattern id="ocr-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293B" stroke-width="1"/>
+                  </pattern>
+                  <filter id="ocr-soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="10"/></filter>
+                </defs>
+                <rect width="900" height="520" fill="url(#ocr-bg)"/>
+                <rect width="900" height="520" fill="url(#ocr-grid)" opacity=".55"/>
+                <ellipse cx="450" cy="270" rx="300" ry="170" fill="#000" opacity=".45" filter="url(#ocr-soft)"/>
+                <rect x="180" y="150" width="540" height="230" rx="18" fill="url(#ocr-plate)" stroke="#D7DEE8" stroke-width="2"/>
+                <rect x="196" y="166" width="508" height="198" rx="10" fill="none" stroke="#8A97A6" stroke-width="1.5" opacity=".7"/>
+                <g id="ocr-text-group" fill="#1F2937" font-family="Cascadia Mono, Consolas, monospace" font-weight="700" font-size="86" letter-spacing="10">
+                  <text x="238" y="296">A1B2C3</text>
+                </g>
+                <g id="ocr-roi-rect">
+                  <rect x="222" y="210" width="456" height="120" fill="none" stroke="#0EA5E9" stroke-width="2.5"/>
+                  <g fill="#FFFFFF" stroke="#0EA5E9" stroke-width="1.5">
+                    <rect x="216" y="204" width="12" height="12"/><rect x="444" y="204" width="12" height="12"/><rect x="672" y="204" width="12" height="12"/>
+                    <rect x="216" y="264" width="12" height="12"/><rect x="444" y="264" width="12" height="12"/><rect x="672" y="264" width="12" height="12"/>
+                    <rect x="216" y="324" width="12" height="12"/><rect x="444" y="324" width="12" height="12"/><rect x="672" y="324" width="12" height="12"/>
+                  </g>
+                  <rect x="222" y="338" width="96" height="20" rx="4" fill="#0EA5E9" opacity=".92"/>
+                  <text x="232" y="352" fill="#FFFFFF" font-family="Segoe UI, Microsoft YaHei UI, sans-serif" font-size="11" font-weight="600">识别区 · 矩形</text>
+                </g>
+                <g stroke="#38BDF8" stroke-opacity=".55" stroke-width="2" fill="none">
+                  <path d="M 30 30 H 70 M 30 30 V 70"/><path d="M 870 30 H 830 M 870 30 V 70"/>
+                  <path d="M 30 490 H 70 M 30 490 V 450"/><path d="M 870 490 H 830 M 870 490 V 450"/>
+                </g>
+                <g stroke="#38BDF8" stroke-opacity=".8" stroke-width="1">
+                  <path d="M 450 70 V 140"/><path d="M 450 380 V 450"/><path d="M 150 265 H 210"/><path d="M 750 265 H 810"/>
+                </g>
+                <circle cx="450" cy="265" r="5" fill="none" stroke="#38BDF8" stroke-width="1.5"/>
+              </svg>
+              <div class="ocr-canvas-overlay">
+                <span class="ocr-canvas-chip"><svg><use href="#i-scan"/></svg>ImageEdit · 常驻画布</span>
+                <span class="ocr-canvas-chip" id="ocr-canvas-roi-chip">已框选识别区</span>
+              </div>
+              <div class="ocr-canvas-tip" id="ocr-canvas-tip"><svg><use href="#i-info"/></svg>在图像上右键 → 新建矩形；拖拽句柄可调整识别区。</div>
+            </div>
+
+            <div class="ocr-canvas-view" data-view="blank" hidden>
+              <div class="ocr-canvas-blank">
+                <div class="ocr-blank-icon"><svg><use href="#i-image"/></svg></div>
+                <div class="ocr-blank-title">画布已就绪，等待图像</div>
+                <p class="ocr-blank-sub">在左侧「图像输入」绑定上游图像，或点宿主底部「执行」试运行；图像会自动显示到这块画布上。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="ocr-statusbar" aria-live="polite">
+            <span class="ocr-status-dot is-ok" id="ocr-status-dot"></span>
+            <span class="ocr-status-msg is-ok" id="ocr-status-msg">已显示上游图像 · 可直接试算</span>
+            <span class="ocr-status-roi" id="ocr-status-roi">识别区：已框选</span>
+          </div>
+        </section>
+      </div>
+
+      <div class="ocr-footer">
+        <div class="ocr-footer-left">
+          <span class="ocr-status-chip"><span class="ocr-footer-dot"></span><span>状态: 待执行</span></span>
+          <span class="ocr-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="ocr-footer-right">
+          <button type="button" class="ocr-btn"><svg><use href="#i-play"/></svg>执行</button>
+          <button type="button" class="ocr-btn" style="border-color:transparent;background:transparent;color:var(--ocr-text-2);">取消</button>
+          <button type="button" class="ocr-btn ocr-btn-primary">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ocr-notes">
+      <div class="ocr-notes-head">关键改动（v1）</div>
+      <div class="ocr-note"><div class="ocr-note-num">01</div><div><b>取消固定 1000×620，改为自适应两栏</b><span>左栏 356px 配置轨 + 右侧识别区工作区；根视图只保留 <code>MinWidth/MinHeight</code>，交给宿主 960×680 外壳。</span></div></div>
+      <div class="ocr-note"><div class="ocr-note-num">02</div><div><b>识别区画布升级为工作区</b><span>保留 <code>h:ImageEdit</code> 常驻与原绑定（<code>DrawObjectList</code>/<code>ActiveRoi</code>/<code>HImage</code>）；不改控件、不折叠已设图控件。</span></div></div>
+      <div class="ocr-note"><div class="ocr-note-num">03</div><div><b>参数分层不变</b><span>常用 6 项在前，高级参数收进 <code>Expander</code>；每个高级项保留原有 ToolTip 说明，不新增参数。</span></div></div>
+      <div class="ocr-note"><div class="ocr-note-num">04</div><div><b>试算结果可读性</b><span><code>ResultSummary</code> 放进等宽结果块；<code>Hint</code> 同时出现在状态行与试算卡，长文不挤占画布。</span></div></div>
+      <div class="ocr-note"><div class="ocr-note-num">05</div><div><b>图像输入只包裹不替换</b><span><code>LinkableValueEditor</code> 保留 <code>Port</code>/<code>StepData</code>；<code>Label=""</code> 外置标签，链接/解除链接仍走控件自带按钮。</span></div></div>
+      <div class="ocr-note"><div class="ocr-note-num">06</div><div><b>颜色全部令牌化</b><span>映射 <code>Dialog*</code> / <code>PluginPreview*</code> / <code>ScadaSecondaryTextBrush</code>；视图 XAML 内 0 个十六进制颜色。</span></div></div>
+
+      <div class="ocr-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="ocr-note"><div class="ocr-note-num">C1</div><div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不引入独立 VM。</span></div></div>
+      <div class="ocr-note"><div class="ocr-note-num">C2</div><div><b>Image 端口的 LinkableValueEditor</b><span><code>Port="{Binding Image}"</code>、<code>StepData="{Binding StepData}"</code>；端口持久化、变量链接、解除链接都在控件里。</span></div></div>
+      <div class="ocr-note"><div class="ocr-note-num">C3</div><div><b>ImageEdit 识别区画布</b><span><code>ActiveRoi="{Binding CanvasActiveRoi, Mode=TwoWay}"</code>、<code>DrawObjectList="{Binding CanvasRois}"</code>、<code>HImage="{Binding DisplayImage, Mode=OneWay}"</code> 原样保留。</span></div></div>
+      <div class="ocr-note"><div class="ocr-note-num">C4</div><div><b>参数与结果绑定</b><span><code>TextIsDark</code> / 四个字符尺寸 / 高级参数 / <code>RoiSummary</code> / <code>Hint</code> / <code>ResultSummary</code> 全部保留原属性名与类型。</span></div></div>
+      <div class="ocr-note"><div class="ocr-note-num">C5</div><div><b>两个功能入口</b><span>「清空识别区」→ <code>ClearRoi()</code>、「试算一下」→ <code>TryPreviewRecognize()</code>；视图只转发，不改业务逻辑。</span></div></div>
+
+      <div class="ocr-notes-head" style="margin-top:20px;">本版明确延后（需新增功能或契约）</div>
+      <div class="ocr-note"><div class="ocr-note-num">D1</div><div><b>加载骨架 / 蓝色加载态</b><span>需要插件新增 <code>IsPreviewLoading</code> 或 <code>PreviewState</code>；当前只有 <code>Hint</code> 文本。</span></div></div>
+      <div class="ocr-note"><div class="ocr-note-num">D2</div><div><b>尺寸 / 文件大小</b><span>需要插件新增只读属性；本版画布头只显示固定说明。</span></div></div>
+      <div class="ocr-note"><div class="ocr-note-num">D3</div><div><b>放大 / 缩小按钮</b><span><code>ImageEdit</code> 继承 <code>HalconBase</code> 的 <code>FitToWindow()</code>/<code>FitToImage()</code>；本版不放工具条按钮，右键菜单保留。</span></div></div>
+      <div class="ocr-note"><div class="ocr-note-num">D4</div><div><b>打开所在文件夹 / 系统导航</b><span>需要新增行为或宿主契约；OCR 配置没有文件路径入口，不适用。</span></div></div>
+      <div class="ocr-note"><div class="ocr-note-num">D5</div><div><b>StatusLevel 三档状态</b><span><code>OcrPlugin</code> 没有 <code>StatusMessage</code>/<code>StatusLevel</code>；本版用 <code>Hint</code> 做状态行，不新增枚举、不伪造状态。</span></div></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('ocr-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#ocr-window');
+      var stateButtons = Array.prototype.slice.call(root.querySelectorAll('[data-state]'));
+      var widthButtons = Array.prototype.slice.call(root.querySelectorAll('[data-width]'));
+      var views = Array.prototype.slice.call(root.querySelectorAll('.ocr-canvas-view'));
+
+      var roiChip = root.querySelector('#ocr-roi-chip');
+      var roiSummary = root.querySelector('#ocr-roi-summary');
+      var roiRect = root.querySelector('#ocr-roi-rect');
+      var canvasRoiChip = root.querySelector('#ocr-canvas-roi-chip');
+      var canvasTip = root.querySelector('#ocr-canvas-tip');
+      var emptyBanner = root.querySelector('#ocr-empty-banner');
+      var statusDot = root.querySelector('#ocr-status-dot');
+      var statusMsg = root.querySelector('#ocr-status-msg');
+      var statusRoi = root.querySelector('#ocr-status-roi');
+      var hint = root.querySelector('#ocr-hint');
+      var resultEmpty = root.querySelector('#ocr-result-empty');
+      var resultBody = root.querySelector('#ocr-result-body');
+      var imageInput = root.querySelector('#ocr-image-input');
+      var textGroup = root.querySelector('#ocr-text-group');
+
+      var successResult = "识别结果：'A1B2C3'\n字符 6 个（拒识 0 个）　均值置信 0.97　实际阈值 128\n逐字符：1:A(0.99) 2:1(0.98) 3:B(0.97) 4:2(0.96) 5:C(0.95) 6:3(0.94)";
+
+      var state = 'default';
+      var polarity = 'dark';
+
+      var copy = {
+        default: {
+          view: 'image', roi: true, result: 'empty', level: 'ok',
+          hint: '已显示上游图像（点「执行」试运行带进来的）：可直接点「试算一下」看识别效果',
+          status: '已显示上游图像 · 可直接试算',
+          roiText: '已框选', roiSummary: '中心 (412, 268)  角度 0 度  半长 168  半宽 42',
+          image: '上游图像 · 已显示', banner: false
+        },
+        tested: {
+          view: 'image', roi: true, result: 'body', level: 'ok',
+          hint: '试算完成：6 个字符，均值置信 0.97；可继续调「高级参数」再试算。',
+          status: '试算完成 · 6 个字符 · 均值置信 0.97',
+          roiText: '已框选', roiSummary: '中心 (412, 268)  角度 0 度  半长 168  半宽 42',
+          image: '上游图像 · 已显示', banner: false
+        },
+        empty: {
+          view: 'blank', roi: false, result: 'empty', level: 'warn',
+          hint: '先在「图像输入」里点链接按钮绑定图像来源（选上游端口或变量），再在右侧图上右键 → 新建矩形。',
+          status: '尚未显示图像：请先绑定上游图像，或点「执行」试运行',
+          roiText: '未框选', roiSummary: '尚未框选识别区',
+          image: '未绑定（等待上游 Image）', banner: true
+        },
+        noroi: {
+          view: 'image', roi: false, result: 'empty', level: 'warn',
+          hint: '识别区已清空：在图像上右键 → 新建矩形，框住整行字符后再试算。',
+          status: '尚未框选识别区：在图像上右键 → 新建矩形',
+          roiText: '未框选', roiSummary: '尚未框选识别区',
+          image: '上游图像 · 已显示', banner: false
+        },
+        error: {
+          view: 'image', roi: true, result: 'error', level: 'err',
+          hint: '试算失败：识别区为空，请先在图像上框选一行字符。',
+          status: '试算失败：识别区为空（请先在图上框选一行字符）',
+          roiText: '已框选', roiSummary: '中心 (412, 268)  角度 0 度  半长 168  半宽 42',
+          image: '上游图像 · 已显示', banner: false
+        }
+      };
+
+      function setStatus(level, text) {
+        statusDot.className = 'ocr-status-dot is-' + level;
+        statusMsg.className = 'ocr-status-msg is-' + level;
+        statusMsg.textContent = text;
+      }
+
+      function render() {
+        var item = copy[state];
+        views.forEach(function (v) { v.hidden = v.dataset.view !== item.view; });
+        emptyBanner.hidden = !item.banner;
+        roiRect.style.display = item.roi ? '' : 'none';
+        canvasTip.hidden = !item.roi;
+        roiChip.textContent = item.roiText;
+        roiChip.className = 'ocr-chip ' + (item.roi ? 'ocr-chip-accent' : 'ocr-chip-warn');
+        roiSummary.textContent = item.roiSummary;
+        canvasRoiChip.textContent = item.roi ? '已框选识别区' : '尚未框选识别区';
+        imageInput.value = item.image;
+        hint.textContent = item.hint;
+        statusRoi.textContent = '识别区：' + item.roiText;
+        setStatus(item.level, item.status);
+
+        resultEmpty.hidden = item.result !== 'empty';
+        resultBody.hidden = item.result === 'empty';
+        resultBody.classList.toggle('is-error', item.result === 'error');
+        if (item.result === 'body') {
+          resultBody.textContent = successResult;
+        } else if (item.result === 'error') {
+          resultBody.textContent = '试算失败：识别区为空（请先在图上框选一行字符）\r\n提示：在右侧画布上右键 → 新建矩形，框住整行字符后再试算。';
+        }
+      }
+
+      stateButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          state = btn.dataset.state;
+          stateButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          render();
+        });
+      });
+
+      widthButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var narrow = btn.dataset.width === '640';
+          win.classList.toggle('is-narrow', narrow);
+          widthButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+        });
+      });
+
+      root.querySelectorAll('#ocr-polarity [data-polarity]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          polarity = btn.dataset.polarity;
+          root.querySelectorAll('#ocr-polarity [data-polarity]').forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          if (textGroup) textGroup.setAttribute('fill', polarity === 'dark' ? '#1F2937' : '#F8FAFC');
+        });
+      });
+
+      root.querySelector('#ocr-clear-roi').addEventListener('click', function () {
+        state = 'noroi';
+        stateButtons.forEach(function (b) {
+          var on = b.dataset.state === 'noroi';
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        render();
+      });
+
+      root.querySelector('#ocr-try').addEventListener('click', function () {
+        if (state === 'empty') {
+          state = 'empty';
+          hint.textContent = '先绑定上游图像，或点「执行」试运行把图带进来，再试算。';
+          statusMsg.className = 'ocr-status-msg is-warn';
+          statusMsg.textContent = '尚未显示图像：无法试算';
+          return;
+        }
+        if (state === 'noroi') {
+          state = 'error';
+          stateButtons.forEach(function (b) {
+            var on = b.dataset.state === 'error';
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          render();
+          return;
+        }
+        state = 'tested';
+        stateButtons.forEach(function (b) {
+          var on = b.dataset.state === 'tested';
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        render();
+      });
+
+      root.querySelectorAll('[data-check]').forEach(function (el) {
+        el.addEventListener('click', function () { el.classList.toggle('is-on'); });
+      });
+
+      render();
+    })();
+  </script>
+</div>
+</body>
+</html>

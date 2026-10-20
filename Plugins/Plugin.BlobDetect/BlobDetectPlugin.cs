@@ -729,6 +729,10 @@ namespace Plugin.BlobDetect
 
         private void SchedulePreview()
         {
+            // BD6：释放后入口早退——Dispose 期间/之后由 ValueChanged 或防抖 Tick 再进来时，
+            // 不许再排新任务（在途预览的竞态另由轮次号 + _disposed 回填守卫兜底）。
+            if (_disposed) return;
+
             // 运行实例不跑预览（理由见 _isConfigInstance 的注释）
             if (!_isConfigInstance) return;
 
@@ -798,6 +802,9 @@ namespace Plugin.BlobDetect
         /// </summary>
         public void RefreshPreview()
         {
+            // BD6：释放后入口早退——Dispose 之后任何路径都不许再启动预览/回填绑定。
+            if (_disposed) return;
+
             // 运行实例不跑预览（配置态能力的隔离，理由见 _isConfigInstance 注释）
             if (!_isConfigInstance) return;
 
@@ -1244,7 +1251,17 @@ namespace Plugin.BlobDetect
 
         public override void Dispose()
         {
-            // 预览后台链全部作废：轮次号推进 + 在跑标志清掉 + 阶段一缓存释放
+            // 预览后台链全部作废：先置释放标记（在途回调靠它拒绝写已释放的绑定），
+            // 再推进轮次号、清在跑标志、释放阶段一缓存。
+            _disposed = true;
+
+            // BD6：先退订三个输入端口，再让 base.Dispose() 去清 LinkedSource——
+            // InputPort.Dispose 把 LinkedSource 置 null 时会触发 ValueChanged，
+            // 若仍订阅着 OnSrcImageValueChanged，就会在释放过程中再排一次预览。
+            SrcImage.ValueChanged -= OnSrcImageValueChanged;
+            MaskRegion.ValueChanged -= OnSrcImageValueChanged;
+            ExcludeRegion.ValueChanged -= OnSrcImageValueChanged;
+
             _previewRound++;
             _previewRefreshPending = false;
             DisposeDetectCache();

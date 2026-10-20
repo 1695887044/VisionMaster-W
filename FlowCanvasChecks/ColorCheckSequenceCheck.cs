@@ -83,6 +83,7 @@ namespace FlowCanvasChecks
             RunCrossChecks(repoRoot, pluginType);
             RunBoundaryChecks(repoRoot, pluginType);
             RunPreviewCheck(repoRoot, pluginType);
+            RunPreviewImageSourceChecks(repoRoot, pluginType);
             RunJudgeChecks(repoRoot, pluginType);
             RunPersistenceCheck(pluginType);
         }
@@ -276,6 +277,119 @@ namespace FlowCanvasChecks
                     summary.Replace("\r\n", " | "));
             }
             finally { image.Dispose(); }
+        }
+
+        // ==================================================================
+        //  CC4：试算用「画布当前图」（右键 → 打开图片也能直接试算）
+        //
+        //  背景：画布右键「打开图片」换的是 ImageEdit 自己的 HImage（共享控件 HalconBase.OpenImage
+        //  直接写 this.HImage），而插件的 DisplayImage 是上游图的那份副本 —— 两者会分叉。
+        //  视图必须把控件当前图传进试算，否则用户右键换的图永远不参与计算。
+        //
+        //  四条判据各自对应一个真实故障形状：
+        //    P2 传入图优先 —— 传进来的图必须赢过 DisplayImage（否则等于没接上）
+        //    P3 无参回退   —— 不传图时仍用 DisplayImage（旧行为不许丢）
+        //    P4 只读       —— 试算不许改 DisplayImage（所有权/上游语义/持久化都不能被动）
+        //    P6 视图接线   —— 命令里必须真把 ImageEditor.HImage 传进去（静态扫描，变异必红）
+        // ==================================================================
+
+        private static void RunPreviewImageSourceChecks(string repoRoot, Type pluginType)
+        {
+            Section("[CC4] 试算使用画布当前图（右键打开图片 → 直接试算）");
+
+            // ---- P6a：反射入口不许有二义性（public 重载会让 GetMethod 抛 AmbiguousMatchException）----
+            MethodInfo? noArg = null;
+            string ambiguity = "";
+            try { noArg = pluginType.GetMethod("TryPreviewAnalyze"); }
+            catch (Exception ex) { ambiguity = ex.GetType().Name + "：" + ex.Message; }
+            Check("★P6a 无参入口可按名字取到（HImage 重载是 internal，不制造二义性）",
+                noArg != null && noArg.GetParameters().Length == 0 && ambiguity.Length == 0,
+                ambiguity.Length > 0 ? ambiguity : $"method={noArg?.Name} 参数 {noArg?.GetParameters().Length ?? -1} 个");
+
+            MethodInfo? withImage = pluginType.GetMethod("TryPreviewAnalyze",
+                BindingFlags.Instance | BindingFlags.NonPublic, null, new[] { typeof(HImage) }, null);
+            Check("P6b 带图重载存在且是 internal（断言/视图以外不该走 public 面）",
+                withImage != null && !withImage.IsPublic && withImage.IsAssembly,
+                withImage == null ? "未找到 TryPreviewAnalyze(HImage)" : $"public={withImage.IsPublic} internal={withImage.IsAssembly}");
+
+            if (withImage == null) return;
+
+            HOperatorSet.ReadImage(out HObject raw1, Path.Combine(repoRoot, @"Image\颜色\cable1.png"));
+            var upstream = new HImage(raw1);   // DisplayImage：上游图那份（5 芯）
+            raw1?.Dispose();
+
+            HOperatorSet.ReadImage(out HObject raw2, Path.Combine(repoRoot, @"Image\颜色\cable2.png"));
+            var canvasImage = new HImage(raw2); // 画布当前图：右键打开的那张（10 芯）
+            raw2?.Dispose();
+
+            try
+            {
+                var plugin = CreatePlugin(pluginType, new Dictionary<string, object>
+                {
+                    ["RoiParams"] = Roi,
+                    ["RecipeText"] = WildcardRecipe,
+                    ["DisplayViewIndex"] = 0,
+                });
+                plugin.GetType().GetProperty("DisplayImage")!.SetValue(plugin, upstream);
+
+                // ---- P2：传入图优先（cable2 = 10 芯赢过 DisplayImage 的 cable1 = 5 芯）----
+                withImage.Invoke(plugin, new object?[] { canvasImage });
+                string passedSummary = Read<string>(plugin, "ResultSummary");
+                Check("★P2 传入的图优先：试算用的是画布当前图（10 芯）而不是 DisplayImage（5 芯）",
+                    passedSummary.Contains($"找到 {Cable2Golden.Length} 根")
+                    && passedSummary.Contains(string.Join(",", Cable2Golden)),
+                    passedSummary.Replace("\r\n", " | "));
+
+                // ---- P4：DisplayImage 没被覆盖（引用与尺寸都没变，所有权仍在插件）----
+                object? stillUpstream = plugin.GetType().GetProperty("DisplayImage")!.GetValue(plugin);
+                bool sameRef = ReferenceEquals(stillUpstream, upstream);
+                int upstreamW = 0, upstreamH = 0, nowW = 0, nowH = 0;
+                upstream.GetImageSize(out upstreamW, out upstreamH);
+                if (stillUpstream is HImage current && current.IsInitialized()) current.GetImageSize(out nowW, out nowH);
+                Check("★P4 试算只读：DisplayImage 未被传入图覆盖（同一引用、尺寸不变）",
+                    sameRef && upstream.IsInitialized() && nowW == upstreamW && nowH == upstreamH,
+                    $"同一引用={sameRef} 原尺寸={upstreamW}x{upstreamH} 现尺寸={nowW}x{nowH}");
+
+                // ---- P3：无参回退到 DisplayImage（cable1 = 5 芯）----
+                noArg!.Invoke(plugin, null);
+                string fallbackSummary = Read<string>(plugin, "ResultSummary");
+                Check("★P3 无参回退：不传图时仍用 DisplayImage（5 芯），旧行为没丢",
+                    fallbackSummary.Contains($"找到 {Cable1Golden.Length} 根")
+                    && fallbackSummary.Contains(string.Join(",", Cable1Golden)),
+                    fallbackSummary.Replace("\r\n", " | "));
+
+                // ---- P5：两个来源都没图时，提示里要给出「右键 → 打开图片」这条新路子 ----
+                var fresh = CreatePlugin(pluginType, new Dictionary<string, object> { ["RoiParams"] = Roi });
+                withImage.Invoke(fresh, new object?[] { null });
+                string emptyHint = Read<string>(fresh, "ResultSummary");
+                Check("P5 无图提示补上「右键 → 打开图片」这条入口（且仍保留『载入』原话）",
+                    emptyHint.Contains("打开图片") && emptyHint.Contains("载入"),
+                    emptyHint);
+            }
+            finally
+            {
+                canvasImage.Dispose();
+                upstream.Dispose();
+            }
+
+            // ---- P6c：视图命令必须真把控件当前图传进去（静态扫描；改回无参必红）----
+            string viewPath = Path.Combine(repoRoot, @"Plugins\Plugin.ColorCheck\ColorCheckView.xaml.cs");
+            string viewCode = StripComments(File.Exists(viewPath) ? File.ReadAllText(viewPath) : "");
+            bool passesCanvasImage = viewCode.Contains("TryPreviewAnalyze(ImageEditor?.HImage)");
+            bool stillNoArg = viewCode.Contains("TryPreviewAnalyze()");
+            Check("★P6c 视图命令传 ImageEditor?.HImage（改回 TryPreviewAnalyze() 必红）",
+                passesCanvasImage && !stillNoArg,
+                viewCode.Length == 0 ? "定位不到 ColorCheckView.xaml.cs"
+                    : (stillNoArg ? "仍残留无参调用 TryPreviewAnalyze()：右键换的图不会参与试算"
+                                  : (passesCanvasImage ? "已按画布当前图试算" : "未找到 TryPreviewAnalyze(ImageEditor?.HImage)")));
+        }
+
+        /// <summary>去掉 C# 注释（说明性注释里会提到被禁的旧写法，不去掉会误判成"仍在违规"）</summary>
+        private static string StripComments(string source)
+        {
+            if (string.IsNullOrEmpty(source)) return source ?? "";
+            string noBlock = Regex.Replace(source, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
+            return Regex.Replace(noBlock, @"//[^\r\n]*", string.Empty, RegexOptions.Multiline);
         }
 
         // ==================================================================

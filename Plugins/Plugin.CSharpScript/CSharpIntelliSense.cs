@@ -31,6 +31,53 @@ namespace Plugin.CSharpScript
             public string Name { get; set; }
             public string Kind { get; set; }   // "输入" / "输出"
             public string Type { get; set; }   // Int / Double / HImage / ...
+
+            /// <summary>是否为输出变量（决定补全插入 SetOutput 还是 GetInput）。</summary>
+            public bool IsOutput { get; set; }
+
+            /// <summary>
+            /// 脚本里 GetInput&lt;T&gt; 的泛型实参（int / double / HImage / HXLDCont …）。
+            /// 由 <see cref="ScriptVarTypeExtensions.ToClrTypeName"/> 从声明类型映射，
+            /// 补全模板直接用它——写错类型名就是"补全出来的代码编译不过"。
+            /// </summary>
+            public string ClrType { get; set; }
+        }
+
+        /// <summary>
+        /// 接口变量在脚本里的**正确用法**（补全实际插入的文本）。
+        ///
+        /// 为什么必须是模板而不是裸变量名：接口变量只是端口名/字典键，不会被注入成 C# 局部变量，
+        /// 裸写 `index` 一定编译失败（CS0103）。旧实现插入裸名，等于让智能提示教用户写错代码。
+        /// </summary>
+        public static string BuildVarInsert(VarInfo v)
+        {
+            if (v == null) return string.Empty;
+            string name = v.Name ?? string.Empty;
+            if (v.IsOutput) return $"Context.SetOutput(\"{name}\", )";
+
+            string clr = string.IsNullOrEmpty(v.ClrType) ? "object" : v.ClrType;
+            return $"Context.GetInput<{clr}>(\"{name}\")";
+        }
+
+        /// <summary>同上，用于补全说明与悬浮卡的可读形式（输出模板带上"值"占位）。</summary>
+        public static string DescribeVarUsage(VarInfo v)
+        {
+            if (v == null) return string.Empty;
+            if (v.IsOutput) return $"Context.SetOutput(\"{v.Name}\", 值)";
+
+            string clr = string.IsNullOrEmpty(v.ClrType) ? "object" : v.ClrType;
+            return $"Context.GetInput<{clr}>(\"{v.Name}\")";
+        }
+
+        /// <summary>
+        /// 补全实际插入的文本 + 光标相对末尾的偏移（0=末尾，1=落在右括号前）。
+        /// 抽成纯函数是为了让断言直接验"插入什么、光标在哪"，不必起 WPF 的 TextArea；
+        /// 只测 <see cref="BuildVarInsert"/> 的字符串会漏掉"插入路径被改回裸名"。
+        /// </summary>
+        public static (string Text, int CaretOffsetFromEnd) BuildVarInsertWithCaret(VarInfo v)
+        {
+            string text = BuildVarInsert(v);
+            return (text, v?.IsOutput == true ? 1 : 0);
         }
 
         private static Func<IList<VarInfo>> _varsProvider;
@@ -478,11 +525,25 @@ namespace Plugin.CSharpScript
                 FontSize = 12,
                 Margin = new Thickness(0, 4, 0, 0),
             });
+
+            // 正确用法放最显眼的位置：变量名只是端口名，裸写在脚本里一定编译不过
             panel.Children.Add(new TextBlock
             {
-                Text = v.Kind == "输入"
-                    ? "运行时由连线（上游输出）或手填值传入本插件"
-                    : "插件执行后作为输出端口供下游连线",
+                Text = DescribeVarUsage(v),
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 12,
+                Background = new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF5)),
+                Padding = new Thickness(4),
+                Margin = new Thickness(0, 4, 0, 0),
+                TextWrapping = TextWrapping.Wrap,
+            });
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = v.IsOutput
+                    ? "插件执行后作为输出端口供下游连线；脚本里用 Context.SetOutput 写它"
+                    : "运行时由连线（上游输出/全局变量）或手填值传入本插件；"
+                      + "脚本里按名字字符串取，它不是 C# 变量",
                 FontSize = 11,
                 Foreground = Brushes.Gray,
                 TextWrapping = TextWrapping.Wrap,

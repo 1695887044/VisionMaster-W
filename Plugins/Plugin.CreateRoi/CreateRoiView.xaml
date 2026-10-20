@@ -5,15 +5,16 @@
     xmlns:cv="clr-namespace:Core.Controls;assembly=Core.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
+    xmlns:halcon="clr-namespace:Core.Halcon;assembly=Core.Halcon"
     xmlns:local="clr-namespace:Plugin.CreateRoi"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d"
     xmlns:system="clr-namespace:System;assembly=mscorlib"
-    MinWidth="{DynamicResource PluginViewMinWidth}"
-    MinHeight="{DynamicResource PluginViewMinHeight}"
+    xmlns:ui="http://schemas.UI.com/ui"
     d:DesignHeight="600"
     d:DesignWidth="1000"
-    xmlns:ui="http://schemas.UI.com/ui">
+    mc:Ignorable="d"
+    MinWidth="{DynamicResource PluginViewMinWidth}"
+    MinHeight="{DynamicResource PluginViewMinHeight}">
     <UserControl.InputBindings>
         <!--  Del 删除选中 ROI（CanExecute 守卫：焦点在文本框时不触发）  -->
         <KeyBinding Command="{Binding DeleteSelectedCommand}" Key="Delete" />
@@ -27,222 +28,905 @@
 
             <local:InverseBoolConverter x:Key="InverseBool" />
             <local:SmearModeConverter x:Key="SmearModeEq" />
+            <local:PreviewModeLabelConverter x:Key="PreviewModeLabel" />
+            <local:RoiLabelConverter x:Key="RoiLabel" />
+            <local:RoiStatusConverter x:Key="RoiStatus" />
 
-            <!--
-                本视图不再定义任何样式/颜色：卡片、标题、提示文字、ROI 列表行一律取自
-                UI 库的 Plugin* 公共样式（PluginCard / PluginCardTitle / PluginHintText / PluginListBoxItem）。
-                与 CaliperMeasure/BlobDetect 用的是同一个键，改一次主题三张卡片一起变。
-            -->
+            <!--  显示窗口 0~9：与 DisplayViewIndex（int）保持同一类型，不改成字符串集合  -->
+            <x:Array x:Key="ViewIndexes" Type="system:Int32">
+                <system:Int32>0</system:Int32>
+                <system:Int32>1</system:Int32>
+                <system:Int32>2</system:Int32>
+                <system:Int32>3</system:Int32>
+                <system:Int32>4</system:Int32>
+                <system:Int32>5</system:Int32>
+                <system:Int32>6</system:Int32>
+                <system:Int32>7</system:Int32>
+                <system:Int32>8</system:Int32>
+                <system:Int32>9</system:Int32>
+            </x:Array>
+
+            <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            </Style>
+
+            <Style x:Key="HelpTextStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,6,0,0" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style x:Key="LocalButtonStyle" TargetType="Button">
+                <Setter Property="Height" Value="34" />
+                <Setter Property="Padding" Value="12,0" />
+                <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border
+                                x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{StaticResource PluginCardCornerRadius}">
+                                <ContentPresenter
+                                    Margin="{TemplateBinding Padding}"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogBorderStrongBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogBorderLightBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  30×30 图标按钮：Padding=0 是 R68 的硬要求（Fluent 隐式内边距会切掉字形）  -->
+            <Style x:Key="ToolbarButtonStyle" TargetType="Button">
+                <Setter Property="Width" Value="30" />
+                <Setter Property="Height" Value="30" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border
+                                x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                    <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogBorderLightBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.40" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ToolbarTextButtonStyle" TargetType="Button">
+                <Setter Property="Width" Value="30" />
+                <Setter Property="Height" Value="30" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                <Setter Property="FontSize" Value="10.5" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border
+                                x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                    <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogBorderLightBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  分段单选（原图/掩膜、正常/绘制/擦除）：只改外观，IsChecked 绑定不变  -->
+            <Style x:Key="SegmentRadioStyle" TargetType="RadioButton">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="10,0" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border
+                                x:Name="Bd"
+                                Padding="{TemplateBinding Padding}"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                    <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                                    <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="SegmentGroupStyle" TargetType="Border">
+                <Setter Property="Padding" Value="2" />
+                <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+            </Style>
+
+            <Style x:Key="RoiCountBadgeStyle" TargetType="Border">
+                <Setter Property="MinWidth" Value="20" />
+                <Setter Property="Height" Value="18" />
+                <Setter Property="Padding" Value="6,0" />
+                <Setter Property="Background" Value="{StaticResource PluginNeutralSubtleBrush}" />
+                <Setter Property="CornerRadius" Value="{StaticResource PluginPillCornerRadius}" />
+            </Style>
+
+            <Style x:Key="RoiStatusDotStyle" TargetType="Ellipse">
+                <Setter Property="Width" Value="7" />
+                <Setter Property="Height" Value="7" />
+                <Setter Property="Fill" Value="{StaticResource DialogAccentBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding SelectedRoi}" Value="{x:Null}">
+                        <Setter Property="Fill" Value="{StaticResource DialogTextMutedBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="RoiStatusTextStyle" TargetType="TextBlock">
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+
+            <Style x:Key="EmptyHintBarStyle" TargetType="Border">
+                <Setter Property="Padding" Value="10,7" />
+                <Setter Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogWarningBorderBrush}" />
+                <Setter Property="BorderThickness" Value="0,0,0,1" />
+            </Style>
+
+            <Style x:Key="CanvasChipStyle" TargetType="Border">
+                <Setter Property="Margin" Value="10" />
+                <Setter Property="Padding" Value="8,3" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+                <Setter Property="VerticalAlignment" Value="Top" />
+                <Setter Property="Background" Value="{StaticResource DialogTextPrimaryBrush}" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="IsHitTestVisible" Value="False" />
+            </Style>
+
+            <Style x:Key="CanvasChipTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10.5" />
+                <Setter Property="Foreground" Value="{StaticResource DialogSurfaceBrush}" />
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
+
+    <!--
+        两栏：左 340px 配置轨（图像输入 / ROI 列表 / 参数微调 / 输出）+ 右 ROI 工作区。
+        960 宿主内容区约 920 → 左 340 / 右 564；640 宿主内容区约 600 → 左 300 / 右 284。
+        所有颜色/字号走 UI 公共令牌，视图内不写十六进制。
+    -->
     <Grid Margin="{StaticResource PluginViewMargin}">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="320" />
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="340" MinWidth="300" MaxWidth="356" />
+            <ColumnDefinition Width="*" MinWidth="240" />
         </Grid.ColumnDefinitions>
 
-        <!--  左列：参数卡片流  -->
-        <Grid Grid.Column="0" Margin="0,0,8,0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <!--  ROI 列表主区：保底高度，参数微调再高也不会把它挤没  -->
-                <RowDefinition Height="*" MinHeight="150" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+        <!-- ================= 左：配置轨 ================= -->
+        <Border
+            Grid.Column="0"
+            Margin="0,0,16,0"
+            Padding="14"
+            Background="{StaticResource DialogRowAlternateBrush}"
+            BorderBrush="{StaticResource DialogBorderLightBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource PluginCardCornerRadius}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-            <!--  卡片：图像输入  -->
-            <Border Style="{StaticResource PluginCard}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource PluginCardTitle}" Text="图像输入" />
-                    <cv:LinkableValueEditor
-                        Margin="{StaticResource PluginFirstRowMargin}"
-                        HorizontalAlignment="Stretch"
-                        Label="图像路径"
-                        Port="{Binding SrcImage}"
-                        StepData="{Binding StepData}" />
-                    <StackPanel Margin="{StaticResource PluginFirstRowMargin}" Orientation="Horizontal">
-                        <TextBlock VerticalAlignment="Center" Text="显示窗口" />
-                        <ComboBox
-                            Width="120"
-                            Margin="8,0,0,0"
-                            HorizontalContentAlignment="Center"
-                            SelectedIndex="{Binding DisplayViewIndex}"
-                            ToolTip="结果显示到主界面几号视图窗口；0 = 不显示">
-                            <ComboBoxItem Content="不显示" />
-                            <ComboBoxItem Content="窗口1" />
-                            <ComboBoxItem Content="窗口2" />
-                            <ComboBoxItem Content="窗口3" />
-                            <ComboBoxItem Content="窗口4" />
-                            <ComboBoxItem Content="窗口5" />
-                            <ComboBoxItem Content="窗口6" />
-                            <ComboBoxItem Content="窗口7" />
-                            <ComboBoxItem Content="窗口8" />
-                            <ComboBoxItem Content="窗口9" />
-                        </ComboBox>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
+                <!-- 配置区可滚动：短窗口（640×560）下 ROI 列表仍保有可用高度 -->
+                <ScrollViewer
+                    Grid.Row="0"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
 
-            <!--  卡片：ROI 列表（主区：占据剩余全部高度，参数面板再高也挤不掉它）  -->
-            <Border Grid.Row="1" Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
-                <DockPanel>
-                    <Grid DockPanel.Dock="Top">
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="ROI 列表" />
-                        <TextBlock
-                            HorizontalAlignment="Right"
-                            Style="{StaticResource PluginHintText}"
-                            Text="右键图像 → 区域 → 新建；Del 删除选中"
-                            ToolTip="拖拽句柄粗调，参数微调精调；选中后按 Del 快速删除" />
-                    </Grid>
-                    <StackPanel DockPanel.Dock="Bottom" Margin="{StaticResource PluginSectionMargin}" Orientation="Horizontal">
-                        <Button
-                            MinWidth="76"
-                            Command="{Binding DeleteSelectedCommand}"
-                            Content="删除" />
-                        <Button
-                            MinWidth="76"
-                            Margin="8,0,0,0"
-                            Command="{Binding ClearRoisCommand}"
-                            Content="清空" />
-                    </StackPanel>
-                    <ListBox
-                        Margin="{StaticResource PluginFirstRowMargin}"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        DisplayMemberPath="DisplayText"
-                        ItemContainerStyle="{StaticResource PluginListBoxItem}"
-                        ItemsSource="{Binding RoiList}"
-                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                        SelectedItem="{Binding SelectedRoi}"
-                        local:ListBoxAutoScroll.Enabled="True" />
-                </DockPanel>
-            </Border>
-
-            <!--  操作提示卡已并入上方列表头的 ToolTip（省出一行高度给列表）  -->
-            <Border
-                Grid.Row="2"
-                Margin="{StaticResource PluginSectionMargin}"
-                Style="{StaticResource PluginCard}">
+                <!-- 图像输入 -->
                 <StackPanel>
                     <Grid>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="参数微调" />
+                        <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="图像输入" />
                         <TextBlock
                             HorizontalAlignment="Right"
-                            Style="{StaticResource PluginHintText}"
-                            Text="{Binding SelectedRoi.Name, TargetNullValue='选中 ROI 后可编辑'}" />
+                            Style="{StaticResource HelpTextStyle}"
+                            Margin="0"
+                            Text="上游端口 / 变量链接" />
                     </Grid>
-                    <ItemsControl Margin="{StaticResource PluginFirstRowMargin}" ItemsSource="{Binding SelectedRoi.ParamEntries}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid Columns="2" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="0,2,4,2">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock
-                                        VerticalAlignment="Center"
-                                        FontSize="11"
-                                        Foreground="{StaticResource PluginHintTextBrush}"
-                                        Text="{Binding Name}"
-                                        TextTrimming="CharacterEllipsis"
-                                        ToolTip="{Binding Name}" />
-                                    <TextBox
-                                        Grid.Column="1"
-                                        Height="{StaticResource PluginControlHeight}"
-                                        MinWidth="0"
-                                        Padding="{StaticResource PluginNumericBoxPadding}"
-                                        VerticalContentAlignment="Center"
-                                        HorizontalContentAlignment="Right"
-                                        Text="{Binding Text, UpdateSourceTrigger=LostFocus}" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <Border
+                        MinHeight="36"
+                        Padding="10,0"
+                        Background="{StaticResource DialogSurfaceBrush}"
+                        BorderBrush="{StaticResource DialogBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource PluginCardCornerRadius}"
+                        ToolTip="来自上游端口的 HImage；运行期以链接值为准。">
+                        <cv:LinkableValueEditor
+                            HorizontalAlignment="Stretch"
+                            Label=""
+                            Port="{Binding SrcImage}"
+                            StepData="{Binding StepData}" />
+                    </Border>
                 </StackPanel>
-            </Border>
 
-        </Grid>
-
-        <!--  右列：图像编辑区  -->
-        <Border Grid.Column="1" Margin="8,0,0,0" Style="{StaticResource PluginCard}">
-            <DockPanel>
-                <!--  掩膜预览工具条  -->
+                <!-- ROI 列表：主区，短窗口下随左栏滚动 -->
                 <Border
-                    DockPanel.Dock="Top"
-                    Padding="0,2,0,6"
-                    BorderBrush="{StaticResource PluginDividerBrush}"
-                    BorderThickness="0,0,0,1">
+                    MinHeight="200"
+                    MaxHeight="320"
+                    Margin="0,8,0,0"
+                    Padding="8"
+                    Background="{StaticResource DialogSurfaceBrush}"
+                    BorderBrush="{StaticResource DialogBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{StaticResource PluginCardCornerRadius}">
                     <DockPanel>
-                        <StackPanel Orientation="Horizontal">
-                            <!--  原图：OneWay 只做显示（避免组互斥回写打架），真值由"掩膜预览"单点写回  -->
-                            <RadioButton
-                                Content="原图"
-                                GroupName="PreviewMode"
-                                IsChecked="{Binding IsMaskPreview, Converter={StaticResource InverseBool}, Mode=OneWay}" />
-                            <RadioButton
+                        <Grid DockPanel.Dock="Top">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="ROI 列表" />
+                                <Border Margin="8,0,0,0" Style="{StaticResource RoiCountBadgeStyle}">
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontSize="10.5"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="{Binding RoiList.Count}" />
+                                </Border>
+                            </StackPanel>
+                            <TextBlock
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource HelpTextStyle}"
+                                Margin="0"
+                                Text="右键新建 · Del 删除" />
+                        </Grid>
+                        <StackPanel
+                            DockPanel.Dock="Bottom"
+                            Margin="0,9,0,0"
+                            Orientation="Horizontal">
+                            <Button
+                                MinWidth="76"
+                                Height="30"
+                                Command="{Binding DeleteSelectedCommand}"
+                                Content="删除"
+                                Style="{StaticResource LocalButtonStyle}" />
+                            <Button
+                                MinWidth="76"
+                                Height="30"
                                 Margin="8,0,0,0"
-                                Content="掩膜预览"
-                                GroupName="PreviewMode"
-                                IsChecked="{Binding IsMaskPreview, Mode=TwoWay}" />
+                                Command="{Binding ClearRoisCommand}"
+                                Content="清空"
+                                Style="{StaticResource LocalButtonStyle}" />
                         </StackPanel>
-                        <CheckBox
-                            Margin="16,0,0,0"
-                            VerticalAlignment="Center"
-                            HorizontalAlignment="Right"
-                            Content="排除模式（ROI 外有效）"
-                            IsChecked="{Binding MaskInvert}" />
+                        <Grid Margin="0,2,0,0">
+                            <ListBox
+                                Background="Transparent"
+                                BorderThickness="0"
+                                ItemContainerStyle="{StaticResource PluginListBoxItem}"
+                                ItemsSource="{Binding RoiList}"
+                                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                SelectedItem="{Binding SelectedRoi}"
+                                local:ListBoxAutoScroll.Enabled="True">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border
+                                                Width="22"
+                                                Height="22"
+                                                Margin="0,0,8,0"
+                                                Background="{StaticResource DialogRowHoverBrush}"
+                                                CornerRadius="6">
+                                                <TextBlock
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    FontFamily="{StaticResource DialogIconFont}"
+                                                    FontSize="11"
+                                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                    RenderTransformOrigin="0.5,0.5">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <!--  默认矩形：Font Awesome square；圆形/椭圆由 ShapeType 触发切换  -->
+                                                            <Setter Property="Text" Value="&#xf0c8;" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding ShapeType}" Value="{x:Static halcon:DrawShapeType.Circle}">
+                                                                    <Setter Property="Text" Value="&#xf111;" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding ShapeType}" Value="{x:Static halcon:DrawShapeType.Ellipse}">
+                                                                    <Setter Property="Text" Value="&#xf111;" />
+                                                                    <!--  FA 6 Pro Solid 无独立 ellipse 字形：用圆压扁表达椭圆  -->
+                                                                    <Setter Property="RenderTransform">
+                                                                        <Setter.Value>
+                                                                            <ScaleTransform ScaleX="1.55" ScaleY="0.72" />
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock
+                                                    FontSize="12"
+                                                    FontWeight="SemiBold"
+                                                    Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                                    Text="{Binding Name}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                                <TextBlock
+                                                    Margin="0,1,0,0"
+                                                    FontSize="10.5"
+                                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                                    Text="{Binding ShapeTypeCN}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontSize="11.5"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                IsHitTestVisible="False"
+                                Text="还没有 ROI。在画布上右键 → 区域 → 新建。"
+                                TextAlignment="Center"
+                                TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding RoiList.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
                     </DockPanel>
                 </Border>
-                <!--  涂擦工具条：模式/笔刷是控件自有交互态，直连 ImageEdit 的 DP（ElementName 绑定，不经 VM）  -->
+
+                <!-- 参数微调 -->
                 <Border
-                    DockPanel.Dock="Top"
-                    Padding="0,6,0,8"
-                    BorderBrush="{StaticResource PluginDividerBrush}"
-                    BorderThickness="0,0,0,1">
-                    <StackPanel Orientation="Horizontal">
-                        <RadioButton
-                            Content="正常"
-                            GroupName="SmearMode"
-                            IsChecked="{Binding SmearMode, ElementName=ImageEditor, Converter={StaticResource SmearModeEq}, ConverterParameter=None, Mode=TwoWay}" />
-                        <RadioButton
-                            Margin="8,0,0,0"
-                            Content="绘制涂抹"
-                            GroupName="SmearMode"
-                            IsChecked="{Binding SmearMode, ElementName=ImageEditor, Converter={StaticResource SmearModeEq}, ConverterParameter=Draw, Mode=TwoWay}" />
-                        <RadioButton
-                            Margin="8,0,0,0"
-                            Content="擦除涂抹"
-                            GroupName="SmearMode"
-                            IsChecked="{Binding SmearMode, ElementName=ImageEditor, Converter={StaticResource SmearModeEq}, ConverterParameter=Erase, Mode=TwoWay}" />
+                    Margin="0,8,0,0"
+                    Padding="8"
+                    Background="{StaticResource DialogSurfaceBrush}"
+                    BorderBrush="{StaticResource DialogBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{StaticResource PluginCardCornerRadius}">
+                    <StackPanel>
+                        <Grid>
+                            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="参数微调" />
+                            <TextBlock
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource HelpTextStyle}"
+                                Margin="0"
+                                Text="{Binding SelectedRoi, Converter={StaticResource RoiLabel}, ConverterParameter=选中 ROI 后可编辑}" />
+                        </Grid>
+                        <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding SelectedRoi.ParamEntries}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="2" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,1,4,1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="10.5"
+                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                            Text="{Binding Name}"
+                                            TextTrimming="CharacterEllipsis"
+                                            ToolTip="{Binding Name}" />
+                                        <TextBox
+                                            Grid.Column="1"
+                                            Height="24"
+                                            MinWidth="0"
+                                            Padding="4,0"
+                                            VerticalContentAlignment="Center"
+                                            HorizontalContentAlignment="Right"
+                                            FontFamily="{StaticResource PluginMonoFontFamily}"
+                                            FontSize="11"
+                                            Text="{Binding Text, UpdateSourceTrigger=LostFocus}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                         <TextBlock
-                            Margin="16,0,4,0"
-                            VerticalAlignment="Center"
-                            Text="笔刷:" />
-                        <TextBox
-                            Width="40"
-                            local:NumericInput.Enabled="True"
-                            Text="{Binding BrushRadius, ElementName=ImageEditor, UpdateSourceTrigger=PropertyChanged}"
-                            ToolTip="笔刷半径（像素，正数）" />
-                        <Button
-                            Margin="10,0,0,0"
-                            Command="{Binding ClearSmearCommand}"
-                            Content="清除涂抹" />
+                            Margin="0,6,0,0"
+                            FontSize="11.5"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            Text="在列表或画布中选择一个 ROI 后可微调参数。"
+                            TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedRoi}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </StackPanel>
                 </Border>
-                <!--  图像编辑器：功能全部由控件 DP 提供，插件只做绑定与回传  -->
-                <h:ImageEdit
-                    x:Name="ImageEditor"
-                    ActiveRoi="{Binding CanvasActiveRoi, Mode=TwoWay}"
-                    DrawObjectList="{Binding CanvasRois}"
-                    HImage="{Binding DisplayImage, Mode=OneWay}"
-                    SmearDraw="{Binding SmearDraw, Mode=TwoWay}"
-                    SmearErase="{Binding SmearErase, Mode=TwoWay}" />
-            </DockPanel>
+
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- 输出：固定在左栏底部 -->
+                <Border
+                    Grid.Row="1"
+                    Margin="0,12,0,0"
+                    Padding="0,12,0,0"
+                    BorderBrush="{StaticResource DialogBorderBrush}"
+                    BorderThickness="0,1,0,0">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="输出" />
+                        <ComboBox
+                            Height="36"
+                            Margin="0,9,0,0"
+                            Style="{StaticResource DialogCombo}"
+                            ItemsSource="{StaticResource ViewIndexes}"
+                            SelectedItem="{Binding DisplayViewIndex}">
+                            <ComboBox.ToolTip>
+                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="ROI 结果发布到主界面几号视图窗口；选择「不显示」则运行时不发布" />
+                            </ComboBox.ToolTip>
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock>
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="{Binding StringFormat=窗口 {0}}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding}" Value="0">
+                                                        <Setter Property="Text" Value="不显示" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBlock Style="{StaticResource HelpTextStyle}" Text="0 = 不显示；1~9 对应主界面视图窗口。" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- ================= 右：ROI 编辑工作区 ================= -->
+        <Border
+            Grid.Column="1"
+            Background="{StaticResource DialogSurfaceBrush}"
+            BorderBrush="{StaticResource DialogBorderBrush}"
+            BorderThickness="1"
+            ClipToBounds="True"
+            CornerRadius="{StaticResource PluginCardCornerRadius}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="44" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="40" />
+                </Grid.RowDefinitions>
+
+                <!-- 预览头：标题 + 模式/ROI 数 + 适应窗口 / 1:1 -->
+                <Grid Grid.Row="0" Margin="10,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border
+                        Grid.Column="0"
+                        Width="26"
+                        Height="26"
+                        Background="{StaticResource DialogRowHoverBrush}"
+                        CornerRadius="7">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="12"
+                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                            Text="&#xf125;" />
+                    </Border>
+                    <TextBlock
+                        Grid.Column="1"
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="12.5"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                        Text="ROI 编辑画布" />
+                    <Grid
+                        Grid.Column="2"
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            FontSize="10.5"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            TextTrimming="CharacterEllipsis">
+                            <TextBlock.Text>
+                                <MultiBinding StringFormat="{}{0} · {1} 个 ROI">
+                                    <Binding Path="IsMaskPreview" Converter="{StaticResource PreviewModeLabel}" />
+                                    <Binding Path="RoiList.Count" />
+                                </MultiBinding>
+                            </TextBlock.Text>
+                        </TextBlock>
+                        <!--  ROI 编辑 chip：放在画布头（HwndHost 之外），不再叠在 ImageEdit 上 -->
+                        <Border
+                            Grid.Column="1"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center">
+                            <Border.Style>
+                                <Style TargetType="Border" BasedOn="{StaticResource CanvasChipStyle}">
+                                    <Style.Triggers>
+                                        <!--  与旧 overlay 一致：无图时不显示 ROI 编辑 chip  -->
+                                        <DataTrigger Binding="{Binding HImage, ElementName=ImageEditor}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,4,0"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="10"
+                                    Foreground="{StaticResource DialogAccentLightBrush}"
+                                    Text="&#xf125;" />
+                                <TextBlock Style="{StaticResource CanvasChipTextStyle}" Text="ROI 编辑" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                    <StackPanel
+                        Grid.Column="3"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
+                        <Button
+                            Style="{StaticResource ToolbarButtonStyle}"
+                            Click="FitWindow_Click"
+                            Content="&#xf065;">
+                            <Button.ToolTip>
+                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="适应窗口" />
+                            </Button.ToolTip>
+                        </Button>
+                        <Button
+                            Margin="2,0,0,0"
+                            Style="{StaticResource ToolbarTextButtonStyle}"
+                            Click="FitImage_Click"
+                            Content="1:1">
+                            <Button.ToolTip>
+                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="实际像素 1:1" />
+                            </Button.ToolTip>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <!-- 工具条：预览模式 + 排除模式；涂抹模式 + 笔刷 + 清除涂抹 -->
+                <Border
+                    Grid.Row="1"
+                    Padding="10,8"
+                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                    BorderThickness="0,0,0,1">
+                    <StackPanel>
+                        <WrapPanel>
+                            <Border Style="{StaticResource SegmentGroupStyle}">
+                                <StackPanel Orientation="Horizontal">
+                                    <!--  原图：OneWay 只做显示（避免组互斥回写打架），真值由"掩膜预览"单点写回  -->
+                                    <RadioButton
+                                        Content="原图"
+                                        GroupName="PreviewMode"
+                                        IsChecked="{Binding IsMaskPreview, Converter={StaticResource InverseBool}, Mode=OneWay}"
+                                        Style="{StaticResource SegmentRadioStyle}" />
+                                    <RadioButton
+                                        Content="掩膜预览"
+                                        GroupName="PreviewMode"
+                                        IsChecked="{Binding IsMaskPreview, Mode=TwoWay}"
+                                        Style="{StaticResource SegmentRadioStyle}" />
+                                </StackPanel>
+                            </Border>
+                            <CheckBox
+                                Margin="12,0,0,0"
+                                VerticalAlignment="Center"
+                                Content="排除模式（ROI 外有效）"
+                                FontSize="11.5"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                IsChecked="{Binding MaskInvert}" />
+                        </WrapPanel>
+
+                        <WrapPanel Margin="0,8,0,0">
+                            <Border Style="{StaticResource SegmentGroupStyle}">
+                                <StackPanel Orientation="Horizontal">
+                                    <!--  涂擦工具条：模式/笔刷是控件自有交互态，直连 ImageEdit 的 DP（ElementName 绑定，不经 VM）  -->
+                                    <RadioButton
+                                        Content="正常"
+                                        GroupName="SmearMode"
+                                        IsChecked="{Binding SmearMode, ElementName=ImageEditor, Converter={StaticResource SmearModeEq}, ConverterParameter=None, Mode=TwoWay}"
+                                        Style="{StaticResource SegmentRadioStyle}" />
+                                    <RadioButton
+                                        Content="绘制涂抹"
+                                        GroupName="SmearMode"
+                                        IsChecked="{Binding SmearMode, ElementName=ImageEditor, Converter={StaticResource SmearModeEq}, ConverterParameter=Draw, Mode=TwoWay}"
+                                        Style="{StaticResource SegmentRadioStyle}" />
+                                    <RadioButton
+                                        Content="擦除涂抹"
+                                        GroupName="SmearMode"
+                                        IsChecked="{Binding SmearMode, ElementName=ImageEditor, Converter={StaticResource SmearModeEq}, ConverterParameter=Erase, Mode=TwoWay}"
+                                        Style="{StaticResource SegmentRadioStyle}" />
+                                </StackPanel>
+                            </Border>
+                            <StackPanel
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,4,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text="笔刷" />
+                                <TextBox
+                                    Width="48"
+                                    Height="28"
+                                    Padding="4,0"
+                                    VerticalContentAlignment="Center"
+                                    HorizontalContentAlignment="Right"
+                                    FontFamily="{StaticResource PluginMonoFontFamily}"
+                                    FontSize="11"
+                                    local:NumericInput.Enabled="True"
+                                    Text="{Binding BrushRadius, ElementName=ImageEditor, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="笔刷半径（像素，正数）" />
+                                <TextBlock
+                                    Margin="4,0,8,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text="px" />
+                                <Button
+                                    Height="28"
+                                    Command="{Binding ClearSmearCommand}"
+                                    Content="清除涂抹"
+                                    Style="{StaticResource LocalButtonStyle}" />
+                                <!--  涂抹态文字：放在工具条（HwndHost 之外），随 SmearMode 显示  -->
+                                <TextBlock
+                                    Margin="10,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogAccentTextBrush}">
+                                    <TextBlock.Text>
+                                        <Binding ElementName="ImageEditor" Path="BrushRadius" StringFormat="绘制涂抹 · 笔刷 {0} px" />
+                                    </TextBlock.Text>
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SmearMode, ElementName=ImageEditor}" Value="{x:Static h:SmearModeType.Draw}">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock
+                                    Margin="10,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogWarningTextBrush}">
+                                    <TextBlock.Text>
+                                        <Binding ElementName="ImageEditor" Path="BrushRadius" StringFormat="擦除涂抹 · 笔刷 {0} px" />
+                                    </TextBlock.Text>
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SmearMode, ElementName=ImageEditor}" Value="{x:Static h:SmearModeType.Erase}">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- 画布：ImageEdit 常驻；无图时只在画布上方显示提示条（不折叠控件） -->
+                <Border
+                    Grid.Row="2"
+                    Background="{StaticResource PluginPreviewCanvasBrush}"
+                    ClipToBounds="True">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0">
+                            <Border.Style>
+                                <Style TargetType="Border" BasedOn="{StaticResource EmptyHintBarStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HImage, ElementName=ImageEditor}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <DockPanel>
+                                <TextBlock
+                                    DockPanel.Dock="Left"
+                                    Margin="0,1,6,0"
+                                    VerticalAlignment="Top"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogWarningTextBrush}"
+                                    Text="&#xf05a;" />
+                                <TextBlock
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogWarningTextBrush}"
+                                    Text="尚未载入图像：在画布上右键 → 打开图片，或接入上游图像。"
+                                    TextWrapping="Wrap" />
+                            </DockPanel>
+                        </Border>
+
+                        <Grid Grid.Row="1">
+                            <!--
+                                图像编辑器：功能全部由控件 DP 提供，插件只做绑定与回传。
+                                必须常驻：不得用 Visibility=Collapsed 显隐已设图的控件（会丢重绘）。
+                            -->
+                            <h:ImageEdit
+                                x:Name="ImageEditor"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Stretch"
+                                ActiveRoi="{Binding CanvasActiveRoi, Mode=TwoWay}"
+                                DrawObjectList="{Binding CanvasRois}"
+                                HImage="{Binding DisplayImage, Mode=OneWay}"
+                                SmearDraw="{Binding SmearDraw, Mode=TwoWay}"
+                                SmearErase="{Binding SmearErase, Mode=TwoWay}" />
+
+                            <!--
+                                画布 overlay 只允许放纯 WPF 提示条（在 ImageEdit 之上方的独立行）；
+                                HALCON 是 HwndHost，任何叠在它上面的 WPF 内容都不可靠，
+                                因此「ROI 编辑」chip 已移到画布头，涂抹态文字在工具条里。
+                            -->
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- 状态栏：选中 ROI + 数量；本插件没有 StatusLevel，不伪造三档 -->
+                <Border
+                    Grid.Row="3"
+                    Padding="12,0"
+                    Background="{StaticResource DialogSurfaceBrush}"
+                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                    BorderThickness="0,1,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Ellipse Grid.Column="0" Margin="0,0,8,0" Style="{StaticResource RoiStatusDotStyle}" />
+                        <TextBlock
+                            Grid.Column="1"
+                            Style="{StaticResource RoiStatusTextStyle}"
+                            Text="{Binding SelectedRoi, Converter={StaticResource RoiStatus}}" />
+                        <TextBlock
+                            Grid.Column="2"
+                            Margin="12,0,0,0"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource PluginMonoFontFamily}"
+                            FontSize="10.5"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            Text="{Binding RoiList.Count, StringFormat=共 {0} 个 ROI}"
+                            Typography.NumeralAlignment="Tabular" />
+                    </Grid>
+                </Border>
+            </Grid>
         </Border>
     </Grid>
 </UserControl>

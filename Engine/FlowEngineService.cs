@@ -118,8 +118,8 @@ namespace VisionMaster.Services
             IResourceLockService resourceLocks,
             ICameraProvider cameras,
             IMotionProvider motions = null,   // 夹具可省略：插件侧拿 NullMotionProvider（取卡即失败并说明原因）
-            IIoProvider ios = null,           // 夹具可省略：插件侧拿 NullIoProvider
-            IoOutputLeaseRegistry ioLeases = null) // 夹具可省略：无租约时流程写入不互斥
+            WriteLeaseRegistry writeLeases = null, // 夹具可省略：无租约时流程写入不互斥
+            ICommVariableAccess comms = null) // 夹具可省略：插件侧拿 NullCommVariableAccess（立刻读写即失败并说明原因）
         {
             _runtimeManager = runtimeManager ?? throw new ArgumentNullException(nameof(runtimeManager));
             _logService = logService ?? throw new ArgumentNullException(nameof(logService));
@@ -132,8 +132,10 @@ namespace VisionMaster.Services
             // 运动设备同上 —— 这里不给，运动步骤的 context.Motions 永远是 NullMotionProvider，
             // 现象是"明明选了卡、执行时却报找不到运动卡"（此前正是这个缺口）。
             _motions = motions ?? NullMotionProvider.Instance;
-            _ios = ios ?? NullIoProvider.Instance;
-            _ioLeases = ioLeases;
+            _writeLeases = writeLeases;
+            // 通讯变量立刻读写能力：缺省是空实现（调用即失败并说明原因），
+            // 与相机/运动/流程调用器同一口径，夹具不必造假的通讯层。
+            _comms = comms ?? NullCommVariableAccess.Instance;
         }
 
         /// <summary>相机仓库：每次执行都递给 ExecutionContext，插件据此取相机（见 IExecutionContext.Cameras）</summary>
@@ -142,11 +144,11 @@ namespace VisionMaster.Services
         /// <summary>运动设备仓库：同上（见 IExecutionContext.Motions）。运动步骤按地址从这里取卡</summary>
         private readonly IMotionProvider _motions;
 
-        /// <summary>IO 设备仓库：同上（见 IExecutionContext.Ios）。</summary>
-        private readonly IIoProvider _ios;
+        /// <summary>通讯变量立刻读写入口：每次执行都递给 ExecutionContext（见 IExecutionContext.Comms）</summary>
+        private readonly ICommVariableAccess _comms;
 
-        /// <summary>IO 输出写租约：流程执行期间按 owner 持有，收尾释放。</summary>
-        private readonly IoOutputLeaseRegistry? _ioLeases;
+        /// <summary>写租约：流程执行期间按 owner 持有，收尾释放。</summary>
+        private readonly WriteLeaseRegistry? _writeLeases;
 
         /// <summary>
         /// 会话启动锁的资源名
@@ -372,16 +374,16 @@ namespace VisionMaster.Services
                         }
 
                         // 每轮一个写入作用域：owner 带轮次，收尾统一释放该 owner 的输出租约。
-                        using var writeScope = IoWriteScope.Begin(
+                        using var writeScope = WriteScope.Begin(
                             $"flow:{session.FlowName}/{session.SessionID:N}",
-                            owner => _ioLeases?.ReleaseAll(owner));
+                            owner => _writeLeases?.ReleaseAll(owner));
 
                         var context = new ExecutionContext(_logService, session, _workspaceManager, token)
                         {
                             Cameras = _cameras,
                             Motions = _motions,
-                            Ios = _ios,
-                            FlowInvoker = FlowInvoker
+                            FlowInvoker = FlowInvoker,
+                            Comms = _comms
                         };
                         // 这一轮开始即广播（画布据此清空/覆盖上一轮的图，见 FlowRunStarted 的注释）
                         NotifyFlowRunStarted(session);
@@ -552,16 +554,16 @@ namespace VisionMaster.Services
                 {
                     // 写入作用域：本次执行期间所有 IO 输出写入都以该 owner 持有租约；
                     // 作用域结束时自动释放（分支异常退出也不会漏）。
-                    using var writeScope = IoWriteScope.Begin(
+                    using var writeScope = WriteScope.Begin(
                         $"flow:{session.FlowName}/{session.SessionID:N}",
-                        owner => _ioLeases?.ReleaseAll(owner));
+                        owner => _writeLeases?.ReleaseAll(owner));
 
                     var context = new ExecutionContext(_logService, session, _workspaceManager, token)
                     {
                         Cameras = _cameras,
                         Motions = _motions,
-                        Ios = _ios,
-                        FlowInvoker = FlowInvoker
+                        FlowInvoker = FlowInvoker,
+                        Comms = _comms
                     };
                     // 与连续运行同一语义：一轮开始/结束各广播一次
                     NotifyFlowRunStarted(session);

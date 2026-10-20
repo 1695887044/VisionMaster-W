@@ -14,7 +14,7 @@
     <UserControl.Resources>
         <ui:BindingProxy x:Key="MyViewModelProxy" Data="{Binding}" />
     </UserControl.Resources>
-    <Grid Background="#FFFFFF">
+    <Grid Background="{StaticResource DialogSurfaceBrush}">
         <ListBox
             x:Name="FlowList"
             HorizontalContentAlignment="Stretch"
@@ -24,10 +24,15 @@
             PreviewMouseRightButtonUp="FlowList_PreviewMouseRightButtonUp"
             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
             SelectedItem="{Binding SelectFlow}">
+            <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Columns="2" />
+                </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem">
                     <Setter Property="Padding" Value="0" />
-                    <Setter Property="Margin" Value="0,2,0,2" />
+                    <Setter Property="Margin" Value="0,0,6,6" />
                     <Setter Property="Background" Value="Transparent" />
                     <Setter Property="BorderThickness" Value="0" />
                     <Setter Property="Template">
@@ -35,17 +40,21 @@
                             <ControlTemplate TargetType="ListBoxItem">
                                 <Border
                                     x:Name="ItemBorder"
-                                    Padding="10,8"
-                                    Background="{TemplateBinding Background}"
-                                    CornerRadius="4">
+                                    MinHeight="40"
+                                    Padding="8,0"
+                                    Background="{StaticResource DialogSurfaceBrush}"
+                                    BorderBrush="{StaticResource DialogBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
                                     <ContentPresenter />
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="ItemBorder" Property="Background" Value="#F0F4F8" />
+                                        <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
                                     </Trigger>
                                     <Trigger Property="IsSelected" Value="True">
-                                        <Setter TargetName="ItemBorder" Property="Background" Value="#E5F1FB" />
+                                        <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource LogicIfSoftBrush}" />
+                                        <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{StaticResource LogicIfBorderBrush}" />
                                         <Setter Property="TextElement.FontWeight" Value="SemiBold" />
                                     </Trigger>
                                 </ControlTemplate.Triggers>
@@ -56,39 +65,60 @@
             </ListBox.ItemContainerStyle>
             <ListBox.ItemTemplate>
                 <DataTemplate>
-                    <!--  精简三列：图标 + 名称 + 禁用小标签（描述与完整信息进 Tooltip）  -->
+                    <!--  flow-logic 流程胶囊：状态点 + 名称 + 步数；描述/完整信息进 Tooltip  -->
                     <Grid Background="Transparent" ToolTip="{Binding Description}">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="35" />
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock
-                            x:Name="FlowIcon"
+                        <Ellipse
+                            x:Name="FlowDot"
                             Grid.Column="0"
-                            HorizontalAlignment="Center"
+                            Width="7"
+                            Height="7"
+                            Margin="0,0,6,0"
                             VerticalAlignment="Center"
-                            FontFamily="{StaticResource Icon}"
-                            FontSize="16"
-                            Foreground="#007ACC"
-                            Text="&#xf1c9;" />
+                            Fill="{StaticResource FlowCanvasSuccessBrush}" />
                         <TextBlock
                             x:Name="NameText"
                             Grid.Column="1"
-                            Margin="5,0,0,0"
                             VerticalAlignment="Center"
-                            FontSize="14"
-                            Foreground="#333333"
+                            FontSize="11.5"
+                            Foreground="{StaticResource ScadaTextBrush}"
                             Text="{Binding FlowName}"
                             TextTrimming="CharacterEllipsis" />
                         <TextBlock
-                            x:Name="DisabledTag"
+                            x:Name="CountText"
                             Grid.Column="2"
                             Margin="6,0,0,0"
                             VerticalAlignment="Center"
-                            FontSize="12"
-                            Foreground="#F56C6C"
-                            Text="已禁用"
+                            FontFamily="Consolas"
+                            FontSize="9.5"
+                            Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                            Text="{Binding Steps.Count}" />
+                        <TextBlock
+                            x:Name="DisabledTag"
+                            Grid.Column="3"
+                            Margin="5,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="9"
+                            Foreground="{StaticResource DialogDangerBrush}"
+                            Text="禁用"
+                            Visibility="Collapsed" />
+                        <!--  运行标记：与「禁用」同格（禁用流程不可能在跑，两者互斥）。
+                              真值来自 FlowModel.RunState——ShellViewModel 按会话状态镜像它，
+                              涵盖界面运行 / 单流程运行 / HTTP / 定时触发，所以这里不必认识会话。  -->
+                        <TextBlock
+                            x:Name="RunningTag"
+                            Grid.Column="3"
+                            Margin="5,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="9"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource FlowCanvasSuccessBrush}"
+                            Text="运行中"
                             Visibility="Collapsed" />
                         <Grid.ContextMenu>
                             <ContextMenu FontFamily="{StaticResource Icon}">
@@ -156,11 +186,29 @@
                     </Grid>
                     <!--  禁用态放 DataTemplate.Triggers：本仓库实测 ControlTemplate.Triggers 里的 DataTrigger 对模板内元素静默失效  -->
                     <DataTemplate.Triggers>
+                        <!--  运行中：名称加粗 + 右侧「运行中」标记。
+                              状态点表达的是"启用 / 禁用"（绿点 / 灰点 + 禁用标签），不再兼任运行态——
+                              两者语义不同：一个说"这条流程能不能跑"，一个说"它现在是不是在跑"。  -->
+                        <DataTrigger Binding="{Binding RunState}" Value="Running">
+                            <Setter TargetName="NameText" Property="FontWeight" Value="SemiBold" />
+                            <Setter TargetName="RunningTag" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <!--  已暂停：同位置换「已暂停」，点与文字转主色（与运行条的暂停色一致）  -->
+                        <DataTrigger Binding="{Binding RunState}" Value="Paused">
+                            <Setter TargetName="NameText" Property="FontWeight" Value="SemiBold" />
+                            <Setter TargetName="FlowDot" Property="Fill" Value="{StaticResource DialogAccentBrush}" />
+                            <Setter TargetName="RunningTag" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="RunningTag" Property="Text" Value="已暂停" />
+                            <Setter TargetName="RunningTag" Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+                        </DataTrigger>
                         <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                            <Setter TargetName="FlowIcon" Property="Foreground" Value="#C0C4CC" />
-                            <Setter TargetName="NameText" Property="Foreground" Value="#909399" />
+                            <Setter TargetName="FlowDot" Property="Fill" Value="{StaticResource ScadaDisabledTextBrush}" />
+                            <Setter TargetName="NameText" Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
                             <Setter TargetName="NameText" Property="TextDecorations" Value="Strikethrough" />
+                            <Setter TargetName="CountText" Property="Foreground" Value="{StaticResource ScadaFaintTextBrush}" />
                             <Setter TargetName="DisabledTag" Property="Visibility" Value="Visible" />
+                            <!--  禁用流程不可能在跑；万一模型里留着旧的 Running 镜像，也不许和「禁用」挤在同一格  -->
+                            <Setter TargetName="RunningTag" Property="Visibility" Value="Collapsed" />
                         </DataTrigger>
                     </DataTemplate.Triggers>
                 </DataTemplate>

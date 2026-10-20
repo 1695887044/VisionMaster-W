@@ -164,9 +164,9 @@
             <Button
                 Grid.Column="1"
                 Command="{Binding OpenParametersCommand}"
-                Content="打开模块参数"
+                Content="打开步骤参数"
                 Style="{StaticResource HitSecondaryButton}"
-                ToolTip="查看命中步骤的参数（与流程栏「模块参数」同一入口）" />
+                ToolTip="查看命中步骤的参数（与流程栏「步骤参数」同一入口）" />
         </Grid>
 
         <!--  「本次运行不再提示」：断点/单步照常停，只是不再弹本窗；随新一轮运行自动复位  -->

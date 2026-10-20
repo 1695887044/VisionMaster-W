@@ -37,6 +37,7 @@ namespace Plugin.CreateRoi.Models
                 _shapeType = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(DisplayText));
+                OnPropertyChanged(nameof(ShapeTypeCN));
                 // 形状变化 → ParamNames 变化 → 重建 entry 集合
                 RebuildParamEntries();
                 OnPropertyChanged(nameof(ParamEntries));

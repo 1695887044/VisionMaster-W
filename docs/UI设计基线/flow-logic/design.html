@@ -299,7 +299,7 @@
     border:1px solid transparent;
     box-shadow:inset 2px 0 0 var(--branch,#6366F1);
   }
-  .tree-branch:hover{ filter:brightness(.985); }
+  .tree-branch:hover{ background:var(--surface-2); }
   .tree-branch.is-running{
     border-color:var(--run);
     background:#EFF6FF;
@@ -569,8 +569,7 @@
     position:absolute; left:12px; bottom:12px; z-index:4;
     display:flex; align-items:center; gap:12px;
     padding:6px 9px; border-radius:7px;
-    background:rgba(255,255,255,.88); border:1px solid var(--border);
-    backdrop-filter:blur(4px);
+    background:rgba(255,255,255,.96); border:1px solid var(--border);
   }
   .legend span{ display:inline-flex; align-items:center; gap:5px; font-size:9px; color:var(--text-2); white-space:nowrap; }
   .legend i{ display:inline-block; width:20px; height:0; border-top:1.5px solid #3B82F6; }
@@ -745,6 +744,8 @@
   .mini-node .node-sub{ display:block; font-size:8px; color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .mini-node .node-op{ height:12px; font-size:7px; }
   .detail-lane-body{ padding:6px; }
+  .detail-lane-body.horizontal{ display:flex; gap:5px; align-items:flex-start; }
+  .detail-lane-body.horizontal .mini-node{ flex:1; min-width:0; margin-bottom:0; }
   .lane-drop{
     position:absolute; left:8px; right:8px; bottom:8px; height:24px;
     display:flex; align-items:center; justify-content:center;
@@ -1313,9 +1314,11 @@
                   <path class="wire" d="M836,245 H852 V301 H868" marker-end="url(#arr-data)"/>
                   <text class="wire-label" x="840" y="240">Width</text>
                   <path class="wire" d="M1032,245 H1048 V301 H1064" marker-end="url(#arr-data)"/>
-                  <text class="wire-label" x="1036" y="240">Area</text>
-                  <path class="wire" d="M1228,245 H1244 V390 H1056 V301 H1064" marker-end="url(#arr-data)"/>
-                  <text class="wire-label" x="1240" y="270">Text</text>
+                  <text class="wire-label" x="1036" y="240">MaxArea</text>
+                  <path class="wire" d="M1228,301 H1236 V390 H1056 V357 H1064" marker-end="url(#arr-data)"/>
+                  <text class="wire-label" x="1200" y="330">LT</text>
+                  <path class="wire" d="M1228,245 H1248 V390 H1056 V301 H1064" marker-end="url(#arr-data)"/>
+                  <text class="wire-label" x="1244" y="270">Text</text>
 
                   <!-- Case 行内顺序 -->
                   <path class="wire order" d="M262,560 H274 M424,560 H436" marker-end="url(#arr-order)"/>
@@ -1445,15 +1448,16 @@
                   <span class="port out"></span>
                 </div>
                 <div class="flow-node node-xs" style="left:868px;top:278px;--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+                  <span class="node-icon"><svg class="icon"><use href="#i-gauge"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">数值比较_3</span><span class="node-op">LT</span></span><span class="node-sub">MaxArea &lt; 500</span></span>
+                  <span class="node-state run"></span><span class="node-time">0.2 ms</span>
+                  <span class="port in"></span><span class="port out"></span>
+                </div>
+                <div class="flow-node node-xs" style="left:868px;top:334px;--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
                   <span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span>
-                  <span class="node-main"><span class="node-line"><span class="node-title">逻辑运算_2</span><span class="node-op">OR</span></span><span class="node-sub">缺陷 A || 缺陷 B</span></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">逻辑运算_2</span><span class="node-op">OR</span></span><span class="node-sub">面积超限 || 缺陷 B</span></span>
                   <span class="node-state run"></span><span class="node-time">0.1 ms</span>
                   <span class="port in"></span>
-                </div>
-                <div class="flow-node node-xs" style="left:868px;top:334px;--cat:#64748B;--cat-soft:#F8FAFC;--cat-border:#E2E8F0">
-                  <span class="node-icon"><svg class="icon"><use href="#i-upload"></use></svg></span>
-                  <span class="node-main"><span class="node-line"><span class="node-title">结果上报_2</span></span><span class="node-sub">结果上报 · 缺陷</span></span>
-                  <span class="node-state run"></span><span class="node-time">—</span>
                 </div>
 
                 <div class="flow-node node-xs" style="left:1064px;top:222px;--cat:#3B82F6;--cat-soft:#EFF6FF;--cat-border:#BFDBFE">
@@ -2040,11 +2044,12 @@
             </div>
             <div class="lane" style="left:12px;top:56px;width:582px;height:192px;--lane-bg:#FFFBEB;--lane-border:#FDE68A;--branch:#F59E0B">
               <div class="lane-head"><span class="lane-badge">BODY</span><span class="lane-name">循环体 · 超时 5000 ms</span><span class="lane-count">3 算子</span></div>
-              <div class="detail-lane-body">
+              <div class="detail-lane-body horizontal">
                 <div class="mini-node" style="--cat:#6366F1;--cat-soft:#EEF2FF;--cat-border:#C7D2FE"><span class="node-icon"><svg class="icon"><use href="#i-wait"></use></svg></span><span><span class="node-title">等待_0</span><span class="node-sub">DI_到位 == 1 · 5000 ms</span></span></div>
                 <div class="mini-node" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE"><span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span><span><span class="node-title">逻辑运算_4</span><span class="node-op">NAND</span></span></div>
                 <div class="mini-node" style="--cat:#6366F1;--cat-soft:#EEF2FF;--cat-border:#C7D2FE"><span class="node-icon"><svg class="icon"><use href="#i-break"></use></svg></span><span><span class="node-title">Break</span><span class="node-sub">退出循环</span></span></div>
               </div>
+              <div class="lane-note"><svg class="icon" style="width:10px;height:10px"><use href="#i-warning"></use></svg><span>超时 5000 ms → <b>TimedOut = true</b> → 走异常分支；到位则 Break 退出</span></div>
             </div>
             <div class="container-order">WHILE</div>
           </div>
@@ -2067,11 +2072,12 @@
             </div>
             <div class="lane" style="left:12px;top:54px;width:576px;height:120px;--lane-bg:#ECFDF5;--lane-border:#A7F3D0;--branch:#10B981">
               <div class="lane-head"><span class="lane-badge">BODY</span><span class="lane-name">循环体 · Index →</span><span class="lane-count">3 算子</span></div>
-              <div class="detail-lane-body">
+              <div class="detail-lane-body horizontal">
                 <div class="mini-node" style="--cat:#65A30D;--cat-soft:#F7FEE7;--cat-border:#D9F99D"><span class="node-icon"><svg class="icon"><use href="#i-motion"></use></svg></span><span><span class="node-title">轴运动_0</span><span class="node-sub">工位 Index</span></span></div>
                 <div class="mini-node" style="--cat:#65A30D;--cat-soft:#F7FEE7;--cat-border:#D9F99D"><span class="node-icon"><svg class="icon"><use href="#i-clock"></use></svg></span><span><span class="node-title">等待到位_0</span><span class="node-sub">2.4 s</span></span></div>
                 <div class="mini-node" style="--cat:#14B8A6;--cat-soft:#F0FDFA;--cat-border:#99F6E4"><span class="node-icon"><svg class="icon"><use href="#i-var"></use></svg></span><span><span class="node-title">变量赋值_1</span><span class="node-sub">Index</span></span></div>
               </div>
+              <div class="lane-note"><svg class="icon" style="width:10px;height:10px"><use href="#i-loop"></use></svg><span>循环 4 次 · Index 0 → 3；每轮依次执行轴运动 → 等待到位 → 变量赋值</span></div>
             </div>
             <div class="container-order">FOR</div>
           </div>
@@ -2104,8 +2110,8 @@
               <div class="lane-head"><span class="lane-badge">B</span><span class="lane-name">分支 2 · 缺陷</span><span class="lane-count">3</span></div>
               <div class="detail-lane-body">
                 <div class="mini-node" style="--cat:#EF4444;--cat-soft:#FEF2F2;--cat-border:#FECACA"><span class="node-icon"><svg class="icon"><use href="#i-blob"></use></svg></span><span><span class="node-title">Blob 缺陷检测_0</span></span></div>
+                <div class="mini-node" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE"><span class="node-icon"><svg class="icon"><use href="#i-gauge"></use></svg></span><span><span class="node-title">数值比较_3</span><span class="node-op">LT</span></span></div>
                 <div class="mini-node" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE"><span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span><span><span class="node-title">逻辑运算_2</span><span class="node-op">OR</span></span></div>
-                <div class="mini-node" style="--cat:#64748B;--cat-soft:#F8FAFC;--cat-border:#E2E8F0"><span class="node-icon"><svg class="icon"><use href="#i-upload"></use></svg></span><span><span class="node-title">结果上报_2</span></span></div>
               </div>
             </div>
             <div class="lane" style="left:404px;top:56px;width:188px;height:200px;--lane-bg:#F0F9FF;--lane-border:#BAE6FD;--branch:#0EA5E9">

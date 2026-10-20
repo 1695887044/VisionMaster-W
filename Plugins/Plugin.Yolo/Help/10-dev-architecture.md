@@ -4,7 +4,7 @@
 
 源码：`Plugins\Plugin.Yolo\YoloPlugin.cs`（插件类兼视图模型）、`YoloEngine.cs`（预处理与推理编排）、
 `YoloPostProcess.cs`（布局识别、解码、坐标换算、NMS，纯函数）、`YoloSession.cs`（进程级会话缓存 + 引用计数）、
-`YoloCrop.cs`（按框裁剪与夹取）。
+`YoloCrop.cs`（按框裁剪与夹取）、`YoloPreviewState.cs`（配置界面状态枚举与计数映射）。
 
 ## 一 分层：把"会静默出错的数学"和"插件壳"分开
 
@@ -76,8 +76,34 @@ ORT 日志级别压到 ERROR（默认 WARNING 会刷 `Initializer xxx appears in
 只有 Row 为负才抛 #1301，所以指望 HALCON 兜底会得到一张"尺寸看着合理、内容错位"的图。
 夹取发生时通过 `note` 回传说明，由插件写 `Logger.Warn($"YOLO 最佳目标裁剪：{note}")`。
 
-## 八 插件壳里的一条时序差异
+## 八 配置界面状态契约（YO3）
 
-`YoloPlugin.EnsureSession()` 内部会发 `OnPropertyChanged(nameof(ModelSummary))`；
-`DlClassifyPlugin` **刻意不在** `EnsureSession` 里发通知（该方法被属性 getter 调用，等于自我重入，运行期还会从非 UI 线程走到）。
-两边都能工作，但移植时别把其中一种写法"统一"成另一种。
+配置视图的判据**只认枚举状态**，不再从 `ModelSummary` / `ResultSummary` / `Hint` 的中文文案倒推——
+文案是给人看的，改一个字或一个标点就会让 `Contains("失败")` 这类判据静默失效。
+状态定义在 `YoloPreviewState.cs`：
+
+| 状态 | 取值 | 写入口 | 界面消费 |
+| --- | --- | --- | --- |
+| `ModelState` | `NotLoaded / Ready / Failed` | `RefreshModelState()` | 模型信息卡、预览错误态 |
+| `PreviewState` | `Idle / Ready / Empty / Error` | `ShowUpstreamImage()` / `TryPreviewDetect()` | 结果卡配色、只读角标、空态/错误态 |
+
+- `RefreshModelState()` 是模型态的**唯一**写入口：`OnModelPathChanged`、`Initialize(stepData)`、`OnViewLoaded` 都调它。
+  它先 `EnsureSession()`，再按"有会话 = `Ready` / 路径为空 = `NotLoaded` / 其余 = `Failed`"写 `ModelState`，
+  最后发一次 `ModelSummary` 通知。
+- `EnsureSession()` **不再**发 `ModelSummary` 通知（该方法会被 `ModelSummary` 的 getter 调到，在 getter 里发通知等于自我重入）。
+  这是与旧版的差异；刷新统一由明确入口驱动。
+- `ShowUpstreamImage()`：成功 → `PreviewState = Idle` 且 `ResultSummary = "尚未试算"`（换图后旧结论作废）；
+  失败（拷贝图抛异常）→ `PreviewState = Error`，`Hint` 保留原始错误。
+- `TryPreviewDetect()`：无图 → `Idle`；失败 → `Error`，**只有** `_sessionError` 非空（路径/模型/task 级失败）才把
+  `ModelState` 置 `Failed`；成功 → `YoloPreviewStateRules.FromDetectionCount(result.Count)`（0 → `Empty`，>0 → `Ready`），
+  `ResultSummary` 的原文案一字不改。
+- `ModelState` / `PreviewState` 都是只读运行态（`private set`），**不是 `[StepConfig]`**，`OnConfirm` 不会写进 `InputValues`。
+- 视图侧对应关系：`ResultCardStyle` / `ResultTextStyle` 的 Error/Empty 配色、`StatusTextStyle` 的红色提示、
+  只读角标、空态、错误态全部改为 `DataTrigger` 绑枚举（`{x:Static local:YoloPreviewState.*}` / `YoloModelState.*`）。
+  两个旧转换器 `ResultStateConverter` / `YoloStateConverter` 已删除。
+
+## 九 移植到其它插件时的注意点
+
+`DlClassifyPlugin` 与本插件现在采用**同一套**状态契约（`DlModelState` + `RefreshModelState`），
+差别只在分类没有"0 目标"这一档，所以不需要 `PreviewState`。
+移植时不要把状态判断重新写回视图：视图只允许读状态，写状态一律留在插件（`RefreshModelState` / 试算方法）。

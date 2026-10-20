@@ -69,4 +69,16 @@
     <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
+  <!--
+      列头步骤号（设计基线 v1 的 ①②③）：20×20 圆形浅主色底。
+      三处列头重复使用，按 R141 下沉到共享字典；文字色由使用方给 DialogAccentTextBrush。
+  -->
+  <Style x:Key="DialogStepBadge" TargetType="Border">
+    <Setter Property="Width" Value="20" />
+    <Setter Property="Height" Value="20" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+  </Style>
 </ResourceDictionary>

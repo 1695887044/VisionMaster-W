@@ -73,16 +73,20 @@
 
 > 变量表里的**名字 = 端口名 = 脚本里的键**，三者是同一个字符串。
 
-## 1.2 五条设计要点（类注释原文）
+## 1.2 七条设计要点（类注释原文）
 
 ```
 - 动态输入端口必须在 ApplyConfigValues（编译器的 LinkPorts 之前）重建，否则按名连线失败；
 - 动态输出端口走 IDynamicOutputProvider.RebuildDynamicOutputs 范式，并回写 StepData 输出快照；
 - 脚本正文按内容 SHA256 指纹缓存已编译委托，内容不变零成本复用；
 - 失败契约：脚本抛异常 = 失败；Context.Fail() = 显式失败；返回值不作为状态；
-- "改全局变量"的正门：写已绑定到全局变量的动态输出端口
-  （由引擎在连线时落回 Workspace.GlobalVariables），
-  运行期临时变量读写走 context.LocalVariables。
+- 输入/输出 = 数据流边（端口/连线）；全局与系统变量 = 命名状态，走「共享变量」声明表：
+  按 VariableId 寻址（改名不断链），脚本用 Context.GetGlobal/SetGlobal 读写；
+  声明表同时是**编译期可见的写集合**（并行写冲突检查靠它），系统变量恒只读。
+  只把上游结果落全局、脚本不需要读值时，仍可走"输出行 + 下游「变量赋值」"。
+- 变量名 = 端口名 = 连线键：改名/删行必须同步迁移或清理 StepData.LinkedSources，
+  否则会留下"没有同名端口"的孤儿键，FlowCompiler 直接判整条流程编译失败。
+- 打开配置时对变量表/连线/InputValues 拍快照，取消（OnCancel）才能原样还原。
 ```
 
 ## 1.3 脚本必须是"顶层语句"
@@ -283,22 +287,27 @@ Context.Info("C# 脚本执行完成");
 
 ## 3.4 类型选择速查
 
-| 你想接/出什么 | 选什么类型 |
+界面下拉显示中文（走 `[Display(Name)]`），`.vms` 里存的是枚举成员名。
+
+| 你想接/出什么 | 选什么（界面显示 / 成员名） |
 |---|---|
-| 整数 | `Int` |
-| 小数 | `Double` |
-| 真假 | `Bool` |
-| 文本 | `String` |
-| 图像 | `HImage` |
-| 区域 | `HRegion` |
-| 轮廓/XLD | `HXld` |
-| HALCON 元组 | `HTuple` |
-| 不确定 | `Object` |
+| 整数 | 整数 / `Int` |
+| 小数 | 浮点数 / `Double` |
+| 真假 | 布尔 / `Bool` |
+| 文本 | 字符串 / `String` |
+| 图像 | Halcon 图像 / `HImage` |
+| 区域 | Halcon 区域 / `HRegion` |
+| 轮廓/XLD | Halcon 轮廓 / `HXld`（CLR 类型是 `HXLDCont`） |
+| HALCON 元组 | Halcon 元组 / `HTuple` |
+| 不确定 | 任意对象 / `Object` |
 
 ## 3.5 参数调节速查表
 
 | 现象 | 处理 |
 |---|---|
+| 改名后连线/手填值没了 | 已修（2026-10-20）：**输入**变量改名会自动迁移连线键与手填值；**输出**变量改名只重建本步骤端口，下游要重选（下游存的是端口名） |
+| 编译报"没有名为 X 的输入端口" | 历史改名/删行留下的孤儿连线键：打开本步骤配置点一次「确定」即清理（`OnConfirm` → `RemoveOrphanLinks`）；或删掉步骤重建 |
+| 点「取消」后改动还在 | 已修（2026-10-20）：打开配置时对变量表/连线/InputValues 拍快照，取消原样还原 |
 | 端口没出现 | 在变量表里加行；改了类型/名字会自动重建端口 |
 | `The type or namespace name 'HImage' could not be found` | 引用集问题（**已由整目录扫描修掉**）。若仍出现，确认 `HalconDotNet.dll` 在宿主目录 |
 | 写输出端口失败 | 类型不符。`catch` 会包成 `写输出端口[Name]失败：…` |
@@ -343,7 +352,7 @@ Context.Info("C# 脚本执行完成");
 **没有**。返回值不作为状态。要判失败请用 `Context.Fail()`。
 
 **Q5** 能改全局变量吗？
-能——**写已绑定到全局变量的动态输出端口**（引擎在连线时落回 `Workspace.GlobalVariables`）。运行期临时变量走 `context.LocalVariables`（即 `Context.GetVar/SetVar`）。
+能——在左侧「共享变量」表声明它（方向=读写），脚本里 `Context.SetGlobal("别名", 值)`；读用 `Context.GetGlobal<T>("别名")`。声明按变量 `VariableId` 寻址，变量管理里改名不断链。系统变量恒只读（方向锁定）。不想在脚本里读值、只把上游结果落全局时，也可以走"输出行 + 下游「变量赋值」"。运行期临时变量走 `context.LocalVariables`（即 `Context.GetVar/SetVar`）。
 
 **Q6** 有超时吗？
 **没有超时配置**，只透传 `CancellationToken`。脚本死循环会卡住流程，请自行保护。
@@ -457,7 +466,8 @@ var d = (!cex.Diagnostics.IsDefault && cex.Diagnostics.Length > 0)
 
 ## 4.4 已知边界与待办
 
-- ⚠️ **`FlowCanvasChecks/` 没有 C#脚本专属断言**——只有 `WireSequenceCheck.cs` 间接覆盖（线序检测端到端，含"脚本步骤自报执行成功"）。
+- ✅ **专属断言已补**（2026-10-20）：`FlowCanvasChecks/CSharpScriptChecks.cs`（CS1~CS23）覆盖改名迁移 / 中间重名不丢键 / 清空名字不丢键 / 删行清孤儿 / 确认清历史孤儿 / 手填值往返 / 取消还原 / 补全模板与光标位；`FlowCanvasChecks/CSharpSharedVarChecks.cs`（SV1~SV30）覆盖共享变量声明（按 Id 寻址 / 读写闸门 / 并行写集合 / 输入只接上游）。
+- **输出变量改名**：下游连线引用的是端口名，插件拿不到别的步骤的模型，改不动它——编译器会报"上游不存在输出"，需要下游重选。
 - **无超时配置**（只有 `CancellationToken`）——脚本死循环会卡住流程。
 - **无沙箱**——白名单只管 dll，管不住脚本正文。
 - **`ExternalLibs\whitelist.json` 仓库内不存在**——功能默认关闭。
@@ -692,9 +702,22 @@ catch (Exception ex)
 
 ## 5.6 附录 F：回归断言清单
 
-⚠️ **`FlowCanvasChecks/` 没有 C#脚本专属断言文件**（27 个 `*Checks.cs` 中无 `CSharpScriptChecks.cs`）。
+**专属断言**：`FlowCanvasChecks/CSharpScriptChecks.cs`（2026-10-20 新增，CS1~CS20；注册在 `Program.cs` 的 `VariableAssignmentCheck.Run()` 之后）：
 
-**唯一覆盖到本插件的是线序检测端到端用例**：`FlowCanvasChecks/WireSequenceCheck.cs`（`Program.cs:98`）：
+| 分组 | 测试点 |
+|---|---|
+| **CS1~CS3 改名迁移** | 连线键 / 手填值 / 端口三样跟到新名字，旧键不残留 |
+| **CS4~CS5 清空重打** | 名字清空时保留锚点、连线不丢；重新输入后跟到新名字 |
+| **CS6~CS7 中间重名** | 逐字符改名的中间名与另一行重名时不迁移、不丢原连线；打到最终名再迁 |
+| **CS8~CS9 删行** | 连线键与端口一并清理（不留孤儿键） |
+| **CS10~CS11 确认清理** | 历史孤儿键（`iN`）被清、有效连线保留 |
+| **CS12 空名字确认** | 不清连线（避免误操作永久丢绑定） |
+| **CS13~CS14 手填值往返** | 开窗灌值、改名 → 确认 → 重开仍是原值（0 不许覆盖 7） |
+| **CS15~CS16 取消还原** | 连线键与变量表回到打开时 |
+| **CS17~CS20 补全模板** | 输入插 `GetInput<T>("名")`、输出插 `SetOutput("名", )` 且光标落在逗号后；类型映射 HXld→HXLDCont |
+| **SV1~SV30 共享变量** | 别名解析 / 未声明 / 读失败 / 类型转换 / 候选快照（全局+系统）/ 持久化 / 写闸门（只读、系统变量）/ 并行写集合（含嵌套容器）/ 输入只接上游（AllowGlobals） |
+
+**端到端覆盖**：线序检测用例 `FlowCanvasChecks/WireSequenceCheck.cs`（`Program.cs:98`）：
 
 | 分组 | 测试点 |
 |---|---|
@@ -714,7 +737,7 @@ catch (Exception ex)
 
 > 历史：早期引擎冒烟（8 项）与白名单冒烟（9 项）都是**仓库外一次性控制台工程，跑完即删未提交**。
 >
-> **维护建议**：后续补 `FlowCanvasChecks/CSharpScriptChecks.cs`，覆盖：默认脚本可编译 / 动态端口正确生成 / `Context.Fail` 生效 / 写输出类型错误有中文提示 / 白名单 7 级判定 / 引用集含 HalconDotNet。
+> **维护建议**：`CSharpScriptChecks.cs` 的 CS1~CS20 已做过变异反证（把补全改回裸名、去掉改名迁移、去掉手填值回灌、去掉取消还原、去掉中间重名保护 → 对应断言准确变红，还原后全绿）。后续改动涉及"名字 / 端口 / 连线键"三者关系时，先跑这组断言再上真机。
 
 ## 5.7 附录 G：术语表
 

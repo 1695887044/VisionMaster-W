@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      通讯类步骤插件：「立刻读 / 立刻写」。
+      纯托管、net9.0：只引用 Core.Interfaces 里的契约，真正的队列/设备 I/O 全在宿主通讯层。
+      刻意不引用宿主 exe、不引用 VM.Core / VM.Communication —— 插件边界与运动步骤插件同一口径。
+    -->
+    <TargetFrameworks>net9.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      插件自带帮助手册：编进本程序集（宿主 HelpCatalogService 按 "<程序集名>.Help." 前缀约定发现）。
+      本程序集有两个插件类，故手册按 Help\{C# 类名}\ 分目录，目录名必须与类名逐字一致。
+      改手册 = 重建本插件工程（与原代码改动同一口径）。
+    -->
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
+</Project>

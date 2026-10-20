@@ -22,6 +22,26 @@ namespace Core.Interfaces
 
         /// <summary>运动卡上的逻辑轴名（来自当前方案里"已启用"的轴映射；轴名全局唯一）</summary>
         MotionAxisName,
+
+        /// <summary>
+        /// 通讯变量名（可读；来自当前方案的网络变量）。
+        /// 值 = 变量名本体（流程与 .vms 存的就是名字），显示文本可带类型与连接名。
+        /// </summary>
+        CommunicationVariableName,
+
+        /// <summary>
+        /// 通讯变量名（可写；在 <see cref="CommunicationVariableName"/> 基础上排除
+        /// Modbus 离散输入 / S7 输入映像 I 等只读区）。
+        /// 单独一个类别是为了让「立刻写」的下拉里不出现"选了必然失败"的选项。
+        /// </summary>
+        CommunicationWritableVariableName,
+
+        /// <summary>
+        /// 布尔二选一（True / False）。用于"是否等待""是否启用"这类封闭开关：
+        /// 渲染成只能选的下拉，不提供链接/清除——布尔值不该由上游运行时决定，
+        /// 手输 true/false 的错误率也远高于选一次。
+        /// </summary>
+        BooleanChoice,
     }
 
     /// <summary>

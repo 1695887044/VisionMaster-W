@@ -17,6 +17,8 @@
         相对路径是相对"引用方"解析的，主程序引用本库时会解析到主程序的资源里去，找不到就静默失败。
     -->
     <ResourceDictionary.MergedDictionaries>
+        <!-- 运行画面令牌：必须排在最前，后续各分册在本地也各合并一次（R30：兄弟分册互相看不见） -->
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaElementBase.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/RectangleElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/EllipseElement.xaml" />
@@ -37,6 +39,13 @@
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/AlarmBannerElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/AxisPanelElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ImageViewElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/TankElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/KpiBoardElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/SelectorSwitchElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/TextFieldElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ComboBoxElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/AckButtonElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/DataGridElement.xaml" />
 
         <!-- 画布宿主不是图元，但它同样是"默认样式在本程序集"的自定义控件，缺这一行就是一块空白面板 -->
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaCanvas.xaml" />

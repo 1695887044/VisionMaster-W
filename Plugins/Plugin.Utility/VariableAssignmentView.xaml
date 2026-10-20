@@ -4,140 +4,572 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:cv="clr-namespace:Core.Controls;assembly=Core.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="clr-namespace:VisionMaster.Plugins.Util"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    d:DesignHeight="240"
-    d:DesignWidth="560"
+    MinWidth="560"
+    MinHeight="320"
+    d:DesignHeight="520"
+    d:DesignWidth="920"
     mc:Ignorable="d">
 
     <!--
-        「变量赋值」的自定义配置视图。
+        「变量赋值」的自定义配置视图（Web 化 v1）。
 
-        为什么不用通用的「变量绑定」窗口：那个窗口是"给任意端口绑任意数据源"的通用工具，
-        而本节点只有"给一个变量赋一个值"这么简单的事。用通用工具表达简单意图，
-        用户不得不先消化「输入端口 / 绑定 / 常量 / 上游输出端口」一整套概念 ——
-        于是三栏并列看起来像三个平等选项、上游列表里全是无关节点、右下的 Success/ErrorMessage
-        也看不出归属。这里直接把语义摊平成三行：变量名 / 值 / 自动创建。
+        设计基线：docs/UI设计基线/variable-assignment/design.html + README.md
+        契约保留：
+          · DataContext = 插件实例（宿主靠它取 IPluginConfigView.OnConfirm）；
+          · Scope.Value / VariableName.Value / CreateIfNotExists.Value 三个端口绑定；
+          · NameCandidates + NameHint 由插件生成，视图只展示；
+          · Value 端口继续由 LinkableValueEditor 承载（Port / StepData 不改）；
+          · 用户编辑仍通过 code-behind 的真实输入事件上报 NotifyNameEditedByUser()。
 
-        两个控件选择：
-          · 「变量名」「值」用 LinkableValueEditor —— 它把"手填常量"与"链接上游"合成一行，
-            想引上游结果时才点行尾的链接图标，平常见到的就是一个普通输入框。
-          · 「自动创建」用 CheckBox —— 布尔开关用勾选框比在文本框里敲 true 直观。
+        颜色全部走公共令牌，视图内不写十六进制。
     -->
-    <Border
-        Margin="12"
-        Padding="16"
-        Background="#FFFFFF"
-        BorderBrush="#E5E5E5"
-        BorderThickness="1"
-        CornerRadius="8">
-        <StackPanel>
-            <TextBlock
-                FontSize="13"
-                FontWeight="SemiBold"
-                Foreground="#303133"
-                Text="给一个运行时变量赋值" />
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml" />
+            </ResourceDictionary.MergedDictionaries>
 
-            <TextBlock
-                Margin="0,4,0,0"
-                FontSize="11"
-                Foreground="#909399"
-                TextWrapping="Wrap"
-                Text="运行时变量只在本轮执行内有效、跑完即弃；全局变量就是变量管理里那些，可跨流程、随方案存盘。" />
+            <local:ScopeEqualsConverter x:Key="ScopeEqualsConverter" />
+            <local:ScopeLabelConverter x:Key="ScopeLabelConverter" />
+            <local:NameDisplayConverter x:Key="NameDisplayConverter" />
+            <local:NameCandidateDisplayConverter x:Key="NameCandidateDisplayConverter" />
 
-            <Grid Margin="0,16,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="72" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBlock
-                    Grid.Column="0"
-                    VerticalAlignment="Center"
-                    FontSize="12"
-                    Foreground="#606266"
-                    Text="作用域" />
-                <ComboBox
-                    Grid.Column="1"
-                    Width="170"
-                    HorizontalAlignment="Left"
-                    VerticalContentAlignment="Center"
-                    SelectedValue="{Binding Scope.Value, Mode=TwoWay}"
-                    SelectedValuePath="Tag"
-                    ToolTip="决定下面这个名字写到哪里">
-                    <ComboBoxItem Content="运行时变量" Tag="Runtime" />
-                    <ComboBoxItem Content="全局变量" Tag="Global" />
-                </ComboBox>
-            </Grid>
+            <!--  作用域卡片：两个 RadioButton 共用模板；IsChecked 经转换器写回 Scope.Value  -->
+            <Style x:Key="ScopeCardStyle" TargetType="RadioButton">
+                <Setter Property="GroupName" Value="VariableScope" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+                <Setter Property="MinHeight" Value="56" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border
+                                x:Name="Card"
+                                Padding="9,8"
+                                Background="{StaticResource DialogSurfaceBrush}"
+                                BorderBrush="{StaticResource DialogBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="10">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ContentPresenter
+                                        Grid.Column="0"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center" />
+                                    <Border
+                                        x:Name="Check"
+                                        Grid.Column="1"
+                                        Width="16"
+                                        Height="16"
+                                        Margin="6,0,0,0"
+                                        Background="{StaticResource DialogAccentBrush}"
+                                        CornerRadius="8"
+                                        Visibility="Collapsed">
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            FontFamily="{StaticResource DialogIconFont}"
+                                            FontSize="9"
+                                            Foreground="{StaticResource DialogSurfaceBrush}"
+                                            Text="&#xf00c;" />
+                                    </Border>
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource DialogBorderStrongBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Card" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                    <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+                                    <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Card" Property="Opacity" Value="0.90" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Card" Property="Opacity" Value="0.45" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
 
-            <Grid Margin="0,10,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="72" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBlock
-                    Grid.Column="0"
-                    VerticalAlignment="Center"
-                    FontSize="12"
-                    Foreground="#606266"
-                    Text="变量名" />
-                <!--
-                    这一行是**名字编辑器**：可手填，也可从右侧箭头下拉的候选里选
-                    （作用域=全局变量 → 变量管理里那些名字；作用域=运行时变量 → 上游「变量定义」声明的名字）。
+            <Style x:Key="ScopeIconChipStyle" TargetType="Border">
+                <Setter Property="Width" Value="28" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Margin" Value="0,0,8,0" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=RadioButton}}" Value="True">
+                        <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
 
-                    为什么这一行不给链接按钮：本行要的是"名字"，而通用变量绑定弹窗给的是"值" ——
-                    在弹窗里选中全局变量，落下来的是一条 GlobalVariable 连线（运行期把那个变量的**值**
-                    当名字用）。真机 2026-10-10 反馈的"选了全局变量之后编译不过 / 写不进去"就是它。
-                    「值」那一行才需要链接（引用上游结果），所以它仍然用 LinkableValueEditor。
+            <Style x:Key="ScopeIconGlyphStyle" TargetType="TextBlock">
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=RadioButton}}" Value="True">
+                        <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
 
-                    IsTextSearchEnabled="False"：可编辑 ComboBox 的"输入即补全"会把键到一半的 `OK`
-                    补成候选里的 `OKCount` —— 正是本次要消灭的那类"静默写错变量"。候选照常下拉可选。
-                -->
-                <ComboBox
-                    x:Name="NameBox"
-                    Grid.Column="1"
-                    IsEditable="True"
-                    IsTextSearchEnabled="False"
-                    ItemsSource="{Binding NameCandidates}"
-                    Text="{Binding VariableName.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                    ToolTip="填要写入的变量名；点右侧箭头可从变量管理（或上游「变量定义」）里选一个" />
-            </Grid>
+            <Style x:Key="ScopeTitleStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12.5" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
 
-            <TextBlock
-                Margin="72,4,0,0"
-                FontSize="11"
-                Foreground="#909399"
-                TextWrapping="Wrap"
-                Text="{Binding NameHint}" />
+            <Style x:Key="ScopeSubtitleStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,2,0,0" />
+                <Setter Property="FontSize" Value="10.5" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
 
-            <Grid Margin="0,10,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="72" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBlock
-                    Grid.Column="0"
-                    VerticalAlignment="Center"
-                    FontSize="12"
-                    Foreground="#606266"
-                    Text="值" />
-                <cv:LinkableValueEditor
-                    Grid.Column="1"
-                    Port="{Binding Value}"
-                    StepData="{Binding StepData}" />
-            </Grid>
+            <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            </Style>
 
-            <CheckBox
-                Margin="0,16,0,0"
-                VerticalContentAlignment="Center"
-                Content="变量不存在时自动创建（仅运行时变量）"
-                FontSize="12"
-                IsChecked="{Binding CreateIfNotExists.Value}" />
+            <Style x:Key="SectionSubStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,4,0,0" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
 
-            <TextBlock
-                Margin="0,14,0,0"
-                FontSize="11"
-                Foreground="#909399"
-                TextWrapping="Wrap"
-                Text="「变量名」可直接填，也可点右侧箭头从变量管理（作用域=全局变量）或上游「变量定义」声明的名字里选；「值」填常量文本，要引用上游步骤的结果就点该行尾部的链接图标。作用域=全局变量时，变量必须先在变量管理里建好（值的文本会按它的类型解析，如 Int32 填 21）——运行期找不到会明确报错，不会静默新建。" />
-        </StackPanel>
-    </Border>
+            <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,0,0,6" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            </Style>
+
+            <Style x:Key="HelpTextStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,6,0,0" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style x:Key="InfoCardStyle" TargetType="Border">
+                <Setter Property="Padding" Value="14" />
+                <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="12" />
+            </Style>
+
+            <Style x:Key="HintBorderStyle" TargetType="Border">
+                <Setter Property="Margin" Value="0,8,0,0" />
+                <Setter Property="Padding" Value="9,8" />
+                <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="10" />
+            </Style>
+
+            <Style x:Key="ChipStyle" TargetType="Border">
+                <Setter Property="Height" Value="22" />
+                <Setter Property="Padding" Value="8,0" />
+                <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="11" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Scope.Value}" Value="Global">
+                        <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                        <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Scope.Value}" Value="global">
+                        <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                        <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ChipTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10.5" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Scope.Value}" Value="Global">
+                        <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Scope.Value}" Value="global">
+                        <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="TargetNameStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,12,0,0" />
+                <Setter Property="FontSize" Value="20" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding VariableName.Value}" Value="">
+                        <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                        <Setter Property="FontWeight" Value="Medium" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding VariableName.Value}" Value="{x:Null}">
+                        <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                        <Setter Property="FontWeight" Value="Medium" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="TargetMetaStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,5,0,0" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+            </Style>
+
+            <Style x:Key="RuleIconChipStyle" TargetType="Border">
+                <Setter Property="Width" Value="28" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Margin" Value="0,0,9,0" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+            </Style>
+
+            <Style x:Key="RuleIconGlyphStyle" TargetType="TextBlock">
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            </Style>
+
+            <Style x:Key="RuleTitleStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+            </Style>
+
+            <Style x:Key="RuleTextStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,2,0,0" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style x:Key="TipTextStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,9,0,0" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!--
+        两栏：左配置轨（2*，320~）+ 右信息栏（1*，220+）。
+        960 宿主内容区约 920 → 左 ~603 / 右 ~301；640 宿主内容区约 600 → 左 ~364 / 右 ~220。
+    -->
+    <Grid Margin="0">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*" MinWidth="320" />
+            <ColumnDefinition Width="1*" MinWidth="220" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ================= 左：赋值配置 ================= -->
+        <Border
+            Grid.Column="0"
+            Padding="16"
+            Background="{StaticResource DialogRowAlternateBrush}"
+            BorderBrush="{StaticResource DialogBorderLightBrush}"
+            BorderThickness="1"
+            CornerRadius="12">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="赋值设置" />
+                        <TextBlock
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            FontSize="10.5"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            Text="作用域 · 变量名 · 值" />
+                    </Grid>
+                    <TextBlock Style="{StaticResource SectionSubStyle}" Text="先确定写到哪里，再选变量名；值可以是常量文本，也可以引用上游步骤的结果。" />
+
+                    <!-- 作用域：两张卡片；IsChecked 经 ScopeEqualsConverter 写回 Scope.Value -->
+                    <TextBlock Margin="0,14,0,6" Style="{StaticResource FieldLabelStyle}" Text="作用域" />
+                    <UniformGrid Columns="2">
+                        <RadioButton
+                            Margin="0,0,4,0"
+                            IsChecked="{Binding Scope.Value, Mode=TwoWay, Converter={StaticResource ScopeEqualsConverter}, ConverterParameter=Runtime}"
+                            Style="{StaticResource ScopeCardStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{StaticResource ScopeIconChipStyle}">
+                                    <TextBlock Style="{StaticResource ScopeIconGlyphStyle}" Text="&#xf085;" />
+                                </Border>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource ScopeTitleStyle}" Text="运行时变量" />
+                                    <TextBlock Style="{StaticResource ScopeSubtitleStyle}" Text="本轮执行内有效" />
+                                </StackPanel>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton
+                            Margin="4,0,0,0"
+                            IsChecked="{Binding Scope.Value, Mode=TwoWay, Converter={StaticResource ScopeEqualsConverter}, ConverterParameter=Global}"
+                            Style="{StaticResource ScopeCardStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{StaticResource ScopeIconChipStyle}">
+                                    <TextBlock Style="{StaticResource ScopeIconGlyphStyle}" Text="&#xf0ac;" />
+                                </Border>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource ScopeTitleStyle}" Text="全局变量" />
+                                    <TextBlock Style="{StaticResource ScopeSubtitleStyle}" Text="跨流程 · 随方案存盘" />
+                                </StackPanel>
+                            </StackPanel>
+                        </RadioButton>
+                    </UniformGrid>
+
+                    <!-- 变量名：可编辑候选；Text 仍写 VariableName.Value -->
+                    <TextBlock Margin="0,14,0,6" Style="{StaticResource FieldLabelStyle}" Text="变量名" />
+                    <ComboBox
+                        x:Name="NameBox"
+                        Height="36"
+                        Padding="10,0,30,0"
+                        VerticalContentAlignment="Center"
+                        Background="{StaticResource DialogSurfaceBrush}"
+                        BorderBrush="{StaticResource DialogBorderBrush}"
+                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                        FontSize="12.5"
+                        IsEditable="True"
+                        IsTextSearchEnabled="False"
+                        ItemsSource="{Binding NameCandidates}"
+                        Text="{Binding VariableName.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                        <ComboBox.ToolTip>
+                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="填要写入的变量名；点右侧箭头可从变量管理（或上游「变量定义」）里选一个" />
+                        </ComboBox.ToolTip>
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <!--  候选行显示「名字 + 声明类型」；值仍是字符串名字（NameCandidates），不建立连线  -->
+                                <TextBlock>
+                                    <TextBlock.Text>
+                                        <MultiBinding Converter="{StaticResource NameCandidateDisplayConverter}">
+                                            <Binding />
+                                            <Binding Path="DataContext.NameCandidateItems" RelativeSource="{RelativeSource AncestorType=ComboBox}" />
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <Border Style="{StaticResource HintBorderStyle}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                Grid.Column="0"
+                                Margin="0,1,7,0"
+                                VerticalAlignment="Top"
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="12"
+                                Foreground="{StaticResource DialogAccentTextBrush}"
+                                Text="&#xf05a;" />
+                            <TextBlock
+                                Grid.Column="1"
+                                FontSize="11.5"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="{Binding NameHint}"
+                                TextWrapping="Wrap" />
+                        </Grid>
+                    </Border>
+
+                    <!-- 值：LinkableValueEditor 只包裹，Port/StepData 原样 -->
+                    <TextBlock Margin="0,14,0,6" Style="{StaticResource FieldLabelStyle}" Text="值" />
+                    <cv:LinkableValueEditor
+                        Label=""
+                        Port="{Binding Value}"
+                        StepData="{Binding StepData}" />
+                    <TextBlock Style="{StaticResource HelpTextStyle}" Text="填常量文本；要引用上游步骤的结果，点行尾的链接图标。文本会按目标变量的声明类型解析（如 Int32 填 21）。" />
+
+                    <!-- 自动创建 -->
+                    <Border
+                        Margin="0,16,0,0"
+                        Padding="11,12"
+                        Background="{StaticResource DialogSurfaceBrush}"
+                        BorderBrush="{StaticResource DialogBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="10">
+                        <StackPanel>
+                            <CheckBox
+                                VerticalContentAlignment="Center"
+                                FontSize="12"
+                                IsChecked="{Binding CreateIfNotExists.Value, Mode=TwoWay}">
+                                <TextBlock
+                                    FontSize="12"
+                                    Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                    Text="变量不存在时自动创建（仅运行时变量）" />
+                            </CheckBox>
+                            <TextBlock
+                                Margin="0,5,0,0"
+                                FontSize="11.5"
+                                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                Text="作用域=全局变量时，变量必须先在变量管理里存在；此选项不生效，也不会静默新建。"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ================= 右：目标变量 + 作用域规则 ================= -->
+        <Grid Grid.Column="1" Margin="16,0,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- 目标变量卡 -->
+            <Border Grid.Row="0" Style="{StaticResource InfoCardStyle}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="13"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            Text="&#xf044;" />
+                        <TextBlock
+                            Grid.Column="1"
+                            Margin="7,0,0,0"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource SectionHeaderStyle}"
+                            Text="目标变量" />
+                        <Border Grid.Column="2" Style="{StaticResource ChipStyle}">
+                            <TextBlock Style="{StaticResource ChipTextStyle}" Text="{Binding Scope.Value, Converter={StaticResource ScopeLabelConverter}}" />
+                        </Border>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource TargetNameStyle}" Text="{Binding VariableName.Value, Converter={StaticResource NameDisplayConverter}}" />
+                    <TextBlock Style="{StaticResource TargetMetaStyle}" Text="{Binding NameCandidates.Count, StringFormat=当前作用域有 {0} 个候选}" />
+
+                    <Border
+                        Margin="0,12,0,0"
+                        Padding="0,11,0,0"
+                        BorderBrush="{StaticResource DialogBorderLightBrush}"
+                        BorderThickness="0,1,0,0">
+                        <TextBlock
+                            FontSize="11.5"
+                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                            TextWrapping="Wrap">
+                            变量名只是<Run FontWeight="SemiBold" Text="名字" />：从候选里选择会落成常量，不会建立连线；「值」才负责引用上游结果。
+                        </TextBlock>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- 作用域规则卡 -->
+            <Border
+                Grid.Row="1"
+                Margin="0,12,0,0"
+                Style="{StaticResource InfoCardStyle}">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                Grid.Column="0"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="13"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                Text="&#xf05a;" />
+                            <TextBlock
+                                Grid.Column="1"
+                                Margin="7,0,0,0"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource SectionHeaderStyle}"
+                                Text="作用域规则" />
+                        </Grid>
+
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource RuleIconChipStyle}">
+                                <TextBlock Style="{StaticResource RuleIconGlyphStyle}" Text="&#xf085;" />
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Style="{StaticResource RuleTitleStyle}" Text="运行时变量" />
+                                <TextBlock Style="{StaticResource RuleTextStyle}" Text="由上游「变量定义」节点创建，只在本轮执行内有效，跑完即弃。" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource RuleIconChipStyle}">
+                                <TextBlock Style="{StaticResource RuleIconGlyphStyle}" Text="&#xf0ac;" />
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Style="{StaticResource RuleTitleStyle}" Text="全局变量" />
+                                <TextBlock Style="{StaticResource RuleTextStyle}" Text="变量管理里维护，跨流程、随方案存盘；运行期找不到会明确报错，不会静默新建。" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Border
+                            Margin="0,14,0,0"
+                            BorderBrush="{StaticResource DialogBorderLightBrush}"
+                            BorderThickness="0,1,0,0" />
+
+                        <TextBlock
+                            Margin="0,12,0,0"
+                            FontSize="11.5"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                            Text="记住三件事" />
+                        <TextBlock Style="{StaticResource TipTextStyle}" Text="① 同名变量在两个作用域各有一份，先选对作用域再选名字。" />
+                        <TextBlock Style="{StaticResource TipTextStyle}" Text="② 名字打错不会静默落到别的变量：全局会报「找不到全局变量」。" />
+                        <TextBlock Style="{StaticResource TipTextStyle}" Text="③ 值填文本时按目标变量的声明类型解析；类型不匹配会在运行期明确失败。" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+    </Grid>
 </UserControl>

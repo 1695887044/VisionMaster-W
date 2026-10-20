@@ -46,6 +46,17 @@ namespace VisionMaster.Communications
         public string ScanGroup { get; set; } = string.Empty;
 
         /// <summary>
+        /// <para>是否允许与相邻地址合并成一次区域读（默认开启，与改造前行为一致）。</para>
+        /// <para><b>什么时候该关</b>：现场按"只读这一小块、别读邻居"的语义配点时（相邻地址属于别的系统、
+        /// 读它会触发对方设备的副作用、或对方对越界敏感），关掉就只读本变量自己的跨度。</para>
+        /// <para><b>关掉不等于退回单点反射读</b>：该变量仍然走段读（自己的跨度一次读完、按结构化解码），
+        /// 只是<b>不跟邻居合并</b>——所以字节序、类型解码、坏段健康统计全都照旧。</para>
+        /// <para>关掉后段数会上升：N 个不相邻的变量 = N 次往返（以太网上每次约 1ms；
+        /// 串口上按线时算，见 <see cref="PollTransportKind"/>）。这是用户显式选择，不是默认值。</para>
+        /// </summary>
+        public bool MergeAdjacentRead { get; set; } = true;
+
+        /// <summary>
         /// 访问权限模式
         /// </summary>
         public VariableAccessMode AccessMode { get; set; } = VariableAccessMode.ReadOnly;
@@ -144,6 +155,19 @@ namespace VisionMaster.Communications
 
         /// <summary>标记本次读失败：保留旧值但质量降级为 Uncertain（由轮询失败路径调用）</summary>
         public void MarkUncertain() => SetQuality(VariableQuality.Uncertain);
+
+        /// <summary>
+        /// 把设备原始值换算成工程值（缩放系数 + 工程偏移 + 小数位）。
+        /// <para>换算参数挂在 <see cref="AddressConfig"/> 上（<c>DeviceAddressBase.EnableConversion</c> 等），
+        /// 与写链路的 <c>ConvertToRaw</c> 是同一份配置、同一套互逆公式。</para>
+        /// <para>没有地址配置对象（旧方案只有地址字符串）时原样返回——那种数据本来就没有换算参数。</para>
+        /// </summary>
+        public object? ToEngineering(object? rawValue)
+        {
+            var config = AddressConfig;
+            if (config == null || !config.EnableConversion) return rawValue;
+            return config.ConvertToEngineering(rawValue);
+        }
 
         /// <summary>标记连接断开/不可用（由 Manager 在连接状态离开 Connected 时统一批量调用）</summary>
         public void MarkBad() => SetQuality(VariableQuality.Bad);

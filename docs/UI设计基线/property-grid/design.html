@@ -1,0 +1,1131 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>反射属性面板 · FlatPropertyGrid / CardPropertyGrid · 设计基线 v1</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #pg-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="pg-design-root">
+  <style>
+    #pg-design-root{
+      color-scheme:light;
+      --pg-surface:#FFFFFF;
+      --pg-surface-2:#F8FAFC;
+      --pg-surface-3:#F1F5F9;
+      --pg-border:#E2E8F0;
+      --pg-border-soft:#EEF2F7;
+      --pg-border-strong:#CBD5E1;
+      --pg-text:#0F172A;
+      --pg-text-2:#475569;
+      --pg-text-3:#94A3B8;
+      --pg-text-4:#64748B;
+      --pg-primary:#0EA5E9;
+      --pg-primary-strong:#0284C7;
+      --pg-primary-text:#0369A1;
+      --pg-primary-soft:#F0F9FF;
+      --pg-primary-light:#E0F2FE;
+      --pg-primary-border:#BAE6FD;
+      --pg-success:#22C55E;
+      --pg-success-text:#15803D;
+      --pg-success-soft:#F0FDF4;
+      --pg-success-border:#BBF7D0;
+      --pg-danger:#EF4444;
+      --pg-danger-text:#B91C1C;
+      --pg-danger-soft:#FEF2F2;
+      --pg-danger-border:#FECACA;
+      --pg-warning:#F59E0B;
+      --pg-warning-text:#B45309;
+      --pg-warning-soft:#FFF4E5;
+      --pg-warning-border:#FDE68A;
+      --pg-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --pg-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --pg-radius-sm:6px;
+      --pg-radius-md:8px;
+      --pg-radius-lg:10px;
+      --pg-radius-xl:12px;
+      --pg-radius-window:16px;
+      --pg-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--pg-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #pg-design-root *{box-sizing:border-box;}
+    #pg-design-root button,
+    #pg-design-root input,
+    #pg-design-root select{font-family:inherit;}
+    #pg-design-root button{color:inherit;}
+    #pg-design-root [hidden]{display:none !important;}
+    #pg-design-root :focus-visible{outline:2px solid var(--pg-primary);outline-offset:2px;}
+
+    /* ================= 页面骨架 ================= */
+    #pg-design-root .pg-page{
+      max-width:1360px;margin:0 auto;padding:24px 24px 44px;background:transparent;
+    }
+    #pg-design-root .pg-page-head{max-width:1360px;margin:0 auto 16px;}
+    #pg-design-root .pg-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #pg-design-root .pg-page-title-row h1{
+      margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:#0F172A;
+    }
+    #pg-design-root .pg-ver{
+      display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+      background:var(--pg-primary-light);color:var(--pg-primary-text);
+      font-size:11px;font-weight:700;letter-spacing:.02em;
+    }
+    #pg-design-root .pg-page-sub{
+      margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--pg-text-2);
+    }
+    #pg-design-root .pg-page-sub b{color:var(--pg-text);font-weight:600;}
+    #pg-design-root .pg-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #pg-design-root .pg-demo-group{display:flex;align-items:center;gap:8px;}
+    #pg-design-root .pg-demo-label{font-size:11.5px;color:var(--pg-text-4);}
+    #pg-design-root .pg-seg{
+      display:inline-flex;gap:2px;padding:2px;border-radius:var(--pg-radius-md);background:var(--pg-surface-3);
+    }
+    #pg-design-root .pg-seg button{
+      height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;
+      color:var(--pg-text-2);font-size:11.5px;line-height:1;cursor:pointer;
+      transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;
+    }
+    #pg-design-root .pg-seg button:hover{color:var(--pg-text);}
+    #pg-design-root .pg-seg button.is-on{
+      background:#FFFFFF;color:var(--pg-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);
+    }
+    #pg-design-root .pg-scope{
+      display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;
+      font-size:11.5px;line-height:1.55;color:var(--pg-text-2);
+    }
+    #pg-design-root .pg-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--pg-warning-text);}
+    #pg-design-root .pg-scope b{color:var(--pg-text);font-weight:600;}
+
+    /* ================= 产品窗口 ================= */
+    #pg-design-root .pg-window{
+      width:880px;max-width:100%;height:720px;margin:0 auto;
+      display:flex;flex-direction:column;overflow:hidden;
+      background:var(--pg-surface);
+      border-radius:var(--pg-radius-window);
+      box-shadow:var(--pg-shadow-window);
+      transition:height 200ms ease;
+    }
+    /* 空态：没有属性行可撑，窗口按内容收高，否则页脚下会拖出一大片空白 */
+    #pg-design-root .pg-window[data-state="empty"]{
+      height:auto;min-height:0;
+    }
+    #pg-design-root .pg-window[data-state="empty"] .pg-empty{
+      flex:0 0 auto;
+    }
+    #pg-design-root .pg-titlebar{
+      height:64px;flex:none;display:flex;align-items:center;padding:0 18px;
+      background:var(--pg-surface);border-bottom:1px solid var(--pg-border-soft);
+    }
+    #pg-design-root .pg-app-icon{
+      width:38px;height:38px;flex:none;border-radius:11px;
+      display:flex;align-items:center;justify-content:center;
+      background:var(--pg-primary-light);color:var(--pg-primary-text);
+    }
+    #pg-design-root .pg-app-icon svg{width:18px;height:18px;}
+    #pg-design-root .pg-title-text{margin-left:12px;min-width:0;flex:1;}
+    #pg-design-root .pg-title{
+      font-size:15px;font-weight:600;line-height:1.3;color:var(--pg-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #pg-design-root .pg-subtitle{
+      margin-top:2px;font-size:11.5px;line-height:1.4;color:var(--pg-text-2);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #pg-design-root .pg-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+    #pg-design-root .pg-icon-btn{
+      width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--pg-radius-md);
+      display:inline-flex;align-items:center;justify-content:center;
+      background:transparent;color:var(--pg-text-4);cursor:pointer;
+      transition:background 150ms ease,color 150ms ease;
+    }
+    #pg-design-root .pg-icon-btn svg{width:15px;height:15px;}
+    #pg-design-root .pg-icon-btn:hover{background:var(--pg-surface-3);color:var(--pg-text);}
+    #pg-design-root .pg-icon-btn:active{background:var(--pg-border);}
+    #pg-design-root .pg-icon-btn:disabled{opacity:.4;cursor:not-allowed;}
+
+    /* ---- 页签（扁平式：顶部下划线） ---- */
+    #pg-design-root .pg-tabs{
+      height:44px;flex:none;display:flex;align-items:stretch;gap:2px;
+      padding:0 18px;border-bottom:1px solid var(--pg-border);
+    }
+    #pg-design-root .pg-tab{
+      position:relative;height:44px;padding:0 14px;border:0;background:transparent;
+      font-size:12.5px;color:var(--pg-text-2);cursor:pointer;
+      transition:color 150ms ease;
+    }
+    #pg-design-root .pg-tab:hover{color:var(--pg-text);}
+    #pg-design-root .pg-tab.is-on{color:var(--pg-primary-text);font-weight:600;}
+    #pg-design-root .pg-tab.is-on::after{
+      content:"";position:absolute;left:14px;right:14px;bottom:-1px;height:2px;
+      border-radius:2px;background:var(--pg-primary);
+    }
+
+    /* ---- 表格式行 ---- */
+    #pg-design-root .pg-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:14px 18px 18px;}
+    #pg-design-root .pg-scroll::-webkit-scrollbar{width:8px;}
+    #pg-design-root .pg-scroll::-webkit-scrollbar-thumb{
+      background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;
+    }
+    #pg-design-root .pg-scroll::-webkit-scrollbar-track{background:transparent;}
+
+    #pg-design-root .pg-table{
+      border:1px solid var(--pg-border);border-radius:var(--pg-radius-xl);overflow:hidden;background:var(--pg-surface);
+    }
+    #pg-design-root .pg-row{
+      display:grid;grid-template-columns:150px minmax(0,1fr);
+      min-height:48px;border-bottom:1px solid var(--pg-border-soft);
+      transition:background 150ms ease;
+    }
+    #pg-design-root .pg-row:last-child{border-bottom:0;}
+    #pg-design-root .pg-row:hover{background:var(--pg-surface-2);}
+    #pg-design-root .pg-row.is-error{background:var(--pg-danger-soft);}
+    #pg-design-root .pg-row.is-error:hover{background:#FDECEC;}
+    #pg-design-root .pg-row.is-denied{background:var(--pg-surface-2);}
+    #pg-design-root .pg-label{
+      display:flex;align-items:center;gap:5px;padding:10px 14px;
+      font-size:12px;font-weight:500;line-height:1.35;color:var(--pg-text-2);
+      border-right:1px solid var(--pg-border-soft);
+    }
+    #pg-design-root .pg-label .pg-req{color:var(--pg-danger);font-size:11px;}
+    #pg-design-root .pg-label > svg{width:12px;height:12px;flex:none;color:var(--pg-text-3);}
+    #pg-design-root .pg-value{
+      display:flex;align-items:center;gap:8px;padding:8px 14px;min-width:0;
+    }
+    #pg-design-root .pg-value.is-stack{flex-direction:column;align-items:stretch;gap:4px;padding:8px 14px;}
+    #pg-design-root .pg-value-col{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1;}
+
+    /* ---- 控件 ---- */
+    #pg-design-root .pg-input,
+    #pg-design-root .pg-select{
+      width:100%;height:36px;padding:0 10px;
+      border:1px solid var(--pg-border);border-radius:var(--pg-radius-md);
+      background:var(--pg-surface);color:var(--pg-text);
+      font-size:12.5px;line-height:1;outline:none;
+      transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;
+    }
+    #pg-design-root .pg-input::placeholder{color:var(--pg-text-3);}
+    #pg-design-root .pg-input:hover,
+    #pg-design-root .pg-select:hover{border-color:var(--pg-border-strong);}
+    #pg-design-root .pg-input:focus,
+    #pg-design-root .pg-select:focus{border-color:var(--pg-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #pg-design-root .pg-input:disabled{
+      background:var(--pg-surface-3);color:var(--pg-text-3);cursor:not-allowed;border-style:dashed;
+    }
+    #pg-design-root .pg-input.is-error{border-color:var(--pg-danger);background:var(--pg-surface);}
+    #pg-design-root .pg-input.is-error:focus{box-shadow:0 0 0 3px rgba(239,68,68,.12);}
+    #pg-design-root .pg-select{appearance:none;-webkit-appearance:none;padding-right:30px;cursor:pointer;}
+    #pg-design-root .pg-select-wrap{position:relative;width:100%;min-width:0;}
+    #pg-design-root .pg-select-wrap > svg{
+      position:absolute;right:10px;top:50%;transform:translateY(-50%);
+      width:13px;height:13px;color:var(--pg-text-3);pointer-events:none;
+    }
+    #pg-design-root .pg-num{position:relative;width:100%;}
+    #pg-design-root .pg-num .pg-input{padding-right:44px;font-variant-numeric:tabular-nums;}
+    #pg-design-root .pg-suffix{
+      position:absolute;right:10px;top:50%;transform:translateY(-50%);
+      font-size:11px;color:var(--pg-text-3);pointer-events:none;
+    }
+    #pg-design-root .pg-num-range{
+      position:absolute;right:10px;top:50%;transform:translateY(-50%);
+      font-size:10px;color:var(--pg-text-3);font-variant-numeric:tabular-nums;pointer-events:none;
+    }
+
+    /* 开关 */
+    #pg-design-root .pg-switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;}
+    #pg-design-root .pg-switch input{
+      position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;
+    }
+    #pg-design-root .pg-track{
+      position:relative;width:38px;height:22px;flex:none;border-radius:999px;
+      background:var(--pg-border);transition:background 150ms ease;
+    }
+    #pg-design-root .pg-track::after{
+      content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+      background:#FFFFFF;box-shadow:0 1px 2px rgba(15,23,42,.28);
+      transition:transform 150ms ease;
+    }
+    #pg-design-root .pg-switch input:checked + .pg-track{background:var(--pg-primary);}
+    #pg-design-root .pg-switch input:checked + .pg-track::after{transform:translateX(16px);}
+    #pg-design-root .pg-switch input:focus-visible + .pg-track{box-shadow:0 0 0 3px rgba(14,165,233,.24);}
+    #pg-design-root .pg-switch input:disabled + .pg-track{opacity:.45;}
+    #pg-design-root .pg-switch-text{font-size:12px;color:var(--pg-text-2);}
+
+    /* 按钮 */
+    #pg-design-root .pg-btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:6px;
+      height:36px;padding:0 13px;border:1px solid var(--pg-border);border-radius:var(--pg-radius-md);
+      background:var(--pg-surface);color:var(--pg-text);font-size:12.5px;font-weight:500;
+      line-height:1;cursor:pointer;white-space:nowrap;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;
+    }
+    #pg-design-root .pg-btn svg{width:14px;height:14px;}
+    #pg-design-root .pg-btn:hover{background:var(--pg-surface-2);border-color:var(--pg-border-strong);}
+    #pg-design-root .pg-btn:active{background:var(--pg-surface-3);}
+    #pg-design-root .pg-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #pg-design-root .pg-btn-primary{
+      background:var(--pg-primary);border-color:var(--pg-primary);color:#fff;font-weight:600;
+    }
+    #pg-design-root .pg-btn-primary:hover{background:var(--pg-primary-strong);border-color:var(--pg-primary-strong);}
+    #pg-design-root .pg-btn-sm{height:32px;padding:0 11px;font-size:12px;}
+
+    /* 只读值 */
+    #pg-design-root .pg-readonly{
+      display:inline-flex;align-items:center;height:36px;padding:0 10px;width:100%;
+      border:1px dashed var(--pg-border);border-radius:var(--pg-radius-md);
+      background:var(--pg-surface-3);color:var(--pg-text-3);
+      font-size:12.5px;font-variant-numeric:tabular-nums;
+    }
+
+    /* 帮助 / 错误 */
+    #pg-design-root .pg-help{
+      display:flex;align-items:flex-start;gap:5px;font-size:11.5px;line-height:1.5;color:var(--pg-text-4);
+    }
+    #pg-design-root .pg-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--pg-text-3);}
+    #pg-design-root .pg-err{
+      display:none;align-items:flex-start;gap:5px;
+      font-size:11.5px;line-height:1.5;color:var(--pg-danger-text);
+    }
+    #pg-design-root .pg-err svg{width:12px;height:12px;flex:none;margin-top:1px;}
+
+    /* ---- 嵌套块 ---- */
+    #pg-design-root .pg-nested{
+      margin:2px 0;padding:12px 14px;width:100%;border:1px solid var(--pg-border);
+      border-left:3px solid var(--pg-primary);border-radius:var(--pg-radius-lg);
+      background:var(--pg-surface-2);
+    }
+    #pg-design-root .pg-nested-head{
+      display:flex;align-items:center;gap:7px;margin-bottom:10px;
+      font-size:11.5px;font-weight:600;color:var(--pg-text-2);
+    }
+    #pg-design-root .pg-nested-head svg{width:13px;height:13px;color:var(--pg-text-3);flex:none;}
+    #pg-design-root .pg-nested-head .pg-nested-type{
+      font-family:var(--pg-mono);font-size:10px;font-weight:400;color:var(--pg-text-3);
+    }
+    #pg-design-root .pg-nested-body{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;}
+    #pg-design-root .pg-nested-field{display:flex;flex-direction:column;gap:5px;min-width:0;}
+    #pg-design-root .pg-nested-field > label{
+      font-size:11.5px;font-weight:500;color:var(--pg-text-2);line-height:1.3;
+    }
+
+    /* ================= 卡片式 ================= */
+    #pg-design-root .pg-card-body{flex:1;min-height:0;display:grid;grid-template-columns:176px minmax(0,1fr);}
+    #pg-design-root .pg-rail{
+      min-height:0;overflow-y:auto;padding:12px 10px;
+      background:var(--pg-surface-2);border-right:1px solid var(--pg-border);
+    }
+    #pg-design-root .pg-rail::-webkit-scrollbar{width:8px;}
+    #pg-design-root .pg-rail::-webkit-scrollbar-thumb{
+      background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;
+    }
+    #pg-design-root .pg-nav{
+      position:relative;display:flex;align-items:center;gap:8px;width:100%;height:34px;
+      padding:0 10px;margin-bottom:2px;border:0;border-radius:var(--pg-radius-md);
+      background:transparent;color:var(--pg-text-2);font-size:12.5px;text-align:left;cursor:pointer;
+      transition:background 150ms ease,color 150ms ease;
+    }
+    #pg-design-root .pg-nav svg{width:14px;height:14px;flex:none;color:var(--pg-text-3);}
+    #pg-design-root .pg-nav:hover{background:var(--pg-surface-3);}
+    #pg-design-root .pg-nav.is-on{
+      background:var(--pg-surface);color:var(--pg-primary-text);font-weight:600;
+      box-shadow:0 1px 2px rgba(15,23,42,.07);
+    }
+    #pg-design-root .pg-nav.is-on svg{color:var(--pg-primary);}
+    #pg-design-root .pg-nav.is-on::before{
+      content:"";position:absolute;left:0;top:9px;width:3px;height:16px;border-radius:2px;background:var(--pg-primary);
+    }
+    #pg-design-root .pg-nav-count{margin-left:auto;font-size:10.5px;font-weight:400;color:var(--pg-text-3);}
+
+    #pg-design-root .pg-card-area{min-height:0;overflow-y:auto;padding:16px;}
+    #pg-design-root .pg-card-area::-webkit-scrollbar{width:8px;}
+    #pg-design-root .pg-card-area::-webkit-scrollbar-thumb{
+      background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;
+    }
+    #pg-design-root .pg-card-head{
+      display:flex;align-items:baseline;gap:8px;padding-bottom:10px;margin-bottom:14px;
+      border-bottom:1px solid var(--pg-border);
+    }
+    #pg-design-root .pg-card-title{font-size:12.5px;font-weight:600;color:var(--pg-text);}
+    #pg-design-root .pg-card-hint{font-size:11px;color:var(--pg-text-3);}
+    #pg-design-root .pg-grid12{
+      display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px 16px;
+    }
+    #pg-design-root .pg-field{display:flex;flex-direction:column;gap:6px;min-width:0;}
+    #pg-design-root .pg-field.span-12{grid-column:span 12;}
+    #pg-design-root .pg-field.span-6{grid-column:span 6;}
+    #pg-design-root .pg-field.span-4{grid-column:span 4;}
+    #pg-design-root .pg-flabel{
+      display:flex;align-items:center;gap:5px;
+      font-size:12px;font-weight:500;line-height:1.3;color:var(--pg-text-2);
+    }
+    #pg-design-root .pg-flabel .pg-req{color:var(--pg-danger);font-size:11px;}
+    #pg-design-root .pg-flabel svg{width:12px;height:12px;flex:none;color:var(--pg-text-3);}
+    #pg-design-root .pg-field.is-switch{flex-direction:row;align-items:center;flex-wrap:wrap;gap:8px;}
+    #pg-design-root .pg-field.is-switch .pg-flabel{flex:none;}
+
+    /* ---- 空态 ---- */
+    #pg-design-root .pg-empty{
+      display:none;flex-direction:column;align-items:center;justify-content:center;
+      gap:10px;padding:48px 24px;text-align:center;
+    }
+    #pg-design-root .pg-empty-icon{
+      width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+      background:var(--pg-surface-3);color:var(--pg-text-3);
+    }
+    #pg-design-root .pg-empty-icon svg{width:20px;height:20px;}
+    #pg-design-root .pg-empty b{font-size:12.5px;font-weight:600;color:var(--pg-text-2);}
+    #pg-design-root .pg-empty span{font-size:11.5px;line-height:1.55;color:var(--pg-text-3);max-width:340px;}
+
+    /* ---- 底部 ---- */
+    #pg-design-root .pg-footer{
+      height:56px;flex:none;display:flex;align-items:center;gap:10px;
+      padding:0 18px;border-top:1px solid var(--pg-border);background:var(--pg-surface);
+    }
+    #pg-design-root .pg-status{
+      display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;
+      border:1px solid var(--pg-border);border-radius:999px;background:var(--pg-surface-2);
+      font-size:11px;color:var(--pg-text-2);
+    }
+    #pg-design-root .pg-status .pg-dot{width:6px;height:6px;border-radius:50%;background:var(--pg-text-3);}
+    #pg-design-root .pg-status.is-warn{border-color:var(--pg-warning-border);background:var(--pg-warning-soft);color:var(--pg-warning-text);}
+    #pg-design-root .pg-status.is-warn .pg-dot{background:var(--pg-warning);}
+    #pg-design-root .pg-status.is-err{border-color:var(--pg-danger-border);background:var(--pg-danger-soft);color:var(--pg-danger-text);}
+    #pg-design-root .pg-status.is-err .pg-dot{background:var(--pg-danger);}
+    #pg-design-root .pg-footer-spacer{flex:1;}
+    #pg-design-root .pg-footer .pg-btn + .pg-btn{margin-left:8px;}
+
+    /* ================= 状态机 =================
+       默认态（ok）不显示任何错误/权限提示；错误态只染 IP 行；权限态只染令牌行。
+       红色不是"写死在标记里"，而是由 data-state 驱动的，便于评审逐个状态切换。 */
+    #pg-design-root .pg-row-ip.is-error,
+    #pg-design-root .pg-row-ip:hover.is-error{background:var(--pg-danger-soft);}
+    #pg-design-root .pg-row-token{transition:background 150ms ease;}
+
+    /* 错误态 */
+    #pg-design-root .pg-window[data-state="error"] .pg-row-ip{background:var(--pg-danger-soft);}
+    #pg-design-root .pg-window[data-state="error"] .pg-row-ip .pg-input{
+      border-color:var(--pg-danger);background:var(--pg-surface);
+    }
+    #pg-design-root .pg-window[data-state="error"] .pg-row-ip .pg-err{display:flex;}
+    #pg-design-root .pg-window[data-state="error"] .pg-status-ok{display:none;}
+    #pg-design-root .pg-window[data-state="error"] .pg-status-err{display:inline-flex;}
+
+    /* 权限态 */
+    #pg-design-root .pg-window[data-state="denied"] .pg-row-token{background:var(--pg-surface-2);}
+    #pg-design-root .pg-window[data-state="denied"] .pg-denied-block{display:flex;}
+    #pg-design-root .pg-window[data-state="denied"] .pg-denied-on-ok{display:none;}
+
+    /* 空态 */
+    #pg-design-root .pg-window[data-state="empty"] .pg-has-data{display:none !important;}
+    #pg-design-root .pg-window[data-state="empty"] .pg-empty{display:flex;}
+
+    /* 空态：标题栏副标题同样不能还挂着"13 个可见属性" */
+    #pg-design-root .pg-subtitle-empty{display:none;}
+    #pg-design-root .pg-window[data-state="empty"] .pg-subtitle-has-data{display:none;}
+    #pg-design-root .pg-window[data-state="empty"] .pg-subtitle-empty{display:block;}
+
+    /* 空态：底部胶囊也要跟着说"没有可见属性"，否则与画面自相矛盾 */
+    #pg-design-root .pg-status-empty{display:none;}
+    #pg-design-root .pg-window[data-state="empty"] .pg-status-ok{display:none;}
+    #pg-design-root .pg-window[data-state="empty"] .pg-status-empty{display:inline-flex;}
+
+    /* 布局切换：卡片式自带左侧导航，顶部页签条必须让位（否则出现两套分组入口） */
+    #pg-design-root .pg-window[data-layout="card"] .pg-tabs{display:none;}
+    #pg-design-root .pg-window[data-layout="card"] .pg-card-body{height:100%;}
+
+    #pg-design-root .pg-denied-block{
+      display:none;align-items:flex-start;gap:6px;font-size:11.5px;line-height:1.5;color:var(--pg-text-3);
+    }
+    #pg-design-root .pg-denied-block svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--pg-danger);}
+    #pg-design-root .pg-status-err{display:none;}
+
+    /* ================= 说明区 ================= */
+    #pg-design-root .pg-notes{
+      max-width:1360px;margin:26px auto 0;
+      display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+      column-gap:28px;row-gap:0;
+    }
+    #pg-design-root .pg-notes-head{
+      grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--pg-text-2);
+    }
+    #pg-design-root .pg-note{
+      display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;
+      border-top:1px solid var(--pg-border);
+    }
+    #pg-design-root .pg-note-num{
+      width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      background:var(--pg-primary-light);color:var(--pg-primary-text);
+      font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;
+    }
+    #pg-design-root .pg-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--pg-text);}
+    #pg-design-root .pg-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--pg-text-2);}
+
+    /* ================= 状态矩阵 ================= */
+    #pg-design-root .pg-matrix{
+      max-width:1360px;margin:30px auto 0;
+      border:1px solid var(--pg-border);border-radius:var(--pg-radius-xl);background:var(--pg-surface);overflow:hidden;
+    }
+    #pg-design-root .pg-matrix-head{
+      display:flex;align-items:center;gap:8px;padding:12px 16px;
+      border-bottom:1px solid var(--pg-border-soft);
+      font-size:12px;font-weight:600;color:var(--pg-text-2);
+    }
+    #pg-design-root .pg-matrix table{width:100%;border-collapse:collapse;font-size:11.5px;}
+    #pg-design-root .pg-matrix th,
+    #pg-design-root .pg-matrix td{
+      padding:9px 16px;text-align:left;border-bottom:1px solid var(--pg-border-soft);
+      vertical-align:top;line-height:1.5;
+    }
+    #pg-design-root .pg-matrix tr:last-child td{border-bottom:0;}
+    #pg-design-root .pg-matrix th{
+      font-weight:600;color:var(--pg-text-2);background:var(--pg-surface-2);font-size:11px;
+    }
+    #pg-design-root .pg-matrix td{color:var(--pg-text-2);}
+    #pg-design-root .pg-matrix td:first-child{color:var(--pg-text);font-weight:500;white-space:nowrap;}
+    #pg-design-root .pg-matrix code{
+      font-family:var(--pg-mono);font-size:10.5px;padding:1px 4px;border-radius:4px;
+      background:var(--pg-surface-3);color:var(--pg-text-2);
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      #pg-design-root *{animation:none !important;transition:none !important;}
+    }
+    @media (max-width:1024px){
+      #pg-design-root .pg-page{padding:18px 14px 32px;}
+      #pg-design-root .pg-window{height:auto;min-height:640px;}
+      #pg-design-root .pg-card-body{grid-template-columns:minmax(0,1fr);}
+      #pg-design-root .pg-rail{display:flex;overflow-x:auto;border-right:0;border-bottom:1px solid var(--pg-border);}
+      #pg-design-root .pg-nav{width:auto;flex:none;}
+      #pg-design-root .pg-nav.is-on::before{display:none;}
+      #pg-design-root .pg-field.span-4,
+      #pg-design-root .pg-field.span-6{grid-column:span 12;}
+    }
+  </style>
+
+  <div class="pg-page">
+    <header class="pg-page-head">
+      <div class="pg-page-title-row">
+        <h1>反射属性面板 · FlatPropertyGrid / CardPropertyGrid</h1>
+        <span class="pg-ver">v1</span>
+      </div>
+      <p class="pg-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>BindingObject</b>、<b>[SuperDisplay]</b> 反射契约、
+        全部生成器与处理器管线、<b>RequireRefresh 整表重建</b>语义；不新增字段、不改绑定类型、不改分组规则。
+        窗口 <b>880 × 720</b>，扁平式与卡片式共用同一份内容数据。
+      </p>
+      <div class="pg-demo-bar">
+        <div class="pg-demo-group" role="group" aria-label="布局形态">
+          <span class="pg-demo-label">布局</span>
+          <div class="pg-seg" id="pg-layout-seg">
+            <button type="button" data-layout="flat" class="is-on" aria-pressed="true">表格式</button>
+            <button type="button" data-layout="card" aria-pressed="false">卡片式</button>
+          </div>
+        </div>
+        <div class="pg-demo-group" role="group" aria-label="数据状态">
+          <span class="pg-demo-label">状态</span>
+          <div class="pg-seg" id="pg-state-seg">
+            <button type="button" data-state="ok" class="is-on" aria-pressed="true">默认</button>
+            <button type="button" data-state="error" aria-pressed="false">校验失败</button>
+            <button type="button" data-state="denied" aria-pressed="false">权限受限</button>
+            <button type="button" data-state="empty" aria-pressed="false">无可见属性</button>
+          </div>
+        </div>
+      </div>
+      <div class="pg-scope">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span><b>本稿未纳入（需新增契约）：</b>分组内错误汇总计数、脏值回滚、字段级搜索、字段级重置、
+        跨页签联动高亮。这些要么需要 <code>SuperDisplay</code> 之外的元数据，要么需要 VM 层状态，属独立批次。</span>
+      </div>
+    </header>
+
+    <!-- ===================== 产品窗口 ===================== -->
+    <div class="pg-window" id="pg-window" data-state="ok" data-layout="flat">
+      <div class="pg-titlebar">
+        <div class="pg-app-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="14" y1="4" y2="4"></line><line x1="10" x2="3" y1="4" y2="4"></line><line x1="21" x2="12" y1="12" y2="12"></line><line x1="8" x2="3" y1="12" y2="12"></line><line x1="21" x2="16" y1="20" y2="20"></line><line x1="12" x2="3" y1="20" y2="20"></line><line x1="14" x2="14" y1="2" y2="6"></line><line x1="8" x2="8" y1="10" y2="14"></line><line x1="16" x2="16" y1="18" y2="22"></line></svg>
+        </div>
+        <div class="pg-title-text">
+          <div class="pg-title">通信设置 · Modbus TCP</div>
+          <div class="pg-subtitle pg-subtitle-has-data">由 <code>[SuperDisplay]</code> 反射生成 · 4 个分组 · 13 个可见属性</div>
+          <div class="pg-subtitle pg-subtitle-empty">由 <code>[SuperDisplay]</code> 反射生成 · 0 个可见属性</div>
+        </div>
+        <div class="pg-title-actions">
+          <button type="button" class="pg-icon-btn" aria-label="关闭">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- ---------- 扁平式：页签 ---------- -->
+      <div class="pg-tabs pg-has-data" role="tablist" aria-label="属性分组">
+        <button type="button" class="pg-tab" role="tab" aria-selected="false">基本设置</button>
+        <button type="button" class="pg-tab is-on" role="tab" aria-selected="true">链路配置</button>
+        <button type="button" class="pg-tab" role="tab" aria-selected="false">运行调度</button>
+        <button type="button" class="pg-tab" role="tab" aria-selected="false">高级</button>
+      </div>
+
+      <!-- ---------- 扁平式：内容 ---------- -->
+      <div class="pg-scroll pg-has-data" id="pg-flat-pane">
+        <div class="pg-table">
+
+          <div class="pg-row">
+            <div class="pg-label">连接名称<span class="pg-req">*</span></div>
+            <div class="pg-value"><input class="pg-input" type="text" value="Modbus TCP - 1号线"></div>
+          </div>
+
+          <div class="pg-row">
+            <div class="pg-label">协议类型</div>
+            <div class="pg-value">
+              <div class="pg-select-wrap">
+                <select class="pg-select">
+                  <option>Modbus TCP</option>
+                  <option>Modbus RTU</option>
+                  <option>Siemens S7</option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="pg-row">
+            <div class="pg-label">启用该连接</div>
+            <div class="pg-value">
+              <label class="pg-switch">
+                <input type="checkbox" checked>
+                <span class="pg-track" aria-hidden="true"></span>
+              </label>
+              <span class="pg-help">关闭后不参与轮询，配置保留</span>
+            </div>
+          </div>
+
+          <div class="pg-row pg-row-ip">
+            <div class="pg-label">IP 地址<span class="pg-req">*</span></div>
+            <div class="pg-value is-stack">
+              <input class="pg-input" type="text" value="192.168.1.300" aria-invalid="true">
+              <span class="pg-err" role="alert">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg>
+                IP 格式不正确，应为 0–255 的四段点分十进制
+              </span>
+            </div>
+          </div>
+
+          <div class="pg-row">
+            <div class="pg-label">端口</div>
+            <div class="pg-value">
+              <div class="pg-num">
+                <input class="pg-input" type="number" value="502">
+                <span class="pg-num-range">1 – 65535</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pg-row">
+            <div class="pg-label">从站地址</div>
+            <div class="pg-value">
+              <div class="pg-num">
+                <input class="pg-input" type="number" value="1">
+                <span class="pg-num-range">0 – 247</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pg-row">
+            <div class="pg-label">连接超时</div>
+            <div class="pg-value">
+              <div class="pg-num">
+                <input class="pg-input" type="number" value="3000">
+                <span class="pg-suffix">ms</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pg-row">
+            <div class="pg-label">链路参数</div>
+            <div class="pg-value">
+              <div class="pg-nested">
+                <div class="pg-nested-head">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 10 5 5-5 5"></path><path d="M4 4v7a4 4 0 0 0 4 4h12"></path></svg>
+                  <span>链路参数</span>
+                  <span class="pg-nested-type">ModbusTcpConfig</span>
+                </div>
+                <div class="pg-nested-body">
+                  <div class="pg-nested-field">
+                    <label>心跳间隔</label>
+                    <div class="pg-num"><input class="pg-input" type="number" value="5000"><span class="pg-suffix">ms</span></div>
+                  </div>
+                  <div class="pg-nested-field">
+                    <label>帧间隔</label>
+                    <div class="pg-num"><input class="pg-input" type="number" value="20"><span class="pg-suffix">ms</span></div>
+                  </div>
+                  <div class="pg-nested-field">
+                    <label>原始帧记录</label>
+                    <label class="pg-switch">
+                      <input type="checkbox">
+                      <span class="pg-track" aria-hidden="true"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pg-row">
+            <div class="pg-label">执行自检</div>
+            <div class="pg-value">
+              <button type="button" class="pg-btn pg-btn-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+                执 行
+              </button>
+            </div>
+          </div>
+
+          <div class="pg-row">
+            <div class="pg-label">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+              设备型号
+            </div>
+            <div class="pg-value"><span class="pg-readonly">CP-2434-1</span></div>
+          </div>
+
+          <div class="pg-row pg-row-token">
+            <div class="pg-label">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+              管理员令牌
+            </div>
+            <div class="pg-value is-stack">
+              <input class="pg-input" type="text" value="tok-••••-9f2c" disabled>
+              <span class="pg-denied-block">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                当前角色 Operator 无此权限，需 Admin
+              </span>
+              <span class="pg-help pg-denied-on-ok">需要 Admin 角色才能编辑</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ---------- 卡片式：左栏 + 卡片 ---------- -->
+      <div class="pg-card-body pg-has-data" id="pg-card-pane" hidden>
+        <nav class="pg-rail" aria-label="属性分组">
+          <button type="button" class="pg-nav">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22v-5"></path><path d="M9 8V2"></path><path d="M15 8V2"></path><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"></path></svg>
+            <span>基本设置</span><span class="pg-nav-count">3</span>
+          </button>
+          <button type="button" class="pg-nav is-on">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="6" height="6" x="3" y="3" rx="1"></rect><rect width="6" height="6" x="15" y="3" rx="1"></rect><rect width="6" height="6" x="9" y="15" rx="1"></rect></svg>
+            <span>链路配置</span><span class="pg-nav-count">5</span>
+          </button>
+          <button type="button" class="pg-nav">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 14 4-4"></path><path d="M3.34 19a10 10 0 1 1 17.32 0"></path></svg>
+            <span>运行调度</span><span class="pg-nav-count">3</span>
+          </button>
+          <button type="button" class="pg-nav">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path></svg>
+            <span>高级</span><span class="pg-nav-count">2</span>
+          </button>
+        </nav>
+
+        <div class="pg-card-area">
+          <div class="pg-card-head">
+            <span class="pg-card-title">链路配置</span>
+            <span class="pg-card-hint">ModbusTcpConfig · 12 栅格</span>
+          </div>
+          <div class="pg-grid12">
+
+            <div class="pg-field span-6">
+              <label class="pg-flabel">连接名称<span class="pg-req">*</span></label>
+              <input class="pg-input" type="text" value="Modbus TCP - 1号线">
+            </div>
+
+            <div class="pg-field span-6">
+              <label class="pg-flabel">协议类型</label>
+              <div class="pg-select-wrap">
+                <select class="pg-select">
+                  <option>Modbus TCP</option>
+                  <option>Modbus RTU</option>
+                  <option>Siemens S7</option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+            </div>
+
+            <div class="pg-field span-12 is-switch">
+              <label class="pg-flabel">启用该连接</label>
+              <label class="pg-switch">
+                <input type="checkbox" checked>
+                <span class="pg-track" aria-hidden="true"></span>
+              </label>
+              <span class="pg-help">关闭后不参与轮询，配置保留</span>
+            </div>
+
+            <div class="pg-field span-12 pg-row-ip">
+              <label class="pg-flabel">IP 地址<span class="pg-req">*</span></label>
+              <input class="pg-input" type="text" value="192.168.1.300" aria-invalid="true">
+              <span class="pg-err" role="alert">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg>
+                IP 格式不正确，应为 0–255 的四段点分十进制
+              </span>
+            </div>
+
+            <div class="pg-field span-4">
+              <label class="pg-flabel">端口</label>
+              <div class="pg-num"><input class="pg-input" type="number" value="502"><span class="pg-num-range">1–65535</span></div>
+            </div>
+
+            <div class="pg-field span-4">
+              <label class="pg-flabel">从站地址</label>
+              <div class="pg-num"><input class="pg-input" type="number" value="1"><span class="pg-num-range">0–247</span></div>
+            </div>
+
+            <div class="pg-field span-4">
+              <label class="pg-flabel">连接超时</label>
+              <div class="pg-num"><input class="pg-input" type="number" value="3000"><span class="pg-suffix">ms</span></div>
+            </div>
+
+            <div class="pg-field span-12">
+              <div class="pg-nested">
+                <div class="pg-nested-head">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 10 5 5-5 5"></path><path d="M4 4v7a4 4 0 0 0 4 4h12"></path></svg>
+                  <span>链路参数</span>
+                  <span class="pg-nested-type">[PropertyItem] 递归子网格 · 内联呈现</span>
+                </div>
+                <div class="pg-nested-body">
+                  <div class="pg-nested-field">
+                    <label>心跳间隔</label>
+                    <div class="pg-num"><input class="pg-input" type="number" value="5000"><span class="pg-suffix">ms</span></div>
+                  </div>
+                  <div class="pg-nested-field">
+                    <label>帧间隔</label>
+                    <div class="pg-num"><input class="pg-input" type="number" value="20"><span class="pg-suffix">ms</span></div>
+                  </div>
+                  <div class="pg-nested-field">
+                    <label>原始帧记录</label>
+                    <label class="pg-switch">
+                      <input type="checkbox">
+                      <span class="pg-track" aria-hidden="true"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pg-field span-4 is-switch">
+              <label class="pg-flabel">执行自检</label>
+              <button type="button" class="pg-btn pg-btn-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+                执 行
+              </button>
+            </div>
+
+            <div class="pg-field span-4">
+              <label class="pg-flabel">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                设备型号
+              </label>
+              <span class="pg-readonly">CP-2434-1</span>
+            </div>
+
+            <div class="pg-field span-4">
+              <label class="pg-flabel">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                管理员令牌
+              </label>
+              <input class="pg-input" type="text" value="tok-••••-9f2c" disabled>
+              <span class="pg-denied-block">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                当前角色 Operator 无此权限，需 Admin
+              </span>
+              <span class="pg-help pg-denied-on-ok">需要 Admin 角色才能编辑</span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- 空态 ---------- -->
+      <div class="pg-empty">
+        <div class="pg-empty-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg>
+        </div>
+        <b>该对象没有可显示的属性</b>
+        <span>属性面板只渲染标了 <code>[SuperDisplay]</code> 且 <code>Visible = true</code> 的公开实例属性。当前绑定对象的字段都不满足条件。</span>
+      </div>
+
+      <!-- ---------- 底部 ---------- -->
+      <div class="pg-footer">
+        <span class="pg-status is-err pg-status-err">
+          <span class="pg-dot"></span>1 个字段校验未通过
+        </span>
+        <span class="pg-status pg-status-ok">
+          <span class="pg-dot"></span>13 个可见属性 · 4 个分组
+        </span>
+        <span class="pg-status pg-status-empty">
+          <span class="pg-dot"></span>0 个可见属性
+        </span>
+        <div class="pg-footer-spacer"></div>
+        <button type="button" class="pg-btn">取消</button>
+        <button type="button" class="pg-btn pg-btn-primary">确定</button>
+      </div>
+    </div>
+
+    <!-- ===================== 说明 ===================== -->
+    <div class="pg-notes">
+      <div class="pg-notes-head">关键改动（v1）</div>
+      <div class="pg-note">
+        <div class="pg-note-num">01</div>
+        <div>
+          <b>行高统一到 36px</b>
+          <span>现状同一张表里开关 24px、文本框 32px、数值框 44px（<code>NumericBox</code> 的 <code>MinHeight=32</code> 又叠了 <code>Padding=10,6</code>）。v1 把三类控件统一为 36px 高、8px 圆角、单行 48px 节奏。</span>
+        </div>
+      </div>
+      <div class="pg-note">
+        <div class="pg-note-num">02</div>
+        <div>
+          <b>颜色全部走令牌</b>
+          <span>生成器里写死的 <code>#DCDFE6</code> / <code>#606266</code> / <code>#409EFF</code> / <code>#F5F7FA</code> 换成 <code>Dialog*Brush</code>；扁平外框的 <code>229,229,229</code> 换成 <code>DialogBorderBrush</code>。改主题只改令牌。</span>
+        </div>
+      </div>
+      <div class="pg-note">
+        <div class="pg-note-num">03</div>
+        <div>
+          <b>校验从"仅 TextBox"扩到全控件</b>
+          <span>现状 <code>ValidationProcessor</code> 只对 <code>TextBox</code> 生效、且只在 <code>LostFocus</code> 触发。v1 把错误态定义成行级（红底 + 红描边 + 行内错误文案），数值框 / 下拉 / 开关同样可承载。</span>
+        </div>
+      </div>
+      <div class="pg-note">
+        <div class="pg-note-num">04</div>
+        <div>
+          <b>嵌套对象改为内联块，不再长出第二层页签</b>
+          <span>现状 <code>NestedPropertyGridGenerator</code> 直接 new 一个完整的 <code>CardPropertyGrid</code>，子网格自带 <code>TabControl</code>。v1 用左侧强调条 + 浅底的内联块表达层级，块头标注实际类型名。</span>
+        </div>
+      </div>
+      <div class="pg-note">
+        <div class="pg-note-num">05</div>
+        <div>
+          <b>只读与权限不足分开表达</b>
+          <span>只读 = 虚线边框 + 浅底（"看得见但改不了"）；权限不足 = 禁用 + 锁图标 + 一行原因说明。现状两者都只是变灰加一把红色 emoji 锁。</span>
+        </div>
+      </div>
+      <div class="pg-note">
+        <div class="pg-note-num">06</div>
+        <div>
+          <b>扁平式标签列留白对齐</b>
+          <span>现状标签侧 <code>Padding 16,12,32,12</code>、控件侧 <code>16,8,16,8</code>，上下差 4px 导致行节奏不稳。v1 两侧同为 <code>10px / 14px</code> 竖向对齐。</span>
+        </div>
+      </div>
+      <div class="pg-note">
+        <div class="pg-note-num">07</div>
+        <div>
+          <b>底部状态条</b>
+          <span>左侧胶囊显示分组数与校验结论，右侧是取消 / 确定。校验未通过时胶囊转红，状态从"13 个可见属性"变成"1 个字段校验未通过"。</span>
+        </div>
+      </div>
+      <div class="pg-note">
+        <div class="pg-note-num">08</div>
+        <div>
+          <b>卡片式左栏替代灰底页签条</b>
+          <span>现状左栏 128px 灰底、选中项只有一条 3px 竖线。v1 是 176px 浅底导航：图标 + 组名 + 条目计数，选中项变白底卡片 + 左侧强调条。</span>
+        </div>
+      </div>
+
+      <div class="pg-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="pg-note">
+        <div class="pg-note-num">C1</div>
+        <div>
+          <b><code>BindingObject</code> + <code>INotifyPropertyChanged</code></b>
+          <span>数据源仍是任意 POCO / BindableBase；订阅、跨线程封送、换绑时解绑旧监听的行为不变。</span>
+        </div>
+      </div>
+      <div class="pg-note">
+        <div class="pg-note-num">C2</div>
+        <div>
+          <b><code>[SuperDisplay]</code> 可见性契约</b>
+          <span>只渲染带该特性且 <code>Visible == true</code> 的公开实例属性；没有特性的属性一律不显示。</span>
+        </div>
+      </div>
+      <div class="pg-note">
+        <div class="pg-note-num">C3</div>
+        <div>
+          <b>生成器 Priority 命中顺序</b>
+          <span>Nested(10) / Numeric(110) / ComboSource(105) / Enum·Option·Struct·Bool(100) / Type(0) 的降序命中与回退不变。</span>
+        </div>
+      </div>
+      <div class="pg-note">
+        <div class="pg-note-num">C4</div>
+        <div>
+          <b><code>RequireRefresh</code> = 整表重建</b>
+          <span>保持 <code>UpdatePropertyGrid(preserveSelectedTab: true)</code>，不做"只重建触发者所在页签"的优化——多态字段与它驱动的子对象常不在同一页签。</span>
+        </div>
+      </div>
+      <div class="pg-note">
+        <div class="pg-note-num">C5</div>
+        <div>
+          <b>分组与排序规则</b>
+          <span><code>Group</code> 优先于 <code>GroupPath</code>；<code>GroupOrder</code> 按数值比较（"10" 排在 "2" 后）；组内按 <code>Order</code>。</span>
+        </div>
+      </div>
+      <div class="pg-note">
+        <div class="pg-note-num">C6</div>
+        <div>
+          <b>页签懒加载 + 事件按实例挂</b>
+          <span>只建页签头、选中才构建内容；<code>SelectionChanged</code> 记实例而非布尔标志，模板被换过时能重新挂上。</span>
+        </div>
+      </div>
+
+      <div class="pg-notes-head" style="margin-top:20px;">明确延后（需新增契约）</div>
+      <div class="pg-note">
+        <div class="pg-note-num">D1</div>
+        <div>
+          <b>分组内错误汇总</b>
+          <span>需要在页签头上显示"该组有 N 个错误"。当前处理器管线是逐属性执行，没有跨属性的汇总状态。</span>
+        </div>
+      </div>
+      <div class="pg-note">
+        <div class="pg-note-num">D2</div>
+        <div>
+          <b>脏值与回滚</b>
+          <span>属性面板是即时写属性，点"取消"不回滚。要支持"待应用 / 撤销"需要在 <code>BindingObject</code> 之外引入草稿层。</span>
+        </div>
+      </div>
+      <div class="pg-note">
+        <div class="pg-note-num">D3</div>
+        <div>
+          <b>字段级搜索与重置</b>
+          <span>需要按 <code>Name</code> / <code>Description</code> 建索引，以及"重置为默认值"的元数据来源。</span>
+        </div>
+      </div>
+      <div class="pg-note">
+        <div class="pg-note-num">D4</div>
+        <div>
+          <b>跨页签联动高亮</b>
+          <span><code>RequireRefresh</code> 已能整表重建，但"定位到被驱动的那个字段"需要新的聚焦契约。</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== 状态矩阵 ===================== -->
+    <div class="pg-matrix">
+      <div class="pg-matrix-head">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="14" rx="1"></rect><rect width="7" height="7" x="3" y="14" rx="1"></rect></svg>
+        控件五态规格（hover / focus / active / disabled / error）
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>控件</th><th>默认</th><th>Hover</th><th>Focus</th><th>Disabled / 只读</th><th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>输入框 / 数值框</td>
+            <td>白底 · <code>DialogBorderBrush</code> 1px · 圆角 8</td>
+            <td>描边 → <code>DialogBorderStrongBrush</code></td>
+            <td>描边主色 + 3px 主色 12% 光环</td>
+            <td>浅底 + 虚线描边 + 弱化文字</td>
+            <td>描边 <code>DialogDangerBrush</code> + 行底浅红 + 行内文案</td>
+          </tr>
+          <tr>
+            <td>下拉框</td>
+            <td>同输入框 · 右侧 13px 雪佛龙</td>
+            <td>同输入框</td>
+            <td>同输入框 · 雪佛龙转主色</td>
+            <td>同输入框</td>
+            <td>同输入框</td>
+          </tr>
+          <tr>
+            <td>开关</td>
+            <td>38×22 轨道 · 灰 <code>DialogBorderBrush</code></td>
+            <td>轨道加深一档</td>
+            <td>3px 主色 24% 光环</td>
+            <td>整体 45% 透明度</td>
+            <td>不支持（布尔无非法值）</td>
+          </tr>
+          <tr>
+            <td>命令按钮</td>
+            <td>32px 高 · 次要按钮</td>
+            <td>浅底 <code>DialogRowAlternateBrush</code></td>
+            <td>3px 主色 24% 光环</td>
+            <td>45% 透明度 + 禁用光标</td>
+            <td>不支持</td>
+          </tr>
+          <tr>
+            <td>页签 / 导航项</td>
+            <td>透明底 · 次要文字</td>
+            <td>浅底 <code>DialogRowHoverBrush</code></td>
+            <td>2px 主色外框（键盘）</td>
+            <td>—</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('pg-design-root');
+      var win = document.getElementById('pg-window');
+      var flatPane = document.getElementById('pg-flat-pane');
+      var cardPane = document.getElementById('pg-card-pane');
+      var tabs = document.querySelectorAll('#pg-layout-seg button');
+      var states = document.querySelectorAll('#pg-state-seg button');
+
+      function setLayout(layout) {
+        win.setAttribute('data-layout', layout);
+        tabs.forEach(function (btn) {
+          var on = btn.getAttribute('data-layout') === layout;
+          btn.classList.toggle('is-on', on);
+          btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        var isFlat = layout === 'flat';
+        flatPane.hidden = !isFlat;
+        cardPane.hidden = isFlat;
+      }
+
+      function setState(state) {
+        win.setAttribute('data-state', state);
+        states.forEach(function (btn) {
+          var on = btn.getAttribute('data-state') === state;
+          btn.classList.toggle('is-on', on);
+          btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+      }
+
+      tabs.forEach(function (btn) {
+        btn.addEventListener('click', function () { setLayout(btn.getAttribute('data-layout')); });
+      });
+      states.forEach(function (btn) {
+        btn.addEventListener('click', function () { setState(btn.getAttribute('data-state')); });
+      });
+
+      var tabButtons = document.querySelectorAll('.pg-tab');
+      tabButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          tabButtons.forEach(function (other) {
+            var on = other === btn;
+            other.classList.toggle('is-on', on);
+            other.setAttribute('aria-selected', on ? 'true' : 'false');
+          });
+        });
+      });
+
+      var navButtons = document.querySelectorAll('.pg-nav');
+      navButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          navButtons.forEach(function (other) { other.classList.toggle('is-on', other === btn); });
+        });
+      });
+
+      setLayout('flat');
+      setState('ok');
+    })();
+  </script>
+</div>
+</body>
+</html>

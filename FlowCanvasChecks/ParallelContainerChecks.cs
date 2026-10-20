@@ -187,7 +187,7 @@ namespace FlowCanvasChecks
             var cv = h.Canvas;
 
             var parNode = h.Node(par)!;
-            Check("容器框类型徽标 = Parallel", parNode.TypeBadge == "Parallel", $"'{parNode.TypeBadge}'");
+            Check("容器框类型徽标 = PAR", parNode.TypeBadge == "PAR", $"'{parNode.TypeBadge}'");
             Check("容器框渲染（IContainerStep 口径自动覆盖）", parNode.Kind == CanvasNodeKind.Container, "");
 
             var lane1 = h.Lane(par.Children[0])!;
@@ -718,7 +718,7 @@ namespace FlowCanvasChecks
 
             Check("图式齐备：并行泳道 → For → 循环体泳道 → 内层 If",
                 forNode.Kind == CanvasNodeKind.Container && forBody != null && ifNode.Kind == CanvasNodeKind.Container
-                && forNode.TypeBadge == "For" && ifNode.TypeBadge == "If", "");
+                && forNode.TypeBadge == "FOR" && ifNode.TypeBadge == "IF", "");
 
             Check("I1 嵌套 For 框体完整落在所属泳道内",
                 Inside(NodeBox(lane1), NodeBox(forNode)), $"frame={NodeBox(forNode)} lane1={NodeBox(lane1)}");

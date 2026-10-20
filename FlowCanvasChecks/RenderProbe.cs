@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Reflection;
 using System.Threading;
@@ -13,7 +14,9 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using System.Windows.Markup;
 using Nodify;
+using Prism.Dialogs;
 using VisionMaster;
+using VisionMaster.Communications;
 using VisionMaster.Models;
 using VisionMaster.Services;
 using VisionMaster.ViewModels;
@@ -90,6 +93,349 @@ namespace FlowCanvasChecks
             RenderScenarioPerf(Path.Combine(outDir, "flowcanvas-render-perf-600.png"), 600);
 
             app.Shutdown();
+        }
+
+        // ==================================================================
+        //  尺寸实量子模式（--measure-canvas）
+        //
+        //  为什么单独开一个进程模式：断言宿主主进程**不能** `new Application`（实测两个后果：
+        //  预览帧投射改走 UI 线程投递分支永不落地 / 退出时挂住把 exe 锁住，见 BlobDetectChecks
+        //  类注释与 docs/code-changes/2026-09-25-冒烟命令超时排障与规避.md）。所以
+        //  CanvasDesignChecks 用子进程跑这里，父进程只解析 stdout 的 [measure] 行。
+        //
+        //  量的是"设计稿定稿的可见口径"：卡片 156×58、标题行真有宽高、小地图 180×118 且
+        //  关掉开关后真变 Collapsed（触发器生效，不只是绑定值变了）。
+        // ==================================================================
+
+        /// <summary>入口：起 STA 线程跑测量（与 Run 同一套线程纪律）。</summary>
+        public static void RunMeasure()
+        {
+            var thread = new Thread(MeasureCanvas);
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+        }
+
+        private static void MeasureCanvas()
+        {
+            Application? app = null;
+            try
+            {
+                app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+
+                string? repoRoot = FindRepoRoot();
+                if (repoRoot == null)
+                {
+                    Console.WriteLine("[measure] FAIL: 找不到仓库根（AGENTS.md）");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+
+                // 与 RenderBoth 同一份资源准备：Colors.xaml 文本直载 + Icon 字体按系统字体兜底
+                var colors = (ResourceDictionary)XamlReader.Parse(
+                    File.ReadAllText(Path.Combine(repoRoot, @"UI\Controls\Themes\Colors.xaml")));
+                app.Resources.MergedDictionaries.Add(colors);
+                app.Resources["Icon"] = new FontFamily("Segoe MDL2 Assets");
+
+                var h = new Harness();
+                h.Flow.FlowName = "尺寸探针";
+                var leaf = new ActionStep("\uE722", "图像采集", StubPluginProvider.LeafPlugin, "采集_0");
+                h.Add(leaf);
+
+                // FLC-21 素材：单泳道长条件 While——条件文本远宽于组头，用来量"条件列会不会
+                // 把右侧统计/状态点/折叠钮挤出组头"。循环体给一个算子，泳道才拿到 MinLaneWidth 的实宽。
+                var longWhile = new WhileStep("\uE700", "桩While", "VM.CanvasStub.While", "长条件循环");
+                longWhile.Children[0].Expression =
+                    "Score > 80 AND Recipe == \"A\" AND Station == 3 AND Camera.Ready == true AND LightLevel > 120";
+                longWhile.Children[0].Steps.Add(
+                    new ActionStep("\uE700", "循环体算子", StubPluginProvider.LeafPlugin, "循环体_0"));
+                h.Add(longWhile);
+
+                var canvas = new FlowCanvasViewModel(h.Workspace, new StubPluginProvider());
+                WireViewModelFactory(canvas);
+                canvas.ShowMinimap = true;   // 默认关闭 → 先打开才量得到 180×118
+
+                var view = new FlowCanvasView();
+                var host = new Border
+                {
+                    Width = 900,
+                    Height = 600,
+                    Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF)),
+                    Child = view,
+                };
+                host.Measure(new Size(900, 600));
+                host.Arrange(new Rect(0, 0, 900, 600));
+                host.UpdateLayout();
+                PumpFrames(10);
+
+                // ---- 卡片与标题行 ----
+                // 容器生成跨多帧（Nodify 的 ItemContainer + 模板展开）；慢机上 10 帧可能还没生成，
+                // 这里补一段有界等待——等到就量，等不到照旧判 FAIL（不是跳过）。
+                var header = WaitForHeader(view, TimeSpan.FromSeconds(3));
+                var card = FindCardAncestor(header);
+
+                Console.WriteLine(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "[measure] card={0:0.#}x{1:0.#}",
+                    card?.ActualWidth ?? double.NaN,
+                    card?.ActualHeight ?? double.NaN));
+
+                Console.WriteLine(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "[measure] header={0}|w={1:0.#}|h={2:0.#}",
+                    header?.Text ?? "",
+                    header?.ActualWidth ?? double.NaN,
+                    header?.ActualHeight ?? double.NaN));
+
+                // ---- 小地图：打开态量尺寸，关掉后看 Visibility ----
+                var minimap = FindDescendant<Minimap>(view);
+                var minimapBorder = minimap == null ? null : VisualTreeHelper.GetParent(minimap) as Border;
+
+                Console.WriteLine(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "[measure] minimap={0:0.#}x{1:0.#}",
+                    minimapBorder?.ActualWidth ?? double.NaN,
+                    minimapBorder?.ActualHeight ?? double.NaN));
+
+                canvas.ShowMinimap = false;
+                host.UpdateLayout();
+                PumpFrames(4);
+
+                Console.WriteLine($"[measure] minimap-hidden={minimapBorder?.Visibility}");
+
+                if (card == null || header == null || minimapBorder == null)
+                {
+                    Console.WriteLine("[measure] FAIL: 模板部件没找到（NodeHeaderText / 卡片 Grid / 小地图 Border）");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+
+                // ---- 容器组头（单泳道长条件 While）：四件套边界（FLC-21）----
+                MeasureContainerHeader(host, view, longWhile);
+
+                // ---- 禁用态整节点降透明（FLC-22）：模板根 Grid 的 Opacity 真变成 0.45 ----
+                MeasureDisabledOpacity(host, view, leaf, longWhile);
+
+                Console.WriteLine("[measure] ok");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[measure] FAIL: {ex.GetType().Name}: {ex.Message}");
+                Environment.ExitCode = 1;
+            }
+            finally
+            {
+                try { app?.Shutdown(); } catch { }
+            }
+        }
+
+        /// <summary>按 x:Name 找模板里的命名元素（DataTemplate 的 x:Name 会落在 FrameworkElement.Name 上）</summary>
+        private static T? FindByName<T>(DependencyObject root, string name) where T : FrameworkElement
+        {
+            int count = VisualTreeHelper.GetChildrenCount(root);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is T typed && string.Equals(typed.Name, name, StringComparison.Ordinal))
+                    return typed;
+                var found = FindByName<T>(child, name);
+                if (found != null) return found;
+            }
+            return null;
+        }
+
+        /// <summary>有界等待标题行出现：容器生成跨多帧，慢机上固定帧数可能不够</summary>
+        private static TextBlock? WaitForHeader(DependencyObject root, TimeSpan timeout)
+        {
+            var header = FindByName<TextBlock>(root, "NodeHeaderText");
+            var deadline = DateTime.UtcNow + timeout;
+            while (header == null && DateTime.UtcNow < deadline)
+            {
+                PumpFrames(2);
+                header = FindByName<TextBlock>(root, "NodeHeaderText");
+            }
+            return header;
+        }
+
+        private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
+        {
+            int count = VisualTreeHelper.GetChildrenCount(root);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is T hit) return hit;
+                var found = FindDescendant<T>(child);
+                if (found != null) return found;
+            }
+            return null;
+        }
+
+        /// <summary>元素相对某个祖先的布局矩形（DIP；TransformBounds 一并带上编辑器的缩放/平移）</summary>
+        private static Rect BoundsRelativeTo(FrameworkElement element, Visual ancestor)
+            => element.TransformToAncestor(ancestor)
+                .TransformBounds(new Rect(new Point(0, 0), element.RenderSize));
+
+        /// <summary>机器可读矩形行：x/y/w/h/right/bottom 一次给全（父进程只做算术，不猜）</summary>
+        private static string RectLine(string prefix, Rect r)
+            => string.Format(
+                CultureInfo.InvariantCulture,
+                "{0}x={1:0.#}|y={2:0.#}|w={3:0.#}|h={4:0.#}|right={5:0.#}|bottom={6:0.#}",
+                prefix, r.X, r.Y, r.Width, r.Height, r.Right, r.Bottom);
+
+        /// <summary>容器盒 Grid：组头的祖先里，第一个直接子级含 ContainerCollapseToggle 的 Grid
+        /// （折叠钮是 ContainerFrame 的兄弟，不在组头里——组头不是它的祖先）</summary>
+        private static Grid? FindContainerBoxGrid(DependencyObject header)
+        {
+            for (var cur = VisualTreeHelper.GetParent(header); cur != null; cur = VisualTreeHelper.GetParent(cur))
+            {
+                if (cur is Grid grid && FindDirectChildByName(grid, "ContainerCollapseToggle") != null)
+                    return grid;
+            }
+            return null;
+        }
+
+        private static FrameworkElement? FindDirectChildByName(DependencyObject parent, string name)
+        {
+            int count = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                if (VisualTreeHelper.GetChild(parent, i) is FrameworkElement fe
+                    && string.Equals(fe.Name, name, StringComparison.Ordinal))
+                {
+                    return fe;
+                }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// FLC-21：单泳道长条件 While 的组头边界。
+        /// 量的四件套都是模板里的 x:Name 部件：条件胶囊（ContainerCondBorder/ContainerCondText）、
+        /// 右侧统计（ContainerMetaLabel）、状态点（ContainerStatusDot）、折叠钮（ContainerCollapseToggle）。
+        /// 折叠钮不在组头 Border 里（它是 ContainerFrame 的兄弟），所以它相对"容器盒 Grid"量，
+        /// 组头也按同一个祖先量，父进程才能直接比 right/bottom。
+        /// 认人按 DataContext 的模型：同场景若再加容器，也不会量到别人的组头。
+        /// </summary>
+        private static void MeasureContainerHeader(FrameworkElement host, DependencyObject view, StepModel container)
+        {
+            var header = WaitForNamedRootForModel(view, "ContainerHeader", container, TimeSpan.FromSeconds(3));
+            if (header == null)
+            {
+                Console.WriteLine("[measure] while-FAIL: 找不到长条件 While 的 ContainerHeader（模板没生成？）");
+                return;
+            }
+
+            var box = FindContainerBoxGrid(header);
+            var condBorder = FindByName<Border>(header, "ContainerCondBorder");
+            var condText = FindByName<TextBlock>(header, "ContainerCondText");
+            var meta = FindByName<TextBlock>(header, "ContainerMetaLabel");
+            var dot = FindByName<System.Windows.Shapes.Ellipse>(header, "ContainerStatusDot");
+            var toggle = box == null ? null : FindDirectChildByName(box, "ContainerCollapseToggle");
+
+            if (box == null || condBorder == null || condText == null
+                || meta == null || dot == null || toggle == null)
+            {
+                Console.WriteLine(
+                    "[measure] while-FAIL: 容器组头部件没找齐"
+                    + $"（box={box != null} condBorder={condBorder != null} condText={condText != null}"
+                    + $" meta={meta != null} dot={dot != null} toggle={toggle != null}）");
+                return;
+            }
+
+            host.UpdateLayout();
+            PumpFrames(4);
+
+            Console.WriteLine(RectLine("[measure] while-header=", BoundsRelativeTo(header, box)));
+            Console.WriteLine(RectLine("[measure] while-cond=", BoundsRelativeTo(condBorder, header)));
+            Console.WriteLine(RectLine("[measure] while-condtext=", BoundsRelativeTo(condText, header)));
+            Console.WriteLine(RectLine("[measure] while-meta=", BoundsRelativeTo(meta, header)));
+            Console.WriteLine(RectLine("[measure] while-dot=", BoundsRelativeTo(dot, header)));
+            Console.WriteLine(RectLine("[measure] while-toggle=", BoundsRelativeTo(toggle, box)));
+        }
+
+        /// <summary>
+        /// FLC-22：禁用态必须整节点降透明（模板根 Grid 的 Opacity），不是只压卡片本体。
+        /// 量两处根 Grid：StepNodeRoot（步骤模板根）与 ContainerNodeRoot（容器模板根）。
+        /// </summary>
+        private static void MeasureDisabledOpacity(
+            FrameworkElement host, DependencyObject view, StepModel leaf, StepModel container)
+        {
+            // 按"元素名 + DataContext 的模型"认人：树里有两个步骤模板实例（顶层算子 + 循环体算子），
+            // 只按名字取第一个会把"禁用 A、量 B"混成假绿。
+            var stepRoot = FindNamedRootForModel(view, "StepNodeRoot", leaf);
+            leaf.IsDisEnable = true;
+            host.UpdateLayout();
+            PumpFrames(6);
+            Console.WriteLine(string.Format(
+                CultureInfo.InvariantCulture,
+                "[measure] step-disabled-opacity={0:0.###}",
+                stepRoot?.Opacity ?? double.NaN));
+            leaf.IsDisEnable = false;
+
+            var containerRoot = FindNamedRootForModel(view, "ContainerNodeRoot", container);
+            container.IsDisEnable = true;
+            host.UpdateLayout();
+            PumpFrames(6);
+            Console.WriteLine(string.Format(
+                CultureInfo.InvariantCulture,
+                "[measure] container-disabled-opacity={0:0.###}",
+                containerRoot?.Opacity ?? double.NaN));
+            container.IsDisEnable = false;
+        }
+
+        /// <summary>按 x:Name + DataContext 的 StepModel 找模板根元素（同模板多实例时不会认错人）</summary>
+        private static FrameworkElement? FindNamedRootForModel(DependencyObject view, string name, StepModel model)
+        {
+            var all = new List<FrameworkElement>();
+            CollectDescendants(view, all);
+            return all.FirstOrDefault(fe => string.Equals(fe.Name, name, StringComparison.Ordinal)
+                && fe.DataContext is CanvasNodeViewModel vm
+                && ReferenceEquals(vm.Model, model));
+        }
+
+        /// <summary>有界等待"某个模型"的模板根出现（容器模板生成跨帧，慢机上固定帧数不够）</summary>
+        private static FrameworkElement? WaitForNamedRootForModel(
+            DependencyObject view, string name, StepModel model, TimeSpan timeout)
+        {
+            var hit = FindNamedRootForModel(view, name, model);
+            var deadline = DateTime.UtcNow + timeout;
+            while (hit == null && DateTime.UtcNow < deadline)
+            {
+                PumpFrames(2);
+                hit = FindNamedRootForModel(view, name, model);
+            }
+            return hit;
+        }
+
+        /// <summary>从标题行往上找卡片本体：第一个宽高等于 NodeWidth/NodeHeight 的元素就是模板里那层固定盒子</summary>
+        private static FrameworkElement? FindCardAncestor(DependencyObject? node)
+        {
+            while (node != null)
+            {
+                if (node is FrameworkElement fe
+                    && Math.Abs(fe.Width - FlowCanvasViewModel.NodeWidth) < 0.01
+                    && Math.Abs(fe.Height - FlowCanvasViewModel.NodeHeight) < 0.01)
+                {
+                    return fe;
+                }
+
+                node = node is Visual or System.Windows.Media.Media3D.Visual3D
+                    ? VisualTreeHelper.GetParent(node)
+                    : null;
+            }
+            return null;
+        }
+
+        /// <summary>从输出目录往上找 AGENTS.md（与各断言文件的 RepoRoot 同一口径）</summary>
+        private static string? FindRepoRoot()
+        {
+            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            for (int i = 0; i < 8 && dir != null; i++, dir = dir.Parent)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "AGENTS.md")))
+                    return dir.FullName;
+            }
+            return null;
         }
 
         /// <summary>场景 A：复刻真机反馈图式——纵向两步（采集→检测）。默认态：只见顺序链（数据线默认隐藏）</summary>
@@ -501,7 +847,13 @@ namespace FlowCanvasChecks
             {
                 var stub = new TreeProbeViewModel(workspace);
                 Prism.Mvvm.ViewModelLocationProvider.SetDefaultViewModelFactory(t =>
-                    t == typeof(ProcessViewModel) ? stub : Activator.CreateInstance(t)!);
+                {
+                    if (t == typeof(ProcessViewModel)) return stub;
+                    // ProcessView 顶部嵌入的 FlowListView 在真实宿主由 Prism 容器解析；
+                    // 渲染探针没有容器，返回 null 让它的绑定静默空跑，不影响流程树出图。
+                    if (t == typeof(VisionMaster.ViewModels.FlowListViewModel)) return null!;
+                    return Activator.CreateInstance(t)!;
+                });
 
                 var view = new ProcessView();
                 var host = new Border
@@ -785,9 +1137,10 @@ namespace FlowCanvasChecks
             var appInline = LoadAppInlineResources();
             Application.Current.Resources.MergedDictionaries.Add(theme);
             if (appInline != null) Application.Current.Resources.MergedDictionaries.Add(appInline);
+            VariableManagerProbeViewModel? stub = null;
             try
             {
-                var stub = new VariableManagerProbeViewModel();
+                stub = new VariableManagerProbeViewModel();
                 // 按**视图类型**注册（不是 SetDefaultViewModelFactory）：Prism 的命名约定
                 // 会把 GlobalVariableView 推成 GlobalVariableViewModel，而真 VM 叫
                 // GlobalVariableManagerViewModel（App.xaml.cs 的 RegisterDialog 显式绑的那一对），
@@ -815,6 +1168,7 @@ namespace FlowCanvasChecks
             }
             finally
             {
+                stub?.DisposeProbe();
                 if (appInline != null) Application.Current.Resources.MergedDictionaries.Remove(appInline);
                 Application.Current.Resources.MergedDictionaries.Remove(theme);
             }
@@ -958,21 +1312,53 @@ namespace FlowCanvasChecks
         }
 
         /// <summary>
-        /// 变量管理弹窗的最小桩 VM（照 <see cref="TreeProbeViewModel"/> 的写法）：
-        /// 只提供视图真正绑到的成员，命令缺失时静默空跑。
-        /// 行数据用真 <see cref="VariableNode"/>（视图的单元格模板绑的就是它的属性），
-        /// 模型用真 LocalVariableModel / NetworkVariableModel（质量点、类型名都读它们）。
+        /// 变量管理弹窗的真实 VM 探针：视图的 code-behind 只认
+        /// <see cref="GlobalVariableManagerViewModel"/>（HookViewModel / ApplyDetailColumnMode /
+        /// 分组视图都在那里执行），所以这里用真实服务构造，不再用"只有 AddCommand"的桩。
         /// </summary>
-        private sealed class VariableManagerProbeViewModel
+        private sealed class VariableManagerProbeViewModel : GlobalVariableManagerViewModel
         {
-            public VariableManagerProbeViewModel()
+            private readonly WorkspaceContext _workspace;
+            private readonly AdvancedCommunicationManager _manager;
+            private readonly NetworkVariableBridge _bridge;
+
+            public VariableManagerProbeViewModel() : this(CreateDependencies()) { }
+
+            private VariableManagerProbeViewModel(
+                (WorkspaceContext Workspace, AdvancedCommunicationManager Manager, NetworkVariableBridge Bridge, IDialogService Dialog) deps)
+                : base(deps.Workspace, deps.Manager, deps.Bridge, deps.Dialog)
             {
+                _workspace = deps.Workspace;
+                _manager = deps.Manager;
+                _bridge = deps.Bridge;
+                Populate();
+            }
+
+            private static (WorkspaceContext, AdvancedCommunicationManager, NetworkVariableBridge, IDialogService) CreateDependencies()
+            {
+                var workspace = new WorkspaceContext();
+                workspace.GlobalVariables.Clear();
+                var manager = new AdvancedCommunicationManager();
+                var bridge = new NetworkVariableBridge(workspace, manager, new StubLog());
+                return (workspace, manager, bridge, new SilentDialogService());
+            }
+
+            public void DisposeProbe()
+            {
+                try { Dispose(); } catch { }
+                try { _bridge.Dispose(); } catch { }
+                try { _manager.Dispose(); } catch { }
+            }
+
+            private void Populate()
+            {
+                SourceNodes.Clear();
                 SourceNodes.Add(new VariableSourceNode
                 {
                     Key = "Local",
                     DisplayName = "本地变量",
                     Icon = "\uF15B",
-                    Count = 3,
+                    Count = 2,
                     IsOnline = true,
                 });
                 SourceNodes.Add(new VariableSourceNode
@@ -981,10 +1367,11 @@ namespace FlowCanvasChecks
                     DisplayName = "PLC_01",
                     Icon = "\uF1EB",
                     IsNetwork = true,
+                    ProtocolText = "Modbus TCP",
                     Count = 1,
                     IsOnline = true,
                 });
-                SelectedSource = SourceNodes[1];   // 选连接：三列（来源/扫描组/地址）都展开
+                SelectedSource = SourceNodes[0];   // 本地来源：三列收起，与设计稿默认态一致
 
                 var localScalar = new LocalVariableModel
                 {
@@ -1002,66 +1389,61 @@ namespace FlowCanvasChecks
                     DefaultValue = new[] { "SN-A", "SN-B" },
                     Value = new[] { "SN-A", "SN-B" },
                 };
-                var netVar = new NetworkVariableModel
-                {
-                    Name = "Motor1_Speed",
-                    DataType = typeof(int),
-                    Description = "主轴转速",
-                    ConnectionName = "PLC_01",
-                    DefaultValue = 1480,
-                    Value = 1485,
-                };
-
                 FilteredDisplayNodes.Add(Root(localScalar));
                 var arrayRoot = Root(localArray);
                 arrayRoot.IsExpanded = true;
                 FilteredDisplayNodes.Add(arrayRoot);
                 FilteredDisplayNodes.Add(Child(arrayRoot, "[0]", "SN-A", 0));
                 FilteredDisplayNodes.Add(Child(arrayRoot, "[1]", "SN-B", 1));
-                FilteredDisplayNodes.Add(Root(netVar));
             }
 
-            public ObservableCollection<VariableSourceNode> SourceNodes { get; } = new();
-
-            public VariableSourceNode? SelectedSource { get; set; }
-
-            public ObservableCollection<VariableNode> FilteredDisplayNodes { get; } = new();
-
-            public string SearchText { get; set; } = string.Empty;
-
-            /// <summary>「＋ 添加变量」——桩里不真弹窗，只占位（出图要的是按钮在位）</summary>
-            public DelegateCommand AddCommand { get; } = new(() => { });
-
-            private static VariableNode Root(IVariable model) => new()
+            private static VariableNode Root(IVariable model)
             {
-                OriginalModel = model,
-                Name = model.Name,
-                DataType = model.DataType,
-                TypeName = model.DataType?.Name,
-                Description = model.Description,
-                ChildDefaultValue = model.DefaultValue,
-                ChildValue = model.Value,
-                Level = 0,
-                IsNetwork = model.VariableType == VariableType.Communication,
-                SourceLabel = model.VariableType == VariableType.Communication ? model.ConnectionName : "本地",
-                Address = model.AddressConfig?.Address ?? (model.VariableType == VariableType.Communication ? "x=3;100" : null),
-            };
+                var isNetwork = model.VariableType == VariableType.Communication;
+                var node = new VariableNode
+                {
+                    OriginalModel = model,
+                    Name = model.Name,
+                    DataType = model.DataType,
+                    TypeName = model.DataType?.Name,
+                    Description = model.Description,
+                    ChildDefaultValue = model.DefaultValue,
+                    ChildValue = model.Value,
+                    Level = 0,
+                    IsNetwork = isNetwork,
+                    SourceLabel = isNetwork ? model.ConnectionName : "本地",
+                    Address = model.AddressConfig?.Address ?? (isNetwork ? "x=3;100" : null),
+                    IsConnected = true,
+                };
+                if (isNetwork)
+                {
+                    node.ScanGroupOptions.Add("默认组");
+                    node.ScanGroupOptions.Add("快组 (50ms)");
+                    node.ScanGroupText = "快组 (50ms)";
+                }
+                return node;
+            }
 
-            private static VariableNode Child(VariableNode parent, string name, string value, int index) => new()
+            private static VariableNode Child(VariableNode parent, string name, string value, int index)
             {
-                OriginalModel = parent.OriginalModel,
-                Name = name,
-                DataType = parent.DataType?.GetElementType(),
-                TypeName = parent.DataType?.GetElementType()?.Name,
-                ChildValue = value,
-                // ElementIndex 必须给：视图的「当前值」单元格读的是父数组 CurrentValueText[index]，
-                // 不给就是 -1 → 落到根路径 → 显示成数组整体（出图会误导成"元素行显示类型名"）
-                ElementIndex = index,
-                Level = 1,
-                SourceLabel = parent.SourceLabel,
-                IsNetwork = parent.IsNetwork,
-                IsConnected = true,
-            };
+                var child = new VariableNode
+                {
+                    OriginalModel = parent.OriginalModel,
+                    Name = name,
+                    DataType = parent.DataType?.GetElementType(),
+                    TypeName = parent.DataType?.GetElementType()?.Name,
+                    ChildValue = value,
+                    // ElementIndex 必须给：视图的「当前值」单元格读的是父数组 CurrentValueText[index]，
+                    // 不给就是 -1 → 落到根路径 → 显示成数组整体（出图会误导成"元素行显示类型名"）
+                    ElementIndex = index,
+                    Level = 1,
+                    SourceLabel = parent.SourceLabel,
+                    IsNetwork = parent.IsNetwork,
+                    IsConnected = true,
+                };
+                parent.Children.Add(child);
+                return child;
+            }
         }
 
         /// <summary>属性网格的全部 Tab（懒加载：逐页选中即逐页建内容）</summary>
@@ -1345,7 +1727,7 @@ namespace FlowCanvasChecks
             CollectNodeMenus(host, menus);
             var parameterItem = menus
                 .SelectMany(m => m.Items.OfType<MenuItem>())
-                .FirstOrDefault(m => (m.Header as string) == "模块参数…");
+                .FirstOrDefault(m => (m.Header as string) == "步骤参数…");
             var foldBorder = FindDescendant<FrameworkElement>(
                 host, d => d is FrameworkElement { Name: "ContainerCollapseToggle" });
 
@@ -1362,7 +1744,7 @@ namespace FlowCanvasChecks
             var hitConnector = findNode?.Invoke(null, new object?[] { connector }) as CanvasNodeViewModel;
 
             Console.WriteLine(
-                $"[render][check] 画布节点菜单「模块参数…」存在={parameterItem != null}（期望 True）；"
+                $"[render][check] 画布节点菜单「步骤参数…」存在={parameterItem != null}（期望 True）；"
                 + $"命令绑定={CommandPath(parameterItem)}（期望 OpenModuleParametersCommand）；"
                 + $"折叠钮 x:Name=ContainerCollapseToggle 存在={foldBorder != null}（期望 True，双击豁免判据）");
             Console.WriteLine(

@@ -11,6 +11,7 @@ using System.Windows.Data;
 using VisionMaster.Communications;
 using VisionMaster.Models;
 using VisionMaster.Services;
+using VisionMaster.Services.Hardware;
 using UI.CustomControl;
 
 namespace VisionMaster.ViewModels.DialogViewModels
@@ -19,7 +20,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
     /// 通讯设置对话框的ViewModel
     /// 负责管理通讯连接配置的增删改查操作
     /// </summary>
-    public class CommunicationSettingsViewModel : BindableBase, IDialogAware
+    public class CommunicationSettingsViewModel : BindableBase, IDialogAware, IEmbeddedDialogPage, IHardwareEditGateAware
     {
         // 通讯管理器实例，用于管理通讯连接（具体类型：Connect/Disconnect 不在接口上）
         private readonly AdvancedCommunicationManager _communicationManager;
@@ -29,6 +30,17 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>工作区：删除连接前要数清"这条连接下挂着多少变量"（删连接不删变量，但必须报出影响面）</summary>
         private readonly IWorkspaceManager _workspace;
+
+        /// <summary>嵌入页生命周期标记（批次 C）</summary>
+        private bool _embeddedOpened;
+        private bool _embeddedClosed;
+
+        private bool _isConfigEditable = true;
+        private bool _isRuntimeOperable = true;
+        private string? _configEditHint;
+        private string? _runtimeEditHint;
+        private int _dirtyVersion;
+        private int _cleanVersion;
 
 
         /// <summary>
@@ -95,6 +107,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>是否有选中行：批量按钮的 IsEnabled 直接绑它（int 不能直接当 bool 用）</summary>
         public bool HasSelection => SelectedConfigs.Count > 0;
+
+        /// <summary>批量运行操作：有选中且当前角色可运行（工程师及以上）。</summary>
+        public bool CanOperateSelection => HasSelection && IsRuntimeOperable;
 
         /// <summary>表格里一条连接都没有——真·空状态，引导"添加设备"</summary>
         public bool IsEmpty => Configs.Count == 0;
@@ -197,6 +212,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 RaisePropertyChanged(nameof(SelectedCount));
                 RaisePropertyChanged(nameof(HasSelection));
+                RaisePropertyChanged(nameof(CanOperateSelection));
             };
             Configs.CollectionChanged += (_, _) => NotifyListStateChanged();
         }
@@ -254,6 +270,101 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _communicationManager.ConnectionStateChanged += OnConnectionStateChanged;
             LoadConfigs(_communicationManager.GetAllConnections());
         }
+
+        #region 嵌入页 / 门禁 / 脏标记（批次 C）
+
+        public bool IsConfigEditable
+        {
+            get => _isConfigEditable;
+            private set => SetProperty(ref _isConfigEditable, value);
+        }
+
+        public bool IsRuntimeOperable
+        {
+            get => _isRuntimeOperable;
+            private set
+            {
+                if (!SetProperty(ref _isRuntimeOperable, value)) return;
+                RaisePropertyChanged(nameof(CanOperateSelection));
+            }
+        }
+
+        public string? ConfigEditHint
+        {
+            get => _configEditHint;
+            private set => SetProperty(ref _configEditHint, value);
+        }
+
+        public string? RuntimeEditHint
+        {
+            get => _runtimeEditHint;
+            private set => SetProperty(ref _runtimeEditHint, value);
+        }
+
+        /// <summary>
+        /// 本次打开后是否发生过配置写操作。宿主只在它为 true 时才落 communications.json；
+        /// 未打开通讯页关闭宿主不得用当前方案覆盖全局缓存。
+        /// 用版本号而不是 bool：保存 await 期间用户又改了一笔，旧保存完成后不能把新改动标干净。
+        /// </summary>
+        public bool IsCommunicationDirty => _dirtyVersion != _cleanVersion;
+
+        /// <summary>保存前记下的版本；保存完成后用它判断"期间有没有新改动"。</summary>
+        public int DirtyVersion => _dirtyVersion;
+
+        public void MarkCommunicationDirty()
+        {
+            _dirtyVersion++;
+            RaisePropertyChanged(nameof(IsCommunicationDirty));
+            RaisePropertyChanged(nameof(DirtyVersion));
+        }
+
+        public void MarkCommunicationClean(int savedVersion)
+        {
+            if (_dirtyVersion != savedVersion) return;
+            _cleanVersion = savedVersion;
+            RaisePropertyChanged(nameof(IsCommunicationDirty));
+        }
+
+        public void ApplyEditGate(bool canEditConfig, bool canOperateRuntime, string? configReason, string? runtimeReason)
+        {
+            IsConfigEditable = canEditConfig;
+            IsRuntimeOperable = canOperateRuntime;
+            ConfigEditHint = configReason;
+            RuntimeEditHint = runtimeReason;
+        }
+
+        public void OnEmbeddedOpened(IDialogParameters parameters)
+        {
+            if (_embeddedOpened || _embeddedClosed) return;
+            _embeddedOpened = true;
+            OnDialogOpened(parameters);
+        }
+
+        public void OnEmbeddedActivated()
+        {
+            // 通讯页没有本页 UI 定时器；连接状态订阅在 Opened 时挂、Closed 时摘，
+            // 切走再切回不需要重挂（重挂会重复提示）。
+        }
+
+        public void OnEmbeddedDeactivated()
+        {
+            // 同上：订阅保留，状态行在切走期间继续更新，切回来直接是最新状态。
+        }
+
+        public void OnEmbeddedClosed()
+        {
+            if (!_embeddedOpened || _embeddedClosed) return;
+            _embeddedClosed = true;
+            OnDialogClosed();
+        }
+
+        public bool CanCloseEmbedded(out string? reason)
+        {
+            reason = null;
+            return true;
+        }
+
+        #endregion
 
         /// <summary>本对话框发起的"连接"等待回报的连接名（收到终态事件即移除，保证只提示一次）</summary>
         private readonly HashSet<string> _pendingConnect = new(StringComparer.Ordinal);
@@ -393,6 +504,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 Notifier.ShowInfo("创建新通信已取消");
                 return;
             }
+            if (!IsConfigEditable)
+            {
+                Notifier.ShowWarning("需要管理员权限，或流程运行中禁止修改通讯配置。");
+                return;
+            }
             try
             {
                 _communicationManager.AddConnection(newConfig);
@@ -403,6 +519,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 return;
             }
             Configs.Add(newConfig);
+            MarkCommunicationDirty();
 
             // 选中新配置
             SelectedConfig = newConfig;
@@ -423,6 +540,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private void ExecuteDelete(CommunicationConfig? config)
         {
             if (config == null) return;
+            if (!IsConfigEditable)
+            {
+                Notifier.ShowWarning("需要管理员权限，或流程运行中禁止修改通讯配置。");
+                return;
+            }
 
             var varCount = CountVariablesOf(config.ConnectionName);
 
@@ -439,9 +561,18 @@ namespace VisionMaster.ViewModels.DialogViewModels
             // ShowSync 的签名是 (title, message)——注意别把两个参数写反，反了标题会变成一句长文案
             if (!EasyDialog.ShowSync("删除连接确认", message)) return;
 
+            // 确认框是模态的，流程可能在这段时间里启动、空闲超时也可能把角色降级；
+            // 提交前必须再查一次，否则"框内翻转"仍会删掉一条产线连接。
+            if (!IsConfigEditable)
+            {
+                Notifier.ShowWarning("需要管理员权限，或流程运行中禁止修改通讯配置。");
+                return;
+            }
+
             // 从通讯管理器移除
             _communicationManager.RemoveConnection(config.ConnectionName);
             Configs.Remove(config);
+            MarkCommunicationDirty();
             SelectedConfigs.Remove(config); // 多选集合里还留着这条已删对象，不清会让批量命令作用到它
             if (ReferenceEquals(SelectedConfig, config))
                 SelectedConfig = null;
@@ -474,6 +605,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var ok = EasyDialog.ShowPropertyGridSync($"编辑 [{config.ConnectionName}]", copy);
             if (!ok) return; // 取消：活对象从未被改动，无需回滚
 
+            if (!IsConfigEditable)
+            {
+                Notifier.ShowWarning("需要管理员权限，或流程运行中禁止修改通讯配置。");
+                return;
+            }
+
             if (!string.Equals(copy.ConnectionName, config.ConnectionName, StringComparison.Ordinal))
             {
                 // 禁止改名：Manager.UpdateConnection 是按 ConnectionName 定位旧连接的，
@@ -498,6 +635,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 RefreshView();
                 return;
             }
+            MarkCommunicationDirty();
             RefreshView(); // 参与搜索的字段（IP/端口/协议）可能变了，刷新筛选结果
         }
 
@@ -512,6 +650,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var parameters = new DialogParameters
             {
                 { ScanGroupEditorViewModel.ConnectionNameKey, config.ConnectionName },
+                // 委托而不是快照：弹窗是模态的，门禁可能在其存活期间翻转（流程启动/空闲登出）。
+                { ScanGroupEditorViewModel.CanCommitKey, (Func<bool>)(() => IsConfigEditable) },
+                // "复制到其它连接"立即提交、不经过 OK 关闭，必须由编辑器主动上报置脏。
+                { ScanGroupEditorViewModel.MarkDirtyKey, (Action)MarkCommunicationDirty },
             };
 
             _dialogs.ShowDialog(ScanGroupEditorViewModel.DialogName, parameters, OnScanGroupsClosed);
@@ -526,8 +668,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
             //        且 CopyFrom 末尾会 NotifyScanGroupsChanged，所以「轮询」列文案已自行刷新。
             if (result.Result != ButtonResult.OK) return;
 
-            // 组表变更同时伴随 UpdateConnection（连接被重建、状态回落到 Disconnected 等待重连），
-            // 整行重新同步一次最稳，也顺带让「状态」筛选结果跟上
+            // 提交门禁已在编辑器里、**活对象写入之前**查过（CanCommitKey）。
+            // 这里再查一次反而有害：编辑器提交成功到本回调之间门禁翻转（流程启动/空闲登出），
+            // 会变成"配置已改、脏标记却没打"，关闭时不落盘——比不查更糟。
+            MarkCommunicationDirty();
             RefreshView();
         }
 

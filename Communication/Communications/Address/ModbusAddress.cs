@@ -9,8 +9,66 @@ namespace VisionMaster.Communications
     /// <para>2) 旧 "40001.1" 位格式 HSL 无法解析——读失败。</para>
     /// <para>读写两条链路都吃富地址（已核对 HSL：写时 x=3 自动转 16、x=1 自动转 5）。</para>
     /// </summary>
+    /// <summary>
+    /// <para>HSL Modbus 富地址的轻量解析（只取"功能码"这一项，够 ReadBits 分 FC1/FC2 用）。</para>
+    /// <para>为什么不能用 <c>StartsWith("x=2;")</c>：带站号的地址是 <c>s=2;x=2;100</c>，
+    /// 前缀不在开头 → 离散输入被当成线圈发 FC1，读回来的是另一片区域（静默读错值）。</para>
+    /// </summary>
+    public static class ModbusRichAddress
+    {
+        /// <summary>取富地址里的功能码；地址里没有 <c>x=</c> 段时返回 false。</summary>
+        public static bool TryGetFunctionCode(string? address, out int functionCode)
+        {
+            functionCode = 0;
+            if (string.IsNullOrWhiteSpace(address)) return false;
+
+            foreach (var part in address.Split(';'))
+            {
+                var p = part.Trim();
+                if (p.StartsWith("x=", StringComparison.OrdinalIgnoreCase) &&
+                    int.TryParse(p.AsSpan(2), out int fc))
+                {
+                    functionCode = fc;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>该富地址是否指向离散输入区（FC2）——不看前缀位置，只看 <c>x=</c> 段。</summary>
+        public static bool IsDiscreteInput(string? address)
+            => TryGetFunctionCode(address, out int fc) && fc == 2;
+    }
+
     public class ModbusAddress : DeviceAddressBase<ModbusArea>
     {
+        private int _station;
+
+        /// <summary>
+        /// <para>从站号（0 = 跟随连接配置）。</para>
+        /// <para>为什么地址上要有站号：一条串口（或一个 Modbus 网关）上挂多个从站时，
+        /// "读哪个从站"是<b>每一帧</b>的事，不是连接的事。HSL 的富地址 <c>s=2;x=3;100</c>
+        /// 就是逐帧站号——组帧时写进帧头、应答按本次发出的站号校验
+        /// （<c>ModbusInfo</c> / <c>ModbusHelper.ExtraRtuResponseContent</c>）。</para>
+        /// <para>取 0 = 不写 <c>s=</c> 前缀，用连接实例自己的 Station（历史行为不变）。
+        /// 取 1~255 = 显式指定，同一连接下不同变量可以指向不同从站。</para>
+        /// </summary>
+        [UI.Attributes.SuperDisplay(Name = "站号(0=跟随连接)", Group = new[] { "从站" }, Order = 10)]
+        public int Station
+        {
+            get => _station;
+            set
+            {
+                if (value < 0) value = 0;
+                if (value > 255) value = 255;
+                if (SetProperty(ref _station, value))
+                {
+                    _cachedAddress = null;
+                    RaisePropertyChanged(nameof(Address));
+                }
+            }
+        }
+
         /// <summary>区域对应的读功能码（1 线圈 / 2 离散 / 3 保持 / 4 输入）</summary>
         public int FunctionCode => Area switch
         {
@@ -27,7 +85,8 @@ namespace VisionMaster.Communications
         protected override string BuildAddress()
         {
             // 位偏移不参与：线圈/离散本身就是位粒度；寄存器区已禁止 Boolean 位访问（见 Validate）
-            return $"x={FunctionCode};{RawAddress}";
+            string baseAddress = $"x={FunctionCode};{RawAddress}";
+            return _station > 0 ? $"s={_station};{baseAddress}" : baseAddress;
         }
 
         public override bool TryCreatePollAddress(out PollAddress? poll)
@@ -40,11 +99,17 @@ namespace VisionMaster.Communications
             // 位区 1 点=1 单元；寄存器区按字折算（Boolean 已被限制在位区，这里都是数值类型）
             int units = bitArea ? Math.Max(1, Length) : Math.Max(1, (TotalBytes + 1) / 2);
 
+            // 站号必须同时进 GroupKey 与 SegmentPrefix：
+            // ① GroupKey 不含站号 → 两个从站同区同地址的变量会被合并成一个段，
+            //    而一次 FC3 只发给一个站，合并后另一站的变量静默读到错的值；
+            // ② SegmentPrefix 不含站号 → 段地址丢了 s= 前缀，读的还是连接默认站。
+            string stationPrefix = _station > 0 ? $"s={_station};" : string.Empty;
+
             poll = new PollAddress
             {
                 Protocol = PollProtocol.Modbus,
-                GroupKey = $"FC{fc}",
-                SegmentPrefix = $"x={fc};",
+                GroupKey = $"{stationPrefix}FC{fc}",
+                SegmentPrefix = $"{stationPrefix}x={fc};",
                 Start = start,
                 SpanUnits = units,
                 IsBitArea = bitArea,

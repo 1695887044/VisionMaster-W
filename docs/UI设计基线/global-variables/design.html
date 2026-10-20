@@ -1,0 +1,1021 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>变量管理 · 设计基线 v1</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #gv-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="gv-design-root">
+  <style>
+    #gv-design-root{
+      color-scheme: light;
+      --gv-surface:#FFFFFF;
+      --gv-surface-2:#F8FAFC;
+      --gv-surface-3:#F1F5F9;
+      --gv-border:#E2E8F0;
+      --gv-border-soft:#EEF2F7;
+      --gv-border-strong:#CBD5E1;
+      --gv-text:#0F172A;
+      --gv-text-2:#475569;
+      --gv-text-3:#94A3B8;
+      --gv-text-4:#64748B;
+      --gv-primary:#0EA5E9;
+      --gv-primary-strong:#0284C7;
+      --gv-primary-text:#0369A1;
+      --gv-primary-soft:#F0F9FF;
+      --gv-primary-light:#E0F2FE;
+      --gv-primary-border:#BAE6FD;
+      --gv-success:#22C55E;
+      --gv-success-text:#15803D;
+      --gv-success-soft:#F0FDF4;
+      --gv-success-border:#BBF7D0;
+      --gv-danger:#EF4444;
+      --gv-danger-text:#B91C1C;
+      --gv-danger-soft:#FEF2F2;
+      --gv-danger-border:#FECACA;
+      --gv-warning:#F59E0B;
+      --gv-warning-text:#B45309;
+      --gv-warning-soft:#FFF4E5;
+      --gv-warning-border:#FDE68A;
+      --gv-violet:#8B5CF6;
+      --gv-violet-soft:#F5F3FF;
+      --gv-violet-text:#6D28D9;
+      --gv-cyan:#06B6D4;
+      --gv-cyan-soft:#ECFEFF;
+      --gv-cyan-text:#0E7490;
+      --gv-slate:#64748B;
+      --gv-slate-soft:#F1F5F9;
+      --gv-slate-text:#475569;
+      --gv-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --gv-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --gv-radius-sm:6px;
+      --gv-radius-md:8px;
+      --gv-radius-lg:10px;
+      --gv-radius-xl:12px;
+      --gv-radius-window:16px;
+      --gv-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--gv-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #gv-design-root *{box-sizing:border-box;}
+    #gv-design-root button,
+    #gv-design-root input,
+    #gv-design-root select,
+    #gv-design-root textarea{font-family:inherit;}
+    #gv-design-root button{color:inherit;}
+    #gv-design-root [hidden]{display:none !important;}
+    #gv-design-root :focus-visible{outline:2px solid var(--gv-primary);outline-offset:2px;}
+    #gv-design-root svg{display:block;}
+
+    /* ================= 页面骨架 ================= */
+    #gv-design-root .gv-page{max-width:1400px;margin:0 auto;padding:24px 24px 44px;}
+    #gv-design-root .gv-page-head{max-width:1360px;margin:0 auto 16px;}
+    #gv-design-root .gv-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #gv-design-root .gv-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--gv-text);}
+    #gv-design-root .gv-ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--gv-primary-light);color:var(--gv-primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;}
+    #gv-design-root .gv-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--gv-text-2);}
+    #gv-design-root .gv-page-sub b{color:var(--gv-text);font-weight:600;}
+    #gv-design-root .gv-demo-bar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+    #gv-design-root .gv-demo-group{display:flex;align-items:center;gap:8px;}
+    #gv-design-root .gv-demo-label{font-size:11.5px;color:var(--gv-text-4);}
+    #gv-design-root .gv-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--gv-radius-md);background:var(--gv-surface-3);}
+    #gv-design-root .gv-seg button{height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--gv-text-2);font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;}
+    #gv-design-root .gv-seg button:hover{color:var(--gv-text);}
+    #gv-design-root .gv-seg button.is-on{background:#FFFFFF;color:var(--gv-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+    #gv-design-root .gv-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--gv-text-2);}
+    #gv-design-root .gv-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--gv-warning-text);}
+    #gv-design-root .gv-scope b{color:var(--gv-text);font-weight:600;}
+
+    /* ================= 产品窗口 ================= */
+    #gv-design-root .gv-window{
+      width:1300px;max-width:100%;height:700px;margin:0 auto;
+      display:flex;flex-direction:column;overflow:hidden;
+      background:var(--gv-surface);
+      border-radius:var(--gv-radius-window);
+      box-shadow:var(--gv-shadow-window);
+      transition:width 200ms ease;
+      position:relative;
+    }
+    #gv-design-root .gv-window.is-narrow{width:1200px;}
+
+    /* ---- 标题栏 ---- */
+    #gv-design-root .gv-titlebar{
+      height:64px;flex:none;display:flex;align-items:center;
+      padding:0 18px;background:var(--gv-surface);
+      border-bottom:1px solid var(--gv-border-soft);
+    }
+    #gv-design-root .gv-app-icon{
+      width:36px;height:36px;flex:none;border-radius:10px;
+      display:flex;align-items:center;justify-content:center;
+      background:var(--gv-primary-light);color:var(--gv-primary-text);
+    }
+    #gv-design-root .gv-app-icon svg{width:18px;height:18px;}
+    #gv-design-root .gv-title-text{margin-left:12px;min-width:0;flex:1;}
+    #gv-design-root .gv-title-line{display:flex;align-items:center;gap:8px;min-width:0;}
+    #gv-design-root .gv-title{font-size:15.5px;font-weight:600;line-height:1.3;color:var(--gv-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #gv-design-root .gv-subtitle{margin-top:2px;font-size:11.5px;line-height:1.4;color:var(--gv-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #gv-design-root .gv-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+    #gv-design-root .gv-icon-btn{
+      width:30px;height:30px;flex:none;padding:0;border:1px solid transparent;border-radius:7px;
+      background:transparent;color:var(--gv-text-4);display:inline-flex;align-items:center;justify-content:center;
+      cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;
+    }
+    #gv-design-root .gv-icon-btn svg{width:14px;height:14px;}
+    #gv-design-root .gv-icon-btn:hover{background:var(--gv-surface-3);border-color:var(--gv-border);color:var(--gv-text-2);}
+    #gv-design-root .gv-icon-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #gv-design-root .gv-icon-btn.is-danger:hover{background:var(--gv-danger-soft);border-color:var(--gv-danger-border);color:var(--gv-danger-text);}
+
+    /* ---- 内容两栏 ---- */
+    #gv-design-root .gv-content{
+      flex:1;min-height:0;display:grid;
+      grid-template-columns:232px minmax(0,1fr);
+      gap:12px;padding:14px 16px 16px;background:var(--gv-surface);
+    }
+    #gv-design-root .gv-window.is-narrow .gv-content{grid-template-columns:216px minmax(0,1fr);gap:10px;padding:12px 14px 14px;}
+
+    /* ---- 左栏：来源 ---- */
+    #gv-design-root .gv-rail{
+      min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;
+      padding:12px;border:1px solid var(--gv-border-soft);border-radius:var(--gv-radius-xl);
+      background:var(--gv-surface-2);
+      scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;
+    }
+    #gv-design-root .gv-rail::-webkit-scrollbar{width:8px;}
+    #gv-design-root .gv-rail::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+    #gv-design-root .gv-rail::-webkit-scrollbar-track{background:transparent;}
+    #gv-design-root .gv-rail-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 4px 10px;}
+    #gv-design-root .gv-rail-title{font-size:12px;font-weight:600;color:var(--gv-text-2);letter-spacing:.01em;}
+    #gv-design-root .gv-live-chip{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:999px;background:var(--gv-success-soft);border:1px solid var(--gv-success-border);color:var(--gv-success-text);font-size:10px;font-weight:600;white-space:nowrap;}
+    #gv-design-root .gv-live-dot{width:5px;height:5px;border-radius:50%;background:var(--gv-success);}
+    #gv-design-root .gv-rail-group{display:flex;align-items:center;gap:8px;margin:10px 4px 6px;font-size:10.5px;font-weight:600;color:var(--gv-text-3);}
+    #gv-design-root .gv-rail-group::after{content:"";height:1px;flex:1;background:var(--gv-border);}
+    #gv-design-root .gv-source{
+      position:relative;display:flex;align-items:center;gap:9px;min-height:48px;
+      margin:2px 0;padding:7px 8px 7px 10px;border:1px solid transparent;border-radius:10px;
+      background:transparent;text-align:left;cursor:pointer;
+      transition:background 150ms ease,border-color 150ms ease,box-shadow 150ms ease;
+    }
+    #gv-design-root .gv-source:hover{background:#FFFFFF;border-color:var(--gv-border);}
+    #gv-design-root .gv-source.is-active{background:#FFFFFF;border-color:var(--gv-primary-border);box-shadow:0 1px 2px rgba(15,23,42,.06);}
+    #gv-design-root .gv-source.is-active::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--gv-primary);}
+    #gv-design-root .gv-source-icon{
+      width:28px;height:28px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;
+      background:var(--gv-primary-light);color:var(--gv-primary-text);
+    }
+    #gv-design-root .gv-source-icon svg{width:14px;height:14px;}
+    #gv-design-root .gv-source-icon.is-system{background:var(--gv-slate-soft);color:var(--gv-slate-text);}
+    #gv-design-root .gv-source-icon.is-net{background:var(--gv-primary-light);color:var(--gv-primary-text);}
+    #gv-design-root .gv-source-main{min-width:0;flex:1;}
+    #gv-design-root .gv-source-name{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;line-height:1.3;color:var(--gv-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #gv-design-root .gv-source-sub{display:flex;align-items:center;gap:5px;margin-top:2px;font-size:10.5px;line-height:1.3;color:var(--gv-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #gv-design-root .gv-source.is-active .gv-source-name{color:var(--gv-primary-text);}
+    #gv-design-root .gv-source-count{min-width:20px;height:20px;padding:0 6px;flex:none;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:var(--gv-surface-3);color:var(--gv-text-3);font-size:10.5px;font-weight:600;font-variant-numeric:tabular-nums;}
+    #gv-design-root .gv-source.is-active .gv-source-count{background:var(--gv-primary-light);color:var(--gv-primary-text);}
+    #gv-design-root .gv-dot{width:6px;height:6px;flex:none;border-radius:50%;background:var(--gv-text-3);}
+    #gv-design-root .gv-dot.is-on{background:var(--gv-success);}
+    #gv-design-root .gv-dot.is-off{background:var(--gv-danger);}
+    #gv-design-root .gv-dot.is-warn{background:var(--gv-warning);}
+    #gv-design-root .gv-dot.is-muted{background:var(--gv-text-3);}
+    #gv-design-root .gv-rail-note{margin-top:auto;padding:10px;border:1px solid var(--gv-border-soft);border-radius:10px;background:#FFFFFF;}
+    #gv-design-root .gv-rail-note b{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--gv-text-2);}
+    #gv-design-root .gv-rail-note b em{font-style:normal;}
+    #gv-design-root .gv-rail-note b svg{width:12px;height:12px;color:var(--gv-primary);}
+    #gv-design-root .gv-rail-note span{display:block;margin-top:4px;font-size:10.5px;line-height:1.5;color:var(--gv-text-3);}
+    #gv-design-root .gv-legend{margin-top:10px;padding:2px 4px 0;}
+    #gv-design-root .gv-legend-title{margin-bottom:5px;font-size:10px;font-weight:600;color:var(--gv-text-3);}
+    #gv-design-root .gv-legend-row{display:flex;align-items:center;gap:6px;min-height:18px;font-size:10.5px;color:var(--gv-text-4);}
+
+    /* ---- 右栏：明细 ---- */
+    #gv-design-root .gv-main{min-width:0;min-height:0;display:flex;flex-direction:column;}
+    #gv-design-root .gv-card{
+      flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+      background:var(--gv-surface);border:1px solid var(--gv-border);border-radius:var(--gv-radius-xl);
+    }
+    #gv-design-root .gv-main-head{
+      height:64px;flex:none;display:flex;align-items:center;gap:12px;padding:0 16px;
+      border-bottom:1px solid var(--gv-border-soft);
+    }
+    #gv-design-root .gv-head-title{min-width:0;flex:1;}
+    #gv-design-root .gv-head-line{display:flex;align-items:center;gap:8px;min-width:0;}
+    #gv-design-root .gv-head-title-text{font-size:14px;font-weight:600;line-height:1.3;color:var(--gv-text);white-space:nowrap;}
+    #gv-design-root .gv-count-badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 7px;border-radius:999px;background:var(--gv-primary-light);color:var(--gv-primary-text);font-size:10.5px;font-weight:600;font-variant-numeric:tabular-nums;}
+    #gv-design-root .gv-source-chip{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 8px;border-radius:6px;background:var(--gv-surface-3);color:var(--gv-text-2);font-size:10.5px;font-weight:600;white-space:nowrap;}
+    #gv-design-root .gv-head-sub{margin-top:3px;font-size:10.5px;line-height:1.3;color:var(--gv-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #gv-design-root .gv-head-actions{display:flex;align-items:center;gap:8px;flex:none;}
+    #gv-design-root .gv-search{position:relative;width:238px;height:32px;flex:none;}
+    #gv-design-root .gv-search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--gv-text-3);pointer-events:none;}
+    #gv-design-root .gv-search input{width:100%;height:32px;padding:0 10px 0 31px;border:1px solid var(--gv-border);border-radius:8px;background:var(--gv-surface);color:var(--gv-text);font-size:12px;outline:none;transition:border-color 150ms ease,box-shadow 150ms ease;}
+    #gv-design-root .gv-search input::placeholder{color:var(--gv-text-3);}
+    #gv-design-root .gv-search input:hover{border-color:var(--gv-border-strong);}
+    #gv-design-root .gv-search input:focus{border-color:var(--gv-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #gv-design-root .gv-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--gv-border);border-radius:8px;background:var(--gv-surface);color:var(--gv-text);font-size:12px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;}
+    #gv-design-root .gv-btn svg{width:13px;height:13px;}
+    #gv-design-root .gv-btn:hover{background:var(--gv-surface-2);border-color:var(--gv-border-strong);}
+    #gv-design-root .gv-btn:active{background:var(--gv-surface-3);}
+    #gv-design-root .gv-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #gv-design-root .gv-btn-primary{background:var(--gv-primary);border-color:var(--gv-primary);color:#FFFFFF;font-weight:600;}
+    #gv-design-root .gv-btn-primary:hover{background:var(--gv-primary-strong);border-color:var(--gv-primary-strong);}
+    #gv-design-root .gv-btn-soft{background:var(--gv-primary-soft);border-color:var(--gv-primary-border);color:var(--gv-primary-text);}
+    #gv-design-root .gv-btn-soft:hover{background:var(--gv-primary-light);border-color:var(--gv-primary);}
+    #gv-design-root .gv-btn-sm{height:30px;padding:0 10px;font-size:11.5px;}
+
+    /* ---- 系统变量横幅 ---- */
+    #gv-design-root .gv-system-banner{
+      flex:none;display:flex;align-items:center;gap:7px;min-height:34px;padding:0 16px;
+      background:var(--gv-warning-soft);border-bottom:1px solid var(--gv-warning-border);
+      color:var(--gv-warning-text);font-size:11px;line-height:1.4;
+    }
+    #gv-design-root .gv-system-banner svg{width:13px;height:13px;flex:none;}
+
+    /* ---- 表格 ---- */
+    #gv-design-root .gv-table-wrap{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+    #gv-design-root .gv-table-scroll{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+    #gv-design-root .gv-table-scroll::-webkit-scrollbar{width:9px;height:9px;}
+    #gv-design-root .gv-table-scroll::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:9px;border:2px solid transparent;background-clip:padding-box;}
+    #gv-design-root .gv-table-head,#gv-design-root .gv-row{
+      display:grid;align-items:center;gap:0;min-width:100%;
+    }
+    #gv-design-root .gv-table-head{
+      position:sticky;top:0;z-index:2;height:34px;padding:0 12px;
+      background:var(--gv-surface-2);border-bottom:1px solid var(--gv-border-soft);
+      font-size:10.5px;font-weight:600;color:var(--gv-text-3);letter-spacing:.01em;
+    }
+    #gv-design-root .gv-row{
+      position:relative;min-height:54px;padding:0 12px;
+      border-bottom:1px solid var(--gv-border-soft);
+      transition:background 150ms ease;
+    }
+    #gv-design-root .gv-row:last-child{border-bottom:0;}
+    #gv-design-root .gv-row:hover{background:#FBFDFF;}
+    #gv-design-root .gv-row.is-selected{background:var(--gv-primary-soft);}
+    #gv-design-root .gv-row.is-selected::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--gv-primary);}
+    #gv-design-root .gv-row.is-child{min-height:40px;background:#FCFDFE;}
+    #gv-design-root .gv-row.is-child:hover{background:var(--gv-surface-2);}
+    #gv-design-root .gv-cell{min-width:0;display:flex;align-items:center;}
+    #gv-design-root .gv-cell.is-right{justify-content:flex-end;}
+
+    /* 列宽：本地 / 系统（来源/扫描组/地址整列收起） */
+    #gv-design-root .gv-table.is-local .gv-table-head,
+    #gv-design-root .gv-table.is-local .gv-row{grid-template-columns:minmax(280px,1.1fr) 88px minmax(160px,1fr) 100px;}
+    /* 列宽：网络 */
+    #gv-design-root .gv-table.is-network .gv-table-head,
+    #gv-design-root .gv-table.is-network .gv-row{grid-template-columns:minmax(280px,1.1fr) 88px 100px 96px 88px minmax(160px,1fr) 100px;}
+    #gv-design-root .gv-window.is-narrow .gv-table.is-network .gv-table-head,
+    #gv-design-root .gv-window.is-narrow .gv-table.is-network .gv-row{grid-template-columns:minmax(250px,1fr) 80px 96px 90px 84px minmax(150px,1fr) 96px;}
+
+    /* 变量名单元格 */
+    #gv-design-root .gv-name{display:flex;align-items:center;gap:8px;min-width:0;width:100%;}
+    #gv-design-root .gv-expander{width:16px;height:16px;flex:none;padding:0;border:0;border-radius:4px;background:transparent;color:var(--gv-text-3);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background 150ms ease,color 150ms ease;}
+    #gv-design-root .gv-expander:hover{background:var(--gv-surface-3);color:var(--gv-text-2);}
+    #gv-design-root .gv-expander svg{width:11px;height:11px;transition:transform 150ms ease;}
+    #gv-design-root .gv-expander.is-open svg{transform:rotate(90deg);}
+    #gv-design-root .gv-expander.is-hidden{visibility:hidden;pointer-events:none;}
+    #gv-design-root .gv-type-ico{width:28px;height:28px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--gv-surface-3);color:var(--gv-text-4);font-size:9.5px;font-weight:700;letter-spacing:-.02em;font-family:var(--gv-mono);}
+    #gv-design-root .gv-type-ico.is-int{background:var(--gv-primary-light);color:var(--gv-primary-text);}
+    #gv-design-root .gv-type-ico.is-double{background:var(--gv-violet-soft);color:var(--gv-violet-text);}
+    #gv-design-root .gv-type-ico.is-bool{background:var(--gv-warning-soft);color:var(--gv-warning-text);}
+    #gv-design-root .gv-type-ico.is-string{background:var(--gv-success-soft);color:var(--gv-success-text);}
+    #gv-design-root .gv-type-ico.is-array{background:var(--gv-cyan-soft);color:var(--gv-cyan-text);}
+    #gv-design-root .gv-type-ico.is-image{background:var(--gv-slate-soft);color:var(--gv-slate-text);}
+    #gv-design-root .gv-name-text{min-width:0;flex:1;}
+    #gv-design-root .gv-name-text b{display:block;font-size:12.5px;font-weight:600;line-height:1.35;color:var(--gv-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #gv-design-root .gv-name-text small{display:block;margin-top:1px;font-size:10.5px;line-height:1.3;color:var(--gv-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #gv-design-root .gv-array-count{flex:none;height:18px;padding:0 6px;border-radius:5px;background:var(--gv-cyan-soft);color:var(--gv-cyan-text);font-size:9.5px;font-weight:600;display:inline-flex;align-items:center;font-variant-numeric:tabular-nums;}
+    #gv-design-root .gv-name.is-child{padding-left:24px;gap:6px;}
+    #gv-design-root .gv-child-index{font-family:var(--gv-mono);font-size:11px;color:var(--gv-text-3);font-variant-numeric:tabular-nums;}
+    #gv-design-root .gv-child-type{font-size:10.5px;color:var(--gv-text-3);}
+
+    /* 类型 chip */
+    #gv-design-root .gv-type{display:inline-flex;align-items:center;gap:5px;height:22px;max-width:84px;padding:0 7px;border-radius:6px;background:var(--gv-surface-3);color:var(--gv-text-2);font-size:10.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #gv-design-root .gv-type i{width:6px;height:6px;flex:none;border-radius:50%;background:var(--gv-slate);}
+    #gv-design-root .gv-type.is-int i{background:var(--gv-primary);}
+    #gv-design-root .gv-type.is-double i{background:var(--gv-violet);}
+    #gv-design-root .gv-type.is-bool i{background:var(--gv-warning);}
+    #gv-design-root .gv-type.is-string i{background:var(--gv-success);}
+    #gv-design-root .gv-type.is-array i{background:var(--gv-cyan);}
+    #gv-design-root .gv-type.is-image i{background:var(--gv-slate);}
+
+    /* 来源徽标 */
+    #gv-design-root .gv-src{display:inline-flex;align-items:center;gap:5px;height:22px;max-width:104px;padding:0 7px;border-radius:6px;font-size:10.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #gv-design-root .gv-src i{width:6px;height:6px;flex:none;border-radius:50%;background:currentColor;}
+    #gv-design-root .gv-src.is-local{background:var(--gv-success-soft);color:var(--gv-success-text);}
+    #gv-design-root .gv-src.is-net{background:var(--gv-primary-light);color:var(--gv-primary-text);}
+    #gv-design-root .gv-src.is-system{background:var(--gv-slate-soft);color:var(--gv-slate-text);}
+    #gv-design-root .gv-src.is-off{background:var(--gv-danger-soft);color:var(--gv-danger-text);}
+    #gv-design-root .gv-src svg{width:10px;height:10px;}
+
+    /* 扫描组下拉 */
+    #gv-design-root .gv-select{width:92px;height:30px;padding:0 22px 0 8px;border:1px solid var(--gv-border);border-radius:6px;background:var(--gv-surface);color:var(--gv-text-2);font-size:11px;line-height:1;outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--gv-text-3) 50%),linear-gradient(135deg,var(--gv-text-3) 50%,transparent 50%);background-position:calc(100% - 12px) 13px,calc(100% - 8px) 13px;background-size:4px 4px,4px 4px;background-repeat:no-repeat;transition:border-color 150ms ease,box-shadow 150ms ease;}
+    #gv-design-root .gv-select:hover{border-color:var(--gv-border-strong);}
+    #gv-design-root .gv-select:focus{border-color:var(--gv-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+
+    /* 地址 */
+    #gv-design-root .gv-addr{font-family:var(--gv-mono);font-size:11px;color:var(--gv-warning-text);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+    /* 当前值 */
+    #gv-design-root .gv-value{display:flex;align-items:center;gap:6px;min-width:0;width:100%;}
+    #gv-design-root .gv-quality{width:6px;height:6px;flex:none;border-radius:50%;background:var(--gv-text-3);}
+    #gv-design-root .gv-quality.is-good{background:var(--gv-success);}
+    #gv-design-root .gv-quality.is-warn{background:var(--gv-warning);}
+    #gv-design-root .gv-quality.is-bad{background:var(--gv-text-3);}
+    #gv-design-root .gv-quality.is-local{visibility:hidden;}
+    #gv-design-root .gv-value-input{width:108px;height:30px;padding:0 8px;border:1px solid transparent;border-radius:6px;background:var(--gv-surface-2);color:var(--gv-text);font-size:11.5px;line-height:1;outline:none;font-variant-numeric:tabular-nums;transition:background 150ms ease,border-color 150ms ease,box-shadow 150ms ease;}
+    #gv-design-root .gv-value-input:hover{border-color:var(--gv-border);background:var(--gv-surface);}
+    #gv-design-root .gv-value-input:focus{border-color:var(--gv-primary);background:var(--gv-surface);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #gv-design-root .gv-value-input:disabled{background:var(--gv-surface-3);color:var(--gv-text-3);cursor:not-allowed;}
+    #gv-design-root .gv-value-input.is-error{border-color:var(--gv-danger);background:var(--gv-danger-soft);color:var(--gv-danger-text);box-shadow:0 0 0 3px rgba(239,68,68,.10);}
+    #gv-design-root .gv-reset{width:24px;height:24px;flex:none;padding:0;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--gv-warning-text);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background 150ms ease,border-color 150ms ease;}
+    #gv-design-root .gv-reset svg{width:12px;height:12px;}
+    #gv-design-root .gv-reset:hover{background:var(--gv-warning-soft);border-color:var(--gv-warning-border);}
+    #gv-design-root .gv-value-readonly{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--gv-text-3);white-space:nowrap;}
+    #gv-design-root .gv-value-readonly svg{width:11px;height:11px;}
+    #gv-design-root .gv-link{border:0;background:transparent;padding:0;color:var(--gv-primary-text);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;}
+    #gv-design-root .gv-link:hover{color:var(--gv-primary-strong);text-decoration:underline;}
+
+    /* 操作 */
+    #gv-design-root .gv-actions{display:flex;align-items:center;justify-content:flex-end;gap:2px;width:100%;}
+    #gv-design-root .gv-action{width:28px;height:28px;flex:none;padding:0;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--gv-text-3);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;}
+    #gv-design-root .gv-action svg{width:13px;height:13px;}
+    #gv-design-root .gv-action:hover{background:var(--gv-surface-3);border-color:var(--gv-border);color:var(--gv-text-2);}
+    #gv-design-root .gv-action.is-danger:hover{background:var(--gv-danger-soft);border-color:var(--gv-danger-border);color:var(--gv-danger-text);}
+    #gv-design-root .gv-readonly-chip{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:5px;background:var(--gv-slate-soft);color:var(--gv-slate-text);font-size:10px;font-weight:600;white-space:nowrap;}
+    #gv-design-root .gv-readonly-chip svg{width:9px;height:9px;}
+
+    /* 底部状态条 */
+    #gv-design-root .gv-statusbar{
+      height:40px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;
+      border-top:1px solid var(--gv-border-soft);background:var(--gv-surface-2);
+      font-size:10.5px;color:var(--gv-text-3);
+    }
+    #gv-design-root .gv-status-left{display:flex;align-items:center;gap:8px;min-width:0;}
+    #gv-design-root .gv-status-sep{width:1px;height:12px;background:var(--gv-border);}
+    #gv-design-root .gv-status-right{margin-left:auto;display:flex;align-items:center;gap:5px;white-space:nowrap;}
+    #gv-design-root .gv-kbd{display:inline-flex;align-items:center;justify-content:center;height:18px;min-width:18px;padding:0 5px;border:1px solid var(--gv-border);border-bottom-width:2px;border-radius:4px;background:var(--gv-surface);font-family:var(--gv-mono);font-size:9.5px;color:var(--gv-text-4);}
+
+    /* 空态 */
+    #gv-design-root .gv-empty{
+      position:absolute;inset:34px 0 0 0;z-index:3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;
+      background:var(--gv-surface);color:var(--gv-text-3);font-size:11.5px;text-align:center;padding:24px;
+    }
+    #gv-design-root .gv-empty-icon{width:46px;height:46px;border-radius:14px;border:1px dashed var(--gv-border-strong);display:flex;align-items:center;justify-content:center;color:var(--gv-text-3);background:var(--gv-surface-2);}
+    #gv-design-root .gv-empty-icon svg{width:20px;height:20px;}
+    #gv-design-root .gv-empty b{font-size:13px;font-weight:600;color:var(--gv-text-2);}
+    #gv-design-root .gv-empty span{max-width:420px;line-height:1.6;}
+    #gv-design-root .gv-empty .gv-btn{margin-top:4px;}
+
+    /* Toast */
+    #gv-design-root .gv-toast{
+      position:absolute;left:50%;bottom:56px;transform:translateX(-50%) translateY(6px);
+      z-index:20;max-width:520px;padding:8px 12px;border-radius:8px;
+      background:rgba(15,23,42,.92);color:#F8FAFC;font-size:11.5px;line-height:1.45;
+      box-shadow:0 8px 24px rgba(15,23,42,.22);opacity:0;pointer-events:none;
+      transition:opacity 180ms ease,transform 180ms ease;
+    }
+    #gv-design-root .gv-toast.is-on{opacity:1;transform:translateX(-50%) translateY(0);}
+
+    /* ================= 说明区 ================= */
+    #gv-design-root .gv-notes{max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;}
+    #gv-design-root .gv-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--gv-text-2);}
+    #gv-design-root .gv-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--gv-border);}
+    #gv-design-root .gv-note-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--gv-primary-light);color:var(--gv-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}
+    #gv-design-root .gv-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--gv-text);}
+    #gv-design-root .gv-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--gv-text-2);}
+    #gv-design-root .gv-note code{font-family:var(--gv-mono);font-size:10.5px;color:var(--gv-primary-text);background:var(--gv-primary-soft);padding:1px 4px;border-radius:4px;}
+
+    @media (prefers-reduced-motion: reduce){#gv-design-root *{animation:none !important;transition:none !important;}}
+    @media (max-width:1100px){
+      #gv-design-root .gv-page{padding:18px 14px 32px;}
+      #gv-design-root .gv-window{height:auto;min-height:680px;}
+      #gv-design-root .gv-content{grid-template-columns:1fr;}
+      #gv-design-root .gv-rail{overflow:visible;max-height:360px;}
+      #gv-design-root .gv-main{min-height:460px;}
+    }
+  </style>
+
+  <!-- 图标符号 -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-database" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14a9 3 0 0 0 18 0V5"></path><path d="M3 12a9 3 0 0 0 18 0"></path></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="9" y="9" width="6" height="6"></rect><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"></path></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"></path><path d="M9 8V2"></path><path d="M15 8V2"></path><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"></path></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"></path></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M10 11v6M14 11v6"></path></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path><path d="M16 16h5v5"></path></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-5-5L5 21"></path></symbol>
+    <symbol id="i-array" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h1"></path><path d="M16 3h1a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-1"></path><path d="M12 8v8"></path></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"></path></symbol>
+  </svg>
+
+  <div class="gv-page">
+    <header class="gv-page-head">
+      <div class="gv-page-title-row">
+        <h1>变量管理 · 变量中心</h1>
+        <span class="gv-ver">v1</span>
+      </div>
+      <p class="gv-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留现有两栏主从结构、全部绑定与命令；
+        不改变量模型、通信桥接、持久化与「添加变量」框架弹窗。窗口 <b>1300 × 700</b>（最小 1200），
+        左栏来源 <b>232px</b>，右栏明细自适应。
+      </p>
+      <div class="gv-demo-bar">
+        <div class="gv-demo-group" role="group" aria-label="变量来源">
+          <span class="gv-demo-label">来源</span>
+          <div class="gv-seg" id="gv-source-seg">
+            <button type="button" data-source="local" class="is-on" aria-pressed="true">本地变量</button>
+            <button type="button" data-source="network" aria-pressed="false">网络变量</button>
+            <button type="button" data-source="system" aria-pressed="false">系统变量</button>
+          </div>
+        </div>
+        <div class="gv-demo-group" role="group" aria-label="边界态">
+          <span class="gv-demo-label">边界态</span>
+          <div class="gv-seg" id="gv-boundary-seg">
+            <button type="button" data-boundary="normal" class="is-on" aria-pressed="true">正常</button>
+            <button type="button" data-boundary="empty" aria-pressed="false">空</button>
+            <button type="button" data-boundary="search" aria-pressed="false">搜索无结果</button>
+          </div>
+        </div>
+        <div class="gv-demo-group" role="group" aria-label="行状态">
+          <span class="gv-demo-label">行状态</span>
+          <div class="gv-seg" id="gv-rowstate-seg">
+            <button type="button" data-rowstate="normal" class="is-on" aria-pressed="true">正常</button>
+            <button type="button" data-rowstate="write-error" aria-pressed="false">写入失败</button>
+          </div>
+        </div>
+        <div class="gv-demo-group" role="group" aria-label="窗口宽度">
+          <span class="gv-demo-label">窗口</span>
+          <div class="gv-seg" id="gv-width-seg">
+            <button type="button" data-width="1300" class="is-on" aria-pressed="true">1300</button>
+            <button type="button" data-width="1200" aria-pressed="false">1200</button>
+          </div>
+        </div>
+      </div>
+      <div class="gv-scope">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span><b>v1 未纳入（需新增功能或契约）：</b>「添加变量」属性网格弹窗改版、列选择 / 密度切换 / 排序、多选批量删除、变量详情检查器、导入导出、历史趋势。主窗口只保留现有入口；1200 最小宽度下网络来源表格允许横向滚动。</span>
+      </div>
+    </header>
+
+    <div class="gv-window" id="gv-window">
+      <div class="gv-titlebar">
+        <div class="gv-app-icon">
+          <svg><use href="#i-database"></use></svg>
+        </div>
+        <div class="gv-title-text">
+          <div class="gv-title-line"><div class="gv-title">变量管理</div></div>
+          <div class="gv-subtitle">本地变量与设备变量统一维护 · 新建 / 监视 / 写值</div>
+        </div>
+        <div class="gv-title-actions">
+          <button type="button" class="gv-icon-btn is-danger" title="关闭" aria-label="关闭"><svg><use href="#i-close"></use></svg></button>
+        </div>
+      </div>
+
+      <div class="gv-content">
+        <aside class="gv-rail" aria-label="变量来源">
+          <div class="gv-rail-head">
+            <span class="gv-rail-title">变量来源</span>
+            <span class="gv-live-chip"><span class="gv-live-dot"></span>实时</span>
+          </div>
+
+          <div class="gv-rail-group">本地与系统</div>
+          <div id="gv-source-local"></div>
+          <div id="gv-source-system"></div>
+
+          <div class="gv-rail-group">通信连接</div>
+          <div id="gv-source-connections"></div>
+
+          <div class="gv-rail-note">
+            <b><svg><use href="#i-refresh"></use></svg><em id="gv-rail-note-title">轮询镜像</em></b>
+            <span id="gv-rail-note-text">网络变量的当前值来自轮询缓存，打开期间自动刷新；写值直达设备。</span>
+          </div>
+          <div class="gv-legend" id="gv-legend">
+            <div class="gv-legend-title">采集质量</div>
+            <div class="gv-legend-row"><span class="gv-dot is-on"></span>正常</div>
+            <div class="gv-legend-row"><span class="gv-dot is-warn"></span>读取失败（显示上次值）</div>
+            <div class="gv-legend-row"><span class="gv-dot is-muted"></span>断线 / 从未读到</div>
+          </div>
+        </aside>
+
+        <section class="gv-main" aria-label="变量明细">
+          <div class="gv-card">
+            <div class="gv-main-head">
+              <div class="gv-head-title">
+                <div class="gv-head-line">
+                  <span class="gv-head-title-text">变量明细</span>
+                  <span class="gv-count-badge" id="gv-count">6</span>
+                  <span class="gv-source-chip" id="gv-source-chip">本地变量</span>
+                </div>
+                <div class="gv-head-sub" id="gv-head-sub">内存变量 · 当前值直接写入内存</div>
+              </div>
+              <div class="gv-head-actions">
+                <div class="gv-search">
+                  <svg><use href="#i-search"></use></svg>
+                  <input id="gv-search" type="text" placeholder="搜索变量名 / 描述 / 地址" spellcheck="false" autocomplete="off">
+                </div>
+                <button type="button" class="gv-icon-btn" id="gv-manage-groups" title="管理扫描组：新增 / 改名 / 删除组、改周期（作用对象 = 左栏选中的连接）" aria-label="管理扫描组"><svg><use href="#i-sliders"></use></svg></button>
+                <button type="button" class="gv-btn gv-btn-primary" id="gv-add"><svg><use href="#i-plus"></use></svg>添加变量</button>
+              </div>
+            </div>
+
+            <div class="gv-system-banner" id="gv-system-banner" hidden>
+              <svg><use href="#i-lock"></use></svg>
+              系统变量由宿主维护（运动 / IO），此处只读展示；重命名 / 删除不可用。新建请使用右上角「添加变量」（会切到本地变量）。
+            </div>
+
+            <div class="gv-table-wrap">
+              <div class="gv-table-scroll">
+                <div class="gv-table is-local" id="gv-table">
+                  <div class="gv-table-head" id="gv-table-head"></div>
+                  <div id="gv-rows"></div>
+                </div>
+              </div>
+              <div class="gv-empty" id="gv-empty" hidden>
+                <div class="gv-empty-icon"><svg><use href="#i-database"></use></svg></div>
+                <b id="gv-empty-title">还没有变量</b>
+                <span id="gv-empty-text">点击右上角「＋ 添加变量」创建第一个本地变量。</span>
+                <button type="button" class="gv-btn gv-btn-primary gv-btn-sm" id="gv-empty-add"><svg><use href="#i-plus"></use></svg>添加变量</button>
+              </div>
+            </div>
+
+            <div class="gv-statusbar">
+              <div class="gv-status-left">
+                <span class="gv-status-sep"></span>
+                <span id="gv-status-text">6 个变量 · 本地变量</span>
+                <span class="gv-status-sep"></span>
+                <span id="gv-status-note">轮询镜像实时刷新</span>
+              </div>
+              <div class="gv-status-right">
+                <span class="gv-kbd">Enter</span> 提交
+                <span class="gv-kbd">Esc</span> 取消
+                <span class="gv-kbd">↺</span> 恢复初始值
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="gv-toast" id="gv-toast"></div>
+    </div>
+
+    <div class="gv-notes">
+      <div class="gv-notes-head">关键改动（v1）</div>
+      <div class="gv-note"><div class="gv-note-num">01</div><div><b>左栏变成真正的来源导航</b><span>按「本地与系统 / 通信连接」分组；节点显示图标、名称、状态副行与计数；选中态为白卡 + 左侧主色条。系统变量用锁图标与「只读」副行，和本地变量分开。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">02</div><div><b>右栏卡片头建立来源上下文</b><span>标题 + 变量数 + 当前来源 chip + 一句副标题；搜索、管理扫描组、添加变量固定右对齐。仍绑 <code>SelectedSource</code> / <code>SelectedSource.Count</code> / <code>IsNetworkSource</code>。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">03</div><div><b>明细行改为两行式</b><span>变量名 12.5px + 描述 10.5px；类型是中性 chip + 类型色点；数组根显示「N 项」，子行缩进 24px、40px 行高，仍走 <code>Level</code> / <code>IsContainer</code> / <code>ToggleNodeCommand</code>。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">04</div><div><b>当前值单元格是编辑主入口</b><span>质量点 + 提交式输入框 + 偏离时的 ↺；数组根保留「强制覆盖集合...」；图像与只读存储区显示只读提示。行为仍由 <code>CellValueEditBehavior</code> / <code>CurrentValueText</code> / <code>IsValueDeviated</code> 驱动。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">05</div><div><b>空态与搜索无结果分开</b><span>空来源显示「还没有变量 + 添加变量」；搜索无结果显示「没有匹配 + 清空搜索提示」。不再用一张空白表格冒充加载失败。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">06</div><div><b>系统变量只读语义前置</b><span>系统来源顶部常驻只读横幅；行内操作列只保留「复制变量名」+「只读」chip，不再显示点了只会弹提示的删除 / 重命名按钮。判据仍走 <code>IsSystemOwned</code>。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">07</div><div><b>底部提示改成状态条</b><span>左侧「N 个变量 · 来源 · 轮询/内存」；右侧键盘提示 <code>Enter</code> 提交 / <code>Esc</code> 取消 / <code>↺</code> 恢复初始值。原长段落说明移入 README 与 ToolTip。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">08</div><div><b>全令牌化与可达性</b><span>视图零十六进制；类型色复用既有语义族；图标按钮 30×30 + <code>Padding=0</code>（R68）；焦点走 <code>DialogFocusVisual</code>；表格横向滚动保留 Auto，星号列 MinWidth 不低于 80。</span></div></div>
+
+      <div class="gv-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="gv-note"><div class="gv-note-num">C1</div><div><b>DataContext = GlobalVariableManagerViewModel</b><span>Prism <code>AutoWireViewModel</code> 与宿主 <code>RegisterDialog</code> 的绑定不变；不引入独立 VM。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">C2</div><div><b>来源与筛选</b><span><code>SourceNodes</code> / <code>SelectedSource</code> / <code>FilteredDisplayNodes</code> / <code>SearchText</code> 原样；数组子行跟随父级的筛选语义不变。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">C3</div><div><b>全部命令入口</b><span><code>AddCommand</code> / <code>DeleteCommand</code> / <code>ResetCommand</code> / <code>EditArrayCommand</code> / <code>CopyNameCommand</code> / <code>RenameCommand</code> / <code>ManageScanGroupsCommand</code> / <code>CloseCommand</code> / <code>ToggleNodeCommand</code> 全部保留。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">C4</div><div><b>列收放</b><span><code>IsNetworkSource</code> 仍驱动「来源 / 扫描组 / 地址」三列显隐；<code>GlobalVariableView.xaml.cs</code> 的 <code>HookViewModel()</code> 构造器直调必须保留。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">C5</div><div><b>当前值就地编辑</b><span><code>CellValueEditBehavior</code>、<code>CurrentValueText</code>、<code>IsValueDeviated</code>、<code>IsValueReadOnly</code>、数组元素行写回语义全部保留；不新增「写值」弹窗。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">C6</div><div><b>扫描组</b><span><code>ScanGroupOptions</code> / <code>ScanGroupText</code> / <code>ShowScanGroup</code> 与 <code>ScanGroupChanged</code> 回调不变；下拉仍只对网络根节点显示。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">C7</div><div><b>列宽契约</b><span>DataGrid 横向滚动 Auto；「当前值」星号列 <code>MinWidth ≥ 80</code>；固定列合计 + 星号下限 ≤ 最小窗口右栏视口（<code>GlobalVariableChecks</code> 守门）。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">C8</div><div><b>系统 / IO 变量只读</b><span><code>IsSystemOwned</code> / <code>IsEditableNode</code> / <code>IsValueReadOnly</code> 语义不变；删除、重命名的 VM 侧拦截仍在。</span></div></div>
+
+      <div class="gv-notes-head" style="margin-top:20px;">v1 明确延后（需新增功能或契约）</div>
+      <div class="gv-note"><div class="gv-note-num">D1</div><div><b>「添加变量」弹窗改版</b><span>当前是 <code>EasyDialog.ShowPropertyGridAsync</code> 框架属性网格；改版需要新的弹窗视图与草稿渲染契约，本批只保留入口。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">D2</div><div><b>列选择 / 密度切换 / 排序</b><span>需要 VM 新增列状态与排序命令；本批列集合固定。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">D3</div><div><b>多选批量删除</b><span>需要 VM 新增选中集合与批量命令；本批保持逐行删除。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">D4</div><div><b>变量详情检查器</b><span>需要 VM 新增 <code>SelectedNode</code> 与详情字段；本批不扩右栏。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">D5</div><div><b>导入 / 导出变量表</b><span>需要新的文件契约与校验；本批不做。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">D6</div><div><b>历史趋势 / 迷你曲线</b><span>需要按变量采样与环形缓冲；本批只显示当前镜像值。</span></div></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('gv-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#gv-window');
+      var table = root.querySelector('#gv-table');
+      var tableHead = root.querySelector('#gv-table-head');
+      var rowsHost = root.querySelector('#gv-rows');
+      var empty = root.querySelector('#gv-empty');
+      var emptyTitle = root.querySelector('#gv-empty-title');
+      var emptyText = root.querySelector('#gv-empty-text');
+      var emptyAdd = root.querySelector('#gv-empty-add');
+      var search = root.querySelector('#gv-search');
+      var count = root.querySelector('#gv-count');
+      var sourceChip = root.querySelector('#gv-source-chip');
+      var headSub = root.querySelector('#gv-head-sub');
+      var statusText = root.querySelector('#gv-status-text');
+      var statusNote = root.querySelector('#gv-status-note');
+      var systemBanner = root.querySelector('#gv-system-banner');
+      var manageGroups = root.querySelector('#gv-manage-groups');
+      var addBtn = root.querySelector('#gv-add');
+      var toast = root.querySelector('#gv-toast');
+
+      var sources = {
+        local: {
+          key: 'local', name: '本地变量', icon: 'i-database', sub: '内存变量 · 可编辑',
+          online: true, count: 6, mode: 'local',
+          chip: '本地变量', headSub: '内存变量 · 当前值直接写入内存', statusNote: '当前值写入内存',
+          vars: [
+            { name: 'OKCount', type: 'Int32', typeKey: 'int', icon: 'int', desc: '本班 OK 计数', value: '128', quality: 'local', deviated: true },
+            { name: 'NGCount', type: 'Int32', typeKey: 'int', icon: 'int', desc: '本班 NG 计数', value: '3', quality: 'local', deviated: true },
+            { name: 'YieldRate', type: 'Double', typeKey: 'double', icon: 'double', desc: '实时良率（OK / 总数）', value: '0.976', quality: 'local', deviated: true },
+            { name: 'LastResult', type: 'String', typeKey: 'string', icon: 'string', desc: '最近一次判定结果', value: 'OK', quality: 'local', deviated: false },
+            {
+              name: 'DefectFlags', type: 'Boolean[]', typeKey: 'array', icon: 'array', desc: '四工位缺陷标记', array: true, expanded: true,
+              children: [
+                { name: '[0]', type: 'Boolean', value: 'true' },
+                { name: '[1]', type: 'Boolean', value: 'false' },
+                { name: '[2]', type: 'Boolean', value: 'true' }
+              ]
+            },
+            { name: 'TemplateImage', type: 'HImage', typeKey: 'image', icon: 'image', desc: '模板图像（由流程写入）', image: true }
+          ]
+        },
+        network: {
+          key: 'network', name: 'PLC_Modbus', icon: 'i-plug', sub: 'Modbus TCP',
+          online: true, count: 5, mode: 'network', chip: 'PLC_Modbus',
+          headSub: 'Modbus TCP · 在线', statusNote: '轮询镜像实时刷新',
+          vars: [
+            { name: 'Trigger', type: 'Boolean', typeKey: 'bool', icon: 'bool', desc: '启动触发（线圈）', value: 'true', address: 'x=1;0', group: '快组 (20ms)', quality: 'good', source: 'PLC_Modbus', online: true },
+            { name: 'SpeedSet', type: 'Double', typeKey: 'double', icon: 'double', desc: '输送线速度设定', value: '1.25', address: 'x=3;100', group: '默认组', quality: 'good', source: 'PLC_Modbus', online: true },
+            { name: 'Temperature', type: 'Double', typeKey: 'double', icon: 'double', desc: '烘箱温度', value: '86.4', address: 'x=3;102', group: '快组 (20ms)', quality: 'warn', source: 'PLC_Modbus', online: true },
+            { name: 'AlarmCode', type: 'Int32', typeKey: 'int', icon: 'int', desc: '报警代码', value: '0', address: 'x=3;104', group: '默认组', quality: 'good', source: 'PLC_Modbus', online: true },
+            { name: 'PartReady', type: 'Boolean', typeKey: 'bool', icon: 'bool', desc: '来料就绪（离散输入）', value: 'false', address: 'x=2;10', group: '默认组', quality: 'good', source: 'PLC_Modbus', online: true, readOnly: true }
+          ]
+        },
+        'network-off': {
+          key: 'network-off', name: 'PLC_S7_1', icon: 'i-plug', sub: 'Siemens S7',
+          online: false, count: 3, mode: 'network', chip: 'PLC_S7_1',
+          headSub: 'Siemens S7 · 离线（显示上次镜像值）', statusNote: '离线：当前值为上次镜像值',
+          vars: [
+            { name: 'AxisReady', type: 'Boolean', typeKey: 'bool', icon: 'bool', desc: '轴就绪', value: 'true', address: 'M0.0', group: '默认组', quality: 'bad', source: 'PLC_S7_1', online: false },
+            { name: 'CycleTime', type: 'Double', typeKey: 'double', icon: 'double', desc: '节拍 (ms)', value: '842.5', address: 'DB1.DBD0', group: '默认组', quality: 'bad', source: 'PLC_S7_1', online: false },
+            { name: 'RecipeNo', type: 'Int32', typeKey: 'int', icon: 'int', desc: '配方号', value: '7', address: 'MW10', group: '默认组', quality: 'bad', source: 'PLC_S7_1', online: false }
+          ]
+        },
+        system: {
+          key: 'system', name: '系统变量', icon: 'i-cpu', sub: '宿主维护 · 只读', online: true, count: 8, mode: 'local',
+          chip: '系统变量', headSub: '运动 / IO 投影 · 由宿主维护，只读', statusNote: '只读 · 不参与新建 / 删除',
+          vars: [
+            { name: 'Motion.X.Position', type: 'Double', typeKey: 'double', icon: 'double', desc: 'X 轴当前位置 (mm)', value: '123.456', system: true },
+            { name: 'Motion.X.Velocity', type: 'Double', typeKey: 'double', icon: 'double', desc: 'X 轴当前速度 (mm/s)', value: '0', system: true },
+            { name: 'Motion.Y.Position', type: 'Double', typeKey: 'double', icon: 'double', desc: 'Y 轴当前位置 (mm)', value: '45.2', system: true },
+            { name: 'System.Io.Camera1.Online', type: 'Boolean', typeKey: 'bool', icon: 'bool', desc: '相机 1 在线', value: 'true', system: true },
+            { name: 'System.Io.PLC_Modbus.Online', type: 'Boolean', typeKey: 'bool', icon: 'bool', desc: 'PLC 在线', value: 'true', system: true },
+            { name: 'System.Io.PLC_Modbus.State', type: 'Int32', typeKey: 'int', icon: 'int', desc: '连接状态码', value: '1', system: true },
+            { name: 'System.Io.StartButton', type: 'Boolean', typeKey: 'bool', icon: 'bool', desc: '启动按钮', value: 'false', system: true },
+            { name: 'System.Io.TowerRed', type: 'Boolean', typeKey: 'bool', icon: 'bool', desc: '红灯输出', value: 'false', system: true }
+          ]
+        }
+      };
+
+      var state = { source: 'local', query: '', boundary: 'normal', rowState: 'normal', width: 1300, expanded: { DefectFlags: true } };
+
+      function esc(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function icon(id, cls) {
+        return '<svg class="' + (cls || '') + '" aria-hidden="true"><use href="#' + id + '"></use></svg>';
+      }
+
+      function sourceNode(s, active) {
+        var isSystem = s.key === 'system';
+        var isNet = s.key === 'network' || (s.sub && s.sub.indexOf('Modbus') >= 0);
+        var dot = isNet ? '<span class="gv-dot ' + (s.online ? 'is-on' : 'is-off') + '"></span>' : '';
+        var sub = isSystem
+          ? '<span class="gv-source-sub"><span class="gv-dot is-muted"></span>' + esc(s.sub) + '</span>'
+          : '<span class="gv-source-sub">' + dot + esc(s.sub) + '</span>';
+        return '<button type="button" class="gv-source' + (active ? ' is-active' : '') + '" data-source="' + s.key + '" aria-pressed="' + (active ? 'true' : 'false') + '">' +
+          '<span class="gv-source-icon ' + (isSystem ? 'is-system' : (isNet ? 'is-net' : '')) + '">' + icon(s.icon) + '</span>' +
+          '<span class="gv-source-main"><span class="gv-source-name">' + esc(s.name) + '</span>' + sub + '</span>' +
+          '<span class="gv-source-count">' + s.count + '</span>' +
+          '</button>';
+      }
+
+      function renderRail() {
+        var local = sources.local;
+        var system = sources.system;
+        if (state.boundary === 'empty' && state.source === 'local') {
+          local = Object.assign({}, local, { count: 0 });
+        }
+        root.querySelector('#gv-source-local').innerHTML = sourceNode(local, state.source === 'local');
+        root.querySelector('#gv-source-system').innerHTML = sourceNode(system, state.source === 'system');
+        var conns = [
+          { key: 'network', name: 'PLC_Modbus', icon: 'i-plug', sub: 'Modbus TCP · 在线', online: true, count: 5 },
+          { key: 'network-off', name: 'PLC_S7_1', icon: 'i-plug', sub: 'Siemens S7 · 离线', online: false, count: 3 }
+        ];
+        root.querySelector('#gv-source-connections').innerHTML = conns.map(function (c) {
+          var active = c.key === state.source;
+          return '<button type="button" class="gv-source' + (active ? ' is-active' : '') + '" data-source="' + c.key + '" aria-pressed="' + (active ? 'true' : 'false') + '">' +
+            '<span class="gv-source-icon is-net">' + icon(c.icon) + '</span>' +
+            '<span class="gv-source-main"><span class="gv-source-name">' + esc(c.name) + '</span>' +
+            '<span class="gv-source-sub"><span class="gv-dot ' + (c.online ? 'is-on' : 'is-off') + '"></span>' + esc(c.sub) + '</span></span>' +
+            '<span class="gv-source-count">' + c.count + '</span>' +
+            '</button>';
+        }).join('');
+      }
+
+      function typeChip(type, key) {
+        return '<span class="gv-type is-' + key + '"><i></i>' + esc(type) + '</span>';
+      }
+
+      function sourceBadge(v) {
+        if (v.system) return '<span class="gv-src is-system">' + icon('i-lock') + '系统</span>';
+        if (v.source) return '<span class="gv-src ' + (v.online === false ? 'is-off' : 'is-net') + '"><i></i>' + esc(v.source) + '</span>';
+        return '<span class="gv-src is-local"><i></i>本地</span>';
+      }
+
+      function valueCell(v) {
+        if (v.array) {
+          return '<div class="gv-value"><span class="gv-quality is-local"></span><button type="button" class="gv-link" data-toast="强制覆盖集合：增删元素并整体覆盖当前值（设计稿）">强制覆盖集合...</button></div>';
+        }
+        if (v.image) {
+          return '<div class="gv-value"><span class="gv-value-readonly">' + icon('i-image') + '图像由流程写入</span></div>';
+        }
+        if (v.system) {
+          return '<div class="gv-value"><span class="gv-value-readonly">' + icon('i-lock') + esc(v.value) + '</span></div>';
+        }
+        var q = v.quality === 'good' ? 'is-good' : v.quality === 'warn' ? 'is-warn' : v.quality === 'bad' ? 'is-bad' : 'is-local';
+        var qTitle = v.quality === 'good' ? '采集正常' : v.quality === 'warn' ? '最近一次读取失败，显示上次值' : v.quality === 'bad' ? '断线或从未读到' : '';
+        var inputCls = 'gv-value-input' + (state.rowState === 'write-error' && v.name === 'SpeedSet' ? ' is-error' : '');
+        var inputTitle = state.rowState === 'write-error' && v.name === 'SpeedSet' ? '写入失败：连接已断开，设备未确认（显示上次值）' : '当前值就地编辑：回车或失焦提交';
+        var input = v.readOnly
+          ? '<input class="' + inputCls + '" value="' + esc(v.value) + '" disabled title="只读存储区：离散输入 / 输入映像区不可写">'
+          : '<input class="' + inputCls + '" value="' + esc(v.value) + '" title="' + esc(inputTitle) + '">';
+        var reset = v.deviated ? '<button type="button" class="gv-reset" title="当前值已偏离初始值：恢复为创建时设定的初始值" aria-label="恢复初始值">' + icon('i-reset') + '</button>' : '';
+        return '<div class="gv-value"><span class="gv-quality ' + q + '" title="' + esc(qTitle) + '"></span>' + input + reset + '</div>';
+      }
+
+      function actionsCell(v) {
+        if (v.system) return '<div class="gv-actions">' +
+          '<button type="button" class="gv-action" title="复制变量名（供画布组态绑定）" aria-label="复制变量名" data-toast="复制变量名：' + esc(v.name) + '（设计稿）">' + icon('i-copy') + '</button>' +
+          '<span class="gv-readonly-chip">' + icon('i-lock') + '只读</span></div>';
+        return '<div class="gv-actions">' +
+          '<button type="button" class="gv-action" title="复制变量名（供画布组态绑定）" aria-label="复制变量名" data-toast="复制变量名：' + esc(v.name) + '（设计稿）">' + icon('i-copy') + '</button>' +
+          '<button type="button" class="gv-action" title="重命名变量" aria-label="重命名" data-toast="重命名变量：' + esc(v.name) + '（设计稿）">' + icon('i-edit') + '</button>' +
+          '<button type="button" class="gv-action is-danger" title="删除" aria-label="删除" data-toast="删除变量：' + esc(v.name) + '（设计稿）">' + icon('i-trash') + '</button>' +
+          '</div>';
+      }
+
+      function rowHtml(v, index, mode) {
+        var child = v.name && v.name.charAt(0) === '[';
+        var cells = '';
+        if (mode === 'network') {
+          cells = '<div class="gv-cell">' + nameCell(v, child) + '</div>' +
+            '<div class="gv-cell">' + typeChip(v.type, v.typeKey) + '</div>' +
+            '<div class="gv-cell">' + sourceBadge(v) + '</div>' +
+            '<div class="gv-cell">' + (child ? '' : '<select class="gv-select" title="该点由哪个扫描周期采集"><option' + (v.group === '默认组' ? ' selected' : '') + '>默认组</option><option' + (v.group !== '默认组' ? ' selected' : '') + '>' + esc(v.group) + '</option></select>') + '</div>' +
+            '<div class="gv-cell"><span class="gv-addr" title="' + esc(v.address) + '">' + esc(v.address) + '</span></div>' +
+            '<div class="gv-cell">' + valueCell(v) + '</div>' +
+            '<div class="gv-cell is-right">' + (child ? '' : actionsCell(v)) + '</div>';
+        } else {
+          cells = '<div class="gv-cell">' + nameCell(v, child) + '</div>' +
+            '<div class="gv-cell">' + typeChip(v.type, v.typeKey) + '</div>' +
+            '<div class="gv-cell">' + valueCell(v) + '</div>' +
+            '<div class="gv-cell is-right">' + (child ? '' : actionsCell(v)) + '</div>';
+        }
+        var cls = 'gv-row' + (child ? ' is-child' : '') + (index === 0 && !child ? ' is-selected' : '');
+        return '<div class="' + cls + '" data-name="' + esc(v.name) + '">' + cells + '</div>';
+      }
+
+      function nameCell(v, child) {
+        if (child) {
+          return '<div class="gv-name is-child"><span class="gv-child-index">' + esc(v.name) + '</span></div>';
+        }
+        var expander = v.array
+          ? '<button type="button" class="gv-expander' + (state.expanded[v.name] ? ' is-open' : '') + '" data-expand="' + esc(v.name) + '" aria-label="展开数组">' + icon('i-chevron-right') + '</button>'
+          : '<span class="gv-expander is-hidden"></span>';
+        var count = v.array && v.children ? '<span class="gv-array-count">' + v.children.length + ' 项</span>' : '';
+        return '<div class="gv-name">' + expander +
+          '<span class="gv-type-ico is-' + v.icon + '">' + esc(v.type.replace('[]', '').replace('Boolean', 'BOOL').replace('Double', 'DBL').replace('String', 'STR').replace('Int32', 'INT').replace('HImage', 'IMG')) + '</span>' +
+          '<span class="gv-name-text"><b>' + esc(v.name) + '</b><small>' + esc(v.desc || '') + '</small></span>' + count + '</div>';
+      }
+
+      function visibleRows() {
+        var s = sources[state.source];
+        if (!s || state.boundary === 'empty') return { s: s, rows: [] };
+        var rows = [];
+        s.vars.forEach(function (v) {
+          var hay = (v.name + ' ' + (v.desc || '') + ' ' + (v.address || '')).toLowerCase();
+          if (state.query && hay.indexOf(state.query.toLowerCase()) < 0) return;
+          rows.push(v);
+          if (v.array && state.expanded[v.name] && v.children) {
+            v.children.forEach(function (c) { rows.push(c); });
+          }
+        });
+        return { s: s, rows: rows };
+      }
+
+      function render() {
+        var s = sources[state.source];
+        var mode = s.mode;
+        var vr = visibleRows();
+        var rows = vr.rows;
+
+        table.className = 'gv-table is-' + mode;
+        var head = mode === 'network'
+          ? ['变量名', '类型', '来源', '扫描组', '地址', '当前值', '操作']
+          : ['变量名', '类型', '当前值', '操作'];
+        tableHead.innerHTML = head.map(function (h, i) {
+          return '<div class="gv-cell' + (i === head.length - 1 ? ' is-right' : '') + '">' + h + '</div>';
+        }).join('');
+        rowsHost.innerHTML = rows.map(function (v, i) { return rowHtml(v, i, mode); }).join('');
+
+        // 空态 / 搜索无结果
+        var showEmpty = rows.length === 0;
+        empty.hidden = !showEmpty;
+        if (showEmpty) {
+          if (state.query) {
+            emptyTitle.textContent = '没有匹配「' + state.query + '」的变量';
+            emptyText.textContent = '按名称 / 描述 / 地址搜索，或清空搜索框查看全部。';
+            emptyAdd.hidden = true;
+          } else {
+            emptyTitle.textContent = state.source === 'local' ? '本地变量还是空的' : '该来源下还没有变量';
+            emptyText.textContent = state.source === 'local'
+              ? '点击右上角「＋ 添加变量」创建第一个本地变量；网络变量请先在左栏选择一条通信连接。'
+              : '在左栏选择「本地变量」创建变量，或先到通讯设置添加连接。';
+            emptyAdd.hidden = state.source !== 'local';
+          }
+        }
+
+        // 头部上下文（空态演示时计数归零）
+        var displayCount = state.boundary === 'empty' ? 0 : s.count;
+        count.textContent = String(displayCount);
+        sourceChip.textContent = s.chip;
+        headSub.textContent = s.headSub;
+        systemBanner.hidden = state.source !== 'system';
+        manageGroups.style.display = state.source === 'network' ? 'inline-flex' : 'none';
+        addBtn.style.display = 'inline-flex';
+        root.querySelector('#gv-legend').style.display = state.source === 'network' ? 'block' : 'none';
+
+        var noteTitle = '轮询镜像';
+        var noteText = '网络变量的当前值来自轮询缓存，打开期间自动刷新；写值直达设备。';
+        if (state.source === 'local') {
+          noteTitle = '内存变量';
+          noteText = '本地变量的当前值直接写入内存，读写零延迟；不参与设备轮询。';
+        } else if (state.source === 'system') {
+          noteTitle = '只读投影';
+          noteText = '系统变量由宿主维护，值随轴状态 / IO 设备状态刷新；定义不可编辑。';
+        }
+        root.querySelector('#gv-rail-note-title').textContent = noteTitle;
+        root.querySelector('#gv-rail-note-text').textContent = noteText;
+
+        // 状态条
+        var shownCount = rows.filter(function (v) { return v.name.charAt(0) !== '['; }).length;
+        statusText.textContent = (state.query ? shownCount + ' / ' + s.count : displayCount) + ' 个变量 · ' + s.name;
+        statusNote.textContent = s.statusNote;
+
+        renderRail();
+      }
+
+      function setSource(key) {
+        if (!sources[key]) return;
+        state.source = key;
+        state.boundary = 'normal';
+        state.query = '';
+        search.value = '';
+        render();
+        syncSeg('#gv-source-seg', 'source', key === 'network-off' ? 'network' : key);
+        syncSeg('#gv-boundary-seg', 'boundary', 'normal');
+      }
+
+      function setBoundary(kind) {
+        state.boundary = kind;
+        if (kind === 'search') {
+          state.query = 'XYZ';
+          search.value = 'XYZ';
+        } else {
+          state.query = '';
+          search.value = '';
+        }
+        if (kind === 'empty') state.source = 'local';
+        render();
+        syncSeg('#gv-boundary-seg', 'boundary', kind);
+        syncSeg('#gv-source-seg', 'source', state.source);
+      }
+
+      function syncSeg(sel, attr, value) {
+        root.querySelectorAll(sel + ' button').forEach(function (b) {
+          var on = b.getAttribute('data-' + attr) === value;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+      }
+
+      var toastTimer = null;
+      function showToast(text) {
+        toast.textContent = text;
+        toast.classList.add('is-on');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { toast.classList.remove('is-on'); }, 2400);
+      }
+
+      // 事件：来源
+      root.addEventListener('click', function (e) {
+        var src = e.target.closest ? e.target.closest('[data-source]') : null;
+        if (src) { setSource(src.getAttribute('data-source')); return; }
+        var expand = e.target.closest ? e.target.closest('[data-expand]') : null;
+        if (expand) {
+          var name = expand.getAttribute('data-expand');
+          state.expanded[name] = !state.expanded[name];
+          render();
+          return;
+        }
+        var t = e.target.closest ? e.target.closest('[data-toast]') : null;
+        if (t) { showToast(t.getAttribute('data-toast')); return; }
+      });
+
+      search.addEventListener('input', function () {
+        state.query = search.value.trim();
+        state.boundary = state.query ? 'search' : 'normal';
+        render();
+        syncSeg('#gv-boundary-seg', 'boundary', state.boundary);
+      });
+
+      addBtn.addEventListener('click', function () { showToast('设计稿：打开「添加变量」属性网格弹窗（本批不改结构）'); });
+      emptyAdd.addEventListener('click', function () { showToast('设计稿：打开「添加变量」属性网格弹窗（本批不改结构）'); });
+      manageGroups.addEventListener('click', function () { showToast('设计稿：打开「管理扫描组」弹窗（作用对象 = 左栏选中的连接）'); });
+
+      root.querySelectorAll('#gv-boundary-seg button').forEach(function (b) {
+        b.addEventListener('click', function () { setBoundary(b.getAttribute('data-boundary')); });
+      });
+      root.querySelectorAll('#gv-rowstate-seg button').forEach(function (b) {
+        b.addEventListener('click', function () {
+          state.rowState = b.getAttribute('data-rowstate');
+          if (state.rowState === 'write-error' && state.source !== 'network') {
+            state.source = 'network';
+            state.boundary = 'normal';
+            state.query = '';
+            search.value = '';
+            syncSeg('#gv-source-seg', 'source', 'network');
+            syncSeg('#gv-boundary-seg', 'boundary', 'normal');
+          }
+          render();
+          syncSeg('#gv-rowstate-seg', 'rowstate', state.rowState);
+        });
+      });
+      root.querySelectorAll('#gv-width-seg button').forEach(function (b) {
+        b.addEventListener('click', function () {
+          state.width = Number(b.getAttribute('data-width'));
+          win.classList.toggle('is-narrow', state.width === 1200);
+          syncSeg('#gv-width-seg', 'width', String(state.width));
+        });
+      });
+      root.querySelectorAll('#gv-source-seg button').forEach(function (b) {
+        b.addEventListener('click', function () { setSource(b.getAttribute('data-source')); });
+      });
+
+      // 便于出图/审查：?source=network&boundary=empty&rowstate=write-error&width=1200
+      var params = new URLSearchParams(window.location.search);
+      if (params.get('width') === '1200') {
+        state.width = 1200;
+        win.classList.add('is-narrow');
+        syncSeg('#gv-width-seg', 'width', '1200');
+      }
+      if (params.get('rowstate') === 'write-error') {
+        state.rowState = 'write-error';
+        syncSeg('#gv-rowstate-seg', 'rowstate', 'write-error');
+      }
+      if (params.get('source')) {
+        var srcParam = params.get('source');
+        if (sources[srcParam]) {
+          state.source = srcParam;
+          syncSeg('#gv-source-seg', 'source', srcParam === 'network-off' ? 'network' : srcParam);
+        }
+      }
+      if (params.get('boundary') === 'empty') {
+        state.boundary = 'empty';
+        state.source = 'local';
+        syncSeg('#gv-boundary-seg', 'boundary', 'empty');
+        syncSeg('#gv-source-seg', 'source', 'local');
+      } else if (params.get('boundary') === 'search') {
+        state.boundary = 'search';
+        state.query = 'XYZ';
+        search.value = 'XYZ';
+        syncSeg('#gv-boundary-seg', 'boundary', 'search');
+      }
+
+      render();
+    })();
+  </script>
+</div>
+</body>
+</html>

@@ -229,28 +229,52 @@ namespace Plugin.ExcelExport
         /// <summary>
         /// 手动导出（配置面板按钮）：放后台线程跑，避免几万行的读+写+改包把界面卡住。
         /// 绑定引擎会自动把非 UI 线程的属性变更调度回 UI 线程（标量属性安全；集合不行，故这里不发集合通知）。
+        ///
+        /// 两层兜底（外层是 2026-10-20 补的，别删）：
+        ///   外层 try/catch 罩住 **Task.Run 本身**——线程池拒绝调度、或 lambda 还没进 try 就被拆掉时，
+        ///   内层的 catch 根本没机会执行，`LastResult` 会永远停在「正在导出…」、按钮一直置灰；
+        ///   内层 try/catch/finally 仍负责业务异常与 `IsExporting` 复位（正常路径由它收尾）。
         /// </summary>
         public void ExportNow()
         {
             if (IsExporting) return;
             IsExporting = true;
             LastResult = "正在导出…";
-            Task.Run(() =>
+
+            try
             {
-                try
+                Task.Run(() =>
                 {
-                    var result = RunExport(null);
-                    var sb = new System.Text.StringBuilder();
-                    sb.Append(result.Success ? "✔ " : "✘ ").Append(result.Message);
-                    if (result.Success) sb.Append("\n→ ").Append(result.OutputPath);
-                    LastResult = sb.ToString();
-                    if (result.Success && OpenAfterExport) TryOpen(result.OutputPath, null);
-                }
-                finally
-                {
-                    IsExporting = false;
-                }
-            });
+                    try
+                    {
+                        var result = RunExport(null);
+                        var sb = new System.Text.StringBuilder();
+                        sb.Append(result.Success ? "✔ " : "✘ ").Append(result.Message);
+                        if (result.Success) sb.Append("\n→ ").Append(result.OutputPath);
+                        LastResult = sb.ToString();
+                        if (result.Success && OpenAfterExport) TryOpen(result.OutputPath, null);
+                    }
+                    catch (Exception ex)
+                    {
+                        // 内层兜底：导出器内部已收敛业务失败，这里只接住 RunExport/Task 调度外逸异常，
+                        // 否则 LastResult 会永远停在「正在导出…」，界面看起来像卡死。
+                        LastResult = "✘ 导出异常：" + ex.GetType().Name + "：" + ex.Message;
+                        Debug.WriteLine("[Excel报表] 后台导出异常：" + ex);
+                    }
+                    finally
+                    {
+                        IsExporting = false;
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                // 外层兜底：Task.Run 调度本身失败（线程池拒单 / 环境异常）时 lambda 内的 catch 接不住，
+                // 必须在这里复位状态并给出可见原因，不许把异常抛给按钮事件（那是 UI 线程，会带崩宿主）。
+                LastResult = "✘ 导出异常：" + ex.GetType().Name + "：" + ex.Message;
+                IsExporting = false;
+                Debug.WriteLine("[Excel报表] 导出调度失败：" + ex);
+            }
         }
 
         /// <summary>组参数 → 交给导出器（本方法内不做任何界面/日志决策）。</summary>

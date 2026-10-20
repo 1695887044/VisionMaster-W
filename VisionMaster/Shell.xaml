@@ -8,17 +8,18 @@
     xmlns:local="clr-namespace:VisionMaster;assembly=VM.Core"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
+    xmlns:shell="clr-namespace:VisionMaster"
     xmlns:ui="http://schemas.UI.com/ui"
     xmlns:views="clr-namespace:VisionMaster.Views"
     Title="VisionMaster"
     Width="1280"
-    Height="920"
-    MinWidth="1200"
-    MinHeight="760"
+    Height="860"
+    MinWidth="1120"
+    MinHeight="680"
     prism:ViewModelLocator.AutoWireViewModel="True"
     ui:WindowExtensions.IsAutoWireCommands="True"
     PreviewKeyDown="OnShellPreviewKeyDown"
-    Background="#FFFFFF"
+    Background="{StaticResource DialogSurfaceBrush}"
     FontFamily="Microsoft YaHei"
     WindowStyle="None">
     <WindowChrome.WindowChrome>
@@ -34,7 +35,7 @@
         <Style x:Key="TitleButton" TargetType="Button">
             <Setter Property="FontFamily" Value="{StaticResource Icon}" />
             <Setter Property="FontSize" Value="16" />
-            <Setter Property="Foreground" Value="#444444" />
+            <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Width" Value="34" />
@@ -53,11 +54,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#E9EDF4" />
-                                <Setter Property="Foreground" Value="#1F1F1F" />
+                                <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#DCE6F5" />
+                                <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
                             </Trigger>
                             <!--  禁用态（Command.CanExecute=false 自动触发）：半透明置灰 + 取消手型，让互锁"看得见"  -->
                             <Trigger Property="IsEnabled" Value="False">
@@ -74,15 +75,124 @@
         <Style x:Key="TitleSeparator" TargetType="Rectangle">
             <Setter Property="Width" Value="1" />
             <Setter Property="Margin" Value="5,7" />
-            <Setter Property="Fill" Value="#E0E0E0" />
+            <Setter Property="Fill" Value="{StaticResource DialogBorderBrush}" />
             <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        </Style>
+
+        <!--  工作模式分段按钮：调试 / 运行 / 组态 / 自由  -->
+        <Style x:Key="ModeButton" TargetType="Button">
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Padding" Value="9,0" />
+            <Setter Property="Margin" Value="1,0" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="5">
+                            <ContentPresenter
+                                Margin="{TemplateBinding Padding}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="ModeButtonDebug" TargetType="Button" BasedOn="{StaticResource ModeButton}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding CurrentMode}" Value="{x:Static shell:ShellMode.Debug}">
+                    <Setter Property="Background" Value="{StaticResource LogicIfSoftBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource LogicIfTextBrush}" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ModeButtonRun" TargetType="Button" BasedOn="{StaticResource ModeButton}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding CurrentMode}" Value="{x:Static shell:ShellMode.Run}">
+                    <Setter Property="Background" Value="{StaticResource LogicForSoftBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource LogicForTextBrush}" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ModeButtonConfig" TargetType="Button" BasedOn="{StaticResource ModeButton}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding CurrentMode}" Value="{x:Static shell:ShellMode.Config}">
+                    <Setter Property="Background" Value="{StaticResource LogicWhileSoftBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource LogicWhileTextBrush}" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ModeButtonFree" TargetType="Button" BasedOn="{StaticResource ModeButton}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding CurrentMode}" Value="{x:Static shell:ShellMode.Free}">
+                    <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--  运行条按钮：文字 + 图标位，和标题栏的图标按钮区分开  -->
+        <Style x:Key="RunBarButton" TargetType="Button">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="11,0" />
+            <Setter Property="Margin" Value="2,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bd"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6">
+                            <ContentPresenter
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.35" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!--  活动栏开关（VS Code 式，左侧强调条指示）  -->
         <Style x:Key="ActivityToggle" TargetType="ToggleButton">
             <Setter Property="FontFamily" Value="{StaticResource Icon}" />
             <Setter Property="FontSize" Value="19" />
-            <Setter Property="Foreground" Value="#5A5A5A" />
+            <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Width" Value="48" />
@@ -97,7 +207,7 @@
                                 x:Name="Indicator"
                                 Width="3"
                                 HorizontalAlignment="Left"
-                                Background="#0067C0"
+                                Background="{StaticResource DialogAccentBrush}"
                                 CornerRadius="0,2,2,0"
                                 Visibility="Collapsed" />
                             <Border
@@ -109,11 +219,11 @@
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Foreground" Value="#1F1F1F" />
-                                <Setter TargetName="Bd" Property="Background" Value="#F0F3F8" />
+                                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter Property="Foreground" Value="#0067C0" />
+                                <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
                                 <Setter TargetName="Indicator" Property="Visibility" Value="Visible" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -126,7 +236,7 @@
         <Style x:Key="ActivityAction" TargetType="Button">
             <Setter Property="FontFamily" Value="{StaticResource Icon}" />
             <Setter Property="FontSize" Value="19" />
-            <Setter Property="Foreground" Value="#5A5A5A" />
+            <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Width" Value="48" />
@@ -143,8 +253,8 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Foreground" Value="#1F1F1F" />
-                                <Setter TargetName="Bd" Property="Background" Value="#F0F3F8" />
+                                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -162,18 +272,158 @@
             Key="F5"
             Command="{Binding ExecutionCommand}"
             CommandParameter="{x:Static local:ExecutionAction.Resume}" />
+        <KeyBinding
+            Key="D1"
+            Modifiers="Control"
+            Command="{Binding SetShellModeCommand}"
+            CommandParameter="Debug" />
+        <KeyBinding
+            Key="D2"
+            Modifiers="Control"
+            Command="{Binding SetShellModeCommand}"
+            CommandParameter="Run" />
+        <KeyBinding
+            Key="D3"
+            Modifiers="Control"
+            Command="{Binding SetShellModeCommand}"
+            CommandParameter="Config" />
+        <KeyBinding
+            Key="D4"
+            Modifiers="Control"
+            Command="{Binding SetShellModeCommand}"
+            CommandParameter="Free" />
     </Window.InputBindings>
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="36" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="26" />
         </Grid.RowDefinitions>
         <ui:OverlayHost />
 
+        <!--  ============ 命令面板（Ctrl+K） ============  -->
+        <!--  放在 OverlayHost 之后、标题栏之前：覆盖整个窗口，不改变停靠树。  -->
+        <Grid
+            x:Name="CommandPaletteOverlay"
+            Grid.RowSpan="4"
+            Panel.ZIndex="200"
+            IsVisibleChanged="CommandPaletteOverlay_IsVisibleChanged"
+            Visibility="{Binding IsCommandPaletteOpen, Converter={ui:BooleanToVisibilityConverter}}">
+            <Border Background="{StaticResource DialogScrimBrush}" MouseDown="CommandPaletteScrim_MouseDown" />
+            <Border
+                Width="640"
+                MaxHeight="480"
+                Margin="0,96,0,0"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
+                Background="{StaticResource DialogSurfaceBrush}"
+                BorderBrush="{StaticResource DialogBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="10">
+                <Border.Effect>
+                    <DropShadowEffect
+                        BlurRadius="24"
+                        Opacity="0.18"
+                        ShadowDepth="6" />
+                </Border.Effect>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="52" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBox
+                        x:Name="CommandPaletteBox"
+                        Margin="16,10"
+                        Padding="10,0"
+                        VerticalContentAlignment="Center"
+                        Background="{StaticResource DialogInputBackgroundBrush}"
+                        BorderBrush="{StaticResource DialogBorderBrush}"
+                        BorderThickness="1"
+                        FontSize="13"
+                        KeyDown="CommandPaletteBox_KeyDown"
+                        Text="{Binding CommandPaletteQuery, UpdateSourceTrigger=PropertyChanged}"
+                        ToolTip="输入流程、视图或命令名称；↑↓ 选择，Enter 执行，Esc 关闭" />
+                    <ListBox
+                        x:Name="CommandPaletteList"
+                        Grid.Row="1"
+                        Margin="8,0,8,8"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        ItemsSource="{Binding CommandPaletteItems}"
+                        MouseDoubleClick="CommandPaletteList_MouseDoubleClick"
+                        SelectedItem="{Binding SelectedCommandPaletteItem}"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="Margin" Value="0,1" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border
+                                                x:Name="ItemBorder"
+                                                Padding="10,8"
+                                                Background="Transparent"
+                                                CornerRadius="7">
+                                                <ContentPresenter />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="24" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontFamily="{StaticResource Icon}"
+                                        FontSize="14"
+                                        Foreground="{StaticResource DialogAccentBrush}"
+                                        Text="{Binding Glyph}" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock
+                                            FontSize="13"
+                                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                            Text="{Binding Title}" />
+                                        <TextBlock
+                                            FontSize="11"
+                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                            Text="{Binding Subtitle}" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBlock
+                        Grid.Row="1"
+                        Margin="16,12"
+                        HorizontalAlignment="Center"
+                        FontSize="12"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="没有匹配的流程、视图或命令"
+                        Visibility="{Binding CommandPaletteEmptyVisibility}" />
+                </Grid>
+            </Border>
+        </Grid>
+
         <!--  ============ 单行标题栏（VS Code 式） ============  -->
-        <Grid Background="#FFFFFF">
+        <Grid Background="{StaticResource DialogSurfaceBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
@@ -187,7 +437,7 @@
                     FontFamily="{StaticResource Icon}"
                     WindowChrome.IsHitTestVisibleInChrome="True">
                     <MenuItem
-                        Foreground="#444444"
+                        Foreground="{StaticResource ScadaTextBrush}"
                         Header="&#xf0c9;">
                         <MenuItem Header="文件(F)" FontFamily="Microsoft YaHei">
                             <MenuItem
@@ -250,19 +500,10 @@
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_ProcessView"
-                                Header="流程设计器"
+                                Header="流程导航"
                                  >
                             <MenuItem.Icon>
-                                <TextBlock Text="&#xf542;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                Command="{commands:ShowPanelCommand}"
-                                CommandParameter="Panel_FlowListView"
-                                Header="程序"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf00b;" FontFamily="{StaticResource Icon}" />
+                                <TextBlock Text="&#xf0e8;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
                             <MenuItem
@@ -277,7 +518,7 @@
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_LogView"
-                                Header="日志信息"
+                                Header="控制台"
                                  >
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf15c;" FontFamily="{StaticResource Icon}" />
@@ -331,7 +572,7 @@
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_ScadaPropertyView"
-                                Header="属性"
+                                Header="检查器"
                                   >
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf013;" FontFamily="{StaticResource Icon}" />
@@ -478,12 +719,6 @@
                                 <TextBlock Text="&#xf2d2;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
-                            <Separator />
-                            <MenuItem Header="报表查询"  >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf200;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
                         </MenuItem>
 
                         <MenuItem Header="系统(S)">
@@ -535,15 +770,6 @@
                         </MenuItem>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
-                                CommandParameter="{x:Static local:SystemAction.IoSettings}"
-                                Header="IO 设置"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf0e8;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.SystemHealth}"
                                 Header="系统健康"
                                  >
@@ -554,7 +780,7 @@
                             <MenuItem
                                 Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.HardwareSettings}"
-                                Header="硬件设置"
+                                Header="硬件管理"
                                  >
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf2db;" FontFamily="{StaticResource Icon}" />
@@ -562,17 +788,8 @@
                         </MenuItem>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
-                                CommandParameter="{x:Static local:SystemAction.RuntimeWindowSettings}"
-                                Header="运行窗口设置"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf2d0;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                Command="{Binding SystemCommand}"
-                                CommandParameter="{x:Static local:SystemAction.SystemParameters}"
-                                Header="系统参数设置"
+                                CommandParameter="{x:Static local:SystemAction.SystemSettings}"
+                                Header="系统设置"
                                  >
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf1de;" FontFamily="{StaticResource Icon}" />
@@ -589,15 +806,6 @@
                         </MenuItem>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
-                                CommandParameter="{x:Static local:SystemAction.ReportQuery}"
-                                Header="报表查询"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf200;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.ReturnToZero}"
                                 Header="回零"
                                  >
@@ -605,24 +813,15 @@
                                 <TextBlock Text="&#xf015;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
-                            <MenuItem
-                                Command="{Binding SystemCommand}"
-                                CommandParameter="{x:Static local:SystemAction.UIDesign}"
-                                Header="UI 设计"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf53f;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
                         </MenuItem>
 
                         <MenuItem Header="帮助(H)" FontFamily="Microsoft YaHei">
-                            <MenuItem Header="激活"  >
+                            <MenuItem Header="激活（未实现）" IsEnabled="False">
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf084;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
-                            <MenuItem Header="建议及反馈"  >
+                            <MenuItem Header="建议及反馈（未实现）" IsEnabled="False">
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf4ad;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
@@ -636,7 +835,7 @@
                             </MenuItem.Icon>
                         </MenuItem>
                             <Separator />
-                            <MenuItem Header="关于"  >
+                            <MenuItem Header="关于（未实现）" IsEnabled="False">
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf05a;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
@@ -667,59 +866,47 @@
 
                 <Rectangle Style="{StaticResource TitleSeparator}" />
 
-                <!--  运行控制  -->
-                <Button
-                    Command="{Binding ExecutionCommand}"
-                    CommandParameter="{x:Static local:ExecutionAction.Compile}"
-                    Content="&#xf0e7;"
-                    Style="{StaticResource TitleButton}"
-                    ToolTip="流程编译" />
-                <Button
-                    Command="{Binding ExecutionCommand}"
-                    CommandParameter="{x:Static local:ExecutionAction.RunOnce}"
-                    Content="&#xf061;"
-                    Foreground="#2DA44E"
-                    Style="{StaticResource TitleButton}"
-                    ToolTip="运行一次" />
-                <Button
-                    Command="{Binding ExecutionCommand}"
-                    CommandParameter="{x:Static local:ExecutionAction.RunContinuous}"
-                    Content="&#xf021;"
-                    Foreground="#2DA44E"
-                    Style="{StaticResource TitleButton}"
-                    ToolTip="循环运行" />
-                <!--  DWV 第 1 期调试控制：暂停 / 继续 / 单步（f04c=circle-pause、f04b=circle-play、f051=step-forward）  -->
-                <Button
-                    Command="{Binding ExecutionCommand}"
-                    CommandParameter="{x:Static local:ExecutionAction.Pause}"
-                    Content="&#xf04c;"
-                    Style="{StaticResource TitleButton}"
-                    ToolTip="暂停（全部运行中的调试会话）" />
-                <Button
-                    Command="{Binding ExecutionCommand}"
-                    CommandParameter="{x:Static local:ExecutionAction.Resume}"
-                    Content="&#xf04b;"
-                    Style="{StaticResource TitleButton}"
-                    ToolTip="继续（快捷键 F5）" />
-                <Button
-                    Command="{Binding ExecutionCommand}"
-                    CommandParameter="{x:Static local:ExecutionAction.StepOnce}"
-                    Content="&#xf051;"
-                    Style="{StaticResource TitleButton}"
-                    ToolTip="单步：执行一个节点后再次停住（快捷键 F10；仅当恰好一个会话暂停时可用）" />
-                <Button
-                    Command="{Binding ExecutionCommand}"
-                    CommandParameter="{x:Static local:ExecutionAction.Stop}"
-                    Content="&#xf28d;"
-                    Foreground="#D1242F"
-                    Style="{StaticResource TitleButton}"
-                    ToolTip="停止" />
+                <!--  工作模式：调试 / 运行 / 组态 / 自由（Ctrl+1..4）  -->
+                <StackPanel
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal"
+                    WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button
+                        Command="{Binding SetShellModeCommand}"
+                        CommandParameter="Debug"
+                        Content="调试"
+                        Style="{StaticResource ModeButtonDebug}"
+                        ToolTip="调试：视觉图像 + 流程画布 + 步骤/工具箱（Ctrl+1）" />
+                    <Button
+                        Command="{Binding SetShellModeCommand}"
+                        CommandParameter="Run"
+                        Content="运行"
+                        Style="{StaticResource ModeButtonRun}"
+                        ToolTip="运行：全宽运行驾驶舱 + 图像 + KPI（Ctrl+2）" />
+                    <Button
+                        Command="{Binding SetShellModeCommand}"
+                        CommandParameter="Config"
+                        Content="组态"
+                        Style="{StaticResource ModeButtonConfig}"
+                        ToolTip="组态：仅组态画面 + 属性/图层/图元（Ctrl+3）" />
+                    <Button
+                        Command="{Binding SetShellModeCommand}"
+                        CommandParameter="Free"
+                        Content="自由"
+                        Style="{StaticResource ModeButtonFree}"
+                        ToolTip="自由：全部面板与文档（Ctrl+4）" />
+                </StackPanel>
 
                 <Rectangle Style="{StaticResource TitleSeparator}" />
 
                 <!--  全局命令：原来挂在左侧活动栏底部，2026-10-15 上移到顶栏。  -->
                 <!--  为什么上移：活动栏按"图标与落点同侧"拆成左右两条后，左条只该放左侧面板的开关；  -->
                 <!--  这两个是命令（没有面板落点，点了弹窗），混在竖条里语义不对——顶栏本就是全局命令区。  -->
+                <Button
+                    Command="{Binding OpenCommandPaletteCommand}"
+                    Content="&#xf002;"
+                    Style="{StaticResource TitleButton}"
+                    ToolTip="搜索流程 / 视图 / 命令（Ctrl+K）" />
                 <Button
                     Command="{Binding SystemCommand}"
                     CommandParameter="{x:Static local:SystemAction.GlobalVariables}"
@@ -745,7 +932,7 @@
                     Margin="0,0,8,0"
                     VerticalAlignment="Center"
                     FontSize="13"
-                    Foreground="#5A5A5A"
+                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
                     Text="&#xf07b;">
                     <TextBlock.FontFamily>
                         <StaticResource ResourceKey="Icon" />
@@ -755,7 +942,7 @@
                     VerticalAlignment="Center"
                     FontSize="13"
                     FontWeight="SemiBold"
-                    Foreground="#333333"
+                    Foreground="{StaticResource ScadaTextBrush}"
                     Text="{Binding Workspace.CurrentSolution.SolutionName, TargetNullValue='未加载方案', FallbackValue='未加载方案'}"
                     ToolTip="当前正在运行的视觉解决方案" />
             </StackPanel>
@@ -779,8 +966,123 @@
             </StackPanel>
         </Grid>
 
+        <!--  ============ 运行条（48px）：状态 + 编译/运行/暂停/单步/停止 ============  -->
+        <Border
+            x:Name="RunBar"
+            Grid.Row="1"
+            Height="48"
+            Background="{StaticResource DialogSurfaceBrush}"
+            BorderBrush="{StaticResource DialogBorderBrush}"
+            BorderThickness="0,0,0,1">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CurrentMode}" Value="{x:Static shell:ShellMode.Config}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding CurrentMode}" Value="{x:Static shell:ShellMode.Run}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Grid Margin="12,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                    <Ellipse
+                        Width="9"
+                        Height="9"
+                        VerticalAlignment="Center"
+                        Fill="{Binding RunStateBrush}" />
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        FontWeight="SemiBold"
+                        Foreground="{Binding RunStateBrush}"
+                        Text="{Binding RunStateText}" />
+                    <!--  绑 RunBarFlowText 而不是「当前流程名」：本仓允许多条流程并跑（单流程 / HTTP / 定时触发各开各的会话），
+                          只显示选中项会出现"两条在跑、条上只写一条"，写的那条还可能根本没在跑（2026-10-20 真机）。
+                          0 条在跑时它回落到当前流程，1 条报那一条，多条报「A 等 N 个流程」，完整名单在悬停提示里。  -->
+                    <TextBlock
+                        Margin="12,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                        Text="{Binding RunBarFlowText}"
+                        TextTrimming="CharacterEllipsis"
+                        ToolTip="{Binding RunBarFlowToolTip}" />
+                </StackPanel>
+
+                <StackPanel
+                    Grid.Column="1"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <Button
+                        Command="{Binding ExecutionCommand}"
+                        CommandParameter="{x:Static local:ExecutionAction.Compile}"
+                        Content="编译"
+                        Style="{StaticResource RunBarButton}"
+                        ToolTip="流程编译" />
+                    <Button
+                        Command="{Binding ExecutionCommand}"
+                        CommandParameter="{x:Static local:ExecutionAction.RunOnce}"
+                        Content="运行一次"
+                        Foreground="{StaticResource DialogSuccessBrush}"
+                        Style="{StaticResource RunBarButton}"
+                        ToolTip="运行一次" />
+                    <Button
+                        Command="{Binding ExecutionCommand}"
+                        CommandParameter="{x:Static local:ExecutionAction.RunContinuous}"
+                        Content="循环运行"
+                        Foreground="{StaticResource DialogSuccessBrush}"
+                        Style="{StaticResource RunBarButton}"
+                        ToolTip="循环运行" />
+                    <Button
+                        Command="{Binding ExecutionCommand}"
+                        CommandParameter="{x:Static local:ExecutionAction.Pause}"
+                        Content="暂停"
+                        Style="{StaticResource RunBarButton}"
+                        ToolTip="暂停（全部运行中的调试会话）" />
+                    <Button
+                        Command="{Binding ExecutionCommand}"
+                        CommandParameter="{x:Static local:ExecutionAction.Resume}"
+                        Content="继续"
+                        Style="{StaticResource RunBarButton}"
+                        ToolTip="继续（F5）" />
+                    <Button
+                        Command="{Binding ExecutionCommand}"
+                        CommandParameter="{x:Static local:ExecutionAction.StepOnce}"
+                        Content="单步"
+                        Style="{StaticResource RunBarButton}"
+                        ToolTip="单步（F10）" />
+                    <Button
+                        Command="{Binding ExecutionCommand}"
+                        CommandParameter="{x:Static local:ExecutionAction.Stop}"
+                        Content="停止"
+                        Foreground="{StaticResource DialogDangerBrush}"
+                        Style="{StaticResource RunBarButton}"
+                        ToolTip="停止" />
+                </StackPanel>
+
+                <TextBlock
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    FontSize="11"
+                    Foreground="{StaticResource ScadaFaintTextBrush}"
+                    Text="F5 继续 · F10 单步" />
+            </Grid>
+        </Border>
+
         <!--  ============ 主体：停靠区（活动栏已于 2026-10-15 整条下线） ============  -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
@@ -797,36 +1099,19 @@
                 <avalonDock:LayoutRoot>
                     <avalonDock:LayoutPanel Orientation="Horizontal">
 
-                        <!--  1. 左侧栏：程序 / 流程栏 上下堆叠（与设计稿的左栏编排一致）  -->
-                        <!--  为什么上下堆叠而不是各占一列：程序列表只有几条流程、天然矮，流程栏是长树、天然高，  -->
-                        <!--  并排两列会让"矮的那个"白占一整列高度。上下堆叠后两者共享同一列宽度，  -->
-                        <!--  程序固定高度（够放几条流程 + 折叠按钮），流程栏吃掉剩余全部高度。  -->
-                        <!--  为什么用两层 LayoutAnchorablePane 而不是同一个 pane 里放两个 anchorable：  -->
-                        <!--  同一个 pane 里的多个 anchorable 是**标签页**（互斥显示，同一时刻只见一个），  -->
-                        <!--  那是"二选一"；要"同时可见、上下分"必须拆成两个 pane 再套进竖向 LayoutPanel。  -->
-                        <!--  宽度 340 / 最小 320（流程栏 v2）：组头要同时放"类型标签 + 实例名 + N 分支 · M 算子 + 状态图标"，
-                              低于 320 右侧统计会把实例名挤到只剩两三个字。固定宽度与右侧属性/图层列同一口径（可预期），
-                              旧 Layout.xml 里被拖窄的绝对宽度由 LayoutHelper.EnsureProcessColumnWidth 在恢复后拉回。  -->
-                        <avalonDock:LayoutPanel Orientation="Vertical" DockWidth="340" DockMinWidth="320">
-                            <avalonDock:LayoutAnchorablePane DockHeight="180">
-                                <avalonDock:LayoutAnchorable
-                                    Title="程序"
-                                    CanClose="False"
-                                    CanHide="True"
-                                    ContentId="Panel_FlowListView">
-                                    <views:FlowListView />
-                                </avalonDock:LayoutAnchorable>
-                            </avalonDock:LayoutAnchorablePane>
-                            <avalonDock:LayoutAnchorablePane>
-                                <avalonDock:LayoutAnchorable
-                                    Title="流程栏"
-                                    CanClose="False"
-                                    CanHide="True"
-                                    ContentId="Panel_ProcessView">
-                                    <views:ProcessView />
-                                </avalonDock:LayoutAnchorable>
-                            </avalonDock:LayoutAnchorablePane>
-                        </avalonDock:LayoutPanel>
+                        <!--  1. 左侧栏：流程导航（流程胶囊 + 当前流程树）  -->
+                        <!--  v2 把原来的“程序”窗格并入 ProcessView 顶部：两者表达同一棵 Solution → Flow → Steps，  -->
+                        <!--  再拆两个窗格只会让矮的程序列表白占高度。宽度 340 / 最小 320：  -->
+                        <!--  组头要同时放“类型标签 + 实例名 + N 分支 · M 算子 + 状态图标”。  -->
+                        <avalonDock:LayoutAnchorablePane DockWidth="340" DockMinWidth="320">
+                            <avalonDock:LayoutAnchorable
+                                Title="流程导航"
+                                CanClose="False"
+                                CanHide="True"
+                                ContentId="Panel_ProcessView">
+                                <views:ProcessView />
+                            </avalonDock:LayoutAnchorable>
+                        </avalonDock:LayoutAnchorablePane>
 
                         <!--  2. 中央工作区：流程画布 / 视觉图像 / 组态画面（文档标签，可拆分/浮动）  -->
                         <!--  流程画布为什么从左侧栏搬到这里：它是节点编辑器的主工作区，面积需求与视觉图像同级，  -->
@@ -859,6 +1144,12 @@
                                     ContentId="Panel_ScadaEditorView">
                                     <views:ScadaEditorView />
                                 </avalonDock:LayoutDocument>
+                                <avalonDock:LayoutDocument
+                                    Title="运行驾驶舱"
+                                    CanClose="False"
+                                    ContentId="Panel_RunCockpitView">
+                                    <views:RunCockpitView />
+                                </avalonDock:LayoutDocument>
                             </avalonDock:LayoutDocumentPane>
 
                             <!--  3. 底部面板组：四合一标签（可整体隐藏）  -->
@@ -885,13 +1176,10 @@
                             </avalonDock:LayoutAnchorablePane>
                         </avalonDock:LayoutPanel>
 
-                        <!--  4. 右侧属性栏：图元属性 + 图层（同一 pane 的两个标签页）  -->
-                        <!--  v3：图层从"独占一列 240"并入属性 pane 做标签页——组态设计时右侧三列
-                              （260+240+300）把 1280 窗口的中央画布挤到只剩 ~140px。合并后省下 240，
-                              代价是看图层要多点一次标签；高频的"看一眼"由标签标题承担。  -->
-                        <!--  最窄 240：再窄下去 64px 标签列 + 24px 行尾槽位 + 两侧 12px 内边距会吃掉
-                              一半宽度，编辑器只剩 100 出头，"1920" 加一个数值框的步进就顶满了。  -->
-                        <avalonDock:LayoutAnchorablePane DockWidth="260" DockMinWidth="240">
+                        <!--  4. 右侧单列检查器：属性 / 图层 / 工具箱 / 图元工具箱共用一列 320。
+                              v2 把原来的属性 260 + 图层 240 + 工具箱 260 三列收成一列；
+                              模式只决定哪些标签可见，不再用不同列宽占掉中央画布。  -->
+                        <avalonDock:LayoutAnchorablePane DockWidth="320" DockMinWidth="300">
                             <avalonDock:LayoutAnchorable
                                 Title="属性"
                                 CanClose="False"
@@ -906,13 +1194,6 @@
                                 ContentId="Panel_ScadaLayerView">
                                 <views:ScadaLayerView />
                             </avalonDock:LayoutAnchorable>
-                        </avalonDock:LayoutAnchorablePane>
-
-                        <!--  5. 右侧工具箱停靠栏：插件工具箱 + 图元工具箱（互斥标签页共享一列宽度）  -->
-                        <!--  为什么不再用 LayoutRoot.RightSide 自动隐藏滑出区：那种面板一失去鼠标焦点就收回，
-                              从图元工具箱往画布拖图元拖到一半会被收走；常驻停靠栏全程可见，拖动链路不被打断。  -->
-                        <!--  宽度 260（原 300）：搜索框 + 分组列表在 260 下足够，省下的 40 还给中央画布。  -->
-                        <avalonDock:LayoutAnchorablePane DockWidth="260">
                             <avalonDock:LayoutAnchorable
                                 Title="工具箱"
                                 CanClose="False"
@@ -936,9 +1217,9 @@
 
         <!--  ============ 状态栏（VS Code 式） ============  -->
         <Border
-            Grid.Row="2"
-            Background="#F5F7FA"
-            BorderBrush="#E5E5E5"
+            Grid.Row="3"
+            Background="{StaticResource ScadaTitleBarBrush}"
+            BorderBrush="{StaticResource DialogBorderBrush}"
             BorderThickness="0,1,0,0">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -952,6 +1233,16 @@
                     Margin="10,0"
                     VerticalAlignment="Center"
                     Orientation="Horizontal">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentMode}" Value="{x:Static shell:ShellMode.Config}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
                     <!--  运行状态指示灯 + 文字（唯一事实来源：ShellViewModel.RunState）  -->
                     <Ellipse
                         Width="10"
@@ -964,10 +1255,81 @@
                         FontWeight="Bold"
                         Foreground="{Binding RunStateBrush}"
                         Text="{Binding RunStateText}" />
+
+                    <!--  生产 KPI 占位：数据源未接入时显示“—”，不用 0 冒充真实计数  -->
                     <TextBlock
-                        Margin="8,0"
+                        Margin="10,0,0,0"
                         FontSize="12"
-                        Foreground="#C9CEDB"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                        Text="|" />
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        FontSize="12"
+                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                        Text="节拍" />
+                    <TextBlock
+                        Margin="4,0,0,0"
+                        FontSize="12"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource ScadaTextBrush}"
+                        Text="{Binding CycleTimeText}"
+                        ToolTip="待接入运行统计：节拍" />
+                    <TextBlock
+                        Margin="8,0,0,0"
+                        FontSize="12"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                        Text="|" />
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        FontSize="12"
+                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                        Text="OK" />
+                    <TextBlock
+                        Margin="4,0,0,0"
+                        FontSize="12"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource DialogSuccessBrush}"
+                        Text="{Binding OkCountText}"
+                        ToolTip="待接入运行统计：OK 数" />
+                    <TextBlock
+                        Margin="8,0,0,0"
+                        FontSize="12"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                        Text="|" />
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        FontSize="12"
+                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                        Text="NG" />
+                    <TextBlock
+                        Margin="4,0,0,0"
+                        FontSize="12"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource DialogDangerBrush}"
+                        Text="{Binding NgCountText}"
+                        ToolTip="待接入运行统计：NG 数" />
+                    <TextBlock
+                        Margin="8,0,0,0"
+                        FontSize="12"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                        Text="|" />
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        FontSize="12"
+                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                        Text="告警" />
+                    <TextBlock
+                        Margin="4,0,0,0"
+                        FontSize="12"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource DialogWarningBrush}"
+                        Text="{Binding AlarmCountText}"
+                        ToolTip="待接入运行统计：未确认告警数" />
+
+                    <TextBlock
+                        Margin="10,0"
+                        FontSize="12"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
                         Text="|" />
                     <TextBlock FontSize="12" Text="当前用户：" />
                     <!--  当前登录者 + 角色。读的是全局唯一的 ScadaAccessPolicy（App 里注册的单例），  -->
@@ -983,10 +1345,10 @@
                         ToolTip="点击切换用户（也可走 系统 → 用户登录）">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="#606266" />
+                                <Setter Property="Foreground" Value="{StaticResource ScadaLabelTextBrush}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding AccessPolicy.IsLoggedIn}" Value="True">
-                                        <Setter Property="Foreground" Value="#409EFF" />
+                                        <Setter Property="Foreground" Value="{StaticResource ScadaPrimaryButtonBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -1001,7 +1363,7 @@
                     <TextBlock
                         Margin="8,0"
                         FontSize="12"
-                        Foreground="#C9CEDB"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
                         Text="|" />
                     <TextBlock FontSize="12" Text="当前方案" />
                     <TextBlock
@@ -1015,14 +1377,61 @@
                         ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
                 </StackPanel>
 
+                <!--  组态模式状态：页面/网格/选中图元（不显示流程运行态）  -->
+                <StackPanel
+                    Grid.Column="0"
+                    Margin="10,0"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentMode}" Value="{x:Static shell:ShellMode.Config}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <TextBlock
+                        FontSize="12"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource LogicWhileTextBrush}"
+                        Text="组态设计" />
+                    <TextBlock
+                        Margin="8,0"
+                        FontSize="12"
+                        Foreground="{StaticResource DialogBorderBrush}"
+                        Text="|" />
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                        Text="1280 × 800 · 网格 20 px · 选中图元" />
+                </StackPanel>
+
                 <StackPanel
                     Grid.Column="2"
                     Margin="10,0"
                     VerticalAlignment="Center"
                     Orientation="Horizontal">
+                    <Button
+                        Width="24"
+                        Height="20"
+                        Margin="0,0,8,0"
+                        Padding="0"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Command="{Binding ToggleConsoleCommand}"
+                        ToolTip="展开 / 收起底部控制台（32 ↔ 240）">
+                        <TextBlock
+                            FontFamily="{StaticResource Icon}"
+                            FontSize="12"
+                            Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                            Text="&#xf120;" />
+                    </Button>
                     <TextBlock
                         FontSize="12"
-                        Foreground="#0067C0"
+                        Foreground="{StaticResource DialogAccentBrush}"
                         Text="&#xf2db;">
                         <TextBlock.FontFamily>
                             <StaticResource ResourceKey="Icon" />
@@ -1036,11 +1445,11 @@
                     <TextBlock
                         Margin="6,0"
                         FontSize="12"
-                        Foreground="#C9CEDB"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
                         Text="|" />
                     <TextBlock
                         FontSize="12"
-                        Foreground="#6897BB"
+                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
                         Text="&#xf538;">
                         <TextBlock.FontFamily>
                             <StaticResource ResourceKey="Icon" />
@@ -1054,11 +1463,11 @@
                     <TextBlock
                         Margin="6,0"
                         FontSize="12"
-                        Foreground="#C9CEDB"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
                         Text="|" />
                     <TextBlock
                         FontSize="12"
-                        Foreground="#9E9E9E"
+                        Foreground="{StaticResource ScadaDisabledTextBrush}"
                         Text="&#xf0e8;">
                         <TextBlock.FontFamily>
                             <StaticResource ResourceKey="Icon" />
@@ -1072,11 +1481,11 @@
                     <TextBlock
                         Margin="6,0"
                         FontSize="12"
-                        Foreground="#C9CEDB"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
                         Text="|" />
                     <TextBlock
                         FontSize="12"
-                        Foreground="#9E9E9E"
+                        Foreground="{StaticResource ScadaDisabledTextBrush}"
                         Text="&#xf24d;">
                         <TextBlock.FontFamily>
                             <StaticResource ResourceKey="Icon" />
@@ -1090,7 +1499,7 @@
                     <TextBlock
                         Margin="10,0"
                         FontSize="12"
-                        Foreground="#C9CEDB"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
                         Text="|" />
                     <TextBlock
                         FontSize="12"

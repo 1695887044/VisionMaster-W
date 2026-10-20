@@ -55,7 +55,7 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>运行状态（停 / 转 / 故障）</summary>
         [ScadaProperty(Key = "State", DisplayName = "状态", Kind = ElementPropertyKind.Choice,
-                       Group = "数据", DefaultValue = "Stopped",
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "Stopped",
                        Choices = new[] { "Stopped", "Running", "Fault" }, IsBindable = true,
                        Description = "运行态把工程变量绑到这里：整数 0=停止 1=运行 2=故障，写枚举名（Running/Fault）也认；" +
                                      "认不出的值按停止收敛，坏数据不会把整页渲染打断")]
@@ -67,25 +67,25 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>底色（随状态切换的那一层之外，露出来的那一层）</summary>
         [ScadaProperty(Key = "TrackColor", DisplayName = "底色", Kind = ElementPropertyKind.Color,
-                       Group = "外观", DefaultValue = "#FF3A3A3A",
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FF3A3A3A",
                        Description = "随状态切换的那一层之外露出来的底色")]
         public partial Brush? TrackColor { get; set; }
 
         /// <summary>停机色（随状态切换的那一层）</summary>
         [ScadaProperty(Key = "StoppedColor", DisplayName = "停机色", Kind = ElementPropertyKind.Color,
-                       Group = "外观", DefaultValue = "#FF7A7A7A",
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FF7A7A7A",
                        Description = "停机 / 停流时的颜色；灰色 = 没在动，与多态灯同一个语汇")]
         public partial Brush? StoppedColor { get; set; }
 
         /// <summary>运行色（随状态切换的那一层）</summary>
         [ScadaProperty(Key = "RunningColor", DisplayName = "运行色", Kind = ElementPropertyKind.Color,
-                       Group = "外观", DefaultValue = "#FF34C759",
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FF34C759",
                        Description = "运行 / 流动时的颜色；绿色 = 在动")]
         public partial Brush? RunningColor { get; set; }
 
         /// <summary>故障色（随状态切换的那一层）</summary>
         [ScadaProperty(Key = "FaultColor", DisplayName = "故障色", Kind = ElementPropertyKind.Color,
-                       Group = "外观", DefaultValue = "#FFE03A2B",
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FFE03A2B",
                        Description = "故障 / 异常时的颜色；红色 = 跳闸 / 过载 / 联锁断开")]
         public partial Brush? FaultColor { get; set; }
 

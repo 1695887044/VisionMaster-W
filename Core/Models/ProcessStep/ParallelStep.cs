@@ -141,7 +141,13 @@ namespace VisionMaster.Models
         public ParallelStep(string icon, string pluginName, string pluginTypeName, string stepName = null)
             : base(icon, pluginName, pluginTypeName, stepName)
         {
-            _stepCountWatcher = new ContainerStepCountWatcher(() => RaisePropertyChanged(nameof(TotalStepCount)));
+            _stepCountWatcher = new ContainerStepCountWatcher(
+                () => RaisePropertyChanged(nameof(TotalStepCount)),
+                e =>
+                {
+                    if (e.PropertyName is nameof(StepCollection.Expression) or nameof(StepCollection.BranchType))
+                        RaiseContainerSummary();
+                });
             Children.Add(new StepCollection { BranchType = BranchType.Default, StepName = "分支 1" });
             Children.Add(new StepCollection { BranchType = BranchType.Default, StepName = "分支 2" });
             _stepCountWatcher.Rebind(Children);

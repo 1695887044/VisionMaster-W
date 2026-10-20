@@ -1,0 +1,16 @@
+Plugin.ImageScript · UIThemeSmokeTest --plugin-views 结果
+命令：dotnet run --project UIThemeSmokeTest --no-build -- --plugin-views Plugin.ImageScript
+时间：2026-10-20 02:08
+
+[PASS] 找到待检插件 DLL  (count=1 filter=Plugin.ImageScript)
+[PASS] Plugin.ImageScript.ImageScriptPlugin GetConfigView 返回 FrameworkElement  (ImageScriptView)
+[PASS] Plugin.ImageScript.ImageScriptPlugin 视图实例化  (elements=224)
+[PASS] Plugin.ImageScript.ImageScriptPlugin DataContext/IPluginConfigView  (ImageScriptPlugin)
+[PASS] Plugin.ImageScript.ImageScriptPlugin LinkableValueEditor.Port  (count=1 ports=Image)
+[PASS] Plugin.ImageScript.ImageScriptPlugin Button.Command 绑定  (buttons=7 commands=ValidateScriptCommand)
+[PASS] Plugin.ImageScript.ImageScriptPlugin ComboBox 绑定  (DataContext.ScriptVarTypes/;EnumOptions/;DataContext.ScriptVarTypes/;DataContext.ScriptVarTypes/)
+[PASS] Plugin.ImageScript.ImageScriptPlugin TextBox.Text 绑定  (PortValue,LinkAddress)
+[PASS] Plugin.ImageScript.ImageScriptPlugin OnConfirm 可执行  (InputValues=5)
+[PASS] Plugin.ImageScript.ImageScriptPlugin XAML hex=0  (xaml=1 hex=0)
+[PASS] Plugin.ImageScript.ImageScriptPlugin 渲染 PNG  (d:\C#\VM\docs\UI设计基线\_batch-evidence\Plugin.ImageScript-ImageScriptPlugin.png)
+=== 插件自定义视图批量冒烟：全部通过 ===

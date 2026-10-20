@@ -1,0 +1,980 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>胶路检测 · 配置窗口 · 设计基线 v2</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #bi-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="bi-design-root">
+  <style>
+    #bi-design-root{
+      color-scheme: light dark;
+      --bi-surface:#FFFFFF;
+      --bi-surface-2:#F8FAFC;
+      --bi-surface-3:#F1F5F9;
+      --bi-border:#E2E8F0;
+      --bi-border-soft:#EEF2F7;
+      --bi-border-strong:#CBD5E1;
+      --bi-text:#0F172A;
+      --bi-text-2:#475569;
+      --bi-text-3:#94A3B8;
+      --bi-text-4:#64748B;
+      --bi-primary:#0EA5E9;
+      --bi-primary-strong:#0284C7;
+      --bi-primary-text:#0369A1;
+      --bi-primary-soft:#F0F9FF;
+      --bi-primary-light:#E0F2FE;
+      --bi-primary-border:#BAE6FD;
+      --bi-success:#22C55E;
+      --bi-success-text:#15803D;
+      --bi-success-soft:#F0FDF4;
+      --bi-success-border:#BBF7D0;
+      --bi-danger:#EF4444;
+      --bi-danger-text:#B91C1C;
+      --bi-danger-soft:#FEF2F2;
+      --bi-danger-border:#FECACA;
+      --bi-warning:#F59E0B;
+      --bi-warning-text:#B45309;
+      --bi-warning-soft:#FFF4E5;
+      --bi-warning-border:#FDE68A;
+      --bi-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --bi-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --bi-radius-sm:6px;
+      --bi-radius-md:8px;
+      --bi-radius-lg:10px;
+      --bi-radius-xl:12px;
+      --bi-radius-window:16px;
+      --bi-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      --bi-rail:330px;
+      font-family:var(--bi-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #bi-design-root *{box-sizing:border-box;}
+    #bi-design-root button,
+    #bi-design-root input,
+    #bi-design-root select,
+    #bi-design-root textarea{font-family:inherit;}
+    #bi-design-root button{color:inherit;}
+    #bi-design-root [hidden]{display:none !important;}
+    #bi-design-root :focus-visible{outline:2px solid var(--bi-primary);outline-offset:2px;}
+    #bi-design-root .bi-ico{width:16px;height:16px;display:inline-block;vertical-align:middle;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+    #bi-design-root .bi-ico-sm{width:13px;height:13px;}
+    #bi-design-root .bi-ico-lg{width:19px;height:19px;}
+
+    #bi-design-root .bi-page{max-width:1360px;margin:0 auto;padding:24px 24px 44px;}
+    #bi-design-root .bi-page-head{max-width:1360px;margin:0 auto 16px;}
+    #bi-design-root .bi-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #bi-design-root .bi-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--bi-text);}
+    #bi-design-root .bi-ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--bi-primary-light);color:var(--bi-primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;}
+    #bi-design-root .bi-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--bi-text-2);}
+    #bi-design-root .bi-page-sub b{color:var(--bi-text);font-weight:600;}
+    #bi-design-root .bi-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #bi-design-root .bi-demo-group{display:flex;align-items:center;gap:8px;}
+    #bi-design-root .bi-demo-label{font-size:11.5px;color:var(--bi-text-4);}
+    #bi-design-root .bi-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--bi-text-2);}
+    #bi-design-root .bi-scope .bi-ico{width:13px;height:13px;flex:none;margin-top:2px;color:var(--bi-warning-text);}
+    #bi-design-root .bi-scope b{color:var(--bi-text);font-weight:600;}
+    #bi-design-root .bi-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--bi-radius-md);background:var(--bi-surface-3);}
+    #bi-design-root .bi-seg button{height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--bi-text-2);font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;}
+    #bi-design-root .bi-seg button:hover{color:var(--bi-text);}
+    #bi-design-root .bi-seg button.is-on{background:#FFFFFF;color:var(--bi-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+
+    /* ================= 产品窗口 ================= */
+    #bi-design-root .bi-window{width:960px;max-width:100%;height:680px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:var(--bi-surface);border-radius:var(--bi-radius-window);box-shadow:var(--bi-shadow-window);transition:width 200ms ease;}
+    #bi-design-root .bi-window.is-narrow{width:640px;}
+    #bi-design-root .bi-window.is-narrow{--bi-rail:300px;}
+
+    #bi-design-root .bi-titlebar{height:72px;flex:none;display:flex;align-items:center;padding:0 20px;background:var(--bi-surface);border-bottom:1px solid var(--bi-border-soft);}
+    #bi-design-root .bi-app-icon{width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--bi-primary-light);color:var(--bi-primary-text);}
+    #bi-design-root .bi-app-icon .bi-ico{width:20px;height:20px;}
+    #bi-design-root .bi-title-text{margin-left:12px;min-width:0;flex:1;}
+    #bi-design-root .bi-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--bi-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #bi-design-root .bi-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--bi-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #bi-design-root .bi-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+
+    #bi-design-root .bi-content{flex:1;min-height:0;display:grid;grid-template-columns:var(--bi-rail) minmax(0,1fr);gap:16px;padding:16px 20px 20px;background:var(--bi-surface);}
+    #bi-design-root .bi-window.is-narrow .bi-content{gap:12px;padding:14px 16px 16px;}
+
+    /* ---- 左栏 ---- */
+    #bi-design-root .bi-rail{min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;padding:12px;border:1px solid var(--bi-border-soft);border-radius:var(--bi-radius-xl);background:var(--bi-surface-2);scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+    #bi-design-root .bi-rail::-webkit-scrollbar{width:8px;}
+    #bi-design-root .bi-rail::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+    #bi-design-root .bi-rail::-webkit-scrollbar-track{background:transparent;}
+    #bi-design-root .bi-card{background:var(--bi-surface);border:1px solid var(--bi-border);border-radius:var(--bi-radius-lg);padding:11px 12px;margin-bottom:10px;}
+    #bi-design-root .bi-card:last-child{margin-bottom:0;}
+    #bi-design-root .bi-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;}
+    #bi-design-root .bi-card-title{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--bi-text);}
+    #bi-design-root .bi-card-title .bi-ico{width:14px;height:14px;color:var(--bi-text-3);}
+    #bi-design-root .bi-card-hint{font-size:10.5px;color:var(--bi-text-3);white-space:nowrap;}
+    #bi-design-root .bi-field{margin-bottom:9px;}
+    #bi-design-root .bi-field:last-child{margin-bottom:0;}
+    #bi-design-root .bi-label{display:flex;align-items:center;gap:5px;margin-bottom:5px;font-size:11.5px;font-weight:500;line-height:1.3;color:var(--bi-text-2);}
+    #bi-design-root .bi-label .bi-req{color:var(--bi-danger);font-size:11px;}
+    #bi-design-root .bi-label .bi-link-hint{width:12px;height:12px;color:var(--bi-text-3);margin-left:2px;}
+    #bi-design-root .bi-input-row{display:flex;align-items:center;gap:6px;}
+    #bi-design-root .bi-input,#bi-design-root .bi-select{width:100%;height:32px;padding:0 9px;border:1px solid var(--bi-border);border-radius:var(--bi-radius-md);background:var(--bi-surface);color:var(--bi-text);font-size:12px;line-height:1;outline:none;transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;}
+    #bi-design-root .bi-input::placeholder{color:var(--bi-text-3);}
+    #bi-design-root .bi-input:hover,#bi-design-root .bi-select:hover{border-color:var(--bi-border-strong);}
+    #bi-design-root .bi-input:focus,#bi-design-root .bi-select:focus{border-color:var(--bi-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #bi-design-root .bi-select{appearance:none;-webkit-appearance:none;padding-right:28px;cursor:pointer;}
+    #bi-design-root .bi-select-wrap{position:relative;flex:1;min-width:0;}
+    #bi-design-root .bi-select-wrap > .bi-ico{position:absolute;right:9px;top:50%;transform:translateY(-50%);width:12px;height:12px;color:var(--bi-text-3);pointer-events:none;}
+    #bi-design-root .bi-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    #bi-design-root .bi-help{display:flex;align-items:flex-start;gap:5px;margin:5px 0 0;font-size:11px;line-height:1.5;color:var(--bi-text-4);}
+    #bi-design-root .bi-help .bi-ico{width:12px;height:12px;flex:none;margin-top:1px;color:var(--bi-text-3);}
+    #bi-design-root .bi-mono{font-family:var(--bi-mono);font-variant-numeric:tabular-nums;}
+
+    /* 勾选框：对应 WPF 的 DialogCheckBox（15px 方框 / 4px 圆角 / 选中填充主色 + 白勾） */
+    #bi-design-root .bi-field-check{display:flex;flex-direction:column;justify-content:flex-end;}
+    #bi-design-root .bi-check{display:inline-flex;align-items:center;gap:7px;height:32px;font-size:12px;line-height:1;color:var(--bi-text-2);cursor:pointer;user-select:none;}
+    #bi-design-root .bi-check input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;}
+    #bi-design-root .bi-check-box{width:15px;height:15px;flex:none;display:inline-flex;align-items:center;justify-content:center;border:1.5px solid var(--bi-border);border-radius:4px;background:var(--bi-surface);transition:background 150ms ease,border-color 150ms ease;}
+    #bi-design-root .bi-check-box .bi-ico{width:10px;height:10px;color:#fff;opacity:0;transition:opacity 150ms ease;}
+    #bi-design-root .bi-check:hover .bi-check-box{border-color:var(--bi-primary-border);}
+    #bi-design-root .bi-check input:checked + .bi-check-box{background:var(--bi-primary);border-color:var(--bi-primary);}
+    #bi-design-root .bi-check input:checked + .bi-check-box .bi-ico{opacity:1;}
+    #bi-design-root .bi-check input:focus-visible + .bi-check-box{box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+
+    /* 按钮 */
+    #bi-design-root .bi-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:32px;padding:0 11px;border:1px solid var(--bi-border);border-radius:var(--bi-radius-md);background:var(--bi-surface);color:var(--bi-text);font-size:12px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;}
+    #bi-design-root .bi-btn .bi-ico{width:13px;height:13px;}
+    #bi-design-root .bi-btn:hover{background:var(--bi-surface-2);border-color:var(--bi-border-strong);}
+    #bi-design-root .bi-btn:active{background:var(--bi-surface-3);}
+    #bi-design-root .bi-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #bi-design-root .bi-btn-primary{background:var(--bi-primary);border-color:var(--bi-primary);color:#fff;font-weight:600;}
+    #bi-design-root .bi-btn-primary:hover{background:var(--bi-primary-strong);border-color:var(--bi-primary-strong);}
+    #bi-design-root .bi-btn-ghost{border-color:transparent;background:transparent;color:var(--bi-text-2);}
+    #bi-design-root .bi-btn-ghost:hover{background:var(--bi-surface-3);border-color:transparent;color:var(--bi-text);}
+    #bi-design-root .bi-btn-sm{height:28px;padding:0 9px;font-size:11.5px;}
+    #bi-design-root .bi-btn-block{width:100%;}
+    #bi-design-root .bi-icon-btn{width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--bi-radius-md);display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--bi-text-4);cursor:pointer;transition:background 150ms ease,color 150ms ease;}
+    #bi-design-root .bi-icon-btn .bi-ico{width:15px;height:15px;}
+    #bi-design-root .bi-icon-btn:hover{background:var(--bi-surface-3);color:var(--bi-text);}
+    #bi-design-root .bi-icon-btn:active{background:var(--bi-border);}
+    #bi-design-root .bi-icon-btn:disabled{opacity:.4;cursor:not-allowed;}
+    #bi-design-root .bi-icon-btn.is-linked{color:var(--bi-primary-text);background:var(--bi-primary-soft);}
+
+    /* 横幅 / 状态 */
+    #bi-design-root .bi-banner{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border:1px solid;border-radius:var(--bi-radius-md);font-size:11.5px;line-height:1.5;}
+    #bi-design-root .bi-banner .bi-ico{width:14px;height:14px;flex:none;margin-top:1px;}
+    #bi-design-root .bi-banner.is-ok{background:var(--bi-success-soft);border-color:var(--bi-success-border);color:var(--bi-success-text);}
+    #bi-design-root .bi-banner.is-warn{background:var(--bi-warning-soft);border-color:var(--bi-warning-border);color:var(--bi-warning-text);}
+    #bi-design-root .bi-banner.is-err{background:var(--bi-danger-soft);border-color:var(--bi-danger-border);color:var(--bi-danger-text);}
+    #bi-design-root .bi-banner.is-muted{background:var(--bi-surface-3);border-color:var(--bi-border);color:var(--bi-text-2);}
+    #bi-design-root .bi-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--bi-text-3);}
+    #bi-design-root .bi-dot.is-ok{background:var(--bi-success);}
+    #bi-design-root .bi-dot.is-warn{background:var(--bi-warning);}
+    #bi-design-root .bi-dot.is-err{background:var(--bi-danger);}
+
+    /* 配方库 */
+    #bi-design-root .bi-recipe-list{max-height:112px;overflow:auto;border:1px solid var(--bi-border);border-radius:var(--bi-radius-md);background:var(--bi-surface);padding:3px;margin-bottom:7px;}
+    #bi-design-root .bi-recipe{display:flex;align-items:center;gap:7px;padding:6px 7px;border-radius:6px;cursor:pointer;transition:background 120ms ease;}
+    #bi-design-root .bi-recipe:hover{background:var(--bi-surface-3);}
+    #bi-design-root .bi-recipe.is-selected{background:var(--bi-primary-soft);}
+    #bi-design-root .bi-recipe-main{min-width:0;flex:1;}
+    #bi-design-root .bi-recipe-name{font-size:12px;font-weight:600;color:var(--bi-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #bi-design-root .bi-recipe-meta{display:flex;align-items:center;gap:7px;margin-top:1px;font-size:10.5px;color:var(--bi-text-3);}
+    #bi-design-root .bi-recipe-meta .is-learned{color:var(--bi-success-text);}
+    #bi-design-root .bi-recipe-meta .is-stale{color:var(--bi-warning-text);}
+    #bi-design-root .bi-badge{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:999px;background:var(--bi-surface-3);color:var(--bi-text-3);font-size:9.5px;font-weight:600;white-space:nowrap;}
+    #bi-design-root .bi-badge.is-default{background:var(--bi-primary-light);color:var(--bi-primary-text);}
+    #bi-design-root .bi-badge.is-ok{background:var(--bi-success-soft);color:var(--bi-success-text);}
+    #bi-design-root .bi-badge.is-warn{background:var(--bi-warning-soft);color:var(--bi-warning-text);}
+    #bi-design-root .bi-recipe-actions{display:flex;gap:5px;margin-bottom:7px;}
+
+    /* 折叠区 */
+    #bi-design-root .bi-details{border:1px solid var(--bi-border);border-radius:var(--bi-radius-md);background:var(--bi-surface);overflow:hidden;margin-top:7px;}
+    #bi-design-root .bi-details summary{display:flex;align-items:center;gap:6px;padding:7px 9px;font-size:11.5px;font-weight:500;color:var(--bi-text-2);cursor:pointer;list-style:none;}
+    #bi-design-root .bi-details summary::-webkit-details-marker{display:none;}
+    #bi-design-root .bi-details summary:hover{background:var(--bi-surface-2);}
+    #bi-design-root .bi-details summary .bi-chev{margin-left:auto;transition:transform 150ms ease;}
+    #bi-design-root .bi-details[open] summary .bi-chev{transform:rotate(180deg);}
+    #bi-design-root .bi-details-body{padding:2px 9px 9px;border-top:1px solid var(--bi-border-soft);}
+
+    /* 点列表 */
+    #bi-design-root .bi-table-wrap{border:1px solid var(--bi-border);border-radius:var(--bi-radius-md);overflow:hidden;background:var(--bi-surface);}
+    #bi-design-root .bi-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px;}
+    #bi-design-root .bi-table th{height:24px;padding:0 7px;text-align:left;font-weight:600;color:var(--bi-text-4);background:var(--bi-surface-2);border-bottom:1px solid var(--bi-border);white-space:nowrap;}
+    #bi-design-root .bi-table td{height:26px;padding:0 7px;color:var(--bi-text-2);border-bottom:1px solid var(--bi-border-soft);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #bi-design-root .bi-table tr:last-child td{border-bottom:0;}
+    #bi-design-root .bi-table tr:nth-child(even) td{background:var(--bi-surface-2);}
+    #bi-design-root .bi-table .bi-col-index{width:30px;color:var(--bi-text-3);}
+    #bi-design-root .bi-table .bi-col-del{width:38px;text-align:center;}
+    #bi-design-root .bi-table .bi-row-del{width:24px;height:20px;padding:0;border:1px solid var(--bi-border);border-radius:4px;background:var(--bi-surface);color:var(--bi-danger-text);font-size:10px;cursor:pointer;}
+    #bi-design-root .bi-table .bi-row-del:hover{background:var(--bi-danger-soft);border-color:var(--bi-danger-border);}
+    #bi-design-root .bi-table-empty{padding:14px 8px;text-align:center;font-size:11px;color:var(--bi-text-3);}
+    #bi-design-root .bi-table-foot{display:flex;align-items:center;justify-content:space-between;margin-top:6px;font-size:10.5px;color:var(--bi-text-3);}
+
+    /* 结果预览 */
+    #bi-design-root .bi-preview{border:1px solid var(--bi-border);border-radius:var(--bi-radius-md);overflow:hidden;background:#0B1220;position:relative;height:160px;}
+    #bi-design-root .bi-preview svg{width:100%;height:100%;display:block;}
+    #bi-design-root .bi-preview-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:rgba(11,18,32,.92);color:#94A3B8;padding:14px;}
+    #bi-design-root .bi-preview-empty .bi-ico{width:22px;height:22px;margin-bottom:7px;color:#64748B;}
+    #bi-design-root .bi-preview-empty b{font-size:12px;font-weight:600;color:#E2E8F0;margin-bottom:2px;}
+    #bi-design-root .bi-preview-empty span{font-size:10.5px;line-height:1.45;}
+
+    /* ---- 工作区 ---- */
+    #bi-design-root .bi-workspace{min-width:0;min-height:0;display:flex;flex-direction:column;gap:8px;}
+    #bi-design-root .bi-workspace-card{flex:1;min-height:0;display:flex;flex-direction:column;border:1px solid var(--bi-border);border-radius:var(--bi-radius-xl);background:var(--bi-surface);padding:10px 10px 8px;overflow:hidden;}
+    #bi-design-root .bi-toolbar{display:flex;align-items:center;gap:5px;flex-wrap:wrap;flex:none;}
+    #bi-design-root .bi-toolbar .bi-btn{height:30px;padding:0 10px;}
+    #bi-design-root .bi-toolbar .bi-btn-primary{padding:0 13px;}
+    #bi-design-root .bi-canvas-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:7px 0 2px;flex:none;}
+    #bi-design-root .bi-canvas-title{font-size:12.5px;font-weight:600;color:var(--bi-text);}
+    #bi-design-root .bi-canvas-meta{font-size:10.5px;color:var(--bi-text-3);font-variant-numeric:tabular-nums;}
+    #bi-design-root .bi-canvas-hint{font-size:10.5px;line-height:1.45;color:var(--bi-text-3);margin:0 0 5px;flex:none;}
+    #bi-design-root .bi-canvas{position:relative;flex:1;min-height:180px;border-radius:var(--bi-radius-md);overflow:hidden;background:#0B1220;border:1px solid #1E293B;}
+    #bi-design-root .bi-canvas svg{width:100%;height:100%;display:block;}
+    #bi-design-root .bi-canvas-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:rgba(11,18,32,.55);}
+    #bi-design-root .bi-canvas-empty .bi-state-icon{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.18);color:#94A3B8;margin-bottom:10px;}
+    #bi-design-root .bi-canvas-empty .bi-state-icon .bi-ico{width:21px;height:21px;}
+    #bi-design-root .bi-canvas-empty b{font-size:13px;font-weight:600;color:#E2E8F0;margin-bottom:3px;}
+    #bi-design-root .bi-canvas-empty span{max-width:300px;font-size:11px;line-height:1.55;color:#94A3B8;}
+    #bi-design-root .bi-canvas-empty code{font-family:var(--bi-mono);font-size:10px;color:#BAE6FD;background:rgba(14,165,233,.12);padding:1px 4px;border-radius:4px;}
+    #bi-design-root .bi-overlay{position:absolute;top:8px;left:8px;display:flex;align-items:center;gap:5px;pointer-events:none;}
+    #bi-design-root .bi-chip{display:inline-flex;align-items:center;gap:4px;height:21px;padding:0 7px;border-radius:6px;background:rgba(15,23,42,.58);border:1px solid rgba(148,163,184,.22);color:#E2E8F0;font-size:10px;line-height:1;font-variant-numeric:tabular-nums;backdrop-filter:blur(6px);}
+    #bi-design-root .bi-chip .bi-ico{width:11px;height:11px;color:#7DD3FC;}
+    #bi-design-root .bi-statusbar{flex:none;display:flex;align-items:flex-start;gap:7px;padding:8px 10px;border:1px solid var(--bi-border);border-radius:var(--bi-radius-md);background:var(--bi-surface);font-size:11px;line-height:1.5;min-width:0;}
+    #bi-design-root .bi-statusbar .bi-dot{margin-top:5px;}
+    #bi-design-root .bi-status-body{min-width:0;flex:1;}
+    #bi-design-root .bi-status-msg{color:var(--bi-text-2);overflow-wrap:anywhere;}
+    #bi-design-root .bi-status-msg.is-ok{color:var(--bi-success-text);}
+    #bi-design-root .bi-status-msg.is-warn{color:var(--bi-warning-text);}
+    #bi-design-root .bi-status-msg.is-err{color:var(--bi-danger-text);}
+    #bi-design-root .bi-status-base{margin-top:2px;color:var(--bi-text-3);overflow-wrap:anywhere;}
+    #bi-design-root .bi-status-base.is-warn{color:var(--bi-warning-text);}
+
+    /* ---- 底部 ---- */
+    #bi-design-root .bi-footer{height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid var(--bi-border-soft);background:var(--bi-surface-2);}
+    #bi-design-root .bi-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #bi-design-root .bi-status-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--bi-surface);border:1px solid var(--bi-border);font-size:11.5px;color:var(--bi-text-2);white-space:nowrap;}
+    #bi-design-root .bi-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--bi-text-3);}
+    #bi-design-root .bi-elapsed{font-family:var(--bi-mono);font-size:11px;color:var(--bi-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+    #bi-design-root .bi-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #bi-design-root .bi-footer .bi-btn{height:32px;padding:0 16px;font-size:12.5px;}
+    #bi-design-root .bi-footer .bi-btn-primary{padding:0 18px;}
+
+    /* ---- 改动说明 ---- */
+    #bi-design-root .bi-notes{max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;}
+    #bi-design-root .bi-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--bi-text-2);}
+    #bi-design-root .bi-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--bi-border);}
+    #bi-design-root .bi-note-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--bi-primary-light);color:var(--bi-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}
+    #bi-design-root .bi-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--bi-text);}
+    #bi-design-root .bi-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--bi-text-2);}
+    #bi-design-root .bi-note code{font-family:var(--bi-mono);font-size:10.5px;color:var(--bi-primary-text);background:var(--bi-primary-soft);padding:1px 4px;border-radius:4px;}
+
+    @media (prefers-reduced-motion: reduce){
+      #bi-design-root *{animation:none !important;transition:none !important;}
+    }
+    @media (max-width:1024px){
+      #bi-design-root .bi-page{padding:18px 14px 32px;}
+      #bi-design-root .bi-window{height:auto;min-height:640px;}
+      #bi-design-root .bi-content{grid-template-columns:1fr;}
+      #bi-design-root .bi-rail{overflow:visible;}
+      #bi-design-root .bi-workspace{min-height:520px;}
+    }
+  </style>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-bead" viewBox="0 0 24 24"><path d="M4 15c3-6 6-8 8-5s5 4 8-1"/><circle cx="4" cy="15" r="1.5"/><circle cx="8" cy="11" r="1.5"/><circle cx="12" cy="10" r="1.5"/><circle cx="16" cy="9" r="1.5"/><circle cx="20" cy="9" r="1.5"/></symbol>
+      <symbol id="i-recipe" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h10"/><circle cx="19" cy="19" r="2"/></symbol>
+      <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10M15 10v10"/></symbol>
+      <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/></symbol>
+      <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+      <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4.5-4.5L6 21"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></symbol>
+      <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 7 4 12l5 5"/><path d="M4 12h10a5 5 0 0 1 5 5v1"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5M12 18h.01"/></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></symbol>
+      <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
+      <symbol id="i-move" viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M8 6l4-4 4 4M8 18l4 4 4-4M6 8l-4 4 4 4M18 8l4 4-4 4"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 6.7"/><path d="M20 4v7h-7"/></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.2-1.2"/></symbol>
+      <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></symbol>
+      <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+      <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/></symbol>
+      <symbol id="i-crosshair" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></symbol>
+      <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></symbol>
+      <symbol id="i-broom" viewBox="0 0 24 24"><path d="m19 3-6 6M13 9l2 2M4 21l7-7 3 3-7 7H4v-3Z"/></symbol>
+    </defs>
+  </svg>
+
+  <div class="bi-page">
+    <header class="bi-page-head">
+      <div class="bi-page-title-row">
+        <h1>胶路检测 · 配置窗口</h1>
+        <span class="bi-ver">v2</span>
+      </div>
+      <p class="bi-page-sub">
+        Web 设计基线 v2（v1 = 纯 UI 重构；<b>v2 增量</b> = 补 5 个原本没有界面入口的既有属性）。
+        保留 <b>DataContext = 插件实例</b>、5 个 <b>LinkableValueEditor</b>、两块 <b>HALCON 画布</b>（ImageEdit / ImageReadOnly）、
+        点列表格与全部参数绑定；<b>不改插件属性、不改 InputValues 键数</b>。
+        窗口 <b>960 × 680</b>，左侧设置轨 <b>330px</b>，右侧画布工作区自适应；640 窄档同步给出。
+      </p>
+      <div class="bi-demo-bar">
+        <div class="bi-demo-group" role="group" aria-label="窗口宽度">
+          <span class="bi-demo-label">窗口宽度</span>
+          <div class="bi-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="bi-demo-group" role="group" aria-label="界面状态">
+          <span class="bi-demo-label">界面状态</span>
+          <div class="bi-seg">
+            <button type="button" data-state="default" class="is-on" aria-pressed="true">默认</button>
+            <button type="button" data-state="empty" aria-pressed="false">空态</button>
+            <button type="button" data-state="error" aria-pressed="false">错误</button>
+            <button type="button" data-state="warn" aria-pressed="false">警告</button>
+            <button type="button" data-state="quad" aria-pressed="false">拾取四点</button>
+          </div>
+        </div>
+      </div>
+      <div class="bi-scope">
+        <svg class="bi-ico"><use href="#i-info"/></svg>
+        <span><b>v2 补的 5 个入口（都已在插件上，本版只补界面）：</b>④ 像素当量 <code>PixelSizeMm</code>、
+        ④ 输出对齐图 <code>OutputAlignedImage</code>、⑤ 最低分数 <code>MinScore</code>、
+        ⑤ 金字塔层数 <code>PlanarNumLevels</code>、① 抽稀目标点数 <code>ExtractTargetPoints</code>（会话态、不落盘）。
+        <b>仍未纳入：</b>加载骨架、图像尺寸 / 文件大小、放大 / 缩小、打开所在文件夹、系统导航。
+        设计稿覆盖 960×680 与 640×680；宿主最小档 640×560 需检查左栏滚动与画布高度。</span>
+      </div>
+    </header>
+
+    <div class="bi-window" id="bi-window">
+      <div class="bi-titlebar">
+        <div class="bi-app-icon"><svg class="bi-ico"><use href="#i-bead"/></svg></div>
+        <div class="bi-title-text">
+          <div class="bi-title">胶路检测</div>
+          <div class="bi-subtitle">参考路径 + 平面可变形对齐 + bead 检测 · 多配方</div>
+        </div>
+        <div class="bi-title-actions">
+          <button type="button" class="bi-icon-btn" data-tooltip="关闭" aria-label="关闭"><svg class="bi-ico"><use href="#i-x"/></svg></button>
+        </div>
+      </div>
+
+      <div class="bi-content">
+        <aside class="bi-rail" aria-label="胶路检测设置">
+          <!-- ⓪ 输入绑定 -->
+          <section class="bi-card">
+            <div class="bi-card-head">
+              <div class="bi-card-title"><svg class="bi-ico"><use href="#i-link"/></svg>⓪ 输入绑定</div>
+              <span class="bi-card-hint">固定值 / 变量链接</span>
+            </div>
+            <div class="bi-field">
+              <label class="bi-label">输入图像 <span class="bi-req">*</span></label>
+              <div class="bi-input-row">
+                <input class="bi-input" type="text" value="图像采集_0.Image" readonly>
+                <button type="button" class="bi-icon-btn is-linked" data-link-toggle data-tooltip="解除链接" aria-label="解除链接"><svg class="bi-ico"><use href="#i-link"/></svg></button>
+              </div>
+              <p class="bi-help"><svg class="bi-ico"><use href="#i-info"/></svg>待检测图像 SrcImage；未链接时使用固定值。</p>
+            </div>
+            <div class="bi-field">
+              <label class="bi-label">配方名</label>
+              <div class="bi-input-row">
+                <input class="bi-input" type="text" value="配方1" placeholder="未连接时用默认配方">
+                <button type="button" class="bi-icon-btn" data-link-toggle data-tooltip="绑定变量" aria-label="绑定变量"><svg class="bi-ico"><use href="#i-link"/></svg></button>
+              </div>
+            </div>
+            <div class="bi-field">
+              <label class="bi-label">对齐图</label>
+              <div class="bi-input-row">
+                <input class="bi-input" type="text" value="" placeholder="仅「匹配位姿」模式接入">
+                <button type="button" class="bi-icon-btn" data-link-toggle data-tooltip="绑定变量" aria-label="绑定变量"><svg class="bi-ico"><use href="#i-link"/></svg></button>
+              </div>
+            </div>
+            <div class="bi-field">
+              <label class="bi-label">检测区域</label>
+              <div class="bi-input-row">
+                <input class="bi-input" type="text" value="" placeholder="可选；未连接 = 整图">
+                <button type="button" class="bi-icon-btn" data-link-toggle data-tooltip="绑定变量" aria-label="绑定变量"><svg class="bi-ico"><use href="#i-link"/></svg></button>
+              </div>
+            </div>
+            <div class="bi-field">
+              <label class="bi-label">标定</label>
+              <div class="bi-input-row">
+                <input class="bi-input" type="text" value="" placeholder="毫米输出时接标定 Transform">
+                <button type="button" class="bi-icon-btn" data-link-toggle data-tooltip="绑定变量" aria-label="绑定变量"><svg class="bi-ico"><use href="#i-link"/></svg></button>
+              </div>
+            </div>
+          </section>
+
+          <!-- ① 配方库 -->
+          <section class="bi-card">
+            <div class="bi-card-head">
+              <div class="bi-card-title"><svg class="bi-ico"><use href="#i-recipe"/></svg>① 配方库</div>
+              <span class="bi-card-hint">一条 = 一个产品型号</span>
+            </div>
+            <div class="bi-recipe-list" id="bi-recipe-list" role="listbox" aria-label="配方列表">
+              <div class="bi-recipe is-selected" data-recipe="0" role="option" aria-selected="true">
+                <div class="bi-recipe-main">
+                  <div class="bi-recipe-name">配方1</div>
+                  <div class="bi-recipe-meta"><span data-points-label>11 点</span><span class="is-learned" data-learned-label>已学习</span></div>
+                </div>
+                <span class="bi-badge is-default" data-default-badge>默认</span>
+              </div>
+              <div class="bi-recipe" data-recipe="1" role="option" aria-selected="false">
+                <div class="bi-recipe-main">
+                  <div class="bi-recipe-name">配方2</div>
+                  <div class="bi-recipe-meta"><span data-points-label>5 点</span><span data-learned-label>未学习</span></div>
+                </div>
+              </div>
+              <div class="bi-recipe" data-recipe="2" role="option" aria-selected="false">
+                <div class="bi-recipe-main">
+                  <div class="bi-recipe-name">配方3</div>
+                  <div class="bi-recipe-meta"><span data-points-label>0 点</span><span data-learned-label>未学习</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="bi-recipe-actions">
+              <button type="button" class="bi-btn bi-btn-sm" data-action="add-recipe"><svg class="bi-ico"><use href="#i-plus"/></svg>新增</button>
+              <button type="button" class="bi-btn bi-btn-sm" data-action="delete-recipe"><svg class="bi-ico"><use href="#i-trash"/></svg>删除</button>
+              <button type="button" class="bi-btn bi-btn-sm" data-action="set-default"><svg class="bi-ico"><use href="#i-check"/></svg>设为默认</button>
+            </div>
+            <div class="bi-field">
+              <label class="bi-label" for="bi-ref-path">参考图路径</label>
+              <div class="bi-input-row">
+                <input class="bi-input" id="bi-ref-path" type="text" value="D:\Images\bead\adhesive_bead_ref.png">
+                <button type="button" class="bi-btn bi-btn-sm" data-action="load-ref"><svg class="bi-ico"><use href="#i-folder"/></svg>载入</button>
+              </div>
+              <p class="bi-help"><svg class="bi-ico"><use href="#i-info"/></svg>planar 对齐模板 + 路径坐标系基准；换路径后需重新学习。</p>
+            </div>
+            <details class="bi-details">
+              <summary><svg class="bi-ico"><use href="#i-layers"/></svg>自动提取输入（可选）<svg class="bi-ico bi-chev"><use href="#i-chevron"/></svg></summary>
+              <div class="bi-details-body">
+                <div class="bi-field">
+                  <label class="bi-label" for="bi-nobead-path">无胶参考图路径</label>
+                  <input class="bi-input" id="bi-nobead-path" type="text" value="D:\Images\bead\adhesive_bead_no_bead.png">
+                  <p class="bi-help"><svg class="bi-ico"><use href="#i-info"/></svg>差分基准（P6 实测 σ=0.96px 最紧）；空 = 回退 black-hat。</p>
+                </div>
+                <div class="bi-field">
+                  <label class="bi-label" for="bi-good-path">提取用良品图路径</label>
+                  <input class="bi-input" id="bi-good-path" type="text" value="D:\Images\bead\adhesive_bead_good.png">
+                  <p class="bi-help"><svg class="bi-ico"><use href="#i-info"/></svg>胶路完整、位姿与参考一致；教学会话数据，不随配方保存。</p>
+                </div>
+                <div class="bi-field">
+                  <label class="bi-label" for="bi-extract-points">抽稀目标点数</label>
+                  <input class="bi-input bi-mono" id="bi-extract-points" type="text" value="40">
+                  <p class="bi-help"><svg class="bi-ico"><use href="#i-info"/></svg><span>10~500，默认 40；40~80 点对检出几乎无影响。
+                    <b>仅本次配置会话生效，不落盘</b>——重新打开配置界面回到默认 40。</span></p>
+                </div>
+              </div>
+            </details>
+          </section>
+
+          <!-- ② 路径点列 -->
+          <section class="bi-card">
+            <div class="bi-card-head">
+              <div class="bi-card-title"><svg class="bi-ico"><use href="#i-grid"/></svg>② 路径点列</div>
+              <span class="bi-card-hint">Row / Col 可编辑</span>
+            </div>
+            <div class="bi-table-wrap">
+              <table class="bi-table" aria-label="路径点列">
+                <thead><tr><th class="bi-col-index">#</th><th>Row</th><th>Col</th><th class="bi-col-del">删</th></tr></thead>
+                <tbody id="bi-point-body"></tbody>
+              </table>
+              <div class="bi-table-empty" id="bi-point-empty" hidden>点列为空：在画布上左键拾取，或点「自动提取」</div>
+            </div>
+            <div class="bi-table-foot"><span id="bi-point-count">点数 11（≥2 才能学习/建模型）</span><span>表格内滚动</span></div>
+            <p class="bi-help"><svg class="bi-ico"><use href="#i-info"/></svg>与画布双向同步：改这里 = 移点；画布加点 / 删点 / 拖动也会刷新本表。</p>
+          </section>
+
+          <!-- ③ 配方参数 -->
+          <section class="bi-card">
+            <div class="bi-card-head">
+              <div class="bi-card-title"><svg class="bi-ico"><use href="#i-sliders"/></svg>③ 配方参数</div>
+              <span class="bi-card-hint">配方值优先，0 回落插件级</span>
+            </div>
+            <div class="bi-grid-2">
+              <div class="bi-field"><label class="bi-label" for="bi-target-width">胶宽(px)</label><input class="bi-input bi-mono" id="bi-target-width" type="text" value="15.0"></div>
+              <div class="bi-field"><label class="bi-label" for="bi-width-tol">容差(px)</label><input class="bi-input bi-mono" id="bi-width-tol" type="text" value="8.0"></div>
+            </div>
+            <div class="bi-grid-2">
+              <div class="bi-field"><label class="bi-label" for="bi-pos-tol">位置(px)</label><input class="bi-input bi-mono" id="bi-pos-tol" type="text" value="30.0"></div>
+              <div class="bi-field"><label class="bi-label" for="bi-polarity">极性</label>
+                <div class="bi-select-wrap"><select class="bi-select" id="bi-polarity"><option selected>暗胶（dark）</option><option>亮胶（light）</option></select><svg class="bi-ico"><use href="#i-chevron"/></svg></div>
+              </div>
+            </div>
+            <p class="bi-help"><svg class="bi-ico"><use href="#i-info"/></svg>胶宽下限 6（低于它 HALCON 报 #3716）；容差须 ≥ 自动提取偏差上界 8.39px。</p>
+            <details class="bi-details">
+              <summary><svg class="bi-ico"><use href="#i-target"/></svg>高级：显式目标矩形<svg class="bi-ico bi-chev"><use href="#i-chevron"/></svg></summary>
+              <div class="bi-details-body">
+                <p class="bi-help" style="margin-top:7px;"><svg class="bi-ico"><use href="#i-info"/></svg>自动推导目标矩形未过真值断言；需要精确坐标系时在此显式指定。</p>
+                <div class="bi-grid-2">
+                  <input class="bi-input bi-mono" type="text" value="20" aria-label="目标起始行">
+                  <input class="bi-input bi-mono" type="text" value="20" aria-label="目标起始列">
+                  <input class="bi-input bi-mono" type="text" value="420" aria-label="目标结束行">
+                  <input class="bi-input bi-mono" type="text" value="660" aria-label="目标结束列">
+                </div>
+                <button type="button" class="bi-btn bi-btn-sm bi-btn-block" style="margin-top:7px;" data-action="apply-rect">应用目标矩形</button>
+              </div>
+            </details>
+          </section>
+
+          <!-- ④ 运行参数 -->
+          <section class="bi-card">
+            <div class="bi-card-head">
+              <div class="bi-card-title"><svg class="bi-ico"><use href="#i-sliders"/></svg>④ 运行参数</div>
+              <span class="bi-card-hint">插件级</span>
+            </div>
+            <div class="bi-field">
+              <label class="bi-label" for="bi-align-mode">对齐模式</label>
+              <div class="bi-select-wrap"><select class="bi-select" id="bi-align-mode"><option>固定相机（不对齐）</option><option>匹配位姿</option><option selected>平面可变形（投影）</option></select><svg class="bi-ico"><use href="#i-chevron"/></svg></div>
+            </div>
+            <div class="bi-grid-2">
+              <div class="bi-field">
+                <label class="bi-label" for="bi-unit">输出单位</label>
+                <div class="bi-select-wrap"><select class="bi-select" id="bi-unit"><option selected>像素</option><option>毫米</option></select><svg class="bi-ico"><use href="#i-chevron"/></svg></div>
+              </div>
+              <div class="bi-field"><label class="bi-label" for="bi-min-err">碎段过滤(px)</label><input class="bi-input bi-mono" id="bi-min-err" type="text" value="5.0"></div>
+            </div>
+            <div class="bi-field">
+              <label class="bi-label" for="bi-view-index">显示窗口</label>
+              <div class="bi-select-wrap"><select class="bi-select" id="bi-view-index"><option>不显示（0）</option><option selected>图像窗口 1</option><option>图像窗口 2</option><option>图像窗口 3</option><option>图像窗口 4</option><option>图像窗口 5</option><option>图像窗口 6</option><option>图像窗口 7</option><option>图像窗口 8</option><option>图像窗口 9</option></select><svg class="bi-ico"><use href="#i-chevron"/></svg></div>
+            </div>
+            <div class="bi-grid-2">
+              <div class="bi-field"><label class="bi-label" for="bi-pixel-size">像素当量(mm/px)</label><input class="bi-input bi-mono" id="bi-pixel-size" type="text" value="0.05"></div>
+              <div class="bi-field bi-field-check">
+                <label class="bi-check"><input type="checkbox" id="bi-output-aligned" checked><span class="bi-check-box"><svg class="bi-ico bi-ico-sm"><use href="#i-check"/></svg></span><span>输出对齐图</span></label>
+              </div>
+            </div>
+            <p class="bi-help"><svg class="bi-ico"><use href="#i-info"/></svg><span>像素当量只在「输出单位 = 毫米」且没接标定 <code>Transform</code> 时兜底（0 = 未填）；
+              「输出对齐图」取消 = <code>AlignedImage</code> 端口为空，对齐本身照做。</span></p>
+          </section>
+
+          <!-- ⑤ 平面匹配搜索范围 -->
+          <section class="bi-card">
+            <div class="bi-card-head">
+              <div class="bi-card-title"><svg class="bi-ico"><use href="#i-scan"/></svg>⑤ 平面匹配搜索范围</div>
+              <span class="bi-card-hint">仅平面可变形</span>
+            </div>
+            <p class="bi-help" style="margin-bottom:7px;"><svg class="bi-ico"><use href="#i-info"/></svg>默认值来自范例实测；工件旋转 / 远近超出范围、对齐失败时才需要调大。</p>
+            <div class="bi-grid-2">
+              <div class="bi-field"><label class="bi-label" for="bi-angle-start">起始角(°)</label><input class="bi-input bi-mono" id="bi-angle-start" type="text" value="-22.35"></div>
+              <div class="bi-field"><label class="bi-label" for="bi-angle-extent">角度范围(°)</label><input class="bi-input bi-mono" id="bi-angle-extent" type="text" value="44.69"></div>
+              <div class="bi-field"><label class="bi-label" for="bi-scale-rmin">缩放R最小</label><input class="bi-input bi-mono" id="bi-scale-rmin" type="text" value="1.0"></div>
+              <div class="bi-field"><label class="bi-label" for="bi-scale-rmax">缩放R最大</label><input class="bi-input bi-mono" id="bi-scale-rmax" type="text" value="1.0"></div>
+              <div class="bi-field"><label class="bi-label" for="bi-scale-cmin">缩放C最小</label><input class="bi-input bi-mono" id="bi-scale-cmin" type="text" value="1.0"></div>
+              <div class="bi-field"><label class="bi-label" for="bi-scale-cmax">缩放C最大</label><input class="bi-input bi-mono" id="bi-scale-cmax" type="text" value="1.0"></div>
+              <div class="bi-field"><label class="bi-label" for="bi-min-score">最低分数</label><input class="bi-input bi-mono" id="bi-min-score" type="text" value="0.4"></div>
+              <div class="bi-field"><label class="bi-label" for="bi-num-levels">金字塔层数</label><input class="bi-input bi-mono" id="bi-num-levels" type="text" value="5"></div>
+            </div>
+            <p class="bi-help"><svg class="bi-ico"><use href="#i-info"/></svg>最低分数 0~1（低于它判对齐失败）；金字塔层数 1~10 整数（越多越快，越小/越模糊的工件越易漏）。</p>
+          </section>
+
+          <!-- 结果预览 -->
+          <section class="bi-card">
+            <div class="bi-card-head">
+              <div class="bi-card-title"><svg class="bi-ico"><use href="#i-eye"/></svg>结果预览</div>
+              <span class="bi-card-hint">学习叠加 / 试运行标注</span>
+            </div>
+            <div class="bi-preview">
+              <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice" role="img" aria-label="学习叠加预览">
+                <defs>
+                  <linearGradient id="bi-preview-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0B1220"/><stop offset="100%" stop-color="#151F31"/></linearGradient>
+                  <pattern id="bi-preview-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#1E293B" stroke-width="1"/></pattern>
+                </defs>
+                <rect width="320" height="160" fill="url(#bi-preview-bg)"/>
+                <rect width="320" height="160" fill="url(#bi-preview-grid)" opacity=".55"/>
+                <rect x="54" y="30" width="212" height="100" rx="10" fill="#AEB9C6" stroke="#D7DEE8" stroke-width="1.5"/>
+                <path d="M72 92c30-34 58-38 82-16s50 12 94-10" fill="none" stroke="#F59E0B" stroke-width="3" stroke-linecap="round"/>
+                <g fill="#EF4444"><circle cx="72" cy="92" r="3"/><circle cx="112" cy="67" r="3"/><circle cx="154" cy="76" r="3"/><circle cx="198" cy="70" r="3"/><circle cx="248" cy="66" r="3"/></g>
+                <text x="12" y="20" fill="#94A3B8" font-size="9" font-family="Segoe UI, Microsoft YaHei">学习叠加 · 参考路径</text>
+              </svg>
+              <div class="bi-preview-empty" id="bi-preview-empty">
+                <svg class="bi-ico"><use href="#i-eye"/></svg>
+                <b>暂无结果图</b>
+                <span>学习或试运行后在这里显示叠加图 / 标注图</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- 怎么用 -->
+          <section class="bi-card">
+            <div class="bi-card-head"><div class="bi-card-title"><svg class="bi-ico"><use href="#i-info"/></svg>怎么用</div></div>
+            <p class="bi-help" style="margin:0;">① 新增配方 → 点「载入」选择参考图；② 在画布上左键逐点拾取胶路中心线（或填良品图路径点「自动提取」后微调）；③ 点「学习」；④ 可选：拾取矫正四点提升对齐稳定性；⑤ 试运行看标注图。</p>
+            <p class="bi-help">设了矫正四点后，底图会切到矫正后的参考图——路径点列存的是矫正后坐标系的坐标。</p>
+          </section>
+        </aside>
+
+        <!-- 右侧工作区 -->
+        <section class="bi-workspace" aria-label="胶路中心线拾取工作区">
+          <div class="bi-workspace-card">
+            <div class="bi-toolbar">
+              <button type="button" class="bi-btn bi-btn-primary" id="bi-learn-btn"><svg class="bi-ico"><use href="#i-check"/></svg>学习</button>
+              <button type="button" class="bi-btn" data-action="auto-extract"><svg class="bi-ico"><use href="#i-broom"/></svg>自动提取</button>
+              <button type="button" class="bi-btn" data-action="undo"><svg class="bi-ico"><use href="#i-undo"/></svg>撤销</button>
+              <button type="button" class="bi-btn" data-action="clear-points"><svg class="bi-ico"><use href="#i-trash"/></svg>清空点列</button>
+              <button type="button" class="bi-btn" data-action="toggle-quad" id="bi-quad-btn"><svg class="bi-ico"><use href="#i-target"/></svg><span id="bi-quad-btn-text">拾取矫正四点</span></button>
+              <button type="button" class="bi-btn" data-action="clear-quad"><svg class="bi-ico"><use href="#i-x"/></svg>清除矫正</button>
+            </div>
+
+            <div class="bi-banner is-ok" id="bi-banner" style="margin-top:6px;">
+              <svg class="bi-ico"><use href="#i-check"/></svg>
+              <span id="bi-banner-text">学习成功：配方「配方1」已学习（11 点 / 胶宽 15.0px / 容差 8.0 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行</span>
+            </div>
+
+            <div class="bi-canvas-head">
+              <span class="bi-canvas-title">胶路中心线拾取</span>
+              <span class="bi-canvas-meta" id="bi-canvas-points">点数 11（≥2 才能学习/建模型）</span>
+              <button type="button" class="bi-btn bi-btn-sm" style="margin-left:auto;" data-action="fit"><svg class="bi-ico"><use href="#i-move"/></svg>适应图片</button>
+            </div>
+            <p class="bi-canvas-hint">左键加点｜右键删点｜拖动改坐标｜Ctrl+Z｜滚轮缩放｜橙=路径 红=点 青=四角</p>
+
+            <div class="bi-canvas">
+              <svg id="bi-canvas-scene" viewBox="0 0 760 420" preserveAspectRatio="xMidYMid slice" role="img" aria-label="胶路检测画布">
+                <defs>
+                  <linearGradient id="bi-metal" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#E8EDF3"/><stop offset="45%" stop-color="#AEB9C6"/><stop offset="100%" stop-color="#5B6675"/></linearGradient>
+                  <linearGradient id="bi-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0B1220"/><stop offset="100%" stop-color="#151F31"/></linearGradient>
+                  <pattern id="bi-grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#1E293B" stroke-width="1"/></pattern>
+                  <filter id="bi-soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="10"/></filter>
+                </defs>
+                <rect width="760" height="420" fill="url(#bi-bg)"/>
+                <rect width="760" height="420" fill="url(#bi-grid)" opacity=".55"/>
+                <ellipse cx="380" cy="230" rx="250" ry="150" fill="#000000" opacity=".38" filter="url(#bi-soft)"/>
+                <rect x="150" y="105" width="460" height="220" rx="26" fill="url(#bi-metal)" stroke="#D7DEE8" stroke-width="2"/>
+                <rect x="182" y="137" width="396" height="156" rx="16" fill="#8C97A5" stroke="#5B6675" stroke-width="1.5" opacity=".55"/>
+                <path d="M190 268c58-78 118-92 178-52s104 42 202-22" fill="none" stroke="#F59E0B" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                <g fill="#EF4444" stroke="#7F1D1D" stroke-width="1">
+                  <circle cx="190" cy="268" r="5"/><circle cx="236" cy="229" r="5"/><circle cx="284" cy="208" r="5"/><circle cx="334" cy="204" r="5"/><circle cx="386" cy="216" r="5"/><circle cx="438" cy="228" r="5"/><circle cx="492" cy="230" r="5"/><circle cx="544" cy="218" r="5"/><circle cx="590" cy="194" r="5"/>
+                </g>
+                <g id="bi-quad-markers" hidden stroke="#22D3EE" stroke-width="2" fill="none">
+                  <path d="M148 103h30M148 103v30M612 103h-30M612 103v30M148 327h30M148 327v-30M612 327h-30M612 327v-30"/>
+                  <path d="M148 103 612 103 612 327 148 327Z" stroke-dasharray="6 5" opacity=".75"/>
+                  <g fill="#22D3EE" stroke="none"><circle cx="148" cy="103" r="4"/><circle cx="612" cy="103" r="4"/><circle cx="612" cy="327" r="4"/><circle cx="148" cy="327" r="4"/></g>
+                </g>
+                <g stroke="#38BDF8" stroke-opacity=".55" stroke-width="2" fill="none">
+                  <path d="M30 30H70M30 30V70M730 30H690M730 30V70M30 390H70M30 390V350M730 390H690M730 390V350"/>
+                </g>
+              </svg>
+              <div class="bi-overlay" id="bi-canvas-chip">
+                <span class="bi-chip"><svg class="bi-ico"><use href="#i-scan"/></svg><span id="bi-canvas-chip-text">拾取画布 · 参考图（矫正后）</span></span>
+              </div>
+              <div class="bi-canvas-empty" id="bi-canvas-empty" hidden>
+                <div class="bi-state-icon"><svg class="bi-ico"><use href="#i-image"/></svg></div>
+                <b>尚未载入图像</b>
+                <span>绑定上游输入图，或在 ① 配方库点「载入」选择参考图文件。<br>没有底图时拾取会被拒绝。</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="bi-statusbar" aria-live="polite">
+            <span class="bi-dot is-ok" id="bi-status-dot"></span>
+            <div class="bi-status-body">
+              <div class="bi-status-msg is-ok" id="bi-status-msg">配方「配方1」：左键加点（自动插到最近线段之间）、右键删最近点、拖动改坐标；改完点「学习」</div>
+              <div class="bi-status-base" id="bi-status-base">底图：参考图（矫正后）——路径点列存的就是该坐标系的坐标</div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="bi-footer">
+        <div class="bi-footer-left">
+          <span class="bi-status-chip"><span class="bi-footer-dot"></span><span>状态: 待执行</span></span>
+          <span class="bi-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="bi-footer-right">
+          <button type="button" class="bi-btn"><svg class="bi-ico"><use href="#i-play"/></svg>执行</button>
+          <button type="button" class="bi-btn bi-btn-ghost">取消</button>
+          <button type="button" class="bi-btn bi-btn-primary">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="bi-notes">
+      <div class="bi-notes-head">关键改动（v1）</div>
+      <div class="bi-note"><div class="bi-note-num">01</div><div><b>两栏固定分工</b><span>左侧 330px 设置轨（可滚动），右侧画布工作区自适应；取消左右拖拽条，画布获得稳定余量。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">02</div><div><b>画布是唯一主操作面</b><span>工具栏 + 结论横幅 + 画布标题 + 操作提示 + 画布 hero 同卡；参数、点列、预览全部在左栏，画布不再被下方卡片挤压。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">03</div><div><b>点列是紧凑复核表</b><span>1 个 <code>DataGrid</code>（4 列：# / Row / Col / 删），行高 28、单元格内边距 8,2；编辑提交仍走 <code>CellEditEnding</code>。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">04</div><div><b>配方库前置</b><span>选型 → 载图 → 拾取的第一步；列表行显示点数与学习状态，新增 / 删除 / 设为默认三个入口不变。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">05</div><div><b>结果横幅常驻视口</b><span>学习 / 自动提取 / 矫正的结论挂在工具栏正下方，空串折叠；三档颜色复用 <code>ActionBannerLevel</code>。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">06</div><div><b>状态条两行</b><span><code>StatusMessage</code> + <code>BaseImageHint</code> 常驻；底图是输入图兜底时用 Warning 色提示坐标系风险。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">07</div><div><b>结果预览常驻</b><span><code>ImageReadOnly</code> 不再随无图折叠；无图时是纯 WPF 覆盖层，有图时控件从未折叠过，避免恢复后不重绘。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">08</div><div><b>全令牌化 + 五态</b><span>颜色全部走 <code>Dialog*</code> / <code>Plugin*</code> 公共令牌；按钮 hover / pressed / focus / disabled 全量；图标按钮 30×30 + <code>Padding=0</code>。</span></div></div>
+
+      <div class="bi-notes-head" style="margin-top:20px;">v2 增量（补 5 个既有属性的界面入口）</div>
+      <div class="bi-note"><div class="bi-note-num">V1</div><div><b>④ 像素当量(mm/px)</b><span><code>PixelSizeMm</code> 落在「碎段过滤」右侧同列，区间 0~1000（<code>NumberValidationRule</code>）。只在「输出单位 = 毫米」且未接标定 <code>Transform</code> 时兜底，0 = 未填。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">V2</div><div><b>④ 输出对齐图</b><span><code>OutputAlignedImage</code> 用 <code>DialogCheckBox</code>（15px 方框 / 4px 圆角），与像素当量同行右列、底对齐；取消 = <code>AlignedImage</code> 输出为空，对齐本身照做。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">V3</div><div><b>⑤ 最低分数 / 金字塔层数</b><span><code>MinScore</code> 0~1、<code>PlanarNumLevels</code> 1~10 且 <code>IntegerOnly</code>；接在搜索范围网格第 4 行，与既有 6 个字段同款 32px 输入框 + 等宽数字。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">V4</div><div><b>① 抽稀目标点数</b><span><code>ExtractTargetPoints</code> 10~500 且 <code>IntegerOnly</code>，放在「自动提取输入（可选）」折叠区最后一行；下方常驻一句 <b>「仅本次配置会话生效，不落盘」</b>——它不是 <code>[StepConfig]</code>，<code>InputValues</code> 仍是 25 个键。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">V5</div><div><b>不改插件、不加令牌</b><span>5 个属性在插件上本来就存在；本版只加视图入口，全部复用既有 <code>BeadInput</code> / <code>BeadFieldLabel</code> / <code>BeadHint</code> / <code>DialogCheckBox</code>，未新增任何共享令牌。</span></div></div>
+
+      <div class="bi-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="bi-note"><div class="bi-note-num">C1</div><div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不引入独立 VM。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">C2</div><div><b>5 个 LinkableValueEditor</b><span><code>SrcImage</code> / <code>RecipeName</code> / <code>AlignedImageIn</code> / <code>RoiRegion</code> / <code>Transform</code>；<code>Port</code> / <code>StepData</code> 原样保留。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">C3</div><div><b>两块 HALCON 画布</b><span><code>ImageEdit</code> 绑 <code>DisplayImage</code> + <code>PathAnnotations</code>；<code>ImageReadOnly</code> 绑 <code>PreviewImage</code>；控件常驻、不折叠已设图控件。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">C4</div><div><b>点列表格</b><span><code>ItemsSource=PointRows</code>、<code>Index/Row/Col</code> 列绑定、<code>CellEditEnding</code> 提交、行删除按钮全部保留。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">C5</div><div><b>所有参数绑定</b><span>胶宽 / 容差 / 位置 / 极性、6 个搜索范围、碎段过滤、显示窗口、目标矩形四值逐字保留；<b>v2 追加</b> <code>PixelSizeMm</code> / <code>OutputAlignedImage</code> / <code>MinScore</code> / <code>PlanarNumLevels</code> / <code>ExtractTargetPoints</code> 五个既有属性的入口。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">C6</div><div><b>命令入口</b><span>学习 / 自动提取 / 撤销 / 清空点列 / 拾取矫正四点 / 清除矫正 / 载入 / 适应图片 / 新增 / 删除 / 设为默认 / 应用目标矩形全部保留。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">C7</div><div><b>状态三档</b><span><code>StatusMessage</code> / <code>StatusLevel</code>（Info / Warning / Error）与 <code>ActionBanner</code> / <code>ActionBannerLevel</code> 原样消费，不加第四档。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">C8</div><div><b>落盘键数不变（v2）</b><span><code>InputValues</code> 仍是 <b>25</b> 个键（5 输入端口 + 20 个 <code>[StepConfig]</code>）；<code>ExtractTargetPoints</code> <b>不落盘</b>（不是 <code>[StepConfig]</code>，重开配置界面回到 40）。断言 <code>[BeadInspect·v2]</code> 逐条钉住。</span></div></div>
+
+      <div class="bi-notes-head" style="margin-top:20px;">明确延后（需新增功能或契约）</div>
+      <div class="bi-note"><div class="bi-note-num">D1</div><div><b>加载骨架 / 蓝色加载态</b><span>需要新增 <code>IsPreviewLoading</code> 或 <code>PreviewState</code>；当前 <code>StatusLevel</code> 只有三档。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">D2</div><div><b>图像尺寸 / 文件大小</b><span>需要 VM 新增只读属性（<code>HImage.GetImageSize</code> / <code>FileInfo.Length</code>）；本稿不显示。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">D3</div><div><b>放大 / 缩小按钮</b><span><code>HalconBase</code> 只有 <code>FitToWindow()</code> / <code>FitToImage()</code>，没有公开 zoom 方法；本稿只保留「适应图片」。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">D4</div><div><b>打开所在文件夹 / 系统导航</b><span>需要新增 <code>Process.Start("explorer.exe", ...)</code> 或宿主导航契约；本稿不做。</span></div></div>
+      <div class="bi-note"><div class="bi-note-num">D5</div><div><b>已交付（v2 起不再延后）</b><span><code>ExtractTargetPoints</code> / <code>OutputAlignedImage</code> / <code>PixelSizeMm</code> / <code>MinScore</code> / <code>PlanarNumLevels</code> 五个入口已在 v2 补齐（见上方 V1~V4），本项仅留作沿革记录。</span></div></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('bi-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#bi-window');
+      var stateButtons = Array.prototype.slice.call(root.querySelectorAll('[data-state]'));
+      var widthButtons = Array.prototype.slice.call(root.querySelectorAll('[data-width]'));
+      var banner = root.querySelector('#bi-banner');
+      var bannerText = root.querySelector('#bi-banner-text');
+      var statusDot = root.querySelector('#bi-status-dot');
+      var statusMsg = root.querySelector('#bi-status-msg');
+      var statusBase = root.querySelector('#bi-status-base');
+      var canvasEmpty = root.querySelector('#bi-canvas-empty');
+      var canvasScene = root.querySelector('#bi-canvas-scene');
+      var canvasChip = root.querySelector('#bi-canvas-chip');
+      var canvasChipText = root.querySelector('#bi-canvas-chip-text');
+      var quadMarkers = root.querySelector('#bi-quad-markers');
+      var quadBtnText = root.querySelector('#bi-quad-btn-text');
+      var pointBody = root.querySelector('#bi-point-body');
+      var pointEmpty = root.querySelector('#bi-point-empty');
+      var pointCount = root.querySelector('#bi-point-count');
+      var canvasPoints = root.querySelector('#bi-canvas-points');
+      var previewEmpty = root.querySelector('#bi-preview-empty');
+      var refPath = root.querySelector('#bi-ref-path');
+
+      var recipes = [
+        { name: '配方1', points: [ [268,190], [229,236], [208,284], [204,334], [216,386], [228,438], [230,492], [218,544], [194,590], [180,620], [170,646] ], learned: '已学习', def: true },
+        { name: '配方2', points: [ [250,210], [232,270], [224,330], [230,390], [242,450] ], learned: '未学习', def: false },
+        { name: '配方3', points: [], learned: '未学习', def: false }
+      ];
+      var selected = 0;
+      var state = 'default';
+      var quadOn = false;
+
+      function pointsOfSelected() { return recipes[selected].points; }
+
+      function renderPoints() {
+        var pts = pointsOfSelected();
+        var rows = pts.slice(0, 6);
+        pointBody.innerHTML = '';
+        rows.forEach(function (p, i) {
+          var tr = document.createElement('tr');
+          tr.innerHTML = '<td class="bi-col-index">' + (i + 1) + '</td>'
+            + '<td class="bi-mono">' + p[0].toFixed(3) + '</td>'
+            + '<td class="bi-mono">' + p[1].toFixed(3) + '</td>'
+            + '<td class="bi-col-del"><button type="button" class="bi-row-del" data-row-del="' + i + '" aria-label="删除本点">删</button></td>';
+          pointBody.appendChild(tr);
+        });
+        pointEmpty.hidden = pts.length > 0;
+        var text = '点数 ' + pts.length + '（≥2 才能学习/建模型）';
+        pointCount.textContent = text;
+        canvasPoints.textContent = text;
+        root.querySelectorAll('[data-points-label]').forEach(function (el, i) {
+          if (i === selected) el.textContent = pts.length + ' 点';
+        });
+      }
+
+      function setBanner(level, text) {
+        if (!text) { banner.hidden = true; return; }
+        banner.hidden = false;
+        banner.className = 'bi-banner is-' + level;
+        bannerText.textContent = text;
+        banner.querySelector('use').setAttribute('href', level === 'ok' ? '#i-check' : '#i-alert');
+      }
+
+      function setStatus(level, msg, base, baseWarn) {
+        statusDot.className = 'bi-dot is-' + level;
+        statusMsg.className = 'bi-status-msg is-' + level;
+        statusMsg.textContent = msg;
+        statusBase.className = 'bi-status-base' + (baseWarn ? ' is-warn' : '');
+        statusBase.textContent = base;
+      }
+
+      function setQuad(on) {
+        quadOn = on;
+        // SVG 元素不反射 hidden 属性；初始 HTML 又写了 hidden 属性，
+        // 而 [hidden]{display:none!important} 会压过普通 inline style，所以必须增删属性本身。
+        if (on) quadMarkers.removeAttribute('hidden');
+        else quadMarkers.setAttribute('hidden', '');
+        quadBtnText.textContent = on ? '拾取中…再点结束' : '拾取矫正四点';
+      }
+
+      function render() {
+        var pts = pointsOfSelected();
+        renderPoints();
+        var hasImage = state !== 'empty';
+        // SVG 元素不反射 hidden 属性，直接改 display 才是可靠写法。
+        canvasScene.style.display = hasImage ? 'block' : 'none';
+        canvasEmpty.hidden = hasImage;
+        canvasChip.hidden = !hasImage;
+        canvasChipText.textContent = (state === 'warn' || state === 'error')
+          ? '拾取画布 · 输入图（兜底）'
+          : state === 'quad'
+            ? '拾取画布 · 参考图（原始）'
+            : '拾取画布 · 参考图（矫正后）';
+        previewEmpty.hidden = state === 'default' || state === 'warn' || state === 'quad';
+        setQuad(state === 'quad');
+
+        if (state === 'default') {
+          setBanner('ok', '学习成功：配方「' + recipes[selected].name + '」已学习（' + pts.length + ' 点 / 胶宽 15.0px / 容差 8.0 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行');
+          setStatus('ok', '配方「' + recipes[selected].name + '」：左键加点（自动插到最近线段之间）、右键删最近点、拖动改坐标；改完点「学习」', '底图：参考图（矫正后）——路径点列存的就是该坐标系的坐标', false);
+        } else if (state === 'empty') {
+          setBanner('muted', '');
+          setStatus('warn', '还没有参考图路径：点「① 配方库」的「载入」选择参考图文件，再拾取胶路中心线', '尚未载入图像：绑定上游输入图，或在 ①配方库 点「载入」选择参考图文件', true);
+        } else if (state === 'error') {
+          setBanner('err', '学习失败：参考图不存在——「平面可变形」对齐需要参考图（模板 + 坐标系基准）。请点「① 配方库」的「载入」选择参考图文件，或把「对齐模式」改成「固定相机」');
+          setStatus('err', '参考图不存在：D:\\Images\\bead\\missing.png', '底图：输入图（尚未设参考图）', true);
+        } else if (state === 'warn') {
+          setBanner('warn', '注意：底图是输入图而非参考图——「平面可变形」的点列必须落在参考图坐标系上。请点「① 配方库」的「载入」选择参考图文件后重新拾取，否则点「学习」会被拒绝');
+          setStatus('warn', '已加点 #4（自动插到最近线段之间）：共 11 点', '底图：输入图（尚未设参考图）——若用「平面可变形」对齐，请点「① 配方库」的「载入」选择参考图文件；固定相机模式可直接拾取', true);
+        } else if (state === 'quad') {
+          setBanner('muted', '');
+          setStatus('ok', '矫正四点拾取中：在参考图上依次点击平面区域的四个角（4 点后自动记录，目标矩形自动推导）', '底图：参考图（原始）——未设矫正四点（或非「平面可变形」模式），点列存原始参考图坐标', false);
+        }
+      }
+
+      stateButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          state = btn.dataset.state;
+          stateButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          render();
+        });
+      });
+
+      widthButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          win.classList.toggle('is-narrow', btn.dataset.width === '640');
+          widthButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+        });
+      });
+
+      root.querySelector('#bi-learn-btn').addEventListener('click', function () {
+        state = 'default';
+        stateButtons.forEach(function (b) { b.classList.toggle('is-on', b.dataset.state === 'default'); });
+        setBanner('ok', '学习成功：配方「' + recipes[selected].name + '」已学习（' + pointsOfSelected().length + ' 点 / 胶宽 15.0px / 容差 8.0 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行');
+        setStatus('ok', '学习完成：配方「' + recipes[selected].name + '」已学习', '底图：参考图（矫正后）——路径点列存的就是该坐标系的坐标', false);
+      });
+
+      root.querySelectorAll('[data-action]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var action = btn.dataset.action;
+          if (action === 'auto-extract') {
+            setBanner('warn', '自动提取将替换当前 ' + pointsOfSelected().length + ' 个点，是否继续？（演示稿：此处不执行覆盖）');
+            setStatus('warn', '自动提取需要「提取用良品图路径」；失败路径不会写空点列', '底图：参考图（矫正后）——路径点列存的就是该坐标系的坐标', false);
+          } else if (action === 'undo') {
+            if (recipes[selected].points.length > 0) recipes[selected].points.pop();
+            renderPoints();
+            setStatus('ok', '已撤销上一步拾取：剩 ' + recipes[selected].points.length + ' 点', '底图：参考图（矫正后）——路径点列存的就是该坐标系的坐标', false);
+          } else if (action === 'clear-points') {
+            recipes[selected].points = [];
+            renderPoints();
+            setStatus('ok', '已清空点列（可撤销）：重新左键拾取或点「自动提取」', '底图：参考图（矫正后）——路径点列存的就是该坐标系的坐标', false);
+          } else if (action === 'toggle-quad') {
+            state = quadOn ? 'default' : 'quad';
+            stateButtons.forEach(function (b) { b.classList.toggle('is-on', b.dataset.state === state); });
+            render();
+          } else if (action === 'clear-quad') {
+            state = 'default';
+            stateButtons.forEach(function (b) { b.classList.toggle('is-on', b.dataset.state === 'default'); });
+            render();
+            setStatus('ok', '已清除矫正四点：跳过矫正，直接用参考图建平面模型', '底图：参考图（原始）——未设矫正四点（或非「平面可变形」模式），点列存原始参考图坐标', false);
+          } else if (action === 'fit') {
+            setStatus('ok', '已适应图片：画布铺满整幅底图（滚轮缩放）', '底图：参考图（矫正后）——路径点列存的就是该坐标系的坐标', false);
+          } else if (action === 'load-ref') {
+            refPath.value = 'D:\\Images\\bead\\adhesive_bead_ref.png';
+            setStatus('ok', '参考图已载入：' + refPath.value, '底图：参考图（原始）——未设矫正四点（或非「平面可变形」模式），点列存原始参考图坐标', false);
+          } else if (action === 'apply-rect') {
+            setStatus('ok', '显式目标矩形已应用（20,20）–（420,660）。底图已切到矫正后的参考图', '底图：参考图（矫正后）——路径点列存的就是该坐标系的坐标', false);
+          } else if (action === 'add-recipe') {
+            var n = recipes.length + 1;
+            recipes.push({ name: '配方' + n, points: [], learned: '未学习', def: false });
+            renderRecipeList();
+            selectRecipe(recipes.length - 1);
+          } else if (action === 'delete-recipe') {
+            if (recipes.length <= 1) return;
+            recipes.splice(selected, 1);
+            selected = Math.max(0, selected - 1);
+            renderRecipeList();
+            selectRecipe(selected);
+          } else if (action === 'set-default') {
+            recipes.forEach(function (r) { r.def = false; });
+            recipes[selected].def = true;
+            renderRecipeList();
+            setStatus('ok', '默认配方已设为「' + recipes[selected].name + '」：RecipeName 未连接/为空时使用它', '底图：参考图（矫正后）——路径点列存的就是该坐标系的坐标', false);
+          }
+        });
+      });
+
+      function renderRecipeList() {
+        var list = root.querySelector('#bi-recipe-list');
+        list.innerHTML = '';
+        recipes.forEach(function (r, i) {
+          var div = document.createElement('div');
+          div.className = 'bi-recipe' + (i === selected ? ' is-selected' : '');
+          div.dataset.recipe = String(i);
+          div.setAttribute('role', 'option');
+          div.setAttribute('aria-selected', i === selected ? 'true' : 'false');
+          div.innerHTML = '<div class="bi-recipe-main"><div class="bi-recipe-name">' + r.name + '</div>'
+            + '<div class="bi-recipe-meta"><span data-points-label>' + r.points.length + ' 点</span>'
+            + '<span class="' + (r.learned === '已学习' ? 'is-learned' : (r.learned.indexOf('参数') >= 0 ? 'is-stale' : '')) + '" data-learned-label>' + r.learned + '</span></div></div>'
+            + (r.def ? '<span class="bi-badge is-default" data-default-badge>默认</span>' : '');
+          div.addEventListener('click', function () { selectRecipe(i); });
+          list.appendChild(div);
+        });
+      }
+
+      function selectRecipe(i) {
+        selected = i;
+        root.querySelectorAll('.bi-recipe').forEach(function (el, idx) {
+          el.classList.toggle('is-selected', idx === i);
+          el.setAttribute('aria-selected', idx === i ? 'true' : 'false');
+        });
+        renderPoints();
+        setStatus('ok', '配方「' + recipes[i].name + '」：左键加点（自动插到最近线段之间）、右键删最近点、拖动改坐标；改完点「学习」', '底图：参考图（矫正后）——路径点列存的就是该坐标系的坐标', false);
+      }
+
+      pointBody.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-row-del]');
+        if (!btn) return;
+        var idx = parseInt(btn.dataset.rowDel, 10);
+        recipes[selected].points.splice(idx, 1);
+        renderPoints();
+        setStatus('ok', '已删除点 #' + (idx + 1) + '：剩 ' + recipes[selected].points.length + ' 点', '底图：参考图（矫正后）——路径点列存的就是该坐标系的坐标', false);
+      });
+
+      root.querySelectorAll('[data-link-toggle]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var linked = btn.classList.toggle('is-linked');
+          btn.setAttribute('data-tooltip', linked ? '解除链接' : '绑定变量');
+          btn.setAttribute('aria-label', linked ? '解除链接' : '绑定变量');
+        });
+      });
+
+      renderRecipeList();
+      render();
+    })();
+  </script>
+</div>
+</body>
+</html>

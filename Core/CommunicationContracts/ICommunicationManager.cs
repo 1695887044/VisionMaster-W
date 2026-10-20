@@ -248,6 +248,49 @@ namespace VisionMaster.Communications
         /// <seealso cref="WriteVariable(string, string, object)"/>
         T ReadVariable<T>(string connectionName, string address) where T : struct;
 
+        /// <summary>
+        /// <para>插队读：对已注册的通讯变量执行一次最高优先级读取。</para>
+        /// <para>与 <see cref="ReadVariable{T}(string, string)"/> 的区别：</para>
+        /// <list type="bullet">
+        ///   <item>走插队读车道，优先于常规读、常规写与轮询；</item>
+        ///   <item>轮询在段间让路，不必等完整一轮；</item>
+        ///   <item>按变量名取已注册的 <c>CommunicationVariable</c>，类型解码/工程量换算与轮询同源；</item>
+        ///   <item>即使该变量所在的段被坏段隔离，也强制真读一次。</item>
+        /// </list>
+        /// <para>失败抛 <see cref="InvalidOperationException"/>（连接不存在/未连接、变量未注册、
+        /// 插队队列已满、设备读写失败等），调用方负责转成步骤失败原因。</para>
+        /// </summary>
+        /// <param name="connectionName">目标连接名称</param>
+        /// <param name="variableName">已注册的变量名</param>
+        /// <returns>工程值（已按地址配置做 Scale/Offset 换算）</returns>
+        object? ReadVariableNow(string connectionName, string variableName);
+
+        /// <summary>
+        /// <para>插队写：对已注册的通讯变量执行一次最高优先级写入。</para>
+        /// <para>与 <see cref="WriteVariable(string, string, object)"/> 的区别：</para>
+        /// <list type="bullet">
+        ///   <item>走插队写车道（最高优先级），优先于插队读、常规读/写与轮询；</item>
+        ///   <item>轮询在段间让路，不必等完整一轮。</item>
+        /// </list>
+        /// <para><paramref name="rawValue"/> 必须是**设备原始值**：工程值→原始值的换算
+        /// （<c>DeviceAddressBase.ConvertToRaw</c>）、文本按声明类型解析、写租约
+        /// 都在 <c>NetworkVariableModel</c> 那一层完成，Manager 只负责传输。</para>
+        /// <para>失败抛 <see cref="InvalidOperationException"/>，语义同 <see cref="ReadVariableNow"/>。</para>
+        /// </summary>
+        /// <param name="connectionName">目标连接名称</param>
+        /// <param name="variableName">已注册的变量名</param>
+        /// <param name="rawValue">设备原始值（不是工程值）</param>
+        void WriteVariableNow(string connectionName, string variableName, object rawValue);
+
+        /// <summary>
+        /// <para>只入队、不等待的插队写（「立刻写」的"不阻塞流程"模式）。</para>
+        /// <para>返回 true = 已进入插队写队列；false = 入队失败（连接不存在/未连接、变量未注册、
+        /// 插队队列已满、Worker 已释放），<paramref name="error"/> 是可直接展示的中文原因。</para>
+        /// <para>设备写失败**不通过返回值报告**：命令已经交给 Worker，调用方已经返回；
+        /// 晚到的失败走 <see cref="OnCommunicationError"/> 与日志，不改变本次结果。</para>
+        /// </summary>
+        bool TryTriggerWriteNow(string connectionName, string variableName, object rawValue, out string? error);
+
         #endregion
 
         #region 变量管理

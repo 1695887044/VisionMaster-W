@@ -85,37 +85,37 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>最多显示几行（超出的截断；表头的计数仍报全量）</summary>
         [ScadaProperty(Key = "MaxRows", DisplayName = "最多显示", Kind = ElementPropertyKind.Number,
-                       Group = "数据", DefaultValue = "5", Min = 1, Max = 50,
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "5", Min = 1, Max = 50,
                        Description = "最多画几行，超出的不画（表头计数仍报全量）；" +
                                      "行数多到超出控件高度时会出现滚动条，所以这里不必留余量")]
         public partial int MaxRows { get; set; }
 
         /// <summary>一条报警都没有时显示的那句话</summary>
         [ScadaProperty(Key = "EmptyText", DisplayName = "无报警提示", Kind = ElementPropertyKind.Text,
-                       Group = "文字", DefaultValue = "系统正常",
+                       Group = ScadaPropertyGroups.Text, DefaultValue = "系统正常",
                        Description = "一条报警都没有时显示的字；设计期预览看到的也是它")]
         public partial string? EmptyText { get; set; }
 
         /// <summary>没有报警时左侧色条与徽标的颜色（"一切正常"的绿）</summary>
         [ScadaProperty(Key = "NormalColor", DisplayName = "正常色", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FF34C759",
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FF34C759",
                        Description = "没有报警时左侧色条的颜色；与多态灯、泵、管道的「运行绿」是同一个色")]
         public partial Brush? NormalColor { get; set; }
 
         /// <summary>提示级报警的颜色</summary>
         [ScadaProperty(Key = "InfoColor", DisplayName = "提示色", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FF3B82F6")]
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FF3B82F6")]
         public partial Brush? InfoColor { get; set; }
 
         /// <summary>警告级报警的颜色</summary>
         [ScadaProperty(Key = "WarningColor", DisplayName = "警告色", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FFFFB020",
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FFFFB020",
                        Description = "警告级报警的颜色；与多态灯的「警告黄」同色，整幅画面一套语汇")]
         public partial Brush? WarningColor { get; set; }
 
         /// <summary>严重级报警的颜色（也是"要闪"的那一档）</summary>
         [ScadaProperty(Key = "CriticalColor", DisplayName = "严重色", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FFE03A2B",
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FFE03A2B",
                        Description = "严重级报警的颜色（也是触发闪烁的那一档）；与多态灯的「报警红」同色")]
         public partial Brush? CriticalColor { get; set; }
 

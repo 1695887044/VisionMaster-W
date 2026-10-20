@@ -21,6 +21,8 @@
         <!--  分类名 → 分类专属色画刷（ToolboxCategoryVisuals.BrushFor）：算子行图标按分类上色；
               分类为 null / 未知时该转换器已回落中性灰（老方案或程序创建的步骤可能没带 Category）。  -->
         <helpers:CategoryAccentBrushConverter x:Key="CategoryAccentBrushConverter" />
+        <helpers:CategorySoftBrushConverter x:Key="CategorySoftBrushConverter" />
+        <helpers:CategoryBorderBrushConverter x:Key="CategoryBorderBrushConverter" />
 
         <!--  ==========================================  -->
         <!--  🎨 流程栏行容器（v2：整行铺满，悬停/选中用底色表达）  -->
@@ -78,7 +80,7 @@
                                         Margin="1,0,0,0"
                                         HorizontalAlignment="Left"
                                         VerticalAlignment="Center"
-                                        Background="{StaticResource AccentBrush}"
+                                        Background="{StaticResource FlowCanvasNodeSelectedBorderBrush}"
                                         CornerRadius="1.5"
                                         Visibility="Collapsed" />
                                 </Grid>
@@ -106,7 +108,7 @@
                                 <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource LogicSelectionSoftBrush}" />
                                 <Setter TargetName="SelBar" Property="Visibility" Value="Visible" />
                             </Trigger>
                             <MultiTrigger>
@@ -145,7 +147,7 @@
                     <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type TreeViewItem}}}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                    <Setter Property="Background" Value="{StaticResource LogicSelectionSoftBrush}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -167,6 +169,22 @@
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
         </Style>
 
+        <!--  flow-logic 容器类型徽标：IF / WHILE / FOR / PAR / CASE  -->
+        <Style x:Key="ContainerTypeBadgeStyle" TargetType="Border">
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Padding" Value="5,0" />
+            <Setter Property="Margin" Value="0,0,7,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style x:Key="ContainerTypeBadgeTextStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="9.5" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{StaticResource FlowCanvasOnTypeBadgeTextBrush}" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+        </Style>
+
         <Style x:Key="ContainerTypeTextStyle" TargetType="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="FontSize" Value="11" />
@@ -177,7 +195,7 @@
 
         <Style x:Key="ContainerMetaTextStyle" TargetType="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontSize" Value="10.5" />
             <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
             <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
         </Style>
@@ -236,13 +254,18 @@
           是在改别的东西，不能误删当前选中的模块（元素级绑定只在其子树持焦点时触发）  -->
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
+        <!--  v2：程序面板合并进流程导航。FlowListView 自带 VM（AutoWire），
+              这里只负责把它放在当前流程树上方；不再单独占用一个 AvalonDock 窗格。  -->
+        <local:FlowListView Grid.Row="0" Height="112" />
+
         <TreeView
             x:Name="StepTree"
-            Grid.Row="0"
+            Grid.Row="1"
             dd:DragDrop.DragHandler="{Binding}"
             dd:DragDrop.DropHandler="{Binding}"
             dd:DragDrop.IsDragSource="True"
@@ -355,19 +378,21 @@
                             <!--  分类色图标块（26px / 圆角 7）+ 断点小红点  -->
                             <Grid
                                 Grid.Column="1"
-                                Width="26"
-                                Height="26"
-                                Margin="2,0,9,0">
+                                Width="24"
+                                Height="24"
+                                Margin="0,0,7,0">
                                 <Border
                                     x:Name="IconChip"
-                                    Background="{StaticResource DialogAccentSoftBrush}"
+                                    Background="{Binding Category, Converter={StaticResource CategorySoftBrushConverter}}"
+                                    BorderBrush="{Binding Category, Converter={StaticResource CategoryBorderBrushConverter}}"
+                                    BorderThickness="1"
                                     CornerRadius="7">
                                     <TextBlock
                                         x:Name="IconText"
                                         HorizontalAlignment="Center"
                                         VerticalAlignment="Center"
                                         FontFamily="{StaticResource Icon}"
-                                        FontSize="13"
+                                        FontSize="12.5"
                                         Foreground="{Binding Category, Converter={StaticResource CategoryAccentBrushConverter}}"
                                         Text="{Binding Icon}"
                                         TextOptions.TextFormattingMode="Display" />
@@ -398,7 +423,7 @@
                             <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                 <TextBlock
                                     x:Name="NameText"
-                                    FontSize="13"
+                                    FontSize="11.5"
                                     FontWeight="SemiBold"
                                     Foreground="{StaticResource ScadaTextBrush}"
                                     Text="{Binding StepName}"
@@ -407,7 +432,7 @@
                                 <TextBlock
                                     x:Name="TypeText"
                                     Margin="0,1,0,0"
-                                    FontSize="11"
+                                    FontSize="10.5"
                                     Foreground="{StaticResource ScadaSecondaryTextBrush}"
                                     Text="{Binding PluginName}"
                                     TextTrimming="CharacterEllipsis"
@@ -542,7 +567,7 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Border x:Name="AccentBar" Style="{StaticResource ContainerAccentBarStyle}" Background="{StaticResource ScadaSecondaryTextBrush}" />
+                            <Border x:Name="AccentBar" Style="{StaticResource ContainerAccentBarStyle}" Background="{StaticResource LogicIfBrush}" />
                             <Grid Grid.Column="1" Margin="19,0,12,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -550,16 +575,15 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Orientation="Horizontal" ToolTip="点击配置分支输入变量">
-                                    <TextBlock Style="{StaticResource ContainerTypeIconStyle}" Foreground="{StaticResource ScadaSecondaryTextBrush}" Text="{Binding Icon}" />
-                                    <TextBlock Style="{StaticResource ContainerTypeTextStyle}" Foreground="{StaticResource ScadaSecondaryTextBrush}" Text="逻辑路由" />
-                                </StackPanel>
+                                <Border Style="{StaticResource ContainerTypeBadgeStyle}" Background="{StaticResource LogicIfBrush}" ToolTip="点击配置分支输入变量">
+                                    <TextBlock Style="{StaticResource ContainerTypeBadgeTextStyle}" Text="IF" />
+                                </Border>
                                 <TextBlock
                                     x:Name="HeaderName"
                                     Grid.Column="1"
                                     Margin="0,0,10,0"
                                     VerticalAlignment="Center"
-                                    FontSize="13"
+                                    FontSize="12.5"
                                     FontWeight="SemiBold"
                                     Foreground="{StaticResource ScadaTextBrush}"
                                     Text="{Binding StepName}"
@@ -569,6 +593,14 @@
                                     Grid.Column="2"
                                     VerticalAlignment="Center"
                                     Orientation="Horizontal">
+                                    <TextBlock
+                                        MaxWidth="150"
+                                        Margin="0,0,6,0"
+                                        Style="{StaticResource ContainerMetaTextStyle}"
+                                        Text="{Binding ContainerSummary}"
+                                        TextTrimming="CharacterEllipsis"
+                                        ToolTip="{Binding ContainerSummary}"
+                                        Visibility="{Binding ContainerSummaryVisibility}" />
                                     <TextBlock Style="{StaticResource ContainerMetaTextStyle}" Text="{Binding Children.Count, StringFormat='{}{0} 分支'}" />
                                     <TextBlock Style="{StaticResource ContainerMetaTextStyle}" Text="{Binding TotalStepCount, StringFormat=' · {0} 算子'}" />
                                 </StackPanel>
@@ -598,7 +630,7 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Border x:Name="AccentBar" Style="{StaticResource ContainerAccentBarStyle}" Background="{StaticResource FlowCanvasWarningBrush}" />
+                            <Border x:Name="AccentBar" Style="{StaticResource ContainerAccentBarStyle}" Background="{StaticResource LogicWhileBrush}" />
                             <Grid Grid.Column="1" Margin="19,0,12,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -606,16 +638,15 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Orientation="Horizontal" ToolTip="点击配置循环条件">
-                                    <TextBlock Style="{StaticResource ContainerTypeIconStyle}" Foreground="{StaticResource FlowCanvasWarningBrush}" Text="{Binding Icon}" />
-                                    <TextBlock Style="{StaticResource ContainerTypeTextStyle}" Foreground="{StaticResource FlowCanvasWarningBrush}" Text="While 循环" />
-                                </StackPanel>
+                                <Border Style="{StaticResource ContainerTypeBadgeStyle}" Background="{StaticResource LogicWhileBrush}" ToolTip="点击配置循环条件">
+                                    <TextBlock Style="{StaticResource ContainerTypeBadgeTextStyle}" Text="WHILE" />
+                                </Border>
                                 <TextBlock
                                     x:Name="HeaderName"
                                     Grid.Column="1"
                                     Margin="0,0,10,0"
                                     VerticalAlignment="Center"
-                                    FontSize="13"
+                                    FontSize="12.5"
                                     FontWeight="SemiBold"
                                     Foreground="{StaticResource ScadaTextBrush}"
                                     Text="{Binding StepName}"
@@ -625,6 +656,14 @@
                                     Grid.Column="2"
                                     VerticalAlignment="Center"
                                     Orientation="Horizontal">
+                                    <TextBlock
+                                        MaxWidth="150"
+                                        Margin="0,0,6,0"
+                                        Style="{StaticResource ContainerMetaTextStyle}"
+                                        Text="{Binding ContainerSummary}"
+                                        TextTrimming="CharacterEllipsis"
+                                        ToolTip="{Binding ContainerSummary}"
+                                        Visibility="{Binding ContainerSummaryVisibility}" />
                                     <TextBlock Style="{StaticResource ContainerMetaTextStyle}" Text="循环体" />
                                     <TextBlock Style="{StaticResource ContainerMetaTextStyle}" Text="{Binding TotalStepCount, StringFormat=' · {0} 算子'}" />
                                 </StackPanel>
@@ -693,19 +732,21 @@
 
                             <Grid
                                 Grid.Column="1"
-                                Width="26"
-                                Height="26"
-                                Margin="2,0,9,0">
+                                Width="24"
+                                Height="24"
+                                Margin="0,0,7,0">
                                 <Border
                                     x:Name="IconChip"
-                                    Background="{StaticResource DialogAccentSoftBrush}"
+                                    Background="{Binding Category, Converter={StaticResource CategorySoftBrushConverter}}"
+                                    BorderBrush="{Binding Category, Converter={StaticResource CategoryBorderBrushConverter}}"
+                                    BorderThickness="1"
                                     CornerRadius="7">
                                     <TextBlock
                                         x:Name="IconText"
                                         HorizontalAlignment="Center"
                                         VerticalAlignment="Center"
                                         FontFamily="{StaticResource Icon}"
-                                        FontSize="13"
+                                        FontSize="12.5"
                                         Foreground="{StaticResource DialogAccentBrush}"
                                         Text="{Binding Icon}"
                                         TextOptions.TextFormattingMode="Display" />
@@ -736,7 +777,7 @@
                             <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                 <TextBlock
                                     x:Name="NameText"
-                                    FontSize="13"
+                                    FontSize="11.5"
                                     FontWeight="SemiBold"
                                     Foreground="{StaticResource ScadaTextBrush}"
                                     Text="{Binding StepName}"
@@ -842,7 +883,7 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Border x:Name="AccentBar" Style="{StaticResource ContainerAccentBarStyle}" Background="{StaticResource FlowCanvasSuccessBrush}" />
+                            <Border x:Name="AccentBar" Style="{StaticResource ContainerAccentBarStyle}" Background="{StaticResource LogicForBrush}" />
                             <Grid Grid.Column="1" Margin="19,0,12,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -850,16 +891,15 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Orientation="Horizontal" ToolTip="计次循环容器">
-                                    <TextBlock Style="{StaticResource ContainerTypeIconStyle}" Foreground="{StaticResource FlowCanvasSuccessBrush}" Text="{Binding Icon}" />
-                                    <TextBlock Style="{StaticResource ContainerTypeTextStyle}" Foreground="{StaticResource FlowCanvasSuccessBrush}" Text="For 循环" />
-                                </StackPanel>
+                                <Border Style="{StaticResource ContainerTypeBadgeStyle}" Background="{StaticResource LogicForBrush}" ToolTip="计次循环容器">
+                                    <TextBlock Style="{StaticResource ContainerTypeBadgeTextStyle}" Text="FOR" />
+                                </Border>
                                 <TextBlock
                                     x:Name="HeaderName"
                                     Grid.Column="1"
                                     Margin="0,0,10,0"
                                     VerticalAlignment="Center"
-                                    FontSize="13"
+                                    FontSize="12.5"
                                     FontWeight="SemiBold"
                                     Foreground="{StaticResource ScadaTextBrush}"
                                     Text="{Binding StepName}"
@@ -869,6 +909,14 @@
                                     Grid.Column="2"
                                     VerticalAlignment="Center"
                                     Orientation="Horizontal">
+                                    <TextBlock
+                                        MaxWidth="150"
+                                        Margin="0,0,6,0"
+                                        Style="{StaticResource ContainerMetaTextStyle}"
+                                        Text="{Binding ContainerSummary}"
+                                        TextTrimming="CharacterEllipsis"
+                                        ToolTip="{Binding ContainerSummary}"
+                                        Visibility="{Binding ContainerSummaryVisibility}" />
                                     <TextBlock Style="{StaticResource ContainerMetaTextStyle}" Text="循环体" />
                                     <TextBlock Style="{StaticResource ContainerMetaTextStyle}" Text="{Binding TotalStepCount, StringFormat=' · {0} 算子'}" />
                                 </StackPanel>
@@ -899,7 +947,7 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Border x:Name="AccentBar" Style="{StaticResource ContainerAccentBarStyle}" Background="{StaticResource ScadaAccentBrush}" />
+                            <Border x:Name="AccentBar" Style="{StaticResource ContainerAccentBarStyle}" Background="{StaticResource LogicParallelBrush}" />
                             <Grid Grid.Column="1" Margin="19,0,12,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -907,19 +955,15 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel
-                                    VerticalAlignment="Center"
-                                    Orientation="Horizontal"
-                                    ToolTip="并行分组容器（分支并列执行：顺序模式逐分支跑完汇合，并行模式真并发）">
-                                    <TextBlock Style="{StaticResource ContainerTypeIconStyle}" Foreground="{StaticResource ScadaAccentBrush}" Text="{Binding Icon}" />
-                                    <TextBlock Style="{StaticResource ContainerTypeTextStyle}" Foreground="{StaticResource ScadaAccentBrush}" Text="并行分组" />
-                                </StackPanel>
+                                <Border Style="{StaticResource ContainerTypeBadgeStyle}" Background="{StaticResource LogicParallelBrush}" ToolTip="并行分组容器（分支并列执行：顺序模式逐分支跑完汇合，并行模式真并发）">
+                                    <TextBlock Style="{StaticResource ContainerTypeBadgeTextStyle}" Text="PAR" />
+                                </Border>
                                 <TextBlock
                                     x:Name="HeaderName"
                                     Grid.Column="1"
                                     Margin="0,0,10,0"
                                     VerticalAlignment="Center"
-                                    FontSize="13"
+                                    FontSize="12.5"
                                     FontWeight="SemiBold"
                                     Foreground="{StaticResource ScadaTextBrush}"
                                     Text="{Binding StepName}"
@@ -929,6 +973,14 @@
                                     Grid.Column="2"
                                     VerticalAlignment="Center"
                                     Orientation="Horizontal">
+                                    <TextBlock
+                                        MaxWidth="150"
+                                        Margin="0,0,6,0"
+                                        Style="{StaticResource ContainerMetaTextStyle}"
+                                        Text="{Binding ContainerSummary}"
+                                        TextTrimming="CharacterEllipsis"
+                                        ToolTip="{Binding ContainerSummary}"
+                                        Visibility="{Binding ContainerSummaryVisibility}" />
                                     <TextBlock Style="{StaticResource ContainerMetaTextStyle}" Text="{Binding Children.Count, StringFormat='{}{0} 分支'}" />
                                     <TextBlock Style="{StaticResource ContainerMetaTextStyle}" Text="{Binding TotalStepCount, StringFormat=' · {0} 算子'}" />
                                 </StackPanel>
@@ -958,7 +1010,7 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Border x:Name="AccentBar" Style="{StaticResource ContainerAccentBarStyle}" Background="{StaticResource DialogAccentBrush}" />
+                            <Border x:Name="AccentBar" Style="{StaticResource ContainerAccentBarStyle}" Background="{StaticResource LogicCaseBrush}" />
                             <Grid Grid.Column="1" Margin="19,0,12,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -966,19 +1018,15 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel
-                                    VerticalAlignment="Center"
-                                    Orientation="Horizontal"
-                                    ToolTip="分支匹配容器（按判据的匹配值选择分支；未命中走默认分支）">
-                                    <TextBlock Style="{StaticResource ContainerTypeIconStyle}" Foreground="{StaticResource DialogAccentBrush}" Text="{Binding Icon}" />
-                                    <TextBlock Style="{StaticResource ContainerTypeTextStyle}" Foreground="{StaticResource DialogAccentBrush}" Text="分支匹配" />
-                                </StackPanel>
+                                <Border Style="{StaticResource ContainerTypeBadgeStyle}" Background="{StaticResource LogicCaseBrush}" ToolTip="分支匹配容器（按判据的匹配值选择分支；未命中走默认分支）">
+                                    <TextBlock Style="{StaticResource ContainerTypeBadgeTextStyle}" Text="CASE" />
+                                </Border>
                                 <TextBlock
                                     x:Name="HeaderName"
                                     Grid.Column="1"
                                     Margin="0,0,10,0"
                                     VerticalAlignment="Center"
-                                    FontSize="13"
+                                    FontSize="12.5"
                                     FontWeight="SemiBold"
                                     Foreground="{StaticResource ScadaTextBrush}"
                                     Text="{Binding StepName}"
@@ -988,6 +1036,14 @@
                                     Grid.Column="2"
                                     VerticalAlignment="Center"
                                     Orientation="Horizontal">
+                                    <TextBlock
+                                        MaxWidth="150"
+                                        Margin="0,0,6,0"
+                                        Style="{StaticResource ContainerMetaTextStyle}"
+                                        Text="{Binding ContainerSummary}"
+                                        TextTrimming="CharacterEllipsis"
+                                        ToolTip="{Binding ContainerSummary}"
+                                        Visibility="{Binding ContainerSummaryVisibility}" />
                                     <TextBlock Style="{StaticResource ContainerMetaTextStyle}" Text="{Binding Children.Count, StringFormat='{}{0} 分支'}" />
                                     <TextBlock Style="{StaticResource ContainerMetaTextStyle}" Text="{Binding TotalStepCount, StringFormat=' · {0} 算子'}" />
                                 </StackPanel>
@@ -1014,12 +1070,12 @@
                     <Grid>
                         <Border
                             x:Name="BranchContainer"
-                            MinHeight="32"
+                            MinHeight="28"
                             Margin="-22,2,2,2"
                             Padding="0"
-                            Background="{StaticResource DialogAccentSoftBrush}"
-                            BorderBrush="{StaticResource DialogBorderLightBrush}"
-                            BorderThickness="1"
+                            Background="{StaticResource LogicIfSoftBrush}"
+                            BorderBrush="{StaticResource LogicIfBorderBrush}"
+                            BorderThickness="2,0,0,0"
                             CornerRadius="8"
                             ToolTip="将算子拖入此分支内部">
                             <Border.Style>
@@ -1070,7 +1126,7 @@
                                     x:Name="BranchText"
                                     Grid.Column="1"
                                     VerticalAlignment="Center"
-                                    FontSize="12"
+                                    FontSize="10.5"
                                     FontWeight="SemiBold"
                                     Foreground="{StaticResource ScadaTextBrush}"
                                     Text="{Binding DisplayName}"
@@ -1081,7 +1137,7 @@
                                     Grid.Column="2"
                                     Margin="10,0,0,0"
                                     VerticalAlignment="Center"
-                                    FontSize="11"
+                                    FontSize="10"
                                     Foreground="{StaticResource ScadaSecondaryTextBrush}"
                                     Text="{Binding Steps.Count, StringFormat='{}{0} 个算子'}"
                                     Typography.NumeralAlignment="Tabular" />
@@ -1090,7 +1146,7 @@
                                     Grid.Column="2"
                                     Margin="10,0,0,0"
                                     VerticalAlignment="Center"
-                                    FontSize="11"
+                                    FontSize="10"
                                     Foreground="{StaticResource ScadaSecondaryTextBrush}"
                                     Text="拖入算子"
                                     Visibility="Collapsed" />
@@ -1137,48 +1193,48 @@
                             <Setter TargetName="BranchText" Property="Foreground" Value="{StaticResource ScadaLabelTextBrush}" />
                         </DataTrigger>
 
-                        <!--  循环体（浅绿身份）：Default(For) 与 WhileLoop(While)  -->
+                        <!--  循环体：Default(For) 与 WhileLoop(While)  -->
                         <DataTrigger Binding="{Binding BranchType}" Value="Default">
-                            <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
-                            <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource DialogSuccessBrush}" />
-                            <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasSuccessBrush}" />
+                            <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource LogicForSoftBrush}" />
+                            <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource LogicForBrush}" />
+                            <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource LogicForBrush}" />
                             <Setter TargetName="BranchText" Property="Foreground" Value="{StaticResource ScadaLabelTextBrush}" />
                         </DataTrigger>
                         <DataTrigger Binding="{Binding BranchType}" Value="WhileLoop">
-                            <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
-                            <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource DialogSuccessBrush}" />
-                            <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasSuccessBrush}" />
+                            <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource LogicWhileSoftBrush}" />
+                            <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource LogicWhileBrush}" />
+                            <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource LogicWhileBrush}" />
                             <Setter TargetName="BranchText" Property="Foreground" Value="{StaticResource ScadaLabelTextBrush}" />
                         </DataTrigger>
 
-                        <!--  Case 分支（青蓝身份）  -->
+                        <!--  Case 分支（紫身份）  -->
                         <DataTrigger Binding="{Binding BranchType}" Value="Case">
-                            <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
-                            <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
-                            <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource DialogAccentBrush}" />
+                            <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource LogicCaseSoftBrush}" />
+                            <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource LogicCaseBorderBrush}" />
+                            <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource LogicCaseBrush}" />
                             <Setter TargetName="BranchText" Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
                         </DataTrigger>
 
-                        <!--  并行分组的分支（蓝身份；AncestorLevel=2 即父容器项）  -->
+                        <!--  并行分组的分支（天蓝身份；AncestorLevel=2 即父容器项）  -->
                         <DataTrigger Binding="{Binding DataContext.ExecutionMode, RelativeSource={RelativeSource AncestorType={x:Type TreeViewItem}, AncestorLevel=2}}" Value="Sequential">
-                            <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
-                            <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
-                            <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource ScadaAccentBrush}" />
+                            <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource LogicParallelSoftBrush}" />
+                            <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource LogicParallelBorderBrush}" />
+                            <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource LogicParallelBrush}" />
                             <Setter TargetName="BranchText" Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
                         </DataTrigger>
                         <DataTrigger Binding="{Binding DataContext.ExecutionMode, RelativeSource={RelativeSource AncestorType={x:Type TreeViewItem}, AncestorLevel=2}}" Value="Parallel">
-                            <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
-                            <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
-                            <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource ScadaAccentBrush}" />
+                            <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource LogicParallelSoftBrush}" />
+                            <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource LogicParallelBorderBrush}" />
+                            <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource LogicParallelBrush}" />
                             <Setter TargetName="BranchText" Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
                         </DataTrigger>
 
-                        <!--  并行分支运行中（真并发）：整行绿  -->
+                        <!--  并行分支运行中（真并发）：蓝身份  -->
                         <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                            <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
-                            <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource DialogSuccessBrush}" />
-                            <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasSuccessBrush}" />
-                            <Setter TargetName="BranchText" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                            <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource LogicSelectionSoftBrush}" />
+                            <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource FlowCanvasRunningBrush}" />
+                            <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasRunningBrush}" />
+                            <Setter TargetName="BranchText" Property="Foreground" Value="{StaticResource FlowCanvasRunningBrush}" />
                         </DataTrigger>
 
                         <!--  缺条件统一红灯（放在最后：红压绿/压身份色）  -->
@@ -1241,7 +1297,7 @@
                     <MenuItem
                         Command="{Binding ModuleActionCommand}"
                         CommandParameter="{x:Static enums:ModuleCommandAction.ModuleParameters}"
-                        Header="模块参数"
+                        Header="步骤参数"
                         Icon="sliders" />
                     <Separator />
                     <MenuItem
@@ -1269,7 +1325,7 @@
 
         <!--  执行统计两行（v2：次要色 + 等宽数字，不再压透明度）  -->
         <Border
-            Grid.Row="1"
+            Grid.Row="2"
             Margin="8,2,8,4"
             Padding="0,6,0,0"
             BorderBrush="{StaticResource DialogBorderLightBrush}"

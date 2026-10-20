@@ -13,6 +13,7 @@ using UI.CustomControl;
 using VisionMaster.Helpers;
 using VisionMaster.Models;
 using VisionMaster.Services;
+using VisionMaster.Services.Hardware;
 
 namespace VisionMaster.ViewModels.DialogViewModels
 {
@@ -235,7 +236,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
     ///   ② 溢出 > 0 时整块红色告警，把"每一帧都是一个没被检测的工件"这句话说出来。
     /// 把它们合并成一个"丢弃数"，现场就会把它当性能指标而不是质量事故。
     /// </summary>
-    public class CameraSettingsViewModel : BindableBase, IDialogAware
+    public class CameraSettingsViewModel : BindableBase, IDialogAware, IEmbeddedDialogPage, IHardwareEditGateAware
     {
         private readonly CameraProvider _provider;
         private readonly NetworkCameraServer _networkServer;
@@ -249,6 +250,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>窗口已关闭：迟到的回调不再碰界面</summary>
         private bool _closed;
+
+        /// <summary>嵌入页生命周期标记（批次 C）：Opened/Closed 各一次，Active 可多次</summary>
+        private bool _embeddedOpened;
+        private bool _embeddedActive;
+        private bool _embeddedClosed;
+
+        private bool _isConfigEditable = true;
+        private bool _isRuntimeOperable = true;
+        private string? _configEditHint;
+        private string? _runtimeEditHint;
 
         /// <summary>装载参数期间为 true：避免"选中相机 → 灌参数"这一步把值又当成用户输入写回配置</summary>
         private bool _loadingParams;
@@ -323,6 +334,81 @@ namespace VisionMaster.ViewModels.DialogViewModels
             // 每一行都要退订设备的 StateChanged（见 CameraRowViewModel.Dispose）
             foreach (var row in Cameras) row.Dispose();
             Cameras.Clear();
+        }
+
+        #endregion
+
+        #region 嵌入页（批次 C）
+
+        /// <summary>配置区（增删相机 / 采集参数 / 删除）是否可编辑。宿主每 1 秒刷新一次。</summary>
+        public bool IsConfigEditable
+        {
+            get => _isConfigEditable;
+            private set => SetProperty(ref _isConfigEditable, value);
+        }
+
+        /// <summary>运行操作（连接 / 断开 / 采流 / 清零计数）是否可执行。</summary>
+        public bool IsRuntimeOperable
+        {
+            get => _isRuntimeOperable;
+            private set => SetProperty(ref _isRuntimeOperable, value);
+        }
+
+        public string? ConfigEditHint
+        {
+            get => _configEditHint;
+            private set => SetProperty(ref _configEditHint, value);
+        }
+
+        public string? RuntimeEditHint
+        {
+            get => _runtimeEditHint;
+            private set => SetProperty(ref _runtimeEditHint, value);
+        }
+
+        public void ApplyEditGate(bool canEditConfig, bool canOperateRuntime, string? configReason, string? runtimeReason)
+        {
+            IsConfigEditable = canEditConfig;
+            IsRuntimeOperable = canOperateRuntime;
+            ConfigEditHint = configReason;
+            RuntimeEditHint = runtimeReason;
+        }
+
+        public void OnEmbeddedOpened(IDialogParameters parameters)
+        {
+            if (_embeddedOpened || _closed) return;
+            _embeddedOpened = true;
+            _embeddedActive = true;
+            OnDialogOpened(parameters);
+        }
+
+        public void OnEmbeddedActivated()
+        {
+            if (!_embeddedOpened || _embeddedClosed || _embeddedActive) return;
+            _embeddedActive = true;
+            _previewTimer.Start();
+        }
+
+        public void OnEmbeddedDeactivated()
+        {
+            if (!_embeddedActive) return;
+            _embeddedActive = false;
+            // 只停预览；不退订 DevicesChanged、不 Dispose 行——切回来还要用。
+            _previewTimer.Stop();
+        }
+
+        public void OnEmbeddedClosed()
+        {
+            if (!_embeddedOpened || _embeddedClosed) return;
+            _embeddedClosed = true;
+            _embeddedActive = false;
+            OnDialogClosed();
+        }
+
+        public bool CanCloseEmbedded(out string? reason)
+        {
+            reason = null;
+            return true;
         }
 
         #endregion

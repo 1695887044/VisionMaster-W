@@ -8,6 +8,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
+using UI.CustomControl;
 using VisionMaster.Binding;
 using VisionMaster.Communications;
 using VisionMaster.Core;
@@ -15,6 +16,7 @@ using VisionMaster.Engine;
 using VisionMaster.Lifetime;
 using VisionMaster.Lifetime.Checks;
 using VisionMaster.Services;
+using VisionMaster.Services.Hardware;
 using VisionMaster.Services.Help;
 using VisionMaster.Scada;
 using VisionMaster.Scada.Controls;
@@ -156,6 +158,20 @@ namespace VisionMaster
             // ===== 模块注册：通讯/引擎子系统自装配 =====
             _modules.Add(new CommunicationModule());
             _modules.Add(new FlowEngineModule());
+
+            // IO → 通讯 折算钩子：加载方案时把旧 IO 配置折成"连接 + 网络变量"。
+            // 为什么用钩子：Core 引用不到 Communication 的配置/地址类型（依赖方向不允许反过来），
+            // 所以真正的翻译动作由本层注入。未挂接时跳过折算，旧 IO 字段照常可用。
+            // 注意：RegisterTypes 阶段容器尚未构建，这里**不能** Resolve，只写 Debug 痕迹。
+            SolutionService.IoMigrationHook = solution =>
+            {
+                var (connections, variables) = VisionMaster.Communications.IoMigrationApplier.Apply(solution);
+                if (connections > 0 || variables > 0)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[IO→通讯] 已折算 {connections} 条连接 / {variables} 个变量");
+                }
+            };
             // 收图服务放在最后：它初始化时要解析 IRuntimeManager / IFlowEngine / FlowCompiler，
             // 这几个都由上面的引擎模块注册，顺序错了 Initialize 会解析不到
             _modules.Add(new HttpImageServerModule());
@@ -166,14 +182,17 @@ namespace VisionMaster
             // 让相机先就绪更贴合实际使用顺序；而且运动卡自动连接会**给伺服上电**，
             // 这类会动的东西排在收图/相机等外围服务之后，出问题时日志里更好定位。
             _modules.Add(new MotionModule());
-            // IO 子系统：设备/点位配置随方案走，变量投影到系统变量。
-            _modules.Add(new VisionMaster.Services.Io.IoModule());
+            // 注：IO 接入层已下线——设备/点位配置改由"通讯连接 + 网络变量"承载
+            // （旧 IO 配置在方案加载时由 IoMigrationHook 一次性折算，见下方注册）。
             foreach (var module in _modules)
                 module.Register(containerRegistry);
 
             containerRegistry.RegisterSingleton<SolutionService>();
             containerRegistry.RegisterSingleton<SolutionDraftService>();
             containerRegistry.RegisterSingleton<WorkspaceContext>();
+            // 写租约：与具体协议无关（键是 "{连接名}.{变量名}"），网络变量的显式写走它仲裁，
+            // 并行分支抢同一个输出时后者被明确拒绝，而不是"最后写入者赢"。
+            containerRegistry.RegisterSingleton<VisionMaster.Services.WriteLeaseRegistry>();
             containerRegistry.RegisterSingleton<NetworkVariableBridge>();
             // 图像集：把流程输出的图像按流程收成一个集合，供视觉图像页"图集模式"显示
             containerRegistry.RegisterSingleton<ImageCollectionService>();
@@ -319,15 +338,14 @@ namespace VisionMaster
             // 分派点在 StepParameterDialog（命中窗的「打开模块参数」与流程栏共用同一处）。
             containerRegistry.RegisterDialog<FlowManagerView, FlowManagerViewModel>("FlowManagerView");
             containerRegistry.RegisterDialog<CommunicationSettingsView, CommunicationSettingsViewModel>("CommunicationSettingsView");
-            containerRegistry.RegisterDialog<IoConfigView, IoConfigViewModel>("IoConfigView");
 
-            // 系统健康：四域只读诊断（通讯/相机/运动/IO）。
+            // 系统健康：三域只读诊断（通讯/相机/运动）。
+            // IO 域已随 IO 接入层下线——IO 点位现在就是网络变量，其采集健康度看通讯域。
             // 三个采集器用显式工厂注册：构造函数里带可选委托（时钟等），
             // 让 Unity 自己挑构造函数会去解析无法注册的 Func<long>。
             containerRegistry.RegisterSingleton<Services.Health.CommunicationHealthMonitor>(c =>
                 new Services.Health.CommunicationHealthMonitor(
-                    c.Resolve<AdvancedCommunicationManager>(),
-                    c.Resolve<IIoProvider>()));
+                    c.Resolve<AdvancedCommunicationManager>()));
             containerRegistry.RegisterSingleton<Services.Health.CameraHealthMonitor>(c =>
                 new Services.Health.CameraHealthMonitor(c.Resolve<ICameraProvider>()));
             containerRegistry.RegisterSingleton<Services.Health.MotionHealthMonitor>(c =>
@@ -341,16 +359,22 @@ namespace VisionMaster
             // 旧的"运动设置 / 手动调试 / 轴点位表"三个独立弹窗已退役 —— UI 无入口（SystemAction 只发
             // MotionBoard），功能由板卡对应页签承担；点动看门狗的安全判断已收敛进 MotionJogGuard。
             containerRegistry.RegisterDialog<MotionBoardView, MotionBoardViewModel>("MotionBoardView");
+            // 硬件管理（批次 A/B）：统一入口 + 只读概览；批次 C 起嵌入三个域页面。
+            // 门禁与运行态查询在宿主层注册一次，三个嵌入页共用同一份判定。
+            containerRegistry.RegisterSingleton<IFlowRunState, WorkspaceFlowRunState>();
+            containerRegistry.RegisterSingleton<IHardwareEditGate, HardwareEditGate>();
+            containerRegistry.RegisterDialog<HardwareManagerView, HardwareManagerViewModel>("HardwareManagerView");
             // 扫描组编辑器：从连接设置的设备表格操作列进入，编辑的是**连接级**的组表
             // （一条连接一个组表；变量只存组名引用，见 ScanGroupEditorViewModel 注释）
             containerRegistry.RegisterDialog<ScanGroupEditorView, ScanGroupEditorViewModel>(
                 ScanGroupEditorViewModel.DialogName);
-            // 运行窗口形态设置（依附主窗口 / 独立窗口）：软件级偏好，落 AppConfig.json
-            containerRegistry.RegisterDialog<ScadaRunWindowSettingsView, ScadaRunWindowSettingsViewModel>("ScadaRunWindowSettingsView");
-            // 系统参数设置（空闲自动登出时长 / 审计保留 / 报警历史保留）：同为软件级偏好，落 AppConfig.json。
-            // 这三项原来都是代码里的常量，改一次要重编一次软件；现在由这个弹窗写盘，
-            // 用它的地方（空闲计时器、两个落盘端）每次现读配置，所以改完立即生效。
-            containerRegistry.RegisterDialog<ScadaSystemParametersView, ScadaSystemParametersViewModel>("ScadaSystemParametersView");
+            // 系统设置（合并窗口）：运行窗口形态 / 落屏 + 安全与会话 + 历史留档 + 画布（图集）。
+            // 原先的「运行窗口设置」「系统参数设置」两个弹窗写的是同一份东西（程序目录 AppConfig.json），
+            // 口径也逐条相同，现已合并成一个弹窗、由 CardPropertyGrid 按草稿类反射生成正文。
+            // 旧的两个 SystemAction 枚举值保留（整数值可能已落进 Layout.xml / 旧配置），
+            // 由 ShellViewModel 转发到本弹窗的对应页签。
+            containerRegistry.RegisterDialog<ScadaSystemSettingsView, ScadaSystemSettingsViewModel>(
+                ScadaSystemSettingsViewModel.DialogName);
             // 变量事件（按变量配置值驱动的规则：更改数值 / 值为真 / 值为假 / 上限 / 下限）。
             // 与上面两个弹窗相反，它改的是**方案内容**（落 .vms、进撤销栈），所以清单来自
             // 当前方案的 ScadaDocument.VariableEvents + 工程变量表（IWorkspaceManager.GlobalVariables），
@@ -375,13 +399,8 @@ namespace VisionMaster
             //    不必再去追容器把哪个可选参数填成了什么。
             // actorProvider 递的是"此刻登录着谁"（与 ScadaUserStore 同源）：VM 本身不认识会话；
             // 取不到时 ScadaAuditEntry 自己回落"未登录"——那本身也是一条线索（有人没登录就改了配置）。
-            Prism.Mvvm.ViewModelLocationProvider.Register<ScadaRunWindowSettingsView>(() =>
-                new ScadaRunWindowSettingsViewModel(
-                    Container.Resolve<AppSettingsService>(),
-                    Container.Resolve<ScadaAuditWriter>(),
-                    () => Container.Resolve<ScadaAccessPolicy>().CurrentUserName));
-            Prism.Mvvm.ViewModelLocationProvider.Register<ScadaSystemParametersView>(() =>
-                new ScadaSystemParametersViewModel(
+            Prism.Mvvm.ViewModelLocationProvider.Register<ScadaSystemSettingsView>(() =>
+                new ScadaSystemSettingsViewModel(
                     Container.Resolve<AppSettingsService>(),
                     Container.Resolve<ScadaAuditWriter>(),
                     () => Container.Resolve<ScadaAccessPolicy>().CurrentUserName));
@@ -638,28 +657,43 @@ namespace VisionMaster
                 var drafts = Container.Resolve<SolutionDraftService>().TakePendingDrafts();
                 if (crashReport == null && drafts.Count == 0) return;
 
-                var sb = new StringBuilder();
+                // 设计基线 message-dialog v1：把「一段话 + 是/否」换成
+                // 语义图标 + 结构化详情（草稿 / 崩溃现场各一行，可复制）+ 动作化按钮。
+                var options = new MessageDialogOptions
+                {
+                    Severity = MessageSeverity.Warning,
+                    Title = "上次运行的现场",
+                    Message = drafts.Count > 0 && crashReport != null
+                        ? $"检测到 {drafts.Count} 份未保存的方案草稿，以及上次异常退出的现场，已归档到下面的位置。"
+                        : drafts.Count > 0
+                            ? $"检测到 {drafts.Count} 份未保存的方案草稿，已归档到下面的位置。"
+                            : "上次运行发生过严重异常退出，现场已保存到下面的位置。",
+                    Hint = drafts.Count > 0 ? "可用「打开方案」载入草稿继续编辑。" : null,
+                    Question = "现在打开所在目录吗？",
+                    PrimaryText = "打开目录",
+                    SecondaryText = "稍后再说",
+                    Owner = Current.MainWindow,
+                };
+
                 if (drafts.Count > 0)
                 {
-                    sb.AppendLine($"检测到 {drafts.Count} 份未保存的方案草稿，已归档到：");
-                    sb.AppendLine(Path.Combine(SolutionDraftService.DirectoryName, SolutionDraftService.RecoveredDirectoryName));
-                    sb.AppendLine("可用「打开方案」载入继续编辑。");
-                    sb.AppendLine();
+                    options.Details.Add(new MessageDetail(
+                        "方案草稿",
+                        $"{drafts.Count} 份",
+                        Path.Combine(SolutionDraftService.DirectoryName, SolutionDraftService.RecoveredDirectoryName),
+                        MessageChipTone.Accent));
                 }
                 if (crashReport != null)
                 {
-                    sb.AppendLine("上次运行发生过严重异常退出，现场已保存到：");
-                    sb.AppendLine(Path.Combine(CrashReportWriter.DirectoryName, Path.GetFileName(crashReport)));
-                    sb.AppendLine();
+                    options.Details.Add(new MessageDetail(
+                        "崩溃现场",
+                        "1 个",
+                        Path.Combine(CrashReportWriter.DirectoryName, Path.GetFileName(crashReport)),
+                        MessageChipTone.Neutral));
                 }
-                sb.Append("是否现在打开所在目录？");
 
-                var owner = Current.MainWindow;
-                var answer = owner == null
-                    ? MessageBox.Show(sb.ToString(), "上次运行的现场", MessageBoxButton.YesNo, MessageBoxImage.Warning)
-                    : MessageBox.Show(owner, sb.ToString(), "上次运行的现场", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-
-                if (answer == MessageBoxResult.Yes)
+                var answer = MessageDialog.Show(options);
+                if (answer == MessageResult.Primary)
                 {
                     // 优先打开草稿目录（用户的成果），没有草稿才开崩溃目录
                     var dir = drafts.Count > 0

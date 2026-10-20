@@ -15,9 +15,15 @@ namespace VisionMaster.Models
     public class ForStep : StepModel, IContainerStep
     {
         /// <summary>
-        /// 默认循环次数（未被上游连线覆盖时使用）
+        /// 默认循环次数（未被上游连线覆盖时使用）。
+        /// 语义属性：必须走 SetProperty —— FlowModel 靠属性名查 [RuntimeState] 排除名单，
+        /// 不在名单 → Version++ → 触发重编译；画布容器头的“N 次”摘要也靠这条通知刷新。
         /// </summary>
-        public int DefaultLoopCount { get; set; } = 10;
+        public int DefaultLoopCount
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        } = 10;
 
         private ObservableCollection<StepCollection> _children = new();
         private readonly ContainerStepCountWatcher _stepCountWatcher;
@@ -64,7 +70,13 @@ namespace VisionMaster.Models
         public ForStep(string icon, string pluginName, string pluginTypeName, string stepName = null)
             : base(icon, pluginName, pluginTypeName, stepName)
         {
-            _stepCountWatcher = new ContainerStepCountWatcher(() => RaisePropertyChanged(nameof(TotalStepCount)));
+            _stepCountWatcher = new ContainerStepCountWatcher(
+                () => RaisePropertyChanged(nameof(TotalStepCount)),
+                e =>
+                {
+                    if (e.PropertyName is nameof(StepCollection.Expression) or nameof(StepCollection.BranchType))
+                        RaiseContainerSummary();
+                });
             Children.Add(new StepCollection { BranchType = BranchType.Default, StepName = "循环体" });
             _stepCountWatcher.Rebind(Children);
         }

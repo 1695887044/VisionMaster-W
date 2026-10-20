@@ -3,6 +3,10 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
 
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
     <!--
         底板图元的外观：一层底框 + 可选的标题栏 + 承载子图元的画布。
 
@@ -32,18 +36,31 @@
                         Background="{TemplateBinding Fill}"
                         BorderBrush="{TemplateBinding Stroke}"
                         BorderThickness="{TemplateBinding StrokeThickness}"
-                        CornerRadius="{TemplateBinding CornerRadius}">
+                        CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition x:Name="TitleRow" Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
 
-                            <Border
-                                x:Name="TitleBar"
+                            <!--
+                                标题栏圆角跟随底板 CornerRadius（D8）。
+                                做法：圆角 Border 只负责背景，底部再压一条同色矩形把"下两个圆角"
+                                方回去——标题栏只需要上面两个角跟随底板，下面两个角是内容区的直线边界。
+                                文字单独一层放在最上面，因此大圆角把背景盖满时也不会吃掉标题字。
+                                标题栏所在 Grid 负责裁掉超出标题行高的部分（大圆角时不会溢到子画布）。
+                            -->
+                            <Grid
+                                x:Name="TitleHost"
                                 Grid.Row="0"
-                                Background="{TemplateBinding TitleFill}"
-                                CornerRadius="3,3,0,0">
+                                ClipToBounds="True">
+                                <!-- 用 Border + 只圆上两角的转换器：Border.CornerRadius 是 CornerRadius 类型，
+                                     不能直接 TemplateBinding 到 PanelElement.CornerRadius（double），
+                                     实测会静默落到 0；转换器负责 double → CornerRadius，底部两角固定为 0。 -->
+                                <Border
+                                    x:Name="TitleBar"
+                                    Background="{TemplateBinding TitleFill}"
+                                    CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadiusTop}}" />
                                 <TextBlock
                                     x:Name="TitleLabel"
                                     Margin="8,0,8,0"
@@ -54,7 +71,7 @@
                                     FontSize="{TemplateBinding FontSize}"
                                     FontWeight="SemiBold"
                                     TextTrimming="CharacterEllipsis" />
-                            </Border>
+                            </Grid>
 
                             <!-- 子图元的落点。ClipToBounds 让"区域里放不下的东西"被裁掉而不是溢出。
                                  它的坐标原点就是本画布左上角；而本画布在第 1 行（标题栏之下），

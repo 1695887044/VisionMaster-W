@@ -1,0 +1,254 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        数据表格图元（Hmi.DataGrid）。
+
+        与设计基线 docs/UI设计基线/scada-datagrid/design.html §04 对应：
+        标题条 30 / 列头 26 / 行高 28（可配）/ 脚注 24。
+
+        为什么不用 WPF 的 DataGrid：它自带编辑、排序、虚拟化一整套，样式在 Fluent 下更难压，
+        而这里只要"只读展示最近 N 行"。用 ItemsControl + 每格定宽（宽度在 GridCellView 里算好），
+        零转换器、零列定义协调。
+
+        资源顺序：StaticResource 只认"已经读到的"键，所以格子/行模板必须排在使用它们的样式之前。
+    -->
+    <ResourceDictionary.MergedDictionaries>
+        <!--  R30：兄弟分册互相看不见，令牌必须就地合并  -->
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--  一格：宽度、对齐、等宽、错误色都来自 GridCellView（见 DataGridElement）  -->
+    <DataTemplate x:Key="DataGridCell">
+        <TextBlock
+            Width="{Binding Width}"
+            Margin="0,0,6,0"
+            Text="{Binding Text}"
+            TextAlignment="{Binding Align}"
+            TextTrimming="CharacterEllipsis">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                    <Setter Property="FontSize" Value="11.5" />
+                    <Setter Property="Foreground" Value="{StaticResource HmiTextSecondaryBrush}" />
+                    <Style.Triggers>
+                        <!--  等宽 + 主文字色：数字/时间/SN 列扫起来才成一条竖线  -->
+                        <DataTrigger Binding="{Binding Monospace}" Value="True">
+                            <Setter Property="FontFamily" Value="Consolas" />
+                            <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+                        </DataTrigger>
+                        <!--  这一列没取到值（变量不存在/读取失败）：如实标红，不显示空白冒充 0  -->
+                        <DataTrigger Binding="{Binding IsError}" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource HmiDangerBrush}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+    </DataTemplate>
+
+    <!--  列头格：同一份格子数据，换一套字色与字号  -->
+    <DataTemplate x:Key="DataGridHeaderCell">
+        <TextBlock
+            Width="{Binding Width}"
+            Margin="0,0,6,0"
+            VerticalAlignment="Center"
+            FontSize="10.5"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource HmiTextMutedBrush}"
+            Text="{Binding Text}"
+            TextAlignment="{Binding Align}"
+            TextTrimming="CharacterEllipsis" />
+    </DataTemplate>
+
+    <!--
+        行模板：横向排一串格 + 斑马纹。
+        斑马纹走 AlternationCount：容器上带着 AlternationIndex，模板按它换底色，
+        图元不必自己算"这是第几行"。
+    -->
+    <DataTemplate x:Key="DataGridRow">
+        <Border x:Name="RowBorder" Background="Transparent">
+            <ItemsControl
+                Height="{Binding RowHeight, RelativeSource={RelativeSource AncestorType=local:DataGridElement}}"
+                Margin="10,0"
+                ItemTemplate="{StaticResource DataGridCell}"
+                ItemsSource="{Binding Cells}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+        </Border>
+        <DataTemplate.Triggers>
+            <!--  斑马纹：奇偶 + 图元上的「斑马纹」开关（关掉就整表一个底色）  -->
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition
+                        Binding="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
+                        Value="1" />
+                    <Condition
+                        Binding="{Binding Zebra, RelativeSource={RelativeSource AncestorType=local:DataGridElement}}"
+                        Value="True" />
+                </MultiDataTrigger.Conditions>
+                <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource HmiZebraBrush}" />
+            </MultiDataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
+    <Style TargetType="{x:Type local:DataGridElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:DataGridElement}">
+                    <Border
+                        Background="{StaticResource HmiSurfaceBrush}"
+                        BorderBrush="{StaticResource HmiBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!--  标题条  -->
+                            <Border
+                                Grid.Row="0"
+                                Height="30"
+                                Background="{StaticResource HmiSurfaceRaisedBrush}"
+                                BorderBrush="{StaticResource HmiBorderBrush}"
+                                BorderThickness="0,0,0,1"
+                                CornerRadius="7,7,0,0">
+                                <Grid Margin="10,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!--  标题走基类的 Text 属性（与其它图元同一套"文字"配置）  -->
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11.5"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource HmiTextBrush}"
+                                        Text="{TemplateBinding Text}"
+                                        TextTrimming="CharacterEllipsis" />
+
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        FontFamily="Consolas"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource HmiTextMutedBrush}"
+                                        Text="{Binding Rows.Count, RelativeSource={RelativeSource TemplatedParent}, StringFormat='{}{0} 条'}" />
+                                </Grid>
+                            </Border>
+
+                            <!--  列头（没有列定义时整行收起：空表头比空白更让人以为坏了）  -->
+                            <Border
+                                Grid.Row="1"
+                                Height="26"
+                                BorderBrush="{StaticResource HmiBorderBrush}"
+                                BorderThickness="0,0,0,1">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{StaticResource HmiSurfaceRaisedBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HeaderCells.Count, RelativeSource={RelativeSource TemplatedParent}}" Value="0">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <ItemsControl
+                                    Margin="10,0"
+                                    ItemTemplate="{StaticResource DataGridHeaderCell}"
+                                    ItemsSource="{Binding HeaderCells, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                            </Border>
+
+                            <!--  行区  -->
+                            <Grid Grid.Row="2">
+                                <ScrollViewer
+                                    HorizontalScrollBarVisibility="Disabled"
+                                    VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl
+                                        AlternationCount="2"
+                                        ItemTemplate="{StaticResource DataGridRow}"
+                                        ItemsSource="{Binding Rows, RelativeSource={RelativeSource TemplatedParent}}" />
+                                </ScrollViewer>
+
+                                <!--  空态：两种成因分开说（没配采集 / 配了但还没来第一行）  -->
+                                <StackPanel
+                                    Margin="16"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    IsHitTestVisible="False"
+                                    Visibility="{Binding EmptyVisibility, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        FontSize="12"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource HmiTextSecondaryBrush}"
+                                        Text="{Binding EmptyTitle, RelativeSource={RelativeSource TemplatedParent}}" />
+                                    <TextBlock
+                                        Margin="0,4,0,0"
+                                        MaxWidth="260"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource HmiTextMutedBrush}"
+                                        Text="{Binding EmptyHint, RelativeSource={RelativeSource TemplatedParent}}"
+                                        TextAlignment="Center"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!--  脚注：坏列 / 确认写入失败 / 空 = 正常  -->
+                            <Border
+                                Grid.Row="3"
+                                Height="24"
+                                BorderBrush="{StaticResource HmiBorderBrush}"
+                                BorderThickness="0,1,0,0"
+                                CornerRadius="0,0,7,7">
+                                <Grid Margin="10,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        VerticalAlignment="Center"
+                                        FontSize="10"
+                                        Foreground="{StaticResource HmiDangerBrush}"
+                                        Text="{Binding StatusText, RelativeSource={RelativeSource TemplatedParent}}"
+                                        TextTrimming="CharacterEllipsis" />
+
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        FontFamily="Consolas"
+                                        FontSize="10"
+                                        Foreground="{StaticResource HmiTextMutedBrush}"
+                                        Text="{Binding RowHeight, RelativeSource={RelativeSource TemplatedParent}, StringFormat='行高 {0:0} px'}" />
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

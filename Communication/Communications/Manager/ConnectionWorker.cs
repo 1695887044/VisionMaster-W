@@ -18,6 +18,9 @@ namespace VisionMaster.Communications
     /// 写命令只需等"当前这一条命令/一段轮询"跑完即可插队，不再与读命令挤同一条 FIFO 排在队尾；</para>
     /// <para>N2（队列背压）：队列容量 <see cref="CommandQueueCapacity"/>，投递时最多等待 <see cref="CommandEnqueueTimeoutMs"/>
     /// 让 Worker 消化，超时才判失败——把"瞬时排队"与"真故障"分开。</para>
+    /// <para>L0/L1（插队车道，2026-10-20）：「立刻写 / 立刻读」走独立的最高优先级队列，
+    /// 排空顺序为 插队写 → 插队读 → 常规写 → 常规读；轮询在段与段之间询问 <see cref="HasUrgentPending"/> 并主动让路。
+    /// 插队只改变排队位置，绝不打断正在执行的命令/段（同一 socket 不能并发两个事务）。</para>
     /// </summary>
     public sealed class ConnectionWorker : IDisposable
     {
@@ -40,6 +43,18 @@ namespace VisionMaster.Communications
         private const int CommandEnqueueTimeoutMs = 2000;
 
         /// <summary>
+        /// 插队队列容量。插队命令由「立刻读 / 立刻写」这类显式动作产生，频率低；
+        /// 256 条已经远高于正常并发分支数，满了说明 Worker 被长 I/O 卡住或有人在洪泛。
+        /// </summary>
+        private const int UrgentQueueCapacity = 256;
+
+        /// <summary>
+        /// 插队命令入队等待上限（ms）。取 200ms 而不是常规的 2000ms：
+        /// "立刻"语义下等 2 秒已经名不副实，宁可快速失败让流程走兜底分支。
+        /// </summary>
+        private const int UrgentEnqueueTimeoutMs = 200;
+
+        /// <summary>
         /// C1：单次等待时长上限（ms）。轮询到期时刻再远（扫描组周期最长 1 小时）也不睡超过它，
         /// 保证"轮询计划脏标记重编译 / 状态机变化"的最坏响应延迟与旧实现同量级（旧实现在"已连接但无轮询工作"时正是睡 200ms）。
         /// </summary>
@@ -50,6 +65,20 @@ namespace VisionMaster.Communications
         // N1：读/写分队列——Worker 每轮先清空写队列再清空读队列，写命令得以插队，不再与读命令挤同一条 FIFO
         private readonly BlockingCollection<WorkItem> _readQueue = new(boundedCapacity: CommandQueueCapacity);
         private readonly BlockingCollection<WorkItem> _writeQueue = new(boundedCapacity: CommandQueueCapacity);
+
+        // L0/L1：插队车道。插队写优先于插队读，两者都优先于常规写/读与轮询。
+        // 为什么要给插队写再分一条：一条卡在读超时上的插队读不该挡住一条安全联锁写。
+        private readonly BlockingCollection<WorkItem> _urgentWriteQueue = new(boundedCapacity: UrgentQueueCapacity);
+        private readonly BlockingCollection<WorkItem> _urgentReadQueue = new(boundedCapacity: UrgentQueueCapacity);
+
+        /// <summary>
+        /// 插队队列里的待执行条数（两条插队队列之和）。
+        /// 轮询段间让路每个段之前都要问一次，所以用 Interlocked 维护、Volatile 读，
+        /// 避免在热路径上碰 BlockingCollection.Count 的锁。
+        /// </summary>
+        private int _urgentPending;
+
+        private bool HasUrgentPending => Volatile.Read(ref _urgentPending) > 0;
 
         // N1：唤醒信号——Worker 阻塞等待时，任一条队列有新命令入队都要能立刻叫醒它；
         // 容量固定为 1：只表达"有活干了"，多余信号被吞掉即可（醒来后无条件排空两队列，不会漏命令）
@@ -142,6 +171,11 @@ namespace VisionMaster.Communications
         /// <summary>最近一次真实通信成功时刻（轮询/读写任一成功都会刷新——"真心跳"依据）</summary>
         public DateTime LastCommunicationSuccessTime => new DateTime(Interlocked.Read(ref _lastSuccessTicks));
 
+        /// <summary>
+        /// 当前插队队列深度（诊断用）。持续 > 0 且增长，说明 Worker 被长 I/O 卡住或有人在洪泛插队命令。
+        /// </summary>
+        public int UrgentQueueDepth => Volatile.Read(ref _urgentPending);
+
         // 调度器由 Manager 在重编译轮询计划时整体替换（引用赋值原子），Worker 线程每拍读取
         private volatile PollScheduler? _scheduler;
 
@@ -229,23 +263,44 @@ namespace VisionMaster.Communications
 
         /// <summary>在 Worker 线程执行"读/普通"委托并取回结果（通信失败时异常回抛给调用方）</summary>
         public Task<TResult> Invoke<TResult>(Func<ICommunicationConnection, TResult> func)
-            => EnqueueCommand(_readQueue, func);
+            => EnqueueCommand(_readQueue, func, CommandEnqueueTimeoutMs);
 
         /// <summary>
         /// 在 Worker 线程执行"写"委托并取回结果（N1：走写队列，优先于读命令与轮询执行）。
         /// 语义与 <see cref="Invoke"/> 完全一致，仅排队优先级不同。
         /// </summary>
         public Task<TResult> InvokeWrite<TResult>(Func<ICommunicationConnection, TResult> func)
-            => EnqueueCommand(_writeQueue, func);
+            => EnqueueCommand(_writeQueue, func, CommandEnqueueTimeoutMs);
 
         /// <summary>
-        /// 命令投递核心（N2）：带超时等待入队——队列满时先给 Worker 一点时间消化（默认 2s），
+        /// 插队读（L1）：优先于常规读/写与轮询。与 <see cref="Invoke"/> 语义一致，仅排队优先级不同。
+        /// </summary>
+        public Task<TResult> InvokeUrgentRead<TResult>(Func<ICommunicationConnection, TResult> func)
+            => EnqueueCommand(_urgentReadQueue, func, UrgentEnqueueTimeoutMs);
+
+        /// <summary>
+        /// 插队写（L0）：最高优先级，优先于插队读、常规读/写与轮询。
+        /// </summary>
+        public Task<TResult> InvokeUrgentWrite<TResult>(Func<ICommunicationConnection, TResult> func)
+            => EnqueueCommand(_urgentWriteQueue, func, UrgentEnqueueTimeoutMs);
+
+        /// <summary>
+        /// 命令投递核心（N2）：带超时等待入队——队列满时先给 Worker 一点时间消化，
         /// 仍无法入队才判失败，避免"瞬时排队"被误报成通信故障。
         /// </summary>
-        private Task<TResult> EnqueueCommand<TResult>(BlockingCollection<WorkItem> queue, Func<ICommunicationConnection, TResult> func)
+        private Task<TResult> EnqueueCommand<TResult>(
+            BlockingCollection<WorkItem> queue,
+            Func<ICommunicationConnection, TResult> func,
+            int enqueueTimeoutMs)
         {
             ThrowIfDisposed();
             var tcs = new TaskCompletionSource<TResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            // 计数必须先加、再入队：Worker 可能在 TryAdd 返回后立刻取走并 Decrement，
+            // 若先入队后加计数，计数会被减成负数、后续 HasUrgentPending 少算（轮询该让路却没让）。
+            bool urgent = ReferenceEquals(queue, _urgentWriteQueue) || ReferenceEquals(queue, _urgentReadQueue);
+            if (urgent) Interlocked.Increment(ref _urgentPending);
+
             try
             {
                 if (!queue.TryAdd(new WorkItem
@@ -264,26 +319,85 @@ namespace VisionMaster.Communications
                         }
                     },
                     OnAbandon = () => tcs.TrySetCanceled()
-                }, CommandEnqueueTimeoutMs))
+                }, enqueueTimeoutMs))
                 {
+                    if (urgent) Interlocked.Decrement(ref _urgentPending);
+                    string queueName = urgent ? "插队命令队列" : "命令队列";
                     tcs.TrySetException(new InvalidOperationException(
-                        $"连接 {ConnectionName} 命令队列已满（等待 {CommandEnqueueTimeoutMs}ms 仍未消化）"));
+                        $"连接 {ConnectionName} 的{queueName}已满（等待 {enqueueTimeoutMs}ms 仍未消化）"));
                     return tcs.Task;
                 }
             }
             catch (InvalidOperationException)
             {
                 // Dispose 竞态：CompleteAdding 之后 TryAdd 会抛
+                if (urgent) Interlocked.Decrement(ref _urgentPending);
                 tcs.TrySetException(new ObjectDisposedException(nameof(ConnectionWorker)));
                 return tcs.Task;
             }
 
             // 入队成功 → 唤醒 Worker（若它正阻塞等待）。已有待处理信号时 Release 会抛，吞掉即可：
-            // 醒来后无条件排空两队列，多一次空转无害，少一次信号才会漏命令
+            // 醒来后无条件排空各队列，多一次空转无害，少一次信号才会漏命令
             try { _commandSignal.Release(); }
             catch (SemaphoreFullException) { /* 已有信号待消费，无需重复通知 */ }
 
             return tcs.Task;
+        }
+
+        /// <summary>
+        /// 只入队、不等待的插队写（「立刻写」的"不阻塞流程"模式）。
+        /// <para>返回 true = 已进入插队写队列；false = 入队失败（队列满/已释放），
+        /// <paramref name="error"/> 是可直接展示的中文原因。</para>
+        /// <para>设备写失败**不通过返回值报告**：由 <paramref name="onError"/> 回调交给上层
+        /// 记日志 / 上报通讯错误。调用方已经返回，晚到的失败无法再改变步骤结果。</para>
+        /// </summary>
+        public bool TryEnqueueUrgentWrite(
+            string address,
+            object value,
+            Action<Exception>? onError,
+            out string? error)
+        {
+            ThrowIfDisposed();
+            error = null;
+
+            // 与 EnqueueCommand 同一口径：先加计数、再入队（Worker 可能立刻取走并减计数）
+            Interlocked.Increment(ref _urgentPending);
+            try
+            {
+                if (!_urgentWriteQueue.TryAdd(new WorkItem
+                {
+                    Action = conn =>
+                    {
+                        try
+                        {
+                            conn.Write(address, value);
+                            TouchCommunicationSuccess();
+                        }
+                        catch (Exception ex)
+                        {
+                            onError?.Invoke(ex);
+                        }
+                    },
+                    OnAbandon = () => onError?.Invoke(
+                        new TaskCanceledException("插队写命令在连接释放前未执行"))
+                }, UrgentEnqueueTimeoutMs))
+                {
+                    Interlocked.Decrement(ref _urgentPending);
+                    error = $"连接 {ConnectionName} 的插队命令队列已满（等待 {UrgentEnqueueTimeoutMs}ms 仍未消化）";
+                    return false;
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                Interlocked.Decrement(ref _urgentPending);
+                error = "连接工作线程已释放，插队写未入队";
+                return false;
+            }
+
+            try { _commandSignal.Release(); }
+            catch (SemaphoreFullException) { /* 已有信号待消费，无需重复通知 */ }
+
+            return true;
         }
 
         /// <summary>在 Worker 线程执行任意委托（需要回执，走读队列）</summary>
@@ -385,14 +499,24 @@ namespace VisionMaster.Communications
         {
             try
             {
-                bool ok = _scheduler!.Run(_connection);
-                if (ok)
+                // 段间让路：插队队列有货时，规划器在下一段之前返回 Yielded。
+                // 不能把 Yielded 当成功（本组没跑完，不该 MarkSuccess），也不能当故障（链路是好的）。
+                var outcome = _scheduler!.Run(_connection, () => HasUrgentPending);
+
+                if (outcome == PollCycleOutcome.LinkFault)
+                {
+                    OnConnectionBroken(new InvalidOperationException("轮询返回失败：通信级故障"));
+                    return;
+                }
+
+                if (outcome == PollCycleOutcome.Completed)
                 {
                     TouchCommunicationSuccess();
                     if (_reconnectAttempt > 0) _reconnectAttempt = 0;
-                    return;
                 }
-                OnConnectionBroken(new InvalidOperationException("轮询返回失败：通信级故障"));
+
+                // Yielded：不 Touch。引发让路的插队命令执行成功时，
+                // EnqueueCommand 的包装会 TouchCommunicationSuccess()，心跳不会丢。
             }
             catch (Exception ex)
             {
@@ -508,10 +632,27 @@ namespace VisionMaster.Communications
         /// 期间新到的写命令仍只能排在这些读命令后面，写优先形同虚设（C13-2 断言就是这么抓出来的）。
         /// 写成"写一条、读一条"的交替形式，既保证写优先，又保证写命令持续涌入时读命令不被饿死。</para>
         /// </summary>
+        /// <summary>
+        /// 四车道排空：插队写 → 插队读 → 常规写 → 常规读。
+        /// <para>每取一条前都重新看更高优先级车道——不能写成"内层 while 抽干"，否则后到的插队命令
+        /// 仍会排在已抽出的常规命令后面（C13-2 抓过这个缺陷）。</para>
+        /// </summary>
         private void DrainQueues()
         {
             while (true)
             {
+                if (_urgentWriteQueue.TryTake(out var uw))
+                {
+                    Interlocked.Decrement(ref _urgentPending);
+                    ExecuteItem(uw);
+                    continue;
+                }
+                if (_urgentReadQueue.TryTake(out var ur))
+                {
+                    Interlocked.Decrement(ref _urgentPending);
+                    ExecuteItem(ur);
+                    continue;
+                }
                 if (_writeQueue.TryTake(out var w, 0)) { ExecuteItem(w); continue; }
                 if (_readQueue.TryTake(out var r, 0)) { ExecuteItem(r); continue; }
                 break;
@@ -520,6 +661,16 @@ namespace VisionMaster.Communications
 
         private void ReleasePendingItems()
         {
+            while (_urgentWriteQueue.TryTake(out var uw))
+            {
+                Interlocked.Decrement(ref _urgentPending);
+                uw.OnAbandon?.Invoke();
+            }
+            while (_urgentReadQueue.TryTake(out var ur))
+            {
+                Interlocked.Decrement(ref _urgentPending);
+                ur.OnAbandon?.Invoke();
+            }
             while (_writeQueue.TryTake(out var w, 0))
                 w.OnAbandon?.Invoke();
             while (_readQueue.TryTake(out var r, 0))
@@ -612,6 +763,8 @@ namespace VisionMaster.Communications
             _cts.Cancel();
             _readQueue.CompleteAdding();
             _writeQueue.CompleteAdding();
+            _urgentReadQueue.CompleteAdding();
+            _urgentWriteQueue.CompleteAdding();
             // 唤醒可能正阻塞在信号上的 Worker 线程，让它尽快看到取消并退出
             try { _commandSignal.Release(); }
             catch (SemaphoreFullException) { }
@@ -646,6 +799,8 @@ namespace VisionMaster.Communications
             _connection.Dispose();
             _readQueue.Dispose();
             _writeQueue.Dispose();
+            _urgentReadQueue.Dispose();
+            _urgentWriteQueue.Dispose();
             _commandSignal.Dispose();
             _cts.Dispose();
         }

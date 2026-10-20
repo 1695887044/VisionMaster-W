@@ -7,6 +7,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
     xmlns:ui="http://schemas.UI.com/ui"
+    xmlns:local="clr-namespace:VisionMaster.Views.DialogViews"
     MinWidth="960"
     MinHeight="640"
     Background="{StaticResource DialogBackgroundBrush}"
@@ -19,10 +20,6 @@
     -->
     <prism:Dialog.WindowStyle>
         <Style TargetType="Window">
-            <!--
-                WindowStyle=None：去掉系统原生标题栏，改由视图自绘（见下方标题栏）。
-                与变量管理 / 相机设置 / 通讯设置 / 流程管理一致。
-            -->
             <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
             <Setter Property="SizeToContent" Value="Manual" />
@@ -35,46 +32,51 @@
 
     <!--
         ============================================================================
-        条件逻辑 / 计次循环 配置中心
+        条件逻辑 / 计次循环 配置中心（Web 基线 v2 复刻）
         ============================================================================
 
-        本轮是**按设计稿纯换皮**，不是重写逻辑。改动只落在视觉结构上：
-          · 外框从"两行（标题 / 主体，底栏挤在右列里）"改成**三行**
-            （标题 52 / 主体 * / 底栏 Auto）—— 底栏跨整宽、独立成行；
-          · 分区标题由灰底横条（DialogColumnHeader）改扁平白底（DialogSectionHeader，仅下边线）；
-          · 左栏分支卡 232 → 208；
-          · 变量卡头部「+ 新增变量」改主色按钮，行内「重新绑定 / 删除」改图标按钮，
-            变量为空时显示虚线空态框（DataTrigger 切 Visibility，无转换器）；
-          · 快捷插入面板由"单条 WrapPanel + 竖分隔线"改为**按组分行的 5 组**。
+        本轮是**按设计稿 v2 纯换皮 + 展示层增强**，不是重写逻辑：
+          · 标题栏 72（图标 40 + 标题 + 模式胶囊 + 副标题 + 关闭）；
+          · 左栏 240px（分支：序号 / 名称 / 必需·兜底徽标 / 表达式摘要 / 缺条件红态）；
+          · 变量表改自绘四列（别名 / 类型 / 数据源 / 操作），不再用 DataGrid；
+          · 快捷插入固定 148 高 + 内部滚动，保证编辑器高度稳定；
+          · 卡内错误条只在有错时出现；底栏常驻校验摘要（绿/红 + 图标）；
+          · 等待参数改 3+2 网格；报警变量名改可编辑 ComboBox（候选 + 手填）；
+          · 分支匹配判据改可编辑 ComboBox（候选 = 变量表别名），补「已用匹配值」列表；
+          · For 改字段网格 + 摘要条（循环体步数 / 默认次数 / 数据源）。
 
         一行不动的（改动必须避开的地方）：
-          · 所有命令与属性名（AddVariable / BindVariable / RemoveVariable /
-            LinkLoopCount / UnlinkLoopCount / Cancel / Save、IsForMode、IsCaseMode、
-            Branches、SelectedBranch、SelectedBranchNeedsExpression、Variables、
-            LoopCountText、LoopCountSourceText、HasLoopCountLink、JudgeExpressionDraft…）；
+          · 所有命令与属性名（AddVariable / BindVariable / RemoveVariable / LinkLoopCount /
+            UnlinkLoopCount / Cancel / Save、IsForMode、IsCaseMode、Branches、SelectedBranch、
+            SelectedBranchNeedsExpression、Variables、LoopCountText、LoopCountSourceText、
+            HasLoopCountLink、JudgeExpressionDraft…）；
           · AvalonEdit 的 x:Name="txtExpression" 与 TextChanged 事件（code-behind 靠它取文本）；
           · 每个快捷插入按钮的 Click="QuickInsert_Click" 与 Tag 的精确内容
             （Tag 就是要插进表达式的片段，写错一个字符等于插入一段错代码）。
+          · 表达式编辑器全弹窗只有一个实例（txtExpression）：条件/等待两种模式共用同一个控件，
+            靠外层 Grid 的可见性切换，避免出现第二个 AvalonEdit（code-behind 只认第一个名字）。
     -->
+
+    <!--
+        样式全部取自 UI 库 Themes/Dialog/Dialog.ConditionEditor.xaml（已收编弹窗不许本地定义 Style，
+        FlowCanvasChecks 的【收编】断言守这条）。本视图只保留本地转换器资源。
+    -->
+    <UserControl.Resources>
+        <local:ZeroBasedIndexToOrdinalConverter x:Key="ConditionIndexConverter" />
+    </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="52" />
+            <RowDefinition Height="72" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!--
-            标题栏（自绘）。无边框窗口没有系统拖动区与关闭按钮：
-            整条挂 ui:WindowDragBehavior 负责拖，右侧 × 绑 CancelCommand ——
-            本弹窗是"草稿 → 校验 → 写回"事务，关闭即丢弃草稿，语义上就是取消，
-            所以不另加 CloseCommand（加了反而两个入口语义分不清）。
-            标题文字绑 VM.Title：它在 For / 条件两种模式下不同（For 循环配置 / 条件逻辑配置中心）。
-        -->
+        <!-- ==================== 标题栏 ==================== -->
         <Border
             Grid.Row="0"
             ui:WindowDragBehavior.IsWindowDraggable="True"
-            Background="{StaticResource DialogRowAlternateBrush}"
+            Background="{StaticResource DialogSurfaceBrush}"
             BorderBrush="{StaticResource DialogBorderLightBrush}"
             BorderThickness="0,0,0,1">
             <Grid Margin="20,0">
@@ -84,29 +86,64 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock
+                <Border
+                    Width="40"
+                    Height="40"
                     VerticalAlignment="Center"
-                    FontFamily="{StaticResource Icon}"
-                    FontSize="15"
-                    Foreground="{StaticResource DialogAccentBrush}"
-                    Text="&#xf121;" />
+                    Background="{StaticResource DialogAccentSoftBrush}"
+                    CornerRadius="12">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource DialogIconFont}"
+                        FontSize="17"
+                        Foreground="{StaticResource DialogAccentBrush}"
+                        Text="&#xf126;" />
+                </Border>
 
                 <StackPanel
                     Grid.Column="1"
-                    Margin="10,0,0,0"
-                    VerticalAlignment="Center"
-                    Orientation="Horizontal">
+                    Margin="12,0,0,0"
+                    VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="16"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                            Text="{Binding Title}"
+                            TextTrimming="CharacterEllipsis" />
+                        <!--  模式胶囊：只读标识（模式由靶节点类型决定，不可点击）  -->
+                        <Border
+                            Height="20"
+                            Margin="8,0,0,0"
+                            Padding="7,0"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource DialogRowHoverBrush}"
+                            CornerRadius="5">
+                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,5,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="10"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="&#xf126;" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="10.5"
+                                    FontWeight="Bold"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="{Binding ModeChipText}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
                     <TextBlock
-                        FontSize="15"
-                        FontWeight="Bold"
-                        Foreground="{StaticResource DialogTextPrimaryBrush}"
-                        Text="{Binding Title}" />
-                    <TextBlock
-                        Margin="10,0,0,0"
-                        VerticalAlignment="Center"
-                        FontSize="11.5"
-                        Foreground="{StaticResource DialogTextMutedBrush}"
-                        Text="编辑后点「保存并应用」才写回流程，取消或关闭即丢弃" />
+                        Margin="0,2,0,0"
+                        FontSize="12"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="编辑后点「保存并应用」才写回流程；取消或关闭即丢弃草稿"
+                        TextTrimming="CharacterEllipsis" />
                 </StackPanel>
 
                 <Button
@@ -116,7 +153,7 @@
                     Style="{StaticResource DialogIconButton}"
                     ToolTip="关闭（不保存本次修改）">
                     <TextBlock
-                        FontFamily="{StaticResource Icon}"
+                        FontFamily="{StaticResource DialogIconFont}"
                         FontSize="13"
                         Foreground="{StaticResource DialogTextSecondaryBrush}"
                         Text="&#xf00d;" />
@@ -124,45 +161,63 @@
             </Grid>
         </Border>
 
-        <!--  主体（两列：左分支卡 / 右变量 + 表达式）  -->
-        <Grid Grid.Row="1">
+        <!-- ==================== 主体 ==================== -->
+        <Grid Grid.Row="1" Margin="20,16,20,18">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!--
-                左：分支列表（For 模式无分支可选 → 整栏收起）。
-                条目样式改用公共的 DialogOptionItem（hover 浅灰 / 选中浅蓝 + 左侧指示条），
-                不再本地写一套 ListBoxItem 模板。
-                SelectedIndex="-1" 保留：进弹窗时不要自动选中第一项，
-                否则用户还没操作就被带进某个分支的表达式。
-            -->
+            <!--  左栏：逻辑分支（For 模式整栏收起）  -->
             <Border
                 Grid.Column="0"
-                Width="208"
-                Margin="20,16,0,16"
-                Style="{StaticResource DialogColumnCard}"
+                Width="240"
+                Background="{StaticResource DialogRowAlternateBrush}"
+                BorderBrush="{StaticResource DialogBorderLightBrush}"
+                BorderThickness="1"
+                CornerRadius="12"
                 Visibility="{Binding IsForMode, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <!--  分区标题：扁平白底 + 下边线（DialogSectionHeader），不再是灰底横条  -->
-                    <Border Padding="12,0" Style="{StaticResource DialogSectionHeader}">
-                        <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                    <Border
+                        Height="42"
+                        Padding="12,0"
+                        Background="{StaticResource DialogSurfaceBrush}"
+                        BorderBrush="{StaticResource DialogBorderLightBrush}"
+                        BorderThickness="0,0,0,1">
+                        <Grid>
                             <TextBlock
-                                Style="{StaticResource DialogColumnTitleIcon}"
-                                Text="&#xf126;" />
-                            <TextBlock Style="{StaticResource DialogColumnTitle}" Text="逻辑分支" />
-                        </StackPanel>
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="逻辑分支" />
+                            <Border
+                                Height="18"
+                                Padding="6,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource DialogRowHoverBrush}"
+                                CornerRadius="5">
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="10.5"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="{Binding Branches.Count, StringFormat={}{0} 条}" />
+                            </Border>
+                        </Grid>
                     </Border>
 
                     <ListBox
                         Grid.Row="1"
-                        Margin="4"
+                        Margin="6"
+                        AlternationCount="99"
                         Background="Transparent"
                         BorderThickness="0"
                         ItemContainerStyle="{StaticResource DialogOptionItem}"
@@ -172,40 +227,352 @@
                         SelectedItem="{Binding SelectedBranch}">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse
-                                        Width="6"
-                                        Height="6"
-                                        Margin="0,0,9,0"
-                                        VerticalAlignment="Center"
-                                        Fill="{StaticResource DialogAccentBrush}" />
-                                    <TextBlock
-                                        VerticalAlignment="Center"
-                                        FontSize="13"
-                                        Text="{Binding StepName}"
-                                        TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!--  序号块：缺条件时红底（与 IsConditionMissing 同一判定）  -->
+                                    <Border
+                                        x:Name="IdxBox"
+                                        Width="20"
+                                        Height="20"
+                                        VerticalAlignment="Top"
+                                        Background="{StaticResource DialogRowHoverBrush}"
+                                        CornerRadius="6">
+                                        <TextBlock
+                                            x:Name="IdxText"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            FontSize="10.5"
+                                            FontWeight="Bold"
+                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                            Text="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ListBoxItem}, Converter={StaticResource ConditionIndexConverter}}" />
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12.5"
+                                                FontWeight="SemiBold"
+                                                Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                                Text="{Binding StepName}"
+                                                TextTrimming="CharacterEllipsis" />
+                                            <Border
+                                                x:Name="BadgeBox"
+                                                Margin="6,0,0,0"
+                                                Style="{StaticResource DialogMicroBadge}">
+                                                <TextBlock
+                                                    x:Name="BadgeText"
+                                                    Style="{StaticResource DialogMicroBadgeText}"
+                                                    Text="必需" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock
+                                            x:Name="ExprText"
+                                            Margin="0,3,0,0"
+                                            FontFamily="{StaticResource PluginMonoFontFamily}"
+                                            FontSize="10.5"
+                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                            Text="{Binding Expression}"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Grid>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding RequiresExpression}" Value="False">
+                                        <Setter TargetName="BadgeText" Property="Text" Value="兜底" />
+                                        <Setter TargetName="ExprText" Property="Text" Value="无需条件 · 系统视为真" />
+                                        <Setter TargetName="ExprText" Property="FontFamily" Value="Microsoft YaHei" />
+                                        <Setter TargetName="ExprText" Property="FontStyle" Value="Italic" />
+                                        <Setter TargetName="ExprText" Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsConditionMissing}" Value="True">
+                                        <Setter TargetName="IdxBox" Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                                        <Setter TargetName="IdxText" Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                                        <Setter TargetName="BadgeBox" Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                                        <Setter TargetName="BadgeText" Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                                        <Setter TargetName="BadgeText" Property="Text" Value="缺少条件" />
+                                        <Setter TargetName="ExprText" Property="Text" Value="条件表达式为空 · 编译会报错" />
+                                        <Setter TargetName="ExprText" Property="FontFamily" Value="Microsoft YaHei" />
+                                        <Setter TargetName="ExprText" Property="FontStyle" Value="Normal" />
+                                        <Setter TargetName="ExprText" Property="FontWeight" Value="SemiBold" />
+                                        <Setter TargetName="ExprText" Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+
+                    <Border
+                        Grid.Row="2"
+                        Padding="12,9"
+                        BorderBrush="{StaticResource DialogBorderLightBrush}"
+                        BorderThickness="0,1,0,0">
+                        <TextBlock
+                            FontSize="10.5"
+                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                            Text="切换分支只切换编辑目标；分支增删在流程栏右键完成。"
+                            TextWrapping="Wrap" />
+                    </Border>
                 </Grid>
             </Border>
 
-            <!--  右：主控区  -->
-            <Grid Grid.Column="1" Margin="20,16,20,16">
+            <!--  右列  -->
+            <Grid Grid.Column="1" Margin="12,0,0,0">
                 <Grid.RowDefinitions>
-                    <RowDefinition
-                        Height="1.2*"
-                        MinHeight="150"
-                        MaxHeight="400" />
-                    <RowDefinition Height="15" />
-                    <RowDefinition Height="2*" MinHeight="200" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <!--  1. 变量引脚定义区（For 模式隐藏）  -->
+                <!--  1. 变量卡（For 模式隐藏）  -->
                 <Border
                     Grid.Row="0"
-                    Style="{StaticResource DialogColumnCard}"
+                    Background="{StaticResource DialogSurfaceBrush}"
+                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Visibility="{Binding IsForMode, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}">
+                    <StackPanel>
+                        <Border Style="{StaticResource DialogCardHead}">
+                            <Grid>
+                                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                    <TextBlock
+                                        Margin="0,0,7,0"
+                                        VerticalAlignment="Center"
+                                        FontFamily="{StaticResource DialogIconFont}"
+                                        FontSize="12"
+                                        Foreground="{StaticResource DialogAccentBrush}"
+                                        Text="&#xf0cb;" />
+                                    <TextBlock Style="{StaticResource DialogCardTitle}" Text="输入变量配置" />
+                                    <TextBlock Style="{StaticResource DialogCardHint}" Text="表达式中用别名引用上游数据" />
+                                </StackPanel>
+                                <Button
+                                    Height="28"
+                                    Padding="10,0"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding AddVariableCommand}"
+                                    Style="{StaticResource DialogPrimaryButton}"
+                                    ToolTip="新增一个引脚变量（别名 + 绑定的上游端口）">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock
+                                            Margin="0,0,5,0"
+                                            VerticalAlignment="Center"
+                                            FontFamily="{StaticResource DialogIconFont}"
+                                            FontSize="10"
+                                            Text="&#xf067;" />
+                                        <TextBlock VerticalAlignment="Center" Text="新增变量" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </Border>
+
+                        <!--  表头（与行同列宽）  -->
+                        <Grid Margin="12,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" MinWidth="104" />
+                                <ColumnDefinition Width="74" />
+                                <ColumnDefinition Width="1.5*" />
+                                <ColumnDefinition Width="62" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                Margin="0,8,0,6"
+                                FontSize="10.5"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="别名" />
+                            <TextBlock
+                                Grid.Column="1"
+                                Margin="0,8,0,6"
+                                FontSize="10.5"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="类型" />
+                            <TextBlock
+                                Grid.Column="2"
+                                Margin="0,8,0,6"
+                                FontSize="10.5"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="绑定的上游数据源" />
+                            <TextBlock
+                                Grid.Column="3"
+                                Margin="0,8,0,6"
+                                HorizontalAlignment="Right"
+                                FontSize="10.5"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="操作" />
+                        </Grid>
+
+                        <ScrollViewer
+                            MaxHeight="200"
+                            HorizontalScrollBarVisibility="Disabled"
+                            VerticalScrollBarVisibility="Auto">
+                            <ItemsControl Margin="12,0,12,10" ItemsSource="{Binding Variables}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" MinWidth="104" />
+                                                <ColumnDefinition Width="74" />
+                                                <ColumnDefinition Width="1.5*" />
+                                                <ColumnDefinition Width="62" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBox
+                                                Height="30"
+                                                Padding="9,0"
+                                                VerticalContentAlignment="Center"
+                                                FontFamily="{StaticResource PluginMonoFontFamily}"
+                                                FontSize="11.5"
+                                                Style="{StaticResource DialogInput}"
+                                                Text="{Binding AliasName, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}"
+                                                ToolTip="表达式中引用它用的名字（字母/下划线开头）" />
+
+                                            <Border
+                                                Grid.Column="1"
+                                                Margin="8,0,0,0"
+                                                Style="{StaticResource DialogTypeChip}"
+                                                ToolTip="{Binding DataTypeName}">
+                                                <TextBlock Style="{StaticResource DialogTypeChipText}" Text="{Binding DataTypeShortName}" />
+                                            </Border>
+
+                                            <Grid Grid.Column="2" Margin="8,0,0,0">
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11.5"
+                                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                    Text="{Binding SourceAddress}"
+                                                    TextTrimming="CharacterEllipsis">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding SourceAddress}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding SourceAddress}" Value="">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11.5"
+                                                    FontStyle="Italic"
+                                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                                    Text="尚未绑定上游端口">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding SourceAddress}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding SourceAddress}" Value="">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+
+                                            <StackPanel
+                                                Grid.Column="3"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                Orientation="Horizontal">
+                                                <Button
+                                                    Width="28"
+                                                    Height="28"
+                                                    Command="{Binding DataContext.BindVariableCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Style="{StaticResource DialogIconButton}"
+                                                    ToolTip="重新选择这个别名绑定的上游输出端口">
+                                                    <TextBlock
+                                                        FontFamily="{StaticResource DialogIconFont}"
+                                                        FontSize="11"
+                                                        Foreground="{StaticResource DialogAccentBrush}"
+                                                        Text="&#xf0c1;" />
+                                                </Button>
+                                                <Button
+                                                    Width="28"
+                                                    Height="28"
+                                                    Margin="2,0,0,0"
+                                                    Command="{Binding DataContext.RemoveVariableCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Style="{StaticResource DialogIconButton}"
+                                                    ToolTip="删除后该别名不再可用，引用它的表达式需同步修改">
+                                                    <TextBlock
+                                                        FontFamily="{StaticResource DialogIconFont}"
+                                                        FontSize="11"
+                                                        Foreground="{StaticResource DialogDangerBrush}"
+                                                        Text="&#xf1f8;" />
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <!--  空态：虚线框 + 居中提示  -->
+                        <Grid Margin="12,10,12,12">
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Variables.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
+                            <Rectangle
+                                Fill="Transparent"
+                                RadiusX="8"
+                                RadiusY="8"
+                                Stroke="{StaticResource DialogBorderStrongBrush}"
+                                StrokeDashArray="3 2"
+                                StrokeThickness="1" />
+                            <StackPanel
+                                MaxWidth="420"
+                                Margin="24,18"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="还没有变量" />
+                                <TextBlock
+                                    Margin="0,5,0,0"
+                                    HorizontalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="点「新增变量」，把上游节点的输出端口绑成别名，表达式里就能直接引用。"
+                                    TextAlignment="Center"
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!--  2. 表达式 / 匹配 / 等待卡（For 模式隐藏）  -->
+                <Border
+                    Grid.Row="1"
+                    Margin="0,12,0,0"
+                    Background="{StaticResource DialogSurfaceBrush}"
+                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12"
                     Visibility="{Binding IsForMode, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -213,814 +580,868 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <Border Padding="12,0" Style="{StaticResource DialogSectionHeader}">
+                        <Border Style="{StaticResource DialogCardHead}">
                             <Grid>
                                 <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                                     <TextBlock
-                                        Style="{StaticResource DialogColumnTitleIcon}"
-                                        Text="&#xf0cb;" />
-                                    <TextBlock Style="{StaticResource DialogColumnTitle}" Text="输入变量配置" />
-                                    <TextBlock
-                                        Margin="8,0,0,0"
+                                        Margin="0,0,7,0"
                                         VerticalAlignment="Center"
-                                        FontSize="11"
-                                        Foreground="{StaticResource DialogTextMutedBrush}"
-                                        Text="表达式中用别名引用上游数据" />
+                                        FontFamily="{StaticResource DialogIconFont}"
+                                        FontSize="12"
+                                        Foreground="{StaticResource DialogAccentBrush}"
+                                        Text="&#xf121;" />
+                                    <!--  标题随模式切换（VM 的 EditorTitle 一处拼好）  -->
+                                    <TextBlock Style="{StaticResource DialogCardTitle}" Text="{Binding EditorTitle}" />
                                 </StackPanel>
-                                <Button
+
+                                <TextBlock
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
-                                    Command="{Binding AddVariableCommand}"
-                                    Content="+ 新增变量"
-                                    Style="{StaticResource DialogPrimaryButton}"
-                                    ToolTip="新增一个引脚变量（别名 + 绑定的上游端口）" />
+                                    FontSize="10.5"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="返回 bool">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCaseMode}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsWaitMode}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    FontSize="10.5"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="判据 == 匹配值"
+                                    Visibility="{Binding IsCaseMode, Converter={ui:BooleanToVisibilityConverter}}" />
+                                <TextBlock
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    FontSize="10.5"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="轮询直到成立"
+                                    Visibility="{Binding IsWaitMode, Converter={ui:BooleanToVisibilityConverter}}" />
                             </Grid>
                         </Border>
 
                         <Grid Grid.Row="1">
-                            <!--
-                                表格与空态框叠在同一格，按 Variables.Count 互斥显示。
-                                DataTrigger 直接判 Count（ObservableCollection 的 Count 会随增删通知），
-                                不需要 BooleanToVisibilityConverter。
-                            -->
-                            <DataGrid
-                                Margin="12"
-                                CanUserAddRows="False"
-                                ItemsSource="{Binding Variables}"
-                                MinRowHeight="46"
-                                RowHeaderWidth="0"
-                                ScrollViewer.VerticalScrollBarVisibility="Auto">
-                                <DataGrid.Style>
-                                    <Style BasedOn="{StaticResource DialogDataGrid}" TargetType="DataGrid">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Variables.Count}" Value="0">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </DataGrid.Style>
-                                <DataGrid.Columns>
-                                    <DataGridTemplateColumn Width="150" Header="别名">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <!--  ValidatesOnDataErrors 接通 VariableItem 的 IDataErrorInfo：打字即红框 + 悬停看原因  -->
-                                                <TextBox
-                                                    Style="{StaticResource DialogCellInput}"
-                                                    Text="{Binding AliasName, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}"
-                                                    ToolTip="表达式中引用它用的名字" />
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
 
-                                    <DataGridTemplateColumn Width="*" Header="绑定的上游数据源">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="Auto" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock
-                                                        VerticalAlignment="Center"
-                                                        FontSize="12"
-                                                        Foreground="{StaticResource DialogTextMutedBrush}"
-                                                        Text="{Binding SourceAddress, TargetNullValue='尚未绑定上游端口'}"
-                                                        TextTrimming="CharacterEllipsis" />
-                                                    <!--  重新绑定：文字按钮 → 图标按钮（链接图标），命令 / 参数 / 提示原样保留  -->
-                                                    <Button
-                                                        Grid.Column="1"
-                                                        Margin="10,0,0,0"
-                                                        Command="{Binding DataContext.BindVariableCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                        CommandParameter="{Binding}"
-                                                        Style="{StaticResource DialogIconButton}"
-                                                        ToolTip="重新选择这个别名绑定的上游输出端口">
-                                                        <TextBlock
-                                                            FontFamily="{StaticResource Icon}"
-                                                            FontSize="12"
-                                                            Foreground="{StaticResource DialogAccentBrush}"
-                                                            Text="&#xf0c1;" />
-                                                    </Button>
-                                                </Grid>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-
-                                    <DataGridTemplateColumn Width="90" Header="操作">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <!--  删除：文字按钮 → 图标按钮（垃圾桶），命令 / 参数 / 提示原样保留  -->
-                                                <Button
-                                                    HorizontalAlignment="Left"
-                                                    Command="{Binding DataContext.RemoveVariableCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                    CommandParameter="{Binding}"
-                                                    Style="{StaticResource DialogIconButton}"
-                                                    ToolTip="删除这个引脚变量">
-                                                    <TextBlock
-                                                        FontFamily="{StaticResource Icon}"
-                                                        FontSize="12"
-                                                        Foreground="{StaticResource DialogDangerBrush}"
-                                                        Text="&#xf1f8;" />
-                                                </Button>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                </DataGrid.Columns>
-                            </DataGrid>
-
-                            <!--  空态：虚线框 + 居中提示（Variables.Count == 0 时出现）  -->
-                            <Grid Margin="12">
-                                <Grid.Style>
-                                    <Style TargetType="Grid">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Variables.Count}" Value="0">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Grid.Style>
-                                <Rectangle
-                                    Fill="Transparent"
-                                    RadiusX="8"
-                                    RadiusY="8"
-                                    Stroke="{StaticResource DialogBorderBrush}"
-                                    StrokeDashArray="3 2"
-                                    StrokeThickness="1" />
-                                <TextBlock
-                                    MaxWidth="360"
-                                    Margin="24"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    Style="{StaticResource DialogHintText}"
-                                    Text="还没有变量 · 点「新增变量」，把上游节点的输出端口绑成别名，表达式里就能直接引用"
-                                    TextAlignment="Center" />
-                            </Grid>
-                        </Grid>
-                    </Grid>
-                </Border>
-
-                <!--  动态比例分割线（For 模式隐藏）  -->
-                <GridSplitter
-                    Grid.Row="1"
-                    Height="3"
-                    Margin="10,0"
-                    HorizontalAlignment="Stretch"
-                    VerticalAlignment="Center"
-                    Background="{StaticResource DialogBorderBrush}"
-                    Cursor="SizeNS"
-                    ShowsPreview="True"
-                    Visibility="{Binding IsForMode, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}" />
-
-                <!--  2. 表达式编辑器（For 模式隐藏）  -->
-                <Border
-                    Grid.Row="2"
-                    Style="{StaticResource DialogColumnCard}"
-                    Visibility="{Binding IsForMode, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-
-                        <Border Padding="12,0" Style="{StaticResource DialogSectionHeader}">
-                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
-                                <TextBlock
-                                    Style="{StaticResource DialogColumnTitleIcon}"
-                                    Text="&#xf121;" />
-                                <!--  标题随模式切换：普通=“为分支 [ X ] 编写逻辑判断表达式”；分支匹配=“填写匹配值”
-                                      （拼装收在 VM 的 EditorTitle 一处，XAML 不再并列两块文本各写各的）  -->
-                                <TextBlock Style="{StaticResource DialogColumnTitle}" Text="{Binding EditorTitle}" />
-                            </StackPanel>
-                        </Border>
-
-                        <!--  分支匹配（Case）模式：判据输入（容器级，只写一次；分支上写匹配值）  -->
-                        <StackPanel
-                            Grid.Row="1"
-                            Margin="12,12,12,0"
-                            Orientation="Horizontal"
-                            Visibility="{Binding IsCaseMode, Converter={ui:BooleanToVisibilityConverter}}">
-                            <TextBlock
-                                Margin="0,0,10,0"
-                                VerticalAlignment="Center"
-                                Style="{StaticResource DialogFormLabel}"
-                                Text="判据" />
-                            <TextBox
-                                Width="220"
-                                Style="{StaticResource DialogInput}"
-                                Text="{Binding JudgeExpressionDraft, UpdateSourceTrigger=PropertyChanged}"
-                                ToolTip="要拿哪个变量去比对：填变量表里的别名，或运行时变量名" />
-                            <TextBlock
-                                Margin="10,0,0,0"
-                                VerticalAlignment="Center"
-                                FontSize="11"
-                                Foreground="{StaticResource DialogTextMutedBrush}"
-                                Text="按顺序比对：命中第一条匹配值即执行该分支；都不命中走默认分支" />
-                        </StackPanel>
-
-                        <!--
-                            等待节点（BuiltIn_Wait）参数区：仅等待模式可见。
-                            与 Case 判据同占 Grid.Row="1"：该行在 If/While/For 下本来就是 0 高度
-                            （行高 Auto 且两者都折叠）；Case 模式下这一行被判据输入占用，
-                            而 IsWaitMode 与 IsCaseMode 互斥（不会同时为 true），所以不影响既有布局。
-                            MaxHeight + 竖向滚动是兜底：高 DPI / 字体放大时参数区不无限长高，
-                            超出就滚动，别把下面的表达式编辑器挤没。
-                        -->
-                        <ScrollViewer
-                            Grid.Row="1"
-                            MaxHeight="132"
-                            Margin="12,12,12,0"
-                            HorizontalScrollBarVisibility="Disabled"
-                            VerticalScrollBarVisibility="Auto"
-                            Visibility="{Binding IsWaitMode, Converter={ui:BooleanToVisibilityConverter}}">
-                            <StackPanel>
-                                <!--  第一行：轮询间隔 / 最大超时 / 超时处理方式  -->
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="96" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="96" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" MinWidth="140" />
-                                    </Grid.ColumnDefinitions>
-
+                            <!-- ===== 行 0：分支匹配的判据 / 匹配值 / 已用值 ===== -->
+                            <StackPanel Visibility="{Binding IsCaseMode, Converter={ui:BooleanToVisibilityConverter}}">
+                                <StackPanel Margin="12,11,12,0" Orientation="Horizontal">
                                     <TextBlock
-                                        Grid.Column="0"
                                         VerticalAlignment="Center"
-                                        Style="{StaticResource DialogFormLabel}"
-                                        Text="轮询间隔(ms)" />
+                                        Style="{StaticResource DialogFieldLabelSmall}"
+                                        Text="判据" />
+                                    <ComboBox
+                                        x:Name="cmbJudge"
+                                        Width="220"
+                                        Margin="9,0,0,0"
+                                        ItemsSource="{Binding JudgeVariableCandidates}"
+                                        Style="{StaticResource DialogEditableCombo}"
+                                        Text="{Binding JudgeExpressionDraft, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="变量表里的别名，或运行时变量名；可直接输入" />
+                                    <TextBlock
+                                        Margin="9,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                        Text="变量表里的别名，或运行时变量名；可下拉选择" />
+                                </StackPanel>
+
+                                <TextBlock
+                                    Margin="12,7,12,0"
+                                    FontSize="10.5"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="按顺序比对：命中第一条匹配值即执行该分支；都不命中走默认分支。"
+                                    TextWrapping="Wrap" />
+
+                                <StackPanel Margin="12,10,12,0" Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource DialogFieldLabelSmall}"
+                                        Text="匹配值" />
                                     <TextBox
-                                        Grid.Column="1"
-                                        Margin="8,0,16,0"
+                                        Width="220"
+                                        Height="30"
+                                        Margin="9,0,0,0"
+                                        Padding="9,0"
+                                        VerticalContentAlignment="Center"
+                                        FontFamily="{StaticResource PluginMonoFontFamily}"
+                                        FontSize="11.5"
+                                        Style="{StaticResource DialogInput}"
+                                        Text="{Binding SelectedBranch.Expression, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="等值类型；字符串无需引号（例如 1 / 2.5 / true / OK）" />
+                                    <TextBlock
+                                        Margin="9,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                        Text="等值类型；字符串无需引号" />
+                                </StackPanel>
+
+                                <Grid Margin="12,12,12,0">
+                                    <TextBlock
+                                        FontSize="10.5"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                        Text="本容器已用匹配值" />
+                                </Grid>
+
+                                <ScrollViewer
+                                    MaxHeight="120"
+                                    Margin="12,6,12,0"
+                                    HorizontalScrollBarVisibility="Disabled"
+                                    VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding CaseMatchRows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border
+                                                    x:Name="MatchRow"
+                                                    Margin="0,0,0,4"
+                                                    Padding="8,5"
+                                                    Background="{StaticResource DialogRowAlternateBrush}"
+                                                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock
+                                                            FontSize="11"
+                                                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                                            Text="{Binding StepName}"
+                                                            TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock
+                                                            Grid.Column="1"
+                                                            FontFamily="{StaticResource PluginMonoFontFamily}"
+                                                            FontSize="11"
+                                                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                                            Text="{Binding Value}"
+                                                            TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock
+                                                            Grid.Column="2"
+                                                            Margin="8,0,0,0"
+                                                            FontSize="9.5"
+                                                            FontWeight="Bold"
+                                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                            Text="{Binding Kind}" />
+                                                    </Grid>
+                                                </Border>
+                                                <DataTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
+                                                        <Setter TargetName="MatchRow" Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                        <Setter TargetName="MatchRow" Property="BorderBrush" Value="{StaticResource DialogBorderStrongBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsDuplicate}" Value="True">
+                                                        <Setter TargetName="MatchRow" Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                                                        <Setter TargetName="MatchRow" Property="BorderBrush" Value="{StaticResource DialogDangerBorderBrush}" />
+                                                    </DataTrigger>
+                                                </DataTemplate.Triggers>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </StackPanel>
+
+                            <!-- ===== 行 1：等待模式的 3+2 参数 ===== -->
+                            <Grid
+                                Grid.Row="1"
+                                Margin="12,12,12,0"
+                                Visibility="{Binding IsWaitMode, Converter={ui:BooleanToVisibilityConverter}}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Style="{StaticResource DialogFieldLabelSmall}" Text="轮询间隔 (ms)" />
+                                    <TextBox
+                                        Height="30"
+                                        Padding="9,0"
+                                        VerticalContentAlignment="Center"
+                                        FontFamily="{StaticResource PluginMonoFontFamily}"
+                                        FontSize="11.5"
                                         Style="{StaticResource DialogInput}"
                                         Text="{Binding PollIntervalText, UpdateSourceTrigger=PropertyChanged}"
                                         ToolTip="条件不成立时每隔多少毫秒重新判断一次（编译期下限 10ms）" />
+                                    <TextBlock Style="{StaticResource DialogFieldHelp}" Text="条件不成立时每隔多久重判一次，下限 10ms" />
+                                </StackPanel>
 
-                                    <TextBlock
-                                        Grid.Column="2"
-                                        VerticalAlignment="Center"
-                                        Style="{StaticResource DialogFormLabel}"
-                                        Text="最大超时(ms，0=不限)" />
+                                <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                                    <TextBlock Style="{StaticResource DialogFieldLabelSmall}" Text="最大超时 (ms)" />
                                     <TextBox
-                                        Grid.Column="3"
-                                        Margin="8,0,16,0"
+                                        Height="30"
+                                        Padding="9,0"
+                                        VerticalContentAlignment="Center"
+                                        FontFamily="{StaticResource PluginMonoFontFamily}"
+                                        FontSize="11.5"
                                         Style="{StaticResource DialogInput}"
                                         Text="{Binding TimeoutText, UpdateSourceTrigger=PropertyChanged}"
                                         ToolTip="等待超过该时长仍未成立则按右侧方式处理；0 表示一直等" />
+                                    <TextBlock Style="{StaticResource DialogFieldHelp}" Text="0 = 一直等，不超时" />
+                                </StackPanel>
 
-                                    <TextBlock
-                                        Grid.Column="4"
-                                        VerticalAlignment="Center"
-                                        Style="{StaticResource DialogFormLabel}"
-                                        Text="超时处理" />
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{StaticResource DialogFieldLabelSmall}" Text="超时处理" />
                                     <ComboBox
-                                        Grid.Column="5"
-                                        Margin="8,0,0,0"
+                                        Height="30"
                                         DisplayMemberPath="Display"
+                                        FontSize="12"
                                         ItemsSource="{Binding TimeoutActionOptions}"
                                         SelectedValue="{Binding TimeoutActionValue}"
                                         SelectedValuePath="Value"
                                         Style="{StaticResource DialogCombo}"
                                         ToolTip="超时后的处置：终止流程，或继续执行（后续用 If 判断 TimedOut 走异常分支）" />
-                                </Grid>
+                                    <TextBlock Style="{StaticResource DialogFieldHelp}" Text="超时后的处置方式" />
+                                </StackPanel>
 
-                                <!--  第二行：超时说明 / 报警变量名（都可选，留空即不写日志/不写变量）  -->
-                                <Grid Margin="0,8,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <TextBlock
-                                        Grid.Column="0"
-                                        VerticalAlignment="Center"
-                                        Style="{StaticResource DialogFormLabel}"
-                                        Text="超时说明(可选)" />
+                                <StackPanel Grid.Row="1" Margin="0,10,10,0">
+                                    <TextBlock Style="{StaticResource DialogFieldLabelSmall}" Text="超时说明（可选）" />
                                     <TextBox
-                                        Grid.Column="1"
-                                        Margin="8,0,16,0"
+                                        Height="30"
+                                        Padding="9,0"
+                                        VerticalContentAlignment="Center"
+                                        FontSize="12"
                                         Style="{StaticResource DialogInput}"
                                         Text="{Binding TimeoutMessageDraft, UpdateSourceTrigger=PropertyChanged}"
                                         ToolTip="追加到超时日志/异常文案里，便于现场定位在等什么" />
+                                </StackPanel>
 
-                                    <TextBlock
-                                        Grid.Column="2"
-                                        VerticalAlignment="Center"
-                                        Style="{StaticResource DialogFormLabel}"
-                                        Text="报警变量名(可选)" />
+                                <StackPanel
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Grid.ColumnSpan="2"
+                                    Margin="0,10,0,0">
+                                    <TextBlock Style="{StaticResource DialogFieldLabelSmall}" Text="报警变量名（可选）" />
                                     <!--
-                                        报警变量名是「名字」语义（R33）：手填 + 候选下拉，不挂通用绑定弹窗。
-                                        候选由 VM 从工作区里现取（只列全局 bool 用户变量）；可编辑是为了
-                                        允许"变量还没建、先把名字写上"的场景，保存时 SaveWait 会校验存在性与类型。
+                                        名字语义（R33）：手填 + 候选下拉，不挂通用绑定弹窗。
+                                        候选由 VM 从工作区现取（只列全局 bool 用户变量）；可编辑是为了
+                                        允许「变量还没建、先把名字写上」，保存时 SaveWait 会校验存在性与类型。
                                     -->
                                     <ComboBox
-                                        Grid.Column="3"
-                                        Margin="8,0,0,0"
-                                        IsEditable="True"
                                         ItemsSource="{Binding AlarmVariableCandidates}"
-                                        Style="{StaticResource DialogCombo}"
+                                        Style="{StaticResource DialogEditableCombo}"
                                         Text="{Binding AlarmVariableNameDraft, UpdateSourceTrigger=PropertyChanged}"
                                         ToolTip="已存在的全局 bool 变量名（下拉里可选）；超时时把它置为 true" />
-                                </Grid>
+                                    <TextBlock Style="{StaticResource DialogFieldHelp}" Text="候选只列「用户可写的全局 bool 变量」；超时时置为 true" />
+                                </StackPanel>
+                            </Grid>
 
-                                <TextBlock
-                                    Margin="0,8,0,0"
-                                    Style="{StaticResource DialogHintText}"
-                                    Text="{Binding WaitHintText}" />
-                            </StackPanel>
-                        </ScrollViewer>
+                            <!-- ===== 行 2：快捷插入 + 表达式编辑器（条件/等待共用同一个 txtExpression） ===== -->
+                            <Grid
+                                Grid.Row="2"
+                                Margin="12,9,12,0"
+                                Visibility="{Binding ShowBooleanEditor, Converter={ui:BooleanToVisibilityConverter}}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
 
-                        <!--
-                            快捷插入面板：点一下就把片段插进表达式（按钮的 Tag 即插入内容）。
-                            按组分五行：引用变量 / 逻辑比较 / 数字运算 / 数学函数 / 字符串；
-                            每行 = 固定宽度的组名标签 + 一个可换行的 WrapPanel。
-                        -->
-                        <ScrollViewer
-                            Grid.Row="2"
-                            MaxHeight="200"
-                            Margin="12,12,12,0"
-                            Padding="0,0,4,0"
-                            VerticalScrollBarVisibility="Auto"
-                            Visibility="{Binding ShowBooleanEditor, Converter={ui:BooleanToVisibilityConverter}}">
-                            <StackPanel>
+                                <ScrollViewer
+                                    Grid.Row="0"
+                                    Height="148"
+                                    HorizontalScrollBarVisibility="Disabled"
+                                    VerticalScrollBarVisibility="Auto">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="58" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock
+                                                Margin="0,5,0,0"
+                                                VerticalAlignment="Top"
+                                                FontSize="10.5"
+                                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                Text="引用变量" />
+                                            <WrapPanel Grid.Column="1">
+                                                <ItemsControl ItemsSource="{Binding Variables}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel Orientation="Horizontal" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button
+                                                                Click="QuickInsert_Click"
+                                                                Content="{Binding AliasName}"
+                                                                Style="{StaticResource DialogVariableChip}"
+                                                                Tag="{Binding AliasName}"
+                                                                ToolTip="插入该引脚变量的别名" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </WrapPanel>
+                                        </Grid>
 
-                                <!--  组：引用变量（别名，主色胶囊）  -->
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="64" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock
-                                        Grid.Column="0"
-                                        Margin="0,6,0,0"
-                                        VerticalAlignment="Top"
-                                        FontSize="11.5"
-                                        Foreground="{StaticResource DialogTextMutedBrush}"
-                                        Text="引用变量" />
-                                    <ItemsControl Grid.Column="1" ItemsSource="{Binding Variables}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <WrapPanel Orientation="Horizontal" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
+                                        <Grid Margin="0,0,0,5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="58" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock
+                                                Margin="0,5,0,0"
+                                                VerticalAlignment="Top"
+                                                FontSize="10.5"
+                                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                Text="逻辑比较" />
+                                            <WrapPanel Grid.Column="1">
                                                 <Button
-                                                    Margin="0,0,6,6"
                                                     Click="QuickInsert_Click"
-                                                    Content="{Binding AliasName}"
-                                                    Style="{StaticResource DialogTagButton}"
-                                                    Background="{StaticResource DialogAccentSoftBrush}"
-                                                    Foreground="{StaticResource DialogAccentBrush}"
-                                                    ToolTip="插入该引脚变量的别名" />
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </Grid>
+                                                    Content="&gt;"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag="&gt;"
+                                                    ToolTip="大于" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="&lt;"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag="&lt;"
+                                                    ToolTip="小于" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="=="
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag="=="
+                                                    ToolTip="等于" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="!="
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag="!="
+                                                    ToolTip="不等于" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="&amp;&amp;"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag="&amp;&amp;"
+                                                    ToolTip="并且 (And)" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="||"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag="||"
+                                                    ToolTip="或者 (Or)" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="!"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag="!"
+                                                    ToolTip="取反 (Not)" />
+                                            </WrapPanel>
+                                        </Grid>
 
-                                <!--  组：逻辑比较  -->
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="64" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
+                                        <Grid Margin="0,0,0,5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="58" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock
+                                                Margin="0,5,0,0"
+                                                VerticalAlignment="Top"
+                                                FontSize="10.5"
+                                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                Text="数字运算" />
+                                            <WrapPanel Grid.Column="1">
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="( )"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag="()"
+                                                    ToolTip="括号 (提高优先级)" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="+"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag="+" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="-"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag="-" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="*"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag="*" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="/"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag="/" />
+                                            </WrapPanel>
+                                        </Grid>
+
+                                        <Grid Margin="0,0,0,5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="58" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock
+                                                Margin="0,5,0,0"
+                                                VerticalAlignment="Top"
+                                                FontSize="10.5"
+                                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                Text="数学函数" />
+                                            <WrapPanel Grid.Column="1">
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="Math.Abs()"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag="Math.Abs()"
+                                                    ToolTip="绝对值 (常用于公差判断)" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="Math.Round()"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag="Math.Round()"
+                                                    ToolTip="四舍五入" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="Math.Sqrt()"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag="Math.Sqrt()"
+                                                    ToolTip="开平方 (常用于算距离)" />
+                                            </WrapPanel>
+                                        </Grid>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="58" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock
+                                                Margin="0,5,0,0"
+                                                VerticalAlignment="Top"
+                                                FontSize="10.5"
+                                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                Text="字符串" />
+                                            <WrapPanel Grid.Column="1">
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="Contains()"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag=".Contains()"
+                                                    ToolTip="包含某个字符" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="StartsWith()"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag=".StartsWith()"
+                                                    ToolTip="以...开头" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="IsNullOrEmpty()"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag="string.IsNullOrEmpty()"
+                                                    ToolTip="是否为空" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="Length"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag=".Length"
+                                                    ToolTip="获取字符串长度" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="Trim()"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag=".Trim()"
+                                                    ToolTip="去除首尾空格" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="ToUpper()"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag=".ToUpper()"
+                                                    ToolTip="转大写" />
+                                                <Button
+                                                    Click="QuickInsert_Click"
+                                                    Content="ToLower()"
+                                                    Style="{StaticResource DialogCodeChip}"
+                                                    Tag=".ToLower()"
+                                                    ToolTip="转小写" />
+                                            </WrapPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </ScrollViewer>
+
+                                <!--
+                                    AvalonEdit 表达式编辑器（全弹窗唯一实例）。
+                                    x:Name 与 TextChanged 事件必须原样保留 —— code-behind 靠它们
+                                    读写编辑内容并触发实时校验，改名等于把这个弹窗的输入通道切断。
+                                -->
+                                <Border
+                                    Grid.Row="1"
+                                    MinHeight="104"
+                                    Background="{StaticResource DialogRowAlternateBrush}"
+                                    BorderBrush="{StaticResource DialogBorderBrush}"
+                                    BorderThickness="1"
+                                    ClipToBounds="True"
+                                    CornerRadius="10">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="26" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <Border
+                                            Padding="10,0"
+                                            Background="{StaticResource DialogSurfaceBrush}"
+                                            BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                            BorderThickness="0,0,0,1">
+                                            <Grid>
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="10"
+                                                    FontWeight="SemiBold"
+                                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                    Text="C# 表达式" />
+                                                <TextBlock
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center"
+                                                    FontSize="10"
+                                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                    Text="Ctrl+Space 补全" />
+                                            </Grid>
+                                        </Border>
+                                        <avalonEdit:TextEditor
+                                            x:Name="txtExpression"
+                                            Grid.Row="1"
+                                            Padding="10"
+                                            Background="Transparent"
+                                            FontFamily="Consolas"
+                                            FontSize="13"
+                                            ShowLineNumbers="True"
+                                            SyntaxHighlighting="C#"
+                                            TextChanged="TxtExpression_TextChanged" />
+                                    </Grid>
+                                </Border>
+                            </Grid>
+
+                            <!-- ===== 行 3：卡内错误条（只在有错时出现） / 兜底分支说明 ===== -->
+                            <Border
+                                Grid.Row="3"
+                                Style="{StaticResource DialogInlineError}"
+                                Visibility="{Binding HasCardError, Converter={ui:BooleanToVisibilityConverter}}">
+                                <StackPanel Orientation="Horizontal">
                                     <TextBlock
-                                        Grid.Column="0"
-                                        Margin="0,6,0,0"
+                                        Margin="0,0,7,0"
                                         VerticalAlignment="Top"
-                                        FontSize="11.5"
-                                        Foreground="{StaticResource DialogTextMutedBrush}"
-                                        Text="逻辑比较" />
-                                    <WrapPanel Grid.Column="1" Orientation="Horizontal">
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="&gt;"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag="&gt;"
-                                            ToolTip="大于" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="&lt;"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag="&lt;"
-                                            ToolTip="小于" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="=="
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag="=="
-                                            ToolTip="等于" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="!="
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag="!="
-                                            ToolTip="不等于" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="&amp;&amp;"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag="&amp;&amp;"
-                                            ToolTip="并且 (And)" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="||"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag="||"
-                                            ToolTip="或者 (Or)" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="!"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag="!"
-                                            ToolTip="取反 (Not)" />
-                                    </WrapPanel>
-                                </Grid>
-
-                                <!--  组：数字运算  -->
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="64" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
+                                        FontFamily="{StaticResource DialogIconFont}"
+                                        FontSize="12"
+                                        Foreground="{StaticResource DialogDangerTextBrush}"
+                                        Text="&#xf06a;" />
                                     <TextBlock
-                                        Grid.Column="0"
-                                        Margin="0,6,0,0"
-                                        VerticalAlignment="Top"
-                                        FontSize="11.5"
-                                        Foreground="{StaticResource DialogTextMutedBrush}"
-                                        Text="数字运算" />
-                                    <WrapPanel Grid.Column="1" Orientation="Horizontal">
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="( )"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag="()"
-                                            ToolTip="括号 (提高优先级)" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="+"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag="+" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="-"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag="-" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="*"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag="*" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="/"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag="/" />
-                                    </WrapPanel>
-                                </Grid>
+                                        MaxWidth="700"
+                                        FontSize="11"
+                                        Foreground="{StaticResource DialogDangerTextBrush}"
+                                        Text="{Binding CardErrorText}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
 
-                                <!--  组：数学函数  -->
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="64" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
+                            <Border
+                                Grid.Row="1"
+                                Grid.RowSpan="3"
+                                Padding="18,20"
+                                Background="{StaticResource DialogRowAlternateBrush}"
+                                BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                Visibility="{Binding SelectedBranchNeedsExpression, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}">
+                                <StackPanel VerticalAlignment="Top">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock
+                                            Margin="0,0,8,0"
+                                            VerticalAlignment="Center"
+                                            FontFamily="{StaticResource DialogIconFont}"
+                                            FontSize="15"
+                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                            Text="&#xf05a;" />
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="13"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                            Text="{Binding NoConditionTitle}" />
+                                    </StackPanel>
                                     <TextBlock
-                                        Grid.Column="0"
-                                        Margin="0,6,0,0"
-                                        VerticalAlignment="Top"
+                                        MaxWidth="620"
+                                        Margin="0,9,0,0"
                                         FontSize="11.5"
-                                        Foreground="{StaticResource DialogTextMutedBrush}"
-                                        Text="数学函数" />
-                                    <WrapPanel Grid.Column="1" Orientation="Horizontal">
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="Math.Abs()"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag="Math.Abs()"
-                                            ToolTip="绝对值 (常用于公差判断)" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="Math.Round()"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag="Math.Round()"
-                                            ToolTip="四舍五入" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="Math.Sqrt()"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag="Math.Sqrt()"
-                                            ToolTip="开平方 (常用于算距离)" />
-                                    </WrapPanel>
-                                </Grid>
-
-                                <!--  组：字符串  -->
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="64" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                        Text="{Binding NoConditionHintText}"
+                                        TextWrapping="Wrap" />
                                     <TextBlock
-                                        Grid.Column="0"
-                                        Margin="0,6,0,0"
-                                        VerticalAlignment="Top"
-                                        FontSize="11.5"
-                                        Foreground="{StaticResource DialogTextMutedBrush}"
-                                        Text="字符串" />
-                                    <WrapPanel Grid.Column="1" Orientation="Horizontal">
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="Contains()"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag=".Contains()"
-                                            ToolTip="包含某个字符" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="StartsWith()"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag=".StartsWith()"
-                                            ToolTip="以...开头" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="IsNullOrEmpty()"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag="string.IsNullOrEmpty()"
-                                            ToolTip="是否为空" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="Length"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag=".Length"
-                                            ToolTip="获取字符串长度" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="Trim()"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag=".Trim()"
-                                            ToolTip="去除首尾空格" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="ToUpper()"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag=".ToUpper()"
-                                            ToolTip="转大写" />
-                                        <Button
-                                            Margin="0,0,6,6"
-                                            Click="QuickInsert_Click"
-                                            Content="ToLower()"
-                                            Style="{StaticResource DialogTagButton}"
-                                            Tag=".ToLower()"
-                                            ToolTip="转小写" />
-                                    </WrapPanel>
-                                </Grid>
-                            </StackPanel>
-                        </ScrollViewer>
-
-                        <!--
-                            AvalonEdit 表达式编辑器。
-                            x:Name 与 TextChanged 事件必须原样保留 —— code-behind 靠它们
-                            读写编辑内容并触发实时校验，改名等于把这个弹窗的输入通道切断。
-                            ShowLineNumbers 保留（设计稿的实时校验状态条不在本次范围，去掉行号只白丢信息）。
-                        -->
-                        <Border
-                            Grid.Row="3"
-                            Margin="12"
-                            Background="{StaticResource DialogInputBackgroundBrush}"
-                            BorderBrush="{StaticResource DialogBorderBrush}"
-                            BorderThickness="1"
-                            ClipToBounds="True"
-                            CornerRadius="8"
-                            Visibility="{Binding ShowBooleanEditor, Converter={ui:BooleanToVisibilityConverter}}">
-                            <avalonEdit:TextEditor
-                                x:Name="txtExpression"
-                                Padding="10"
-                                Background="Transparent"
-                                FontFamily="Consolas"
-                                FontSize="14"
-                                ShowLineNumbers="True"
-                                SyntaxHighlighting="C#"
-                                TextChanged="TxtExpression_TextChanged" />
-                        </Border>
-
-                        <!--
-                            分支匹配（Case）：匹配值输入框（替代布尔表达式编辑器）。
-                            单行常量，按判据声明类型转换（CaseValueHelper，与编译器同一判据）；
-                            快捷插入面板刻意不出现 —— 匹配值里没有变量和运算符可插。
-                        -->
-                        <Border
-                            Grid.Row="3"
-                            Margin="12"
-                            Background="{StaticResource DialogInputBackgroundBrush}"
-                            BorderBrush="{StaticResource DialogBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
-                            Visibility="{Binding ShowCaseValueEditor, Converter={ui:BooleanToVisibilityConverter}}">
-                            <StackPanel Margin="16" VerticalAlignment="Top">
-                                <TextBlock
-                                    Style="{StaticResource DialogHintText}"
-                                    Text="匹配值：判据等于该值时执行本分支（数值 / 布尔 / 字符串等值类型；字符串无需加引号）" />
-                                <TextBox
-                                    Width="260"
-                                    Margin="0,10,0,0"
-                                    HorizontalAlignment="Left"
-                                    Style="{StaticResource DialogInput}"
-                                    Text="{Binding SelectedBranch.Expression, UpdateSourceTrigger=PropertyChanged}"
-                                    ToolTip="例如：1 / 2.5 / true / OK" />
-                            </StackPanel>
-                        </Border>
-
-                        <!--
-                            Else / Default 分支：编译器把它的条件强制当作“真”，
-                            留一个写了也白写的编辑器只会误导人（也就那句 ToolTip 的来历）。
-                            分支匹配模式下这段文案换成“默认分支”措辞（NoConditionTitle / NoConditionHintText）。
-                        -->
-                        <Border
-                            Grid.Row="1"
-                            Grid.RowSpan="3"
-                            Margin="12"
-                            Padding="20"
-                            Background="{StaticResource DialogRowAlternateBrush}"
-                            CornerRadius="8"
-                            Visibility="{Binding SelectedBranchNeedsExpression, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}">
-                            <StackPanel
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center">
-                                <TextBlock
-                                    HorizontalAlignment="Center"
-                                    FontSize="13.5"
-                                    FontWeight="SemiBold"
-                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
-                                    Text="{Binding NoConditionTitle}" />
-                                <TextBlock
-                                    MaxWidth="480"
-                                    Margin="0,10,0,0"
-                                    HorizontalAlignment="Center"
-                                    Style="{StaticResource DialogHintText}"
-                                    TextAlignment="Center"
-                                    ToolTip="编译器会把这个分支的条件强制替换为恒真表达式，写了也不会执行"
-                                    Text="{Binding NoConditionHintText}" />
-                            </StackPanel>
-                        </Border>
+                                        MaxWidth="620"
+                                        Margin="0,9,0,0"
+                                        FontSize="11"
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                        Text="变量表与其它分支共用，仍可继续编辑；切到其它分支即可编写条件。"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
                     </Grid>
                 </Border>
 
-                <!--  3. For 计次循环卡片（并入本弹窗：同一套草稿→校验→写回事务管线）  -->
+                <!--  3. For 计次循环卡（并入本弹窗：同一套草稿→校验→写回事务管线）  -->
                 <Border
-                    Grid.Row="0"
-                    Grid.RowSpan="3"
-                    Style="{StaticResource DialogColumnCard}"
+                    Grid.RowSpan="2"
+                    Background="{StaticResource DialogSurfaceBrush}"
+                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12"
                     Visibility="{Binding IsForMode, Converter={ui:BooleanToVisibilityConverter}}">
-                    <StackPanel
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center">
-                        <StackPanel
-                            Margin="0,0,0,22"
-                            HorizontalAlignment="Center"
-                            Orientation="Horizontal">
-                            <TextBlock
-                                Style="{StaticResource DialogColumnTitleIcon}"
-                                FontSize="14"
-                                Text="&#xf01e;" />
-                            <TextBlock
-                                FontSize="15"
-                                FontWeight="Bold"
-                                Foreground="{StaticResource DialogTextPrimaryBrush}"
-                                Text="计次循环设置 (For)" />
-                        </StackPanel>
-
-                        <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
-                            <TextBlock
-                                Margin="0,0,12,0"
-                                VerticalAlignment="Center"
-                                Style="{StaticResource DialogFormLabel}"
-                                Text="循环次数" />
-                            <TextBox
-                                Width="160"
-                                Style="{StaticResource DialogInput}"
-                                Text="{Binding LoopCountText, UpdateSourceTrigger=PropertyChanged}"
-                                ToolTip="1 ~ 99999" />
-                        </StackPanel>
-
-                        <!--
-                            LoopCount 连线入口：与画布拖线写同一条 LinkedSources["LoopCount"]。
-                            这里读写的都是弹窗草稿，点"保存并应用"才落到活模型（取消即丢弃）。
-                        -->
-                        <StackPanel
-                            Margin="0,18,0,0"
-                            HorizontalAlignment="Center"
-                            Orientation="Horizontal">
-                            <TextBlock
-                                Margin="0,0,12,0"
-                                VerticalAlignment="Center"
-                                Style="{StaticResource DialogFormLabel}"
-                                Text="数据源" />
-                            <Border
-                                Width="260"
-                                Height="30"
-                                Padding="10,0"
-                                Background="{StaticResource DialogSurfaceBrush}"
-                                BorderBrush="{StaticResource DialogBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
+                    <StackPanel>
+                        <Border Style="{StaticResource DialogCardHead}">
+                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                                 <TextBlock
+                                    Margin="0,0,7,0"
                                     VerticalAlignment="Center"
+                                    FontFamily="{StaticResource DialogIconFont}"
                                     FontSize="12"
-                                    Foreground="{StaticResource DialogTextPrimaryBrush}"
-                                    Text="{Binding LoopCountSourceText, TargetNullValue='未连线（用左侧默认次数）'}"
-                                    TextTrimming="CharacterEllipsis" />
-                            </Border>
-                            <Button
-                                Margin="12,0,0,0"
-                                VerticalAlignment="Center"
-                                Command="{Binding LinkLoopCountCommand}"
-                                Style="{StaticResource DialogTagButton}"
-                                ToolTip="把循环次数改为由上游输出端口驱动">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock
-                                        Margin="0,0,6,0"
+                                    Foreground="{StaticResource DialogAccentBrush}"
+                                    Text="&#xf01e;" />
+                                <TextBlock Style="{StaticResource DialogCardTitle}" Text="计次循环设置 (For)" />
+                                <TextBlock Style="{StaticResource DialogCardHint}" Text="取值范围 1 ~ 99999" />
+                            </StackPanel>
+                        </Border>
+
+                        <Grid Margin="16,16,16,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="1.6*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Margin="0,0,12,0">
+                                <TextBlock Style="{StaticResource DialogFieldLabelSmall}" Text="循环次数" />
+                                <TextBox
+                                    x:Name="txtLoopCount"
+                                    Height="34"
+                                    Padding="9,0"
+                                    VerticalContentAlignment="Center"
+                                    FontFamily="{StaticResource PluginMonoFontFamily}"
+                                    FontSize="12"
+                                    Style="{StaticResource DialogInput}"
+                                    Text="{Binding LoopCountText, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="1 ~ 99999" />
+                                <TextBlock Style="{StaticResource DialogFieldHelp}" Text="未连线时的默认次数；已连线时作为取不到值的回落" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Style="{StaticResource DialogFieldLabelSmall}" Text="数据源" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border
+                                        Height="34"
+                                        Padding="10,0"
+                                        Background="{StaticResource DialogRowAlternateBrush}"
+                                        BorderBrush="{StaticResource DialogBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="8">
+                                        <Grid>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontFamily="{StaticResource PluginMonoFontFamily}"
+                                                FontSize="11.5"
+                                                Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                                Text="{Binding LoopCountSourceText}"
+                                                TextTrimming="CharacterEllipsis">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding LoopCountSourceText}" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding LoopCountSourceText}" Value="">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="11.5"
+                                                FontStyle="Italic"
+                                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                                Text="未连线（用左侧默认次数）">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding LoopCountSourceText}" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding LoopCountSourceText}" Value="">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
+                                    </Border>
+
+                                    <Button
+                                        Grid.Column="1"
+                                        Height="28"
+                                        Margin="10,0,0,0"
                                         VerticalAlignment="Center"
-                                        FontFamily="{StaticResource Icon}"
-                                        FontSize="11"
-                                        Text="&#xf0c1;" />
-                                    <TextBlock VerticalAlignment="Center" Text="选择数据源" />
-                                </StackPanel>
-                            </Button>
-                            <Button
-                                Margin="8,0,0,0"
-                                VerticalAlignment="Center"
-                                Background="{StaticResource DialogDangerSubtleBrush}"
-                                Command="{Binding UnlinkLoopCountCommand}"
-                                Foreground="{StaticResource DialogDangerBrush}"
-                                Style="{StaticResource DialogTagButton}"
-                                ToolTip="解除连线，改回用左侧默认次数"
-                                Visibility="{Binding HasLoopCountLink, Converter={ui:BooleanToVisibilityConverter}}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock
-                                        Margin="0,0,6,0"
+                                        Command="{Binding LinkLoopCountCommand}"
+                                        Style="{StaticResource DialogTagButton}"
+                                        ToolTip="把循环次数改为由上游输出端口驱动">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                FontFamily="{StaticResource DialogIconFont}"
+                                                FontSize="11"
+                                                Text="&#xf0c1;" />
+                                            <TextBlock VerticalAlignment="Center" Text="选择数据源" />
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Button
+                                        Grid.Column="2"
+                                        Height="28"
+                                        Margin="8,0,0,0"
                                         VerticalAlignment="Center"
-                                        FontFamily="{StaticResource Icon}"
-                                        FontSize="11"
-                                        Text="&#xf00d;" />
-                                    <TextBlock VerticalAlignment="Center" Text="解除" />
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
+                                        Background="{StaticResource DialogDangerSubtleBrush}"
+                                        BorderBrush="{StaticResource DialogDangerBorderBrush}"
+                                        Command="{Binding UnlinkLoopCountCommand}"
+                                        Foreground="{StaticResource DialogDangerTextBrush}"
+                                        Style="{StaticResource DialogTagButton}"
+                                        ToolTip="解除连线，改回用左侧默认次数"
+                                        Visibility="{Binding HasLoopCountLink, Converter={ui:BooleanToVisibilityConverter}}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                FontFamily="{StaticResource DialogIconFont}"
+                                                FontSize="11"
+                                                Text="&#xf00d;" />
+                                            <TextBlock VerticalAlignment="Center" Text="解除" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                            </StackPanel>
+                        </Grid>
+
+                        <!--  摘要条：循环体步数 / 默认次数 / 数据源  -->
+                        <Border
+                            Margin="16,14,16,0"
+                            Padding="12,10"
+                            Background="{StaticResource DialogRowAlternateBrush}"
+                            BorderBrush="{StaticResource DialogBorderLightBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8">
+                            <TextBlock
+                                FontSize="11"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="{Binding LoopSummaryText}"
+                                TextWrapping="Wrap" />
+                        </Border>
 
                         <TextBlock
-                            MaxWidth="480"
-                            Margin="0,20,0,0"
-                            Style="{StaticResource DialogHintText}"
-                            TextAlignment="Center"
-                            Text="取值范围 1 ~ 99999。若该节点的循环次数输入端口连接了上游变量，运行时以连线值为准，此处仅作未连线时的默认次数。" />
+                            MaxWidth="620"
+                            Margin="16,14,16,16"
+                            FontSize="11"
+                            LineHeight="18"
+                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                            Text="若该节点的循环次数输入端口连接了上游变量，运行时以连线值为准，此处仅作未连线时的默认次数。连线与默认次数都属于草稿，取消即丢弃。"
+                            TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
             </Grid>
         </Grid>
 
-        <!--  4. 底栏：跨整宽，右对齐「取消 / 保存并应用」  -->
+        <!-- ==================== 底栏 ==================== -->
         <Border Grid.Row="2" Style="{StaticResource DialogFooter}">
-            <StackPanel
-                HorizontalAlignment="Right"
-                VerticalAlignment="Center"
-                Orientation="Horizontal">
-                <Button
-                    MinWidth="96"
-                    Command="{Binding CancelCommand}"
-                    Content="取消"
-                    Style="{StaticResource DialogSecondaryButton}" />
-                <Button
-                    MinWidth="130"
-                    Margin="12,0,0,0"
-                    Command="{Binding SaveCommand}"
-                    Content="保存并应用"
-                    Style="{StaticResource DialogPrimaryButton}" />
-            </StackPanel>
+            <Grid>
+                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                    <TextBlock
+                        Margin="0,0,7,0"
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource DialogIconFont}"
+                        FontSize="12"
+                        Text="&#xf00c;">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ValidationSummaryLevel}" Value="err">
+                                        <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                                        <Setter Property="Text" Value="&#xf06a;" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="11.5"
+                        Text="{Binding ValidationSummaryText}"
+                        TextTrimming="CharacterEllipsis">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ValidationSummaryLevel}" Value="err">
+                                        <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+
+                <StackPanel
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <Button
+                        MinWidth="96"
+                        Command="{Binding CancelCommand}"
+                        Content="取消"
+                        Style="{StaticResource DialogSecondaryButton}" />
+                    <Button
+                        MinWidth="130"
+                        Margin="12,0,0,0"
+                        Command="{Binding SaveCommand}"
+                        Content="保存并应用"
+                        Style="{StaticResource DialogPrimaryButton}" />
+                </StackPanel>
+            </Grid>
         </Border>
     </Grid>
 

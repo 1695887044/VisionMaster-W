@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        ============================================================================
+        条件编辑器（ConditionEditorView）公共样式
+        ============================================================================
+
+        为什么放在 UI 库而不是视图里：`FlowCanvasChecks` 的【收编】纪律要求
+        「已收编弹窗不再本地定义 Style（形状与颜色一律取自 UI 库）」——
+        ConditionEditorView 在收编名单里，13 个本地样式会被这条断言判红。
+        把形状/颜色收敛到公共字典，既过闸门，也让其它弹窗能复用同一套卡片/胶囊几何。
+
+        令牌依赖：本册只引用 Colors.xaml 的 Dialog* 键与 PluginConfigColors.xaml 的
+        PluginMonoFontFamily，**不引用任何兄弟分册**（R30/R31：分册之间互相看不见）。
+        因此这里就地合并两份令牌字典，自给自足。
+    -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/PluginConfigColors.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--  可编辑 ComboBox：显式不设 Template，回落到框架默认模板（含 PART_EditableTextBox）。
+          共享 DialogCombo 的模板没有该部件，IsEditable=True 会「能敲字但看不见」。  -->
+    <Style x:Key="DialogEditableCombo" TargetType="ComboBox">
+        <Setter Property="Height" Value="30" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="IsEditable" Value="True" />
+        <Setter Property="IsTextSearchEnabled" Value="False" />
+        <Setter Property="MaxDropDownHeight" Value="280" />
+    </Style>
+
+    <!--  12px 圆角卡片（v2 设计稿的卡片几何；DialogColumnCard 是 10px）  -->
+    <Style x:Key="DialogCardRounded12" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!--  卡片标题行：42 高、白底、仅下边线  -->
+    <Style x:Key="DialogCardHead" TargetType="Border">
+        <Setter Property="Height" Value="42" />
+        <Setter Property="Padding" Value="14,0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+    </Style>
+
+    <Style x:Key="DialogCardTitle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <Style x:Key="DialogCardHint" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="8,0,0,0" />
+        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <!--  字段标签（比 DialogFormLabel 小一档：11.5px）  -->
+    <Style x:Key="DialogFieldLabelSmall" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,0,0,5" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+    </Style>
+
+    <!--  字段说明（10px、可换行、14 行高）  -->
+    <Style x:Key="DialogFieldHelp" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,5,0,0" />
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="LineHeight" Value="14" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!--  小语义徽标（必需 / 兜底 / 缺少条件）：17 高、4 圆角  -->
+    <Style x:Key="DialogMicroBadge" TargetType="Border">
+        <Setter Property="Height" Value="17" />
+        <Setter Property="Padding" Value="5,0" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="DialogMicroBadgeText" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="9.5" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+    </Style>
+
+    <!--  类型胶囊（变量表的「类型」列）：22 高、5 圆角、等宽  -->
+    <Style x:Key="DialogTypeChip" TargetType="Border">
+        <Setter Property="Height" Value="22" />
+        <Setter Property="Padding" Value="6,0" />
+        <Setter Property="CornerRadius" Value="5" />
+        <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="DialogTypeChipText" TargetType="TextBlock">
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="9.5" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontFamily" Value="{StaticResource PluginMonoFontFamily}" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <!--  代码片段胶囊（快捷插入）：24 高、6 圆角、等宽 11px  -->
+    <Style x:Key="DialogCodeChip" TargetType="Button">
+        <Setter Property="Height" Value="24" />
+        <Setter Property="Margin" Value="0,0,5,5" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource PluginMonoFontFamily}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Bd"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="6"
+                        SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogBorderStrongBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  变量胶囊（快捷插入的「引用变量」组）：主色浅底强调  -->
+    <Style
+        x:Key="DialogVariableChip"
+        BasedOn="{StaticResource DialogCodeChip}"
+        TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!--  卡内错误条（只在有错时出现）：红底 + 红边 + 8 圆角  -->
+    <Style x:Key="DialogInlineError" TargetType="Border">
+        <Setter Property="Margin" Value="12,9,12,11" />
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+</ResourceDictionary>

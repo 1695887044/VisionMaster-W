@@ -277,6 +277,14 @@ namespace Core.Interfaces
         /// </summary>
         public virtual void Initialize(IStepConfigData stepData)
         {
+            // 端口名是反射按属性名补的（`new InputPort<T>()` 不写名字），而连线键
+            //（StepModel.LinkedSources / LinkableValueEditor 的 🔗 / 绑定弹窗的 TargetPortName）
+            // 一律按 Name 取。必须在这里发现一次：**新建步骤的 InputValues 是空的**，
+            // ApplyConfigValues 的循环一次都不跑，端口名会一直停在 null ——
+            // 配置视图里的 🔗 于是发出空 InputPortName，宿主退回"完整绑定弹窗"，
+            // 绑定只写进模型、插件视图收不到 OnBound 回调（真机：选完变量点确认，
+            // 图像路径那行仍显示"需链接变量"，要关掉配置窗重开才回显）。
+            EnsurePortsDiscovered();
             StepData = stepData;
             ApplyConfigValues(stepData);
         }

@@ -7,7 +7,9 @@ using Core.Interfaces;
 using Prism.Commands;
 using Prism.Dialogs;
 using Prism.Mvvm;
+using VisionMaster.Models;
 using VisionMaster.Services;
+using VisionMaster.Services.Hardware;
 
 namespace VisionMaster.ViewModels.DialogViewModels
 {
@@ -79,7 +81,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
     ///     （它们由命令门禁自动累计），本外壳自己拦下的拒绝（未使能/未回零/忙…）
     ///     不经过设备，另记 _sessionRejected —— 两路相加才是完整口径。
     /// </summary>
-    public class MotionBoardViewModel : BindableBase, IDialogAware
+    public class MotionBoardViewModel : BindableBase, IDialogAware, IEmbeddedDialogPage, IHardwareEditGateAware
     {
         private readonly MotionProvider _provider;
         private readonly IWorkspaceManager _workspace;
@@ -89,6 +91,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         private DispatcherTimer? _refreshTimer;
         private DispatcherTimer? _noticeTimer;
+
+        /// <summary>嵌入页生命周期标记（批次 C）</summary>
+        private bool _embeddedOpened;
+        private bool _embeddedActive;
+        private bool _embeddedClosed;
+
+        private bool _isConfigEditable = true;
+        private bool _isRuntimeOperable = true;
+        private string? _configEditHint;
+        private string? _runtimeEditHint;
 
         public MotionBoardViewModel(MotionProvider provider, IWorkspaceManager workspace, MotionAxisRegistry axes)
         {
@@ -107,6 +119,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
             ConfirmAddCardCommand = new DelegateCommand(ConfirmAddCard);
             ConfirmOkCommand = new DelegateCommand(() =>
             {
+                // 模态打开期间可能刚好空闲登出/流程启动：确认这一刻再查一次门禁。
+                if (!IsConfigEditable)
+                {
+                    NotifyError("需要管理员权限，或流程运行中禁止修改运动配置。");
+                    CloseConfirm();
+                    return;
+                }
+
                 var action = _confirmAction;
                 CloseConfirm();
                 action?.Invoke();
@@ -144,11 +164,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
             //      （早期那张默认虚拟卡就是这么进方案文件的，后面花了两轮才清掉）。
             // 空态本身是完整的：左栏有"添加"按钮，设置页签提示"请在左侧选择一张运动卡"。
             // 需要卡就点「添加」——由用户主动创建，而不是替他做决定。
-            var solution = _workspace.CurrentSolution;
-
-            // 电子凸轮表空库 seed（规格 6.4：一张五拐点默认表）
-            if (solution != null && solution.CamTables.Count == 0)
-                solution.CamTables.Add(MotionCamMath.CreateSeedTable());
+            //
+            // 电子凸轮表也不在这里 seed：用户只是打开运动页看一眼，不应该顺手改方案。
+            // 空库时 Cam 页有「新建凸轮表」按钮，由用户主动创建。
             Cam.LoadTables();
 
             // 菜单「轴点位表」入口 → 直接落在点位列表页签
@@ -157,7 +175,6 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 {
                     "debug" => 1,
                     "points" => 2,
-                    "cam" => 3,
                     _ => 0,
                 };
 
@@ -180,6 +197,105 @@ namespace VisionMaster.ViewModels.DialogViewModels
             Debug.OnShellClosed();
             Cam.OnShellClosed();
         }
+
+        #region 嵌入页 / 门禁（批次 C）
+
+        public bool IsConfigEditable
+        {
+            get => _isConfigEditable;
+            private set => SetProperty(ref _isConfigEditable, value);
+        }
+
+        public bool IsRuntimeOperable
+        {
+            get => _isRuntimeOperable;
+            private set => SetProperty(ref _isRuntimeOperable, value);
+        }
+
+        public string? ConfigEditHint
+        {
+            get => _configEditHint;
+            private set => SetProperty(ref _configEditHint, value);
+        }
+
+        public string? RuntimeEditHint
+        {
+            get => _runtimeEditHint;
+            private set => SetProperty(ref _runtimeEditHint, value);
+        }
+
+        public void ApplyEditGate(bool canEditConfig, bool canOperateRuntime, string? configReason, string? runtimeReason)
+        {
+            IsConfigEditable = canEditConfig;
+            IsRuntimeOperable = canOperateRuntime;
+            ConfigEditHint = configReason;
+            RuntimeEditHint = runtimeReason;
+        }
+
+        public void OnEmbeddedOpened(IDialogParameters parameters)
+        {
+            if (_embeddedOpened || _embeddedClosed) return;
+            _embeddedOpened = true;
+            _embeddedActive = true;
+            OnDialogOpened(parameters);
+        }
+
+        public void OnEmbeddedActivated()
+        {
+            if (!_embeddedOpened || _embeddedClosed || _embeddedActive) return;
+            _embeddedActive = true;
+            _refreshTimer?.Start();
+            Debug.OnShellActivated();
+        }
+
+        public void OnEmbeddedDeactivated()
+        {
+            if (!_embeddedActive) return;
+            _embeddedActive = false;
+            _refreshTimer?.Stop();
+
+            // 只停看门狗 + 停点动。绝不调用 OnShellClosed：它在等待回零/到位时会 CancelAll，
+            // 可能把同一张卡上流程正在执行的命令一起取消（2026-10-20 评审阻断项）。
+            Debug.OnShellDeactivated();
+        }
+
+        public void OnEmbeddedClosed()
+        {
+            if (!_embeddedOpened || _embeddedClosed) return;
+            _embeddedClosed = true;
+            _embeddedActive = false;
+            OnDialogClosed();
+        }
+
+        public bool CanCloseEmbedded(out string? reason)
+        {
+            // 手动回零/定位还在跑、且流程也在跑：关窗要么砍流程命令（CancelAll 设备级），
+            // 要么留下无人看管的手动命令。两条都不接受，直接拒绝关闭并说明。
+            if (Debug.HasPendingManualMotion && AnyFlowRunning())
+            {
+                reason = "流程运行中，手动回零/定位命令仍在执行；请先停止流程或等待命令结束。";
+                return false;
+            }
+
+            reason = null;
+            return true;
+        }
+
+        private bool AnyFlowRunning()
+        {
+            var flows = _workspace.CurrentSolution?.Flows;
+            if (flows == null) return false;
+
+            foreach (var flow in flows)
+            {
+                if (flow != null && flow.RunState != FlowRunState.Stopped)
+                    return true;
+            }
+
+            return false;
+        }
+
+        #endregion
 
         #endregion
 
@@ -234,8 +350,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         #region 页签
 
-        /// <summary>页签标题（顺序即规格 1.1：卡设置 / 手动调试 / 点位列表 / 电子凸轮）</summary>
-        public string[] TabLabels { get; } = { "卡设置", "手动调试", "点位列表", "电子凸轮" };
+        /// <summary>页签标题（顺序即规格 1.1；电子凸轮暂不开放 UI）</summary>
+        public string[] TabLabels { get; } = { "卡设置", "手动调试", "点位列表" };
 
         /// <summary>
         /// 「卡设置」里行内改了轴名 —— 先做**级联**，再让三个消费方跟一步：
@@ -267,12 +383,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
             get => _selectedTabIndex;
             set
             {
-                if (!SetProperty(ref _selectedTabIndex, value))
+                // 页签数量是 3；外部旧深链/持久化值可能是 3（已下线的电子凸轮），
+                // 不夹取会让 ListBox 选中项落到不存在的项上（界面空白）。
+                var clamped = Math.Max(0, Math.Min(2, value));
+                if (!SetProperty(ref _selectedTabIndex, clamped))
                     return;
 
                 // 切入手动调试页签时重扫轴列表：轴映射可能在「卡设置」里刚被
                 // 连接后的能力铺齐（32 轴）或改名过，不重扫就会显示旧快照/空列表
-                if (value == 1)
+                if (clamped == 1)
                     Debug.ReloadAxesAndIo();
             }
         }
@@ -568,6 +687,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>打开添加模态（表单重置为默认草稿，规格 3.2）</summary>
         public void OpenAddCard()
         {
+            if (!IsConfigEditable)
+            {
+                NotifyError("需要管理员权限，或流程运行中禁止修改运动配置。");
+                return;
+            }
+
             // 默认驱动取真实驱动（仿真驱动要用户显式选择），
             // 且必须取列表里那个实例（否则下拉显示为空，见 DefaultDriver 的说明）
             NewDriver = DefaultDriver;
@@ -585,6 +710,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// </summary>
         public void ConfirmAddCard()
         {
+            if (!IsConfigEditable)
+            {
+                NotifyError("需要管理员权限，或流程运行中禁止修改运动配置。");
+                return;
+            }
+
             if (NewDriver == null)
             {
                 NotifyError("请先选择驱动类型");

@@ -58,11 +58,10 @@
         TargetType="Button">
         <!--
             图标按钮必须是**方形**（30x30，与 docs/UI设计基线/io-health 的 .icon-btn 一致）。
-            原来的写法只给 Padding="6,4"，按钮尺寸被内容（一个 13px 字形）撑成 22x32，
-            而模板里的悬停叠加层是"按钮内容区 + CornerRadius 8"：
-            内容区只有 10x24，圆角 8 就把它渲染成一根竖着的胶囊 —— 真机截图里关闭按钮
-            悬停时出现一条窄竖条，看着像错位的滚动条。
-            Padding=0 让叠加层铺满 30x30，圆角 8 才是正常的圆角方块。
+            原来的写法只给 Padding="6,4"，按钮尺寸被内容（一个 13px 字形）撑成 22x32；
+            Padding=0 让 13px 字形在 30x30 里居中，内容区不被内边距挤成细条。
+            （悬停叠加层已在 FluentButtonStyle 模板里改为铺满整颗按钮，不再依赖 Padding=0；
+            这里保留 Padding=0 是为了方形几何本身。）
         -->
         <Setter Property="Padding" Value="0" />
         <Setter Property="MinWidth" Value="30" />
@@ -111,6 +110,96 @@
         x:Key="DialogFooterSecondaryButton"
         BasedOn="{StaticResource FluentButtonSubtleStyle}"
         TargetType="Button" />
+
+    <!--
+        ============================================================
+        MessageDialog 按钮族（公共消息弹窗）
+        ============================================================
+        为什么放在本文件：四个样式都 BasedOn Fluent 样式（DialogIconButton / FluentButtonStyle），
+        放到 Dialog 分册里就是跨册引用（R30，解析期直接抛）。
+
+        尺寸 / 字重按设计基线：h32 / p14,0 / r8 / 12.5 / 600。
+        ⚠ CSS 写的是 padding: 0 14px，WPF 的 Thickness 是「左,上,右,下」，
+        所以这里必须是 14,0 —— 写成 0,14 会把内容区高度挤成 4px，文字被裁掉。
+
+        颜色只取 Dialog 令牌：主按钮用 DialogAccentBrush(#0EA5E9)，不复用
+        DialogPrimaryButton（它指向 Fluent 的 #0078D4，会把青蓝体系劈成两套蓝，见基线 D1）。
+        白字复用 DialogSurfaceBrush(#FFFFFF)，不新增第二个白令牌。
+    -->
+    <Style
+        x:Key="DialogMessagePrimaryButton"
+        BasedOn="{StaticResource FluentButtonStyle}"
+        TargetType="Button">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="14,0" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Background" Value="{StaticResource DialogAccentBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource DialogSurfaceBrush}" />
+    </Style>
+    <Style
+        x:Key="DialogMessageSecondaryButton"
+        BasedOn="{StaticResource FluentButtonStyle}"
+        TargetType="Button">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="14,0" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+    </Style>
+    <Style
+        x:Key="DialogMessageDangerButton"
+        BasedOn="{StaticResource FluentButtonStyle}"
+        TargetType="Button">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="14,0" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Background" Value="{StaticResource DialogDangerBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource DialogSurfaceBrush}" />
+    </Style>
+
+    <!--
+        详情行的复制按钮：24 × 24 方格子。
+        R68：固定格子的图标按钮必须 Padding=0 或挂样式，否则 Fluent 隐式 Button 样式
+        的 11,5,11,6 内边距会把字形裁掉（24×24 的内容区会直接归零）。
+        FontFamily 走 DialogIconFont（Colors.xaml 已在本文件 merge），Content 直接给码点字符串。
+    -->
+    <Style
+        x:Key="DialogMessageCopyButton"
+        BasedOn="{StaticResource DialogIconButton}"
+        TargetType="Button">
+        <Setter Property="Width" Value="24" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="MinWidth" Value="24" />
+        <Setter Property="MinHeight" Value="24" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+    </Style>
+
+    <!--  右上角关闭：30×30 方格子 + Padding=0（R68），字形走 DialogIconFont  -->
+    <Style
+        x:Key="DialogMessageCloseButton"
+        BasedOn="{StaticResource DialogIconButton}"
+        TargetType="Button">
+        <Setter Property="Width" Value="30" />
+        <Setter Property="Height" Value="30" />
+        <Setter Property="MinWidth" Value="30" />
+        <Setter Property="MinHeight" Value="30" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+    </Style>
 
     <Style
         x:Key="PluginPrimaryButton"

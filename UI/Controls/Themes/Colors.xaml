@@ -126,6 +126,7 @@
     <!--  容器：窗口底 / 卡片与输入框白底 / 卡片描边 / 输入框浅底  -->
     <SolidColorBrush x:Key="DialogBackgroundBrush" Color="#EEF2F7" />
     <SolidColorBrush x:Key="DialogSurfaceBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="DialogScrimBrush" Color="#99000000" />
     <SolidColorBrush x:Key="DialogCardBorderBrush" Color="#E3E9F2" />
     <SolidColorBrush x:Key="DialogInputBackgroundBrush" Color="#F8FAFC" />
 
@@ -135,9 +136,17 @@
     <!--  悬停/按下描边：比 DialogBorderBrush 深一档（卡片、输入框 hover）  -->
     <SolidColorBrush x:Key="DialogBorderStrongBrush" Color="#CBD5E1" />
 
-    <!--  文字：正文 / 次要 / 占位与禁用  -->
+    <!--  文字：正文 / 次要 / 第三级说明 / 占位与禁用  -->
     <SolidColorBrush x:Key="DialogTextPrimaryBrush" Color="#0F172A" />
     <SolidColorBrush x:Key="DialogTextSecondaryBrush" Color="#475569" />
+    <!--
+        第三级说明文字（11~12px）：MessageDialog 的底栏快捷键提示、详情区标签与 Hint。
+        为什么不复用上面两支：DialogTextMutedBrush(#94A3B8) 在白底上只有约 2.6:1，
+        DialogTextSecondaryBrush(#475569) 又太深（和正文抢层级）。
+        #64748B 在白底约 4.8:1，刚好满足 WCAG AA 的小字口径。
+        DialogTextMutedBrush 仍只用于占位 / 禁用。
+    -->
+    <SolidColorBrush x:Key="DialogTextTertiaryBrush" Color="#64748B" />
     <SolidColorBrush x:Key="DialogTextMutedBrush" Color="#94A3B8" />
 
     <!--  语义色：成功（在线）/ 危险（错误、离线）/ 警示（重连中）  -->
@@ -177,6 +186,15 @@
     <SolidColorBrush x:Key="DialogSuccessSubtleBrush" Color="#F0FDF4" />
     <SolidColorBrush x:Key="DialogSuccessTextBrush" Color="#15803D" />
     <SolidColorBrush x:Key="DialogSuccessBorderBrush" Color="#BBF7D0" />
+
+    <!--
+        数据类型：数组类型色（2026-10-20 变量管理类型 chip 新增）。
+        只补"数组"这一档：int/double/bool/string/image 复用既有语义族，
+        不另造第二套数据色。三支键放在第一层令牌字典，任何 Dialog 分册都可引用（R30-R32）。
+    -->
+    <SolidColorBrush x:Key="DialogTypeArrayBrush" Color="#06B6D4" />
+    <SolidColorBrush x:Key="DialogTypeArrayTextBrush" Color="#0E7490" />
+    <SolidColorBrush x:Key="DialogTypeArraySoftBrush" Color="#ECFEFF" />
 
     <!--  交互底：行悬停 / 行选中（与 DialogAccentLightBrush 同族但更淡）  -->
     <SolidColorBrush x:Key="DialogRowHoverBrush" Color="#F1F5F9" />
@@ -219,13 +237,27 @@
     <SolidColorBrush x:Key="FlowCanvasNodeHoverBorderBrush" Color="#3B82F6" />
     <SolidColorBrush x:Key="FlowCanvasNodeSelectedBorderBrush" Color="#2563EB" />
     <SolidColorBrush x:Key="FlowCanvasNodeSelectedGlowBrush" Color="#333B82F6" />
-    <SolidColorBrush x:Key="FlowCanvasNodeTextBrush" Color="#1E293B" />
+    <SolidColorBrush x:Key="FlowCanvasNodeTextBrush" Color="#0F172A" />
     <SolidColorBrush x:Key="FlowCanvasNodeSubTextBrush" Color="#94A3B8" />
     <SolidColorBrush x:Key="FlowCanvasNodeIconBrush" Color="#3B82F6" />
     <SolidColorBrush x:Key="FlowCanvasNodeDisabledBrush" Color="#B8BFC9" />
+    <!--  失败节点底色（flow-logic：失败态红边 + #FFF7F7 淡红底；容器用同族更浅一档）  -->
+    <SolidColorBrush x:Key="FlowCanvasNodeFailedBackgroundBrush" Color="#FFF7F7" />
+    <SolidColorBrush x:Key="FlowCanvasContainerFailedBackgroundBrush" Color="#FEF2F2" />
+    <SolidColorBrush x:Key="FlowCanvasFailedSoftBrush" Color="#FEF2F2" />
+    <SolidColorBrush x:Key="FlowCanvasFailedBorderBrush" Color="#FECACA" />
+    <SolidColorBrush x:Key="FlowCanvasFailedTextBrush" Color="#B91C1C" />
 
-    <!--  序号角标：底 / 字  -->
-    <SolidColorBrush x:Key="FlowCanvasOrderBadgeBrush" Color="#3B82F6" />
+    <!--  状态点：正常 / 运行 / 成功 / 失败 / 跳过 / 告警（flow-logic 状态矩阵）  -->
+    <SolidColorBrush x:Key="FlowCanvasStateIdleBrush" Color="#A8ABB2" />
+    <SolidColorBrush x:Key="FlowCanvasStateRunningBrush" Color="#2563EB" />
+    <SolidColorBrush x:Key="FlowCanvasStateSuccessBrush" Color="#16A34A" />
+    <SolidColorBrush x:Key="FlowCanvasStateFailedBrush" Color="#EF4444" />
+    <SolidColorBrush x:Key="FlowCanvasStateSkippedBrush" Color="#CBD5E1" />
+    <SolidColorBrush x:Key="FlowCanvasStateWarningBrush" Color="#D97706" />
+
+    <!--  序号角标：底 / 字（flow-logic：深色小胶囊，不再用亮蓝）  -->
+    <SolidColorBrush x:Key="FlowCanvasOrderBadgeBrush" Color="#0F172A" />
     <SolidColorBrush x:Key="FlowCanvasOnOrderBadgeTextBrush" Color="#FFFFFF" />
 
     <!--  运行态描边：运行中 / 成功 / 失败 / 跳过；Idle 不特殊描边（回落默认描边）  -->
@@ -235,9 +267,76 @@
     <SolidColorBrush x:Key="FlowCanvasSkippedBrush" Color="#CBD5E1" />
 
     <!--  连线：数据依赖 / 非法（虚线）/ 执行顺序链（细虚线，与数据线视觉区分）  -->
-    <SolidColorBrush x:Key="FlowCanvasLinkBrush" Color="#64748B" />
+    <SolidColorBrush x:Key="FlowCanvasLinkBrush" Color="#3B82F6" />
     <SolidColorBrush x:Key="FlowCanvasLinkIllegalBrush" Color="#EF4444" />
-    <SolidColorBrush x:Key="FlowCanvasOrderLinkBrush" Color="#A8B3C2" />
+    <SolidColorBrush x:Key="FlowCanvasOrderLinkBrush" Color="#94A3B8" />
+
+    <!--  ====================  逻辑容器类型色（flow-logic）  ====================  -->
+    <!--  只用于容器组头/边框/类型徽标；叶子节点仍用 ToolboxCategoryVisuals 的分类色。  -->
+    <SolidColorBrush x:Key="LogicIfBrush" Color="#6366F1" />
+    <SolidColorBrush x:Key="LogicIfSoftBrush" Color="#EEF2FF" />
+    <SolidColorBrush x:Key="LogicIfBorderBrush" Color="#C7D2FE" />
+    <SolidColorBrush x:Key="LogicIfTextBrush" Color="#4338CA" />
+    <SolidColorBrush x:Key="LogicCaseBrush" Color="#8B5CF6" />
+    <SolidColorBrush x:Key="LogicCaseSoftBrush" Color="#F5F3FF" />
+    <SolidColorBrush x:Key="LogicCaseBorderBrush" Color="#DDD6FE" />
+    <SolidColorBrush x:Key="LogicCaseTextBrush" Color="#6D28D9" />
+    <SolidColorBrush x:Key="LogicWhileBrush" Color="#F59E0B" />
+    <SolidColorBrush x:Key="LogicWhileSoftBrush" Color="#FFFBEB" />
+    <SolidColorBrush x:Key="LogicWhileBorderBrush" Color="#FDE68A" />
+    <SolidColorBrush x:Key="LogicWhileTextBrush" Color="#B45309" />
+    <SolidColorBrush x:Key="LogicForBrush" Color="#10B981" />
+    <SolidColorBrush x:Key="LogicForSoftBrush" Color="#ECFDF5" />
+    <SolidColorBrush x:Key="LogicForBorderBrush" Color="#A7F3D0" />
+    <SolidColorBrush x:Key="LogicForTextBrush" Color="#047857" />
+    <SolidColorBrush x:Key="LogicParallelBrush" Color="#0EA5E9" />
+    <SolidColorBrush x:Key="LogicParallelSoftBrush" Color="#F0F9FF" />
+    <SolidColorBrush x:Key="LogicParallelBorderBrush" Color="#BAE6FD" />
+    <SolidColorBrush x:Key="LogicParallelTextBrush" Color="#0369A1" />
+    <SolidColorBrush x:Key="LogicSelectionSoftBrush" Color="#EFF6FF" />
+
+    <!--
+        容器组头渐变（flow-logic `.container-head`：类型浅底 → 白色 76%）。
+        颜色全部来自上面各类型的 soft 值，只为 WPF 的 LinearGradientBrush 提供 Color 形态；
+        引用方只用 *HeaderBrush，不再直接拼色。
+    -->
+    <LinearGradientBrush x:Key="LogicIfHeaderBrush" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Offset="0" Color="#EEF2FF" />
+        <GradientStop Offset="0.76" Color="#FFFFFF" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="LogicCaseHeaderBrush" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Offset="0" Color="#F5F3FF" />
+        <GradientStop Offset="0.76" Color="#FFFFFF" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="LogicWhileHeaderBrush" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Offset="0" Color="#FFFBEB" />
+        <GradientStop Offset="0.76" Color="#FFFFFF" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="LogicForHeaderBrush" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Offset="0" Color="#ECFDF5" />
+        <GradientStop Offset="0.76" Color="#FFFFFF" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="LogicParallelHeaderBrush" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Offset="0" Color="#F0F9FF" />
+        <GradientStop Offset="0.76" Color="#FFFFFF" />
+    </LinearGradientBrush>
+
+    <!--  ====================  运行驾驶舱深色子主题  ====================  -->
+    <SolidColorBrush x:Key="RunCockpitBackgroundBrush" Color="#0E141B" />
+    <SolidColorBrush x:Key="RunCockpitSurfaceBrush" Color="#151D26" />
+    <SolidColorBrush x:Key="RunCockpitChromeBrush" Color="#111820" />
+    <SolidColorBrush x:Key="RunCockpitBorderBrush" Color="#26303B" />
+    <SolidColorBrush x:Key="RunCockpitTextBrush" Color="#F1F5F9" />
+    <SolidColorBrush x:Key="RunCockpitTextSecondaryBrush" Color="#CBD5E1" />
+    <SolidColorBrush x:Key="RunCockpitTextMutedBrush" Color="#94A3B8" />
+    <SolidColorBrush x:Key="RunCockpitTextFaintBrush" Color="#64748B" />
+    <SolidColorBrush x:Key="RunCockpitSuccessBrush" Color="#4ADE80" />
+    <SolidColorBrush x:Key="RunCockpitDangerBrush" Color="#F87171" />
+    <SolidColorBrush x:Key="RunCockpitWarningBrush" Color="#FBBF24" />
+    <SolidColorBrush x:Key="RunCockpitInfoBrush" Color="#7DD3FC" />
+    <SolidColorBrush x:Key="RunCockpitStopBrush" Color="#C0392B" />
+    <SolidColorBrush x:Key="RunCockpitStopBorderBrush" Color="#E05A4A" />
+    <SolidColorBrush x:Key="RunCockpitStopHoverBrush" Color="#D9453A" />
 
     <!--  容器框：头带底 / 框体描边 / 框体 tint 底 / 头带字；分支泳道：tint 底 / 描边 / 标题字  -->
     <SolidColorBrush x:Key="FlowCanvasFrameHeaderBrush" Color="#EEF4FF" />
@@ -247,6 +346,16 @@
     <SolidColorBrush x:Key="FlowCanvasLaneTintBrush" Color="#0F3B82F6" />
     <SolidColorBrush x:Key="FlowCanvasLaneBorderBrush" Color="#264B82F6" />
     <SolidColorBrush x:Key="FlowCanvasLaneTextBrush" Color="#5A6C99" />
+    <!--  泳道头带：flow-logic 用 68% 白覆盖在类型浅底上（半透明白 → 同一支令牌）；运行中换 #EFF6FF  -->
+    <SolidColorBrush x:Key="FlowCanvasLaneHeaderBrush" Color="#B3FFFFFF" />
+    <SolidColorBrush x:Key="FlowCanvasLaneRunningHeaderBrush" Color="#EFF6FF" />
+    <SolidColorBrush x:Key="FlowCanvasRunningTextBrush" Color="#1D4ED8" />
+
+    <!--  中性分支泳道（If 的 Else/ElseIf、Case 的默认分支）：flow-logic 用灰底灰边，不再套类型色  -->
+    <SolidColorBrush x:Key="FlowCanvasLaneNeutralBackgroundBrush" Color="#F8FAFC" />
+    <SolidColorBrush x:Key="FlowCanvasLaneNeutralBorderBrush" Color="#E2E8F0" />
+    <SolidColorBrush x:Key="FlowCanvasLaneNeutralBadgeBrush" Color="#94A3B8" />
+    <SolidColorBrush x:Key="FlowCanvasLaneNeutralTextBrush" Color="#475569" />
 
     <!--  类型徽标（If/While/For）：底 / 字  -->
     <SolidColorBrush x:Key="FlowCanvasTypeBadgeBrush" Color="#3B5B8C" />

@@ -21,6 +21,16 @@ namespace Core.Interfaces
         public Type TargetType { get; set; }
 
         /// <summary>
+        /// 是否允许把全局/系统变量绑到这个输入端口（默认 true，兼容既有行为）。
+        ///
+        /// C#脚本的输入端口只接上游数据流（全局/系统变量走左侧「共享变量」声明表），
+        /// 因此它发起的绑定请求传 false：弹窗里的「全局变量」节点整块隐藏。
+        /// 旧方案里已经绑在输入上的全局变量仍然可读（连线还在 LinkedSources 里），
+        /// 只是不能再新绑一个。
+        /// </summary>
+        public bool AllowGlobals { get; set; } = true;
+
+        /// <summary>
         /// 绑定成功后的回调（用户取消时不触发）
         /// 回调参数为用户选中的连线引用（含 DisplayAddress 显示地址）
         /// </summary>

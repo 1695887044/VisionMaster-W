@@ -33,6 +33,9 @@ namespace VisionMaster.Helpers
         /// <summary>作用域取值：流程内运行时变量</summary>
         public const string ScopeRuntime = "Runtime";
 
+        /// <summary>作用域取值：系统变量（运动轴状态投影，只读、不落盘）</summary>
+        public const string ScopeSystem = "System";
+
         /// <summary>
         /// 组装候选快照：全局变量 + 目标步骤上游声明的运行时变量。
         ///
@@ -61,12 +64,39 @@ namespace VisionMaster.Helpers
 
                 result.Add(new VariableOption
                 {
+                    VariableId = variable.VariableId,
                     Name = variable.Name,
                     Scope = ScopeGlobal,
                     TypeName = ShortTypeName(variable.DataType),
                     Description = string.IsNullOrWhiteSpace(variable.Description)
                         ? "全局变量"
                         : variable.Description,
+                    IsSystem = false,
+                    CanWrite = variable is IWritableVariable,
+                });
+            }
+
+            // ①b 系统变量（运动轴状态投影）：只读、不落盘，但"声明式共享变量"要能读它们。
+            // 用 Scope="System" 与全局区分：变量赋值插件的候选按 Scope 精确过滤，
+            // 不会把只读的系统变量混进"全局变量"下拉里（选得到却写不进 = 最差的那种 UX）。
+            foreach (var variable in workspace.SystemVariables ?? Enumerable.Empty<IVariable>())
+            {
+                if (variable == null || string.IsNullOrWhiteSpace(variable.Name))
+                    continue;
+                if (!seen.Add(Key(variable.Name, ScopeSystem)))
+                    continue;
+
+                result.Add(new VariableOption
+                {
+                    VariableId = variable.VariableId,
+                    Name = variable.Name,
+                    Scope = ScopeSystem,
+                    TypeName = ShortTypeName(variable.DataType),
+                    Description = string.IsNullOrWhiteSpace(variable.Description)
+                        ? "系统变量（只读）"
+                        : variable.Description,
+                    IsSystem = true,
+                    CanWrite = false,
                 });
             }
 

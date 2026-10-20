@@ -20,7 +20,14 @@ namespace VisionMaster.Scada.Controls
 
         public ElementPropertyKind Kind { get; init; } = ElementPropertyKind.Text;
 
-        public string Group { get; init; } = "画面";
+        /// <summary>
+        /// 面板上的分组。必须是 <see cref="ScadaPropertyGroups"/> 目录里的名字（守门断言会逐个核对）。
+        ///
+        /// 刻意<b>不给默认值</b>：原先那个 <c>= "画面"</c> 是个不在目录里的组名，
+        /// 一旦有声明忘了写 Group，面板上就会多出一段谁也没见过的分组，而编译期一声不响。
+        /// 改成 <c>required</c> 之后，漏写就是编译错误。
+        /// </summary>
+        public required string Group { get; init; }
 
         public string? Description { get; init; }
 
@@ -73,43 +80,43 @@ namespace VisionMaster.Scada.Controls
         {
             new ScadaPagePropertySpec
             {
-                Key = "Name", DisplayName = "名称", Kind = ElementPropertyKind.Text, Group = "基本信息",
+                Key = "Name", DisplayName = "名称", Kind = ElementPropertyKind.Text, Group = ScadaPropertyGroups.PageBasic,
                 Description = "画面名（画面下拉与运行态切画面都按它寻址）",
                 Read = (p, _) => p.Name, Write = (p, _, v) => p.Name = v,
             },
             new ScadaPagePropertySpec
             {
-                Key = "Description", DisplayName = "说明", Kind = ElementPropertyKind.MultilineText, Group = "基本信息",
+                Key = "Description", DisplayName = "说明", Kind = ElementPropertyKind.MultilineText, Group = ScadaPropertyGroups.PageBasic,
                 Read = (p, _) => p.Description, Write = (p, _, v) => p.Description = v,
             },
             new ScadaPagePropertySpec
             {
-                Key = "Width", DisplayName = "宽", Kind = ElementPropertyKind.Number, Group = "画布尺寸", Min = 1,
+                Key = "Width", DisplayName = "宽", Kind = ElementPropertyKind.Number, Group = ScadaPropertyGroups.PageCanvas, Min = 1,
                 Description = "画面宽度（设计像素）。改小不会裁掉图元，只是画布边界挪了",
                 Read = (p, _) => Format(p.Width), Write = (p, _, v) => { if (TryNumber(v, out var d)) p.Width = d; },
             },
             new ScadaPagePropertySpec
             {
-                Key = "Height", DisplayName = "高", Kind = ElementPropertyKind.Number, Group = "画布尺寸", Min = 1,
+                Key = "Height", DisplayName = "高", Kind = ElementPropertyKind.Number, Group = ScadaPropertyGroups.PageCanvas, Min = 1,
                 Description = "画面高度（设计像素）。运行时按画面等比缩放到显示区域",
                 Read = (p, _) => Format(p.Height), Write = (p, _, v) => { if (TryNumber(v, out var d)) p.Height = d; },
             },
             new ScadaPagePropertySpec
             {
-                Key = "Background", DisplayName = "背景色", Kind = ElementPropertyKind.Color, Group = "背景",
+                Key = "Background", DisplayName = "背景色", Kind = ElementPropertyKind.Color, Group = ScadaPropertyGroups.PageBackground,
                 Description = "画面底色（#AARRGGBB，也认 #RRGGBB 与颜色名）",
                 Read = (p, _) => p.Background, Write = (p, _, v) => p.Background = v,
             },
             new ScadaPagePropertySpec
             {
-                Key = "GridSize", DisplayName = "网格间距", Kind = ElementPropertyKind.Number, Group = "设计辅助", Min = 1,
+                Key = "GridSize", DisplayName = "网格间距", Kind = ElementPropertyKind.Number, Group = ScadaPropertyGroups.PageDesign, Min = 1,
                 Description = "网格线间距，同时是吸附步距（设计像素）",
                 Read = (p, _) => Format(p.GridSize), Write = (p, _, v) => { if (TryNumber(v, out var d)) p.GridSize = d; },
             },
             // ---- 基座：这一页引用哪只公共层 ----
             new ScadaPagePropertySpec
             {
-                Key = "BasePage", DisplayName = "基座", Kind = ElementPropertyKind.Choice, Group = "运行",
+                Key = "BasePage", DisplayName = "基座", Kind = ElementPropertyKind.Choice, Group = ScadaPropertyGroups.PageRun,
                 Description = "本页共享的公共层：底色、公共图元、公共事件都在那只基座上。改基座一次，所有引用它的页面跟着变",
                 Choices = Array.Empty<string>(), // 候选项由 Read 时的文档给出，见 Read/Write 注释
                 // 真值在画面上（ScadaPage.BasePageId），读写都穿透到文档（ScadaDocument.TrySetBasePage
@@ -125,7 +132,7 @@ namespace VisionMaster.Scada.Controls
             // ---- 运行：改的是"这一页跑起来是什么样"，不是画布上看到了什么 ----
             new ScadaPagePropertySpec
             {
-                Key = "StartupPage", DisplayName = "启动画面", Kind = ElementPropertyKind.Bool, Group = "运行",
+                Key = "StartupPage", DisplayName = "启动画面", Kind = ElementPropertyKind.Bool, Group = ScadaPropertyGroups.PageRun,
                 Description = "运行态打开时先显示这一页。一个方案至多勾一页；一页都不勾就用画面列表的第一页",
                 // 真值在方案上（ScadaDocument.StartupPageId），本行只是它在本画面上的一个投影：
                 // 读 = "我是不是那个 Id"，写 = 勾上指我、取消只在我确实是时才清空。

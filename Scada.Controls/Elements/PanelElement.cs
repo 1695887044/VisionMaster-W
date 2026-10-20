@@ -124,7 +124,7 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>标题字色与内容字色分开两组属性的理由见各自的 Description</summary>
         [ScadaProperty(Key = "TitleText", DisplayName = "标题", Kind = ElementPropertyKind.Text,
-                       Group = "文字", DefaultValue = "", IsBindable = true,
+                       Group = ScadaPropertyGroups.Text, DefaultValue = "", IsBindable = true,
                        Description = "显示在底板左上角的一行字（如「灌装站」）；留空则不占标题行，"
                                    + "整个底板都是子图元区")]
         public partial string? TitleText { get; set; }
@@ -136,19 +136,19 @@ namespace VisionMaster.Scada.Controls
         /// 而标题栏高度是版面，属设计期语言。合在一起会让"绑了变量之后标题栏高度也跟着变"。
         /// </summary>
         [ScadaProperty(Key = "TitleHeight", DisplayName = "标题栏高度", Kind = ElementPropertyKind.Number,
-                       Group = "常规", DefaultValue = "24", Min = 0, Max = 200, AffectsRender = false,
+                       Group = ScadaPropertyGroups.General, DefaultValue = "24", Min = 0, Max = 200, AffectsRender = false,
                        Description = "0 = 不画标题栏（整块都是子图元区）。有标题栏时子图元区自动从它下面开始")]
         public partial double TitleHeight { get; set; }
 
         /// <summary>标题栏底色</summary>
         [ScadaProperty(Key = "TitleFill", DisplayName = "标题栏底色", Kind = ElementPropertyKind.Color,
-                       Group = "外观", DefaultValue = "#FF2D3748", AffectsRender = false,
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FF2D3748", AffectsRender = false,
                        Description = "默认比底板底色深一档：标题栏与内容区靠明度分界，不必额外画一条分隔线")]
         public partial Brush? TitleFill { get; set; }
 
         /// <summary>标题文字色</summary>
         [ScadaProperty(Key = "TitleForeground", DisplayName = "标题文字色", Kind = ElementPropertyKind.Color,
-                       Group = "外观", DefaultValue = "#FFFFFFFF", AffectsRender = false)]
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FFFFFFFF", AffectsRender = false)]
         public partial Brush? TitleForeground { get; set; }
 
         public override void OnApplyTemplate()

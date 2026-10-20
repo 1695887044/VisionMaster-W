@@ -54,10 +54,51 @@ namespace ResProbe
             fail += InstantiateViews();
             Console.WriteLine();
             fail += ProbeGroupedLogConsole();
+            Console.WriteLine();
+            DumpImplicitStyleSetters();
 
             Console.WriteLine();
             Console.WriteLine(fail == 0 ? "RESULT: ALL_OK" : $"RESULT: FAIL count={fail}");
             return fail == 0 ? 0 : 1;
+        }
+
+        /// <summary>
+        /// 诊断：把应用级隐式样式（Fluent）对 ToggleButton / ComboBox / Button 设了哪些 setter 打出来。
+        /// 自定义模板里的子控件没有显式 Style，会吃到这一份——布局属性（HorizontalAlignment / Width /
+        /// MinWidth / Padding）一旦被设成非 Stretch，模板看起来就"缩成一小块"。
+        /// </summary>
+        private static void DumpImplicitStyleSetters()
+        {
+            Console.WriteLine("---- 应用级隐式样式 setter 诊断 ----");
+
+            foreach (var type in new[] { typeof(System.Windows.Controls.Primitives.ToggleButton), typeof(ComboBox), typeof(Button), typeof(Expander) })
+            {
+                var style = Application.Current?.TryFindResource(type) as Style;
+                if (style == null)
+                {
+                    Console.WriteLine($"{type.Name}: 没有隐式样式");
+                    continue;
+                }
+
+                Console.WriteLine($"{type.Name}: BasedOn={(style.BasedOn == null ? "null" : style.BasedOn.TargetType.Name)}");
+
+                for (var current = style; current != null; current = current.BasedOn)
+                {
+                    Console.WriteLine($"  [style {current.TargetType.Name} / {(current.BasedOn == null ? "根" : "BasedOn " + current.BasedOn.TargetType.Name)}]");
+
+                    foreach (var setter in current.Setters.OfType<Setter>())
+                    {
+                        if (setter.Property == null) continue;
+                        string name = setter.Property.Name;
+                        if (name is "HorizontalAlignment" or "VerticalAlignment" or "Width" or "Height"
+                            or "MinWidth" or "MinHeight" or "MaxWidth" or "Padding" or "HorizontalContentAlignment"
+                            or "VerticalContentAlignment" or "Margin" or "Template")
+                        {
+                            Console.WriteLine($"    {name} = {setter.Value}");
+                        }
+                    }
+                }
+            }
         }
 
         // ---------------------------------------------------------------- 引导

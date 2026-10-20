@@ -140,7 +140,7 @@
                         Margin="8,0,0,0"
                         VerticalAlignment="Center"
                         Style="{StaticResource DialogHintText}"
-                        Text="相机 / 运动 / 通讯 / IO 运行态诊断 · 1 秒自动刷新" />
+                        Text="通讯 / 相机 / 运动 运行态诊断 · 1 秒自动刷新" />
                 </StackPanel>
 
                 <StackPanel
@@ -517,11 +517,6 @@
                         </ListView.View>
                     </ListView>
                 </Grid>
-            </TabItem>
-
-            <!--  ============ IO（复用原 IO 健康面板） ============  -->
-            <TabItem Header="IO" Style="{StaticResource DialogTabItem}">
-                <views:IoHealthPanelView Margin="0,12,0,0" DataContext="{Binding Io}" />
             </TabItem>
         </TabControl>
     </Grid>

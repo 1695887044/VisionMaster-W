@@ -30,7 +30,7 @@ namespace VisionMaster.Scada.Controls
         /// 而不是画布上看到了什么。图元事件自成一「事件」组（图元面板的最后一组），
         /// 所以分组由宿主的清单给，而不是写死在事件行里。
         /// </summary>
-        public const string Group = "运行";
+        public const string Group = ScadaPropertyGroups.PageRun;
 
         /// <summary>清单（面板按此顺序长事件行，顺序即面板上的先后）</summary>
         public static IReadOnlyList<ScadaEventType> All { get; } = new[]

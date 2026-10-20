@@ -1,0 +1,821 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C# 脚本 · 配置窗口 · 设计基线 v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #cs-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="cs-design-root">
+<style>
+  #cs-design-root{
+    color-scheme:light;
+    --cs-surface:#FFFFFF;
+    --cs-surface-2:#F8FAFC;
+    --cs-surface-3:#F1F5F9;
+    --cs-border:#E2E8F0;
+    --cs-border-soft:#EEF2F7;
+    --cs-border-strong:#CBD5E1;
+    --cs-text:#0F172A;
+    --cs-text-2:#475569;
+    --cs-text-3:#94A3B8;
+    --cs-text-4:#64748B;
+    --cs-primary:#0EA5E9;
+    --cs-primary-strong:#0284C7;
+    --cs-primary-text:#0369A1;
+    --cs-primary-soft:#F0F9FF;
+    --cs-primary-light:#E0F2FE;
+    --cs-primary-border:#BAE6FD;
+    --cs-success:#22C55E;
+    --cs-success-text:#15803D;
+    --cs-success-soft:#F0FDF4;
+    --cs-success-border:#BBF7D0;
+    --cs-danger:#EF4444;
+    --cs-danger-text:#B91C1C;
+    --cs-danger-soft:#FEF2F2;
+    --cs-danger-border:#FECACA;
+    --cs-warning:#F59E0B;
+    --cs-warning-text:#B45309;
+    --cs-warning-soft:#FFF4E5;
+    --cs-warning-border:#FDE68A;
+    --cs-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --cs-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+    --cs-radius-sm:6px;
+    --cs-radius-md:8px;
+    --cs-radius-lg:10px;
+    --cs-radius-xl:12px;
+    --cs-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+    font-family:var(--cs-font);
+    -webkit-font-smoothing:antialiased;
+  }
+  #cs-design-root *{box-sizing:border-box;}
+  #cs-design-root button,
+  #cs-design-root input,
+  #cs-design-root select,
+  #cs-design-root textarea{font-family:inherit;}
+  #cs-design-root button{color:inherit;}
+  #cs-design-root [hidden]{display:none !important;}
+  #cs-design-root :focus-visible{outline:2px solid var(--cs-primary);outline-offset:2px;}
+  #cs-design-root .cs-ico{width:14px;height:14px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+
+  #cs-design-root .cs-page{max-width:1360px;margin:0 auto;padding:24px 24px 44px;}
+  #cs-design-root .cs-page-head{max-width:1360px;margin:0 auto 16px;}
+  #cs-design-root .cs-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  #cs-design-root .cs-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--cs-text);}
+  #cs-design-root .cs-ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--cs-primary-light);color:var(--cs-primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;}
+  #cs-design-root .cs-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--cs-text-2);}
+  #cs-design-root .cs-page-sub b{color:var(--cs-text);font-weight:600;}
+  #cs-design-root .cs-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+  #cs-design-root .cs-demo-group{display:flex;align-items:center;gap:8px;}
+  #cs-design-root .cs-demo-label{font-size:11.5px;color:var(--cs-text-4);}
+  #cs-design-root .cs-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--cs-radius-md);background:var(--cs-surface-3);}
+  #cs-design-root .cs-seg button{height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--cs-text-2);font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;}
+  #cs-design-root .cs-seg button:hover{color:var(--cs-text);}
+  #cs-design-root .cs-seg button.is-on{background:#FFFFFF;color:var(--cs-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+  #cs-design-root .cs-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--cs-text-2);}
+  #cs-design-root .cs-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--cs-warning-text);}
+  #cs-design-root .cs-scope b{color:var(--cs-text);font-weight:600;}
+
+  /* ================= 产品窗口 ================= */
+  #cs-design-root .cs-window{width:960px;max-width:100%;height:680px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:var(--cs-surface);border-radius:16px;box-shadow:var(--cs-shadow-window);transition:width 200ms ease;}
+  #cs-design-root .cs-window.is-narrow{width:640px;}
+  #cs-design-root .cs-titlebar{height:72px;flex:none;display:flex;align-items:center;padding:0 20px;background:var(--cs-surface);border-bottom:1px solid var(--cs-border-soft);}
+  #cs-design-root .cs-app-icon{width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--cs-primary-light);color:var(--cs-primary-text);}
+  #cs-design-root .cs-app-icon svg{width:19px;height:19px;}
+  #cs-design-root .cs-title-text{margin-left:12px;min-width:0;flex:1;}
+  #cs-design-root .cs-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--cs-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #cs-design-root .cs-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--cs-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #cs-design-root .cs-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+
+  #cs-design-root .cs-content{flex:1;min-height:0;display:grid;grid-template-columns:356px minmax(0,1fr);gap:16px;padding:16px 20px 20px;background:var(--cs-surface);}
+  #cs-design-root .cs-window.is-narrow .cs-content{grid-template-columns:280px minmax(0,1fr);gap:12px;padding:14px 16px 16px;}
+
+  /* ---- 左栏 ---- */
+  #cs-design-root .cs-rail{min-height:0;overflow-y:auto;overflow-x:hidden;padding:14px;border:1px solid var(--cs-border-soft);border-radius:var(--cs-radius-xl);background:var(--cs-surface-2);scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+  #cs-design-root .cs-rail::-webkit-scrollbar{width:8px;}
+  #cs-design-root .cs-rail::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+  #cs-design-root .cs-rail::-webkit-scrollbar-track{background:transparent;}
+  #cs-design-root .cs-rail-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 1px 10px;}
+  #cs-design-root .cs-rail-title{font-size:13px;font-weight:600;color:var(--cs-text);}
+  #cs-design-root .cs-counts{display:flex;align-items:center;gap:6px;}
+  #cs-design-root .cs-count{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;background:var(--cs-surface);border:1px solid var(--cs-border);font-size:10.5px;font-weight:600;color:var(--cs-text-2);font-variant-numeric:tabular-nums;}
+  #cs-design-root .cs-count i{width:6px;height:6px;border-radius:50%;background:var(--cs-text-3);display:block;}
+  #cs-design-root .cs-count.is-in i{background:var(--cs-primary);}
+  #cs-design-root .cs-count.is-out i{background:var(--cs-success);}
+
+  #cs-design-root .cs-card{margin-bottom:12px;padding:12px;border:1px solid var(--cs-border);border-radius:var(--cs-radius-lg);background:var(--cs-surface);}
+  #cs-design-root .cs-card:last-child{margin-bottom:0;}
+  #cs-design-root .cs-card-head{display:flex;align-items:center;gap:8px;min-width:0;}
+  #cs-design-root .cs-card-icon{width:24px;height:24px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;background:var(--cs-primary-light);color:var(--cs-primary-text);}
+  #cs-design-root .cs-card-icon.is-out{background:var(--cs-success-soft);color:var(--cs-success-text);}
+  #cs-design-root .cs-card-icon.is-api{background:var(--cs-surface-3);color:var(--cs-text-4);}
+  #cs-design-root .cs-card-icon svg{width:13px;height:13px;}
+  #cs-design-root .cs-card-title{font-size:12.5px;font-weight:600;color:var(--cs-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #cs-design-root .cs-card-hint{margin-left:auto;font-size:10.5px;color:var(--cs-text-3);white-space:nowrap;}
+  #cs-design-root .cs-add-btn{margin-left:auto;display:inline-flex;align-items:center;justify-content:center;gap:4px;height:28px;padding:0 9px;border:1px solid var(--cs-border);border-radius:7px;background:var(--cs-surface);color:var(--cs-text-2);font-size:11.5px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;}
+  #cs-design-root .cs-add-btn:hover{background:var(--cs-primary-soft);border-color:var(--cs-primary-border);color:var(--cs-primary-text);}
+  #cs-design-root .cs-add-btn svg{width:12px;height:12px;}
+  #cs-design-root .cs-help{margin:6px 0 0;font-size:11.5px;line-height:1.5;color:var(--cs-text-4);}
+  #cs-design-root .cs-help code{font-family:var(--cs-mono);font-size:10.5px;color:var(--cs-text-2);}
+
+  #cs-design-root .cs-var-list{margin-top:8px;}
+  #cs-design-root .cs-var-row{padding:8px;border:1px solid var(--cs-border-soft);border-radius:var(--cs-radius-md);background:var(--cs-surface);}
+  #cs-design-root .cs-var-row + .cs-var-row{margin-top:8px;}
+  #cs-design-root .cs-var-row:hover{border-color:var(--cs-border);}
+  #cs-design-root .cs-var-top{display:grid;grid-template-columns:minmax(0,1fr) 104px 28px;gap:6px;align-items:center;}
+  #cs-design-root .cs-input,#cs-design-root .cs-select{width:100%;height:32px;padding:0 9px;border:1px solid var(--cs-border);border-radius:7px;background:var(--cs-surface);color:var(--cs-text);font-size:12px;line-height:1;outline:none;transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;}
+  #cs-design-root .cs-input::placeholder{color:var(--cs-text-3);}
+  #cs-design-root .cs-input:hover,#cs-design-root .cs-select:hover{border-color:var(--cs-border-strong);}
+  #cs-design-root .cs-input:focus,#cs-design-root .cs-select:focus{border-color:var(--cs-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+  #cs-design-root .cs-select{appearance:none;-webkit-appearance:none;padding-right:26px;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,var(--cs-text-3) 50%),linear-gradient(135deg,var(--cs-text-3) 50%,transparent 50%);background-position:calc(100% - 14px) 14px,calc(100% - 9px) 14px;background-size:5px 5px,5px 5px;background-repeat:no-repeat;}
+  #cs-design-root .cs-icon-btn{width:28px;height:28px;flex:none;padding:0;border:0;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--cs-text-3);cursor:pointer;transition:background 150ms ease,color 150ms ease;}
+  #cs-design-root .cs-icon-btn:hover{background:var(--cs-surface-3);color:var(--cs-text);}
+  #cs-design-root .cs-icon-btn.is-del:hover{background:var(--cs-danger-soft);color:var(--cs-danger-text);}
+  #cs-design-root .cs-icon-btn svg{width:13px;height:13px;}
+  #cs-design-root .cs-link-row{margin-top:7px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:center;}
+  #cs-design-root .cs-linkbox{position:relative;min-width:0;}
+  #cs-design-root .cs-linkbox .cs-input{padding-right:54px;}
+  #cs-design-root .cs-linkbox .cs-link-tools{position:absolute;right:4px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:1px;}
+  #cs-design-root .cs-link-tools .cs-icon-btn{width:22px;height:22px;}
+  #cs-design-root .cs-link-tools .cs-icon-btn svg{width:12px;height:12px;}
+  #cs-design-root .cs-linkbox.is-linked .cs-input{background:var(--cs-primary-soft);border-color:var(--cs-primary-border);color:var(--cs-primary-text);}
+  #cs-design-root .cs-link-tag{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;border-radius:6px;background:var(--cs-primary-light);color:var(--cs-primary-text);font-size:10.5px;font-weight:600;white-space:nowrap;}
+  #cs-design-root .cs-link-tag svg{width:11px;height:11px;}
+  #cs-design-root .cs-output-meta{margin-top:7px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center;}
+  #cs-design-root .cs-window-pick{display:flex;align-items:center;gap:5px;min-width:0;}
+  #cs-design-root .cs-window-pick label{font-size:10.5px;color:var(--cs-text-3);white-space:nowrap;}
+  #cs-design-root .cs-window-pick .cs-select{width:96px;height:30px;font-size:11px;padding:0 24px 0 8px;background-position:calc(100% - 12px) 13px,calc(100% - 7px) 13px;}
+  #cs-design-root .cs-empty{margin-top:8px;padding:15px 12px;border:1.5px dashed var(--cs-border-strong);border-radius:var(--cs-radius-md);background:var(--cs-surface-2);text-align:center;color:var(--cs-text-3);font-size:11.5px;line-height:1.55;}
+  #cs-design-root .cs-empty b{display:block;font-size:11.5px;font-weight:600;color:var(--cs-text-2);margin-bottom:2px;}
+  #cs-design-root .cs-empty svg{width:18px;height:18px;margin-bottom:5px;color:var(--cs-text-3);}
+
+  #cs-design-root .cs-cheat{margin-bottom:0;}
+  #cs-design-root .cs-codeblock{margin:9px 0 0;padding:10px 11px;border:1px solid var(--cs-border-soft);border-radius:var(--cs-radius-md);background:var(--cs-surface-2);font-family:var(--cs-mono);font-size:10.5px;line-height:1.65;color:var(--cs-text-2);white-space:pre-wrap;word-break:break-word;}
+  #cs-design-root .cs-codeblock .k{color:var(--cs-primary-text);font-weight:600;}
+  #cs-design-root .cs-codeblock .m{color:var(--cs-success-text);}
+
+  /* ---- 右栏：编辑器工作区 ---- */
+  #cs-design-root .cs-editor{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--cs-border);border-radius:var(--cs-radius-xl);background:var(--cs-surface);}
+  #cs-design-root .cs-editor-head{height:52px;flex:none;display:flex;align-items:center;gap:9px;padding:0 12px;border-bottom:1px solid var(--cs-border-soft);background:var(--cs-surface);}
+  #cs-design-root .cs-editor-chip{width:28px;height:28px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--cs-primary-light);color:var(--cs-primary-text);}
+  #cs-design-root .cs-editor-chip svg{width:14px;height:14px;}
+  #cs-design-root .cs-editor-title{font-size:12.5px;font-weight:600;color:var(--cs-text);white-space:nowrap;}
+  #cs-design-root .cs-editor-sub{font-size:10.5px;color:var(--cs-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #cs-design-root .cs-editor-tools{margin-left:auto;display:flex;align-items:center;gap:6px;flex:none;}
+  #cs-design-root .cs-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:32px;padding:0 12px;border:1px solid var(--cs-border);border-radius:7px;background:var(--cs-surface);color:var(--cs-text);font-size:12px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;}
+  #cs-design-root .cs-btn:hover{background:var(--cs-surface-2);border-color:var(--cs-border-strong);}
+  #cs-design-root .cs-btn:active{background:var(--cs-surface-3);}
+  #cs-design-root .cs-btn-primary{background:var(--cs-primary);border-color:var(--cs-primary);color:#fff;font-weight:600;}
+  #cs-design-root .cs-btn-primary:hover{background:var(--cs-primary-strong);border-color:var(--cs-primary-strong);}
+  #cs-design-root .cs-btn svg{width:13px;height:13px;}
+
+  #cs-design-root .cs-editor-body{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--cs-surface);}
+  #cs-design-root .cs-code-wrap{flex:1;min-height:0;display:grid;grid-template-columns:48px minmax(0,1fr);background:var(--cs-surface);}
+  #cs-design-root .cs-gutter{overflow:hidden;padding:12px 8px 12px 0;border-right:1px solid var(--cs-border-soft);background:var(--cs-surface-2);color:var(--cs-text-3);font-family:var(--cs-mono);font-size:13px;line-height:21px;text-align:right;user-select:none;}
+  #cs-design-root .cs-gutter div{height:21px;white-space:nowrap;}
+  #cs-design-root .cs-gutter div.is-error{color:var(--cs-danger-text);font-weight:700;background:var(--cs-danger-soft);margin-right:-8px;padding-right:8px;}
+  #cs-design-root .cs-code-area{position:relative;min-width:0;min-height:0;overflow:hidden;}
+  #cs-design-root .cs-highlight,#cs-design-root .cs-editor-input{position:absolute;inset:0;margin:0;padding:12px 14px;border:0;font-family:var(--cs-mono);font-size:13px;line-height:21px;letter-spacing:0;tab-size:4;white-space:pre;overflow:auto;}
+  #cs-design-root .cs-highlight{pointer-events:none;color:var(--cs-text);background:var(--cs-surface);overflow:hidden;}
+  #cs-design-root .cs-editor-input{resize:none;outline:none;background:transparent;color:transparent;caret-color:var(--cs-text);-webkit-text-fill-color:transparent;}
+  #cs-design-root .cs-editor-input::selection{background:rgba(14,165,233,.18);}
+  #cs-design-root .cs-editor-input::-webkit-scrollbar{width:10px;height:10px;}
+  #cs-design-root .cs-editor-input::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+  #cs-design-root .cs-editor-input::-webkit-scrollbar-track{background:transparent;}
+  #cs-design-root .cs-highlight .c-com{color:#008000;font-style:italic;}
+  #cs-design-root .cs-highlight .c-kw{color:#0000FF;font-weight:700;}
+  #cs-design-root .cs-highlight .c-ctl{color:#871098;}
+  #cs-design-root .cs-highlight .c-type{color:#2B91AF;}
+  #cs-design-root .cs-highlight .c-api{color:#795E26;}
+  #cs-design-root .cs-highlight .c-str{color:#A31515;}
+  #cs-design-root .cs-highlight .c-num{color:#098658;}
+  #cs-design-root .cs-highlight .c-var{color:#7E0080;}
+
+  #cs-design-root .cs-status{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid var(--cs-border-soft);background:var(--cs-surface);font-size:11.5px;min-width:0;transition:background 150ms ease;}
+  #cs-design-root .cs-status.is-ok{background:var(--cs-success-soft);border-top-color:var(--cs-success-border);}
+  #cs-design-root .cs-status.is-error{background:var(--cs-danger-soft);border-top-color:var(--cs-danger-border);}
+  #cs-design-root .cs-status-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--cs-text-3);}
+  #cs-design-root .cs-status.is-ok .cs-status-dot{background:var(--cs-success);}
+  #cs-design-root .cs-status.is-error .cs-status-dot{background:var(--cs-danger);}
+  #cs-design-root .cs-status-msg{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--cs-text-2);}
+  #cs-design-root .cs-status.is-ok .cs-status-msg{color:var(--cs-success-text);}
+  #cs-design-root .cs-status.is-error .cs-status-msg{color:var(--cs-danger-text);}
+  #cs-design-root .cs-status-tag{margin-left:auto;flex:none;font-size:10.5px;color:var(--cs-text-3);font-family:var(--cs-mono);white-space:nowrap;}
+  #cs-design-root .cs-window.is-narrow .cs-status-tag{display:none;}
+  #cs-design-root .cs-window.is-narrow .cs-editor-sub{display:none;}
+  #cs-design-root .cs-window.is-narrow .cs-editor-title{font-size:12px;}
+
+  /* ---- 底部宿主栏 ---- */
+  #cs-design-root .cs-footer{height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid var(--cs-border-soft);background:var(--cs-surface-2);}
+  #cs-design-root .cs-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+  #cs-design-root .cs-status-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--cs-surface);border:1px solid var(--cs-border);font-size:11.5px;color:var(--cs-text-2);white-space:nowrap;}
+  #cs-design-root .cs-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--cs-text-3);}
+  #cs-design-root .cs-elapsed{font-family:var(--cs-mono);font-size:11px;color:var(--cs-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  #cs-design-root .cs-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+  #cs-design-root .cs-footer .cs-btn{height:32px;padding:0 16px;}
+  #cs-design-root .cs-footer .cs-btn-primary{padding:0 18px;}
+
+  /* ---- 说明 ---- */
+  #cs-design-root .cs-notes{max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;}
+  #cs-design-root .cs-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--cs-text-2);}
+  #cs-design-root .cs-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--cs-border);}
+  #cs-design-root .cs-note-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--cs-primary-light);color:var(--cs-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}
+  #cs-design-root .cs-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--cs-text);}
+  #cs-design-root .cs-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--cs-text-2);}
+  #cs-design-root .cs-note code{font-family:var(--cs-mono);font-size:10.5px;background:var(--cs-surface-3);padding:1px 4px;border-radius:4px;}
+
+  #cs-design-root .cs-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(12px);padding:8px 14px;border-radius:8px;background:#0F172A;color:#E2E8F0;font-size:12px;opacity:0;pointer-events:none;transition:opacity 160ms ease,transform 160ms ease;z-index:50;}
+  #cs-design-root .cs-toast.is-on{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  @media (prefers-reduced-motion: reduce){
+    #cs-design-root *{animation:none !important;transition:none !important;}
+  }
+  @media (max-width:1024px){
+    #cs-design-root .cs-page{padding:18px 14px 32px;}
+    #cs-design-root .cs-window{height:auto;min-height:640px;}
+    #cs-design-root .cs-content{grid-template-columns:1fr;}
+    #cs-design-root .cs-rail{overflow:visible;}
+    #cs-design-root .cs-editor{min-height:420px;}
+  }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></symbol>
+  <symbol id="i-unlink" viewBox="0 0 24 24"><path d="m18.84 12.25 1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="m5.17 11.75-1.72 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="8" x2="8" y1="2" y2="5"/><line x1="2" x2="5" y1="8" y2="8"/><line x1="16" x2="16" y1="19" y2="22"/><line x1="19" x2="22" y1="16" y2="16"/></symbol>
+  <symbol id="i-login" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-error" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></symbol>
+  <symbol id="i-variable" viewBox="0 0 24 24"><path d="M8 21s-4-3-4-9 4-9 4-9"/><path d="M16 3s4 3 4 9-4 9-4 9"/><line x1="9" x2="15" y1="9" y2="15"/><line x1="15" x2="9" y1="9" y2="15"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+</svg>
+
+<div class="cs-page">
+  <header class="cs-page-head">
+    <div class="cs-page-title-row">
+      <h1>C# 脚本 · 配置窗口</h1>
+      <span class="cs-ver">v1</span>
+    </div>
+    <p class="cs-page-sub">
+      Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、输入变量行的
+      <b>LinkableValueEditor</b>（Port / StepData / PortsVersion）、AvalonEdit 编辑器与
+      <b>ValidationResult</b>；不新增功能、不改端口名与持久化。窗口 <b>960 × 680</b>，
+      左侧接口变量轨 <b>356px</b>，右侧脚本工作区自适应。
+    </p>
+    <div class="cs-demo-bar">
+      <div class="cs-demo-group" role="group" aria-label="窗口宽度">
+        <span class="cs-demo-label">窗口宽度</span>
+        <div class="cs-seg">
+          <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+          <button type="button" data-width="640" aria-pressed="false">640</button>
+        </div>
+      </div>
+      <div class="cs-demo-group" role="group" aria-label="界面状态">
+        <span class="cs-demo-label">界面状态</span>
+        <div class="cs-seg" id="cs-state-seg">
+          <button type="button" data-state="default" class="is-on" aria-pressed="true">默认</button>
+          <button type="button" data-state="empty" aria-pressed="false">空变量</button>
+          <button type="button" data-state="success" aria-pressed="false">校验通过</button>
+          <button type="button" data-state="error" aria-pressed="false">校验失败</button>
+        </div>
+      </div>
+    </div>
+    <div class="cs-scope">
+      <svg class="cs-ico"><use href="#i-info"/></svg>
+      <span><b>本稿未纳入（需新增功能或契约）：</b>加载骨架、编辑器缩放 / 字体设置、打开脚本文件、代码格式化、
+      变量重命名联动、试运行按钮（由宿主外壳提供）。本稿只覆盖 960×680 与 640×680；宿主最小档 640×560 下左栏与编辑器均可滚动。</span>
+    </div>
+  </header>
+
+  <div class="cs-window" id="cs-window">
+    <div class="cs-titlebar">
+      <div class="cs-app-icon"><svg class="cs-ico" style="width:19px;height:19px"><use href="#i-code"/></svg></div>
+      <div class="cs-title-text">
+        <div class="cs-title">C# 脚本</div>
+        <div class="cs-subtitle">用完整 C# 语法编写业务逻辑，运行时经 Roslyn 执行</div>
+      </div>
+      <div class="cs-title-actions">
+        <button type="button" class="cs-icon-btn" data-tooltip="关闭（宿主外壳）" aria-label="关闭" data-shell="关闭">
+          <svg class="cs-ico"><use href="#i-x"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="cs-content">
+      <aside class="cs-rail" aria-label="接口变量与 Context 速查">
+        <div class="cs-rail-head">
+          <div class="cs-rail-title">接口变量</div>
+          <div class="cs-counts">
+            <span class="cs-count is-in"><i></i><span id="cs-in-count">2</span> 输入</span>
+            <span class="cs-count is-out"><i></i><span id="cs-out-count">2</span> 输出</span>
+          </div>
+        </div>
+
+        <!-- 输入变量 -->
+        <section class="cs-card" id="cs-input-card">
+          <div class="cs-card-head">
+            <span class="cs-card-icon"><svg class="cs-ico"><use href="#i-login"/></svg></span>
+            <span class="cs-card-title">输入变量</span>
+            <button type="button" class="cs-add-btn" id="cs-add-input">
+              <svg class="cs-ico"><use href="#i-plus"/></svg>新增
+            </button>
+          </div>
+          <p class="cs-help">每项生成一个动态输入端口；连线取上游值，未连线时按类型手填。脚本用 <code>Context.GetInput&lt;T&gt;("名字")</code> 读取。</p>
+          <div class="cs-var-list" id="cs-input-list"></div>
+          <div class="cs-empty" id="cs-input-empty" hidden>
+            <svg class="cs-ico"><use href="#i-inbox"/></svg>
+            <b>还没有输入变量</b>
+            点右上「新增」创建第一个动态输入端口
+          </div>
+        </section>
+
+        <!-- 输出变量 -->
+        <section class="cs-card" id="cs-output-card">
+          <div class="cs-card-head">
+            <span class="cs-card-icon is-out"><svg class="cs-ico"><use href="#i-logout"/></svg></span>
+            <span class="cs-card-title">输出变量</span>
+            <button type="button" class="cs-add-btn" id="cs-add-output">
+              <svg class="cs-ico"><use href="#i-plus"/></svg>新增
+            </button>
+          </div>
+          <p class="cs-help">每项生成一个动态输出端口，供下游连线；把端口连到全局变量即为「改全局变量」。图形输出可指定显示到第几号视图窗口。</p>
+          <div class="cs-var-list" id="cs-output-list"></div>
+          <div class="cs-empty" id="cs-output-empty" hidden>
+            <svg class="cs-ico"><use href="#i-inbox"/></svg>
+            <b>还没有输出变量</b>
+            点右上「新增」创建第一个动态输出端口
+          </div>
+        </section>
+
+        <!-- Context 速查 -->
+        <section class="cs-card cs-cheat">
+          <div class="cs-card-head">
+            <span class="cs-card-icon is-api"><svg class="cs-ico"><use href="#i-book"/></svg></span>
+            <span class="cs-card-title">Context 速查</span>
+            <span class="cs-card-hint">脚本门面</span>
+          </div>
+          <pre class="cs-codeblock"><span class="k">Context.GetInput&lt;T&gt;("名")</span>      取上游输入
+<span class="k">Context.SetOutput("名", 值)</span>       写输出端口
+<span class="k">Context.GetVar&lt;T&gt;("名")</span>          读运行期变量
+<span class="k">Context.SetVar("名", 值)</span>         写运行期变量
+<span class="k">Context.Info/Warn/Error/Success</span>  写日志
+<span class="k">Context.ShowImage(img, 窗口号)</span>  推送图像
+<span class="k">Context.NewMarks()</span>              建标注层
+<span class="k">Context.MarkText/MarkLine(...)</span>  文本 / 线标注
+<span class="m">Context.Fail("原因")</span>             主动判失败</pre>
+        </section>
+      </aside>
+
+      <section class="cs-editor" aria-label="C# 脚本编辑器">
+        <div class="cs-editor-head">
+          <span class="cs-editor-chip"><svg class="cs-ico"><use href="#i-code"/></svg></span>
+          <div style="min-width:0">
+            <div class="cs-editor-title">C# 脚本</div>
+            <div class="cs-editor-sub">顶层语句 · 可用 class / 方法 / LINQ / using</div>
+          </div>
+          <div class="cs-editor-tools">
+            <button type="button" class="cs-btn cs-btn-primary" id="cs-validate">
+              <svg class="cs-ico"><use href="#i-check"/></svg>校验脚本
+            </button>
+          </div>
+        </div>
+
+        <div class="cs-editor-body">
+          <div class="cs-code-wrap">
+            <div class="cs-gutter" id="cs-gutter"></div>
+            <div class="cs-code-area">
+              <pre class="cs-highlight" id="cs-highlight" aria-hidden="true"></pre>
+              <textarea class="cs-editor-input" id="cs-editor" spellcheck="false" aria-label="C# 脚本正文"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="cs-status" id="cs-status">
+          <span class="cs-status-dot"></span>
+          <span class="cs-status-msg" id="cs-status-msg">尚未校验 · 点击「校验脚本」做编译检查</span>
+          <span class="cs-status-tag">AvalonEdit · C#</span>
+        </div>
+      </section>
+    </div>
+
+    <div class="cs-footer">
+      <div class="cs-footer-left">
+        <span class="cs-status-chip"><span class="cs-footer-dot"></span><span>状态: 待执行</span></span>
+        <span class="cs-elapsed">耗时: 0 ms</span>
+      </div>
+      <div class="cs-footer-right">
+        <button type="button" class="cs-btn" data-shell="执行"><svg class="cs-ico"><use href="#i-play"/></svg>执行</button>
+        <button type="button" class="cs-btn" data-shell="取消">取消</button>
+        <button type="button" class="cs-btn cs-btn-primary" data-shell="确认">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cs-notes">
+    <div class="cs-notes-head">关键改动（v1）</div>
+    <div class="cs-note"><div class="cs-note-num">01</div><div><b>接口变量轨与脚本工作区分栏</b><span>左侧固定 356px（窄档 280px）承载输入 / 输出变量与 Context 速查，右侧编辑器占满剩余空间；640 宽下不再横向溢出。</span></div></div>
+    <div class="cs-note"><div class="cs-note-num">02</div><div><b>变量行改为两段式卡片</b><span>第一行「名字 + 类型 + 删除」，第二行「连线 / 手填」或「显示窗口 + 备注」。<code>LinkableValueEditor</code> 仍是唯一入口，<code>Port</code>/<code>StepData</code>/<code>PortsVersion</code> 原样保留。</span></div></div>
+    <div class="cs-note"><div class="cs-note-num">03</div><div><b>输出变量按类型收敛</b><span>只有 <code>IsIconic</code>（HImage / HRegion / HXld / HObject）才显示「显示窗口」；非图形输出把宽度留给备注。仍绑 <code>DisplayWindow</code> int（0~9）。</span></div></div>
+    <div class="cs-note"><div class="cs-note-num">04</div><div><b>编辑器成为主工作区</b><span>保留 AvalonEdit（行号 / 高亮 / 智能提示 / 右键菜单 / 错误行标红）；编辑器保持浅色，因为 <code>CSharpHighlighting</code> 是浅色语法配色。</span></div></div>
+    <div class="cs-note"><div class="cs-note-num">05</div><div><b>校验结果变成状态栏</b><span>「校验脚本」仍走 <code>ValidateScript()</code>；<code>ValidationResult</code> 空串显示为「尚未校验」，✔ / ✘ 分别映射成功 / 错误三档视觉，不再在 code-behind 写死颜色。</span></div></div>
+    <div class="cs-note"><div class="cs-note-num">06</div><div><b>空态与窄档齐备</b><span>无变量时每张卡片给虚线空态；640 宽时隐藏编辑器副标题与状态栏右侧标签，保留核心信息。</span></div></div>
+    <div class="cs-note"><div class="cs-note-num">07</div><div><b>颜色全部令牌化</b><span>映射 <code>Dialog*</code> / <code>Plugin*</code> 既有令牌；视图 XAML 零十六进制。图标按钮 30×30 + <code>Padding="0"</code>，焦点走 <code>DialogFocusVisual</code>。</span></div></div>
+    <div class="cs-note"><div class="cs-note-num">08</div><div><b>不造死按钮</b><span>新增 / 删除 / 校验都是现有 Click 处理器；「校验脚本」额外暴露为视图级 <code>ICommand</code> 适配器，供批量冒烟验证命令绑定，不新增业务行为。</span></div></div>
+
+    <div class="cs-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+    <div class="cs-note"><div class="cs-note-num">C1</div><div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不引入独立 VM。</span></div></div>
+    <div class="cs-note"><div class="cs-note-num">C2</div><div><b>输入变量的 LinkableValueEditor</b><span><code>Port</code> 由 <code>InputPortConverter</code> 按「变量名 + 插件 + PortsVersion」多绑定取动态端口；<code>StepData</code> 绑插件当前配置会话。链接 / 解除链接 / 手填全在控件内。</span></div></div>
+    <div class="cs-note"><div class="cs-note-num">C3</div><div><b>AvalonEdit 编辑器</b><span>控件类型、<code>ShowLineNumbers</code>、<code>CSharpHighlighting</code>、<code>CSharpIntelliSense</code>、<code>ScriptEditorBehavior</code>、右键菜单与错误行标红全部保留。</span></div></div>
+    <div class="cs-note"><div class="cs-note-num">C4</div><div><b>ScriptText / InputVars / OutputVars</b><span>三者是 <code>[StepConfig]</code> 持久化属性；<code>ScriptText</code> 仍由 <code>TextChanged</code> 回写，变量集合仍直接绑定，增删仍触发动态端口重建。</span></div></div>
+    <div class="cs-note"><div class="cs-note-num">C5</div><div><b>ScriptVarTypes / ValidationResult</b><span>类型下拉仍用 <code>ScriptVarTypes</code>（<code>StepConfigOption.ForEnum</code>，显示中文、值仍是成员名）；校验结果仍是 <code>ValidationResult</code> 字符串，不新增状态枚举。</span></div></div>
+
+    <div class="cs-notes-head" style="margin-top:20px;">明确延后（需新增功能或契约）</div>
+    <div class="cs-note"><div class="cs-note-num">D1</div><div><b>加载骨架 / 编译中状态</b><span>需要新增 <code>IsValidating</code> 或异步校验契约；当前 <code>ValidateScript()</code> 是同步调用。</span></div></div>
+    <div class="cs-note"><div class="cs-note-num">D2</div><div><b>编辑器字体 / 缩放设置</b><span>AvalonEdit 支持缩放，但插件没有公开设置项；本轮不新增配置。</span></div></div>
+    <div class="cs-note"><div class="cs-note-num">D3</div><div><b>打开 / 保存脚本文件</b><span>需要新增文件对话框与持久化路径；当前脚本只随 <code>.vms</code> 保存。</span></div></div>
+    <div class="cs-note"><div class="cs-note-num">D4</div><div><b>代码格式化</b><span>需要引入 Roslyn Formatter 或第三方格式化器；本轮不做。</span></div></div>
+    <div class="cs-note"><div class="cs-note-num">D5</div><div><b>变量重命名联动脚本正文</b><span>需要跨「变量表 ↔ 编辑器文本」的引用分析；当前改名只影响端口名，不改脚本里的字符串。</span></div></div>
+    <div class="cs-note"><div class="cs-note-num">D6</div><div><b>试运行按钮</b><span>由宿主 <code>PluginConfigShellView</code> 统一提供；插件视图不重复造。</span></div></div>
+  </div>
+</div>
+
+<div class="cs-toast" id="cs-toast"></div>
+</div>
+
+<script>
+(function () {
+  var root = document.getElementById('cs-design-root');
+  if (!root) return;
+
+  var win = root.querySelector('#cs-window');
+  var stateSeg = root.querySelector('#cs-state-seg');
+  var inputList = root.querySelector('#cs-input-list');
+  var outputList = root.querySelector('#cs-output-list');
+  var inputEmpty = root.querySelector('#cs-input-empty');
+  var outputEmpty = root.querySelector('#cs-output-empty');
+  var inCount = root.querySelector('#cs-in-count');
+  var outCount = root.querySelector('#cs-out-count');
+  var gutter = root.querySelector('#cs-gutter');
+  var editor = root.querySelector('#cs-editor');
+  var highlight = root.querySelector('#cs-highlight');
+  var status = root.querySelector('#cs-status');
+  var statusMsg = root.querySelector('#cs-status-msg');
+  var toast = root.querySelector('#cs-toast');
+  var toastTimer = null;
+
+  var TYPE_LABELS = {
+    Object: '任意对象', Int: '整数', Double: '浮点数', Bool: '布尔', String: '字符串',
+    HTuple: 'Halcon 元组', HImage: 'Halcon 图像', HRegion: 'Halcon 区域', HXld: 'Halcon 轮廓', HObject: 'Halcon 图形对象'
+  };
+  var ICONIC = { HImage: 1, HRegion: 1, HXld: 1, HObject: 1 };
+
+  var model = {
+    inputs: [
+      { name: '图像', type: 'HImage', linked: true, value: '' },
+      { name: '阈值', type: 'Int', linked: false, value: '128' }
+    ],
+    outputs: [
+      { name: '面积', type: 'Double', window: 0, remark: '亮区面积' },
+      { name: '结果图', type: 'HImage', window: 1, remark: '标注结果' }
+    ]
+  };
+
+  var CODE_DEFAULT = [
+    '// C# 脚本（顶层语句）—— 可用完整 C#：class、方法、LINQ、using、HalconDotNet 等',
+    '// 自定义函数统一走 Context：',
+    'var img = Context.GetInput<HImage>("图像");',
+    'var threshold = Context.GetInput<int>("阈值");',
+    '',
+    'HRegion region = img.Threshold(threshold, 255);',
+    'double area = region.AreaCenter(out double row, out double col);',
+    '',
+    'Context.SetOutput("面积", area);',
+    'Context.SetOutput("结果图", img);',
+    'Context.Info($"亮区面积 {area:F1}，质心 ({row:F1}, {col:F1})");'
+  ].join('\n');
+
+  var CODE_ERROR = [
+    '// C# 脚本（顶层语句）—— 可用完整 C#：class、方法、LINQ、using、HalconDotNet 等',
+    '// 自定义函数统一走 Context：',
+    'var img = Context.GetInput<HImage>("图像");',
+    'var threshold = Context.GetInput<int>("阈值");',
+    '',
+    'HRegion region = img.Threshold(threshold, 255);',
+    'double area = region.AreaCenter(out double row, out double col);',
+    '',
+    'Context.SetOutput("面积", area);',
+    'Context.SetOutput("结果图", img);',
+    'Context.Info($"亮区面积 {area:F1}，质心 ({row:F1}, {col:F1})");',
+    'Context.SetOutput("结果", area;'
+  ].join('\n');
+
+  function showToast(text) {
+    toast.textContent = text;
+    toast.classList.add('is-on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toast.classList.remove('is-on'); }, 1800);
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function highlightCode(code) {
+    var stash = [];
+    function keep(html) {
+      var i = stash.push(html) - 1;
+      // 占位符只用字母：数字正则不会误伤它（用 0/1 会被 \b\d+\b 包成 c-num，导致字符串还原失败）
+      return '\u0000' + String.fromCharCode(65 + i) + '\u0000';
+    }
+    var text = esc(code);
+    text = text.replace(/\/\/[^\n]*/g, function (m) { return keep('<span class="c-com">' + m + '</span>'); });
+    text = text.replace(/&quot;[^&\n]*?&quot;/g, function (m) { return keep('<span class="c-str">' + m + '</span>'); });
+    text = text.replace(/\b(class|public|private|static|void|var|new|return|if|else|for|foreach|while|using|namespace|true|false|null|out|double|int|string|bool|object)\b/g, '<span class="c-kw">$1</span>');
+    text = text.replace(/\bContext\b/g, '<span class="c-api">Context</span>');
+    text = text.replace(/\b(HImage|HRegion|HXld|HObject|HTuple)\b/g, '<span class="c-type">$1</span>');
+    text = text.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="c-num">$1</span>');
+    text = text.replace(/\u0000([A-Z])\u0000/g, function (_, ch) { return stash[ch.charCodeAt(0) - 65]; });
+    return text;
+  }
+
+  function renderGutter(code, errorLine) {
+    var lines = code.split('\n');
+    gutter.innerHTML = lines.map(function (_, i) {
+      var n = i + 1;
+      return '<div' + (errorLine === n ? ' class="is-error"' : '') + '>' + n + '</div>';
+    }).join('');
+  }
+
+  function syncEditor() {
+    var code = editor.value;
+    highlight.innerHTML = highlightCode(code) + '\n';
+    renderGutter(code, status.dataset.errorLine ? +status.dataset.errorLine : 0);
+    highlight.scrollTop = editor.scrollTop;
+    highlight.scrollLeft = editor.scrollLeft;
+    gutter.scrollTop = editor.scrollTop;
+  }
+
+  function typeOptions(selected) {
+    return Object.keys(TYPE_LABELS).map(function (v) {
+      return '<option value="' + v + '"' + (v === selected ? ' selected' : '') + '>' + TYPE_LABELS[v] + '</option>';
+    }).join('');
+  }
+
+  function renderInputs() {
+    inputList.innerHTML = model.inputs.map(function (v, i) {
+      var linked = v.linked;
+      var value = linked ? (v.type === 'HImage' ? '← 上游图像' : '← 上游变量') : (v.value || '');
+      return '<div class="cs-var-row" data-kind="input" data-index="' + i + '">' +
+        '<div class="cs-var-top">' +
+          '<input class="cs-input" data-field="name" value="' + esc(v.name) + '" placeholder="变量名">' +
+          '<select class="cs-select" data-field="type">' + typeOptions(v.type) + '</select>' +
+          '<button type="button" class="cs-icon-btn is-del" data-action="del" title="删除该输入变量" aria-label="删除该输入变量"><svg class="cs-ico"><use href="#i-x"/></svg></button>' +
+        '</div>' +
+        '<div class="cs-link-row">' +
+          '<div class="cs-linkbox' + (linked ? ' is-linked' : '') + '">' +
+            '<input class="cs-input" data-field="value" value="' + esc(value) + '" placeholder="未连线 · 按类型手填" ' + (linked ? 'readonly' : '') + '>' +
+            '<div class="cs-link-tools">' +
+              '<button type="button" class="cs-icon-btn" data-action="toggle-link" title="绑定变量" aria-label="绑定变量"><svg class="cs-ico"><use href="#i-link"/></svg></button>' +
+              '<button type="button" class="cs-icon-btn" data-action="unlink" title="解除链接" aria-label="解除链接"><svg class="cs-ico"><use href="#i-unlink"/></svg></button>' +
+            '</div>' +
+          '</div>' +
+          (linked ? '<span class="cs-link-tag"><svg class="cs-ico"><use href="#i-link"/></svg>已链接</span>' : '<span></span>') +
+        '</div>' +
+      '</div>';
+    }).join('');
+    inputEmpty.hidden = model.inputs.length !== 0;
+    inCount.textContent = model.inputs.length;
+  }
+
+  function renderOutputs() {
+    outputList.innerHTML = model.outputs.map(function (v, i) {
+      var iconic = !!ICONIC[v.type];
+      var windowOptions = ['不显示', '窗口1', '窗口2', '窗口3', '窗口4', '窗口5', '窗口6', '窗口7', '窗口8', '窗口9'];
+      var winSel = '<div class="cs-window-pick"' + (iconic ? '' : ' hidden') + '>' +
+        '<label>显示窗口</label>' +
+        '<select class="cs-select" data-field="window">' +
+          windowOptions.map(function (label, idx) {
+            return '<option value="' + idx + '"' + (idx === (v.window || 0) ? ' selected' : '') + '>' + label + '</option>';
+          }).join('') +
+        '</select></div>';
+      return '<div class="cs-var-row" data-kind="output" data-index="' + i + '">' +
+        '<div class="cs-var-top">' +
+          '<input class="cs-input" data-field="name" value="' + esc(v.name) + '" placeholder="变量名">' +
+          '<select class="cs-select" data-field="type">' + typeOptions(v.type) + '</select>' +
+          '<button type="button" class="cs-icon-btn is-del" data-action="del" title="删除该输出变量" aria-label="删除该输出变量"><svg class="cs-ico"><use href="#i-x"/></svg></button>' +
+        '</div>' +
+        '<div class="cs-output-meta">' + winSel +
+          '<input class="cs-input" data-field="remark" value="' + esc(v.remark || '') + '" placeholder="备注（可选）">' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    outputEmpty.hidden = model.outputs.length !== 0;
+    outCount.textContent = model.outputs.length;
+  }
+
+  function renderAll() {
+    renderInputs();
+    renderOutputs();
+    syncEditor();
+  }
+
+  function setState(name) {
+    stateSeg.querySelectorAll('button').forEach(function (b) {
+      var on = b.dataset.state === name;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    if (name === 'empty') {
+      model.inputs = [];
+      model.outputs = [];
+      editor.value = CODE_DEFAULT;
+      setStatus('idle', '尚未校验 · 点击「校验脚本」做编译检查', 0);
+    } else if (name === 'success') {
+      model.inputs = [
+        { name: '图像', type: 'HImage', linked: true, value: '' },
+        { name: '阈值', type: 'Int', linked: false, value: '128' }
+      ];
+      model.outputs = [
+        { name: '面积', type: 'Double', window: 0, remark: '亮区面积' },
+        { name: '结果图', type: 'HImage', window: 1, remark: '标注结果' }
+      ];
+      editor.value = CODE_DEFAULT;
+      setStatus('ok', '✔ 脚本校验通过（编译无误）', 0);
+    } else if (name === 'error') {
+      model.inputs = [
+        { name: '图像', type: 'HImage', linked: true, value: '' },
+        { name: '阈值', type: 'Int', linked: false, value: '128' }
+      ];
+      model.outputs = [
+        { name: '面积', type: 'Double', window: 0, remark: '亮区面积' },
+        { name: '结果图', type: 'HImage', window: 1, remark: '标注结果' }
+      ];
+      editor.value = CODE_ERROR;
+      setStatus('error', "✘ 第 12 行 第 32 列: 应输入 ')'；当前为 ';'", 12);
+    } else {
+      model.inputs = [
+        { name: '图像', type: 'HImage', linked: true, value: '' },
+        { name: '阈值', type: 'Int', linked: false, value: '128' }
+      ];
+      model.outputs = [
+        { name: '面积', type: 'Double', window: 0, remark: '亮区面积' },
+        { name: '结果图', type: 'HImage', window: 1, remark: '标注结果' }
+      ];
+      editor.value = CODE_DEFAULT;
+      setStatus('idle', '尚未校验 · 点击「校验脚本」做编译检查', 0);
+    }
+    renderAll();
+  }
+
+  function setStatus(level, msg, errorLine) {
+    status.className = 'cs-status' + (level === 'ok' ? ' is-ok' : level === 'error' ? ' is-error' : '');
+    status.dataset.errorLine = errorLine || 0;
+    statusMsg.textContent = msg;
+  }
+
+  function validate() {
+    var code = editor.value;
+    var open = (code.match(/\{/g) || []).length;
+    var close = (code.match(/\}/g) || []).length;
+    var parenOpen = (code.match(/\(/g) || []).length;
+    var parenClose = (code.match(/\)/g) || []).length;
+    if (parenOpen !== parenClose) {
+      var line = code.split('\n').length;
+      setStatus('error', '✘ 第 ' + line + ' 行: 括号未配对（( = ' + parenOpen + '，) = ' + parenClose + '）', line);
+      syncEditor();
+      return;
+    }
+    if (open !== close) {
+      var line2 = code.split('\n').length;
+      setStatus('error', '✘ 第 ' + line2 + ' 行: 大括号未配对（{ = ' + open + '，} = ' + close + '）', line2);
+      syncEditor();
+      return;
+    }
+    setStatus('ok', '✔ 脚本校验通过（编译无误）', 0);
+    syncEditor();
+  }
+
+  stateSeg.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-state]');
+    if (!b) return;
+    setState(b.dataset.state);
+  });
+
+  root.querySelectorAll('[data-width]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var narrow = b.dataset.width === '640';
+      win.classList.toggle('is-narrow', narrow);
+      root.querySelectorAll('[data-width]').forEach(function (x) {
+        var on = x === b;
+        x.classList.toggle('is-on', on);
+        x.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      syncEditor();
+    });
+  });
+
+  root.querySelector('#cs-add-input').addEventListener('click', function () {
+    var n = model.inputs.length + 1;
+    model.inputs.push({ name: 'in' + n, type: 'Object', linked: false, value: '' });
+    renderInputs();
+    syncEditor();
+  });
+
+  root.querySelector('#cs-add-output').addEventListener('click', function () {
+    var n = model.outputs.length + 1;
+    model.outputs.push({ name: 'out' + n, type: 'Object', window: 0, remark: '' });
+    renderOutputs();
+    syncEditor();
+  });
+
+  inputList.addEventListener('click', function (e) {
+    var row = e.target.closest('.cs-var-row');
+    if (!row) return;
+    var i = +row.dataset.index;
+    var action = e.target.closest('[data-action]');
+    if (!action) return;
+    if (action.dataset.action === 'del') { model.inputs.splice(i, 1); renderInputs(); }
+    if (action.dataset.action === 'toggle-link') { model.inputs[i].linked = true; renderInputs(); }
+    if (action.dataset.action === 'unlink') { model.inputs[i].linked = false; renderInputs(); }
+  });
+
+  outputList.addEventListener('click', function (e) {
+    var row = e.target.closest('.cs-var-row');
+    if (!row) return;
+    var i = +row.dataset.index;
+    var action = e.target.closest('[data-action]');
+    if (action && action.dataset.action === 'del') { model.outputs.splice(i, 1); renderOutputs(); }
+  });
+
+  inputList.addEventListener('input', function (e) {
+    var row = e.target.closest('.cs-var-row');
+    if (!row) return;
+    var i = +row.dataset.index;
+    var f = e.target.dataset.field;
+    if (f === 'name') model.inputs[i].name = e.target.value;
+    if (f === 'value') model.inputs[i].value = e.target.value;
+  });
+
+  outputList.addEventListener('input', function (e) {
+    var row = e.target.closest('.cs-var-row');
+    if (!row) return;
+    var i = +row.dataset.index;
+    var f = e.target.dataset.field;
+    if (f === 'name') model.outputs[i].name = e.target.value;
+    if (f === 'remark') model.outputs[i].remark = e.target.value;
+  });
+
+  inputList.addEventListener('change', function (e) {
+    var row = e.target.closest('.cs-var-row');
+    if (!row) return;
+    var i = +row.dataset.index;
+    if (e.target.dataset.field === 'type') { model.inputs[i].type = e.target.value; renderInputs(); }
+  });
+
+  outputList.addEventListener('change', function (e) {
+    var row = e.target.closest('.cs-var-row');
+    if (!row) return;
+    var i = +row.dataset.index;
+    if (e.target.dataset.field === 'type') { model.outputs[i].type = e.target.value; renderOutputs(); }
+    if (e.target.dataset.field === 'window') { model.outputs[i].window = +e.target.value; }
+  });
+
+  editor.addEventListener('input', function () {
+    setStatus('idle', '尚未校验 · 点击「校验脚本」做编译检查', 0);
+    syncEditor();
+  });
+  editor.addEventListener('scroll', syncEditor);
+  root.querySelector('#cs-validate').addEventListener('click', validate);
+
+  root.querySelectorAll('[data-shell]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      showToast('「' + b.dataset.shell + '」由宿主 PluginConfigShellView 提供，插件视图不重复实现');
+    });
+  });
+
+  // 初始态
+  editor.value = CODE_DEFAULT;
+  renderAll();
+  setStatus('idle', '尚未校验 · 点击「校验脚本」做编译检查', 0);
+  syncEditor();
+})();
+</script>
+</body>
+</html>

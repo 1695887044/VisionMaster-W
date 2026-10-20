@@ -42,13 +42,13 @@ namespace UI.CustomControl.PropertyGrid
             {
                 IsEnabled = !isReadOnly,
                 IsEditable = true,
-                Padding = new Thickness(10, 6, 10, 6),
-                VerticalContentAlignment = VerticalAlignment.Center,
                 ItemsSource = options,
                 ToolTip = options.Count > 0
                     ? $"候选来自当前方案（共 {options.Count} 项）；也可以直接输入"
                     : "当前方案里还没有可用项：可先到「运动卡设置」配置，或直接手动输入",
             };
+            // v1 基线：统一 36px 高 / 8px 圆角 / 令牌配色
+            PropertyGridMetrics.ApplyInputLook(comboBox);
 
             // 绑到属性本身（TwoWay）
             var binding = new Binding(prop.Name)

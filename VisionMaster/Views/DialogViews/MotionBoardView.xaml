@@ -11,7 +11,8 @@
     prism:ViewModelLocator.AutoWireViewModel="True">
 
     <!--
-        运动板卡（合并窗口）：左栏选卡 + 四页签（卡设置 / 手动调试 / 点位列表 / 电子凸轮）。
+        运动板卡（合并窗口）：左栏选卡 + 三页签（卡设置 / 手动调试 / 点位列表）。
+        电子凸轮功能暂不开放 UI（数据与 VM 保留，避免已落盘的凸轮表被破坏）。
 
         布局逐字对齐《WPF 运动板卡复刻设计文档》第 1 章：
           页头 = 图标 + 「SCADA CONSOLE」上眉 + 「运动板卡」标题 + 右侧导航胶囊（其余页占位）；
@@ -54,6 +55,16 @@
             BorderBrush="{StaticResource MbBorderBrush}"
             BorderThickness="0,0,0,1"
             Padding="20,12">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding (local:EmbeddedMode.IsEmbedded), RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -233,6 +244,7 @@
                             <Button
                                 HorizontalAlignment="Right"
                                 Command="{Binding OpenAddCardCommand}"
+                                IsEnabled="{Binding IsConfigEditable}"
                                 Style="{StaticResource MbPrimaryButton}"
                                 Padding="10,4"
                                 FontSize="12">
@@ -403,7 +415,9 @@
                     ItemContainerStyle="{StaticResource MbTabItem}" />
 
                 <Grid Grid.Row="1" Margin="0,14,0,0">
-                    <mb:MotionBoardSettingsView DataContext="{Binding Settings}">
+                    <mb:MotionBoardSettingsView
+                        DataContext="{Binding Settings}"
+                        IsEnabled="{Binding DataContext.IsConfigEditable, RelativeSource={RelativeSource AncestorType={x:Type local:MotionBoardView}}}">
                         <mb:MotionBoardSettingsView.Style>
                             <Style TargetType="mb:MotionBoardSettingsView">
                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -416,7 +430,9 @@
                         </mb:MotionBoardSettingsView.Style>
                     </mb:MotionBoardSettingsView>
 
-                    <mb:MotionBoardDebugView DataContext="{Binding Debug}">
+                    <mb:MotionBoardDebugView
+                        DataContext="{Binding Debug}"
+                        IsEnabled="{Binding DataContext.IsRuntimeOperable, RelativeSource={RelativeSource AncestorType={x:Type local:MotionBoardView}}}">
                         <mb:MotionBoardDebugView.Style>
                             <Style TargetType="mb:MotionBoardDebugView">
                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -429,7 +445,9 @@
                         </mb:MotionBoardDebugView.Style>
                     </mb:MotionBoardDebugView>
 
-                    <mb:MotionBoardPointsView DataContext="{Binding Points}">
+                    <mb:MotionBoardPointsView
+                        DataContext="{Binding Points}"
+                        IsEnabled="{Binding DataContext.IsConfigEditable, RelativeSource={RelativeSource AncestorType={x:Type local:MotionBoardView}}}">
                         <mb:MotionBoardPointsView.Style>
                             <Style TargetType="mb:MotionBoardPointsView">
                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -442,18 +460,6 @@
                         </mb:MotionBoardPointsView.Style>
                     </mb:MotionBoardPointsView>
 
-                    <mb:MotionBoardCamView DataContext="{Binding Cam}">
-                        <mb:MotionBoardCamView.Style>
-                            <Style TargetType="mb:MotionBoardCamView">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding DataContext.SelectedTabIndex, RelativeSource={RelativeSource AncestorType={x:Type local:MotionBoardView}}}" Value="3">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </mb:MotionBoardCamView.Style>
-                    </mb:MotionBoardCamView>
                 </Grid>
             </Grid>
         </Grid>
@@ -513,6 +519,7 @@
         <Grid
             Grid.RowSpan="2"
             Background="{StaticResource MbMaskBrush}"
+            IsEnabled="{Binding IsConfigEditable}"
             Visibility="{Binding IsAddCardOpen, Converter={StaticResource MbBoolToVis}}">
             <Border
                 Width="400"
@@ -618,6 +625,7 @@
         <Grid
             Grid.RowSpan="2"
             Background="{StaticResource MbMaskBrush}"
+            IsEnabled="{Binding IsConfigEditable}"
             Visibility="{Binding HasConfirm, Converter={StaticResource MbBoolToVis}}">
             <Border
                 Width="380"

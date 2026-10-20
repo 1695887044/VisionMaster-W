@@ -1,0 +1,470 @@
+=== IO Checks ===
+
+--- [D] ---
+[PASS] D.1 连接成功
+[PASS] D.2 连接后状态 Online
+[PASS] D.3 轮询缓存可读 DI_1
+[PASS] D.4 DI 变化可读
+[PASS] D.5 写输出成功
+[PASS] D.6 写后输出为 true
+[PASS] D.7 ReadNow 成功
+[PASS] D.8 ReadNow 应用缩放
+[PASS] D.9 写超时返回 false 且错误可读
+[PASS] D.10 断开后状态 Closed
+
+--- [V] ---
+[PASS] V.1 IO 输入变量已投影
+[PASS] V.2 IO 输出变量已投影
+[PASS] V.3 输入变量只读
+[PASS] V.4 输出变量可写
+[PASS] V.5 变量类型为 Io
+
+--- [I] ---
+[PASS] I.1 确定性 Id 同输入同输出
+[PASS] I.2 确定性 Id 不同点不同
+
+--- [R] ---
+[PASS] R.1 输入变量 setter 抛 NotSupportedException
+
+--- [W] ---
+[PASS] W.1 输出变量写入成功
+[PASS] W.2 输出变量写后镜像为 true
+[PASS] W.3 设备收到写入
+
+--- [C] ---
+[PASS] C.1 运动目录重建不删除 IO 变量
+[PASS] C.2 运动目录重建会移除旧运动变量
+[PASS] C.3 System. 前缀整体保留
+[PASS] C.4 Motion. 旧前缀不再单独保留
+
+--- [K] ---
+[PASS] K.1 TCP 总线配置有效
+[PASS] K.2 TCP 主机为空被拒绝
+[PASS] K.3 重复点位标识被拒绝
+[PASS] K.4 缩放为 0 被拒绝
+[PASS] K.5 数字量类型不是 Bool 被拒绝
+
+--- [U] ---
+[PASS] U.1 IO 配置应用到方案：总线 1 条
+[PASS] U.2 IO 配置应用到方案：设备 1 台
+[PASS] U.3 IO 配置应用到方案：点位 1 个
+[PASS] U.4 IO 配置应用后创建设备
+[PASS] U.5 IO 配置应用后投影变量
+
+--- [PF] ---
+[PASS] PF.1 无搜索时显示集合 == 全部点位
+[PASS] PF.2 按点位标识过滤
+[PASS] PF.3 按地址过滤
+[PASS] PF.4 按说明过滤（中文）
+[PASS] PF.5 无命中时显示 0 条
+[PASS] PF.6 计数提示写成「命中 / 总数」
+[PASS] PF.7 选中的点位被搜索过滤掉时清空选中
+[PASS] PF.8 搜索中新增点位会先清搜索（新建的点立即可见）
+[PASS] PF.9 新增后选中新点位
+[PASS] PF.10 搜索只影响显示，不影响写回方案（4 个点位全部落盘）
+[PASS] PF.11 删除后显示集合同步收缩
+
+--- [AU] ---
+[PASS] AU.1 只挑 IO 写入：排除报警改名与运动回零
+[PASS] AU.2 保持输入顺序（新→旧）
+[PASS] AU.3 只看失败：只留 Result=false 的那条
+[PASS] AU.4 按点位搜索（详情里含 DO_2）
+[PASS] AU.5 按操作者搜索（流程 owner）
+[PASS] AU.6 条数上限生效
+[PASS] AU.7 空输入返回空集合（不抛）
+[PASS] AU.8 审计行从详情里抽出点位
+[PASS] AU.9 审计行结果灯为失败档
+[PASS] AU.10 审计行操作者取 UserName
+[PASS] AU.11 成功条目结果灯为 ok 档
+
+--- [S] ---
+[PASS] S.1 方案往返保留 SolutionId
+[PASS] S.2 方案往返保留 IO 总线
+[PASS] S.3 方案往返保留 IO 设备/点位
+
+--- [G] ---
+[PASS] G.1 内置驱动 modbus.tcp 已注册
+[PASS] G.2 内置驱动 modbus.rtu 已注册
+[PASS] G.3 内置驱动 siemens.s7 已注册
+[PASS] G.4 内置驱动 simulated 已注册
+[PASS] G.5 重复 driverId 被拒绝
+
+--- [M] ---
+[PASS] M.1 Modbus TCP 连接
+[PASS] M.2 Modbus TCP 写线圈
+[PASS] M.3 Modbus TCP 回读线圈
+[PASS] M.4 Modbus TCP 写寄存器
+[PASS] M.5 Modbus TCP 回读寄存器
+[PASS] M.6 地址基数：1 基设备连接成功
+[PASS] M.7 地址基数：0 基设备连接成功
+[PASS] M.8 地址基数：1 基设备写 40001
+[PASS] M.9 地址基数：1 基设备回读 40001 = 111
+[PASS] M.10 地址基数：0 基设备读同一地址串落到相邻寄存器（123，而不是 111）
+
+--- [S7] ---
+[PASS] S7.1 连接成功（总线端口来自配置，不是 HSL 写死的 102）
+[PASS] S7.2 后台轮询覆盖全部输入点（4 个）
+[PASS] S7.3 轮询快照里能取到缩放后的值（5.5）
+[PASS] S7.4 读 I 区：从站预置 I0.0 = true
+[PASS] S7.5 读 M 区：未预置的 M0.0 = false
+[PASS] S7.6 读 DB 区 16 位整数（1234）
+[PASS] S7.7 真实帧上应用缩放（55 × 0.1 = 5.5）
+[PASS] S7.8 写 Q 区线圈
+[PASS] S7.9 从站侧确实收到线圈写入（真帧，不是本地镜像）
+[PASS] S7.10 写 DB 区寄存器
+[PASS] S7.11 从站侧确实收到寄存器写入（4321）
+[PASS] S7.12 写入值可回读
+[PASS] S7.13 输入变化能触发新的轮询发布（判据正对照）
+[PASS] S7.14 轮询不读输出点（只有 ReadNow/回读才读输出）
+[PASS] S7.15 实测轮询周期 > 0（健康面板『实测周期』的真实来源）
+[PASS] S7.16 断开后状态不再是在线
+[PASS] S7.17 S7 端口无人监听：Connect 不抛异常
+[PASS] S7.18 S7 端口无人监听：Connect 返回 false
+[PASS] S7.19 S7 端口无人监听：计入故障计数（不是静默失败）
+[PASS] S7.20 S7 端口无人监听：状态不是 Online
+[PASS] S7.21 S7 驱动配置损坏：回落默认值后仍能连接
+[PASS] S7.22 S7 驱动配置损坏：读写照常（默认值可用）
+[PASS] S7.23 S7 未知 PLC 系列：回落默认系列后仍能连接
+
+--- [RT] ---
+[PASS] RT.1 CRC16 对规范示例帧算出 0xCDC5
+[PASS] RT.2 FC03 读保持寄存器：字节数与内容正确
+[PASS] RT.3 FC03 响应帧 CRC 自洽
+[PASS] RT.4 FC01 读线圈：位按低位先打包（0/2 位为真 → 0x05）
+[PASS] RT.5 FC05 写单线圈：从站状态改变且原样回显
+[PASS] RT.6 FC06 写单寄存器：值落地且原样回显
+[PASS] RT.7 FC10 写多寄存器：两个值都落地，响应回显起始地址与数量
+[PASS] RT.8 FC0F 写多线圈：位展开正确
+[PASS] RT.9 CRC 错误：不应答（主站会超时，而不是拿到脏数据）
+[PASS] RT.10 站号不匹配：不应答
+[PASS] RT.11 不支持的功能码：回异常响应（功能码 | 0x80，异常码 01）
+[PASS] RT.12 地址越界：回异常响应（异常码 02）
+[PASS] RT.13 数量为 0：回异常响应（异常码 03）
+[PASS] RT.14 端口不存在：Connect 不抛异常
+[PASS] RT.15 端口不存在：Connect 返回 false
+[PASS] RT.16 端口不存在：状态说明可读（不是空白/不是类型名）
+[PASS] RT.17 端口不存在：状态不是 Online
+[PASS] RT.18 未连接时写入：明确失败且带原因
+[PASS] RT.19 未连接时写入：在超时内返回（不挂死）
+[PASS] RT.20 未连接时即时读：明确失败且带原因
+[PASS] RT.21 同一条总线可挂多个从站（两个设备都被创建）
+[PASS] RT.22 多从站共享同一条总线
+[PASS] RT.23 每个从站的站号各自独立（1 / 2）
+[PASS] RT.24 真实 RTU 帧：客户端连接成功
+[PASS] RT.25 真实 RTU 帧：读保持寄存器（777）
+[PASS] RT.26 真实 RTU 帧：读线圈（预置为 true）
+[PASS] RT.27 真实 RTU 帧：写线圈穿透到从站
+[PASS] RT.28 真实 RTU 帧：写寄存器穿透到从站
+[PASS] RT.29 真实 RTU 帧：多帧交互且 CRC 全对（证明真的解出了帧）
+[SKIP] RT.30 真实帧：RTU 读写穿透到从站
+       原因：未设置 VM_IO_RTU_PAIR（本机无 com0com，Win32_SerialPort 只有蓝牙虚拟口且需已配对的对端设备）。反证方式：装 com0com 后设 VM_IO_RTU_PAIR=COM20:COM21（格式：主站口:从站口）再跑本用例即可执行。
+
+--- [RTM] ---
+[PASS] RTM.1 多从站：站 1 连接成功
+[PASS] RTM.2 多从站：站 2 连接成功
+[PASS] RTM.3 多从站：两个设备拿到同一条 transport 实例（引用相等）
+[PASS] RTM.4 多从站：链路池里只有一条活跃链路
+[PASS] RTM.5 交替读：站 1 每次读到自己的寄存器（1111）
+[PASS] RTM.6 交替读：站 2 每次读到自己的寄存器（2222）
+[PASS] RTM.7 交替写：站 1 的值落到从站 1 的寄存器 20
+[PASS] RTM.8 交替写：站 2 的值落到从站 2 的寄存器 20
+[PASS] RTM.9 FC05 写单线圈：落到从站 1 的线圈 30
+[PASS] RTM.10 FC10 写 32 位：两个寄存器按 CDAB 落位（0x5678 / 0x1234）
+[PASS] RTM.11 FC03 读 32 位：CDAB 字节序往返一致（0x12345678）
+[PASS] RTM.12 字序 ABCD：32 位读值按预期解释
+[PASS] RTM.13 字序 BADC：32 位读值按预期解释
+[PASS] RTM.14 字序 CDAB：32 位读值按预期解释
+[PASS] RTM.15 字序 DCBA：32 位读值按预期解释
+[PASS] RTM.16 FC0F 写多线圈：位展开正确（50/52 为真，51 为假）
+[PASS] RTM.17 异常码映射：非法数据地址 → [EXC] 02（不是链路故障）
+[PASS] RTM.18 帧日志同时出现站号 01 与 02 的请求（站号逐帧切换）
+[PASS] RTM.19 两个从站都收到了合法请求
+[PASS] RTM.20 不应答站：设备可连接（端口本身是好的）
+[PASS] RTM.21 不应答站：该设备读取失败且错误可读
+[PASS] RTM.22 不应答站：同总线另一从站仍然读成功（没有被一起卡死）
+[PASS] RTM.23 释放第一个从站：链路仍打开（第二个从站还在用）
+[PASS] RTM.24 释放第一个从站：链路池仍有一条活跃链路
+[PASS] RTM.25 释放第一个从站后，第二个从站仍能正常读
+[PASS] RTM.26 释放最后一个从站：链路才关闭
+[PASS] RTM.27 释放最后一个从站：链路池活跃链路归零
+[PASS] RTM.28 反向断言：每设备一份链路时，两个 Transport 不是同一实例
+
+--- [H] ---
+[PASS] H.1 宿主合并运动 + IO 变量
+[PASS] H.2 宿主保留运动变量
+[PASS] H.3 宿主保留 IO 变量
+[PASS] H.4 运动提供方清空后 IO 变量仍在
+[PASS] H.5 重复刷新顺序稳定
+[PASS] H.6 接到宿主的运动目录仍能把变量写进集合
+[PASS] H.7 接到宿主的运动变量名仍是 System.Motion.*
+
+--- [P] ---
+[PASS] P.1 坏点连续失败后被隔离
+[PASS] P.2 好点不受影响
+[PASS] P.3 坏点不再出现在正常轮询里
+
+--- [L] ---
+[PASS] L.1 首个 owner 能拿到租约
+[PASS] L.2 第二个 owner 被拒绝
+[PASS] L.3 当前 owner 可见
+[PASS] L.4 非 owner 释放无效
+[PASS] L.5 owner 释放后为空
+[PASS] L.6 释放后可被他人获取
+[PASS] L.7 ReleaseAll 清空该 owner 的全部租约
+[PASS] L.8 AllowSharedWrite 时不互斥
+[PASS] L.9 流程持有点位时手动写被拒绝
+[PASS] L.10 被拒绝时设备未收到写入
+[PASS] L.11 租约释放后手动写成功
+
+--- [T] ---
+[PASS] T.1 站点状态变量：Online
+[PASS] T.2 站点状态变量：State
+[PASS] T.3 站点状态变量：LastError
+[PASS] T.4 点位变量仍在
+[PASS] T.5 状态变量实例复用
+[PASS] T.6 设备不在仓库时不投影状态变量
+
+--- [B] ---
+[PASS] B.1 流程外 owner 为空
+[PASS] B.2 作用域内 owner 正确
+[PASS] B.3 流程内写入成功
+[PASS] B.4 租约归流程 owner
+[PASS] B.5 作用域结束后 owner 恢复
+[PASS] B.6 作用域结束后租约已释放
+[PASS] B.7 流程外写入成功
+[PASS] B.8 嵌套作用域内层 owner
+[PASS] B.9 嵌套作用域退出后恢复外层
+[PASS] B.10 流程 A 取得租约
+[PASS] B.11 流程 B 被流程 A 拒绝
+
+--- [N] ---
+[PASS] N.1 订阅测试找到 IO 变量
+[PASS] N.2 反射拿到 Publish（用于模拟设备推送）
+[PASS] N.3 发布周期内合并为一次回调
+[PASS] N.4 发布的是最新值
+[PASS] N.5 中间更新计入丢弃
+[PASS] N.6 无变化不重复发布
+[PASS] N.7 退订后不再发布
+[PASS] N.8 退订后计数归零
+
+--- [A] ---
+[PASS] A.1 成功写输出落一条审计
+[PASS] A.2 审计记到点位
+[PASS] A.3 审计 owner 为 manual
+[PASS] A.4 审计结果为成功
+[PASS] A.5 流程内写入审计 owner 为流程
+[PASS] A.6 失败写入也落审计
+
+--- [F] ---
+[PASS] F.1 分支 0 owner 带分支后缀
+[PASS] F.2 分支 0 取得 DO 租约
+[PASS] F.3 分支 0 退出后租约释放（静态挂接生效）
+[PASS] F.4 分支退出后恢复流程 owner
+[PASS] F.5 分支 1 拿到的是自己的 owner
+[PASS] F.6 流程退出后 owner 清空
+
+--- [E] ---
+[PASS] E.1 健康快照：总线 1 条
+[PASS] E.2 健康快照：设备 1 台
+[PASS] E.3 健康快照：点位 1 个
+[PASS] E.4 健康快照：设备连接前非在线
+[PASS] E.5 健康快照摘要含在线计数
+[PASS] E.6 健康快照明细含设备标识
+[PASS] E.7 无轮询样本时总线实测周期为 0（界面显示 —，不假装 0ms）
+[PASS] E.8 轮询后总线实测周期 > 0
+
+--- [Y] ---
+[PASS] Y.1 总线默认版本为当前版本
+[PASS] Y.2 新总线配置校验通过
+[PASS] Y.3 总线版本高于软件支持时被拒绝
+[PASS] Y.4 新设备配置校验通过
+[PASS] Y.5 设备版本高于软件支持时被拒绝
+
+--- [X] ---
+[PASS] X.1 TCP 总线：链路模型是 TcpLinkEditModel
+[PASS] X.2 TCP 总线：链路模型里读得到 IP
+[PASS] X.3 TCP 链路只暴露 TCP 字段
+[PASS] X.4 TCP 链路上没有串口字段
+[PASS] X.5 切换到串口后链路模型是 SerialLinkEditModel
+[PASS] X.6 串口链路只暴露串口字段
+[PASS] X.7 串口链路上没有 TCP 字段
+[PASS] X.8 切到串口后保留原 COM 口
+[PASS] X.9 切回 TCP 后保留原 IP
+[PASS] X.10 写回描述符：TransportKind=TCP
+[PASS] X.11 写回描述符：TCP 主机正确
+[PASS] X.12 写回描述符：串口草稿保留
+
+--- [Z] ---
+[PASS] Z.1 Modbus 设备：驱动模型是 ModbusDriverEditModel
+[PASS] Z.2 Modbus 设备：读回站号
+[PASS] Z.3 Modbus 设备：读回字序
+[PASS] Z.4 Modbus 驱动只暴露 Modbus 字段
+[PASS] Z.5 切换到 S7 后驱动模型是 S7DriverEditModel
+[PASS] Z.6 S7 驱动只暴露 S7 字段
+[PASS] Z.7 写回描述符：驱动 Id 为 S7
+[PASS] Z.8 写回描述符：S7 JSON 含 Rack
+[PASS] Z.9 写回描述符：S7 JSON 不含 UnitId
+[PASS] Z.10 模拟驱动使用 SimulatedDriverEditModel
+[PASS] Z.11 模拟驱动 JSON 为空对象
+
+--- [O] ---
+[PASS] O.1 健康面板：设备行已填充
+[PASS] O.2 健康面板：总线行已填充
+[PASS] O.3 健康面板：点位行已填充
+[PASS] O.4 健康面板：摘要非空
+[PASS] O.5 设备行：状态文案为“未连接”
+[PASS] O.6 设备行：状态级别为 idle
+[PASS] O.7 设备行：从未成功文案
+[PASS] O.8 点位行：类型文案 DI
+[PASS] O.9 点位行：启用文案
+[PASS] O.10 刷新后复用同一设备行实例
+[PASS] O.11 设备移除后行被清理
+[PASS] O.12 无设备时给出空态提示
+
+--- [J] ---
+[13:04:22] [INFO] AdvancedCommunicationManager 初始化完成
+[13:04:22] [INFO] 正在停止所有连接...
+[13:04:22] [INFO] 正在添加连接: CONN_TCP (ModbusTcp)
+[13:04:22] [INFO] 连接状态变化: CONN_TCP Disconnected -> Disconnected
+[13:04:22] [INFO] 连接添加成功: CONN_TCP
+[13:04:22] [INFO] 正在添加连接: CONN_RTU (ModbusRtu)
+[13:04:22] [INFO] 连接状态变化: CONN_RTU Disconnected -> Disconnected
+[13:04:22] [INFO] 连接添加成功: CONN_RTU
+[PASS] J.1 方案 A：装配 2 条连接
+[PASS] J.2 方案 A：管理器里有 2 条
+[13:04:22] [INFO] 正在停止所有连接...
+[13:04:22] [INFO] 正在断开连接: CONN_TCP
+[13:04:22] [INFO] 连接已断开: CONN_TCP
+[13:04:22] [INFO] 正在断开连接: CONN_RTU
+[13:04:22] [INFO] 连接已断开: CONN_RTU
+[13:04:22] [INFO] 正在移除连接: CONN_TCP
+[13:04:22] [INFO] 连接工作线程已停止: CONN_TCP
+[13:04:22] [INFO] 连接移除完成: CONN_TCP
+[13:04:22] [INFO] 正在移除连接: CONN_RTU
+[13:04:22] [INFO] 连接工作线程已停止: CONN_RTU
+[13:04:22] [INFO] 连接移除完成: CONN_RTU
+[13:04:22] [INFO] 正在添加连接: CONN_B (ModbusTcp)
+[13:04:22] [INFO] 连接状态变化: CONN_B Disconnected -> Disconnected
+[13:04:22] [INFO] 连接添加成功: CONN_B
+[PASS] J.3 方案 B：只装配 1 条
+[PASS] J.4 方案 B：旧方案连接已清除
+[13:04:22] [INFO] 正在停止所有连接...
+[13:04:22] [INFO] 正在断开连接: CONN_B
+[13:04:22] [INFO] 连接已断开: CONN_B
+[13:04:22] [INFO] 正在移除连接: CONN_B
+[13:04:22] [INFO] 连接工作线程已停止: CONN_B
+[13:04:22] [INFO] 连接移除完成: CONN_B
+[PASS] J.5 无方案：连接全部清空
+[13:04:22] [INFO] 正在停止所有连接...
+[13:04:22] [INFO] 正在添加连接: GOOD (ModbusTcp)
+[13:04:22] [INFO] 连接状态变化: GOOD Disconnected -> Disconnected
+[13:04:22] [INFO] 连接添加成功: GOOD
+[PASS] J.6 非法配置被跳过、合法配置仍装配
+[PASS] J.7 非法配置没进管理器
+[PASS] J.8 Capture 把管理器连接写回方案
+[13:04:22] [INFO] 正在释放 AdvancedCommunicationManager 资源...
+[13:04:22] [INFO] 正在停止所有连接...
+[13:04:22] [INFO] 正在断开连接: GOOD
+[13:04:22] [INFO] 连接已断开: GOOD
+[13:04:22] [INFO] AdvancedCommunicationManager 资源释放完成
+
+--- [Q] ---
+[PASS] Q.1 当前版本不迁移
+[PASS] Q.2 当前版本无任何说明
+[PASS] Q.3 版本 0 被迁移到当前版本
+[PASS] Q.4 版本 0 不计入拒绝
+[PASS] Q.5 归一化补齐 Scale=0 为 1
+[PASS] Q.6 归一化把负死区置 0
+[PASS] Q.7 归一化把负防抖置 0
+[PASS] Q.8 未来版本被拒绝
+[PASS] Q.9 被拒条目的版本号原样保留
+[PASS] Q.10 拒绝时给出可读原因
+[PASS] Q.11 null 集合不抛异常且零计数
+[PASS] Q.12 缺失的 Tcp/Serial/Reconnect 被补齐
+[PASS] Q.13 缺失的 Points/Params 被补齐
+[PASS] Q.14 空 DriverConfigJson 归一化为 {}
+[PASS] Q.15 归一化后配置可通过校验
+[PASS] Q.16 迁移链按版本顺序执行（0→1→2）
+[PASS] Q.17 版本相同：一步不跑且成功
+[PASS] Q.18 某一步抛异常：整链失败并带版本区间
+[PASS] Q.19 某一步失败后不再执行后续步骤（不把结构改坏）
+[PASS] Q.20 步骤表不够长：明确失败（不静默跳过剩下的）
+[PASS] Q.21 降级被拒绝
+[PASS] Q.22 负版本号被拒绝
+[PASS] Q.23 步骤表为 null：明确失败
+[PASS] Q.24 迁移消息记录的是迁移前的版本（0 → 1，而不是 1 → 1）
+
+--- [AE] ---
+[PASS] AE.1 未连接：TryRead 返回 false
+[PASS] AE.2 未连接：ReadNow 明确失败
+[PASS] AE.3 未连接：WriteAndWait 明确失败
+[PASS] AE.4 不存在的点位：写入被拒并说明
+[PASS] AE.5 只读点：写入被拒
+[PASS] AE.6 已取消的令牌：ReadNow 不抛异常
+[PASS] AE.7 防抖=0、死区=0 是合法配置
+[PASS] AE.8 空地址被拒绝
+[PASS] AE.9 模拟量用 Bool 类型被拒
+[PASS] AE.10 负防抖被拒
+[PASS] AE.11 重复点位的设备被跳过、其它设备照常创建
+[PASS] AE.12 找不到总线的设备被跳过
+[PASS] AE.13 未知驱动不抛异常、设备数为 0
+[PASS] AE.14 未来版本总线导致其下设备被跳过
+[PASS] AE.15 租约立即持有
+[PASS] AE.16 租约超时后被自动回收
+[PASS] AE.17 订阅回调抛异常被吞掉、不中断刷新
+=== IO 视图渲染冒烟 ===
+[PASS] AE.18 健康面板：视图可实例化并挂载
+[PASS] AE.19 健康面板：四个页签（设备 / 总线 / 点位 / 写入审计）
+[PASS] AE.20 健康面板：页签高度 ≥30px（不重现「只剩一条文字」）
+[PASS] AE.21 写入审计页签：表格已渲染
+[PASS] AE.22 写入审计页签：6 列（结果灯 / 时间 / 结果 / 操作者 / 点位 / 详情）
+[PASS] AE.23 写入审计页签：无记录时给出空态说明
+[PASS] AE.24 健康面板：找得到设备表（按 ItemsSource 定位）
+[PASS] AE.25 健康面板：ListView 挂了 GridListViewStyle
+[PASS] AE.26 健康面板：设备行已渲染
+[PASS] AE.27 健康面板：行容器已生成
+[PASS] AE.28 健康面板：行模板是 GridViewRowPresenter
+[PASS] AE.29 健康面板：GridView 列数 > 0
+[13:04:29] [INFO] AdvancedCommunicationManager 初始化完成
+[PASS] AE.30 系统健康：五个页签（概览 / 通讯 / 相机 / 运动 / IO）
+[PASS] AE.31 系统健康：概览四张域卡
+[PASS] AE.32 IO 设置：视图可实例化并挂载
+[PASS] AE.33 IO 设置：三栏 + 属性共 4 张卡片
+[PASS] AE.34 IO 设置：点位表已渲染
+[PASS] AE.35 IO 设置：点位表 5 列（点位/类型/地址/显示名/说明）
+
+=== 用例汇总 ===
+  D: 通过 10 / 失败 0
+  V: 通过 5 / 失败 0
+  I: 通过 2 / 失败 0
+  R: 通过 1 / 失败 0
+  W: 通过 3 / 失败 0
+  C: 通过 4 / 失败 0
+  K: 通过 5 / 失败 0
+  U: 通过 5 / 失败 0
+  PF: 通过 11 / 失败 0
+  AU: 通过 11 / 失败 0
+  S: 通过 3 / 失败 0
+  G: 通过 5 / 失败 0
+  M: 通过 10 / 失败 0
+  S7: 通过 23 / 失败 0
+  RT: 通过 29 / 失败 0 / 跳过 1
+  RTM: 通过 28 / 失败 0
+  H: 通过 7 / 失败 0
+  P: 通过 3 / 失败 0
+  L: 通过 11 / 失败 0
+  T: 通过 6 / 失败 0
+  B: 通过 11 / 失败 0
+  N: 通过 8 / 失败 0
+  A: 通过 6 / 失败 0
+  F: 通过 6 / 失败 0
+  E: 通过 8 / 失败 0
+  Y: 通过 5 / 失败 0
+  X: 通过 12 / 失败 0
+  Z: 通过 11 / 失败 0
+  O: 通过 12 / 失败 0
+  J: 通过 8 / 失败 0
+  Q: 通过 24 / 失败 0
+  AE: 通过 35 / 失败 0
+  合计: 通过 328 / 失败 0 / 跳过 1 / 共 329
+RESULT: ALL_OK

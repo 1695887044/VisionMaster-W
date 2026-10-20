@@ -203,8 +203,6 @@ namespace Plugin.CaliperMeasure
             // 类型变了：所需搜索区数量/形状、界面分区显隐都得跟着走
             OnPropertyChanged(nameof(RequiredRegionCount));
             OnPropertyChanged(nameof(RegionCountHint));
-            OnPropertyChanged(nameof(IsWidthMeasure));
-            OnPropertyChanged(nameof(IsPointToPointMeasure));
             OnPropertyChanged(nameof(IsFitMeasure));
             OnPropertyChanged(nameof(IsCircleMeasure));
             // 缺搜索区就补足（只增不减，绝不删用户已经摆好的区域）
@@ -343,14 +341,10 @@ namespace Plugin.CaliperMeasure
 
         #region 视图辅助属性（下拉数据源 / 分区显隐 / 数量提示）
 
-        public MeasureKind[] MeasureKinds { get; } = (MeasureKind[])Enum.GetValues(typeof(MeasureKind));
         public EdgePolarity[] Polarities { get; } = (EdgePolarity[])Enum.GetValues(typeof(EdgePolarity));
         public EdgeSelect[] EdgeSelects { get; } = (EdgeSelect[])Enum.GetValues(typeof(EdgeSelect));
         public EdgeInterpolation[] Interpolations { get; } = (EdgeInterpolation[])Enum.GetValues(typeof(EdgeInterpolation));
         public FitAlgorithmKind[] FitAlgorithms { get; } = (FitAlgorithmKind[])Enum.GetValues(typeof(FitAlgorithmKind));
-
-        public bool IsWidthMeasure => MeasureKind == MeasureKind.Width;
-        public bool IsPointToPointMeasure => MeasureKind == MeasureKind.PointToPoint;
 
         /// <summary>是否为拟合类测量（决定「拟合参数」分区显隐）：点到线距 / 圆直径 / 角度</summary>
         public bool IsFitMeasure => MeasureKind is MeasureKind.PointToLineDistance

@@ -54,6 +54,7 @@ namespace VisionMaster.Scada.Controls
         /// <param name="axisSource">本轮的运动轴快照源；纯画面（不跑轴面板）可以不给</param>
         /// <param name="axisCommands">本轮的运动轴命令出口；纯监视画面可以不给</param>
         /// <param name="confirmations">本轮的操作二次确认出口；不给则轴控台的示教/定位在需要确认时拒绝执行</param>
+        /// <param name="values">本轮的值通道（按变量名解析句柄）；不给则数据表格这类"按名字取数"的图元显示未接入</param>
         public ScadaRuntimeContext(
             ScadaAlarmEngine alarms,
             ScadaBeatSource beat,
@@ -61,7 +62,8 @@ namespace VisionMaster.Scada.Controls
             IScadaAccessPolicy? accessPolicy = null,
             IScadaAxisSource? axisSource = null,
             IScadaAxisCommandSink? axisCommands = null,
-            IScadaConfirmationService? confirmations = null)
+            IScadaConfirmationService? confirmations = null,
+            IScadaValueSource? values = null)
         {
             Alarms = alarms ?? throw new ArgumentNullException(nameof(alarms));
             Beat = beat ?? throw new ArgumentNullException(nameof(beat));
@@ -70,6 +72,7 @@ namespace VisionMaster.Scada.Controls
             AxisSource = axisSource;
             AxisCommands = axisCommands;
             Confirmations = confirmations;
+            Values = values;
         }
 
         /// <summary>
@@ -141,5 +144,17 @@ namespace VisionMaster.Scada.Controls
         /// 不会静默跳过确认——那等于把"防误触"开关悄悄关掉。
         /// </summary>
         public IScadaConfirmationService? Confirmations { get; }
+
+        /// <summary>
+        /// 本轮的值通道（<b>可为 null</b>：断言工程手搭的画布、纯静态预览画面）。
+        ///
+        /// 数据泵（<see cref="ScadaRuntimeBinder"/>）已经拿着同一个值源，但它只负责
+        /// "按绑定把值推进属性"；表格图元的列是<b>按名字</b>取的（列定义是手填的配置，
+        /// 不是逐列一条 <see cref="ScadaBinding"/>），所以它需要自己按名字解析句柄。
+        ///
+        /// 为什么把值源放进上下文而不是让图元去问注册表：与 <see cref="AxisSource"/> 逐字同一理由——
+        /// 图元库刻意不引用 VM.Core，宿主是唯一知道"变量注册表长什么样"的地方。
+        /// </summary>
+        public IScadaValueSource? Values { get; }
     }
 }

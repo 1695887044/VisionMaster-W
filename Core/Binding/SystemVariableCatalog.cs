@@ -465,7 +465,7 @@ namespace VisionMaster.Binding
 
             // 集合被外部动过（测试里 Clear、或另一份目录实例改写）时也必须重建：
             // 只比内部表会让"集合空了但目录认为一切正常"永远自愈不了。
-            // 只数运动系统变量：集合里还可能挂着 IO 变量（由 IoVariableCatalog 管理）。
+            // 只数运动系统变量：集合里还可能挂着其它来源的系统变量（相机/通讯等）。
             if (Variables.OfType<SystemVariableModel>().Count() != _ordered.Count) return false;
 
             int index = 0;

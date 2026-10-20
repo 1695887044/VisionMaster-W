@@ -25,6 +25,7 @@ namespace Plugin.CSharpScript
         private readonly Action<HImage, int> _showImage;
         private readonly Action<HImage, int, IEnumerable<MeasureAnnotation>> _showAnnotated;
         private readonly Action<HImage, int, string, IEnumerable<MeasureAnnotation>, IEnumerable<ImageInfoRow>> _showRich;
+        private readonly ScriptSharedAccessor _shared;
 
         internal ScriptContext(
             IExecutionContext exec,
@@ -32,7 +33,8 @@ namespace Plugin.CSharpScript
             Action<string, object> setOutput,
             Action<HImage, int> showImage,
             Action<HImage, int, IEnumerable<MeasureAnnotation>> showAnnotated = null,
-            Action<HImage, int, string, IEnumerable<MeasureAnnotation>, IEnumerable<ImageInfoRow>> showRich = null)
+            Action<HImage, int, string, IEnumerable<MeasureAnnotation>, IEnumerable<ImageInfoRow>> showRich = null,
+            ScriptSharedAccessor shared = null)
         {
             _exec = exec;
             _getInput = getInput;
@@ -40,6 +42,8 @@ namespace Plugin.CSharpScript
             _showImage = showImage;
             _showAnnotated = showAnnotated;
             _showRich = showRich;
+            // 没有声明表也要给一个空访问器：GetGlobal 会抛"未声明"而不是 NullReference
+            _shared = shared ?? new ScriptSharedAccessor(null, null);
         }
 
         /// <summary>自引用：脚本里 <c>Context.xxx</c> 即指向本门面。</summary>
@@ -61,6 +65,34 @@ namespace Plugin.CSharpScript
 
         /// <summary>写某个输出端口的值（供下游步骤连线取用）。端口不存在则忽略。</summary>
         public void SetOutput(string portName, object value) => _setOutput?.Invoke(portName, value);
+
+        // ── 自定义函数：共享变量（全局 / 系统，按声明表访问）──────────
+
+        /// <summary>
+        /// 读共享变量（全局 / 系统），参数是左侧「共享变量」表里的**别名**。
+        ///
+        /// 为什么走声明表而不是按变量名直接找：声明表按 <c>VariableId</c> 寻址，
+        /// 变量管理里改名不会断链；同时"脚本用了哪些共享变量"变成编译期可见的事实
+        /// （并行写冲突检查靠它，见 FlowCompiler）。
+        /// 未声明、读失败（变量被删/环境无工作区）都会抛异常并给出中文原因。
+        /// </summary>
+        public object GetGlobal(string alias) => _shared.Get(alias);
+
+        /// <summary>读共享变量并转成 T（如 <c>Context.GetGlobal&lt;int&gt;("imageIndex")</c>）。</summary>
+        public T GetGlobal<T>(string alias) => _shared.Get<T>(alias);
+
+        /// <summary>
+        /// 写共享变量（全局 / 系统），参数是左侧「共享变量」表里的**别名**。
+        ///
+        /// 三条闸门都会抛异常（消息可直接上屏）：未声明；声明为只读；系统变量（只读）。
+        /// 写入失败（变量被删、类型不符、设备离线）也抛——工业写操作静默失败最难查。
+        /// 想分支处理失败，用 <see cref="TrySetGlobal"/>。
+        /// </summary>
+        public void SetGlobal(string alias, object value) => _shared.Set(alias, value);
+
+        /// <summary>写共享变量，失败返回 false 并带原因（不抛异常）。</summary>
+        public bool TrySetGlobal(string alias, object value, out string error)
+            => _shared.TrySet(alias, value, out error);
 
         // ── 自定义函数：运行期变量 ────────────────────────────
 

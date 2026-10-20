@@ -1,5 +1,6 @@
 using Core.Interfaces;
 using AvalonDock.Layout;
+using System.Collections.ObjectModel;
 using HslCommunication.Profinet.Siemens;
 using NLog;
 using Prism.Common;
@@ -27,6 +28,30 @@ using VisionMaster.Views.DialogViews;
 
 namespace VisionMaster
 {
+    /// <summary>
+    /// Shell 工作模式：调试 / 运行 / 组态 / 自由。
+    /// 模式决定文档标签、左右面板、底部面板与状态栏的上下文，不只是“布局预设”。
+    /// </summary>
+    public enum ShellMode
+    {
+        Debug,
+        Run,
+        Config,
+        Free,
+    }
+
+    /// <summary>
+    /// 命令面板的一行。动作用委托携带，避免为每种入口再写一个命令类型；
+    /// 面板每次打开时重建，流程/视图变化不会留下过期引用。
+    /// </summary>
+    public sealed class CommandPaletteItem
+    {
+        public string Title { get; init; } = string.Empty;
+        public string Subtitle { get; init; } = string.Empty;
+        public string Glyph { get; init; } = "\uf0c9";
+        public Action? Invoke { get; init; }
+    }
+
     public class ShellViewModel : BindableBase
     {
         private readonly FlowCompiler _flowCompiler;
@@ -107,6 +132,13 @@ namespace VisionMaster
             get { return field; }
             set { SetProperty(ref field, value); }
         }
+
+        // 生产 KPI 的显示位先留给状态栏；数据源（节拍 / OK / NG / 告警）尚未接入时
+        // 明确显示占位符，不用 0 冒充真实计数。接入后只需在这四个属性里换源。
+        public string CycleTimeText => "—";
+        public string OkCountText => "—";
+        public string NgCountText => "—";
+        public string AlarmCountText => "—";
         #endregion
         #region 登录会话（状态栏显示）
         /// <summary>
@@ -188,6 +220,16 @@ namespace VisionMaster
         };
         #endregion
         #region Commands
+        /// <summary>当前工作模式（调试 / 运行 / 组态 / 自由）</summary>
+        public ShellMode CurrentMode
+        {
+            get { return field; }
+            private set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>切换工作模式；参数为 Debug / Run / Config / Free。</summary>
+        public DelegateCommand<string> SetShellModeCommand { get; }
+
         public AsyncDelegateCommand<SolutionAction?> SolutionCommand { get; }
         public DelegateCommand<ExecutionAction?> ExecutionCommand { get; }
 
@@ -198,6 +240,46 @@ namespace VisionMaster
         public DelegateCommand<string> SwitchCanvasCommand {  get; }
 
         public DelegateCommand<string> TogglePanelCommand { get; }
+
+        /// <summary>命令面板（Ctrl+K）：打开 / 关闭 / 执行当前项。</summary>
+        public DelegateCommand OpenCommandPaletteCommand { get; }
+        public DelegateCommand CloseCommandPaletteCommand { get; }
+        public DelegateCommand ExecuteCommandPaletteItemCommand { get; }
+        public DelegateCommand ToggleConsoleCommand { get; }
+
+        private readonly List<CommandPaletteItem> _allPaletteItems = new();
+        private CommandPaletteItem? _selectedCommandPaletteItem;
+
+        public ObservableCollection<CommandPaletteItem> CommandPaletteItems { get; } = new();
+
+        public bool IsCommandPaletteOpen
+        {
+            get => field;
+            private set
+            {
+                if (SetProperty(ref field, value))
+                    RaisePropertyChanged(nameof(CommandPaletteEmptyVisibility));
+            }
+        }
+
+        public string CommandPaletteQuery
+        {
+            get => field;
+            set
+            {
+                if (SetProperty(ref field, value))
+                    FilterCommandPalette();
+            }
+        }
+
+        public CommandPaletteItem? SelectedCommandPaletteItem
+        {
+            get => _selectedCommandPaletteItem;
+            set => SetProperty(ref _selectedCommandPaletteItem, value);
+        }
+
+        public Visibility CommandPaletteEmptyVisibility
+            => IsCommandPaletteOpen && CommandPaletteItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
         #endregion
 
@@ -290,7 +372,7 @@ namespace VisionMaster
             _dockWatchers.Clear();
 
             // 监听清单：前 5 个驱动活动栏高亮；最后一个是"当前是否在组态界面设计"的判据来源。
-            foreach (var contentId in new[] { "Panel_FlowListView", "Panel_ProcessView", "Panel_ToolView", "Panel_ScadaToolboxView", "Panel_ScadaLayerView", "Panel_ScadaEditorView" })
+            foreach (var contentId in new[] { "Panel_ProcessView", "Panel_ToolView", "Panel_ScadaToolboxView", "Panel_ScadaLayerView", "Panel_ScadaEditorView" })
             {
                 // LayoutContent 基类同时兼容停靠面板与文档选项卡（工具箱为文档类型）
                 if (LayoutHelper.FindPanel(contentId) is not LayoutContent panel) continue;
@@ -302,9 +384,11 @@ namespace VisionMaster
                     if (e.PropertyName is nameof(LayoutAnchorable.IsVisible) or nameof(LayoutContent.IsActive) or nameof(LayoutDocument.IsSelected))
                         RefreshActivityBar();
 
-                    // 只在"组态画面标签被选中/取消选中"时重收敛面板组。
-                    // 刻意不挂在四个面板自身的 IsVisible 上——Hide 动作会再触发一轮，来回抖动。
-                    if (isScadaEditor && e.PropertyName == nameof(LayoutDocument.IsSelected))
+                    // R56 第三处触发点：中央文档区切标签后重收敛。
+                    // 只在组态模式生效：其它模式下重新 Show 面板会抢右侧标签（Free 尤其明显），
+                    // 而“文档可见性”已由模式切换本身保证，不需要这里再收敛一次。
+                    if (isScadaEditor && CurrentMode == ShellMode.Config
+                        && e.PropertyName == nameof(LayoutDocument.IsSelected))
                         ApplyPanelMode();
                 };
                 panel.PropertyChanged += handler;
@@ -315,17 +399,68 @@ namespace VisionMaster
         }
 
         /// <summary>
-        /// 按"当前是否处于组态界面设计"收敛右侧面板组（幂等）。
-        /// 触发点三处，覆盖全部边界：① 启动（OnContentRendered）；② 布局加载/重载
-        /// （含方案切换的 .vms 内嵌布局、加载布局、恢复默认布局——见 <see cref="OnLayoutLoaded"/>）；
-        /// ③ 用户在中央文档区切换标签（见 <see cref="AttachDockWatchers"/> 的监听器）。
-        /// 之所以每次都要重收敛：磁盘上的 Layout.xml 会把上次退出时的可见性原样恢复回来。
+        /// 切换工作模式：先切文档上下文，再收敛左右面板与底部面板。
+        /// 文档切换会触发 ApplyPanelMode，必须用 _applyingShellMode 防止递归/互相覆盖。
+        /// </summary>
+        public void SetShellMode(string modeText)
+        {
+            if (!Enum.TryParse<ShellMode>(modeText, ignoreCase: true, out var mode)) return;
+            if (CurrentMode == mode)
+            {
+                ApplyShellMode(mode);
+                return;
+            }
+
+            var previous = CurrentMode;
+            CurrentMode = mode;
+            try
+            {
+                ApplyShellMode(mode);
+            }
+            catch (Exception ex)
+            {
+                // 模式收敛失败不许把界面留在“半个模式”：回滚模式标记并重收敛一次。
+                Console.WriteLine($"切换工作模式失败，已回滚到 {previous}：{ex.Message}");
+                CurrentMode = previous;
+                try { ApplyShellMode(previous); } catch { /* 回滚失败只记日志，不覆盖原始异常 */ }
+            }
+        }
+
+        private bool _applyingShellMode;
+
+        private void ApplyShellMode(ShellMode mode)
+        {
+            if (_applyingShellMode) return;
+            _applyingShellMode = true;
+            try
+            {
+                LayoutHelper.ApplyShellMode(mode);
+                IsScadaDesignMode = mode == ShellMode.Config;
+                RefreshActivityBar();
+            }
+            finally
+            {
+                _applyingShellMode = false;
+            }
+        }
+
+        /// <summary>
+        /// 按当前工作模式收敛面板组（幂等）。触发点：启动、布局加载/重载、中央文档区切标签。
         /// </summary>
         public void ApplyPanelMode()
         {
-            bool scadaDesign = LayoutHelper.IsDocumentSelected("Panel_ScadaEditorView");
-            IsScadaDesignMode = scadaDesign;
-            LayoutHelper.ApplyScadaPanelMode(scadaDesign);
+            if (_applyingShellMode || LayoutHelper.IsApplyingShellMode) return;
+
+            // 调试 / 运行 / 组态由模式直接决定；自由模式始终保留全部面板，
+            // 不跟随“组态文档选中”再收起算子工具箱（否则“全部面板”名不副实）。
+            if (CurrentMode != ShellMode.Free)
+            {
+                ApplyShellMode(CurrentMode);
+                return;
+            }
+
+            IsScadaDesignMode = false;
+            ApplyShellMode(ShellMode.Free);
         }
 
         /// <summary>
@@ -339,7 +474,6 @@ namespace VisionMaster
 
         private void RefreshActivityBar()
         {
-            IsFlowListActive = LayoutHelper.IsPanelActive("Panel_FlowListView");
             IsProcessActive = LayoutHelper.IsPanelActive("Panel_ProcessView");
             IsToolboxActive = LayoutHelper.IsPanelActive("Panel_ToolView");
             IsScadaToolboxActive = LayoutHelper.IsPanelActive("Panel_ScadaToolboxView");
@@ -364,11 +498,16 @@ namespace VisionMaster
         {
             StartBackgroundMonitoring();
             SolutionCommand = new(ExecuteProjectAction, CanExecuteSolution);
+            SetShellModeCommand = new DelegateCommand<string>(SetShellMode);
             ExecutionCommand = new DelegateCommand<ExecutionAction?>(OnExecutionAction, CanExecuteExecution);
             ToggleBreakpointOnCurrentStepCommand = new DelegateCommand(ToggleBreakpointOnCurrentStep);
             SystemCommand = new DelegateCommand<SystemAction?>(OnSystemAction);
             SwitchCanvasCommand = new DelegateCommand<string>(SwitchCanvas);
             TogglePanelCommand = new DelegateCommand<string>(TogglePanel);
+            OpenCommandPaletteCommand = new DelegateCommand(OpenCommandPalette);
+            CloseCommandPaletteCommand = new DelegateCommand(CloseCommandPalette);
+            ExecuteCommandPaletteItemCommand = new DelegateCommand(ExecuteSelectedPaletteItem);
+            ToggleConsoleCommand = new DelegateCommand(LayoutHelper.ToggleConsole);
             // 布局加载/重载后：重挂监听 + 按模式收敛面板组（不能只挂 AttachDockWatchers，
             // 否则磁盘 Layout.xml 恢复出来的旧可见性会盖掉本次改造）
             LayoutHelper.LayoutLoaded += OnLayoutLoaded;
@@ -397,12 +536,102 @@ namespace VisionMaster
             this._accessPolicy = accessPolicy;
             _accessPolicy.AutoLoggedOut += OnAutoLoggedOut;
 
+            // 运行条文案在"没有流程在跑"时回落到当前流程，所以选中项一变也要重算
+            // （有流程在跑时显示的是"在跑的那几条"，与选中无关）
+            if (workspaceManager is INotifyPropertyChanged workspaceChanges)
+                workspaceChanges.PropertyChanged += OnWorkspacePropertyChanged;
+
             // Core 层持久化服务的通信管理器引用（保存/加载方案时需要按协议重建地址）
             Services.ServiceLocator.CommunicationManager = communicationManager;
 
             // 连接配置的恢复与自动连接已由 CommunicationModule 在启动装配阶段完成
             // （必须早于通讯自检与 Shell 构造，见 CommunicationModule.Initialize），此处不再重复加载，
             // 否则会出现"两处都能加载配置"的真相源分裂。
+        }
+
+        private void OpenCommandPalette()
+        {
+            BuildCommandPalette();
+            CommandPaletteQuery = string.Empty;
+            IsCommandPaletteOpen = true;
+            SelectedCommandPaletteItem = CommandPaletteItems.FirstOrDefault();
+        }
+
+        private void CloseCommandPalette()
+        {
+            IsCommandPaletteOpen = false;
+            CommandPaletteQuery = string.Empty;
+        }
+
+        private void ExecuteSelectedPaletteItem()
+        {
+            var item = SelectedCommandPaletteItem;
+            if (item == null) return;
+
+            CloseCommandPalette();
+            item.Invoke?.Invoke();
+        }
+
+        private void BuildCommandPalette()
+        {
+            _allPaletteItems.Clear();
+
+            void Add(string title, string subtitle, string glyph, Action action)
+                => _allPaletteItems.Add(new CommandPaletteItem
+                {
+                    Title = title,
+                    Subtitle = subtitle,
+                    Glyph = glyph,
+                    Invoke = action,
+                });
+
+            Add("调试", "切换工作模式", "\uf1c0", () => SetShellMode("Debug"));
+            Add("运行", "切换工作模式", "\uf04b", () => SetShellMode("Run"));
+            Add("组态", "切换工作模式", "\uf1b3", () => SetShellMode("Config"));
+            Add("自由", "切换工作模式", "\uf2d2", () => SetShellMode("Free"));
+
+            Add("视觉图像", "视图 · 调试工作区", "\uf030", () => SetShellMode("Debug"));
+            Add("流程画布", "视图 · 调试工作区", "\uf542", () => SetShellMode("Debug"));
+            Add("组态画面", "视图 · 组态工作区", "\uf1b3", () => SetShellMode("Config"));
+            Add("运行驾驶舱", "视图 · 运行工作区", "\uf0e7", () => SetShellMode("Run"));
+            Add("流程导航", "视图 · 左侧面板", "\uf0e8", () => LayoutHelper.ShowPanel("Panel_ProcessView"));
+            Add("工具箱", "视图 · 右侧面板", "\uf552", () => LayoutHelper.ShowPanel("Panel_ToolView"));
+            Add("检查器", "视图 · 属性 / 图层", "\uf1de", () => LayoutHelper.ShowPanel("Panel_ScadaPropertyView"));
+            Add("控制台", "视图 · 展开 / 收起底部面板", "\uf120", LayoutHelper.ToggleConsole);
+
+            Add("全局变量", "命令", "\uf121", () => OnSystemAction(SystemAction.GlobalVariables));
+            Add("通讯设置", "命令", "\uf6ff", () => OnSystemAction(SystemAction.CommSettings));
+            Add("系统健康", "命令", "\uf21e", () => OnSystemAction(SystemAction.SystemHealth));
+            Add("相机设置", "命令", "\uf030", () => OnSystemAction(SystemAction.CameraSettings));
+            Add("运动板卡", "命令", "\uf085", () => OnSystemAction(SystemAction.MotionBoard));
+
+            if (Workspace.CurrentSolution?.Flows != null)
+            {
+                foreach (var flow in Workspace.CurrentSolution.Flows)
+                {
+                    var target = flow;
+                    Add(target.FlowName, "切换流程", "\uf0e8", () => Workspace.SwitchFlow(target));
+                }
+            }
+
+            FilterCommandPalette();
+        }
+
+        private void FilterCommandPalette()
+        {
+            var query = CommandPaletteQuery?.Trim() ?? string.Empty;
+            var matches = string.IsNullOrEmpty(query)
+                ? _allPaletteItems
+                : _allPaletteItems.Where(item =>
+                    item.Title.Contains(query, StringComparison.OrdinalIgnoreCase)
+                    || item.Subtitle.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            CommandPaletteItems.Clear();
+            foreach (var item in matches)
+                CommandPaletteItems.Add(item);
+
+            SelectedCommandPaletteItem = CommandPaletteItems.FirstOrDefault();
+            RaisePropertyChanged(nameof(CommandPaletteEmptyVisibility));
         }
 
         /// <summary>
@@ -455,6 +684,59 @@ namespace VisionMaster
                     return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// 运行条上"在跑的是谁"。
+        /// 数据源与 <see cref="AnyFlowRunning"/> 同一份（<see cref="FlowModel.RunState"/> 镜像），
+        /// 所以条上的说法与流程栏的「运行中」标签永远一致。
+        /// </summary>
+        public string RunBarFlowText => FormatRunBarFlowText(RunningFlowNames(), CurrentFlowName);
+
+        /// <summary>多条在跑时把完整名单放进悬停提示（条上只放得下「A 等 N 个流程」）</summary>
+        public string RunBarFlowToolTip => FormatRunBarFlowToolTip(RunningFlowNames(), CurrentFlowName);
+
+        /// <summary>运行条文案的纯函数（断言直接调它，不必凑一个 Shell）</summary>
+        public static string FormatRunBarFlowText(IReadOnlyList<string> running, string? currentFlow)
+        {
+            if (running.Count == 0)
+                return string.IsNullOrEmpty(currentFlow) ? "未选择流程" : currentFlow!;
+
+            return running.Count == 1 ? running[0] : $"{running[0]} 等 {running.Count} 个流程";
+        }
+
+        /// <summary>运行条悬停提示的纯函数：只有真的多条时才列名单</summary>
+        public static string FormatRunBarFlowToolTip(IReadOnlyList<string> running, string? currentFlow)
+            => running.Count > 1
+                ? "正在运行：" + string.Join("、", running)
+                : FormatRunBarFlowText(running, currentFlow);
+
+        /// <summary>当前在跑（含暂停）的流程名，按方案里的流程次序</summary>
+        private List<string> RunningFlowNames()
+        {
+            var names = new List<string>();
+
+            var flows = Workspace?.CurrentSolution?.Flows;
+            if (flows == null) return names;
+
+            foreach (var flow in flows)
+            {
+                if (flow == null) continue;
+                if (flow.RunState is FlowRunState.Running or FlowRunState.Paused)
+                    names.Add(flow.FlowName);
+            }
+
+            return names;
+        }
+
+        /// <summary>选中流程变了：运行条在"没流程在跑"时要跟着换名字（其余情况显示的是在跑的那条）</summary>
+        private void OnWorkspacePropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is null or nameof(IReadOnlyWorkspaceContext.CurrentFlow))
+            {
+                RaisePropertyChanged(nameof(RunBarFlowText));
+                RaisePropertyChanged(nameof(RunBarFlowToolTip));
+            }
         }
 
         /// <summary>
@@ -767,8 +1049,19 @@ namespace VisionMaster
                 case SystemAction.MotionBoard:
                     ShowMotionBoard();
                     break;
+                case SystemAction.ReturnToZero:
+                    // 「回零」是运动调试里的一个动作，不是独立配置页：深链到运动板卡的手动调试页签。
+                    // 旧菜单/脚本仍按 ReturnToZero 触发，枚举值保留；菜单项仍在，但不再是无处理分支。
+                    ShowMotionBoard("debug");
+                    break;
                 case SystemAction.CommSettings:
                     ShowCommunicationSettings();
+                    break;
+                case SystemAction.HardwareSettings:
+                    // 硬件管理（批次 C）：统一入口 + 概览 + 嵌入三个域页面。
+                    // 旧菜单入口（相机/通讯/运动/IO/回零）全部深链到同一个外壳，
+                    // 保证权限门禁与通讯保存语义不会被旁路。
+                    ShowHardwareManager();
                     break;
                 case SystemAction.IoSettings:
                     ShowIoSettings();
@@ -777,22 +1070,25 @@ namespace VisionMaster
                     dialogService.ShowDialog("SystemHealthView");
                     break;
                 case SystemAction.IoHealth:
-                    // 旧枚举值转发：旧布局/脚本仍按 IoHealth 触发，直接落到系统健康的 IO 页签。
+                    // 旧枚举值转发：旧布局/脚本仍按 IoHealth 触发，落到系统健康（默认通讯页签）。
+                    // IO 域已随 IO 接入层下线——IO 点位就是网络变量，其采集健康度看通讯域。
                     // 保留旧值是为了不让已落盘的整数值失效（枚举只能追加）。
-                    dialogService.ShowDialog("SystemHealthView", new DialogParameters { { "tab", "io" } });
+                    dialogService.ShowDialog("SystemHealthView");
+                    break;
+                case SystemAction.SystemSettings:
+                    // 合并后的唯一入口（运行窗口 / 安全与留档 / 画布三个页签）。
+                    // 只传"落在哪一页"，不传配置快照——弹窗打开时从 AppSettingsService 现读，
+                    // 传快照会出现"界面里那份和配置里那份不是同一个对象"，改一份丢一份。
+                    ShowSystemSettings(SystemSettingsDraft.GroupRunWindow);
                     break;
                 case SystemAction.RuntimeWindowSettings:
-                    // 软件级偏好（依附主窗口 / 独立窗口），存 AppConfig.json。
-                    // 弹窗自己负责读当前值、写盘，这里不传参数、也不看返回值——
-                    // 运行窗口的形态是宿主在 Start 时现读配置决定的（见 ScadaRuntimeHost），
-                    // 所以"改完生效"不需要在这里做任何同步动作。
-                    dialogService.ShowDialog("ScadaRunWindowSettingsView");
+                    // 旧入口：枚举值可能已落进 Layout.xml / 旧配置，不能删。
+                    // 合并后转发到「系统设置」的「运行窗口」页签（范式同 ReturnToZero → 运动板卡调试页）。
+                    ShowSystemSettings(SystemSettingsDraft.GroupRunWindow);
                     break;
                 case SystemAction.SystemParameters:
-                    // 空闲自动登出时长、审计 / 报警历史保留天数（软件级，存 AppConfig.json）。
-                    // 同运行窗口设置：弹窗自己读当前值、自己写盘，这里不传参数也不看返回值——
-                    // 这三项的使用方都是"每次现读配置"，所以"改完生效"不需要在这里同步任何东西。
-                    dialogService.ShowDialog("ScadaSystemParametersView");
+                    // 旧入口：转发到「系统设置」的「安全与留档」页签。
+                    ShowSystemSettings(SystemSettingsDraft.GroupSafety);
                     break;
                 case SystemAction.VariableEvents:
                     // 按变量配置值驱动的规则（更改数值 / 值为真 / 值为假 / 上限 / 下限）。
@@ -832,59 +1128,13 @@ namespace VisionMaster
         }
 
         /// <summary>
-        /// 打开「相机设置」。
+        /// 打开硬件管理外壳，并落在指定域/页签。
         ///
-        /// 相机的**配置**直接挂在当前方案上（<see cref="SolutionModel.CameraConfigs"/>），
-        /// 运行态设备由 CameraProvider 按方案对齐，所以：
-        ///   ① 没有方案时无处可写，必须先拦一道并说明原因——否则点下去只会得到一个
-        ///      "改了也不知道存哪"的界面；
-        ///   ② 不给弹窗传任何参数：相机清单与运行态一律由 CameraProvider 从"当前方案"现取。
-        ///      传一份快照反而会出现"界面里那份和方案里那份不是同一个对象"，改一份丢一份。
+        /// 批次 C 起所有硬件入口（相机 / 通讯 / 运动板卡 / IO / 回零）都深链到这里，
+        /// 不再直接开三个独立弹窗——否则权限门禁与"通讯只在脏时保存"都会被旁路。
+        /// 只传"落在哪一页"，不传任何设备/配置快照；数据一律由各页从当前方案现取。
         /// </summary>
-        private void ShowCameraSettings()
-        {
-            if (Workspace.CurrentSolution == null)
-            {
-                Notifier.ShowWarning("请先打开一个解决方案");
-                return;
-            }
-
-            dialogService.ShowDialog("CameraSettingsView");
-        }
-
-        /// <summary>
-        /// 打开运动板卡（合并窗口：卡设置 / 手动调试 / 点位列表 / 电子凸轮）。
-        /// 取代原来两个独立入口（运动设置 / 手动调试弹窗已退役）——
-        /// 参数、调试、点位在一个窗口里切换，现场不用来回找菜单。
-        /// 与 <see cref="ShowCameraSettings"/> 同口径：没有方案就拦下来提示（运动卡是方案级资源，
-        /// 没有方案时无处可存），且**不传任何参数** —— 卡片清单与运行态一律由 MotionProvider
-        /// 从"当前方案"现取；传一份快照反而会出现"界面里那份和方案里那份不是同一个对象"，
-        /// 改一份丢一份。
-        /// </summary>
-        private void ShowMotionBoard()
-        {
-            if (Workspace.CurrentSolution == null)
-            {
-                Notifier.ShowWarning("请先打开一个解决方案");
-                return;
-            }
-
-            dialogService.ShowDialog("MotionBoardView");
-        }
-
-
-        private void ShowIoSettings()
-        {
-            if (Workspace.CurrentSolution == null)
-            {
-                Notifier.ShowWarning("请先打开一个解决方案");
-                return;
-            }
-
-            dialogService.ShowDialog("IoConfigView");
-        }
-
-        private void ShowCommunicationSettings()
+        private void ShowHardwareManager(string? page = null, string? tab = null)
         {
             if (Workspace.CurrentSolution == null)
             {
@@ -893,14 +1143,64 @@ namespace VisionMaster
             }
 
             var parameters = new DialogParameters();
-            parameters.Add("Configs", Workspace.CurrentSolution.CommunicationConfigs);
+            if (!string.IsNullOrEmpty(page)) parameters.Add("page", page);
+            if (!string.IsNullOrEmpty(tab)) parameters.Add("tab", tab);
 
-            dialogService.ShowDialog("CommunicationSettingsView", parameters, result =>
-            {
-                // 对话框关闭后持久化连接配置到 communications.json（软件重启后 LoadConfigAsync 自动恢复）
-                _ = _communicationManager.SaveConfigAsync();
-            });
+            if (parameters.Count == 0)
+                dialogService.ShowDialog("HardwareManagerView");
+            else
+                dialogService.ShowDialog("HardwareManagerView", parameters, _ => { });
         }
+
+        /// <summary>
+        /// 打开「相机设置」（深链到硬件管理的相机页）。
+        ///
+        /// 相机的**配置**直接挂在当前方案上（<see cref="SolutionModel.CameraConfigs"/>），
+        /// 运行态设备由 CameraProvider 按方案对齐，所以：
+        ///   ① 没有方案时无处可写，必须先拦一道并说明原因；
+        ///   ② 不给弹窗传任何参数：相机清单与运行态一律由 CameraProvider 从"当前方案"现取。
+        /// </summary>
+        private void ShowCameraSettings() => ShowHardwareManager("camera");
+
+        /// <summary>
+        /// 打开运动板卡（合并窗口：卡设置 / 手动调试 / 点位列表 / 电子凸轮）。
+        /// 取代原来两个独立入口（运动设置 / 手动调试弹窗已退役）——
+        /// 参数、调试、点位在一个窗口里切换，现场不用来回找菜单。
+        /// 与 <see cref="ShowCameraSettings"/> 同口径：没有方案就拦下来提示（运动卡是方案级资源，
+        /// 没有方案时无处可存），且**不传快照参数** —— 卡片清单与运行态一律由 MotionProvider
+        /// 从"当前方案"现取；传一份快照反而会出现"界面里那份和方案里那份不是同一个对象"，
+        /// 改一份丢一份。
+        ///
+        /// <paramref name="tab"/> 只传"落在哪个页签"（debug / points / cam），不传任何设备数据。
+        /// 「回零」菜单走 debug 深链；不传 = 默认卡设置页。
+        /// </summary>
+        private void ShowMotionBoard(string? tab = null) => ShowHardwareManager("motion", tab);
+
+
+        /// <summary>
+        /// IO 设置入口的转发壳：IO 接入层已下线，IO 点位现在就是通讯连接下的网络变量，
+        /// 所以旧菜单项/快捷键统一落到「通讯设置」。保留方法是为了不让旧布局与脚本里的
+        /// <see cref="SystemAction.IoSettings"/> 失效（枚举只能追加，不能删值）。
+        /// </summary>
+        private void ShowIoSettings() => ShowCommunicationSettings();
+
+        /// <summary>
+        /// 打开「系统设置」并落在指定页签。
+        ///
+        /// 只传页签名，不传任何配置快照：弹窗打开时从 <see cref="AppSettingsService"/> 现读，
+        /// 这样"两次打开之间配置被别处改过"也能显示当前真值。
+        /// 旧的两个入口（<see cref="SystemAction.RuntimeWindowSettings"/> /
+        /// <see cref="SystemAction.SystemParameters"/>）走同一个方法，只是页签不同。
+        /// </summary>
+        private void ShowSystemSettings(string group)
+        {
+            var parameters = new DialogParameters();
+            parameters.Add(ViewModels.DialogViewModels.ScadaSystemSettingsViewModel.GroupParameterKey, group);
+            dialogService.ShowDialog(
+                ViewModels.DialogViewModels.ScadaSystemSettingsViewModel.DialogName, parameters, _ => { });
+        }
+
+        private void ShowCommunicationSettings() => ShowHardwareManager("comm");
 
         private void StartBackgroundMonitoring()
         {
@@ -1376,6 +1676,10 @@ namespace VisionMaster
             // 流程级运行状态镜像（FlowModel.RunState）：方案里 4 处"运行中禁止改配置"的守卫
             // 读的都是它，此前没人赋值 = 守卫形同虚设（本次收口，含 HTTP / 手动运行等非界面触发）
             SyncFlowRunState(e);
+
+            // 谁在跑变了：运行条文案跟着重算（多条并跑时条上要报"等 N 个流程"）
+            RaisePropertyChanged(nameof(RunBarFlowText));
+            RaisePropertyChanged(nameof(RunBarFlowToolTip));
 
             // 会话状态一变，"单步"可用性（暂停会话数）可能就变了：让按钮重新查询；
             // 方案的 New/Open 互锁同时依赖"是否真有流程在跑"，一并重查

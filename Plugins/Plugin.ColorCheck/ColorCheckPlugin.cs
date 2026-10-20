@@ -277,6 +277,13 @@ namespace Plugin.ColorCheck
         }
 
         /// <summary>
+        /// 采样区是否已框选（只读展示态）：与运行期判定同一条判据（<see cref="RoiParams"/> 长度为 5）。
+        /// 视图的「已框选 / 未框选」chip 与配色绑它，不再靠 RoiSummary 的中文文案精确匹配。
+        /// 只读，不参与 OnConfirm / 持久化。
+        /// </summary>
+        public bool HasRoi => RoiParams != null && RoiParams.Length == 5;
+
+        /// <summary>
         /// 播种画布期间为真：此时 CanvasRois 的变更来自"回填"，不能再回写 RoiParams，
         /// 否则会把形状参数的写法（double[] → HTuple[]）绕回自身、在打开配置时反复触发。
         /// </summary>
@@ -349,6 +356,7 @@ namespace Plugin.ColorCheck
             }
 
             OnPropertyChanged(nameof(RoiSummary));
+            OnPropertyChanged(nameof(HasRoi));
         }
 
         public object GetConfigView(IStepConfigData stepData)
@@ -412,6 +420,7 @@ namespace Plugin.ColorCheck
 
             RoiParams = ToParams(info);
             OnPropertyChanged(nameof(RoiSummary));
+            OnPropertyChanged(nameof(HasRoi));
         }
 
         /// <summary>
@@ -422,6 +431,7 @@ namespace Plugin.ColorCheck
         {
             RoiParams = ToParams(CanvasRois.LastOrDefault());
             OnPropertyChanged(nameof(RoiSummary));
+            OnPropertyChanged(nameof(HasRoi));
         }
 
         private static double[] ToParams(DrawingObjectInfo? info)
@@ -440,21 +450,42 @@ namespace Plugin.ColorCheck
         // ==================================================================
 
         /// <summary>
-        /// 用配置界面里的示意图跑一遍算法，把结论写进 <see cref="ResultSummary"/>。
+        /// 用配置界面里的图跑一遍算法，把结论写进 <see cref="ResultSummary"/>。
         ///
         /// 为什么要在界面上留这个口子：自适应算法的表现取决于"这幅图的直方图长什么样"，
         /// 光看参数值想象不出来。能在框完 ROI 的当下看到"几根、什么颜色、哪几根是补的"，
         /// 才有依据去调「高级参数」。
+        ///
+        /// 无参入口 = 传 null：图像来源回退到 <see cref="DisplayImage"/>（上游端口搬来的那份）。
+        /// 视图实际走的是下面的 HImage 重载（把画布当前显示的那张图传进来），
+        /// 这样右键「打开图片」临时换的图也能直接试算，而不必先跑一次「执行」。
         /// </summary>
-        public void TryPreviewAnalyze()
+        public void TryPreviewAnalyze() => TryPreviewAnalyze(null);
+
+        /// <summary>
+        /// 用指定图跑一遍算法（通常是画布当前显示的那张，含右键「打开图片」载入的图）。
+        ///
+        /// 图像优先级：<paramref name="image"/> 已初始化就用它，否则回退 <see cref="DisplayImage"/>。
+        /// **本方法只读**：不持有、不 Dispose、也不把 image 赋值给 <see cref="DisplayImage"/> ——
+        /// DisplayImage 的所有权仍归插件（上游图的那份副本），右键换图只影响这一次试算，
+        /// 不改变上游语义、不改变持久化内容。
+        ///
+        /// 为什么是 internal 而不是 public 重载：外部断言用
+        /// <c>Type.GetMethod("TryPreviewAnalyze")</c> 按名字取无参入口，两个 public 同名重载会让它
+        /// 抛 <see cref="AmbiguousMatchException"/>；internal 不在默认绑定标志里，天然避开。
+        /// </summary>
+        internal void TryPreviewAnalyze(HImage? image)
         {
-            if (DisplayImage == null || !DisplayImage.IsInitialized())
+            var source = image != null && image.IsInitialized() ? image : DisplayImage;
+
+            if (source == null || !source.IsInitialized())
             {
-                ResultSummary = "先点「载入」把示意图读进来再试算";
+                ResultSummary = "还没有图像：请先在「图像输入」里绑定上游端口或变量，或点「执行」把上游图载入画布；"
+                              + "也可以在画面上右键 → 打开图片，再试算（只影响试算，不改上游图像来源）";
                 return;
             }
 
-            if (!TryAnalyze(DisplayImage, out var result, out var judgement, out string error))
+            if (!TryAnalyze(source, out var result, out var judgement, out string error))
             {
                 ResultSummary = "试算失败：" + error;
                 return;

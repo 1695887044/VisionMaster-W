@@ -1,0 +1,842 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>变量赋值 · 配置窗口 · 设计基线 v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+</style>
+</head>
+<body>
+<div id="va-design-root">
+  <style>
+    #va-design-root{
+      --va-surface:#FFFFFF;
+      --va-surface-2:#F8FAFC;
+      --va-surface-3:#F1F5F9;
+      --va-border:#E2E8F0;
+      --va-border-soft:#EEF2F7;
+      --va-border-strong:#CBD5E1;
+      --va-text:#0F172A;
+      --va-text-2:#475569;
+      --va-text-3:#94A3B8;
+      --va-text-4:#64748B;
+      --va-primary:#0EA5E9;
+      --va-primary-strong:#0284C7;
+      --va-primary-text:#0369A1;
+      --va-primary-soft:#F0F9FF;
+      --va-primary-light:#E0F2FE;
+      --va-primary-border:#BAE6FD;
+      --va-success:#22C55E;
+      --va-success-text:#15803D;
+      --va-success-soft:#F0FDF4;
+      --va-success-border:#BBF7D0;
+      --va-danger:#EF4444;
+      --va-danger-text:#B91C1C;
+      --va-danger-soft:#FEF2F2;
+      --va-danger-border:#FECACA;
+      --va-warning:#F59E0B;
+      --va-warning-text:#B45309;
+      --va-warning-soft:#FFF4E5;
+      --va-warning-border:#FDE68A;
+      --va-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --va-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --va-radius-sm:6px;
+      --va-radius-md:8px;
+      --va-radius-lg:10px;
+      --va-radius-xl:12px;
+      --va-radius-window:16px;
+      --va-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--va-font);
+      -webkit-font-smoothing:antialiased;
+      color-scheme:light;
+    }
+    #va-design-root *{box-sizing:border-box;}
+    #va-design-root button,
+    #va-design-root input,
+    #va-design-root select{font-family:inherit;}
+    #va-design-root button{color:inherit;}
+    #va-design-root [hidden]{display:none !important;}
+    #va-design-root :focus-visible{outline:2px solid var(--va-primary);outline-offset:2px;}
+
+    #va-design-root .va-page{
+      max-width:1360px;margin:0 auto;padding:24px 24px 44px;background:transparent;
+    }
+    #va-design-root .va-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #va-design-root .va-page-title-row h1{
+      margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--va-text);
+    }
+    #va-design-root .va-ver{
+      display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+      background:var(--va-primary-light);color:var(--va-primary-text);
+      font-size:11px;font-weight:700;letter-spacing:.02em;
+    }
+    #va-design-root .va-page-sub{
+      margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--va-text-2);
+    }
+    #va-design-root .va-page-sub b{color:var(--va-text);font-weight:600;}
+    #va-design-root .va-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #va-design-root .va-demo-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+    #va-design-root .va-demo-label{font-size:11.5px;color:var(--va-text-4);}
+    #va-design-root .va-seg{
+      display:inline-flex;gap:2px;padding:2px;border-radius:var(--va-radius-md);background:var(--va-surface-3);
+    }
+    #va-design-root .va-seg button{
+      height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;
+      color:var(--va-text-2);font-size:11.5px;line-height:1;cursor:pointer;
+      transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;
+    }
+    #va-design-root .va-seg button:hover{color:var(--va-text);}
+    #va-design-root .va-seg button.is-on{
+      background:var(--va-surface);color:var(--va-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);
+    }
+    #va-design-root .va-scope-note{
+      display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--va-text-2);
+    }
+    #va-design-root .va-scope-note svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--va-warning-text);}
+    #va-design-root .va-scope-note b{color:var(--va-text);font-weight:600;}
+
+    /* ============ 产品窗口 ============ */
+    #va-design-root .va-window{
+      width:960px;max-width:100%;height:680px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;
+      background:var(--va-surface);border-radius:var(--va-radius-window);box-shadow:var(--va-shadow-window);
+      transition:width 200ms ease;
+    }
+    #va-design-root .va-window.is-narrow{width:640px;}
+
+    #va-design-root .va-titlebar{
+      height:72px;flex:none;display:flex;align-items:center;padding:0 20px;background:var(--va-surface);
+      border-bottom:1px solid var(--va-border-soft);
+    }
+    #va-design-root .va-app-icon{
+      width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;
+      background:var(--va-primary-light);color:var(--va-primary-text);
+    }
+    #va-design-root .va-app-icon svg{width:19px;height:19px;}
+    #va-design-root .va-title-text{margin-left:12px;min-width:0;flex:1;}
+    #va-design-root .va-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--va-text);}
+    #va-design-root .va-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--va-text-2);}
+    #va-design-root .va-icon-btn{
+      width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--va-radius-md);
+      display:inline-flex;align-items:center;justify-content:center;background:transparent;
+      color:var(--va-text-4);cursor:pointer;transition:background 150ms ease,color 150ms ease;
+    }
+    #va-design-root .va-icon-btn svg{width:15px;height:15px;}
+    #va-design-root .va-icon-btn:hover{background:var(--va-surface-3);color:var(--va-text);}
+    #va-design-root .va-icon-btn:active{background:var(--va-border);}
+
+    #va-design-root .va-content{
+      flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 300px;
+      gap:16px;padding:16px 20px 20px;background:var(--va-surface);
+    }
+    #va-design-root .va-window.is-narrow .va-content{
+      grid-template-columns:minmax(0,1fr) 220px;gap:12px;padding:14px 16px 16px;
+    }
+    #va-design-root .va-config{
+      min-width:0;min-height:0;overflow-y:auto;overflow-x:hidden;
+      padding:16px;border:1px solid var(--va-border-soft);border-radius:var(--va-radius-xl);
+      background:var(--va-surface-2);scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;
+    }
+    #va-design-root .va-config::-webkit-scrollbar{width:8px;}
+    #va-design-root .va-config::-webkit-scrollbar-thumb{
+      background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;
+    }
+    #va-design-root .va-config::-webkit-scrollbar-track{background:transparent;}
+
+    #va-design-root .va-section-head{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      margin:0 0 4px;font-size:12px;font-weight:600;color:var(--va-text-2);
+    }
+    #va-design-root .va-section-hint{font-size:10.5px;font-weight:400;color:var(--va-text-3);white-space:nowrap;}
+    #va-design-root .va-section-sub{margin:0 0 14px;font-size:11.5px;line-height:1.5;color:var(--va-text-4);}
+    #va-design-root .va-field{margin-top:14px;}
+    #va-design-root .va-label{
+      display:flex;align-items:center;gap:5px;margin:0 0 6px;font-size:12px;font-weight:500;line-height:1.3;color:var(--va-text-2);
+    }
+    #va-design-root .va-help{
+      display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;font-size:11.5px;line-height:1.5;color:var(--va-text-4);
+    }
+    #va-design-root .va-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--va-text-3);}
+
+    /* 作用域卡片 */
+    #va-design-root .va-scope-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+    #va-design-root .va-scope-card{
+      position:relative;display:flex;align-items:center;gap:9px;min-height:56px;padding:9px 10px;
+      border:1px solid var(--va-border);border-radius:var(--va-radius-lg);background:var(--va-surface);
+      text-align:left;cursor:pointer;transition:border-color 150ms ease,background 150ms ease,box-shadow 150ms ease;
+    }
+    #va-design-root .va-scope-card:hover{border-color:var(--va-border-strong);background:#FBFDFF;}
+    #va-design-root .va-scope-card:active{background:var(--va-surface-3);}
+    #va-design-root .va-scope-card.is-active{
+      border-color:var(--va-primary);background:var(--va-primary-soft);box-shadow:0 0 0 3px rgba(14,165,233,.10);
+    }
+    #va-design-root .va-scope-icon{
+      width:28px;height:28px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;
+      background:var(--va-surface-3);color:var(--va-text-4);transition:background 150ms ease,color 150ms ease;
+    }
+    #va-design-root .va-scope-icon svg{width:15px;height:15px;}
+    #va-design-root .va-scope-card.is-active .va-scope-icon{background:var(--va-primary-light);color:var(--va-primary-text);}
+    #va-design-root .va-scope-text{display:flex;flex-direction:column;min-width:0;padding-right:16px;}
+    #va-design-root .va-scope-text b{
+      font-size:12.5px;font-weight:600;line-height:1.35;color:var(--va-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #va-design-root .va-scope-text small{
+      margin-top:2px;font-size:10.5px;line-height:1.3;color:var(--va-text-4);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #va-design-root .va-scope-check{
+      position:absolute;right:9px;top:50%;transform:translateY(-50%);width:16px;height:16px;border-radius:50%;
+      display:none;align-items:center;justify-content:center;background:var(--va-primary);color:#fff;
+    }
+    #va-design-root .va-scope-check svg{width:10px;height:10px;}
+    #va-design-root .va-scope-card.is-active .va-scope-check{display:flex;}
+
+    /* 输入 / 下拉 */
+    #va-design-root .va-combo{position:relative;}
+    #va-design-root .va-input{
+      width:100%;height:36px;padding:0 34px 0 10px;border:1px solid var(--va-border);border-radius:var(--va-radius-md);
+      background:var(--va-surface);color:var(--va-text);font-size:12.5px;line-height:1;outline:none;
+      transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;
+    }
+    #va-design-root .va-input::placeholder{color:var(--va-text-3);}
+    #va-design-root .va-input:hover{border-color:var(--va-border-strong);}
+    #va-design-root .va-input:focus{border-color:var(--va-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #va-design-root .va-combo-arrow{
+      position:absolute;right:1px;top:1px;width:32px;height:34px;border:0;border-radius:0 7px 7px 0;
+      background:transparent;color:var(--va-text-3);display:flex;align-items:center;justify-content:center;cursor:pointer;
+    }
+    #va-design-root .va-combo-arrow:hover{background:var(--va-surface-3);color:var(--va-text-2);}
+    #va-design-root .va-combo-arrow svg{width:12px;height:12px;transition:transform 150ms ease;}
+    #va-design-root .va-combo.is-open .va-combo-arrow svg{transform:rotate(180deg);}
+    #va-design-root .va-candidates{
+      position:absolute;left:0;right:0;top:40px;z-index:8;padding:4px;background:var(--va-surface);
+      border:1px solid var(--va-border);border-radius:var(--va-radius-md);
+      box-shadow:0 10px 24px rgba(15,23,42,.14);
+    }
+    #va-design-root .va-candidate{
+      display:flex;align-items:center;gap:8px;width:100%;height:32px;padding:0 8px;border:0;border-radius:6px;
+      background:transparent;color:var(--va-text-2);font-size:12px;text-align:left;cursor:pointer;
+    }
+    #va-design-root .va-candidate:hover{background:var(--va-surface-3);color:var(--va-text);}
+    #va-design-root .va-candidate svg{width:12px;height:12px;color:var(--va-text-3);}
+    #va-design-root .va-candidate em{margin-left:auto;font-style:normal;font-size:10.5px;color:var(--va-text-3);}
+
+    /* 提示条 */
+    #va-design-root .va-hint{
+      display:flex;align-items:flex-start;gap:7px;margin-top:8px;padding:9px 10px;
+      border:1px solid var(--va-primary-border);border-radius:var(--va-radius-lg);background:var(--va-primary-soft);
+      font-size:11.5px;line-height:1.55;color:var(--va-text-2);
+    }
+    #va-design-root .va-hint svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--va-primary-text);}
+
+    /* 值行 */
+    #va-design-root .va-value-row{display:flex;align-items:center;gap:8px;}
+    #va-design-root .va-value-row .va-input{padding-right:10px;}
+    #va-design-root .va-square{
+      width:36px;height:36px;flex:none;padding:0;border:1px solid var(--va-border);border-radius:var(--va-radius-md);
+      background:var(--va-surface);color:var(--va-text-4);display:flex;align-items:center;justify-content:center;cursor:pointer;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease;
+    }
+    #va-design-root .va-square svg{width:14px;height:14px;}
+    #va-design-root .va-square:hover{background:var(--va-primary-soft);border-color:var(--va-primary-border);color:var(--va-primary-text);}
+    #va-design-root .va-square.is-on{background:var(--va-primary-light);border-color:var(--va-primary-border);color:var(--va-primary-text);}
+    #va-design-root .va-linked{
+      flex:1;min-width:0;height:36px;padding:0 8px 0 10px;display:flex;align-items:center;gap:8px;
+      border:1px solid var(--va-primary-border);border-radius:var(--va-radius-md);background:var(--va-primary-soft);
+      font-size:12px;color:var(--va-primary-text);
+    }
+    #va-design-root .va-linked svg{width:13px;height:13px;flex:none;}
+    #va-design-root .va-linked b{min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #va-design-root .va-linked button{
+      width:22px;height:22px;margin-left:auto;flex:none;padding:0;border:0;border-radius:6px;background:transparent;
+      color:var(--va-primary-text);cursor:pointer;display:flex;align-items:center;justify-content:center;
+    }
+    #va-design-root .va-linked button:hover{background:var(--va-primary-light);}
+    #va-design-root .va-linked button svg{width:11px;height:11px;}
+
+    /* 自动创建 */
+    #va-design-root .va-check-card{
+      margin-top:16px;padding:11px 12px;border:1px solid var(--va-border);border-radius:var(--va-radius-lg);
+      background:var(--va-surface);
+    }
+    #va-design-root .va-check-line{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;}
+    #va-design-root .va-check{
+      width:16px;height:16px;flex:none;border:1px solid var(--va-border-strong);border-radius:4px;background:var(--va-surface);
+      display:flex;align-items:center;justify-content:center;color:#fff;transition:background 150ms ease,border-color 150ms ease;
+    }
+    #va-design-root .va-check svg{width:10px;height:10px;display:none;}
+    #va-design-root .va-check-line.is-on .va-check{background:var(--va-primary);border-color:var(--va-primary);}
+    #va-design-root .va-check-line.is-on .va-check svg{display:block;}
+    #va-design-root .va-check-line b{font-size:12px;font-weight:500;color:var(--va-text);}
+    #va-design-root .va-check-card .va-help{margin-top:5px;}
+
+    /* 右栏 */
+    #va-design-root .va-side{min-width:0;min-height:0;display:flex;flex-direction:column;gap:12px;}
+    #va-design-root .va-side-card{
+      padding:14px;border:1px solid var(--va-border);border-radius:var(--va-radius-xl);background:var(--va-surface);
+    }
+    #va-design-root .va-side-card.is-fill{flex:1;min-height:0;overflow-y:auto;}
+    #va-design-root .va-side-head{display:flex;align-items:center;gap:8px;min-width:0;}
+    #va-design-root .va-side-head svg{width:14px;height:14px;flex:none;color:var(--va-text-3);}
+    #va-design-root .va-side-head b{font-size:12px;font-weight:600;color:var(--va-text-2);}
+    #va-design-root .va-chip{
+      display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;
+      background:var(--va-surface-3);border:1px solid var(--va-border);font-size:10.5px;font-weight:600;color:var(--va-text-2);
+      white-space:nowrap;
+    }
+    #va-design-root .va-chip.is-global{background:var(--va-primary-light);border-color:var(--va-primary-border);color:var(--va-primary-text);}
+    #va-design-root .va-chip .va-dot{width:6px;height:6px;border-radius:50%;background:var(--va-text-3);}
+    #va-design-root .va-chip.is-global .va-dot{background:var(--va-primary);}
+    #va-design-root .va-target-name{
+      margin:12px 0 0;font-size:20px;font-weight:600;line-height:1.25;color:var(--va-text);
+      word-break:break-all;
+    }
+    #va-design-root .va-target-name.is-empty{color:var(--va-text-3);font-weight:500;}
+    #va-design-root .va-target-meta{margin:5px 0 0;font-size:11.5px;line-height:1.5;color:var(--va-text-4);}
+    #va-design-root .va-target-rule{
+      margin-top:12px;padding-top:11px;border-top:1px solid var(--va-border-soft);
+      font-size:11.5px;line-height:1.55;color:var(--va-text-2);
+    }
+    #va-design-root .va-rule-row{display:flex;align-items:flex-start;gap:9px;margin-top:12px;}
+    #va-design-root .va-rule-icon{
+      width:28px;height:28px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;
+      background:var(--va-surface-3);color:var(--va-text-4);
+    }
+    #va-design-root .va-rule-icon svg{width:14px;height:14px;}
+    #va-design-root .va-rule-icon.is-accent{background:var(--va-primary-light);color:var(--va-primary-text);}
+    #va-design-root .va-rule-body{min-width:0;}
+    #va-design-root .va-rule-body b{display:block;font-size:12px;font-weight:600;color:var(--va-text);}
+    #va-design-root .va-rule-body span{display:block;margin-top:2px;font-size:11px;line-height:1.5;color:var(--va-text-4);}
+    #va-design-root .va-rule-sep{height:1px;margin:14px 0 0;background:var(--va-border-soft);}
+    #va-design-root .va-tip{margin-top:9px;font-size:11.5px;line-height:1.55;color:var(--va-text-2);}
+    #va-design-root .va-tip b{color:var(--va-text);font-weight:600;}
+
+    /* 底部宿主栏 */
+    #va-design-root .va-footer{
+      height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;
+      border-top:1px solid var(--va-border-soft);background:var(--va-surface-2);
+    }
+    #va-design-root .va-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #va-design-root .va-status-chip{
+      display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;
+      background:var(--va-surface);border:1px solid var(--va-border);font-size:11.5px;color:var(--va-text-2);white-space:nowrap;
+    }
+    #va-design-root .va-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--va-text-3);}
+    #va-design-root .va-elapsed{
+      font-family:var(--va-mono);font-size:11px;color:var(--va-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;
+    }
+    #va-design-root .va-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #va-design-root .va-btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 16px;
+      border:1px solid var(--va-border);border-radius:var(--va-radius-md);background:var(--va-surface);
+      color:var(--va-text);font-size:12.5px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;
+      transition:background 150ms ease,border-color 150ms ease,opacity 150ms ease;
+    }
+    #va-design-root .va-btn:hover{background:var(--va-surface-2);border-color:var(--va-border-strong);}
+    #va-design-root .va-btn:active{background:var(--va-surface-3);}
+    #va-design-root .va-btn-ghost{border-color:transparent;background:transparent;color:var(--va-text-2);}
+    #va-design-root .va-btn-ghost:hover{background:var(--va-surface-3);color:var(--va-text);}
+    #va-design-root .va-btn-primary{background:var(--va-primary);border-color:var(--va-primary);color:#fff;font-weight:600;padding:0 18px;}
+    #va-design-root .va-btn-primary:hover{background:var(--va-primary-strong);border-color:var(--va-primary-strong);}
+
+    /* 说明 */
+    #va-design-root .va-notes{
+      max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+      column-gap:28px;row-gap:0;
+    }
+    #va-design-root .va-notes-head{
+      grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--va-text-2);
+    }
+    #va-design-root .va-note{
+      display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--va-border);
+    }
+    #va-design-root .va-note-num{
+      width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      background:var(--va-primary-light);color:var(--va-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;
+    }
+    #va-design-root .va-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--va-text);}
+    #va-design-root .va-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--va-text-2);}
+    #va-design-root .va-note code{
+      font-family:var(--va-mono);font-size:10.5px;color:var(--va-primary-text);background:var(--va-primary-soft);
+      padding:1px 4px;border-radius:4px;
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      #va-design-root *{animation:none !important;transition:none !important;}
+    }
+    @media (max-width:1024px){
+      #va-design-root .va-page{padding:18px 14px 32px;}
+      #va-design-root .va-window{height:auto;min-height:640px;}
+      #va-design-root .va-content{grid-template-columns:1fr;}
+      #va-design-root .va-side{min-height:320px;}
+    }
+  </style>
+
+  <div class="va-page">
+    <header>
+      <div class="va-page-title-row">
+        <h1>变量赋值 · 配置窗口</h1>
+        <span class="va-ver">v1</span>
+      </div>
+      <p class="va-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、
+        <b>Scope / VariableName / Value / CreateIfNotExists</b> 四个端口绑定、<b>NameCandidates</b> 候选与 <b>NameHint</b> 提示；
+        不新增功能、不改持久化。窗口 <b>960 × 680</b>，宿主内容区 <b>920 × 520</b>。
+      </p>
+      <div class="va-demo-bar">
+        <div class="va-demo-group" role="group" aria-label="窗口宽度">
+          <span class="va-demo-label">窗口宽度</span>
+          <div class="va-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="va-demo-group" role="group" aria-label="状态">
+          <span class="va-demo-label">状态</span>
+          <div class="va-seg" id="va-state-seg">
+            <button type="button" data-state="default" class="is-on" aria-pressed="true">默认</button>
+            <button type="button" data-state="runtime" aria-pressed="false">运行时已选</button>
+            <button type="button" data-state="global" aria-pressed="false">全局已选</button>
+            <button type="button" data-state="cross" aria-pressed="false">跨作用域</button>
+            <button type="button" data-state="missing" aria-pressed="false">找不到</button>
+            <button type="button" data-state="legacy" aria-pressed="false">旧连线</button>
+          </div>
+        </div>
+      </div>
+      <div class="va-scope-note">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span><b>本稿不纳入（需新增功能或契约）：</b>加载骨架、变量浏览器、值类型转换器、运行日志、打开变量管理、试运行桥接可视化。这些都不属于纯 UI 改造。</span>
+      </div>
+    </header>
+
+    <div class="va-window" id="va-window">
+      <div class="va-titlebar">
+        <div class="va-app-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+        </div>
+        <div class="va-title-text">
+          <div class="va-title">变量赋值</div>
+          <div class="va-subtitle">为已定义的本地变量赋值</div>
+        </div>
+        <button type="button" class="va-icon-btn" aria-label="关闭" title="关闭">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+        </button>
+      </div>
+
+      <div class="va-content">
+        <section class="va-config" aria-label="赋值设置">
+          <div class="va-section-head"><span>赋值设置</span><span class="va-section-hint">作用域 · 变量名 · 值</span></div>
+          <p class="va-section-sub">先确定写到哪里，再选变量名；值可以是常量文本，也可以引用上游步骤的结果。</p>
+
+          <div class="va-field" style="margin-top:0;">
+            <div class="va-label">作用域</div>
+            <div class="va-scope-grid" role="group" aria-label="作用域">
+              <button type="button" class="va-scope-card is-active" data-scope="Runtime" aria-pressed="true">
+                <span class="va-scope-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"></path><path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
+                </span>
+                <span class="va-scope-text"><b>运行时变量</b><small>本轮执行内有效</small></span>
+                <span class="va-scope-check"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+              </button>
+              <button type="button" class="va-scope-card" data-scope="Global" aria-pressed="false">
+                <span class="va-scope-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20"></path><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"></path></svg>
+                </span>
+                <span class="va-scope-text"><b>全局变量</b><small>跨流程 · 随方案存盘</small></span>
+                <span class="va-scope-check"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+              </button>
+            </div>
+          </div>
+
+          <div class="va-field">
+            <div class="va-label">变量名</div>
+            <div class="va-combo" id="va-name-combo">
+              <input class="va-input" id="va-name-input" type="text" placeholder="输入或从右侧候选选择" spellcheck="false" autocomplete="off">
+              <button type="button" class="va-combo-arrow" id="va-name-arrow" aria-label="展开变量名候选" title="展开变量名候选">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </button>
+              <div class="va-candidates" id="va-candidates" hidden></div>
+            </div>
+            <div class="va-hint" id="va-hint">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              <span id="va-hint-text">还没填名字。作用域=运行时变量时，名字通常来自上游「变量定义」节点。</span>
+            </div>
+          </div>
+
+          <div class="va-field">
+            <div class="va-label">值</div>
+            <div class="va-value-row" id="va-value-row">
+              <input class="va-input" id="va-value-input" type="text" value="" placeholder="输入常量，或点链接引用上游结果" spellcheck="false" autocomplete="off">
+              <button type="button" class="va-square" id="va-link-btn" aria-label="绑定变量" title="引用上游步骤的结果">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+              </button>
+              <div class="va-linked" id="va-linked" hidden>
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+                <b>上游 · 变量定义.OKCount</b>
+                <button type="button" id="va-unlink-btn" aria-label="解除链接" title="解除链接">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+                </button>
+              </div>
+            </div>
+            <p class="va-help">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              填常量文本；要引用上游步骤的结果，点行尾的链接图标。文本会按目标变量的声明类型解析（如 Int32 填 21）。
+            </p>
+          </div>
+
+          <div class="va-check-card">
+            <div class="va-check-line" id="va-create-line" role="checkbox" aria-checked="true" tabindex="0">
+              <span class="va-check"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+              <b>变量不存在时自动创建（仅运行时变量）</b>
+            </div>
+            <p class="va-help">作用域=全局变量时，变量必须先在变量管理里存在；此选项不生效，也不会静默新建。</p>
+          </div>
+        </section>
+
+        <aside class="va-side" aria-label="目标变量与规则">
+          <section class="va-side-card">
+            <div class="va-side-head">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+              <b>目标变量</b>
+              <span class="va-chip" id="va-scope-chip" style="margin-left:auto;"><span class="va-dot"></span><span id="va-scope-chip-text">运行时变量</span></span>
+            </div>
+            <div class="va-target-name is-empty" id="va-target-name">未命名变量</div>
+            <div class="va-target-meta" id="va-target-meta">当前作用域有 3 个候选</div>
+            <div class="va-target-rule">变量名只是<b>名字</b>：从候选里选择会落成常量，不会建立连线；「值」才负责引用上游结果。</div>
+          </section>
+
+          <section class="va-side-card is-fill">
+            <div class="va-side-head">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              <b>作用域规则</b>
+            </div>
+
+            <div class="va-rule-row">
+              <span class="va-rule-icon is-accent">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"></path><path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
+              </span>
+              <span class="va-rule-body"><b>运行时变量</b><span>由上游「变量定义」节点创建，只在本轮执行内有效，跑完即弃。</span></span>
+            </div>
+            <div class="va-rule-row">
+              <span class="va-rule-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20"></path><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"></path></svg>
+              </span>
+              <span class="va-rule-body"><b>全局变量</b><span>变量管理里维护，跨流程、随方案存盘；运行期找不到会明确报错，不会静默新建。</span></span>
+            </div>
+
+            <div class="va-rule-sep"></div>
+            <div class="va-tip"><b>记住三件事</b></div>
+            <div class="va-tip">① 同名变量在两个作用域各有一份，先选对作用域再选名字。</div>
+            <div class="va-tip">② 名字打错不会静默落到别的变量：全局会报「找不到全局变量」。</div>
+            <div class="va-tip">③ 值填文本时按目标变量的声明类型解析；类型不匹配会在运行期明确失败。</div>
+          </section>
+        </aside>
+      </div>
+
+      <div class="va-footer">
+        <div class="va-footer-left">
+          <span class="va-status-chip"><span class="va-footer-dot"></span><span>状态: 待执行</span></span>
+          <span class="va-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="va-footer-right">
+          <button type="button" class="va-btn">▶ 执行</button>
+          <button type="button" class="va-btn va-btn-ghost">取消</button>
+          <button type="button" class="va-btn va-btn-primary">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="va-notes">
+      <div class="va-notes-head">关键改动（v1）</div>
+      <div class="va-note">
+        <div class="va-note-num">01</div>
+        <div><b>作用域从下拉改成两张卡片</b><span>仍是 <code>Scope.Value</code> 的字符串绑定（Runtime / Global），只换外观；切换后候选与提示照常重算。</span></div>
+      </div>
+      <div class="va-note">
+        <div class="va-note-num">02</div>
+        <div><b>变量名行保留可编辑候选</b><span>仍是可编辑 <code>ComboBox</code>：<code>ItemsSource=NameCandidates</code>、<code>Text=VariableName.Value</code>；候选只是名字，落成常量。</span></div>
+      </div>
+      <div class="va-note">
+        <div class="va-note-num">03</div>
+        <div><b>提示升级为独立信息条</b><span><code>NameHint</code> 原文展示，说明「写哪个变量、什么类型、找不到会怎样」；不加第二套状态枚举。</span></div>
+      </div>
+      <div class="va-note">
+        <div class="va-note-num">04</div>
+        <div><b>值行只包裹不改内部</b><span><code>LinkableValueEditor</code> 的 <code>Port</code>/<code>StepData</code> 原样保留；常量与上游链接仍在同一个控件里完成。</span></div>
+      </div>
+      <div class="va-note">
+        <div class="va-note-num">05</div>
+        <div><b>右侧目标卡与规则卡</b><span>目标卡显示当前变量名与作用域；规则卡解释两种作用域。内容全部来自现有端口与静态语义，不新增功能。</span></div>
+      </div>
+      <div class="va-note">
+        <div class="va-note-num">06</div>
+        <div><b>颜色全部令牌化</b><span>映射 <code>Colors.xaml</code> / <code>PluginConfigColors.xaml</code>；视图内不写十六进制，不改共享控件与共享字典。</span></div>
+      </div>
+
+      <div class="va-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="va-note">
+        <div class="va-note-num">C1</div>
+        <div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不引入独立 VM。</span></div>
+      </div>
+      <div class="va-note">
+        <div class="va-note-num">C2</div>
+        <div><b>四个端口绑定</b><span><code>Scope.Value</code>（string）、<code>VariableName.Value</code>（string）、<code>Value</code>（InputPort&lt;object&gt;）、<code>CreateIfNotExists.Value</code>（bool）全部原样保留。</span></div>
+      </div>
+      <div class="va-note">
+        <div class="va-note-num">C3</div>
+        <div><b>NameCandidates / NameHint</b><span>候选仍由插件按作用域重算；提示仍由插件生成，视图只展示。</span></div>
+      </div>
+      <div class="va-note">
+        <div class="va-note-num">C4</div>
+        <div><b>用户编辑上报</b><span><code>NotifyNameEditedByUser()</code> 仍接真实输入事件（键入 / 删除 / 剪切 / 粘贴 / 选择），不从「值变了」倒推。</span></div>
+      </div>
+
+      <div class="va-notes-head" style="margin-top:20px;">明确延后（需新增功能或契约）</div>
+      <div class="va-note">
+        <div class="va-note-num">D1</div>
+        <div><b>变量浏览器 / 变量管理入口</b><span>需要新的宿主导航契约；本稿只保留候选下拉与提示文字。</span></div>
+      </div>
+      <div class="va-note">
+        <div class="va-note-num">D2</div>
+        <div><b>值类型校验器 / 转换预览</b><span>当前写入侧在运行期按声明类型解析；配置态没有类型元数据可绑定，先不做。</span></div>
+      </div>
+      <div class="va-note">
+        <div class="va-note-num">D3</div>
+        <div><b>加载骨架 / 运行日志 / 试运行可视化</b><span>需要新增 VM 状态或宿主契约，不属于纯 UI 改造。</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('va-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#va-window');
+      var scopeButtons = Array.prototype.slice.call(root.querySelectorAll('[data-scope]'));
+      var stateButtons = Array.prototype.slice.call(root.querySelectorAll('[data-state]'));
+      var widthButtons = Array.prototype.slice.call(root.querySelectorAll('[data-width]'));
+      var nameCombo = root.querySelector('#va-name-combo');
+      var nameInput = root.querySelector('#va-name-input');
+      var nameArrow = root.querySelector('#va-name-arrow');
+      var candidatesBox = root.querySelector('#va-candidates');
+      var hintText = root.querySelector('#va-hint-text');
+      var targetName = root.querySelector('#va-target-name');
+      var targetMeta = root.querySelector('#va-target-meta');
+      var scopeChip = root.querySelector('#va-scope-chip');
+      var scopeChipText = root.querySelector('#va-scope-chip-text');
+      var valueInput = root.querySelector('#va-value-input');
+      var linkBtn = root.querySelector('#va-link-btn');
+      var linked = root.querySelector('#va-linked');
+      var unlinkBtn = root.querySelector('#va-unlink-btn');
+      var createLine = root.querySelector('#va-create-line');
+
+      var candidates = {
+        Runtime: [
+          { name: 'OKCount', type: 'Int32', note: '本轮累计良品数' },
+          { name: 'TotalCount', type: 'Int32', note: '本轮总数' },
+          { name: 'CurrentPart', type: 'String', note: '当前零件号' }
+        ],
+        Global: [
+          { name: 'OKCount', type: 'Int32', note: '跨流程累计' },
+          { name: 'LineName', type: 'String', note: '产线名称' }
+        ]
+      };
+
+      var presets = {
+        default: {
+          scope: 'Runtime', name: '',
+          hint: '还没填名字。作用域=运行时变量时，名字通常来自上游「变量定义」节点。'
+        },
+        runtime: {
+          scope: 'Runtime', name: 'OKCount',
+          hint: '写入运行时变量「OKCount」（Int32）· 本轮累计良品数。'
+        },
+        global: {
+          scope: 'Global', name: 'OKCount',
+          hint: '写入全局变量「OKCount」（Int32）——「值」按它的类型解析（如 Int32 填 21）。'
+        },
+        cross: {
+          scope: 'Runtime', name: 'LineName',
+          hint: '「LineName」是全局变量（String），不是上游声明的运行时变量 —— 要写它请把作用域改成「全局变量」。'
+        },
+        missing: {
+          scope: 'Global', name: 'OKCountX',
+          hint: '变量管理里没有「OKCountX」：运行期会明确报「找不到全局变量」，不会静默新建。'
+        },
+        legacy: {
+          scope: 'Runtime', name: 'OKCount',
+          hint: '该行原由上游提供（变量定义.OKCount）—— 在本行选/输一个变量名，即可改为手填。写入运行时变量「OKCount」（Int32）· 本轮累计良品数。'
+        }
+      };
+
+      var scope = 'Runtime';
+      var state = 'default';
+      var isLinked = false;
+      var createIfMissing = false;
+
+      function scopeLabel(s) { return s === 'Global' ? '全局变量' : '运行时变量'; }
+
+      function setScope(s, silent) {
+        scope = s;
+        scopeButtons.forEach(function (b) {
+          var on = b.dataset.scope === s;
+          b.classList.toggle('is-active', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        scopeChip.classList.toggle('is-global', s === 'Global');
+        scopeChipText.textContent = scopeLabel(s);
+        renderCandidates();
+        if (!silent) {
+          state = '';
+          stateButtons.forEach(function (b) {
+            b.classList.remove('is-on');
+            b.setAttribute('aria-pressed', 'false');
+          });
+          updateHintForName();
+          updateTarget();
+        } else {
+          updateTargetMeta();
+        }
+      }
+
+      function updateHintForName() {
+        var name = nameInput.value.trim();
+        hintText.textContent = !name
+          ? (scope === 'Global'
+              ? '还没填名字。作用域=全局变量时，名字要来自变量管理（点右侧箭头选）。'
+              : '还没填名字。作用域=运行时变量时，名字通常来自上游「变量定义」节点。')
+          : (scope === 'Global'
+              ? '写入全局变量「' + name + '」——「值」按它的声明类型解析；找不到会明确报错。'
+              : '写入运行时变量「' + name + '」—— 若它不在上游「变量定义」里，需要运行期已存在或勾选自动创建。');
+      }
+
+      function renderCandidates() {
+        candidatesBox.innerHTML = '';
+        candidates[scope].forEach(function (item) {
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'va-candidate';
+          btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>'
+            + '<span></span><em></em>';
+          btn.querySelector('span').textContent = item.name;
+          btn.querySelector('em').textContent = item.type;
+          btn.addEventListener('click', function () {
+            nameInput.value = item.name;
+            hintText.textContent = scope === 'Global'
+              ? '写入全局变量「' + item.name + '」（' + item.type + '）——「值」按它的类型解析。'
+              : '写入运行时变量「' + item.name + '」（' + item.type + '）· ' + item.note + '。';
+            closeCandidates();
+            updateTarget();
+          });
+          candidatesBox.appendChild(btn);
+        });
+      }
+
+      function openCandidates() {
+        nameCombo.classList.add('is-open');
+        candidatesBox.hidden = false;
+      }
+      function closeCandidates() {
+        nameCombo.classList.remove('is-open');
+        candidatesBox.hidden = true;
+      }
+
+      function updateTarget() {
+        var name = nameInput.value.trim();
+        targetName.textContent = name || '未命名变量';
+        targetName.classList.toggle('is-empty', !name);
+        updateTargetMeta();
+      }
+
+      function updateTargetMeta() {
+        targetMeta.textContent = '当前作用域有 ' + candidates[scope].length + ' 个候选';
+      }
+
+      function applyPreset(key) {
+        var p = presets[key];
+        if (!p) return;
+        state = key;
+        stateButtons.forEach(function (b) {
+          var on = b.dataset.state === key;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        setScope(p.scope, true);
+        nameInput.value = p.name;
+        hintText.textContent = p.hint;
+        updateTarget();
+      }
+
+      scopeButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (btn.dataset.scope === scope) return;
+          setScope(btn.dataset.scope, false);
+        });
+      });
+
+      stateButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () { applyPreset(btn.dataset.state); });
+      });
+
+      widthButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var narrow = btn.dataset.width === '640';
+          win.classList.toggle('is-narrow', narrow);
+          widthButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+        });
+      });
+
+      nameArrow.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (candidatesBox.hidden) openCandidates(); else closeCandidates();
+      });
+      nameInput.addEventListener('focus', openCandidates);
+      nameInput.addEventListener('input', function () {
+        updateHintForName();
+        updateTarget();
+      });
+      document.addEventListener('click', function (e) {
+        if (!nameCombo.contains(e.target)) closeCandidates();
+      });
+
+      linkBtn.addEventListener('click', function () {
+        isLinked = true;
+        linkBtn.hidden = true;
+        linked.hidden = false;
+        valueInput.hidden = true;
+        linkBtn.classList.add('is-on');
+      });
+      unlinkBtn.addEventListener('click', function () {
+        isLinked = false;
+        linked.hidden = true;
+        linkBtn.hidden = false;
+        linkBtn.classList.remove('is-on');
+        valueInput.hidden = false;
+      });
+
+      function toggleCreate() {
+        createIfMissing = !createIfMissing;
+        createLine.classList.toggle('is-on', createIfMissing);
+        createLine.setAttribute('aria-checked', String(createIfMissing));
+      }
+      createLine.addEventListener('click', toggleCreate);
+      createLine.addEventListener('keydown', function (e) {
+        if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleCreate(); }
+      });
+
+      // 初始：不勾选「自动创建」（与插件端口默认值 false 一致）；默认态由预设渲染
+      createLine.classList.toggle('is-on', createIfMissing);
+      createLine.setAttribute('aria-checked', String(createIfMissing));
+      applyPreset('default');
+    })();
+  </script>
+</div>
+</body>
+</html>

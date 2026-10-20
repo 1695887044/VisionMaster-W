@@ -36,7 +36,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private readonly FlowCompiler _flowCompiler;
         private readonly HttpImageServer _httpServer;
 
-        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger, FlowCompiler flowCompiler, HttpImageServer httpServer, ICameraProvider cameras, IMotionProvider motions, IFlowInvoker flowInvoker)
+        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger, FlowCompiler flowCompiler, HttpImageServer httpServer, ICameraProvider cameras, IMotionProvider motions, IFlowInvoker flowInvoker, ICommVariableAccess comms = null)
         {
             _workspace = workspace;
             _logger = logger;
@@ -45,6 +45,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _cameras = cameras ?? NullCameraProvider.Instance;
             _motions = motions ?? NullMotionProvider.Instance;
             _flowInvoker = flowInvoker ?? NullFlowInvoker.Instance;
+            _comms = comms ?? NullCommVariableAccess.Instance;
             ExecuteCommand = new DelegateCommand(ExecutePlugin, () => CanExecute);
             ConfirmCommand = new DelegateCommand(Confirm);
             CancelCommand = new DelegateCommand(Cancel);
@@ -61,6 +62,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>流程调用器：透传给试运行的执行上下文（否则「调用流程」步骤在面板上点「执行」必失败）</summary>
         private readonly IFlowInvoker _flowInvoker;
+
+        /// <summary>通讯变量立刻读写入口：透传给试运行（否则「立刻读/写」在面板上点「执行」必报没有接入通讯层）</summary>
+        private readonly ICommVariableAccess _comms;
 
         #region IDialogAware
 
@@ -357,7 +361,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
                 try
                 {
-                    result = PluginTestRunner.Run(plugin, stepData, _workspace, _logger, _flowCompiler, token, out session, _cameras, _motions, _flowInvoker);
+                    result = PluginTestRunner.Run(plugin, stepData, _workspace, _logger, _flowCompiler, token, out session, _cameras, _motions, _flowInvoker, _comms);
                 }
                 catch (Exception ex)
                 {
@@ -419,9 +423,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             IsExecuting = false;
 
-            // 点过"取消"的：后台已收尾，现在才真正关窗
+            // 点过"取消"的：后台已收尾，现在才真正还原模型并关窗
             if (_closeAfterStop)
+            {
+                _pluginView?.OnCancel();
                 RequestClose.Invoke(ButtonResult.Cancel);
+            }
         }
 
         private void Confirm()
@@ -432,10 +439,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         private void Cancel()
         {
-            _pluginView?.OnCancel();
-
-            // 有试运行在跑：先取消、等它收尾，收尾完成后由 CompleteExecute 关窗。
-            // 不能立刻关窗——关窗会释放掉后台线程正在使用的会话与插件实例
+            // 有试运行在跑：先叫停，等它收尾，**收尾前不能动插件模型/端口**。
+            // 旧顺序（先 OnCancel 再 Cancel 令牌）会让 OnCancel 在后台脚本还在
+            // 通过 Inputs/Outputs 取写端口时重建动态端口字典（Dictionary 并发读写未定义）；
+            // 收尾完成后由 CompleteExecute 补 OnCancel 再关窗。
             if (_execTask != null && !_execTask.IsCompleted)
             {
                 _closeAfterStop = true;
@@ -444,6 +451,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 return;
             }
 
+            _pluginView?.OnCancel();
             RequestClose.Invoke(ButtonResult.Cancel);
         }
     }

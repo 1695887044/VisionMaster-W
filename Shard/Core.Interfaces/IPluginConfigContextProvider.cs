@@ -90,12 +90,20 @@ namespace Core.Interfaces
     /// </summary>
     public class VariableOption
     {
+        /// <summary>
+        /// 变量稳定身份（<c>IVariable.VariableId</c>）。
+        /// 声明式共享变量按它寻址：变量改名后声明仍能命中（与 <c>LinkReference</c> 的 Id 口径一致）。
+        /// 运行时变量（Scope=Runtime）没有稳定身份，这里为 <see cref="Guid.Empty"/>。
+        /// </summary>
+        public Guid VariableId { get; set; }
+
         /// <summary>变量名（写进流程的就是它；选定后由插件落成**常量**，不是连线）</summary>
         public string Name { get; set; } = string.Empty;
 
         /// <summary>
         /// 作用域取值："Global"（变量管理里那些，跨流程随方案存盘）
-        /// / "Runtime"（流程执行中由「变量定义」节点创建的本地变量）。
+        /// / "Runtime"（流程执行中由「变量定义」节点创建的本地变量）
+        /// / "System"（运动轴状态投影，只读、不落盘）。
         /// 取值与「变量赋值」插件的 Scope 端口同一套字面量，界面按它过滤候选。
         /// </summary>
         public string Scope { get; set; } = "Global";
@@ -109,6 +117,18 @@ namespace Core.Interfaces
 
         /// <summary>说明文字（变量管理里的描述；运行时变量则为"由哪个节点声明"）</summary>
         public string Description { get; set; } = string.Empty;
+
+        /// <summary>是否系统变量（只读；写入会在 <c>GlobalVariableWriter</c> 那一层被拒）</summary>
+        public bool IsSystem { get; set; }
+
+        /// <summary>
+        /// 是否可写（宿主侧按 <c>IWritableVariable</c> 判定）。
+        /// 界面据此把方向锁成"只读"，而不是让用户选完"读写"、运行期才报错。
+        /// </summary>
+        public bool CanWrite { get; set; }
+
+        /// <summary>下拉框显示文本：名字（类型）</summary>
+        public string Caption => string.IsNullOrWhiteSpace(TypeName) ? Name : $"{Name}（{TypeName}）";
     }
 
     /// <summary>

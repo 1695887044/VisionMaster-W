@@ -34,6 +34,28 @@ namespace Plugin.CSharpScript
     }
 
     /// <summary>
+    /// 声明类型 → 脚本里 <c>Context.GetInput&lt;T&gt;</c> 的泛型实参。
+    /// 必须与 <see cref="ScriptVarType"/> 一一对应（注意 HXld 的 CLR 类型是 HXLDCont，不是 HXld）；
+    /// 补全插入的模板直接用这份映射，避免"插入的类型名编译不过"。
+    /// </summary>
+    public static class ScriptVarTypeExtensions
+    {
+        public static string ToClrTypeName(this ScriptVarType type) => type switch
+        {
+            ScriptVarType.Int => "int",
+            ScriptVarType.Double => "double",
+            ScriptVarType.Bool => "bool",
+            ScriptVarType.String => "string",
+            ScriptVarType.HTuple => "HTuple",
+            ScriptVarType.HImage => "HImage",
+            ScriptVarType.HRegion => "HRegion",
+            ScriptVarType.HXld => "HXLDCont",
+            ScriptVarType.HObject => "HObject",
+            _ => "object"
+        };
+    }
+
+    /// <summary>
     /// 脚本变量定义（显示在配置界面的变量表格里，随配置内嵌进 .vms）。
     /// Name 同时作为动态端口名与脚本里的取/存键；图形类输出可指定"显示到第几号视图窗口"。
     /// </summary>
@@ -45,8 +67,21 @@ namespace Plugin.CSharpScript
         public string Name
         {
             get => _name;
-            set { _name = value; OnPropertyChanged(); }
+            set
+            {
+                var normalized = value ?? "";
+                if (string.Equals(_name, normalized, StringComparison.Ordinal)) return;
+                var oldName = _name;
+                _name = normalized;
+                OnPropertyChanged();
+                // 改名必须能被插件接住：连线键（StepModel.LinkedSources）与端口名都还挂在旧名字上，
+                // 只发 PropertyChanged("Name") 的话插件分不清"改名前叫什么"，迁移无从下手。
+                NameChanged?.Invoke(this, oldName, normalized);
+            }
         }
+
+        /// <summary>改名事件：oldName → newName（插件据此迁移连线键 / 手填值 / 端口）。</summary>
+        public event Action<ScriptVarDef, string, string> NameChanged;
 
         private ScriptVarType _type = ScriptVarType.Object;
         /// <summary>声明类型（变更后端口按新 CLR 类型重建）</summary>

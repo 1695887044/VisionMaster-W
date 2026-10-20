@@ -517,7 +517,7 @@ namespace VisionMaster.Scada.Controls
         ///
         /// 与 <see cref="TryApplyRuntimeValue"/> 是<b>并行的两条通道</b>，不是同一条：
         /// 绑定写的是"描述符里声明过的那个属性"，动画写的是"位置 / 前景 / 底色 / 透明度"，
-        /// 后者里位置与尺寸属于 <c>NonBindableGroups</c>（位置与尺寸在属性面板里不接受绑定），
+        /// 后者里位置与尺寸属于 <see cref="ScadaPropertyGroups.NonBindable"/>（位置与尺寸在属性面板里不接受绑定），
         /// 压根没有描述符声明可依附。所以动画单独开一个入口，数据泵按 <see cref="ScadaAnimation.Type"/>
         /// 分流到这儿来。
         ///

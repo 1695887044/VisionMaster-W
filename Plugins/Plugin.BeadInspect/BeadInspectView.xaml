@@ -10,55 +10,30 @@
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
     MinWidth="{DynamicResource PluginViewMinWidth}"
     MinHeight="{DynamicResource PluginViewMinHeight}"
-    d:DesignHeight="640"
+    d:DesignHeight="680"
     d:DesignWidth="1100"
     mc:Ignorable="d">
 
     <!--
-        胶路检测配置视图（方案说明书 §6.1 布局 / §6.2 画布交互 / §6.3 矫正四边形 / §6.4 自动提取）。
+        胶路检测配置视图（Web 基线 v2，2026-10-20）。
 
-        ================== 第三轮重排（2026-10-09，用户真机 914x547 视口下的"设置栏在左、画布称王"）==================
-        前两轮都在"右列内部分配两根 *"（4:6 → 2:1）里打转，第三轮用户尺寸把这条路走到头了：914x547 下
-        右列只有 523 高，工具条(2 行按钮+横幅 182) + 画布(192) + 参数卡(72，内滚动后只剩表头) + 状态(98，
-        下沿越过视口 → 被裁) 四块抢 523 —— 画布图片实际可视野只有 ~97px（按高适配宽度 ~121px），
-        参数和路径点列看不到、状态行半截不见。这不是比例问题，是"右列塞了四件事"的结构问题。
+        结构：左 330px 设置轨（输入绑定 → 配方库 → 点列 → 配方参数 → 运行参数 → 搜索范围 → 结果预览 → 怎么用）
+              + 右侧画布工作区（工具栏 + 结论横幅 + 画布标题 + 操作提示 + ImageEdit hero）+ 状态条。
 
-        本轮结构：右列只留两行 —— 工作区卡（工具条 + 结论横幅 + 画布 hero，占满余高）+ 状态条(2 行内)。
-        设置类卡片（配方参数 / 路径点列 / 运行参数 / 搜索范围 / 预览 / 怎么用）全部并入左列滚动区；
-        左列与右列之间加 GridSplitter（默认宽度下画布已够大，用户想再给画布让宽可手动拖）。
+        契约（逐字保留，详见 docs/UI设计基线/bead-inspect/README.md）：
+        · DataContext = 插件实例（BeadInspectPlugin）；宿主靠它取 IPluginConfigView.OnConfirm。
+        · 5 个 LinkableValueEditor：SrcImage / RecipeName / AlignedImageIn / RoiRegion / Transform。
+        · 两块 HALCON 画布：ImageEdit（DisplayImage + PathAnnotations）、ImageReadOnly（PreviewImage）；
+          两块都常驻，不用 Visibility=Collapsed 显隐已设图控件。
+        · DataGrid：ItemsSource=PointRows、Index/Row/Col 列绑定、CellEditEnding 提交、行删除。
+        · 所有 Numeric 参数绑定、命令入口、StatusMessage/StatusLevel 三档原样保留。
+        · 颜色全部走公共令牌；本文件 hex = 0。
 
-        为什么这么排（对应用户的三个抱怨）：
-        ① "图片空间太小 / 可视化不行"：把"同一竖列里比画布更靠下的四件东西"减到一件（状态条 2 行内），
-           画布卡拿到 * 的全部余量。914x547 实测：图片可视区 97px → 342px（按高适配宽度 121 → 427px，
-           横幅出现时让位到 300px/376px）。点数是本界面唯一的主操作（在画布上逐点拾取），
-           主操作面必须是最大的一块。
-        ② "参数不可见（只剩表头）"：参数卡此前是"跟自己高度打架"的第三行（被压时靠内滚动兜底，
-           只剩表头就是那个兜底态的常态）。移进左列后每张卡都是自然高、永不塌，
-           代价是"要看参数得滚一下左列"——这是有意的取舍：左列本来就是设置栏。
-        ③ "不现代化"：右列从"四张白卡堆叠"变成"一块工作区 + 一条状态"，工具条一屏一行不换行；
-           画布与工具栏同卡（谁管谁一目了然），点数/颜色图例进画布标题行（原来点数独占一行、图例只在悬停里）。
-
-        旧验收线在新结构下的落点：
-          · "620 宽按钮不裁切" → 工具条仍是 WrapPanel（6 个按钮，914x547 下实测占 482px / 可用 518px），
-            窄了就换行、绝不裁字；探测报告里 [CLIP]/文字裁切计数继续守门（620x640 与 620x540 两档）。
-          · "第 4 行（状态+预览）在视口内" → 预览卡已迁左列，右列只剩状态条（新的最后一行），
-            探测器的"右列行高合计 ≤ 可用高 + 每张卡在视口内"判据原样守它。
-
-        ================== 第四轮收尾（2026-10-09，用户真机两个具体反馈）==================
-        ① 「这个载入是不是没有效果」：本插件此前没有任何文件选择器（全插件 grep OpenFileDialog 零命中），
-           路径框为空时 LoadRefImage 只写一行状态就 return。现在「载入」在路径为空/文件不存在时
-           弹 OpenFileDialog（BeadInspectView.PickRefImageFile，protected virtual —— 离屏探针派生替身
-           注入路径即可做代码级验证），选定后写回 EditingEntry.RefImagePath（INPC 刷新路径框）再载入；
-           路径有效时行为不变（不弹框）。
-        ② 「这个行列数据显示不全」：点列表 Height=168 固定只看得见 5 行；共享主题 DataGridCell
-           Padding=12,8 与 RowHeight=24 打架（24-16=8px 装不下 16px 行高的字）→ 屏幕上是"半截数字"。
-           本表就地收窄内边距（BeadPointCell 8,2 / BeadPointHeader 8,4，都 BasedOn 共享样式）
-           + 行高 28 + 高度 140~286 + 列宽 32/*/84/*42。度量与断言见 _BeadViewProbe（914x547 场景）。
-
-        画布是共享控件 ImageEdit；点拾取不修改共享控件——视图在 Loaded 后经视觉树拿到
-        内部 HSmartWindowControlWPF，直接订阅它的鼠标事件（事件参数自带图像坐标 Row/Col），
-        叠加层走共享控件的 Annotations 通道（整体换 List 触发重画，不碰内部状态）。
-        业务逻辑全在 BeadInspectPlugin（DataContext），本文件只做事件转发与画布接管。
+        v2 增量（5 个原本无 UI 入口的属性，全部已存在于插件上，本版只补入口、不改插件）：
+        · ④ 运行参数：PixelSizeMm（像素当量 mm/px，0~1000）+ OutputAlignedImage（输出对齐图勾选）
+        · ⑤ 搜索范围：MinScore（最低分数 0~1）+ PlanarNumLevels（金字塔层数 1~10 整数）
+        · ① 配方库「自动提取输入（可选）」：ExtractTargetPoints（抽稀目标点数 10~500 整数）
+          —— 该属性不是 [StepConfig]，只在本次配置会话生效、不落盘（详见 README 契约 C8）。
     -->
     <UserControl.Resources>
         <ResourceDictionary>
@@ -69,38 +44,68 @@
 
             <BooleanToVisibilityConverter x:Key="BoolToVis" />
             <local:EnumDisplayNameConverter x:Key="EnumName" />
+            <local:PolarityNameConverter x:Key="PolarityName" />
+
+            <!--  本视图所有 ToolTip 统一走公共对话框提示样式（R135）；只影响本视图资源作用域。  -->
+            <Style BasedOn="{StaticResource DialogToolTipStyle}" TargetType="ToolTip" />
 
             <!--
-                本视图局部样式（只三处，且都 BasedOn 共享件——不改共享令牌、不另起炉灶）：
-                ① BeadColumnSplitter：左右分栏拖拽条（6px 浅灰槽；悬停变深，提示"这里能拖"）。
-                ② BeadWorkspaceCard：工作区卡纵向内边距 14 → 8。画布卡是"容器里装图像"，
-                   14px 白边在 523px 高的视口里就是白扔 12px 图片高；横向仍留 10（图像不贴卡缘）。
-                ③ BeadToolbarButton：工具条按钮内边距 12 → 10。工具条要一行放下 6 个按钮
-                   （实测 6 个自然宽 476px / 可用 526px），每个省 4px = 44px 余量；
-                   文字一个不少（PluginButton 的 MinHeight=26 与字号都不动，只是左右留白收 2px）。
+                本视图局部样式：全部 BasedOn 共享件，只覆盖间距 / 字号 / 圆角，不另起炉灶。
             -->
-            <Style x:Key="BeadColumnSplitter" TargetType="GridSplitter">
-                <Setter Property="Width" Value="6" />
-                <Setter Property="HorizontalAlignment" Value="Center" />
-                <Setter Property="VerticalAlignment" Value="Stretch" />
-                <Setter Property="ResizeDirection" Value="Columns" />
-                <Setter Property="ResizeBehavior" Value="PreviousAndNext" />
-                <Setter Property="ShowsPreview" Value="False" />
-                <Setter Property="Focusable" Value="False" />
-                <Setter Property="Cursor" Value="SizeWE" />
-                <Setter Property="Background" Value="{StaticResource PluginDividerBrush}" />
-                <Style.Triggers>
-                    <Trigger Property="IsMouseOver" Value="True">
-                        <Setter Property="Background" Value="{StaticResource PluginInputHoverBorderBrush}" />
-                    </Trigger>
-                </Style.Triggers>
+            <Style
+                x:Key="BeadCard"
+                BasedOn="{StaticResource PluginCard}"
+                TargetType="Border">
+                <Setter Property="Padding" Value="12" />
+                <Setter Property="CornerRadius" Value="10" />
             </Style>
 
             <Style
-                x:Key="BeadWorkspaceCard"
-                BasedOn="{StaticResource PluginCard}"
-                TargetType="Border">
-                <Setter Property="Padding" Value="10,8" />
+                x:Key="BeadCardTitle"
+                BasedOn="{StaticResource PluginCardTitle}"
+                TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+            </Style>
+
+            <Style
+                x:Key="BeadFieldLabel"
+                BasedOn="{StaticResource PluginFieldLabel}"
+                TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            </Style>
+
+            <Style
+                x:Key="BeadHint"
+                BasedOn="{StaticResource PluginHintText}"
+                TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <!-- 表单输入：复用 PluginNumericBox 的圆角/聚焦环模板，只把高度调到 32。 -->
+            <Style
+                x:Key="BeadInput"
+                BasedOn="{StaticResource PluginNumericBox}"
+                TargetType="TextBox">
+                <Setter Property="Height" Value="32" />
+                <Setter Property="Padding" Value="8,0" />
+                <Setter Property="FontFamily" Value="{StaticResource PluginMonoFontFamily}" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+                <Setter Property="Background" Value="{StaticResource DialogInputBackgroundBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+            </Style>
+
+            <Style
+                x:Key="BeadCombo"
+                BasedOn="{StaticResource DialogCombo}"
+                TargetType="ComboBox">
+                <Setter Property="Height" Value="32" />
+                <Setter Property="Padding" Value="10,0,30,0" />
+                <Setter Property="FontSize" Value="12" />
             </Style>
 
             <Style
@@ -108,26 +113,28 @@
                 BasedOn="{StaticResource PluginButton}"
                 TargetType="Button">
                 <Setter Property="Padding" Value="10,4" />
-                <Setter Property="MinHeight" Value="24" />
+                <Setter Property="MinHeight" Value="28" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
             </Style>
 
-            <!--
-                ④ BeadPointCell / BeadPointHeader：点列表专属的单元格/列头内边距。
-                共享主题的 DataGridCell 是 Padding=12,8 —— 按"行高自撑"的对话框表设计
-                （DialogDataGrid RowHeight=46，13 行文字绰绰有余）。本表是紧凑复核表（RowHeight=28），
-                24 行减 16 内边距只剩 8px：12px 字一行高 16（排版高 18.6）根本装不下，
-                文字上下各溢出 4px 被邻行格线与交替底色吃掉 = 屏幕上是"半截数字"
-                （2026-10-09 用户真机第二问「行列数据显示不全」，离屏探针同尺寸复现 7 处纵向溢出）。
-                就地收窄本表的 Padding（BasedOn 共享样式，只覆盖内边距，不碰共享令牌、
-                也不影响别的视图）：单元格 8,2 → 行内可用高 26 ≥ 18.6（14px 字 21.7 也够；真机多并一层
-                Fluent 主题字号可能大一号，按最坏情况留余量）；列头 8,4 → 列头 25px，把 10px 还给行。
-            -->
+            <Style
+                x:Key="BeadAccentButton"
+                BasedOn="{StaticResource PluginAccentButton}"
+                TargetType="Button">
+                <Setter Property="Padding" Value="12,4" />
+                <Setter Property="MinHeight" Value="28" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            </Style>
+
             <Style
                 x:Key="BeadPointCell"
                 BasedOn="{StaticResource {x:Type DataGridCell}}"
                 TargetType="DataGridCell">
                 <Setter Property="Padding" Value="8,2" />
             </Style>
+
             <Style
                 x:Key="BeadPointHeader"
                 BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"
@@ -135,19 +142,54 @@
                 <Setter Property="Padding" Value="8,4" />
             </Style>
 
-            <!--
-                ⑤ BeadPointEditBox：点列的单元格编辑框。
-                共享主题的 TextBox 是 Padding=10,8 + FontSize=13（自然高 35）——那是给"整行输入框"的；
-                塞进 26px 的行里会上下各溢出 7px，改一个坐标时编辑框压住上下两行（实测见探针编辑态度量）。
-                就地收窄（BasedOn 共享样式，只覆盖内边距与字号，不碰共享令牌）：
-                12px 字行高 16 + Padding 2,2 + 边框 2 = 20 ≤ 单元格内容槽 26。
-            -->
             <Style
                 x:Key="BeadPointEditBox"
                 BasedOn="{StaticResource {x:Type TextBox}}"
                 TargetType="TextBox">
                 <Setter Property="Padding" Value="4,1" />
+                <Setter Property="FontFamily" Value="{StaticResource PluginMonoFontFamily}" />
                 <Setter Property="FontSize" Value="{StaticResource PluginLabelFontSize}" />
+                <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+            </Style>
+
+            <Style
+                x:Key="BeadPointDeleteButton"
+                BasedOn="{StaticResource PluginButton}"
+                TargetType="Button">
+                <Setter Property="MinHeight" Value="20" />
+                <Setter Property="Padding" Value="2,1" />
+                <Setter Property="FontSize" Value="10" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            </Style>
+
+            <Style
+                x:Key="BeadWorkspaceCard"
+                BasedOn="{StaticResource PluginCard}"
+                TargetType="Border">
+                <Setter Property="Padding" Value="10,8" />
+                <Setter Property="CornerRadius" Value="12" />
+            </Style>
+
+            <Style
+                x:Key="BeadStatusPanel"
+                BasedOn="{StaticResource PluginStatusPanel}"
+                TargetType="Border">
+                <Setter Property="Padding" Value="10,6" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+            </Style>
+
+            <Style
+                x:Key="BeadBanner"
+                BasedOn="{StaticResource PluginStatusPanel}"
+                TargetType="Border">
+                <Setter Property="Padding" Value="10,6" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
             </Style>
 
             <!--  运行显示窗口候选（int 数组保证 SelectedItem 值相等匹配回显；0 = 不发布）  -->
@@ -168,58 +210,57 @@
 
     <Grid Margin="{StaticResource PluginViewMargin}">
         <Grid.ColumnDefinitions>
-            <!--  左：设置栏（共享令牌，本视图不覆盖宽度）
-                  分栏条夹在中间：默认宽度下画布已够大（见文件头 914x547 实测），拖它只是"再让一点宽"  -->
+            <!--  左：设置栏（共享宽度令牌；本视图不再放 GridSplitter）  -->
             <ColumnDefinition Width="{StaticResource PluginParamsColumnWidth}" MinWidth="{StaticResource PluginParamsColumnMinWidth}" />
-            <ColumnDefinition Width="Auto" />
+            <!--  右：画布工作区  -->
             <ColumnDefinition Width="*" MinWidth="{StaticResource PluginPreviewColumnMinWidth}" />
         </Grid.ColumnDefinitions>
 
-        <!--  ================= 左：设置栏（可滚动；顺序按使用频率） =================  -->
+        <!--  ================= 左：设置栏（可滚动） =================  -->
         <ScrollViewer
             Grid.Column="0"
-            Margin="0,0,4,0"
+            Margin="0,0,8,0"
             HorizontalScrollBarVisibility="Disabled"
             VerticalScrollBarVisibility="Auto">
             <StackPanel>
 
-                <!--  ⓪ 输入绑定（LinkableValueEditor：无绑定=吃配置值；绑定=吃上游端口输出。
-                          没有这张卡，上游产出的图就没法接到本节点——Blob/卡尺同款写法。
-                          Label 用短中文：LinkableValueEditor 的标签列只有 112px 且 CharacterEllipsis，
-                          长标签必被截成"配方名 RecipeNa…"（用户实测截图）；原括号说明移到 ToolTip）  -->
-                <Border Style="{StaticResource PluginCard}">
+                <!--  ⓪ 输入绑定：5 个 LinkableValueEditor 是上游图 / 配方名 / 对齐图 / 检测区域 / 标定的唯一入口。  -->
+                <Border Style="{StaticResource BeadCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="⓪ 输入绑定" />
+                        <TextBlock Style="{StaticResource BeadCardTitle}" Text="⓪ 输入绑定" />
+                        <TextBlock
+                            Margin="0,3,0,8"
+                            Style="{StaticResource BeadHint}"
+                            Text="固定值 / 变量链接：未链接时使用配置值，链接时运行期取上游输出" />
                         <cv:LinkableValueEditor
-                            Margin="{StaticResource PluginFirstRowMargin}"
+                            Margin="0,0,0,6"
                             HorizontalAlignment="Stretch"
                             Label="输入图像"
                             Port="{Binding SrcImage}"
                             StepData="{Binding StepData}"
                             ToolTip="输入图像 SrcImage：待检测图像（上传上游「图像采集」的 Image 端口）" />
                         <cv:LinkableValueEditor
-                            Margin="{StaticResource PluginFieldRowMargin}"
+                            Margin="0,0,0,6"
                             HorizontalAlignment="Stretch"
                             Label="配方名"
                             Port="{Binding RecipeName}"
                             StepData="{Binding StepData}"
                             ToolTip="配方名 RecipeName：多产品切换用，可不连；未连接/为空时用「设为默认」选中的那条" />
                         <cv:LinkableValueEditor
-                            Margin="{StaticResource PluginFieldRowMargin}"
+                            Margin="0,0,0,6"
                             HorizontalAlignment="Stretch"
                             Label="对齐图"
                             Port="{Binding AlignedImageIn}"
                             StepData="{Binding StepData}"
                             ToolTip="对齐图 AlignedImageIn：仅「匹配位姿」对齐模式接（上游匹配插件给出的对齐后图像）" />
                         <cv:LinkableValueEditor
-                            Margin="{StaticResource PluginFieldRowMargin}"
+                            Margin="0,0,0,6"
                             HorizontalAlignment="Stretch"
                             Label="检测区域"
                             Port="{Binding RoiRegion}"
                             StepData="{Binding StepData}"
                             ToolTip="检测区域 RoiRegion：可选，给了就只在区域内检测（缩域提速）" />
                         <cv:LinkableValueEditor
-                            Margin="{StaticResource PluginFieldRowMargin}"
                             HorizontalAlignment="Stretch"
                             Label="标定"
                             Port="{Binding Transform}"
@@ -228,153 +269,171 @@
                     </StackPanel>
                 </Border>
 
-                <!--  ① 配方库（选型 → 载图 → 拾取 的第一步；放在设置栏最上）  -->
-                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
+                <!--  ① 配方库：选型 → 载图 → 拾取的第一步。  -->
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource BeadCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="① 配方库" />
-                        <!--  高度自适应：条目少时不留大片空白（MinHeight 保证还能拉选），
-                              条目多时收到 MaxHeight 内部滚动  -->
+                        <TextBlock Style="{StaticResource BeadCardTitle}" Text="① 配方库" />
+                        <TextBlock
+                            Margin="0,3,0,8"
+                            Style="{StaticResource BeadHint}"
+                            Text="一条 = 一个产品型号；运行时按 RecipeName 端口选条目，未连接用「设为默认」这条" />
                         <ListBox
                             MinHeight="72"
                             MaxHeight="110"
-                            Margin="{StaticResource PluginFirstRowMargin}"
                             ItemContainerStyle="{StaticResource PluginListBoxItem}"
                             ItemsSource="{Binding RecipeRows}"
                             SelectedItem="{Binding EditingRow, Mode=TwoWay}"
-                            ToolTip="配方库：一条 = 一个产品型号。运行时按 RecipeName 端口选条目；未连接用「设为默认」选中的这条">
+                            ToolTip="配方库：点一行切换编辑态；行内显示点数与学习状态">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel Margin="2,1">
                                         <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock
-                                                FontSize="11"
-                                                Foreground="{StaticResource PluginHintTextBrush}"
+                                                FontSize="10.5"
+                                                Foreground="{StaticResource DialogTextMutedBrush}"
                                                 Text="{Binding PointCountText}" />
                                             <TextBlock
                                                 Margin="8,0,0,0"
-                                                FontSize="11"
-                                                Foreground="{StaticResource PluginHintTextBrush}"
-                                                Text="{Binding LearnedText}" />
+                                                FontSize="10.5"
+                                                Text="{Binding LearnedText}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding LearnedText}" Value="已学习">
+                                                                <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding LearnedText}" Value="参数已变·需重学">
+                                                                <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                         </StackPanel>
                                     </StackPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <StackPanel Margin="{StaticResource PluginFieldRowMargin}" Orientation="Horizontal">
+                        <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
                             <Button
                                 MinWidth="56"
-                                Click="OnAddEntryClick"
+                                Command="{Binding AddEntryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 Content="新增"
-                                Style="{StaticResource PluginButton}"
+                                Style="{StaticResource BeadToolbarButton}"
                                 ToolTip="新增一个配方条目（产品型号）" />
                             <Button
                                 MinWidth="56"
                                 Margin="6,0,0,0"
-                                Click="OnDeleteEntryClick"
+                                Command="{Binding DeleteEntryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 Content="删除"
-                                Style="{StaticResource PluginButton}"
+                                Style="{StaticResource BeadToolbarButton}"
                                 ToolTip="删除当前选中的配方条目" />
                             <Button
                                 MinWidth="72"
                                 Margin="6,0,0,0"
-                                Click="OnSetDefaultClick"
+                                Command="{Binding SetDefaultCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 Content="设为默认"
-                                Style="{StaticResource PluginButton}"
+                                Style="{StaticResource BeadToolbarButton}"
                                 ToolTip="把当前条目设为默认配方：RecipeName 端口未连接/为空时使用它" />
                         </StackPanel>
 
-                        <!--  参考图路径（学习 / 平面对齐模板）——配方的主图，留在卡面（自动提取的两张辅助图收进下方 Expander）  -->
                         <TextBlock
-                            Margin="{StaticResource PluginFieldRowMargin}"
-                            Style="{StaticResource PluginFieldLabel}"
+                            Margin="0,8,0,0"
+                            Style="{StaticResource BeadFieldLabel}"
                             Text="参考图路径" />
-                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
+                        <Grid Margin="0,4,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBox
-                                VerticalContentAlignment="Center"
+                                Style="{StaticResource BeadInput}"
                                 Text="{Binding EditingEntry.RefImagePath, UpdateSourceTrigger=LostFocus}"
                                 ToolTip="参考图：planar 对齐模板 + 路径坐标系基准（换路径后需重新学习）" />
                             <Button
                                 Grid.Column="1"
                                 MinWidth="44"
                                 Margin="4,0,0,0"
-                                Click="OnLoadRefClick"
+                                Command="{Binding LoadRefCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 Content="载入"
-                                Style="{StaticResource PluginButton}"
-                                ToolTip="载入参考图（平面可变形对齐的模板 + 坐标系基准）：路径为空或文件不存在时弹文件选择框，选定后自动写入路径并载入画布；路径有效时直接载入（选择配方时会自动载入）" />
+                                Style="{StaticResource BeadToolbarButton}"
+                                ToolTip="载入参考图：路径为空或文件不存在时弹文件选择框，选定后自动写入路径并载入画布" />
                         </Grid>
 
-                        <!--
-                            自动提取的两张输入图（无胶参考图 / 提取用良品图）收进 Expander：
-                            它们只服务「自动提取」这一个按钮（其余流程用不到），展开后跟参考图路径并列；
-                            一张 19 字的标题替掉两行"标签 + 填空"，把左列的滚动长度还给参数与点列。
-                            绑定一个不少（EditingEntry.RefNoBeadImagePath / ExtractImagePath）。
-                        -->
                         <Expander
-                            Margin="{StaticResource PluginFieldRowMargin}"
+                            Margin="0,7,0,0"
                             Header="自动提取输入（可选）"
-                            ToolTip="「自动提取」用的两张图：无胶参考图（差分基准，P6 实测 σ=0.96px 最紧；空 = 回退 black-hat，覆盖度较差）+ 提取用良品图（胶路完整、位姿与参考一致）">
+                            ToolTip="「自动提取」用的两张图：无胶参考图（差分基准）+ 提取用良品图（胶路完整、位姿与参考一致）">
                             <StackPanel Margin="0,4,0,0">
-                                <TextBlock
-                                    Style="{StaticResource PluginFieldLabel}"
-                                    Text="无胶参考图路径"
-                                    TextWrapping="Wrap" />
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="无胶参考图路径" />
                                 <TextBox
                                     Margin="0,4,0,0"
-                                    VerticalContentAlignment="Center"
+                                    Style="{StaticResource BeadInput}"
                                     Text="{Binding EditingEntry.RefNoBeadImagePath, UpdateSourceTrigger=LostFocus}"
-                                    ToolTip="自动提取中心线的「参考图差分」基准（P6：差分 σ=0.96px 最紧）。空 = 提取回退 black-hat（覆盖度较差）" />
+                                    ToolTip="自动提取中心线的「参考图差分」基准（P6：差分 σ=0.96px 最紧）。空 = 提取回退 black-hat" />
                                 <TextBlock
-                                    Margin="0,8,0,0"
-                                    Style="{StaticResource PluginFieldLabel}"
-                                    Text="提取用良品图路径"
-                                    TextWrapping="Wrap" />
+                                    Margin="0,7,0,0"
+                                    Style="{StaticResource BeadFieldLabel}"
+                                    Text="提取用良品图路径" />
                                 <TextBox
                                     Margin="0,4,0,0"
-                                    VerticalContentAlignment="Center"
+                                    Style="{StaticResource BeadInput}"
                                     Text="{Binding ExtractImagePath, UpdateSourceTrigger=LostFocus}"
                                     ToolTip="「自动提取」的输入：一张胶路完整、位姿与参考一致的良品图（教学会话数据，不随配方保存）" />
+                                <TextBlock
+                                    Margin="0,7,0,0"
+                                    Style="{StaticResource BeadFieldLabel}"
+                                    Text="抽稀目标点数" />
+                                <TextBox
+                                    x:Name="ExtractTargetPointsBox"
+                                    Margin="0,4,0,0"
+                                    Style="{StaticResource BeadInput}"
+                                    ToolTip="「自动提取」抽稀后的点数（10~500，默认 40）。40~80 点对检出几乎无影响，点数越多画布上越密">
+                                    <TextBox.Text>
+                                        <Binding Path="ExtractTargetPoints" UpdateSourceTrigger="LostFocus">
+                                            <Binding.ValidationRules>
+                                                <cv:NumberValidationRule
+                                                    FieldName="抽稀目标点数"
+                                                    IntegerOnly="True"
+                                                    Max="500"
+                                                    Min="10" />
+                                            </Binding.ValidationRules>
+                                        </Binding>
+                                    </TextBox.Text>
+                                </TextBox>
+                                <TextBlock
+                                    Margin="0,4,0,0"
+                                    Style="{StaticResource BeadHint}"
+                                    Text="仅本次配置会话生效，不落盘：重新打开配置界面回到默认 40" />
                             </StackPanel>
                         </Expander>
                     </StackPanel>
                 </Border>
 
-                <!--
-                    ② 路径点列（Row / Col 可编辑）——紧跟配方库：拾取点在画布（右），核坐标/微调在这里（左），
-                    是"拾取"这一步的复核面；原来它跟配方参数挤在右列第三行，被压成只剩两个表头。
-
-                    2026-10-09 第四轮（用户真机第二问「行列数据显示不全」）：
-                    · 高度 168 固定 → MinHeight 140 / MaxHeight 286。168 那档只能看见 5 行（168-36 列头-2 边框 ÷ 25），
-                      11 个点要滚 6 行——"复核面"看不到被复核的东西就失去意义。286 = 列头 25 + 9 行 × 28 + 边框 2：
-                      11 个点滚 2 行；而「自动提取」能一次给 40 个点，MaxHeight 让它内滚、不把左列撑成长条。
-                    · 行高 24 → 28、单元格内边距 12,8 → 8,2（BeadPointCell/BeadPointHeader，见资源区）：
-                      行内可用高 25 ≥ 12px 字的排版高 18.6（14px 字也只要 21.7）→ 0 裁字。
-                      28 是"最坏情况"取值：真机上应用级还并了 Fluent 主题（离屏探针没有），
-                      真机的字号/行样式可能比探针大一号——28 让两种口径都不裁字（实测见探针 914x547 场景）。
-                    · 列宽：# 36→32（"#" 与两位数序号仍完整）、删 44→42（删按钮 MinHeight 20 才装得进 26 行）、
-                      Row/Col 给 MinWidth=84：11 字符数值（609.007488，排版宽 66.2 + 内边距 16 = 82.2）在任何分栏
-                      宽度下都不静默裁字——真装不下时宁可出横向滚动条。
-                    · CellEditEnding / OnDeletePointRowClick 接线与 ItemsSource 绑定名一个不动。
-                -->
-                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
+                <!--  ② 路径点列：紧凑复核表；与画布双向同步。  -->
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource BeadCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="② 路径点列（Row / Col 可编辑）" TextWrapping="Wrap" />
+                        <TextBlock Style="{StaticResource BeadCardTitle}" Text="② 路径点列（Row / Col 可编辑）" TextWrapping="Wrap" />
                         <DataGrid
                             MinHeight="140"
                             MaxHeight="286"
-                            Margin="{StaticResource PluginFirstRowMargin}"
+                            Margin="0,8,0,0"
+                            AlternatingRowBackground="{StaticResource DialogRowAlternateBrush}"
                             AutoGenerateColumns="False"
+                            BorderBrush="{StaticResource DialogBorderBrush}"
+                            BorderThickness="1"
                             CanUserAddRows="False"
                             CanUserDeleteRows="False"
                             CellEditEnding="OnPointCellEditEnding"
                             CellStyle="{StaticResource BeadPointCell}"
                             ColumnHeaderStyle="{StaticResource BeadPointHeader}"
+                            GridLinesVisibility="Horizontal"
                             HeadersVisibility="Column"
+                            HorizontalGridLinesBrush="{StaticResource DialogBorderLightBrush}"
                             ItemsSource="{Binding PointRows}"
+                            RowBackground="{StaticResource DialogSurfaceBrush}"
                             RowHeight="28"
                             SelectionMode="Single"
                             ToolTip="与画布双向同步：改这里=移点；画布加点/删点/拖动也会刷新本表">
@@ -400,11 +459,9 @@
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <Button
-                                                MinHeight="20"
-                                                Padding="2,1"
                                                 Click="OnDeletePointRowClick"
                                                 Content="删"
-                                                Style="{StaticResource PluginButton}"
+                                                Style="{StaticResource BeadPointDeleteButton}"
                                                 ToolTip="删除本点（可撤销）" />
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
@@ -412,85 +469,74 @@
                             </DataGrid.Columns>
                         </DataGrid>
                         <TextBlock
-                            Margin="{StaticResource PluginFirstRowMargin}"
-                            Style="{StaticResource PluginHintText}"
-                            Text="位置容差：3~5 张良品重测后定"
-                            TextWrapping="Wrap" />
+                            Margin="0,6,0,0"
+                            Style="{StaticResource BeadHint}"
+                            Text="位置容差：3~5 张良品重测后定" />
                     </StackPanel>
                 </Border>
 
                 <!--  ③ 配方参数（配方值优先，0 回落插件级）  -->
-                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource BeadCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="③ 配方参数" />
-                        <Grid Margin="{StaticResource PluginFirstRowMargin}">
+                        <TextBlock Style="{StaticResource BeadCardTitle}" Text="③ 配方参数" />
+                        <Grid Margin="0,8,0,0">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" MinWidth="56" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock
-                                VerticalAlignment="Center"
-                                Style="{StaticResource PluginFieldLabel}"
-                                Text="胶宽(px)" />
-                            <TextBox
-                                Grid.Column="1"
-                                VerticalContentAlignment="Center"
-                                Text="{Binding EditingEntry.TargetWidth, UpdateSourceTrigger=LostFocus}"
-                                ToolTip="目标胶宽（px）。P3 实测范例 15.26px。下限 6：低于它 HALCON 报 #3716（会被自动夹到 6）" />
+                            <Grid.RowDefinitions>
+                                <RowDefinition />
+                                <RowDefinition />
+                            </Grid.RowDefinitions>
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,4,7">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="胶宽(px)" />
+                                <TextBox
+                                    Margin="0,4,0,0"
+                                    Style="{StaticResource BeadInput}"
+                                    Text="{Binding EditingEntry.TargetWidth, UpdateSourceTrigger=LostFocus}"
+                                    ToolTip="目标胶宽（px）。P3 实测范例 15.26px。下限 6：低于它 HALCON 报 #3716（会被自动夹到 6）" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="4,0,0,7">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="容差(px)" />
+                                <TextBox
+                                    Margin="0,4,0,0"
+                                    Style="{StaticResource BeadInput}"
+                                    Text="{Binding EditingEntry.WidthTolerance, UpdateSourceTrigger=LostFocus}"
+                                    ToolTip="胶宽容差（px）。P12：须 ≥ 自动提取路径的偏差上界（实测 8.39px），默认 8；用 7 会过报" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,4,0">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="位置(px)" />
+                                <TextBox
+                                    Margin="0,4,0,0"
+                                    Style="{StaticResource BeadInput}"
+                                    Text="{Binding EditingEntry.PositionTolerance, UpdateSourceTrigger=LostFocus}"
+                                    ToolTip="位置容差（px）。P9：待现场良品样本标定，默认保守值 30" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="4,0,0,0">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="极性" />
+                                <ComboBox
+                                    Margin="0,4,0,0"
+                                    ItemsSource="{Binding PolarityOptions}"
+                                    SelectedItem="{Binding EditingEntry.Polarity, Mode=TwoWay}"
+                                    Style="{StaticResource BeadCombo}"
+                                    ToolTip="dark=暗胶（亮面上的一条暗线）；light=亮胶。HALCON 硬约束只支持二选一">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource PolarityName}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
                         </Grid>
-                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" MinWidth="56" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock
-                                VerticalAlignment="Center"
-                                Style="{StaticResource PluginFieldLabel}"
-                                Text="容差(px)" />
-                            <TextBox
-                                Grid.Column="1"
-                                VerticalContentAlignment="Center"
-                                Text="{Binding EditingEntry.WidthTolerance, UpdateSourceTrigger=LostFocus}"
-                                ToolTip="胶宽容差（px）。P12：须 ≥ 自动提取路径的偏差上界（实测 8.39px），默认 8；用 7 会过报" />
-                        </Grid>
-                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" MinWidth="56" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock
-                                VerticalAlignment="Center"
-                                Style="{StaticResource PluginFieldLabel}"
-                                Text="位置(px)" />
-                            <TextBox
-                                Grid.Column="1"
-                                VerticalContentAlignment="Center"
-                                Text="{Binding EditingEntry.PositionTolerance, UpdateSourceTrigger=LostFocus}"
-                                ToolTip="位置容差（px）。P9：待现场良品样本标定，默认保守值 30。上线前用 3~5 张确认良品重测偏移分布，取上界留余量" />
-                        </Grid>
-                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" MinWidth="56" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock
-                                VerticalAlignment="Center"
-                                Style="{StaticResource PluginFieldLabel}"
-                                Text="极性" />
-                            <ComboBox
-                                Grid.Column="1"
-                                Height="{StaticResource PluginControlHeight}"
-                                VerticalContentAlignment="Center"
-                                ItemsSource="{Binding PolarityOptions}"
-                                SelectedItem="{Binding EditingEntry.Polarity, Mode=TwoWay}"
-                                ToolTip="dark=暗胶（亮面上的一条暗线）；light=亮胶。HALCON 硬约束只支持二选一" />
-                        </Grid>
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            Style="{StaticResource BeadHint}"
+                            Text="胶宽下限 6；容差须 ≥ 自动提取偏差上界 8.39px" />
 
-                        <!--  高级：显式目标矩形（自动推导目标矩形未过真值断言，这里给精确兜底）  -->
                         <Expander
-                            Margin="{StaticResource PluginFieldRowMargin}"
+                            Margin="0,7,0,0"
                             Header="高级：显式目标矩形"
-                            ToolTip="「拾取矫正四点」默认按源四点外接矩形自动推导目标矩形（未过真值断言）；需要精确坐标系时在此显式指定目标矩形（行/列）">
+                            ToolTip="「拾取矫正四点」默认按源四点外接矩形自动推导目标矩形（未过真值断言）；需要精确坐标系时在此显式指定">
                             <StackPanel Margin="0,4,0,0">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -500,329 +546,393 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition />
                                         <RowDefinition />
+                                        <RowDefinition />
+                                        <RowDefinition />
                                     </Grid.RowDefinitions>
-                                    <TextBox
-                                        Grid.Row="0"
-                                        Grid.Column="0"
-                                        Margin="0,2,4,2"
-                                        ToolTip="目标矩形起始行"
-                                        Text="{Binding RectTargetR1, UpdateSourceTrigger=LostFocus}" />
-                                    <TextBox
-                                        Grid.Row="0"
-                                        Grid.Column="1"
-                                        Margin="0,2,0,2"
-                                        ToolTip="目标矩形起始列"
-                                        Text="{Binding RectTargetC1, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource BeadHint}" Text="起始行" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource BeadHint}" Text="起始列" />
                                     <TextBox
                                         Grid.Row="1"
                                         Grid.Column="0"
-                                        Margin="0,2,4,2"
-                                        ToolTip="目标矩形结束行"
-                                        Text="{Binding RectTargetR2, UpdateSourceTrigger=LostFocus}" />
+                                        Margin="0,3,4,6"
+                                        Style="{StaticResource BeadInput}"
+                                        Text="{Binding RectTargetR1, UpdateSourceTrigger=LostFocus}"
+                                        ToolTip="目标矩形起始行" />
                                     <TextBox
                                         Grid.Row="1"
                                         Grid.Column="1"
-                                        Margin="0,2,0,2"
-                                        ToolTip="目标矩形结束列"
-                                        Text="{Binding RectTargetC2, UpdateSourceTrigger=LostFocus}" />
+                                        Margin="4,3,0,6"
+                                        Style="{StaticResource BeadInput}"
+                                        Text="{Binding RectTargetC1, UpdateSourceTrigger=LostFocus}"
+                                        ToolTip="目标矩形起始列" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource BeadHint}" Text="结束行" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource BeadHint}" Text="结束列" />
+                                    <TextBox
+                                        Grid.Row="3"
+                                        Grid.Column="0"
+                                        Margin="0,3,4,0"
+                                        Style="{StaticResource BeadInput}"
+                                        Text="{Binding RectTargetR2, UpdateSourceTrigger=LostFocus}"
+                                        ToolTip="目标矩形结束行" />
+                                    <TextBox
+                                        Grid.Row="3"
+                                        Grid.Column="1"
+                                        Margin="4,3,0,0"
+                                        Style="{StaticResource BeadInput}"
+                                        Text="{Binding RectTargetC2, UpdateSourceTrigger=LostFocus}"
+                                        ToolTip="目标矩形结束列" />
                                 </Grid>
                                 <Button
                                     MinWidth="96"
-                                    Margin="0,4,0,0"
+                                    Margin="0,6,0,0"
                                     HorizontalAlignment="Left"
-                                    Click="OnApplyRectClick"
+                                    Command="{Binding ApplyRectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     Content="应用目标矩形"
-                                    Style="{StaticResource PluginButton}" />
+                                    Style="{StaticResource BeadToolbarButton}" />
                             </StackPanel>
                         </Expander>
                     </StackPanel>
                 </Border>
 
                 <!--  ④ 运行参数（插件级）  -->
-                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource BeadCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="④ 运行参数" />
-                        <Grid Margin="{StaticResource PluginFirstRowMargin}">
+                        <TextBlock Style="{StaticResource BeadCardTitle}" Text="④ 运行参数" />
+                        <Grid Margin="0,8,0,0">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock
-                                VerticalAlignment="Center"
-                                Style="{StaticResource PluginFieldLabel}"
-                                Text="对齐模式" />
-                            <ComboBox
-                                Grid.Column="1"
-                                Height="{StaticResource PluginControlHeight}"
-                                VerticalContentAlignment="Center"
-                                ItemsSource="{Binding AlignModes}"
-                                SelectedItem="{Binding AlignMode, Mode=TwoWay}"
-                                ToolTip="固定相机：不对齐；匹配位姿：接匹配插件的 AlignedImage；平面可变形：内置投影对齐（推荐）">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Converter={StaticResource EnumName}}" />
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                        </Grid>
-                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock
-                                VerticalAlignment="Center"
-                                Style="{StaticResource PluginFieldLabel}"
-                                Text="输出单位" />
-                            <ComboBox
-                                Grid.Column="1"
-                                Height="{StaticResource PluginControlHeight}"
-                                VerticalContentAlignment="Center"
-                                ItemsSource="{Binding UnitOptions}"
-                                SelectedItem="{Binding UnitOutput, Mode=TwoWay}"
-                                ToolTip="毫米 = 像素值 × 像素当量；优先接标定插件的 Transform 端口，回退「像素当量」参数；两者皆无则执行失败（不静默按像素输出）">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Converter={StaticResource EnumName}}" />
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                        </Grid>
-                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock
-                                VerticalAlignment="Center"
-                                Style="{StaticResource PluginFieldLabel}"
-                                Text="碎段过滤(px)" />
-                            <TextBox
-                                Grid.Column="1"
-                                VerticalContentAlignment="Center"
-                                Text="{Binding MinErrorLength, UpdateSourceTrigger=LostFocus}"
-                                ToolTip="错误段长度下限：短于此的碎段不计数（滤小误报）" />
-                        </Grid>
-                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock
-                                VerticalAlignment="Center"
-                                Style="{StaticResource PluginFieldLabel}"
-                                Text="显示窗口" />
-                            <ComboBox
-                                Grid.Column="1"
-                                Height="{StaticResource PluginControlHeight}"
-                                VerticalContentAlignment="Center"
-                                ItemsSource="{StaticResource ViewIndexes}"
-                                SelectedItem="{Binding DisplayViewIndex, Mode=TwoWay}"
-                                ToolTip="把标注图发布到主界面几号视图窗口（0 = 不发布）" />
+                            <Grid.RowDefinitions>
+                                <RowDefinition />
+                                <RowDefinition />
+                                <RowDefinition />
+                            </Grid.RowDefinitions>
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,4,7">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="对齐模式" />
+                                <ComboBox
+                                    Margin="0,4,0,0"
+                                    ItemsSource="{Binding AlignModes}"
+                                    SelectedItem="{Binding AlignMode, Mode=TwoWay}"
+                                    Style="{StaticResource BeadCombo}"
+                                    ToolTip="固定相机：不对齐；匹配位姿：接匹配插件的 AlignedImage；平面可变形：内置投影对齐（推荐）">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource EnumName}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="4,0,0,7">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="输出单位" />
+                                <ComboBox
+                                    Margin="0,4,0,0"
+                                    ItemsSource="{Binding UnitOptions}"
+                                    SelectedItem="{Binding UnitOutput, Mode=TwoWay}"
+                                    Style="{StaticResource BeadCombo}"
+                                    ToolTip="毫米 = 像素值 × 像素当量；优先接标定插件的 Transform 端口，回退「像素当量」参数；两者皆无则执行失败">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource EnumName}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,4,7">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="碎段过滤(px)" />
+                                <TextBox
+                                    Margin="0,4,0,0"
+                                    Style="{StaticResource BeadInput}"
+                                    Text="{Binding MinErrorLength, UpdateSourceTrigger=LostFocus}"
+                                    ToolTip="错误段长度下限：短于此的碎段不计数（滤小误报）" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="4,0,0,7">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="显示窗口" />
+                                <ComboBox
+                                    Margin="0,4,0,0"
+                                    ItemsSource="{StaticResource ViewIndexes}"
+                                    SelectedItem="{Binding DisplayViewIndex, Mode=TwoWay}"
+                                    Style="{StaticResource BeadCombo}"
+                                    ToolTip="把标注图发布到主界面几号视图窗口（0 = 不发布）">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock>
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="{Binding StringFormat=图像窗口 {0}}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding}" Value="0">
+                                                                <Setter Property="Text" Value="不显示" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,4,0">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="像素当量(mm/px)" />
+                                <TextBox
+                                    x:Name="PixelSizeMmBox"
+                                    Margin="0,4,0,0"
+                                    Style="{StaticResource BeadInput}"
+                                    ToolTip="输出单位选「毫米」且未接标定 Transform 时的兜底当量；0 = 未填（此时毫米输出会失败并提示补来源）">
+                                    <TextBox.Text>
+                                        <Binding Path="PixelSizeMm" UpdateSourceTrigger="LostFocus">
+                                            <Binding.ValidationRules>
+                                                <cv:NumberValidationRule
+                                                    FieldName="像素当量"
+                                                    Max="1000"
+                                                    Min="0" />
+                                            </Binding.ValidationRules>
+                                        </Binding>
+                                    </TextBox.Text>
+                                </TextBox>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="1" Margin="4,0,0,0" VerticalAlignment="Bottom">
+                                <CheckBox
+                                    x:Name="OutputAlignedImageBox"
+                                    Style="{StaticResource DialogCheckBox}"
+                                    Content="输出对齐图"
+                                    IsChecked="{Binding OutputAlignedImage, Mode=TwoWay}"
+                                    ToolTip="勾选后 AlignedImage 输出端口给出对齐后的图（供下游复用，省一次对齐）；取消 = 该口输出空，对齐本身照做" />
+                            </StackPanel>
                         </Grid>
                     </StackPanel>
                 </Border>
 
-                <!--  ⑤ 平面匹配搜索范围（只在换工位/相机时才需要调；默认值 = 范例实测 P2，不改也能跑）  -->
-                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
+                <!--  ⑤ 平面匹配搜索范围（只在换工位/相机时才需要调）  -->
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource BeadCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="⑤ 平面匹配搜索范围" />
-                        <!--  这里必须**就地**写 TextWrapping="Wrap"，不能只靠 PluginHintText：
-                              FluentAliases.xaml 里的同名键（Generic.xaml 最后合并、后合并者优先）
-                              只 BasedOn 了 FluentTextCaptionStyle，没有把 PluginConfigStyles 里
-                              PluginHintText 的 TextWrapping=Wrap 一起带过来 —— 结果是这段提示被排成
-                              一整行 988px（实测），在卡片右缘（~271px）被硬裁，用户只看到
-                              "…工件在视"。原来用 MaxWidth=250 兜底也无效：NoWrap 下它只压窄控件框、
-                              文字照样画到框外。就地 Wrap 才是与字典合并顺序无关的写法。  -->
+                        <TextBlock Style="{StaticResource BeadCardTitle}" Text="⑤ 平面匹配搜索范围" />
                         <TextBlock
-                            Margin="{StaticResource PluginFirstRowMargin}"
-                            Style="{StaticResource PluginHintText}"
-                            Text="仅在「平面可变形」对齐模式下生效。工件在视野里的旋转/远近超出默认范围、对齐失败（提示「平面匹配未找到匹配实例」）时才需要调大——默认值来自范例实测口径，不改也能跑。"
-                            TextWrapping="Wrap" />
-                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
+                            Margin="0,3,0,8"
+                            Style="{StaticResource BeadHint}"
+                            Text="仅「平面可变形」对齐模式生效。工件旋转/远近超出默认范围、对齐失败时才需要调大——默认值来自范例实测，不改也能跑。" />
+                        <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="88" />
+                                <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="起始角(°)" />
-                            <TextBox
-                                Grid.Column="1"
-                                VerticalContentAlignment="Center"
-                                Text="{Binding FindAngleStartDeg, UpdateSourceTrigger=LostFocus}"
-                                ToolTip="平面匹配起始角（度）。默认 -22.35°（≈ 范例 -0.39rad）；工件逆时针旋转超出范围时往负方向调" />
-                        </Grid>
-                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="88" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="角度范围(°)" />
-                            <TextBox
-                                Grid.Column="1"
-                                VerticalContentAlignment="Center"
-                                Text="{Binding FindAngleExtentDeg, UpdateSourceTrigger=LostFocus}"
-                                ToolTip="从起始角起的搜索范围（度）。默认 44.69°（≈ 范例 0.78rad）；工件旋转变大时调大" />
-                        </Grid>
-                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="88" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="缩放R最小" />
-                            <TextBox
-                                Grid.Column="1"
-                                VerticalContentAlignment="Center"
-                                Text="{Binding FindScaleRMin, UpdateSourceTrigger=LostFocus}"
-                                ToolTip="行方向最小缩放。1 = 不允许缩放；相机远近/工件在视野里的大小有变化时设成如 0.9" />
-                        </Grid>
-                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="88" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="缩放R最大" />
-                            <TextBox
-                                Grid.Column="1"
-                                VerticalContentAlignment="Center"
-                                Text="{Binding FindScaleRMax, UpdateSourceTrigger=LostFocus}"
-                                ToolTip="行方向最大缩放。1 = 不允许缩放；与「缩放R最小」配合给出搜索区间，如 0.9~1.1" />
-                        </Grid>
-                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="88" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="缩放C最小" />
-                            <TextBox
-                                Grid.Column="1"
-                                VerticalContentAlignment="Center"
-                                Text="{Binding FindScaleCMin, UpdateSourceTrigger=LostFocus}"
-                                ToolTip="列方向最小缩放。1 = 不允许缩放；列向尺寸变化与行向不一致时（各向异性）分开设" />
-                        </Grid>
-                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="88" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="缩放C最大" />
-                            <TextBox
-                                Grid.Column="1"
-                                VerticalContentAlignment="Center"
-                                Text="{Binding FindScaleCMax, UpdateSourceTrigger=LostFocus}"
-                                ToolTip="列方向最大缩放。与「缩放C最小」配合给出搜索区间" />
+                            <Grid.RowDefinitions>
+                                <RowDefinition />
+                                <RowDefinition />
+                                <RowDefinition />
+                                <RowDefinition />
+                            </Grid.RowDefinitions>
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,4,7">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="起始角(°)" />
+                                <TextBox
+                                    Margin="0,4,0,0"
+                                    Style="{StaticResource BeadInput}"
+                                    Text="{Binding FindAngleStartDeg, UpdateSourceTrigger=LostFocus}"
+                                    ToolTip="平面匹配起始角（度）。默认 -22.35°（≈ 范例 -0.39rad）" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="4,0,0,7">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="角度范围(°)" />
+                                <TextBox
+                                    Margin="0,4,0,0"
+                                    Style="{StaticResource BeadInput}"
+                                    Text="{Binding FindAngleExtentDeg, UpdateSourceTrigger=LostFocus}"
+                                    ToolTip="从起始角起的搜索范围（度）。默认 44.69°（≈ 范例 0.78rad）" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,4,7">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="缩放R最小" />
+                                <TextBox
+                                    Margin="0,4,0,0"
+                                    Style="{StaticResource BeadInput}"
+                                    Text="{Binding FindScaleRMin, UpdateSourceTrigger=LostFocus}"
+                                    ToolTip="行方向最小缩放。1 = 不允许缩放；相机远近/工件大小有变化时设成如 0.9" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="4,0,0,7">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="缩放R最大" />
+                                <TextBox
+                                    Margin="0,4,0,0"
+                                    Style="{StaticResource BeadInput}"
+                                    Text="{Binding FindScaleRMax, UpdateSourceTrigger=LostFocus}"
+                                    ToolTip="行方向最大缩放。1 = 不允许缩放；与「缩放R最小」配合给出搜索区间，如 0.9~1.1" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,4,7">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="缩放C最小" />
+                                <TextBox
+                                    Margin="0,4,0,0"
+                                    Style="{StaticResource BeadInput}"
+                                    Text="{Binding FindScaleCMin, UpdateSourceTrigger=LostFocus}"
+                                    ToolTip="列方向最小缩放。1 = 不允许缩放；列向尺寸变化与行向不一致时（各向异性）分开设" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="1" Margin="4,0,0,7">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="缩放C最大" />
+                                <TextBox
+                                    Margin="0,4,0,0"
+                                    Style="{StaticResource BeadInput}"
+                                    Text="{Binding FindScaleCMax, UpdateSourceTrigger=LostFocus}"
+                                    ToolTip="列方向最大缩放。与「缩放C最小」配合给出搜索区间" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,4,0">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="最低分数" />
+                                <TextBox
+                                    x:Name="MinScoreBox"
+                                    Margin="0,4,0,0"
+                                    Style="{StaticResource BeadInput}"
+                                    ToolTip="平面匹配最低分数（0~1，默认 0.4）：匹配得分低于它就判对齐失败。调高 = 更严（可能漏对齐），调低 = 更宽容">
+                                    <TextBox.Text>
+                                        <Binding Path="MinScore" UpdateSourceTrigger="LostFocus">
+                                            <Binding.ValidationRules>
+                                                <cv:NumberValidationRule
+                                                    FieldName="最低分数"
+                                                    Max="1"
+                                                    Min="0" />
+                                            </Binding.ValidationRules>
+                                        </Binding>
+                                    </TextBox.Text>
+                                </TextBox>
+                            </StackPanel>
+                            <StackPanel Grid.Row="3" Grid.Column="1" Margin="4,0,0,0">
+                                <TextBlock Style="{StaticResource BeadFieldLabel}" Text="金字塔层数" />
+                                <TextBox
+                                    x:Name="PlanarNumLevelsBox"
+                                    Margin="0,4,0,0"
+                                    Style="{StaticResource BeadInput}"
+                                    ToolTip="平面匹配金字塔层数（1~10，默认 5）：层数越多越快但越小/越模糊的工件越容易漏；范围不合法会被夹到 1~10">
+                                    <TextBox.Text>
+                                        <Binding Path="PlanarNumLevels" UpdateSourceTrigger="LostFocus">
+                                            <Binding.ValidationRules>
+                                                <cv:NumberValidationRule
+                                                    FieldName="金字塔层数"
+                                                    IntegerOnly="True"
+                                                    Max="10"
+                                                    Min="1" />
+                                            </Binding.ValidationRules>
+                                        </Binding>
+                                    </TextBox.Text>
+                                </TextBox>
+                            </StackPanel>
                         </Grid>
                     </StackPanel>
                 </Border>
 
-                <!--
-                    预览（学习叠加 / 试运行标注）——"结果复核"面，放在设置栏靠后（看完就走）。
-                    无图时整卡折叠（原来在右列是一条 82px 的黑条 + 标题，白占视口高度又不给信息）。
-                    给固定 Height=200：ImageReadOnly 是"填满父容器"的画布控件（模板里就一个 Grid+Black），
-                    不给高度时在 Auto 行里自然高 = 0，等于永远看不到——这是它此前一直"像个黑缝"的根因。
-                -->
-                <Border Margin="{StaticResource PluginSectionMargin}">
-                    <Border.Style>
-                        <Style BasedOn="{StaticResource PluginCard}" TargetType="Border">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding PreviewImage}" Value="{x:Null}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
+                <!--  结果预览：ImageReadOnly 常驻；无图时只盖 WPF 覆盖层，绝不折叠控件。  -->
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource BeadCard}">
                     <StackPanel>
+                        <TextBlock Style="{StaticResource BeadCardTitle}" Text="结果预览" />
                         <TextBlock
-                            Style="{StaticResource PluginCardTitle}"
-                            Text="预览（学习叠加 / 试运行标注）"
-                            TextWrapping="Wrap" />
-                        <h:ImageReadOnly
-                            Height="200"
-                            Margin="{StaticResource PluginFirstRowMargin}"
-                            HImage="{Binding PreviewImage, Mode=OneWay}"
-                            ToolTip="学习完成后显示底图 + 参考路径叠加；试运行后显示标注图（在左列设置栏内，往上滚可见）" />
+                            Margin="0,3,0,7"
+                            Style="{StaticResource BeadHint}"
+                            Text="学习叠加 / 试运行标注" />
+                        <Grid Height="160">
+                            <Border
+                                Background="{StaticResource PluginPreviewCanvasBrush}"
+                                BorderBrush="{StaticResource PluginPreviewBorderBrush}"
+                                BorderThickness="1"
+                                ClipToBounds="True"
+                                CornerRadius="8">
+                                <h:ImageReadOnly
+                                    HImage="{Binding PreviewImage, Mode=OneWay}"
+                                    ToolTip="学习完成后显示底图 + 参考路径叠加；试运行后显示标注图" />
+                            </Border>
+                            <Border
+                                Background="{StaticResource PluginPreviewCanvasBrush}"
+                                BorderBrush="{StaticResource PluginPreviewBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding PreviewImage}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Margin="14">
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        FontSize="12"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource PluginPreviewTextBrush}"
+                                        Text="暂无结果图" />
+                                    <TextBlock
+                                        Margin="0,3,0,0"
+                                        HorizontalAlignment="Center"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource PluginPreviewMutedTextBrush}"
+                                        Text="学习或试运行后在这里显示叠加图 / 标注图"
+                                        TextAlignment="Center"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
                     </StackPanel>
                 </Border>
 
-                <!--  怎么用（就地 Wrap：同 ⑤ 卡，样式里的 TextWrapping 被 FluentAliases 的同名键顶掉）  -->
-                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
+                <!--  怎么用  -->
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource BeadCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="怎么用" />
+                        <TextBlock Style="{StaticResource BeadCardTitle}" Text="怎么用" />
                         <TextBlock
-                            Margin="{StaticResource PluginFirstRowMargin}"
-                            Style="{StaticResource PluginHintText}"
-                            Text="① 新增配方 → 点「载入」选择参考图文件（或先填路径）；② 在画布上左键逐点拾取胶路中心线（或填良品图路径点「自动提取」后微调）；③ 点「学习」；④ 可选：拾取矫正四点提升对齐稳定性；⑤ 试运行看标注图。"
-                            TextWrapping="Wrap" />
+                            Margin="0,5,0,0"
+                            Style="{StaticResource BeadHint}"
+                            Text="① 新增配方 → 点「载入」选择参考图文件（或先填路径）；② 在画布上左键逐点拾取胶路中心线（或填良品图路径点「自动提取」后微调）；③ 点「学习」；④ 可选：拾取矫正四点提升对齐稳定性；⑤ 试运行看标注图。" />
                         <TextBlock
-                            Margin="{StaticResource PluginFieldRowMargin}"
-                            Style="{StaticResource PluginHintText}"
-                            Text="设了矫正四点后，底图会切到矫正后的参考图——路径点列存的是矫正后坐标系的坐标，画布拾取与运行期检测始终同坐标系。"
-                            TextWrapping="Wrap" />
+                            Margin="0,5,0,0"
+                            Style="{StaticResource BeadHint}"
+                            Text="设了矫正四点后，底图会切到矫正后的参考图——路径点列存的是矫正后坐标系的坐标，画布拾取与运行期检测始终同坐标系。" />
                     </StackPanel>
                 </Border>
             </StackPanel>
         </ScrollViewer>
 
-        <!--  分栏拖拽条：默认宽度下画布已达标（见文件头实测），它只是"用户想再给画布让宽"的入口  -->
-        <GridSplitter
-            Grid.Column="1"
-            Style="{StaticResource BeadColumnSplitter}"
-            ToolTip="拖动调整「设置栏 / 画布」宽度：画布要更大就往左拖" />
-
-        <!--  ================= 右：工作区（工具条 + 结论横幅 + 画布 hero）+ 状态条 =================
-              行优先级（第三轮结构）：
-                第 0 行 *    工作区卡 —— 画布是唯一的主操作面，占满余高；
-                第 1 行 Auto 状态条 —— StatusMessage + BaseImageHint 常驻，两行内完整可见（旧的"第 4 行"）。
-              右列不再有第 3/4 件东西：参数、点列、预览全部在左列（见文件头"为什么这么排"）。  -->
-        <Grid Grid.Column="2" Margin="4,0,0,0">
+        <!--  ================= 右：画布工作区 =================  -->
+        <Grid Grid.Column="1" Margin="8,0,0,0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" MinHeight="{StaticResource PluginCanvasMinHeight}" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!--
-                工作区卡 = 工具条（WrapPanel，窄了换行、绝不裁字）+ 结论横幅（学习/提取/矫正的即时结论）
-                + 画布标题行（标题 / 点数 / 颜色图例 / 适应图片）+ 操作提示一行 + 画布 hero。
-                工具条与画布同卡：谁管谁一目了然，也省掉一层卡间距与卡内边距（本视图最稀缺的资源是纵向像素）。
-            -->
             <Border Grid.Row="0" Style="{StaticResource BeadWorkspaceCard}">
                 <DockPanel>
-                    <!--  工具条：6 个按钮。点数原来独占工具条一行（24px），已并进画布标题行（那里本来就有标题）。
-                          宽度纪律照旧：WrapPanel 换行不裁字（预算 476px / 914x547 下可用 526px → 一行放下）。  -->
+                    <!--  工具栏：6 个动作 + 适应图片（在画布标题行）。窄了换行、不裁字。  -->
                     <WrapPanel DockPanel.Dock="Top">
                         <Button
-                            Margin="0,0,6,4"
-                            Click="OnLearnClick"
+                            Margin="0,0,5,4"
+                            Command="{Binding LearnCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             Content="学习"
-                            Style="{StaticResource PluginAccentButton}"
+                            IsEnabled="{Binding HasEnoughPoints}"
+                            Style="{StaticResource BeadAccentButton}"
                             ToolTip="建胶路检测模型并记录学习指纹（需要 ≥ 2 个点；「平面可变形」对齐还需参考图）"
-                            ToolTipService.ShowOnDisabled="True"
-                            IsEnabled="{Binding HasEnoughPoints}" />
+                            ToolTipService.ShowOnDisabled="True" />
                         <Button
                             MinWidth="76"
-                            Margin="0,0,6,4"
-                            Click="OnAutoExtractClick"
+                            Margin="0,0,5,4"
+                            Command="{Binding AutoExtractCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             Content="自动提取"
                             Style="{StaticResource BeadToolbarButton}"
                             ToolTip="从良品图自动提取胶路中心线（差分 → 骨架 → 树直径合并 → 抽稀 40 点）。覆盖当前点列前会先确认；失败不写空点列" />
                         <Button
                             MinWidth="52"
-                            Margin="0,0,6,4"
-                            Click="OnUndoClick"
+                            Margin="0,0,5,4"
+                            Command="{Binding UndoCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             Content="撤销"
                             Style="{StaticResource BeadToolbarButton}"
                             ToolTip="撤销上一步拾取（Ctrl+Z）" />
                         <Button
                             MinWidth="64"
-                            Margin="0,0,6,4"
-                            Click="OnClearPointsClick"
+                            Margin="0,0,5,4"
+                            Command="{Binding ClearPointsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             Content="清空点列"
+                            IsEnabled="{Binding HasAnyPoints}"
                             Style="{StaticResource BeadToolbarButton}"
-                            ToolTip="清空当前点列（可撤销）"
-                            IsEnabled="{Binding HasAnyPoints}" />
+                            ToolTip="清空当前点列（可撤销）" />
                         <Button
                             MinWidth="96"
-                            Margin="0,0,6,4"
-                            Click="OnToggleQuadPickClick"
+                            Margin="0,0,5,4"
+                            Command="{Binding ToggleQuadPickCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             Style="{StaticResource BeadToolbarButton}"
                             ToolTip="在参考图上点选平面区域四角（§6.3）：4 点后自动记录，目标矩形自动推导；再点一次取消">
                             <TextBlock Text="拾取矫正四点">
@@ -840,53 +950,45 @@
                         </Button>
                         <Button
                             MinWidth="64"
-                            Margin="0,0,6,4"
-                            Click="OnClearQuadClick"
+                            Margin="0,0,5,4"
+                            Command="{Binding ClearQuadCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             Content="清除矫正"
                             Style="{StaticResource BeadToolbarButton}"
                             ToolTip="清除矫正四点：RectifyQuadJson 为空 = 跳过矫正" />
                     </WrapPanel>
 
-                    <!--
-                        操作结果横幅（用户实测 2026-10-07「点学习没有任何反应」的修复）：
-                        学习结论原来只写底部状态栏 / 右列预览 / 左侧配方库行——三处都在用户当前视口之外。
-                        本块挂在工作区卡顶部（按钮正下方），任何窗口尺寸下都在视口内，
-                        点完「学习」立刻就看见；ActionBanner 为空时整块折叠（不占高度）。
-                        着色复用 ActionBannerLevel（绿=成功 / 橙=提醒 / 红=失败），与状态条同一口径。
-                        内边距 10,6（比 PluginStatusPanel 的 10,8 再紧 4px）：它是本视图最贵的一块浮动内容，
-                        出现时必须尽量少挤画布。
-                    -->
+                    <!--  操作结果横幅：学习 / 自动提取 / 矫正的结论必须落在不滚动就能看见的地方。  -->
                     <Border
                         DockPanel.Dock="Top"
                         Margin="0,2,0,0"
                         Visibility="{Binding HasActionBanner, Converter={StaticResource BoolToVis}}">
                         <Border.Style>
-                            <Style BasedOn="{StaticResource PluginStatusPanel}" TargetType="Border">
-                                <Setter Property="Padding" Value="10,4" />
-                                <Setter Property="Background" Value="{StaticResource PluginOkSubtleBrush}" />
+                            <Style BasedOn="{StaticResource BeadBanner}" TargetType="Border">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding ActionBannerLevel}" Value="{x:Static local:StatusLevel.Warning}">
-                                        <Setter Property="Background" Value="{StaticResource PluginWarningSubtleBrush}" />
+                                        <Setter Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+                                        <Setter Property="BorderBrush" Value="{StaticResource DialogWarningBorderBrush}" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding ActionBannerLevel}" Value="{x:Static local:StatusLevel.Error}">
-                                        <Setter Property="Background" Value="{StaticResource PluginErrorSubtleBrush}" />
+                                        <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                                        <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBorderBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </Border.Style>
                         <TextBlock
-                            FontSize="{StaticResource PluginLabelFontSize}"
+                            FontSize="11"
                             Text="{Binding ActionBanner}"
                             TextWrapping="Wrap">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{StaticResource PluginOkBrush}" />
+                                    <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding ActionBannerLevel}" Value="{x:Static local:StatusLevel.Warning}">
-                                            <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
+                                            <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding ActionBannerLevel}" Value="{x:Static local:StatusLevel.Error}">
-                                            <Setter Property="Foreground" Value="{StaticResource PluginErrorBrush}" />
+                                            <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -894,118 +996,122 @@
                         </TextBlock>
                     </Border>
 
-                    <!--
-                        画布标题行：标题 + 点数 + 适应图片，一行（窄了就整项换行，WrapPanel 不裁字）。
-                        · 点数从工具条搬来这里：它描述的就是画布上的拾取结果（且决定「学习」按钮能不能按），
-                          原来占工具条一整行（~24px）只放这一句提示。
-                        · 颜色图例与"插到最近线段之间"这些细节写在画布的悬停说明与下面那行操作提示里
-                          （标题行塞进图例后在 914 宽下会折成两行 = 白花 22px 画布高，实测）。
-                        · 「适应图片」是画布视图操作，从工具条搬来画布卡（工具条少一个按钮 = 一行放得下的余量；
-                          旧验收线"620 宽按钮不裁切"由 WrapPanel 继续守着）。
-                          就地 TextWrapping="Wrap" 的理由同 ⑤ 卡：FluentAliases 的同名键没带 TextWrapping。
-                    -->
+                    <!--  画布标题行：标题 + 点数 + 适应图片。  -->
                     <WrapPanel DockPanel.Dock="Top" Margin="0,6,0,0">
                         <TextBlock
                             VerticalAlignment="Center"
-                            Style="{StaticResource PluginCardTitle}"
+                            Style="{StaticResource BeadCardTitle}"
                             Text="胶路中心线拾取" />
                         <TextBlock
                             Margin="10,0,0,0"
                             VerticalAlignment="Center"
-                            Style="{StaticResource PluginHintText}"
-                            Text="{Binding PointCountText}"
-                            TextWrapping="Wrap" />
+                            Style="{StaticResource BeadHint}"
+                            Text="{Binding PointCountText}" />
                         <Button
                             MinWidth="64"
                             Margin="12,0,0,0"
                             VerticalAlignment="Center"
-                            Click="OnFitClick"
+                            Command="{Binding FitCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             Content="适应图片"
                             Style="{StaticResource BeadToolbarButton}"
                             ToolTip="画布铺满整幅底图（滚轮缩放）" />
                     </WrapPanel>
 
-                    <!--  操作提示一行（原来两行写死）：左键加点 / 右键删点 / 拖动改坐标 / 撤销 / 缩放 + 颜色图例，
-                          一行放得下（就地 Wrap，窄窗口自动换行，理由同上）。
-                          完整口径（插到最近线段之间、右键=删最近点）在画布的悬停说明里，抬手就能看到。  -->
                     <TextBlock
                         DockPanel.Dock="Top"
-                        Margin="0,2,0,2"
-                        Style="{StaticResource PluginHintText}"
-                        Text="左键加点｜右键删点｜拖动改坐标｜Ctrl+Z｜滚轮缩放｜橙=路径 红=点 青=四角"
-                        TextWrapping="Wrap" />
+                        Margin="0,2,0,3"
+                        Style="{StaticResource BeadHint}"
+                        Text="左键加点｜右键删点｜拖动改坐标｜Ctrl+Z｜滚轮缩放｜橙=路径 红=点 青=四角" />
 
                     <Grid>
-                        <!--  MinHeight=120：极矮窗口（620x540 一档）下画布不许塌成 0——图完全看不见等于没画布。
-                              常规尺寸（含用户 914x547 的 342）都远高于它，这个下限平时不参与布局。  -->
+                        <!--  MinHeight=120：极矮窗口下画布不许塌成 0；常规尺寸远高于它。  -->
                         <h:ImageEdit
                             x:Name="Canvas"
                             MinHeight="120"
                             Annotations="{Binding PathAnnotations, Mode=OneWay}"
                             HImage="{Binding DisplayImage, Mode=OneWay}"
                             ToolTip="橙色=参考路径，红色=点，青色=矫正四点；左键加点会插到最近线段之间，右键删最近点，拖动可改坐标（Ctrl+Z 撤销）" />
-                        <!--  空态：无底图时中央给一句怎么办（不给提示的话就是一块黑屏，用户不知道下一步做什么）。
-                              分三行写死：窗口窄时画布只有 200 出头宽，整句放一行会被画布边界切掉两头
-                              （实测：不带换行的整句在 620 窗口下渲染成 379px 宽，左右都露不出去）。  -->
+                        <!--  空态：无底图时中央给一句怎么办；画布控件本身仍常驻。  -->
                         <TextBlock
                             Margin="16"
-                            MaxWidth="200"
+                            MaxWidth="220"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
-                            Style="{StaticResource PluginHintText}"
+                            FontSize="11"
+                            Foreground="{StaticResource PluginPreviewMutedTextBrush}"
+                            IsHitTestVisible="False"
                             TextAlignment="Center"
-                            Visibility="{Binding IsCanvasEmpty, Converter={StaticResource BoolToVis}}"><Run Text="尚未载入图像" /><LineBreak /><Run Text="绑定输入图，或" /><LineBreak /><Run Text="点「载入」选择参考图文件" /></TextBlock>
+                            TextWrapping="Wrap"
+                            Visibility="{Binding IsCanvasEmpty, Converter={StaticResource BoolToVis}}"
+                            Text="尚未载入图像&#10;绑定输入图，或点「载入」选择参考图文件" />
                     </Grid>
                 </DockPanel>
             </Border>
 
-            <!--
-                状态条（右列最后一行 = 旧的"第 4 行"）：StatusMessage + 底图来源，两行内完整可见，
-                不再跟预览卡抢宽度（预览已迁左列）。宽度给满后长句少折一行，纵向也更省。
-            -->
+            <!--  状态条：StatusMessage + BaseImageHint，两行内完整可见。  -->
             <Border
                 Grid.Row="1"
-                Margin="0,6,0,0"
-                Style="{StaticResource PluginStatusPanel}"
+                Margin="0,8,0,0"
+                Style="{StaticResource BeadStatusPanel}"
                 VerticalAlignment="Stretch">
-                <StackPanel>
-                    <TextBlock
-                        FontSize="{StaticResource PluginLabelFontSize}"
-                        Text="{Binding StatusMessage}"
-                        TextWrapping="Wrap">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="{StaticResource PluginOkBrush}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Ellipse
+                        Width="7"
+                        Height="7"
+                        Margin="0,5,8,0"
+                        VerticalAlignment="Top">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Warning}">
-                                        <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
+                                        <Setter Property="Fill" Value="{StaticResource DialogWarningBrush}" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Error}">
-                                        <Setter Property="Foreground" Value="{StaticResource PluginErrorBrush}" />
+                                        <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <!--  底图来源常驻第二行：当前画布铺的是参考图还是输入图兜底，一眼可见
-                          （输入图兜底 = Warning 色：那是"还没设参考图"的信号）  -->
-                    <TextBlock
-                        Margin="0,4,0,0"
-                        FontSize="{StaticResource PluginLabelFontSize}"
-                        Text="{Binding BaseImageHint}"
-                        TextWrapping="Wrap">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="{StaticResource PluginHintTextBrush}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding BaseImageLevel}" Value="{x:Static local:StatusLevel.Warning}">
-                                        <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </StackPanel>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock FontSize="11" Text="{Binding StatusMessage}" TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Warning}">
+                                            <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Error}">
+                                            <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock
+                            Margin="0,3,0,0"
+                            FontSize="10.5"
+                            Text="{Binding BaseImageHint}"
+                            TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding BaseImageLevel}" Value="{x:Static local:StatusLevel.Warning}">
+                                            <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Grid>
             </Border>
         </Grid>
     </Grid>

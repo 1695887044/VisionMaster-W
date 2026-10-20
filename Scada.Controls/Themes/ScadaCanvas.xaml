@@ -14,7 +14,7 @@
             PART_DiagnosticLayer 诊断层（运行态角标，S6：哪个图元没接上变量、哪个值转不过去）
 
         两个容易忽略但会直接坏事的细节：
-        ① 外层 Border 的画刷必须接 TemplateBinding Background（样式给的 #FF141414）：
+        ① 外层 Border 的画刷必须接 TemplateBinding Background（样式给的 HmiCanvasBackgroundBrush）：
            一是命中测试——WPF 里 null 画刷不参与命中，"点空白取消选中"就没了实现依据；
            二是视口底色——写死 Transparent 时画面外的区域一片空白，操作员看不出"画面边界在哪"。
         ② 外层 Border 的 ClipToBounds="True"：缩放平移后画面会跑到视口外，
@@ -29,10 +29,14 @@
         Canvas 给子元素的测量与排布约束都是无限大，槽位 = 子元素自身尺寸，画面才铺得开。
         溢出由外层 Border 的 ClipToBounds 收口，不会盖到相邻面板。
     -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
     <Style TargetType="{x:Type local:ScadaCanvas}">
         <Setter Property="Focusable" Value="True" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
-        <Setter Property="Background" Value="#FF141414" />
+        <Setter Property="Background" Value="{StaticResource HmiCanvasBackgroundBrush}" />
 
         <Setter Property="Template">
             <Setter.Value>

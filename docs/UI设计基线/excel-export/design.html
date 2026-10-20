@@ -1,0 +1,849 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Excel 报表 · 配置窗口 · 设计基线 v1</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #ee-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="ee-design-root">
+  <style>
+    #ee-design-root{
+      color-scheme: light dark;
+      --ee-surface:#FFFFFF;
+      --ee-surface-2:#F8FAFC;
+      --ee-surface-3:#F1F5F9;
+      --ee-border:#E2E8F0;
+      --ee-border-soft:#EEF2F7;
+      --ee-border-strong:#CBD5E1;
+      --ee-text:#0F172A;
+      --ee-text-2:#475569;
+      --ee-text-3:#94A3B8;
+      --ee-text-4:#64748B;
+      --ee-primary:#0EA5E9;
+      --ee-primary-strong:#0284C7;
+      --ee-primary-text:#0369A1;
+      --ee-primary-soft:#F0F9FF;
+      --ee-primary-light:#E0F2FE;
+      --ee-primary-border:#BAE6FD;
+      --ee-success:#22C55E;
+      --ee-success-text:#15803D;
+      --ee-success-soft:#F0FDF4;
+      --ee-success-border:#BBF7D0;
+      --ee-danger:#EF4444;
+      --ee-danger-text:#B91C1C;
+      --ee-danger-soft:#FEF2F2;
+      --ee-danger-border:#FECACA;
+      --ee-warning:#F59E0B;
+      --ee-warning-text:#B45309;
+      --ee-warning-soft:#FFF4E5;
+      --ee-warning-border:#FDE68A;
+      --ee-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --ee-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --ee-radius-sm:6px;
+      --ee-radius-md:8px;
+      --ee-radius-lg:10px;
+      --ee-radius-xl:12px;
+      --ee-radius-window:16px;
+      --ee-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--ee-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #ee-design-root *{box-sizing:border-box;}
+    #ee-design-root button,
+    #ee-design-root input,
+    #ee-design-root select,
+    #ee-design-root textarea{font-family:inherit;}
+    #ee-design-root button{color:inherit;}
+    #ee-design-root [hidden]{display:none !important;}
+    #ee-design-root :focus-visible{outline:2px solid var(--ee-primary);outline-offset:2px;}
+
+    #ee-design-root .ee-page{
+      max-width:1360px;margin:0 auto;padding:24px 24px 44px;background:transparent;
+    }
+    #ee-design-root .ee-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #ee-design-root .ee-page-title-row h1{
+      margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--ee-text);
+    }
+    #ee-design-root .ee-ver{
+      display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+      background:var(--ee-primary-light);color:var(--ee-primary-text);
+      font-size:11px;font-weight:700;letter-spacing:.02em;
+    }
+    #ee-design-root .ee-page-sub{
+      margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--ee-text-2);
+    }
+    #ee-design-root .ee-page-sub b{color:var(--ee-text);font-weight:600;}
+    #ee-design-root .ee-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #ee-design-root .ee-demo-group{display:flex;align-items:center;gap:8px;}
+    #ee-design-root .ee-demo-label{font-size:11.5px;color:var(--ee-text-4);white-space:nowrap;}
+    #ee-design-root .ee-seg{
+      display:inline-flex;gap:2px;padding:2px;border-radius:var(--ee-radius-md);
+      background:var(--ee-surface-3);
+    }
+    #ee-design-root .ee-seg button{
+      height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;
+      color:var(--ee-text-2);font-size:11.5px;line-height:1;cursor:pointer;
+      transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;
+    }
+    #ee-design-root .ee-seg button:hover{color:var(--ee-text);}
+    #ee-design-root .ee-seg button.is-on{
+      background:#FFFFFF;color:var(--ee-text);font-weight:600;
+      box-shadow:0 1px 2px rgba(15,23,42,.10);
+    }
+    #ee-design-root .ee-scope{
+      display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;
+      font-size:11.5px;line-height:1.55;color:var(--ee-text-2);
+    }
+    #ee-design-root .ee-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--ee-warning-text);}
+    #ee-design-root .ee-scope b{color:var(--ee-text);font-weight:600;}
+
+    /* ================= 产品窗口 ================= */
+    #ee-design-root .ee-window{
+      width:960px;max-width:100%;height:680px;margin:0 auto;
+      display:flex;flex-direction:column;overflow:hidden;
+      background:var(--ee-surface);border-radius:var(--ee-radius-window);
+      box-shadow:var(--ee-shadow-window);transition:width 200ms ease;
+    }
+    #ee-design-root .ee-window.is-narrow{width:640px;}
+
+    /* ---- 标题栏（宿主外壳） ---- */
+    #ee-design-root .ee-titlebar{
+      height:72px;flex:none;display:flex;align-items:center;
+      padding:0 20px;background:var(--ee-surface);
+      border-bottom:1px solid var(--ee-border-soft);
+    }
+    #ee-design-root .ee-app-icon{
+      width:40px;height:40px;flex:none;border-radius:12px;
+      display:flex;align-items:center;justify-content:center;
+      background:var(--ee-primary-light);color:var(--ee-primary-text);
+    }
+    #ee-design-root .ee-app-icon svg{width:19px;height:19px;}
+    #ee-design-root .ee-title-text{margin-left:12px;min-width:0;flex:1;}
+    #ee-design-root .ee-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--ee-text);}
+    #ee-design-root .ee-subtitle{
+      margin-top:2px;font-size:12px;line-height:1.4;color:var(--ee-text-2);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ee-design-root .ee-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+
+    /* ---- 内容：两栏工作台 ---- */
+    #ee-design-root .ee-content{
+      flex:1;min-height:0;display:grid;
+      grid-template-columns:1.45fr minmax(0,1fr);
+      gap:16px;padding:16px 20px 20px;background:var(--ee-surface);
+    }
+    #ee-design-root .ee-window.is-narrow .ee-content{
+      grid-template-columns:1.45fr minmax(0,1fr);
+      gap:12px;padding:14px 16px 16px;
+    }
+    #ee-design-root .ee-col{
+      min-width:0;min-height:0;overflow-y:auto;overflow-x:hidden;
+      display:flex;flex-direction:column;gap:12px;
+      scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;
+      padding-right:2px;
+    }
+    #ee-design-root .ee-col::-webkit-scrollbar{width:8px;}
+    #ee-design-root .ee-col::-webkit-scrollbar-thumb{
+      background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;
+    }
+
+    /* ---- 卡片 ---- */
+    #ee-design-root .ee-card{
+      flex:none;padding:16px;border:1px solid var(--ee-border);
+      border-radius:var(--ee-radius-xl);background:var(--ee-surface);
+    }
+    #ee-design-root .ee-window.is-narrow .ee-card{padding:14px;}
+    #ee-design-root .ee-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+    #ee-design-root .ee-card-title{
+      display:flex;align-items:center;gap:8px;
+      font-size:13.5px;font-weight:600;line-height:1.35;color:var(--ee-text);
+    }
+    #ee-design-root .ee-card-index{
+      width:22px;height:22px;flex:none;border-radius:7px;
+      display:inline-flex;align-items:center;justify-content:center;
+      background:var(--ee-primary-light);color:var(--ee-primary-text);
+      font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;
+    }
+    #ee-design-root .ee-card-hint{
+      flex:none;font-size:10.5px;line-height:1.4;color:var(--ee-text-3);white-space:nowrap;
+    }
+    #ee-design-root .ee-card-sub{
+      margin:3px 0 10px;font-size:11.5px;line-height:1.5;color:var(--ee-text-4);
+    }
+
+    /* ---- 表单 ---- */
+    #ee-design-root .ee-field{margin-bottom:10px;}
+    #ee-design-root .ee-field:last-child{margin-bottom:0;}
+    #ee-design-root .ee-label{
+      display:flex;align-items:center;gap:5px;margin-bottom:6px;
+      font-size:12px;font-weight:500;line-height:1.3;color:var(--ee-text-2);
+    }
+    #ee-design-root .ee-label .ee-link-hint{width:12px;height:12px;color:var(--ee-text-3);margin-left:2px;}
+    #ee-design-root .ee-input,
+    #ee-design-root .ee-select{
+      width:100%;height:36px;padding:0 10px;
+      border:1px solid var(--ee-border);border-radius:var(--ee-radius-md);
+      background:var(--ee-surface);color:var(--ee-text);
+      font-size:12.5px;line-height:1;outline:none;
+      transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;
+    }
+    #ee-design-root .ee-input::placeholder{color:var(--ee-text-3);}
+    #ee-design-root .ee-input:hover,
+    #ee-design-root .ee-select:hover{border-color:var(--ee-border-strong);}
+    #ee-design-root .ee-input:focus,
+    #ee-design-root .ee-select:focus{
+      border-color:var(--ee-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);
+    }
+    #ee-design-root .ee-input:disabled{background:var(--ee-surface-3);color:var(--ee-text-3);cursor:not-allowed;}
+    #ee-design-root .ee-select{appearance:none;-webkit-appearance:none;padding-right:30px;cursor:pointer;}
+    #ee-design-root .ee-select-wrap{position:relative;}
+    #ee-design-root .ee-select-wrap > svg{
+      position:absolute;right:10px;top:50%;transform:translateY(-50%);
+      width:13px;height:13px;color:var(--ee-text-3);pointer-events:none;
+    }
+    #ee-design-root .ee-help{
+      display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;
+      font-size:11.5px;line-height:1.5;color:var(--ee-text-4);
+    }
+    #ee-design-root .ee-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--ee-text-3);}
+    #ee-design-root .ee-help.is-warn{color:var(--ee-warning-text);}
+    #ee-design-root .ee-help.is-warn svg{color:var(--ee-warning-text);}
+
+    /* ---- 路径预览 ---- */
+    #ee-design-root .ee-preview{
+      margin-top:2px;padding:10px;border:1px solid var(--ee-border-soft);
+      border-radius:var(--ee-radius-md);background:var(--ee-surface-2);
+    }
+    #ee-design-root .ee-preview-label{
+      font-size:10.5px;line-height:1.3;color:var(--ee-text-3);
+    }
+    #ee-design-root .ee-preview-path{
+      margin-top:4px;font-family:var(--ee-mono);font-size:11px;line-height:1.55;
+      color:var(--ee-primary-text);word-break:break-all;
+    }
+    #ee-design-root .ee-checkline{
+      display:flex;align-items:flex-start;gap:5px;margin-top:6px;
+      font-size:11px;line-height:1.45;
+    }
+    #ee-design-root .ee-checkline svg{width:12px;height:12px;flex:none;margin-top:1px;}
+    #ee-design-root .ee-checkline.is-ok{color:var(--ee-success-text);}
+    #ee-design-root .ee-checkline.is-err{color:var(--ee-danger-text);}
+    #ee-design-root .ee-checkline.is-muted{color:var(--ee-text-3);}
+
+    /* ---- 复选 ---- */
+    #ee-design-root .ee-checks{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:2px;}
+    #ee-design-root .ee-check{
+      display:inline-flex;align-items:center;gap:7px;
+      font-size:12.5px;line-height:1.3;color:var(--ee-text-2);cursor:pointer;
+      user-select:none;
+    }
+    #ee-design-root .ee-check input{
+      width:15px;height:15px;margin:0;accent-color:var(--ee-primary);cursor:pointer;
+    }
+
+    /* ---- 按钮 ---- */
+    #ee-design-root .ee-btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:6px;
+      height:36px;padding:0 14px;border:1px solid var(--ee-border);border-radius:var(--ee-radius-md);
+      background:var(--ee-surface);color:var(--ee-text);font-size:12.5px;font-weight:500;
+      line-height:1;cursor:pointer;white-space:nowrap;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;
+    }
+    #ee-design-root .ee-btn svg{width:14px;height:14px;}
+    #ee-design-root .ee-btn:hover{background:var(--ee-surface-2);border-color:var(--ee-border-strong);}
+    #ee-design-root .ee-btn:active{background:var(--ee-surface-3);}
+    #ee-design-root .ee-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #ee-design-root .ee-btn-primary{
+      background:var(--ee-primary);border-color:var(--ee-primary);color:#fff;font-weight:600;
+    }
+    #ee-design-root .ee-btn-primary:hover{background:var(--ee-primary-strong);border-color:var(--ee-primary-strong);}
+    #ee-design-root .ee-btn-ghost{border-color:transparent;background:transparent;color:var(--ee-text-2);}
+    #ee-design-root .ee-btn-ghost:hover{background:var(--ee-surface-3);border-color:transparent;color:var(--ee-text);}
+    #ee-design-root .ee-btn-block{width:100%;}
+    #ee-design-root .ee-icon-btn{
+      width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--ee-radius-md);
+      display:inline-flex;align-items:center;justify-content:center;
+      background:transparent;color:var(--ee-text-4);cursor:pointer;
+      transition:background 150ms ease,color 150ms ease;
+    }
+    #ee-design-root .ee-icon-btn svg{width:15px;height:15px;}
+    #ee-design-root .ee-icon-btn:hover{background:var(--ee-surface-3);color:var(--ee-text);}
+    #ee-design-root .ee-icon-btn:active{background:var(--ee-border);}
+
+    /* ---- 链接值编辑器模拟（WPF 由 LinkableValueEditor 承载） ---- */
+    #ee-design-root .ee-link-row{display:flex;align-items:center;gap:6px;}
+    #ee-design-root .ee-link-row .ee-input{flex:1;min-width:0;}
+    #ee-design-root .ee-link-btn{
+      width:32px;height:32px;flex:none;padding:0;border:1px solid var(--ee-border);
+      border-radius:var(--ee-radius-md);background:var(--ee-surface);color:var(--ee-text-4);
+      display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+    }
+    #ee-design-root .ee-link-btn:hover{background:var(--ee-primary-soft);border-color:var(--ee-primary-border);color:var(--ee-primary-text);}
+    #ee-design-root .ee-link-btn svg{width:14px;height:14px;}
+
+    /* ---- 结果面板 ---- */
+    #ee-design-root .ee-result{
+      display:flex;align-items:flex-start;gap:8px;margin-top:12px;padding:10px;
+      border:1px solid var(--ee-border-soft);border-radius:var(--ee-radius-md);
+      background:var(--ee-surface-2);min-height:52px;
+    }
+    #ee-design-root .ee-result-icon{
+      width:24px;height:24px;flex:none;border-radius:7px;
+      display:inline-flex;align-items:center;justify-content:center;
+      background:var(--ee-surface-3);color:var(--ee-text-3);
+    }
+    #ee-design-root .ee-result-icon svg{width:13px;height:13px;}
+    #ee-design-root .ee-result-body{min-width:0;flex:1;}
+    #ee-design-root .ee-result-title{font-size:11.5px;font-weight:600;line-height:1.4;color:var(--ee-text-2);}
+    #ee-design-root .ee-result-text{
+      margin-top:2px;font-size:11.5px;line-height:1.55;color:var(--ee-text-4);word-break:break-all;
+    }
+    #ee-design-root .ee-result.is-ok{background:var(--ee-success-soft);border-color:var(--ee-success-border);}
+    #ee-design-root .ee-result.is-ok .ee-result-icon{background:#FFFFFF;color:var(--ee-success-text);}
+    #ee-design-root .ee-result.is-ok .ee-result-title{color:var(--ee-success-text);}
+    #ee-design-root .ee-result.is-ok .ee-result-text{color:var(--ee-success-text);}
+    #ee-design-root .ee-result.is-err{background:var(--ee-danger-soft);border-color:var(--ee-danger-border);}
+    #ee-design-root .ee-result.is-err .ee-result-icon{background:#FFFFFF;color:var(--ee-danger-text);}
+    #ee-design-root .ee-result.is-err .ee-result-title{color:var(--ee-danger-text);}
+    #ee-design-root .ee-result.is-err .ee-result-text{color:var(--ee-danger-text);}
+    #ee-design-root .ee-result.is-busy{background:var(--ee-primary-soft);border-color:var(--ee-primary-border);}
+    #ee-design-root .ee-result.is-busy .ee-result-icon{background:#FFFFFF;color:var(--ee-primary-text);}
+    #ee-design-root .ee-result.is-busy .ee-result-title{color:var(--ee-primary-text);}
+    #ee-design-root .ee-spin{animation:ee-rotate 1s linear infinite;}
+    @keyframes ee-rotate{to{transform:rotate(360deg);}}
+
+    /* ---- 底部（宿主外壳） ---- */
+    #ee-design-root .ee-footer{
+      height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;
+      border-top:1px solid var(--ee-border-soft);background:var(--ee-surface-2);
+    }
+    #ee-design-root .ee-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #ee-design-root .ee-status-chip{
+      display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;
+      background:var(--ee-surface);border:1px solid var(--ee-border);
+      font-size:11.5px;color:var(--ee-text-2);white-space:nowrap;
+    }
+    #ee-design-root .ee-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--ee-text-3);}
+    #ee-design-root .ee-elapsed{
+      font-family:var(--ee-mono);font-size:11px;color:var(--ee-text-3);
+      font-variant-numeric:tabular-nums;white-space:nowrap;
+    }
+    #ee-design-root .ee-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #ee-design-root .ee-footer .ee-btn{height:32px;padding:0 16px;font-size:12.5px;}
+    #ee-design-root .ee-footer .ee-btn-primary{padding:0 18px;}
+
+    /* ---- 说明区 ---- */
+    #ee-design-root .ee-notes{
+      max-width:1360px;margin:26px auto 0;
+      display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+      column-gap:28px;row-gap:0;
+    }
+    #ee-design-root .ee-notes-head{
+      grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;
+      color:var(--ee-text-2);
+    }
+    #ee-design-root .ee-note{
+      display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;
+      border-top:1px solid var(--ee-border);
+    }
+    #ee-design-root .ee-note-num{
+      width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      background:var(--ee-primary-light);color:var(--ee-primary-text);
+      font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;
+    }
+    #ee-design-root .ee-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--ee-text);}
+    #ee-design-root .ee-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--ee-text-2);}
+    #ee-design-root .ee-note code{
+      font-family:var(--ee-mono);font-size:10.5px;color:var(--ee-primary-text);
+      background:var(--ee-primary-soft);padding:1px 5px;border-radius:4px;
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      #ee-design-root *{animation:none !important;transition:none !important;}
+    }
+    @media (max-width:1024px){
+      #ee-design-root .ee-page{padding:18px 14px 32px;}
+      #ee-design-root .ee-window{height:auto;min-height:640px;}
+      #ee-design-root .ee-content{grid-template-columns:1fr;}
+      #ee-design-root .ee-col{overflow:visible;}
+    }
+  </style>
+
+  <div class="ee-page">
+    <header>
+      <div class="ee-page-title-row">
+        <h1>Excel 报表 · 配置窗口</h1>
+        <span class="ee-ver">v1</span>
+      </div>
+      <p class="ee-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、
+        <b>TriggerPort 的 LinkableValueEditor</b>、全部配置属性与 <b>立即导出</b>入口；
+        不新增功能、不改端口名/命令名/持久化。窗口 <b>960 × 680</b>，左侧配置轨 <b>1.45fr</b>，右侧选项与动作区 <b>1fr</b>。
+      </p>
+      <div class="ee-demo-bar">
+        <div class="ee-demo-group" role="group" aria-label="窗口宽度">
+          <span class="ee-demo-label">窗口宽度</span>
+          <div class="ee-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="ee-demo-group" role="group" aria-label="导出方式">
+          <span class="ee-demo-label">导出方式</span>
+          <div class="ee-seg">
+            <button type="button" data-policy="manual" class="is-on" aria-pressed="true">仅手动</button>
+            <button type="button" data-policy="ontrigger" aria-pressed="false">触发端口</button>
+            <button type="button" data-policy="eachrun" aria-pressed="false">每次执行</button>
+          </div>
+        </div>
+        <div class="ee-demo-group" role="group" aria-label="演示状态">
+          <span class="ee-demo-label">演示状态</span>
+          <div class="ee-seg">
+            <button type="button" data-state="default" class="is-on" aria-pressed="true">默认</button>
+            <button type="button" data-state="busy" aria-pressed="false">导出中</button>
+            <button type="button" data-state="success" aria-pressed="false">成功</button>
+            <button type="button" data-state="error" aria-pressed="false">失败</button>
+            <button type="button" data-state="empty" aria-pressed="false">空路径</button>
+          </div>
+        </div>
+      </div>
+      <div class="ee-scope">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span><b>本稿未纳入（需新增功能或契约）：</b>浏览/选择目录按钮（插件没有 BrowseCommand）、打开报表/打开所在文件夹、账本行数与文件大小、加载骨架、导出历史。纯 UI 改造不造这些入口。</span>
+      </div>
+    </header>
+
+    <div class="ee-window" id="ee-window">
+      <!-- 宿主标题栏（PluginConfigShellView，本插件不改） -->
+      <div class="ee-titlebar">
+        <div class="ee-app-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M8 13h8"></path><path d="M8 17h8"></path><path d="M8 9h2"></path></svg>
+        </div>
+        <div class="ee-title-text">
+          <div class="ee-title">Excel报表</div>
+          <div class="ee-subtitle">把 CSV 账本导出成带图片超链接的 Excel 报表：表头冻结可筛选，点文件名看高清原图</div>
+        </div>
+        <div class="ee-title-actions">
+          <button type="button" class="ee-icon-btn" data-tooltip="关闭" aria-label="关闭">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="ee-content">
+        <!-- ============ 左栏：来源 + 输出 ============ -->
+        <div class="ee-col">
+          <section class="ee-card" aria-label="报表来源">
+            <div class="ee-card-head">
+              <div class="ee-card-title"><span class="ee-card-index">01</span>报表来源（CSV 账本）</div>
+              <span class="ee-card-hint">上游 CSV 记录</span>
+            </div>
+            <p class="ee-card-sub">指向上游『CSV 记录』步骤写出的账本。占位符：<b>{源步骤}</b> <b>{StepName}</b> <b>{yyyy}</b> <b>{yyyy-MM}</b> <b>{yyyy-MM-dd}</b>。</p>
+
+            <div class="ee-field">
+              <label class="ee-label" for="ee-source-step">源步骤名</label>
+              <input class="ee-input" id="ee-source-step" type="text" value="CSV记录1" spellcheck="false">
+              <p class="ee-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                留空 = 使用本步骤名；要与 CSV 记录步骤写账本的目录名一致。
+              </p>
+            </div>
+
+            <div class="ee-field">
+              <label class="ee-label" for="ee-source-path">账本路径</label>
+              <input class="ee-input" id="ee-source-path" type="text" value="D:\Records\{源步骤}\{yyyy-MM}\{yyyy-MM-dd}.csv" spellcheck="false">
+            </div>
+
+            <div class="ee-preview">
+              <div class="ee-preview-label">实际读取 →</div>
+              <div class="ee-preview-path" id="ee-source-preview">D:\Records\CSV记录1\2026-10\2026-10-20.csv</div>
+              <div class="ee-checkline is-ok" id="ee-source-check">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span id="ee-source-check-text">账本已找到</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="ee-card" aria-label="报表输出">
+            <div class="ee-card-head">
+              <div class="ee-card-title"><span class="ee-card-index">02</span>报表输出</div>
+              <span class="ee-card-hint">xlsx · 可筛选</span>
+            </div>
+            <p class="ee-card-sub">输出目录与文件名都支持占位符；文件名不以 <b>.xlsx</b> 结尾时自动补。</p>
+
+            <div class="ee-field">
+              <label class="ee-label" for="ee-output-dir">输出目录</label>
+              <input class="ee-input" id="ee-output-dir" type="text" value="D:\Records\{StepName}\{yyyy-MM}\报表\" spellcheck="false">
+            </div>
+            <div class="ee-field">
+              <label class="ee-label" for="ee-output-name">报表文件名</label>
+              <input class="ee-input" id="ee-output-name" type="text" value="{yyyy-MM-dd}_报表.xlsx" spellcheck="false">
+            </div>
+            <div class="ee-field">
+              <label class="ee-label" for="ee-link-column">图片走这里</label>
+              <input class="ee-input" id="ee-link-column" type="text" value="图片路径" spellcheck="false">
+              <p class="ee-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                哪一列做成可点击的图片链接；默认『图片路径』与 CSV 记录插件的图片列同名。
+              </p>
+            </div>
+
+            <div class="ee-preview">
+              <div class="ee-preview-label">实际写出 →</div>
+              <div class="ee-preview-path" id="ee-output-preview">D:\Records\Excel报表1\2026-10\报表\2026-10-20_报表.xlsx</div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ============ 右栏：选项 + 立即导出 ============ -->
+        <div class="ee-col">
+          <section class="ee-card" aria-label="报表选项">
+            <div class="ee-card-head">
+              <div class="ee-card-title"><span class="ee-card-index">03</span>报表选项</div>
+              <span class="ee-card-hint">何时导 · 导哪些行</span>
+            </div>
+            <p class="ee-card-sub">导出方式决定何时自动导出；勾选项决定报表内容。</p>
+
+            <div class="ee-field">
+              <label class="ee-label" for="ee-policy">导出方式</label>
+              <div class="ee-select-wrap">
+                <select class="ee-select" id="ee-policy">
+                  <option value="manual">仅手动（点按钮才导）</option>
+                  <option value="ontrigger">触发端口（收到信号才导）</option>
+                  <option value="eachrun">每次执行都导</option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+              <p class="ee-help" id="ee-policy-hint">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                <span id="ee-policy-hint-text">仅手动：流程执行时不导出，只在面板点『立即导出』。</span>
+              </p>
+            </div>
+
+            <div class="ee-field" id="ee-trigger-row" hidden>
+              <label class="ee-label" for="ee-trigger-value">
+                触发信号
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ee-link-hint" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+              </label>
+              <div class="ee-link-row">
+                <input class="ee-input" id="ee-trigger-value" type="text" value="收工信号" spellcheck="false">
+                <button type="button" class="ee-link-btn" data-tooltip="绑定变量（由 LinkableValueEditor 自带）" aria-label="绑定变量">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+                </button>
+              </div>
+              <p class="ee-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                端口：导出触发（bool，非必填）。WPF 里由 <b>LinkableValueEditor</b> 承载，只包裹不改内部。
+              </p>
+            </div>
+
+            <div class="ee-field">
+              <label class="ee-label">报表内容</label>
+              <div class="ee-checks">
+                <label class="ee-check"><input type="checkbox" checked> 冻结首行</label>
+                <label class="ee-check"><input type="checkbox" checked> 自动筛选</label>
+                <label class="ee-check"><input type="checkbox"> 只导有图的行</label>
+                <label class="ee-check"><input type="checkbox"> 导出后打开报表</label>
+                <label class="ee-check"><input type="checkbox"> 导出失败阻断流程</label>
+              </div>
+              <p class="ee-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                表头冻结 / 自动筛选：打开 Excel 就能筛 NG。
+              </p>
+            </div>
+          </section>
+
+          <section class="ee-card" aria-label="立即导出">
+            <div class="ee-card-head">
+              <div class="ee-card-title"><span class="ee-card-index">04</span>立即导出</div>
+              <span class="ee-card-hint">后台线程</span>
+            </div>
+            <p class="ee-card-sub">按当前配置马上导一份，不跑流程。</p>
+
+            <button type="button" class="ee-btn ee-btn-primary ee-btn-block" id="ee-export-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path></svg>
+              <span id="ee-export-btn-text">立即导出</span>
+            </button>
+
+            <div class="ee-result" id="ee-result">
+              <span class="ee-result-icon" id="ee-result-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              </span>
+              <div class="ee-result-body">
+                <div class="ee-result-title" id="ee-result-title">尚未导出</div>
+                <div class="ee-result-text" id="ee-result-text">点『立即导出』按当前配置生成报表。</div>
+              </div>
+            </div>
+
+            <p class="ee-help">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              导出结果只显示在本面板；报表默认不阻断生产。
+            </p>
+          </section>
+        </div>
+      </div>
+
+      <!-- 宿主底栏（PluginConfigShellView，本插件不改） -->
+      <div class="ee-footer">
+        <div class="ee-footer-left">
+          <span class="ee-status-chip"><span class="ee-footer-dot"></span><span>状态: 待执行</span></span>
+          <span class="ee-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="ee-footer-right">
+          <button type="button" class="ee-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></svg>执行
+          </button>
+          <button type="button" class="ee-btn ee-btn-ghost">取消</button>
+          <button type="button" class="ee-btn ee-btn-primary">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ee-notes">
+      <div class="ee-notes-head">关键改动（v1）</div>
+      <div class="ee-note">
+        <div class="ee-note-num">01</div>
+        <div><b>四段纵向卡片改为两栏工作台</b><span>左栏「来源 + 输出」负责“导什么”，右栏「选项 + 立即导出」负责“怎么导、现在导”；960 宽下不用来回滚动，640 窄档仍保持两栏并允许列内滚动。</span></div>
+      </div>
+      <div class="ee-note">
+        <div class="ee-note-num">02</div>
+        <div><b>路径从纯文本升级为“模板 + 实际路径”</b><span>保留 <code>SourcePathTemplate</code> / <code>OutputDirectoryTemplate</code> / <code>ReportFileNamePattern</code> 原绑定；下方只读预览仍绑 <code>SourcePathPreview</code> / <code>OutputPathPreview</code>，不新增计算属性。</span></div>
+      </div>
+      <div class="ee-note">
+        <div class="ee-note-num">03</div>
+        <div><b>账本存在性前置</b><span>沿用现有 <code>SourceExistsText</code> 的即时校验（<code>File.Exists</code>），改成带图标的行内状态：找到 = 绿、缺失 = 红、未配置 = 灰。没有新增文件读取或业务判断。</span></div>
+      </div>
+      <div class="ee-note">
+        <div class="ee-note-num">04</div>
+        <div><b>导出方式的条件行保留</b><span><code>ExportPolicy=OnTrigger</code> 时才显示「触发信号」行；仍用 <code>EnumEqualsToVisibilityConverter</code> + <code>LinkableValueEditor</code>，<code>Port=TriggerPort</code>、<code>StepData</code> 绑定不变。</span></div>
+      </div>
+      <div class="ee-note">
+        <div class="ee-note-num">05</div>
+        <div><b>选项按“内容”分组</b><span>五个 <code>CheckBox</code> 的布尔绑定原样保留；用 <code>WrapPanel</code> 自动换行，640 窄档不会把「导出失败阻断流程」裁掉。</span></div>
+      </div>
+      <div class="ee-note">
+        <div class="ee-note-num">06</div>
+        <div><b>立即导出变成动作卡</b><span>按钮入口在实现里走视图本地 <code>ExportNowCommand</code>（转发到 <code>Plugin.ExportNow()</code>）；<code>IsExporting</code> 经 <code>InverseBoolConverter</code> 置灰；<code>LastResult</code> 从一行彩字升级为结果面板（空闲/导出中/成功/失败四态）。</span></div>
+      </div>
+      <div class="ee-note">
+        <div class="ee-note-num">07</div>
+        <div><b>颜色全部令牌化</b><span>映射 <code>Dialog*</code> / <code>Plugin*</code> 公共键；视图 XAML <b>hex=0</b>；不新增第二套蓝/灰，不改共享字典与共享控件。</span></div>
+      </div>
+      <div class="ee-note">
+        <div class="ee-note-num">08</div>
+        <div><b>五态与键盘可达</b><span>输入框 / 下拉 / 按钮均有 hover、pressed、focus、disabled；图标按钮 30×30 且 <code>Padding=0</code>（R68）；焦点环走 <code>DialogFocusVisual</code>；ToolTip 走 <code>DialogToolTipStyle</code>。</span></div>
+      </div>
+
+      <div class="ee-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="ee-note">
+        <div class="ee-note-num">C1</div>
+        <div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不引入独立 VM，确认才会写回 <code>InputValues</code>。</span></div>
+      </div>
+      <div class="ee-note">
+        <div class="ee-note-num">C2</div>
+        <div><b>TriggerPort 的 LinkableValueEditor</b><span><code>Port=TriggerPort</code>、<code>StepData</code> 原样保留；该端口非必填，未连线不算参数缺失。本插件没有 BrowseCommand，因此不造「浏览」按钮。</span></div>
+      </div>
+      <div class="ee-note">
+        <div class="ee-note-num">C3</div>
+        <div><b>ExportPolicy / ExportPolicies</b><span><code>ItemsSource=ExportPolicies</code>、<code>SelectedItem=ExportPolicy</code>（枚举）；条目文案仍由 <code>ExportPolicyLabelConverter</code> 提供，值仍是枚举成员。</span></div>
+      </div>
+      <div class="ee-note">
+        <div class="ee-note-num">C4</div>
+        <div><b>五个文本配置属性</b><span><code>SourceStepName</code> / <code>SourcePathTemplate</code> / <code>OutputDirectoryTemplate</code> / <code>ReportFileNamePattern</code> / <code>LinkColumn</code> 全部保留 <code>UpdateSourceTrigger=PropertyChanged</code>。</span></div>
+      </div>
+      <div class="ee-note">
+        <div class="ee-note-num">C5</div>
+        <div><b>五个布尔配置属性</b><span><code>FreezeHeader</code> / <code>AutoFilter</code> / <code>OnlyRowsWithImage</code> / <code>OpenAfterExport</code> / <code>BlockOnFailure</code> 原绑定；不合并、不改默认值。</span></div>
+      </div>
+      <div class="ee-note">
+        <div class="ee-note-num">C6</div>
+        <div><b>导出入口与结果</b><span><code>ExportNowCommand</code> → <code>ExportNow()</code>；<code>IsExporting</code> 置灰、<code>LastResult</code> 展示。本插件没有 <code>StatusLevel</code> / <code>Mode</code> / <code>SelectedCameraOption</code> / <code>DisplayViewIndex</code>，不虚构这些绑定。</span></div>
+      </div>
+
+      <div class="ee-notes-head" style="margin-top:20px;">明确延后（需新增功能或契约）</div>
+      <div class="ee-note">
+        <div class="ee-note-num">D1</div>
+        <div><b>浏览 / 选择目录</b><span>插件没有 <code>BrowseCommand</code>，也没有 <code>LinkableValueEditor</code> 之外的路径选择契约；本轮只保留手填 + 变量链接。</span></div>
+      </div>
+      <div class="ee-note">
+        <div class="ee-note-num">D2</div>
+        <div><b>打开报表 / 打开所在文件夹</b><span>需要新增 <code>Process.Start</code> 行为；现有只有「导出后打开报表」布尔配置，不额外造按钮。</span></div>
+      </div>
+      <div class="ee-note">
+        <div class="ee-note-num">D3</div>
+        <div><b>账本行数 / 文件大小 / 最近导出历史</b><span>需要新增只读属性或持久化字段；本轮不碰业务模型。</span></div>
+      </div>
+      <div class="ee-note">
+        <div class="ee-note-num">D4</div>
+        <div><b>加载骨架 / 进度条</b><span>现有只有 <code>IsExporting</code> 布尔，没有进度/阶段信息；用「正在导出…」结果态代替，不新增第四档状态。</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('ee-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#ee-window');
+      var policySelect = root.querySelector('#ee-policy');
+      var triggerRow = root.querySelector('#ee-trigger-row');
+      var policyHint = root.querySelector('#ee-policy-hint');
+      var policyHintText = root.querySelector('#ee-policy-hint-text');
+      var sourcePath = root.querySelector('#ee-source-path');
+      var sourcePreview = root.querySelector('#ee-source-preview');
+      var sourceCheck = root.querySelector('#ee-source-check');
+      var sourceCheckText = root.querySelector('#ee-source-check-text');
+      var result = root.querySelector('#ee-result');
+      var resultIcon = root.querySelector('#ee-result-icon');
+      var resultTitle = root.querySelector('#ee-result-title');
+      var resultText = root.querySelector('#ee-result-text');
+      var exportBtn = root.querySelector('#ee-export-btn');
+      var exportBtnText = root.querySelector('#ee-export-btn-text');
+
+      var policy = 'manual';
+      var state = 'default';
+
+      var icons = {
+        info: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>',
+        check: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>',
+        x: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>',
+        alert: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>',
+        loader: '<svg class="ee-spin" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>'
+      };
+
+      var policyCopy = {
+        manual: ['仅手动：流程执行时不导出，只在面板点『立即导出』。', false],
+        ontrigger: ['触发端口：『导出触发』为 true 的那次执行才导出。', false],
+        eachrun: ['每次执行都导：高频流程慎用——每次都会重写整本报表。', true]
+      };
+
+      function setPolicyHint(kind) {
+        var copy = policyCopy[kind];
+        policyHintText.textContent = copy[0];
+        policyHint.classList.toggle('is-warn', copy[1]);
+        triggerRow.hidden = kind !== 'ontrigger';
+      }
+
+      function setSource(level, text) {
+        sourceCheck.className = 'ee-checkline is-' + level;
+        sourceCheckText.textContent = text;
+        sourceCheck.querySelector('svg').outerHTML = level === 'ok' ? icons.check : level === 'err' ? icons.x : icons.info;
+      }
+
+      function setResult(kind, title, text) {
+        result.className = 'ee-result' + (kind === 'idle' ? '' : ' is-' + kind);
+        resultIcon.innerHTML = kind === 'ok' ? icons.check : kind === 'err' ? icons.x : kind === 'busy' ? icons.loader : icons.info;
+        resultTitle.textContent = title;
+        resultText.textContent = text;
+      }
+
+      function render() {
+        setPolicyHint(policy);
+
+        var busy = state === 'busy';
+        exportBtn.disabled = busy;
+        exportBtnText.textContent = busy ? '正在导出…' : '立即导出';
+
+        if (state === 'empty') {
+          sourcePath.value = '';
+          sourcePreview.textContent = '（空）';
+          setSource('muted', '未配置账本路径');
+          setResult('idle', '尚未导出', '先填写账本路径，再点『立即导出』。');
+        } else if (state === 'error') {
+          sourcePath.value = 'D:\\Records\\Missing\\2026-10-20.csv';
+          sourcePreview.textContent = 'D:\\Records\\Missing\\2026-10-20.csv';
+          setSource('err', '账本不存在（检查『源步骤名』是否与 CSV 记录步骤一致）');
+          setResult('err', '导出失败', '源账本不存在：D:\\Records\\Missing\\2026-10-20.csv（请检查『源账本路径』模板与『源步骤名』）');
+        } else if (state === 'busy') {
+          sourcePath.value = 'D:\\Records\\{源步骤}\\{yyyy-MM}\\{yyyy-MM-dd}.csv';
+          sourcePreview.textContent = 'D:\\Records\\CSV记录1\\2026-10\\2026-10-20.csv';
+          setSource('ok', '账本已找到');
+          setResult('busy', '正在导出…', '后台线程处理中，几万行也不会卡住界面。');
+        } else if (state === 'success') {
+          sourcePath.value = 'D:\\Records\\{源步骤}\\{yyyy-MM}\\{yyyy-MM-dd}.csv';
+          sourcePreview.textContent = 'D:\\Records\\CSV记录1\\2026-10\\2026-10-20.csv';
+          setSource('ok', '账本已找到');
+          setResult('ok', '导出成功', '已导出 128 行，其中 128 行图片路径已变成可点击链接 → D:\\Records\\Excel报表1\\2026-10\\报表\\2026-10-20_报表.xlsx');
+        } else {
+          sourcePath.value = 'D:\\Records\\{源步骤}\\{yyyy-MM}\\{yyyy-MM-dd}.csv';
+          sourcePreview.textContent = 'D:\\Records\\CSV记录1\\2026-10\\2026-10-20.csv';
+          setSource('ok', '账本已找到');
+          setResult('idle', '尚未导出', '点『立即导出』按当前配置生成报表。');
+        }
+      }
+
+      root.querySelectorAll('[data-width]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var narrow = btn.dataset.width === '640';
+          win.classList.toggle('is-narrow', narrow);
+          root.querySelectorAll('[data-width]').forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+        });
+      });
+
+      root.querySelectorAll('[data-policy]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          policy = btn.dataset.policy;
+          policySelect.value = policy;
+          root.querySelectorAll('[data-policy]').forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          render();
+        });
+      });
+
+      root.querySelectorAll('[data-state]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          state = btn.dataset.state;
+          root.querySelectorAll('[data-state]').forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          render();
+        });
+      });
+
+      policySelect.addEventListener('change', function () {
+        policy = policySelect.value;
+        root.querySelectorAll('[data-policy]').forEach(function (b) {
+          var on = b.dataset.policy === policy;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        render();
+      });
+
+      exportBtn.addEventListener('click', function () {
+        if (exportBtn.disabled) return;
+        state = 'busy';
+        render();
+        window.setTimeout(function () {
+          state = 'success';
+          root.querySelectorAll('[data-state]').forEach(function (b) {
+            var on = b.dataset.state === 'success';
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          render();
+        }, 900);
+      });
+
+      render();
+    })();
+  </script>
+</div>
+</body>
+</html>

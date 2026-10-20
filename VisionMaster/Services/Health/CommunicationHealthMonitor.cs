@@ -49,25 +49,23 @@ namespace VisionMaster.Services.Health
     /// 显示成"离线"。这里用 <c>GetConnectionState</c> / <c>GetConnectionError</c>（读 Worker，
     /// 不经 Dispatcher）。</para>
     ///
-    /// <para><b>不合并行</b>：同一条物理端点上可能有"通讯连接"与"IO 总线"两层会话，
-    /// 合并会丢掉"哪一层坏了"这个最有诊断价值的信息。用端点标记（L1…）把它们关联起来。</para>
+    /// <para><b>不合并行</b>：同一条物理端点上可能配了多条连接（如两条 Modbus 连接打同一台网关），
+    /// 合并会丢掉"哪一条坏了"这个最有诊断价值的信息。用端点标记（L1…）把它们关联起来。</para>
+    /// <para>注：IO 接入层已下线（IO 点位就是网络变量），故不再有"通讯连接 vs IO 总线"跨层关联。</para>
     /// </summary>
     public sealed class CommunicationHealthMonitor
     {
         private readonly AdvancedCommunicationManager _manager;
-        private readonly IIoProvider? _ioProvider;
 
-        public CommunicationHealthMonitor(AdvancedCommunicationManager manager, IIoProvider? ioProvider = null)
+        public CommunicationHealthMonitor(AdvancedCommunicationManager manager)
         {
             _manager = manager ?? throw new ArgumentNullException(nameof(manager));
-            _ioProvider = ioProvider;
         }
 
         /// <summary>采集一拍。只读，绝不调用 TestConnection/Connect/Disconnect。</summary>
         public CommunicationHealthSnapshot Capture()
         {
             var configs = _manager.GetAllConnections();
-            var ioEndpoints = CollectIoEndpoints();
 
             var drafts = new List<Draft>();
             foreach (var config in configs)
@@ -82,7 +80,7 @@ namespace VisionMaster.Services.Health
                 }
             }
 
-            AssignEndpointTags(drafts, ioEndpoints);
+            AssignEndpointTags(drafts);
 
             var rows = drafts.Select(d => new CommunicationHealthRow(
                 d.Name, d.ProtocolText, d.EndpointText, d.EndpointTag, d.RoleText,
@@ -204,26 +202,8 @@ namespace VisionMaster.Services.Health
             return (raw, $"serial:COM{number}");
         }
 
-        /// <summary>IO 总线端点（用于"同端点另有 IO 总线"的提示）。</summary>
-        private HashSet<string> CollectIoEndpoints()
-        {
-            var keys = new HashSet<string>(StringComparer.Ordinal);
-            if (_ioProvider == null) return keys;
-
-            foreach (var bus in _ioProvider.Buses)
-            {
-                if (bus == null) continue;
-                string? key = bus.TransportKind == IoTransportKind.Tcp
-                    ? DescribeTcp(bus.Tcp?.Host, bus.Tcp?.Port ?? 0).Key
-                    : DescribeSerial(bus.Serial?.PortName).Key;
-                if (key != null) keys.Add(key);
-            }
-
-            return keys;
-        }
-
-        /// <summary>给同端点的行分配 L1/L2…；与 IO 总线共享端点时在状态说明里点一句。</summary>
-        private static void AssignEndpointTags(List<Draft> drafts, HashSet<string> ioEndpoints)
+        /// <summary>给同端点的行分配 L1/L2…（同一端点配了多条连接时给出可读提示）。</summary>
+        private static void AssignEndpointTags(List<Draft> drafts)
         {
             var groups = drafts
                 .Where(d => d.EndpointKey != null)
@@ -234,9 +214,8 @@ namespace VisionMaster.Services.Health
             int tag = 0;
             foreach (var group in groups)
             {
-                bool sharesWithIo = ioEndpoints.Contains(group.Key);
                 var members = group.ToList();
-                if (members.Count < 2 && !sharesWithIo) continue;
+                if (members.Count < 2) continue;
 
                 tag++;
                 string label = $"L{tag}";
@@ -246,13 +225,9 @@ namespace VisionMaster.Services.Health
                 {
                     if (!string.Equals(drafts[i].EndpointKey, group.Key, StringComparison.Ordinal)) continue;
 
-                    string hint;
-                    if (serial && members.Count >= 2)
-                        hint = "串口独占：同端口只能有一条连接成功";
-                    else if (members.Count >= 2)
-                        hint = "同一端点：多条连接会各自建链并重复轮询";
-                    else
-                        hint = "同一端点另有 IO 总线，两套轮询叠加";
+                    string hint = serial
+                        ? "串口独占：同端口只能有一条连接成功"
+                        : "同一端点：多条连接会各自建链并重复轮询";
 
                     var d = drafts[i];
                     drafts[i] = d with

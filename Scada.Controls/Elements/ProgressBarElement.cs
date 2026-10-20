@@ -50,43 +50,43 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>当前值（绑到工程变量上）</summary>
         [ScadaProperty(Key = "Value", DisplayName = "当前值", Kind = ElementPropertyKind.Number,
-                       Group = "数据", DefaultValue = "0", IsBindable = true,
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "0", IsBindable = true,
                        Description = "运行态把工程变量绑到这里；条长 = (当前值 − 下限) ÷ (上限 − 下限)，超出量程按两端收敛")]
         public partial double Value { get; set; }
 
         /// <summary>量程下限</summary>
         [ScadaProperty(Key = "Minimum", DisplayName = "量程下限", Kind = ElementPropertyKind.Number,
-                       Group = "数据", DefaultValue = "0",
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "0",
                        Description = "下限不小于上限时画空条，而不是让非法量程把整页渲染打断")]
         public partial double Minimum { get; set; }
 
         /// <summary>量程上限</summary>
         [ScadaProperty(Key = "Maximum", DisplayName = "量程上限", Kind = ElementPropertyKind.Number,
-                       Group = "数据", DefaultValue = "100")]
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "100")]
         public partial double Maximum { get; set; }
 
         /// <summary>数值的显示格式（标准 .NET 数字格式串，可带单位，如 <c>0.0 ℃</c>）</summary>
         [ScadaProperty(Key = "ValueFormat", DisplayName = "数值格式", Kind = ElementPropertyKind.Text,
-                       Group = "数据", DefaultValue = "0.#",
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "0.#",
                        Description = "标准 .NET 数字格式串，可带单位（如 0.0 ℃）；写错了退回通用格式，不会让画面出错")]
         public partial string? ValueFormat { get; set; }
 
         /// <summary>走向</summary>
         [ScadaProperty(Key = "Orientation", DisplayName = "走向", Kind = ElementPropertyKind.Choice,
-                       Group = "外观", DefaultValue = "Horizontal",
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "Horizontal",
                        Choices = new[] { "Horizontal", "Vertical" },
                        Description = "横向从左往右长；纵向从下往上长（液位、料位天生是竖着的）")]
         public partial ProgressBarOrientation Orientation { get; set; }
 
         /// <summary>空槽颜色（未被填充的那一段）</summary>
         [ScadaProperty(Key = "TrackColor", DisplayName = "空槽色", Kind = ElementPropertyKind.Color,
-                       Group = "外观", DefaultValue = "#FF3A3A3A",
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FF3A3A3A",
                        Description = "未填充那一段的颜色；浅色画面上要调亮，否则整条看不出边界")]
         public partial Brush? TrackColor { get; set; }
 
         /// <summary>是否在条上显示数值</summary>
         [ScadaProperty(Key = "ShowValue", DisplayName = "显示数值", Kind = ElementPropertyKind.Bool,
-                       Group = "文字", DefaultValue = "True")]
+                       Group = ScadaPropertyGroups.Text, DefaultValue = "True")]
         public partial bool ShowValue { get; set; }
 
         private static readonly DependencyPropertyKey FillLengthPropertyKey = DependencyProperty.RegisterReadOnly(

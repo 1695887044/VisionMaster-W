@@ -39,9 +39,10 @@ namespace UI.CustomControl.PropertyGrid
             var comboBox = new ComboBox
             {
                 IsEnabled = !isReadOnly,
-                Padding = new Thickness(10, 6, 10, 6),
                 VerticalContentAlignment = VerticalAlignment.Center
             };
+            // v1 基线：统一 36px 高 / 8px 圆角 / 令牌配色（原来写死 Padding=10,6 与裸边框）
+            PropertyGridMetrics.ApplyInputLook(comboBox);
 
             var enumType = prop.PropertyType;
 

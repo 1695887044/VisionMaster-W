@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>结果显示 · 配置窗口 · 设计基线 v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+</style>
+</head>
+<body>
+<div id="rd-design-root">
+  <style>
+    #rd-design-root{
+      --rd-surface:#FFFFFF;
+      --rd-surface-2:#F8FAFC;
+      --rd-surface-3:#F1F5F9;
+      --rd-border:#E2E8F0;
+      --rd-border-soft:#EEF2F7;
+      --rd-border-strong:#CBD5E1;
+      --rd-text:#0F172A;
+      --rd-text-2:#475569;
+      --rd-text-3:#94A3B8;
+      --rd-text-4:#64748B;
+      --rd-primary:#0EA5E9;
+      --rd-primary-strong:#0284C7;
+      --rd-primary-text:#0369A1;
+      --rd-primary-soft:#F0F9FF;
+      --rd-primary-light:#E0F2FE;
+      --rd-primary-border:#BAE6FD;
+      --rd-success:#22C55E;
+      --rd-success-text:#15803D;
+      --rd-success-soft:#F0FDF4;
+      --rd-success-border:#BBF7D0;
+      --rd-danger:#EF4444;
+      --rd-danger-text:#B91C1C;
+      --rd-danger-soft:#FEF2F2;
+      --rd-danger-border:#FECACA;
+      --rd-warning:#F59E0B;
+      --rd-warning-text:#B45309;
+      --rd-warning-soft:#FFF4E5;
+      --rd-warning-border:#FDE68A;
+      --rd-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --rd-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --rd-radius-sm:6px;
+      --rd-radius-md:8px;
+      --rd-radius-lg:10px;
+      --rd-radius-xl:12px;
+      --rd-radius-window:16px;
+      --rd-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--rd-font);
+      -webkit-font-smoothing:antialiased;
+      color-scheme:light;
+    }
+    #rd-design-root *{box-sizing:border-box;}
+    #rd-design-root button,
+    #rd-design-root input,
+    #rd-design-root select,
+    #rd-design-root textarea{font-family:inherit;}
+    #rd-design-root button{color:inherit;}
+    #rd-design-root [hidden]{display:none !important;}
+    #rd-design-root :focus-visible{outline:2px solid var(--rd-primary);outline-offset:2px;}
+    #rd-design-root .rd-ico{
+      width:16px;height:16px;flex:none;display:inline-block;vertical-align:middle;
+      fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;
+    }
+
+    #rd-design-root .rd-page{max-width:1360px;margin:0 auto;padding:24px 24px 44px;background:transparent;}
+    #rd-design-root .rd-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #rd-design-root .rd-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--rd-text);}
+    #rd-design-root .rd-ver{
+      display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+      background:var(--rd-primary-light);color:var(--rd-primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;
+    }
+    #rd-design-root .rd-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--rd-text-2);}
+    #rd-design-root .rd-page-sub b{color:var(--rd-text);font-weight:600;}
+    #rd-design-root .rd-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #rd-design-root .rd-demo-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+    #rd-design-root .rd-demo-label{font-size:11.5px;color:var(--rd-text-4);}
+    #rd-design-root .rd-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--rd-radius-md);background:var(--rd-surface-3);}
+    #rd-design-root .rd-seg button{
+      height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--rd-text-2);
+      font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;
+    }
+    #rd-design-root .rd-seg button:hover{color:var(--rd-text);}
+    #rd-design-root .rd-seg button.is-on{background:var(--rd-surface);color:var(--rd-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+    #rd-design-root .rd-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--rd-text-2);}
+    #rd-design-root .rd-scope .rd-ico{width:13px;height:13px;margin-top:2px;color:var(--rd-warning-text);}
+    #rd-design-root .rd-scope b{color:var(--rd-text);font-weight:600;}
+
+    /* ================= 产品窗口 ================= */
+    #rd-design-root .rd-window{
+      width:960px;max-width:100%;height:680px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;
+      background:var(--rd-surface);border-radius:var(--rd-radius-window);box-shadow:var(--rd-shadow-window);
+      transition:width 200ms ease;
+    }
+    #rd-design-root .rd-window.is-narrow{width:640px;}
+    #rd-design-root .rd-titlebar{
+      height:72px;flex:none;display:flex;align-items:center;padding:0 20px;background:var(--rd-surface);
+      border-bottom:1px solid var(--rd-border-soft);
+    }
+    #rd-design-root .rd-app-icon{
+      width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;
+      background:var(--rd-primary-light);color:var(--rd-primary-text);
+    }
+    #rd-design-root .rd-app-icon .rd-ico{width:19px;height:19px;}
+    #rd-design-root .rd-title-text{margin-left:12px;min-width:0;flex:1;}
+    #rd-design-root .rd-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--rd-text);}
+    #rd-design-root .rd-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--rd-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #rd-design-root .rd-icon-btn{
+      width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--rd-radius-md);
+      display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--rd-text-4);
+      cursor:pointer;transition:background 150ms ease,color 150ms ease;
+    }
+    #rd-design-root .rd-icon-btn .rd-ico{width:15px;height:15px;}
+    #rd-design-root .rd-icon-btn:hover{background:var(--rd-surface-3);color:var(--rd-text);}
+    #rd-design-root .rd-icon-btn:active{background:var(--rd-border);}
+    #rd-design-root .rd-icon-btn.is-danger:hover{background:var(--rd-danger-soft);color:var(--rd-danger-text);}
+
+    #rd-design-root .rd-content{
+      flex:1;min-height:0;display:grid;grid-template-columns:356px minmax(0,1fr);
+      gap:16px;padding:16px 20px 20px;background:var(--rd-surface);
+    }
+    #rd-design-root .rd-window.is-narrow .rd-content{grid-template-columns:300px minmax(0,1fr);gap:12px;padding:14px 16px 16px;}
+
+    /* ---- 左栏 ---- */
+    #rd-design-root .rd-rail{
+      min-height:0;overflow-y:auto;overflow-x:hidden;padding:14px;
+      border:1px solid var(--rd-border-soft);border-radius:var(--rd-radius-xl);background:var(--rd-surface-2);
+      scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;
+    }
+    #rd-design-root .rd-rail::-webkit-scrollbar{width:8px;}
+    #rd-design-root .rd-rail::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+    #rd-design-root .rd-rail::-webkit-scrollbar-track{background:transparent;}
+    #rd-design-root .rd-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;font-size:12px;font-weight:600;color:var(--rd-text-2);}
+    #rd-design-root .rd-section-hint{font-size:10.5px;font-weight:400;color:var(--rd-text-3);white-space:nowrap;}
+    #rd-design-root .rd-divider{height:1px;background:var(--rd-border-soft);margin:14px 0;}
+    #rd-design-root .rd-field{margin-bottom:12px;}
+    #rd-design-root .rd-field:last-child{margin-bottom:0;}
+    #rd-design-root .rd-label{display:flex;align-items:center;gap:5px;margin-bottom:6px;font-size:12px;font-weight:500;line-height:1.3;color:var(--rd-text-2);}
+    #rd-design-root .rd-label .rd-req{color:var(--rd-danger);font-size:11px;}
+    #rd-design-root .rd-input,
+    #rd-design-root .rd-select{
+      width:100%;height:36px;padding:0 10px;border:1px solid var(--rd-border);border-radius:var(--rd-radius-md);
+      background:var(--rd-surface);color:var(--rd-text);font-size:12.5px;line-height:1;outline:none;
+      transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;
+    }
+    #rd-design-root .rd-input::placeholder{color:var(--rd-text-3);}
+    #rd-design-root .rd-input:hover,
+    #rd-design-root .rd-select:hover{border-color:var(--rd-border-strong);}
+    #rd-design-root .rd-input:focus,
+    #rd-design-root .rd-select:focus{border-color:var(--rd-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #rd-design-root .rd-input:disabled{background:var(--rd-surface-3);color:var(--rd-text-3);cursor:not-allowed;}
+    #rd-design-root .rd-select{appearance:none;-webkit-appearance:none;padding-right:30px;cursor:pointer;}
+    #rd-design-root .rd-select-wrap{position:relative;}
+    #rd-design-root .rd-select-wrap > .rd-ico{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--rd-text-3);pointer-events:none;}
+    #rd-design-root .rd-input-row{display:flex;align-items:center;gap:8px;}
+    #rd-design-root .rd-input-row .rd-input{flex:1;min-width:0;}
+    #rd-design-root .rd-btn-square{
+      width:36px;height:36px;flex:none;padding:0;border:1px solid var(--rd-border);border-radius:var(--rd-radius-md);
+      background:var(--rd-surface);color:var(--rd-text-4);display:flex;align-items:center;justify-content:center;cursor:pointer;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease;
+    }
+    #rd-design-root .rd-btn-square .rd-ico{width:14px;height:14px;}
+    #rd-design-root .rd-btn-square:hover{background:var(--rd-primary-soft);border-color:var(--rd-primary-border);color:var(--rd-primary-text);}
+    #rd-design-root .rd-help{display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;font-size:11.5px;line-height:1.5;color:var(--rd-text-4);}
+    #rd-design-root .rd-help .rd-ico{width:12px;height:12px;margin-top:1px;color:var(--rd-text-3);}
+    #rd-design-root .rd-help.is-warn{color:var(--rd-warning-text);}
+    #rd-design-root .rd-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    #rd-design-root .rd-btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 13px;
+      border:1px solid var(--rd-border);border-radius:var(--rd-radius-md);background:var(--rd-surface);color:var(--rd-text);
+      font-size:12.5px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;
+    }
+    #rd-design-root .rd-btn .rd-ico{width:14px;height:14px;}
+    #rd-design-root .rd-btn:hover{background:var(--rd-surface-2);border-color:var(--rd-border-strong);}
+    #rd-design-root .rd-btn:active{background:var(--rd-surface-3);}
+    #rd-design-root .rd-btn-primary{background:var(--rd-primary);border-color:var(--rd-primary);color:#fff;font-weight:600;}
+    #rd-design-root .rd-btn-primary:hover{background:var(--rd-primary-strong);border-color:var(--rd-primary-strong);}
+    #rd-design-root .rd-btn-sm{height:32px;padding:0 11px;font-size:12px;}
+    #rd-design-root .rd-btn-block{width:100%;}
+    #rd-design-root .rd-btn:disabled{opacity:.45;cursor:not-allowed;}
+
+    /* 开关 */
+    #rd-design-root .rd-switch{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--rd-text-2);cursor:pointer;user-select:none;}
+    #rd-design-root .rd-switch input{position:absolute;opacity:0;width:0;height:0;}
+    #rd-design-root .rd-switch-track{
+      position:relative;width:34px;height:20px;flex:none;border-radius:10px;background:var(--rd-border-strong);
+      transition:background 150ms ease;
+    }
+    #rd-design-root .rd-switch-thumb{
+      position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;
+      box-shadow:0 1px 2px rgba(15,23,42,.22);transition:transform 150ms ease;
+    }
+    #rd-design-root .rd-switch input:checked + .rd-switch-track{background:var(--rd-primary);}
+    #rd-design-root .rd-switch input:checked + .rd-switch-track .rd-switch-thumb{transform:translateX(14px);}
+    #rd-design-root .rd-switch input:focus-visible + .rd-switch-track{outline:2px solid var(--rd-primary);outline-offset:2px;}
+
+    /* 九宫格 */
+    #rd-design-root .rd-anchor-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;max-width:196px;}
+    #rd-design-root .rd-anchor{
+      height:38px;border:1px solid var(--rd-border);border-radius:var(--rd-radius-md);background:var(--rd-surface);
+      color:var(--rd-text-2);font-size:11.5px;cursor:pointer;transition:border-color 150ms ease,background 150ms ease,color 150ms ease;
+    }
+    #rd-design-root .rd-anchor:hover{border-color:var(--rd-border-strong);background:var(--rd-surface-2);}
+    #rd-design-root .rd-anchor.is-on{border-color:var(--rd-primary);background:var(--rd-primary-soft);color:var(--rd-primary-text);font-weight:600;box-shadow:0 0 0 3px rgba(14,165,233,.10);}
+
+    /* 折叠区 */
+    #rd-design-root .rd-details{margin-top:2px;border:1px solid var(--rd-border);border-radius:var(--rd-radius-lg);background:var(--rd-surface);overflow:hidden;}
+    #rd-design-root .rd-details summary{display:flex;align-items:center;gap:8px;padding:10px 12px;font-size:12px;font-weight:500;color:var(--rd-text-2);cursor:pointer;list-style:none;}
+    #rd-design-root .rd-details summary::-webkit-details-marker{display:none;}
+    #rd-design-root .rd-details summary:hover{background:var(--rd-surface-2);}
+    #rd-design-root .rd-details summary .rd-ico{width:14px;height:14px;color:var(--rd-text-3);}
+    #rd-design-root .rd-details summary .rd-chev{margin-left:auto;transition:transform 150ms ease;}
+    #rd-design-root .rd-details[open] summary .rd-chev{transform:rotate(180deg);}
+    #rd-design-root .rd-details-body{padding:12px;border-top:1px solid var(--rd-border-soft);}
+
+    /* 信息条 */
+    #rd-design-root .rd-banner{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border:1px solid;border-radius:var(--rd-radius-lg);font-size:11.5px;line-height:1.5;}
+    #rd-design-root .rd-banner .rd-ico{width:14px;height:14px;margin-top:1px;}
+    #rd-design-root .rd-banner.is-info{background:var(--rd-primary-soft);border-color:var(--rd-primary-border);color:var(--rd-primary-text);}
+    #rd-design-root .rd-banner.is-warn{background:var(--rd-warning-soft);border-color:var(--rd-warning-border);color:var(--rd-warning-text);}
+    #rd-design-root .rd-banner.is-muted{background:var(--rd-surface-3);border-color:var(--rd-border);color:var(--rd-text-2);}
+
+    /* ---- 右：结果项工作区 ---- */
+    #rd-design-root .rd-results{
+      min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+      border:1px solid var(--rd-border);border-radius:var(--rd-radius-xl);background:var(--rd-surface);
+    }
+    #rd-design-root .rd-results-head{
+      height:56px;flex:none;display:flex;align-items:center;gap:9px;padding:0 14px;
+      border-bottom:1px solid var(--rd-border-soft);background:var(--rd-surface);
+    }
+    #rd-design-root .rd-file-chip{width:30px;height:30px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--rd-primary-light);color:var(--rd-primary-text);}
+    #rd-design-root .rd-file-chip .rd-ico{width:15px;height:15px;}
+    #rd-design-root .rd-results-title{min-width:0;flex:1;}
+    #rd-design-root .rd-results-title b{display:block;font-size:13px;font-weight:600;line-height:1.3;color:var(--rd-text);}
+    #rd-design-root .rd-results-title small{display:block;margin-top:2px;font-size:10.5px;line-height:1.3;color:var(--rd-text-4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #rd-design-root .rd-count{
+      flex:none;display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;
+      background:var(--rd-surface-3);border:1px solid var(--rd-border);font-size:10.5px;font-weight:600;
+      color:var(--rd-text-2);font-variant-numeric:tabular-nums;
+    }
+    #rd-design-root .rd-results-body{flex:1;min-height:0;position:relative;overflow:hidden;}
+    #rd-design-root .rd-list{position:absolute;inset:0;overflow-y:auto;padding:12px;scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+    #rd-design-root .rd-list::-webkit-scrollbar{width:8px;}
+    #rd-design-root .rd-list::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+
+    #rd-design-root .rd-row{
+      padding:9px 10px;margin-bottom:8px;border:1px solid var(--rd-border);border-radius:var(--rd-radius-lg);
+      background:var(--rd-surface);transition:border-color 150ms ease,background 150ms ease,opacity 150ms ease;
+    }
+    #rd-design-root .rd-row:last-child{margin-bottom:0;}
+    #rd-design-root .rd-row:hover{border-color:var(--rd-border-strong);}
+    #rd-design-root .rd-row.is-off{background:var(--rd-surface-2);opacity:.62;}
+    #rd-design-root .rd-row-top{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+    #rd-design-root .rd-check{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;flex:none;cursor:pointer;}
+    #rd-design-root .rd-check input{width:15px;height:15px;accent-color:var(--rd-primary);cursor:pointer;}
+    #rd-design-root .rd-name{flex:1;min-width:0;height:32px;font-weight:600;}
+    #rd-design-root .rd-del{width:26px;height:26px;}
+    #rd-design-root .rd-del .rd-ico{width:13px;height:13px;}
+    #rd-design-root .rd-row-bottom{display:grid;grid-template-columns:minmax(0,1fr) 58px 46px;gap:7px;align-items:center;}
+    #rd-design-root .rd-value{display:flex;align-items:center;gap:4px;min-width:0;}
+    #rd-design-root .rd-value .rd-input{flex:1;min-width:0;}
+    #rd-design-root .rd-link-field{
+      flex:1;min-width:0;height:36px;display:flex;align-items:center;gap:5px;padding:0 8px;
+      border:1px solid var(--rd-primary-border);border-radius:var(--rd-radius-md);background:var(--rd-primary-soft);
+      color:var(--rd-primary-text);font-size:12px;font-family:var(--rd-mono);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #rd-design-root .rd-link-field .rd-ico{width:12px;height:12px;color:var(--rd-primary);}
+    #rd-design-root .rd-link-field span{min-width:0;overflow:hidden;text-overflow:ellipsis;}
+    #rd-design-root .rd-mini-btn{
+      width:24px;height:24px;flex:none;padding:0;border:0;border-radius:6px;background:transparent;color:var(--rd-text-3);
+      display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+    }
+    #rd-design-root .rd-mini-btn .rd-ico{width:12px;height:12px;}
+    #rd-design-root .rd-mini-btn:hover{background:var(--rd-primary-light);color:var(--rd-primary-text);}
+    #rd-design-root .rd-mini-btn.is-danger:hover{background:var(--rd-danger-soft);color:var(--rd-danger-text);}
+    #rd-design-root .rd-format,.rd-unit{text-align:center;padding:0 6px;font-family:var(--rd-mono);font-size:11px;font-variant-numeric:tabular-nums;}
+
+    #rd-design-root .rd-empty{
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;
+    }
+    #rd-design-root .rd-empty-card{
+      width:min(420px,90%);padding:26px 24px;border:1.5px dashed var(--rd-border-strong);border-radius:14px;
+      background:var(--rd-surface-2);display:flex;flex-direction:column;align-items:center;text-align:center;
+    }
+    #rd-design-root .rd-empty-icon{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:var(--rd-surface-3);color:var(--rd-text-3);margin-bottom:12px;}
+    #rd-design-root .rd-empty-icon .rd-ico{width:22px;height:22px;}
+    #rd-design-root .rd-empty-title{font-size:14px;font-weight:600;line-height:1.4;color:var(--rd-text);}
+    #rd-design-root .rd-empty-sub{max-width:330px;margin:5px 0 14px;font-size:11.5px;line-height:1.6;color:var(--rd-text-4);}
+    #rd-design-root .rd-results-foot{
+      flex:none;min-height:40px;display:flex;align-items:flex-start;gap:7px;padding:8px 12px;
+      border-top:1px solid var(--rd-border-soft);background:var(--rd-surface-2);
+      font-size:11.5px;line-height:1.5;color:var(--rd-text-4);
+    }
+    #rd-design-root .rd-results-foot .rd-ico{width:13px;height:13px;margin-top:1px;color:var(--rd-text-3);}
+
+    /* ---- 底部（宿主外壳，仅上下文） ---- */
+    #rd-design-root .rd-footer{height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid var(--rd-border-soft);background:var(--rd-surface-2);}
+    #rd-design-root .rd-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #rd-design-root .rd-status-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--rd-surface);border:1px solid var(--rd-border);font-size:11.5px;color:var(--rd-text-2);white-space:nowrap;}
+    #rd-design-root .rd-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--rd-text-3);}
+    #rd-design-root .rd-elapsed{font-family:var(--rd-mono);font-size:11px;color:var(--rd-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+    #rd-design-root .rd-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #rd-design-root .rd-footer .rd-btn{height:32px;padding:0 16px;font-size:12.5px;}
+    #rd-design-root .rd-footer .rd-btn-primary{padding:0 18px;}
+
+    /* ---- 说明 ---- */
+    #rd-design-root .rd-notes{max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;}
+    #rd-design-root .rd-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--rd-text-2);}
+    #rd-design-root .rd-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--rd-border);}
+    #rd-design-root .rd-note-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--rd-primary-light);color:var(--rd-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}
+    #rd-design-root .rd-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--rd-text);}
+    #rd-design-root .rd-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--rd-text-2);}
+    #rd-design-root .rd-note code{font-family:var(--rd-mono);font-size:10.5px;color:var(--rd-primary-text);background:var(--rd-primary-soft);padding:1px 5px;border-radius:4px;}
+
+    #rd-design-root .rd-window.is-narrow .rd-results-title small{display:none;}
+    #rd-design-root .rd-window.is-narrow .rd-results-head{padding:0 10px;gap:7px;}
+    #rd-design-root .rd-window.is-narrow .rd-count{display:none;}
+    #rd-design-root .rd-window.is-narrow .rd-list{padding:9px;}
+    #rd-design-root .rd-window.is-narrow .rd-row{padding:8px;}
+    #rd-design-root .rd-window.is-narrow .rd-row-bottom{grid-template-columns:minmax(0,1fr) 50px 42px;gap:5px;}
+
+    @media (prefers-reduced-motion: reduce){
+      #rd-design-root *{animation:none !important;transition:none !important;}
+    }
+    @media (max-width:1024px){
+      #rd-design-root .rd-page{padding:18px 14px 32px;}
+      #rd-design-root .rd-window{height:auto;min-height:640px;}
+      #rd-design-root .rd-content{grid-template-columns:1fr;}
+      #rd-design-root .rd-rail{overflow:visible;}
+      #rd-design-root .rd-results{min-height:480px;}
+    }
+  </style>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <symbol id="rd-i-layers" viewBox="0 0 24 24"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+    <symbol id="rd-i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="rd-i-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></symbol>
+    <symbol id="rd-i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></symbol>
+    <symbol id="rd-i-tag" viewBox="0 0 24 24"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></symbol>
+    <symbol id="rd-i-grid" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></symbol>
+    <symbol id="rd-i-sliders" viewBox="0 0 24 24"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/></symbol>
+    <symbol id="rd-i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+    <symbol id="rd-i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></symbol>
+    <symbol id="rd-i-link" viewBox="0 0 24 24"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></symbol>
+    <symbol id="rd-i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+    <symbol id="rd-i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="rd-i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+    <symbol id="rd-i-list" viewBox="0 0 24 24"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></symbol>
+    <symbol id="rd-i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="rd-i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></symbol>
+  </defs></svg>
+
+  <div class="rd-page">
+    <header>
+      <div class="rd-page-title-row">
+        <h1>结果显示 · 配置窗口</h1>
+        <span class="rd-ver">v1</span>
+      </div>
+      <p class="rd-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、
+        <b>SrcImage</b> 与结果项行内 <b>LinkableValueEditor</b>、全部属性/命令绑定；
+        不新增功能、不改端口名、不改烧录与文字定位逻辑（R39）。
+      </p>
+      <div class="rd-demo-bar">
+        <div class="rd-demo-group" role="group" aria-label="窗口宽度">
+          <span class="rd-demo-label">窗口宽度</span>
+          <div class="rd-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="rd-demo-group" role="group" aria-label="界面状态">
+          <span class="rd-demo-label">状态</span>
+          <div class="rd-seg">
+            <button type="button" data-state="default" class="is-on" aria-pressed="true">默认</button>
+            <button type="button" data-state="empty" aria-pressed="false">空结果项</button>
+            <button type="button" data-state="edge" aria-pressed="false">边界值</button>
+          </div>
+        </div>
+      </div>
+      <div class="rd-scope">
+        <svg class="rd-ico"><use href="#rd-i-info"/></svg>
+        <span><b>本版未纳入（需新增功能或契约）：</b>配置态实时预览、加载骨架、图像尺寸、放大/缩小、打开文件夹、系统导航。
+        结果显示只在运行期烧录，配置态不出预览；本稿覆盖 960×680 与 640×560 两档。</span>
+      </div>
+    </header>
+
+    <div class="rd-window" id="rd-window">
+      <div class="rd-titlebar">
+        <div class="rd-app-icon"><svg class="rd-ico"><use href="#rd-i-layers"/></svg></div>
+        <div class="rd-title-text">
+          <div class="rd-title">结果显示</div>
+          <div class="rd-subtitle">把任意算子的输出烧进图里：数值 / 文本 / OK-NG / 几何 / 区域，一个算子汇总显示</div>
+        </div>
+        <button type="button" class="rd-icon-btn" aria-label="关闭" title="关闭">
+          <svg class="rd-ico"><use href="#rd-i-x"/></svg>
+        </button>
+      </div>
+
+      <div class="rd-content">
+        <aside class="rd-rail" aria-label="结果显示配置">
+          <section>
+            <div class="rd-section-head"><span>底图</span><span class="rd-section-hint">唯一必接</span></div>
+            <div class="rd-field">
+              <label class="rd-label" for="rd-src-input">图像 SrcImage <span class="rd-req">*</span></label>
+              <div class="rd-input-row">
+                <input class="rd-input" id="rd-src-input" type="text" value="图像采集.Image" spellcheck="false">
+                <button type="button" class="rd-btn-square" title="绑定变量 / 选择上游端口" aria-label="绑定变量">
+                  <svg class="rd-ico"><use href="#rd-i-link"/></svg>
+                </button>
+              </div>
+              <p class="rd-help">
+                <svg class="rd-ico"><use href="#rd-i-info"/></svg>
+                结果画在哪张图上；本算子不改原图，产出一张全新的标注图 <code>AnnotatedImage</code>。
+              </p>
+            </div>
+          </section>
+
+          <div class="rd-divider"></div>
+
+          <section>
+            <div class="rd-section-head"><span>显示与判定</span><span class="rd-section-hint">发布 / 着色</span></div>
+            <div class="rd-field">
+              <label class="rd-label" for="rd-view-select">显示窗口</label>
+              <div class="rd-select-wrap">
+                <select class="rd-select" id="rd-view-select">
+                  <option value="0">不显示（只烧录）</option>
+                  <option value="1" selected>图像窗口 1</option>
+                  <option value="2">图像窗口 2</option>
+                  <option value="3">图像窗口 3</option>
+                  <option value="4">图像窗口 4</option>
+                  <option value="5">图像窗口 5</option>
+                  <option value="6">图像窗口 6</option>
+                  <option value="7">图像窗口 7</option>
+                  <option value="8">图像窗口 8</option>
+                  <option value="9">图像窗口 9</option>
+                </select>
+                <svg class="rd-ico"><use href="#rd-i-chevron"/></svg>
+              </div>
+              <p class="rd-help" id="rd-view-hint">发布到主界面第 1 个图像窗口</p>
+            </div>
+            <div class="rd-field">
+              <label class="rd-label" for="rd-judge-select">判定项</label>
+              <div class="rd-select-wrap">
+                <select class="rd-select" id="rd-judge-select">
+                  <option value="">不判定</option>
+                  <option value="判定" selected>判定</option>
+                  <option value="宽度">宽度</option>
+                  <option value="数量">数量</option>
+                </select>
+                <svg class="rd-ico"><use href="#rd-i-chevron"/></svg>
+              </div>
+              <p class="rd-help">命中 NG 值 → 文字转红；空 = 不判定（文字全绿）。</p>
+            </div>
+            <div class="rd-field">
+              <label class="rd-label" for="rd-ng-input">NG 值</label>
+              <input class="rd-input" id="rd-ng-input" type="text" value="NG">
+              <p class="rd-help">数值按数值比、真假按真假比、其余按文本忽略大小写比。</p>
+            </div>
+            <div class="rd-field">
+              <label class="rd-switch" for="rd-text-check">
+                <input id="rd-text-check" type="checkbox" checked>
+                <span class="rd-switch-track"><span class="rd-switch-thumb"></span></span>
+                <span>图上叠字</span>
+              </label>
+              <p class="rd-help">关掉 = 只烧图形不烧字；文字仍进信息栏（缩略图悬停可追溯）。</p>
+            </div>
+          </section>
+
+          <div class="rd-divider"></div>
+
+          <section>
+            <div class="rd-section-head"><span>文字位置</span><span class="rd-section-hint">九宫格</span></div>
+            <div class="rd-field">
+              <label class="rd-label">锚点</label>
+              <div class="rd-anchor-grid" id="rd-anchor-grid" role="group" aria-label="文字九宫格">
+                <button type="button" class="rd-anchor is-on" data-anchor="0">左上</button>
+                <button type="button" class="rd-anchor" data-anchor="1">中上</button>
+                <button type="button" class="rd-anchor" data-anchor="2">右上</button>
+                <button type="button" class="rd-anchor" data-anchor="3">左中</button>
+                <button type="button" class="rd-anchor" data-anchor="4">居中</button>
+                <button type="button" class="rd-anchor" data-anchor="5">右中</button>
+                <button type="button" class="rd-anchor" data-anchor="6">左下</button>
+                <button type="button" class="rd-anchor" data-anchor="7">中下</button>
+                <button type="button" class="rd-anchor" data-anchor="8">右下</button>
+              </div>
+              <p class="rd-help">只搬「数值/文本」块；几何项的标签永远跟着图形走，不受这里影响。</p>
+            </div>
+            <div class="rd-grid-2">
+              <div class="rd-field">
+                <label class="rd-label" for="rd-margin-input">边距 (px)</label>
+                <input class="rd-input" id="rd-margin-input" type="number" value="0" min="0" max="4096">
+                <p class="rd-help">0 = 自动（画布高×2%）</p>
+              </div>
+              <div class="rd-field">
+                <label class="rd-label" for="rd-scale-input">字号倍率</label>
+                <input class="rd-input" id="rd-scale-input" type="number" value="1.0" min="0.5" max="3.0" step="0.1">
+                <p class="rd-help">0.5~3.0，1.0 = 自适应</p>
+              </div>
+            </div>
+          </section>
+
+          <div class="rd-divider"></div>
+
+          <details class="rd-details" id="rd-advanced">
+            <summary>
+              <svg class="rd-ico"><use href="#rd-i-sliders"/></svg>
+              高级
+              <svg class="rd-ico rd-chev"><use href="#rd-i-chevron"/></svg>
+            </summary>
+            <div class="rd-details-body">
+              <div class="rd-field">
+                <label class="rd-label" for="rd-max-input">绘制上限</label>
+                <input class="rd-input" id="rd-max-input" type="number" value="300" min="10" max="2000">
+                <p class="rd-help">10~2000；轮廓点集另有 2000 点抽稀上限，与本项独立。</p>
+              </div>
+            </div>
+          </details>
+
+          <div class="rd-banner is-info" style="margin-top:14px;">
+            <svg class="rd-ico"><use href="#rd-i-info"/></svg>
+            <span>底图为空时只写告警、本步骤仍算成功；烧录失败会降级为发布原底图（宁缺显示不停线）。</span>
+          </div>
+        </aside>
+
+        <section class="rd-results" aria-label="结果项">
+          <div class="rd-results-head">
+            <div class="rd-file-chip"><svg class="rd-ico"><use href="#rd-i-list"/></svg></div>
+            <div class="rd-results-title">
+              <b>结果项</b>
+              <small>一行 = 一个输入端口 = 图上一段标注</small>
+            </div>
+            <span class="rd-count" id="rd-count">4 项</span>
+            <button type="button" class="rd-btn rd-btn-primary rd-btn-sm" id="rd-add">
+              <svg class="rd-ico"><use href="#rd-i-plus"/></svg>添加一项
+            </button>
+          </div>
+
+          <div class="rd-results-body">
+            <div class="rd-list" id="rd-list">
+              <article class="rd-row" data-enabled="true">
+                <div class="rd-row-top">
+                  <label class="rd-check" title="启用该项"><input type="checkbox" checked></label>
+                  <input class="rd-input rd-name" type="text" value="宽度" aria-label="显示名">
+                  <button type="button" class="rd-icon-btn rd-del is-danger" title="删除该项" aria-label="删除该项">
+                    <svg class="rd-ico"><use href="#rd-i-trash"/></svg>
+                  </button>
+                </div>
+                <div class="rd-row-bottom">
+                  <div class="rd-value">
+                    <div class="rd-link-field" title="已链接变量，运行时从上游取值">
+                      <svg class="rd-ico"><use href="#rd-i-link"/></svg>
+                      <span>几何计算.Width</span>
+                    </div>
+                    <button type="button" class="rd-mini-btn" title="改链" aria-label="改链"><svg class="rd-ico"><use href="#rd-i-link"/></svg></button>
+                    <button type="button" class="rd-mini-btn" title="解除链接" aria-label="解除链接"><svg class="rd-ico"><use href="#rd-i-x"/></svg></button>
+                  </div>
+                  <input class="rd-input rd-format" type="text" value="F2" aria-label="格式" placeholder="格式">
+                  <input class="rd-input rd-unit" type="text" value="mm" aria-label="单位" placeholder="单位">
+                </div>
+              </article>
+
+              <article class="rd-row" data-enabled="true">
+                <div class="rd-row-top">
+                  <label class="rd-check" title="启用该项"><input type="checkbox" checked></label>
+                  <input class="rd-input rd-name" type="text" value="判定" aria-label="显示名">
+                  <button type="button" class="rd-icon-btn rd-del is-danger" title="删除该项" aria-label="删除该项">
+                    <svg class="rd-ico"><use href="#rd-i-trash"/></svg>
+                  </button>
+                </div>
+                <div class="rd-row-bottom">
+                  <div class="rd-value">
+                    <div class="rd-link-field" title="已链接变量，运行时从上游取值">
+                      <svg class="rd-ico"><use href="#rd-i-link"/></svg>
+                      <span>几何计算.OK</span>
+                    </div>
+                    <button type="button" class="rd-mini-btn" title="改链" aria-label="改链"><svg class="rd-ico"><use href="#rd-i-link"/></svg></button>
+                    <button type="button" class="rd-mini-btn" title="解除链接" aria-label="解除链接"><svg class="rd-ico"><use href="#rd-i-x"/></svg></button>
+                  </div>
+                  <input class="rd-input rd-format" type="text" value="" aria-label="格式" placeholder="格式">
+                  <input class="rd-input rd-unit" type="text" value="" aria-label="单位" placeholder="单位">
+                </div>
+              </article>
+
+              <article class="rd-row" data-enabled="true">
+                <div class="rd-row-top">
+                  <label class="rd-check" title="启用该项"><input type="checkbox" checked></label>
+                  <input class="rd-input rd-name" type="text" value="数量" aria-label="显示名">
+                  <button type="button" class="rd-icon-btn rd-del is-danger" title="删除该项" aria-label="删除该项">
+                    <svg class="rd-ico"><use href="#rd-i-trash"/></svg>
+                  </button>
+                </div>
+                <div class="rd-row-bottom">
+                  <div class="rd-value">
+                    <div class="rd-link-field" title="已链接变量，运行时从上游取值">
+                      <svg class="rd-ico"><use href="#rd-i-link"/></svg>
+                      <span>BlobDetect.Count</span>
+                    </div>
+                    <button type="button" class="rd-mini-btn" title="改链" aria-label="改链"><svg class="rd-ico"><use href="#rd-i-link"/></svg></button>
+                    <button type="button" class="rd-mini-btn" title="解除链接" aria-label="解除链接"><svg class="rd-ico"><use href="#rd-i-x"/></svg></button>
+                  </div>
+                  <input class="rd-input rd-format" type="text" value="0" aria-label="格式" placeholder="格式">
+                  <input class="rd-input rd-unit" type="text" value="个" aria-label="单位" placeholder="单位">
+                </div>
+              </article>
+
+              <article class="rd-row is-off" data-enabled="false">
+                <div class="rd-row-top">
+                  <label class="rd-check" title="启用该项"><input type="checkbox"></label>
+                  <input class="rd-input rd-name" type="text" value="备注" aria-label="显示名">
+                  <button type="button" class="rd-icon-btn rd-del is-danger" title="删除该项" aria-label="删除该项">
+                    <svg class="rd-ico"><use href="#rd-i-trash"/></svg>
+                  </button>
+                </div>
+                <div class="rd-row-bottom">
+                  <div class="rd-value">
+                    <input class="rd-input" type="text" value="待检" aria-label="固定值">
+                    <button type="button" class="rd-mini-btn" title="链接变量" aria-label="链接变量"><svg class="rd-ico"><use href="#rd-i-link"/></svg></button>
+                    <button type="button" class="rd-mini-btn" title="清空输入" aria-label="清空输入"><svg class="rd-ico"><use href="#rd-i-x"/></svg></button>
+                  </div>
+                  <input class="rd-input rd-format" type="text" value="" aria-label="格式" placeholder="格式">
+                  <input class="rd-input rd-unit" type="text" value="" aria-label="单位" placeholder="单位">
+                </div>
+              </article>
+            </div>
+
+            <div class="rd-empty" id="rd-empty" hidden>
+              <div class="rd-empty-card">
+                <div class="rd-empty-icon"><svg class="rd-ico"><use href="#rd-i-list"/></svg></div>
+                <div class="rd-empty-title">还没有结果项</div>
+                <p class="rd-empty-sub">添加一项后，在「取值」行点 🔗 连接上游算子的输出端口；名称只影响图上文字与端口标签，改名不断线。</p>
+                <button type="button" class="rd-btn rd-btn-primary" id="rd-add-empty">
+                  <svg class="rd-ico"><use href="#rd-i-plus"/></svg>添加一项
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="rd-results-foot" id="rd-results-foot">
+            <svg class="rd-ico"><use href="#rd-i-info"/></svg>
+            <span>数值 / 文本 / OK-NG → 图上文字；几何、区域、XLD → 图形（青色）；图像值请连底图 SrcImage。</span>
+          </div>
+        </section>
+      </div>
+
+      <div class="rd-footer">
+        <div class="rd-footer-left">
+          <span class="rd-status-chip"><span class="rd-footer-dot"></span><span>状态: 待执行</span></span>
+          <span class="rd-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="rd-footer-right">
+          <button type="button" class="rd-btn"><svg class="rd-ico"><use href="#rd-i-play"/></svg>执行</button>
+          <button type="button" class="rd-btn" style="border-color:transparent;background:transparent;color:var(--rd-text-2);">取消</button>
+          <button type="button" class="rd-btn rd-btn-primary">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rd-notes">
+      <div class="rd-notes-head">关键改动（v1）</div>
+      <div class="rd-note"><div class="rd-note-num">01</div><div><b>结果项成为主工作区</b><span>左栏只放配置，右侧整块用于结果项列表；每项一张卡，增删、启停、改名与行内连线同屏完成。</span></div></div>
+      <div class="rd-note"><div class="rd-note-num">02</div><div><b>表单节奏统一</b><span>标签 12px / 控件 36px / 帮助 11.5px；底图与结果项行仍由 <code>LinkableValueEditor</code> 承载，<code>Port</code> / <code>StepData</code> 原样。</span></div></div>
+      <div class="rd-note"><div class="rd-note-num">03</div><div><b>判定与文字位置分组</b><span>显示窗口、判定项、NG 值、图上叠字集中；九宫格改为 3×3 可点按钮，仍写 <code>TextAnchor</code> 枚举。</span></div></div>
+      <div class="rd-note"><div class="rd-note-num">04</div><div><b>边界值就地解释</b><span>显示窗口 0 / 边距 0 / 字号 1.0 / 绘制上限 10~2000 都在字段下方写明后果，不让用户靠试。</span></div></div>
+      <div class="rd-note"><div class="rd-note-num">05</div><div><b>空态与停用态</b><span>结果项为 0 时给虚线空态与添加入口；停用项保留配置、整行降透明度，仍可编辑名称与取值。</span></div></div>
+      <div class="rd-note"><div class="rd-note-num">06</div><div><b>全令牌化</b><span>颜色映射 <code>Colors.xaml</code> / <code>PluginConfigColors.xaml</code>；只在本视图派生样式，不改共享字典与共享控件。</span></div></div>
+      <div class="rd-note"><div class="rd-note-num">07</div><div><b>五态与可达性</b><span>hover / pressed / focus / disabled 全量；图标按钮 30×30 且 <code>Padding=0</code>（R68），焦点环 <code>DialogFocusVisual</code>，ToolTip <code>DialogToolTipStyle</code>。</span></div></div>
+
+      <div class="rd-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="rd-note"><div class="rd-note-num">C1</div><div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不换独立 VM。</span></div></div>
+      <div class="rd-note"><div class="rd-note-num">C2</div><div><b>SrcImage + 每行动态端口</b><span><code>SrcImage</code> 与结果项 <code>r1/r2…</code> 都是 <code>InputPort</code>；<code>Port</code> / <code>StepData</code> / <code>PortsVersion</code> 的多绑定不改，改名不断线。</span></div></div>
+      <div class="rd-note"><div class="rd-note-num">C3</div><div><b>全部 [StepConfig] 属性</b><span><code>DisplayViewIndex</code>（int 0~9）、<code>ShowTextOnImage</code>、<code>JudgeItemLabel</code>、<code>NgValue</code>、<code>MaxDrawElements</code>、<code>TextAnchor</code>、<code>TextMargin</code>、<code>TextScale</code>、<code>Items</code> 的类型与持久化键不变。</span></div></div>
+      <div class="rd-note"><div class="rd-note-num">C4</div><div><b>AddItem / Items.Remove</b><span>视图的「添加一项 / 删除」只转发插件既有公开方法，不新增业务；删除仍按行对象移除。</span></div></div>
+      <div class="rd-note"><div class="rd-note-num">C5</div><div><b>烧录与文字定位</b><span><code>AnnotationBaker</code>、<code>DisplayDraw</code>、<code>TextAnchorKind</code> 九宫格语义与 R39 文字宽度能力一律不改。</span></div></div>
+
+      <div class="rd-notes-head" style="margin-top:20px;">本版明确延后（需新增功能或契约）</div>
+      <div class="rd-note"><div class="rd-note-num">D1</div><div><b>配置态实时预览</b><span>烧录要开离屏 HALCON 窗口，只能在流程线程执行；配置态不出预览（插件类注释已有口径）。</span></div></div>
+      <div class="rd-note"><div class="rd-note-num">D2</div><div><b>加载骨架 / 进度态</b><span>插件没有 <code>StatusLevel</code> / <code>StatusMessage</code>，也没有预览状态机；不新增第四档。</span></div></div>
+      <div class="rd-note"><div class="rd-note-num">D3</div><div><b>图像尺寸 / 文件大小</b><span>配置态不加载底图，没有可绑定的尺寸属性。</span></div></div>
+      <div class="rd-note"><div class="rd-note-num">D4</div><div><b>放大 / 缩小 / 打开文件夹 / 系统导航</b><span>本插件没有 HALCON 画布或文件路径，均无落点，不造死按钮。</span></div></div>
+      <div class="rd-note"><div class="rd-note-num">D5</div><div><b>结果项拖拽排序</b><span>当前 <code>Items</code> 没有排序命令；排序会改变端口顺序与图上文字顺序，属功能变更。</span></div></div>
+      <div class="rd-note"><div class="rd-note-num">D6</div><div><b>判定项失效检测</b><span>插件只按 Label 匹配，找不到时运行期不判定；没有可绑定的“失效”状态，视图不伪造警告。</span></div></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('rd-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#rd-window');
+      var list = root.querySelector('#rd-list');
+      var empty = root.querySelector('#rd-empty');
+      var count = root.querySelector('#rd-count');
+      var add = root.querySelector('#rd-add');
+      var addEmpty = root.querySelector('#rd-add-empty');
+      var stateButtons = Array.prototype.slice.call(root.querySelectorAll('[data-state]'));
+      var widthButtons = Array.prototype.slice.call(root.querySelectorAll('[data-width]'));
+      var anchorButtons = Array.prototype.slice.call(root.querySelectorAll('.rd-anchor'));
+      var viewSelect = root.querySelector('#rd-view-select');
+      var viewHint = root.querySelector('#rd-view-hint');
+      var judgeSelect = root.querySelector('#rd-judge-select');
+      var ngInput = root.querySelector('#rd-ng-input');
+      var marginInput = root.querySelector('#rd-margin-input');
+      var scaleInput = root.querySelector('#rd-scale-input');
+      var maxInput = root.querySelector('#rd-max-input');
+      var textCheck = root.querySelector('#rd-text-check');
+      var foot = root.querySelector('#rd-results-foot span');
+
+      var state = 'default';
+
+      function rows() {
+        return Array.prototype.slice.call(list.querySelectorAll('.rd-row'));
+      }
+
+      function syncCount() {
+        var n = rows().length;
+        count.textContent = n + ' 项';
+        empty.hidden = n !== 0;
+        list.hidden = n === 0;
+      }
+
+      function syncRow(row) {
+        var cb = row.querySelector('.rd-check input');
+        row.dataset.enabled = cb && cb.checked ? 'true' : 'false';
+        row.classList.toggle('is-off', !(cb && cb.checked));
+      }
+
+      function bindRow(row) {
+        var cb = row.querySelector('.rd-check input');
+        var del = row.querySelector('.rd-del');
+        if (cb) cb.addEventListener('change', function () { syncRow(row); });
+        if (del) del.addEventListener('click', function () { row.remove(); syncCount(); });
+      }
+
+      rows().forEach(bindRow);
+
+      function setAnchor(index) {
+        anchorButtons.forEach(function (b) {
+          var on = Number(b.dataset.anchor) === index;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+      }
+
+      function setViewHint() {
+        var v = Number(viewSelect.value);
+        viewHint.textContent = v <= 0
+          ? '0 = 只烧录不发布（缩略图 / 导出图 / 存图仍带标注，不抢占窗口）'
+          : '发布到主界面第 ' + v + ' 个图像窗口';
+        viewHint.classList.toggle('is-warn', v <= 0);
+      }
+
+      function setTextFoot() {
+        foot.textContent = textCheck.checked
+          ? '数值 / 文本 / OK-NG → 图上文字；几何、区域、XLD → 图形（青色）；图像值请连底图 SrcImage。'
+          : '图上叠字已关闭：只烧图形（几何 / 区域 / XLD），文字仍进信息栏；图像值请连底图 SrcImage。';
+      }
+
+      function applyState(next) {
+        state = next;
+        stateButtons.forEach(function (b) {
+          var on = b.dataset.state === state;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+
+        if (state === 'empty') {
+          rows().forEach(function (r) { r.remove(); });
+          viewSelect.value = '1';
+          judgeSelect.value = '判定';
+          ngInput.value = 'NG';
+          marginInput.value = '0';
+          scaleInput.value = '1.0';
+          maxInput.value = '300';
+          setAnchor(0);
+        } else if (state === 'edge') {
+          rows().forEach(function (r) { r.remove(); });
+          addDemoRow('宽度', '几何计算.Width', 'F2', 'mm', true);
+          addDemoRow('判定', '几何计算.OK', '', '', true);
+          addDemoRow('数量', 'BlobDetect.Count', '0', '个', true);
+          addDemoRow('备注', '待检', '', '', false);
+          viewSelect.value = '0';
+          judgeSelect.value = '';
+          ngInput.value = 'NG';
+          marginInput.value = '4096';
+          scaleInput.value = '3.0';
+          maxInput.value = '2000';
+          setAnchor(8);
+        } else {
+          rows().forEach(function (r) { r.remove(); });
+          addDemoRow('宽度', '几何计算.Width', 'F2', 'mm', true);
+          addDemoRow('判定', '几何计算.OK', '', '', true);
+          addDemoRow('数量', 'BlobDetect.Count', '0', '个', true);
+          addDemoRow('备注', '待检', '', '', false);
+          viewSelect.value = '1';
+          judgeSelect.value = '判定';
+          ngInput.value = 'NG';
+          marginInput.value = '0';
+          scaleInput.value = '1.0';
+          maxInput.value = '300';
+          setAnchor(0);
+        }
+        setViewHint();
+        syncCount();
+      }
+
+      function addDemoRow(name, value, format, unit, enabled) {
+        var linked = value && value.indexOf('.') > -1;
+        var row = document.createElement('article');
+        row.className = 'rd-row' + (enabled ? '' : ' is-off');
+        row.dataset.enabled = enabled ? 'true' : 'false';
+        row.innerHTML =
+          '<div class="rd-row-top">' +
+            '<label class="rd-check" title="启用该项"><input type="checkbox"' + (enabled ? ' checked' : '') + '></label>' +
+            '<input class="rd-input rd-name" type="text" value="' + name + '" aria-label="显示名">' +
+            '<button type="button" class="rd-icon-btn rd-del is-danger" title="删除该项" aria-label="删除该项"><svg class="rd-ico"><use href="#rd-i-trash"/></svg></button>' +
+          '</div>' +
+          '<div class="rd-row-bottom">' +
+            '<div class="rd-value">' +
+              (linked
+                ? '<div class="rd-link-field" title="已链接变量，运行时从上游取值"><svg class="rd-ico"><use href="#rd-i-link"/></svg><span>' + value + '</span></div>' +
+                  '<button type="button" class="rd-mini-btn" title="改链" aria-label="改链"><svg class="rd-ico"><use href="#rd-i-link"/></svg></button>' +
+                  '<button type="button" class="rd-mini-btn" title="解除链接" aria-label="解除链接"><svg class="rd-ico"><use href="#rd-i-x"/></svg></button>'
+                : '<input class="rd-input" type="text" value="' + value + '" aria-label="固定值">' +
+                  '<button type="button" class="rd-mini-btn" title="链接变量" aria-label="链接变量"><svg class="rd-ico"><use href="#rd-i-link"/></svg></button>' +
+                  '<button type="button" class="rd-mini-btn" title="清空输入" aria-label="清空输入"><svg class="rd-ico"><use href="#rd-i-x"/></svg></button>') +
+            '</div>' +
+            '<input class="rd-input rd-format" type="text" value="' + format + '" aria-label="格式" placeholder="格式">' +
+            '<input class="rd-input rd-unit" type="text" value="' + unit + '" aria-label="单位" placeholder="单位">' +
+          '</div>';
+        list.appendChild(row);
+        bindRow(row);
+      }
+
+      add.addEventListener('click', function () {
+        addDemoRow('结果' + (rows().length + 1), '', '', '', true);
+        syncCount();
+        var last = rows()[rows().length - 1];
+        if (last) last.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
+      addEmpty.addEventListener('click', function () {
+        addDemoRow('结果1', '', '', '', true);
+        syncCount();
+      });
+
+      stateButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () { applyState(btn.dataset.state); });
+      });
+      widthButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var narrow = btn.dataset.width === '640';
+          win.classList.toggle('is-narrow', narrow);
+          widthButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+        });
+      });
+      anchorButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () { setAnchor(Number(btn.dataset.anchor)); });
+      });
+      viewSelect.addEventListener('change', setViewHint);
+      textCheck.addEventListener('change', setTextFoot);
+
+      setViewHint();
+      setTextFoot();
+      syncCount();
+    })();
+  </script>
+</div>
+</body>
+</html>

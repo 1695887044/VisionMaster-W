@@ -302,8 +302,13 @@ namespace Plugin.ColorRegion
                 {
                     CanvasRois.Add(new DrawingObjectInfo(
                         DrawShapeOf(RoiShape),
-                        ParamsForCanvas(RoiShape, RoiParams),
+                        ParamsForCanvas(RoiShape, RoiParams!),
                         "采样区"));
+                }
+                else
+                {
+                    // 没有采样区时形状回到默认矩形，避免 chip 显示上一次的圆/椭圆而摘要说「尚未框选」
+                    SetRoiShape(RoiShapeNames.Rectangle);
                 }
             }
             finally
@@ -383,18 +388,43 @@ namespace Plugin.ColorRegion
             if (info == null)
             {
                 RoiParams = Array.Empty<double>();
+                SetRoiShape(RoiShapeNames.Rectangle);
             }
             else
             {
-                RoiShape = ShapeNameOf(info.ShapeType);
+                SetRoiShape(ShapeNameOf(info.ShapeType));
                 RoiParams = PadParams(info);
             }
 
             OnPropertyChanged(nameof(RoiSummary));
         }
 
+        /// <summary>
+        /// 写入 RoiShape 并通知界面。
+        /// RoiShape 是 [StepConfig] 自动属性，没有 setter 通知；视图的形状 chip 直接绑它，
+        /// 不补这一条就会出现「画了圆、摘要写圆形、chip 仍是矩形」的矛盾。
+        /// </summary>
+        private void SetRoiShape(string shape)
+        {
+            if (string.Equals(RoiShape, shape, StringComparison.Ordinal)) return;
+            RoiShape = shape;
+            OnPropertyChanged(nameof(RoiShape));
+        }
+
         /// <summary>清空采样区（界面按钮）</summary>
-        public void ClearRoi() => CanvasRois.Clear();
+        public void ClearRoi()
+        {
+            if (CanvasRois.Count == 0)
+            {
+                // 空集合上 Clear() 是否触发 Reset 不应依赖；直接走一次回写，
+                // 保证 RoiShape 回到默认矩形、RoiParams 清空、RoiSummary 刷新。
+                WriteBackRoi();
+                return;
+            }
+
+            // 有元素时 Clear() 会触发 OnCanvasRoisChanged → WriteBackRoi（只通知一次）
+            CanvasRois.Clear();
+        }
 
         // ==================================================================
         //  形状映射与轮廓
@@ -543,6 +573,7 @@ namespace Plugin.ColorRegion
             }
 
             ExpectedColors = _lastColor;
+            OnPropertyChanged(nameof(ExpectedColors));
             Hint = $"已把期望颜色填成：{_lastColor}";
         }
 

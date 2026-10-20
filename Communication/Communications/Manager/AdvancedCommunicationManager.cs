@@ -664,6 +664,172 @@ namespace VisionMaster.Communications
             return Read<T>(connectionName, address);
         }
 
+        /// <inheritdoc />
+        public object? ReadVariableNow(string connectionName, string variableName)
+        {
+            if (string.IsNullOrWhiteSpace(connectionName))
+                throw new ArgumentNullException(nameof(connectionName));
+            if (string.IsNullOrWhiteSpace(variableName))
+                throw new ArgumentNullException(nameof(variableName));
+            if (!_workers.TryGetValue(connectionName, out var worker))
+                throw new InvalidOperationException($"连接不存在: {connectionName}");
+            if (!worker.IsConnected)
+                throw new InvalidOperationException($"连接未建立: {connectionName}");
+            if (!_registeredVariables.TryGetValue(connectionName, out var variables)
+                || !variables.TryGetValue(variableName, out var variable))
+            {
+                throw new InvalidOperationException($"变量未接入轮询: {connectionName}.{variableName}");
+            }
+
+            // 传输档位决定批量规划器的"空档代价"；与 PollScheduler.ResolveTransport 同一判据
+            var transport = _configCache.TryGetValue(connectionName, out var config)
+                            && config.Config is EthernetConfigBase
+                ? PollTransportKind.Ethernet
+                : PollTransportKind.Serial;
+
+            // 单变量计划：只读它自己的跨度，不把邻居一起读回来。
+            // isolateFaultedSegments: false —— 常规轮询里被隔离的坏段，立刻读仍要真试一次。
+            var planner = PollBatchPlanner.Build(
+                new[] { variable },
+                transport,
+                log: null,
+                isolateFaultedSegments: false);
+
+            if (planner.PollItemCount == 0)
+            {
+                throw new InvalidOperationException(
+                    $"变量 {variableName} 的类型 {variable.ValueType} 不支持立刻读");
+            }
+
+            try
+            {
+                var raw = worker.InvokeUrgentRead(conn =>
+                {
+                    if (!planner.TryReadOne(conn, out var value, out var error))
+                    {
+                        throw new InvalidOperationException(
+                            $"立刻读失败 {variableName}（{variable.Address}）：{error}");
+                    }
+                    return value;
+                }).GetAwaiter().GetResult();
+
+                // 与轮询同一套发布语义：工程量换算 + 镜像/质量戳更新。
+                // 下游订阅者（UI/组态/报警）抛异常不能把"已经读到的值"判成读取失败——
+                // 与 PollBatchPlanner.PublishValue 的隔离口径一致。
+                var engineering = variable.ToEngineering(raw);
+                try
+                {
+                    variable.UpdateValue(engineering);
+                }
+                catch (Exception publishEx)
+                {
+                    LogWarning($"立刻读成功但下游处理异常 {connectionName}.{variableName}: {publishEx.Message}");
+                }
+
+                LogDebug($"立刻读成功: {connectionName}.{variableName} = {engineering}");
+                return engineering;
+            }
+            catch (Exception ex)
+            {
+                LogError($"立刻读失败: {connectionName}.{variableName}", ex);
+                OnConnectionError(connectionName, ex);
+                throw;
+            }
+        }
+
+        /// <inheritdoc />
+        public void WriteVariableNow(string connectionName, string variableName, object rawValue)
+        {
+            if (string.IsNullOrWhiteSpace(connectionName))
+                throw new ArgumentNullException(nameof(connectionName));
+            if (string.IsNullOrWhiteSpace(variableName))
+                throw new ArgumentNullException(nameof(variableName));
+            if (rawValue == null)
+                throw new ArgumentNullException(nameof(rawValue));
+            if (!_workers.TryGetValue(connectionName, out var worker))
+                throw new InvalidOperationException($"连接不存在: {connectionName}");
+            if (!worker.IsConnected)
+                throw new InvalidOperationException($"连接未建立: {connectionName}");
+            if (!_registeredVariables.TryGetValue(connectionName, out var variables)
+                || !variables.TryGetValue(variableName, out var variable))
+            {
+                throw new InvalidOperationException($"变量未接入轮询: {connectionName}.{variableName}");
+            }
+
+            try
+            {
+                // rawValue 已是设备原始值：工程值换算 / 文本解析 / 写租约都在 NetworkVariableModel 那一层完成
+                worker.InvokeUrgentWrite(conn =>
+                {
+                    conn.Write(variable.Address, rawValue);
+                    return true;
+                }).GetAwaiter().GetResult();
+
+                LogDebug($"立刻写成功: {connectionName}.{variableName} = {rawValue}");
+            }
+            catch (Exception ex)
+            {
+                LogError($"立刻写失败: {connectionName}.{variableName}", ex);
+                OnConnectionError(connectionName, ex);
+                throw;
+            }
+        }
+
+        /// <inheritdoc />
+        public bool TryTriggerWriteNow(string connectionName, string variableName, object rawValue, out string? error)
+        {
+            error = null;
+
+            if (string.IsNullOrWhiteSpace(connectionName))
+            {
+                error = "连接名不能为空";
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(variableName))
+            {
+                error = "变量名不能为空";
+                return false;
+            }
+            if (rawValue == null)
+            {
+                error = "写入值不能为空";
+                return false;
+            }
+            if (!_workers.TryGetValue(connectionName, out var worker))
+            {
+                error = $"连接不存在: {connectionName}";
+                return false;
+            }
+            if (!worker.IsConnected)
+            {
+                error = $"连接未建立: {connectionName}";
+                return false;
+            }
+            if (!_registeredVariables.TryGetValue(connectionName, out var variables)
+                || !variables.TryGetValue(variableName, out var variable))
+            {
+                error = $"变量未接入轮询: {connectionName}.{variableName}";
+                return false;
+            }
+
+            try
+            {
+                return worker.TryEnqueueUrgentWrite(variable.Address, rawValue, ex =>
+                {
+                    // 调用方已经返回，晚到的失败只能走日志/事件，不能改步骤结果
+                    LogError($"异步插队写失败: {connectionName}.{variableName}", ex);
+                    OnConnectionError(connectionName, ex);
+                }, out error);
+            }
+            catch (Exception ex)
+            {
+                LogError($"异步插队写入队失败: {connectionName}.{variableName}", ex);
+                OnConnectionError(connectionName, ex);
+                error = ex.Message;
+                return false;
+            }
+        }
+
         public void TriggerWrite(string connectionName, string address, object value, Type valueType)
         {
             if (string.IsNullOrWhiteSpace(connectionName))

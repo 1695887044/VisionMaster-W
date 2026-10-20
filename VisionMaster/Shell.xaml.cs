@@ -52,6 +52,23 @@ namespace VisionMaster
         /// </summary>
         private void OnShellPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
+            if (DataContext is ShellViewModel shellVm)
+            {
+                if (e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.Control)
+                {
+                    shellVm.OpenCommandPaletteCommand.Execute();
+                    e.Handled = true;
+                    return;
+                }
+
+                if (e.Key == Key.Escape && shellVm.IsCommandPaletteOpen)
+                {
+                    shellVm.CloseCommandPaletteCommand.Execute();
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             if (e.Key != Key.F10 || Keyboard.Modifiers != ModifierKeys.None) return;
 
             if (DataContext is ShellViewModel vm
@@ -61,6 +78,67 @@ namespace VisionMaster
             }
 
             e.Handled = true;
+        }
+
+        private void CommandPaletteOverlay_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (e.NewValue is not true) return;
+
+            Dispatcher.BeginInvoke((Action)(() =>
+            {
+                CommandPaletteBox.Focus();
+                Keyboard.Focus(CommandPaletteBox);
+            }));
+        }
+
+        private void CommandPaletteScrim_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (DataContext is ShellViewModel vm)
+                vm.CloseCommandPaletteCommand.Execute();
+        }
+
+        private void CommandPaletteBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (DataContext is not ShellViewModel vm) return;
+
+            switch (e.Key)
+            {
+                case Key.Down:
+                    MovePaletteSelection(vm, 1);
+                    e.Handled = true;
+                    break;
+                case Key.Up:
+                    MovePaletteSelection(vm, -1);
+                    e.Handled = true;
+                    break;
+                case Key.Enter:
+                    vm.ExecuteCommandPaletteItemCommand.Execute();
+                    e.Handled = true;
+                    break;
+                case Key.Escape:
+                    vm.CloseCommandPaletteCommand.Execute();
+                    e.Handled = true;
+                    break;
+            }
+        }
+
+        private void CommandPaletteList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (DataContext is ShellViewModel vm && vm.SelectedCommandPaletteItem != null)
+            {
+                vm.ExecuteCommandPaletteItemCommand.Execute();
+                e.Handled = true;
+            }
+        }
+
+        private void MovePaletteSelection(ShellViewModel vm, int delta)
+        {
+            if (vm.CommandPaletteItems.Count == 0) return;
+
+            var index = CommandPaletteList.SelectedIndex;
+            index = Math.Clamp(index + delta, 0, vm.CommandPaletteItems.Count - 1);
+            CommandPaletteList.SelectedIndex = index;
+            CommandPaletteList.ScrollIntoView(CommandPaletteList.SelectedItem);
         }
 
         /// <summary>

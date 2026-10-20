@@ -30,21 +30,21 @@ namespace VisionMaster.Scada.Controls
     {
         /// <summary>填充色（矩形的内部、按钮的底色、指示灯点亮时的灯色）</summary>
         public static IReadOnlyList<ElementPropertyDescriptor> Fill(
-            string defaultValue = "#FFFFFFFF", string? description = null, string group = "外观",
+            string defaultValue = "#FFFFFFFF", string? description = null, string group = ScadaPropertyGroups.Appearance,
             string displayName = "填充色")
             => One("Fill", displayName, ElementPropertyKind.Color, group, defaultValue,
                    ScadaElementBase.FillProperty, description);
 
         /// <summary>边框色/轮廓色（标签按图元语义覆盖：外圈色、轮廓色、管壁色…）</summary>
         public static IReadOnlyList<ElementPropertyDescriptor> Stroke(
-            string defaultValue = "#FF7A7A7A", string? description = null, string group = "外观",
+            string defaultValue = "#FF7A7A7A", string? description = null, string group = ScadaPropertyGroups.Appearance,
             string displayName = "边框色")
             => One("Stroke", displayName, ElementPropertyKind.Color, group, defaultValue,
                    ScadaElementBase.StrokeProperty, description);
 
         /// <summary>边框粗细</summary>
         public static IReadOnlyList<ElementPropertyDescriptor> StrokeThickness(
-            string defaultValue = "1", double max = 20, string group = "外观", string? description = null,
+            string defaultValue = "1", double max = 20, string group = ScadaPropertyGroups.Appearance, string? description = null,
             string displayName = "边框粗细")
             => new[]
             {
@@ -58,7 +58,7 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>圆角</summary>
         public static IReadOnlyList<ElementPropertyDescriptor> CornerRadius(
-            string defaultValue = "0", string group = "外观", string? description = null)
+            string defaultValue = "0", string group = ScadaPropertyGroups.Appearance, string? description = null)
             => new[]
             {
                 new ElementPropertyDescriptor
@@ -161,7 +161,7 @@ namespace VisionMaster.Scada.Controls
     }
 
     /// <summary>
-    /// 「文字」组的通用属性打包：文字 / 文字颜色 / 字号 / 字重 / 对齐。
+    /// 「文本」组的通用属性打包：文字 / 文字颜色 / 字号 / 字重 / 对齐。
     ///
     /// 与 <see cref="AppearanceProperties"/> 同一套理由与同一条纪律：
     /// 打包的是<b>基类已声明的依赖属性</b>，不要用 <c>[ScadaProperty]</c> 再声明一遍。
@@ -174,7 +174,7 @@ namespace VisionMaster.Scada.Controls
         /// <summary>文字内容（属性面板上的标签由调用方定：按钮叫"文字"、数值域叫"说明字"）</summary>
         public static IReadOnlyList<ElementPropertyDescriptor> Text(
             string displayName = "文字", string defaultValue = "", bool isBindable = true,
-            string? description = null, string group = "文字",
+            string? description = null, string group = ScadaPropertyGroups.Text,
             ElementPropertyKind kind = ElementPropertyKind.Text)
             => new[]
             {
@@ -188,7 +188,7 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>文字颜色</summary>
         public static IReadOnlyList<ElementPropertyDescriptor> Foreground(
-            string defaultValue = "#FF202020", string displayName = "文字颜色", string group = "文字",
+            string defaultValue = "#FF202020", string displayName = "文字颜色", string group = ScadaPropertyGroups.Text,
             string? description = null)
             => new[]
             {
@@ -202,7 +202,7 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>字号</summary>
         public static IReadOnlyList<ElementPropertyDescriptor> FontSize(
-            string defaultValue = "12", string displayName = "字号", string group = "文字",
+            string defaultValue = "12", string displayName = "字号", string group = ScadaPropertyGroups.Text,
             string? description = null)
             => new[]
             {
@@ -217,7 +217,7 @@ namespace VisionMaster.Scada.Controls
         /// <summary>字重</summary>
         public static IReadOnlyList<ElementPropertyDescriptor> FontWeight(
             string defaultValue = "Normal", string displayName = "字重", string? description = null,
-            string group = "文字")
+            string group = ScadaPropertyGroups.Text)
             => new[]
             {
                 new ElementPropertyDescriptor
@@ -232,7 +232,7 @@ namespace VisionMaster.Scada.Controls
         /// <summary>水平对齐</summary>
         public static IReadOnlyList<ElementPropertyDescriptor> TextAlignment(
             string defaultValue = "Center", string displayName = "水平对齐", string? description = null,
-            string group = "文字")
+            string group = ScadaPropertyGroups.Text)
             => new[]
             {
                 new ElementPropertyDescriptor
@@ -247,7 +247,7 @@ namespace VisionMaster.Scada.Controls
         /// <summary>垂直对齐（Stretch 不列出：多行文本在 Stretch 下与 Top 表现一致，列出来只会让人犹豫）</summary>
         public static IReadOnlyList<ElementPropertyDescriptor> VerticalContentAlignment(
             string defaultValue = "Center", string displayName = "垂直对齐", string? description = null,
-            string group = "文字")
+            string group = ScadaPropertyGroups.Text)
             => new[]
             {
                 new ElementPropertyDescriptor

@@ -101,7 +101,7 @@ namespace FlowCanvasChecks
         /// </summary>
         private static void RunSystemSourceContract()
         {
-            Section("[G] 变量管理：系统变量（运动 / IO）只读分区");
+            Section("[G] 变量管理：系统变量只读分区");
 
             var local = Root("Barcode", isNetwork: false, sourceLabel: "本地");
             local.DataType = typeof(string);   // Root() 默认造数组节点；这里要标量才能验"初始值可编辑"
@@ -117,52 +117,46 @@ namespace FlowCanvasChecks
             system.OriginalModel = new SystemVariableModel(
                 Guid.NewGuid(), "System.Motion.X.Position", typeof(double), "轴 X 位置（只读）");
 
-            var io = Root("System.Io.DEV.PT", isNetwork: false, sourceLabel: "本地");
-            io.DataType = typeof(bool);         // 同上：标量，排除"数组不可编辑"的干扰
-            io.OriginalModel = new IoInputVariableModel(
-                Guid.NewGuid(), "System.Io.DEV.PT", typeof(bool), NullIoProvider.Instance,
-                "DEV", "PT",
-                new Core.Interfaces.Io.IoPointDescriptor
-                {
-                    PointId = "PT",
-                    Kind = Core.Interfaces.Io.IoPointKind.DigitalInput,
-                    DataType = Core.Interfaces.Io.IoDataType.Bool,
-                    Address = "00001"
-                },
-                "IO 点（只读）");
+            // 第二个系统变量：IO 接入层下线后，IO 点位就是普通网络变量，
+            // 系统只读分区的第二个样本改用另一类系统变量（相机状态），
+            // 保证"多个系统变量都进系统分区"这条仍然被覆盖。
+            var system2 = Root("System.Camera.Cam0.Online", isNetwork: false, sourceLabel: "本地");
+            system2.DataType = typeof(bool);    // 同上：标量，排除"数组不可编辑"的干扰
+            system2.OriginalModel = new SystemVariableModel(
+                Guid.NewGuid(), "System.Camera.Cam0.Online", typeof(bool), "相机在线（只读）");
 
-            var displayNodes = new List<VariableNode> { local, system, io };
+            var displayNodes = new List<VariableNode> { local, system, system2 };
 
-            Check("「本地变量」不再包含系统变量与 IO 变量",
+            Check("「本地变量」不再包含系统变量",
                 Names(GlobalVariableManagerViewModel.FilterDisplayNodes(
                     displayNodes, "Local", "")) == "Barcode",
                 "实际：" + Names(GlobalVariableManagerViewModel.FilterDisplayNodes(displayNodes, "Local", "")));
 
-            Check("「系统变量」只包含系统变量与 IO 变量（两者都在）",
+            Check("「系统变量」包含全部系统变量（两个都在）",
                 Names(GlobalVariableManagerViewModel.FilterDisplayNodes(
                     displayNodes, GlobalVariableManagerViewModel.SystemSourceKey, ""))
-                == "System.Motion.X.Position,System.Io.DEV.PT",
+                == "System.Motion.X.Position,System.Camera.Cam0.Online",
                 "实际：" + Names(GlobalVariableManagerViewModel.FilterDisplayNodes(
                     displayNodes, GlobalVariableManagerViewModel.SystemSourceKey, "")));
 
             Check("系统变量节点标记为系统维护（删除/改名据此拦）", system.IsSystemOwned,
                 system.OriginalModel?.VariableType.ToString() ?? "(无模型)");
-            Check("IO 变量节点标记为系统维护", io.IsSystemOwned,
-                io.OriginalModel?.VariableType.ToString() ?? "(无模型)");
+            Check("第二个系统变量节点同样标记为系统维护", system2.IsSystemOwned,
+                system2.OriginalModel?.VariableType.ToString() ?? "(无模型)");
             Check("本地变量节点不被误判为系统维护", !local.IsSystemOwned,
                 local.OriginalModel?.VariableType.ToString() ?? "(无模型)");
 
             Check("系统变量的「初始值」不可编辑（写了也不会回灌设备）", !system.IsEditableNode,
                 $"IsEditableNode={system.IsEditableNode}");
-            Check("IO 变量的「初始值」不可编辑", !io.IsEditableNode,
-                $"IsEditableNode={io.IsEditableNode}");
+            Check("第二个系统变量的「初始值」不可编辑", !system2.IsEditableNode,
+                $"IsEditableNode={system2.IsEditableNode}");
             Check("本地变量的「初始值」仍可编辑（没有误伤）", local.IsEditableNode,
                 $"IsEditableNode={local.IsEditableNode}");
 
             Check("系统变量的「当前值」只读（走 IVariableDisplaySource）", system.IsValueReadOnly,
                 $"IsValueReadOnly={system.IsValueReadOnly}");
-            Check("IO 输入变量的「当前值」只读", io.IsValueReadOnly,
-                $"IsValueReadOnly={io.IsValueReadOnly}");
+            Check("第二个系统变量的「当前值」只读", system2.IsValueReadOnly,
+                $"IsValueReadOnly={system2.IsValueReadOnly}");
         }
 
         // ==================================================================
@@ -294,9 +288,9 @@ namespace FlowCanvasChecks
         //    （本地来源下"来源/扫描组/地址"三列被代码后置整列收起，不计入）；
         //  ④ 代码后置的收放线仍在（IsNetworkSource + 三个列名），防静默删线。
         //
-        // 右栏视口 = 窗口宽 −(216+12) 两栏结构 −(14×2) 外边距 = 宽 −256。
-        // （2026-10-15 中栏 296+12 撤掉后，固定部分从 564 降到 256——视口反而变宽，
-        //   本条断言随之更宽松，但列宽契约本身没变：星号列仍不许被固定列挤没。）
+        // 右栏视口 = 窗口宽 −(232+12) 两栏结构 −(16×2) 外边距 = 宽 −276（2026-10-20 Web v1）。
+        // 同时断言本地（424+160）与网络（736+160）两档——网络来源是最紧的一档。
+        // 2026-10-20 用户按 1200 窄档定稿：220/104/120/104/88/*160/100（早期 280/88/100 已废弃）。
 
         private static readonly string[] DetailCollapsedInLocalSource =
             { "SourceColumn", "ScanGroupColumn", "AddressColumn" };
@@ -308,7 +302,7 @@ namespace FlowCanvasChecks
             var xamlPath = FindRepoFile(@"VisionMaster\Views\DialogViews\GlobalVariableView.xaml");
             if (xamlPath == null)
             {
-                Check("【列宽】GlobalVariableView.xaml 定位", true, "跳过：定位不到视图文件");
+                Check("【列宽】GlobalVariableView.xaml 定位", false, "定位不到视图文件（不允许跳过）");
                 return;
             }
 
@@ -325,43 +319,113 @@ namespace FlowCanvasChecks
             var starMin = starTag == null
                 ? 0
                 : double.TryParse(Regex.Match(starTag, @"MinWidth=""(\d+(?:\.\d+)?)""").Groups[1].Value, out var sm) ? sm : 0;
-            Check("【列宽】星号列（当前值）存在且 MinWidth ≥ 80", starTag != null && starMin >= 80,
+            Check("【列宽】星号列（当前值）存在且 MinWidth ≥ 160", starTag != null && starMin >= 160,
                 starTag == null ? "没找到 Width=\"*\" 的列" : $"MinWidth={starMin}");
 
+            // 2026-10-20 用户按 1200 窄档定稿：220/104/120/104/88/*/100。
+            // 只判"合计 ≤ 视口"会让任意列被改窄也照样绿（列宽回归就是这么漏掉的），必须逐列钉住。
+            string[] expectedWidths = { "220", "104", "120", "104", "88", "*", "100" };
+            string[] expectedMinWidths = { "220", "104", "120", "104", "88", "160", "100" };
+            var actualWidths = columnTags
+                .Select(t => Regex.Match(t, @"[\s""]Width=""([^""]+)"""))
+                .Where(m => m.Success)
+                .Select(m => m.Groups[1].Value)
+                .ToList();
+            var actualMinWidths = columnTags
+                .Select(t => Regex.Match(t, @"[\s""]MinWidth=""([^""]+)"""))
+                .Where(m => m.Success)
+                .Select(m => m.Groups[1].Value)
+                .ToList();
+            Check("【列宽】逐列宽度与 2026-10-20 定稿一致（变量名/类型/来源/扫描组/地址/当前值/操作）",
+                actualWidths.SequenceEqual(expectedWidths),
+                $"actual=[{string.Join(",", actualWidths)}] expected=[{string.Join(",", expectedWidths)}]");
+            Check("【列宽】逐列 MinWidth 与定稿一致（窄档锁定，不靠星号列兜底）",
+                actualMinWidths.SequenceEqual(expectedMinWidths),
+                $"actual=[{string.Join(",", actualMinWidths)}] expected=[{string.Join(",", expectedMinWidths)}]");
+
             var fixedLocal = new List<string>();
-            double fixedSum = 0;
+            double fixedLocalSum = 0;
+            double fixedNetworkSum = 0;
             foreach (var tag in columnTags)
             {
                 var w = Regex.Match(tag, @"[\s""]Width=""([^""]+)""");
                 if (!w.Success || w.Groups[1].Value.EndsWith("*")) continue;
                 if (!double.TryParse(w.Groups[1].Value, out var px)) continue;
+                fixedNetworkSum += px;
                 if (DetailCollapsedInLocalSource.Any(tag.Contains)) continue;
-                fixedSum += px;
+                fixedLocalSum += px;
                 fixedLocal.Add(px.ToString("0"));
             }
 
-            var minWidth = double.TryParse(
-                Regex.Match(text, @"Setter Property=""MinWidth"" Value=""(\d+)""").Groups[1].Value, out var mw) ? mw : 0;
-            // 两栏结构（2026-10-15）：左栏 216 + 间隔 12 + 外边距 14×2 = 256
-            double localViewport = minWidth - 256;
+            // 2026-10-20 两栏结构：左栏 232 + 间隔 12 + 外边距 16×2 = 276。
+            // 必须锚定 WindowStyle 里的 MinWidth，不能取全文件第一个 Setter（转换器/局部样式可能先出现）。
+            var windowStyle = Regex.Match(text, @"<prism:Dialog\.WindowStyle>.*?</prism:Dialog\.WindowStyle>", RegexOptions.Singleline);
+            var minWidth = windowStyle.Success
+                && double.TryParse(Regex.Match(windowStyle.Value, @"Setter Property=""MinWidth"" Value=""(\d+)""").Groups[1].Value, out var mw)
+                ? mw
+                : 0;
+            double viewport = minWidth - 276;
 
             Check("【列宽】本地来源固定列合计 + 当前值下限 ≤ 最小窗口右栏视口（当前值列必须始终可见）",
-                localViewport > 0 && fixedSum + starMin <= localViewport,
-                $"固定列=[{string.Join(",", fixedLocal)}] 合计={fixedSum:0} + 星号下限={starMin:0} ≤ 视口({MinWidthText(minWidth)}−256)={localViewport:0}");
+                viewport > 0 && fixedLocalSum + starMin <= viewport,
+                $"固定列=[{string.Join(",", fixedLocal)}] 合计={fixedLocalSum:0} + 星号下限={starMin:0} ≤ 视口({MinWidthText(minWidth)}−276)={viewport:0}");
+
+            Check("【列宽】网络来源固定列合计 + 当前值下限 ≤ 最小窗口右栏视口（最紧的一档）",
+                viewport > 0 && fixedNetworkSum + starMin <= viewport,
+                $"网络固定列合计={fixedNetworkSum:0} + 星号下限={starMin:0} ≤ 视口={viewport:0}");
+
+            Check("【列宽】行高/交替色/窗口下限契约",
+                text.Contains("RowHeight=\"{x:Static sys:Double.NaN}\"")
+                && text.Contains("MinRowHeight=\"40\"")
+                && text.Contains("AlternationCount=\"1\"")
+                && minWidth == 1200,
+                $"minWidth={minWidth:0}");
+
+            // 固定列必须同时写 MinWidth：否则 1200 窄档下 DataGrid 会把固定列各压 5px，
+            // 类型/来源 badge 被裁（2026-10-20 实测），而不是按设计出横向滚动条。
+            var fixedWithoutMin = columnTags
+                .Where(t => Regex.IsMatch(t, @"[\s""]Width=""[^""]+"""))
+                .Where(t => !Regex.IsMatch(t, @"Width=""\*""") && !Regex.IsMatch(t, @"MinWidth=""\d+(?:\.\d+)?"""))
+                .ToList();
+            Check("【列宽】所有固定列都带 MinWidth（窄档改为横向滚动而不是压窄列）",
+                fixedWithoutMin.Count == 0,
+                string.Join(" | ", fixedWithoutMin.Select(t => t.Replace("\r", " ").Replace("\n", " ").Trim())));
 
             var codeBehind = File.Exists(xamlPath.EndsWith(".xaml", StringComparison.Ordinal)
                 ? xamlPath.Substring(0, xamlPath.Length - 5) + ".xaml.cs"
                 : xamlPath + ".xaml.cs")
                 ? File.ReadAllText(xamlPath.Substring(0, xamlPath.Length - 5) + ".xaml.cs")
                 : string.Empty;
+            var codeNoComments = Regex.Replace(codeBehind, @"//.*?$", string.Empty, RegexOptions.Multiline);
             //  "HookViewModel();" 出现 ≥2 次 = 订阅之外构造器里还有一次直调：
             //  Prism 在 InitializeComponent 解析期间就设好 DataContext（早于事件订阅），
             //  DataContextChanged 之后不会再发——只靠订阅，列收放一次都不会执行。
             Check("【列宽】代码后置仍按 IsNetworkSource 收放 来源/扫描组/地址 三列，且构造器直调 HookViewModel（防静默删线/漏补当前值）",
-                DetailCollapsedInLocalSource.All(codeBehind.Contains)
-                && codeBehind.Contains("IsNetworkSource")
-                && Regex.Matches(codeBehind, "HookViewModel\\(\\);").Count >= 2,
+                DetailCollapsedInLocalSource.All(codeNoComments.Contains)
+                && codeNoComments.Contains("IsNetworkSource")
+                && Regex.Matches(codeNoComments, "HookViewModel\\(\\);").Count >= 2,
                 "");
+
+            Check("【列宽】左栏分组使用 PropertyGroupDescription(IsNetwork)",
+                codeNoComments.Contains("PropertyGroupDescription")
+                && codeNoComments.Contains("nameof(VariableSourceNode.IsNetwork)"),
+                "");
+            var allToolTips = Regex.Matches(text, @"<ToolTip\b[^>]*>").Count;
+            var styledToolTips = Regex.Matches(text, @"<ToolTip\b[^>]*Style=""\{StaticResource DialogToolTipStyle\}""[^>]*>").Count;
+            Check("【列宽】类型缩写转换器、展开箭头 OneWay 与 ToolTip 显式样式在位",
+                text.Contains("TypeAbbreviationConverter")
+                && text.Contains("IsChecked=\"{Binding IsExpanded, Mode=OneWay}\"")
+                && allToolTips > 0
+                && styledToolTips == allToolTips,
+                $"tooltips={styledToolTips}/{allToolTips}");
+            string[] namedElements =
+            {
+                "AddButton", "ManageGroupsButton", "SystemBanner", "EmptySourceOverlay", "SearchEmptyOverlay",
+            };
+            var missingNamed = namedElements.Where(n => !text.Contains($"x:Name=\"{n}\"", StringComparison.Ordinal)).ToList();
+            Check("【列宽】冒烟依赖的命名元素全部在位（防 FindName 为空被当成可见/收起）",
+                missingNamed.Count == 0,
+                string.Join(",", missingNamed));
         }
 
         private static string MinWidthText(double minWidth) => minWidth > 0 ? $"MinWidth={minWidth:0}" : "未读到";
@@ -478,20 +542,22 @@ namespace FlowCanvasChecks
             var vmPath = FindRepoFile(@"VisionMaster\ViewModels\DialogViewModels\GlobalVariableManagerViewModel.cs");
             if (xamlPath == null || vmPath == null)
             {
-                Check("【当前值】结构扫描定位", true, "跳过：定位不到视图/VM 文件");
+                Check("【当前值】结构扫描定位", false, "定位不到视图/VM 文件（不允许跳过）");
                 return;
             }
 
             string xaml = File.ReadAllText(xamlPath);
             string vm = File.ReadAllText(vmPath);
+            string xamlNoComments = Regex.Replace(xaml, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+            string vmNoComments = Regex.Replace(vm, @"//.*?$", string.Empty, RegexOptions.Multiline);
             Check("【当前值】视图：单元格挂 CellValueEditBehavior（根行+元素行≥2 处）+ 偏离才显示的↺；写值/恢复两按钮已撤出操作列",
-                xaml.Contains("CellValueEditBehavior.Active")
-                && Regex.Matches(xaml, "CellValueEditBehavior\\.Active").Count >= 2
-                && xaml.Contains("{Binding IsValueDeviated")
-                && !xaml.Contains("WriteValueCommand"),
+                xamlNoComments.Contains("CellValueEditBehavior.Active")
+                && Regex.Matches(xamlNoComments, "CellValueEditBehavior\\.Active").Count >= 2
+                && xamlNoComments.Contains("{Binding IsValueDeviated")
+                && !xamlNoComments.Contains("WriteValueCommand"),
                 "");
             Check("【当前值】视图：明细表「初始值」列零残留（DefaultValueText/ChildDefaultValueText 不再被绑定）",
-                !xaml.Contains("DefaultValueText"),
+                !xamlNoComments.Contains("DefaultValueText"),
                 "");
 
             // 2026-10-15 新增两条（中栏表单撤掉、「＋ 添加变量」改走属性网格弹窗）：
@@ -502,7 +568,6 @@ namespace FlowCanvasChecks
             //     改成钉草稿的**反射契约**（见 ③），证明的是"这个字段真的会被属性网格渲染出来"。
             //
             // ① 先剥注释再扫（与同文件 :234 的列宽契约同口径）：不剥的话"把绑定挪进注释"也能保绿。
-            string xamlNoComments = Regex.Replace(xaml, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
             Check("★【当前值】添加变量入口在位：视图 XAML 绑 AddCommand（中栏底部按钮已搬到右栏卡片头）",
                 xamlNoComments.Contains("{Binding AddCommand}"),
                 "");
@@ -540,13 +605,13 @@ namespace FlowCanvasChecks
                 netAllShown,
                 $"可见 {netVisible.Count} 行：{string.Join("/", netVisible)}");
             Check("【当前值】VM：写值弹窗死命令清干净（WriteValueCommand/ExecuteWriteValue 零残留）",
-                !vm.Contains("WriteValueCommand") && !vm.Contains("ExecuteWriteValue"),
+                !vmNoComments.Contains("WriteValueCommand") && !vmNoComments.Contains("ExecuteWriteValue"),
                 "");
 
             var behaviorPath = FindRepoFile(@"VisionMaster\Helpers\CellValueEditBehavior.cs");
             Check("【当前值】提交成功立刻失焦回读取模式：两格样式走 DialogCellInputQuiet（不再用常驻输入框样式），行为里有 Keyboard.ClearFocus",
-                Regex.Matches(xaml, "DialogCellInputQuiet").Count >= 2
-                && !xaml.Contains("Style=\"{StaticResource DialogCellInput}\"")
+                Regex.Matches(xamlNoComments, "DialogCellInputQuiet").Count >= 2
+                && !xamlNoComments.Contains("Style=\"{StaticResource DialogCellInput}\"")
                 && behaviorPath != null && File.ReadAllText(behaviorPath).Contains("Keyboard.ClearFocus()"),
                 "");
         }

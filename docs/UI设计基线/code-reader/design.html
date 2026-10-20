@@ -1,0 +1,1082 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>码读取 · 配置窗口 · 设计基线 v1</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #cr-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="cr-design-root">
+  <style>
+    #cr-design-root{
+      color-scheme: light;
+      --cr-surface:#FFFFFF;
+      --cr-surface-2:#F8FAFC;
+      --cr-surface-3:#F1F5F9;
+      --cr-border:#E2E8F0;
+      --cr-border-soft:#EEF2F7;
+      --cr-border-strong:#CBD5E1;
+      --cr-text:#0F172A;
+      --cr-text-2:#475569;
+      --cr-text-3:#94A3B8;
+      --cr-text-4:#64748B;
+      --cr-primary:#0EA5E9;
+      --cr-primary-strong:#0284C7;
+      --cr-primary-text:#0369A1;
+      --cr-primary-soft:#F0F9FF;
+      --cr-primary-light:#E0F2FE;
+      --cr-primary-border:#BAE6FD;
+      --cr-success:#22C55E;
+      --cr-success-text:#15803D;
+      --cr-success-soft:#F0FDF4;
+      --cr-success-border:#BBF7D0;
+      --cr-danger:#EF4444;
+      --cr-danger-text:#B91C1C;
+      --cr-danger-soft:#FEF2F2;
+      --cr-danger-border:#FECACA;
+      --cr-warning:#F59E0B;
+      --cr-warning-text:#B45309;
+      --cr-warning-soft:#FFF4E5;
+      --cr-warning-border:#FDE68A;
+      --cr-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --cr-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --cr-radius-sm:6px;
+      --cr-radius-md:8px;
+      --cr-radius-lg:10px;
+      --cr-radius-xl:12px;
+      --cr-radius-window:16px;
+      --cr-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--cr-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #cr-design-root *{box-sizing:border-box;}
+    #cr-design-root button,
+    #cr-design-root input,
+    #cr-design-root select,
+    #cr-design-root textarea{font-family:inherit;}
+    #cr-design-root button{color:inherit;}
+    #cr-design-root [hidden]{display:none !important;}
+    #cr-design-root :focus-visible{outline:2px solid var(--cr-primary);outline-offset:2px;}
+
+    #cr-design-root .cr-page{
+      max-width:1360px;margin:0 auto;padding:24px 24px 44px;background:transparent;
+    }
+    #cr-design-root .cr-page-head{max-width:1360px;margin:0 auto 16px;}
+    #cr-design-root .cr-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #cr-design-root .cr-page-title-row h1{
+      margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--cr-text);
+    }
+    #cr-design-root .cr-ver{
+      display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+      background:var(--cr-primary-light);color:var(--cr-primary-text);
+      font-size:11px;font-weight:700;letter-spacing:.02em;
+    }
+    #cr-design-root .cr-page-sub{
+      margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--cr-text-2);
+    }
+    #cr-design-root .cr-page-sub b{color:var(--cr-text);font-weight:600;}
+    #cr-design-root .cr-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #cr-design-root .cr-demo-group{display:flex;align-items:center;gap:8px;}
+    #cr-design-root .cr-demo-label{font-size:11.5px;color:var(--cr-text-4);}
+    #cr-design-root .cr-scope{
+      display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;
+      font-size:11.5px;line-height:1.55;color:var(--cr-text-2);
+    }
+    #cr-design-root .cr-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--cr-warning-text);}
+    #cr-design-root .cr-scope b{color:var(--cr-text);font-weight:600;}
+    #cr-design-root .cr-seg{
+      display:inline-flex;gap:2px;padding:2px;border-radius:var(--cr-radius-md);
+      background:var(--cr-surface-3);
+    }
+    #cr-design-root .cr-seg button{
+      height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;
+      color:var(--cr-text-2);font-size:11.5px;line-height:1;cursor:pointer;
+      transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;
+    }
+    #cr-design-root .cr-seg button:hover{color:var(--cr-text);}
+    #cr-design-root .cr-seg button.is-on{
+      background:var(--cr-surface);color:var(--cr-text);font-weight:600;
+      box-shadow:0 1px 2px rgba(15,23,42,.10);
+    }
+
+    /* ================= 产品窗口 ================= */
+    #cr-design-root .cr-window{
+      width:960px;max-width:100%;height:680px;margin:0 auto;
+      display:flex;flex-direction:column;overflow:hidden;
+      background:var(--cr-surface);
+      border-radius:var(--cr-radius-window);
+      box-shadow:var(--cr-shadow-window);
+      transition:width 200ms ease;
+    }
+    #cr-design-root .cr-window.is-narrow{width:640px;}
+
+    /* ---- 标题栏 ---- */
+    #cr-design-root .cr-titlebar{
+      height:72px;flex:none;display:flex;align-items:center;
+      padding:0 20px;background:var(--cr-surface);
+      border-bottom:1px solid var(--cr-border-soft);
+    }
+    #cr-design-root .cr-app-icon{
+      width:40px;height:40px;flex:none;border-radius:12px;
+      display:flex;align-items:center;justify-content:center;
+      background:var(--cr-primary-light);color:var(--cr-primary-text);
+    }
+    #cr-design-root .cr-app-icon svg{width:19px;height:19px;}
+    #cr-design-root .cr-title-text{margin-left:12px;min-width:0;flex:1;}
+    #cr-design-root .cr-title-line{display:flex;align-items:center;gap:8px;min-width:0;}
+    #cr-design-root .cr-title{
+      font-size:16px;font-weight:600;line-height:1.3;color:var(--cr-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #cr-design-root .cr-subtitle{
+      margin-top:2px;font-size:12px;line-height:1.4;color:var(--cr-text-2);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #cr-design-root .cr-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+
+    /* ---- 内容 ---- */
+    #cr-design-root .cr-content{
+      flex:1;min-height:0;display:grid;
+      grid-template-columns:356px minmax(0,1fr);
+      gap:16px;padding:16px 20px 20px;background:var(--cr-surface);
+    }
+    #cr-design-root .cr-window.is-narrow .cr-content{
+      grid-template-columns:300px minmax(0,1fr);
+      gap:12px;padding:14px 16px 16px;
+    }
+
+    /* ---- 左栏 ---- */
+    #cr-design-root .cr-rail{
+      min-height:0;overflow:hidden;
+      display:flex;flex-direction:column;
+      padding:14px;border:1px solid var(--cr-border-soft);border-radius:var(--cr-radius-xl);
+      background:var(--cr-surface-2);
+    }
+    #cr-design-root .cr-rail-scroll{
+      min-height:0;flex:1;overflow-y:auto;overflow-x:hidden;
+      scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;
+    }
+    #cr-design-root .cr-rail-scroll::-webkit-scrollbar{width:8px;}
+    #cr-design-root .cr-rail-scroll::-webkit-scrollbar-thumb{
+      background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;
+    }
+    #cr-design-root .cr-rail-scroll::-webkit-scrollbar-track{background:transparent;}
+    #cr-design-root .cr-trial-fixed{
+      flex:none;margin-top:12px;padding-top:12px;
+      border-top:1px solid var(--cr-border);
+    }
+
+    #cr-design-root .cr-panel{margin-top:14px;}
+    #cr-design-root .cr-panel:first-child{margin-top:0;}
+    #cr-design-root .cr-section-head{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      margin-bottom:9px;font-size:12px;font-weight:600;color:var(--cr-text-2);
+    }
+    #cr-design-root .cr-section-hint{font-size:10.5px;font-weight:400;color:var(--cr-text-3);white-space:nowrap;}
+    #cr-design-root .cr-divider{height:1px;background:var(--cr-border);margin:14px 0 0;}
+
+    #cr-design-root .cr-field{margin-bottom:12px;}
+    #cr-design-root .cr-field:last-child{margin-bottom:0;}
+    #cr-design-root .cr-label{
+      display:flex;align-items:center;gap:5px;margin-bottom:6px;
+      font-size:12px;font-weight:500;line-height:1.3;color:var(--cr-text-2);
+    }
+    #cr-design-root .cr-label .cr-req{color:var(--cr-danger);font-size:11px;}
+    #cr-design-root .cr-input,
+    #cr-design-root .cr-select{
+      width:100%;height:36px;padding:0 10px;
+      border:1px solid var(--cr-border);border-radius:var(--cr-radius-md);
+      background:var(--cr-surface);color:var(--cr-text);
+      font-size:12.5px;line-height:1;outline:none;
+      transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;
+    }
+    #cr-design-root .cr-input::placeholder{color:var(--cr-text-3);}
+    #cr-design-root .cr-input:hover,
+    #cr-design-root .cr-select:hover{border-color:var(--cr-border-strong);}
+    #cr-design-root .cr-input:focus,
+    #cr-design-root .cr-select:focus{
+      border-color:var(--cr-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);
+    }
+    #cr-design-root .cr-select{
+      appearance:none;-webkit-appearance:none;padding-right:30px;cursor:pointer;
+    }
+    #cr-design-root .cr-select-wrap{position:relative;}
+    #cr-design-root .cr-select-wrap > svg{
+      position:absolute;right:10px;top:50%;transform:translateY(-50%);
+      width:13px;height:13px;color:var(--cr-text-3);pointer-events:none;
+    }
+    #cr-design-root .cr-help{
+      display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;
+      font-size:11.5px;line-height:1.5;color:var(--cr-text-4);
+    }
+    #cr-design-root .cr-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--cr-text-3);}
+    #cr-design-root .cr-help b{color:var(--cr-text-2);font-weight:600;}
+
+    /* 模拟 LinkableValueEditor：HImage 端口不可文本输入，只有占位 + 链接按钮 */
+    #cr-design-root .cr-link-row{display:flex;align-items:center;gap:6px;}
+    #cr-design-root .cr-link-box{
+      flex:1;min-width:0;height:36px;padding:0 10px;
+      display:flex;align-items:center;
+      border:1px solid var(--cr-border);border-radius:var(--cr-radius-md);
+      background:var(--cr-surface);color:var(--cr-text-3);font-size:12px;
+    }
+    #cr-design-root .cr-link-box.is-linked{color:var(--cr-primary-text);border-bottom-color:var(--cr-primary);border-radius:0;}
+    #cr-design-root .cr-icon-btn{
+      width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--cr-radius-md);
+      display:inline-flex;align-items:center;justify-content:center;
+      background:transparent;color:var(--cr-text-4);cursor:pointer;
+      transition:background 150ms ease,color 150ms ease;
+    }
+    #cr-design-root .cr-icon-btn svg{width:15px;height:15px;}
+    #cr-design-root .cr-icon-btn:hover{background:var(--cr-surface-3);color:var(--cr-text);}
+    #cr-design-root .cr-icon-btn:active{background:var(--cr-border);}
+    #cr-design-root .cr-icon-btn:disabled{opacity:.4;cursor:not-allowed;}
+
+    /* 码制家族徽标 */
+    #cr-design-root .cr-family{
+      display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;
+      background:var(--cr-primary-light);color:var(--cr-primary-text);
+      border:1px solid var(--cr-primary-border);
+      font-size:10.5px;font-weight:600;white-space:nowrap;
+    }
+    #cr-design-root .cr-family.is-1d{
+      background:var(--cr-surface-3);color:var(--cr-text-4);border-color:var(--cr-border);
+    }
+
+    /* 按钮 */
+    #cr-design-root .cr-btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:6px;
+      height:36px;padding:0 13px;border:1px solid var(--cr-border);border-radius:var(--cr-radius-md);
+      background:var(--cr-surface);color:var(--cr-text);font-size:12.5px;font-weight:500;
+      line-height:1;cursor:pointer;white-space:nowrap;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;
+    }
+    #cr-design-root .cr-btn svg{width:14px;height:14px;}
+    #cr-design-root .cr-btn:hover{background:var(--cr-surface-2);border-color:var(--cr-border-strong);}
+    #cr-design-root .cr-btn:active{background:var(--cr-surface-3);}
+    #cr-design-root .cr-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #cr-design-root .cr-btn-primary{
+      background:var(--cr-primary);border-color:var(--cr-primary);color:#fff;font-weight:600;
+    }
+    #cr-design-root .cr-btn-primary:hover{background:var(--cr-primary-strong);border-color:var(--cr-primary-strong);}
+    #cr-design-root .cr-btn-ghost{border-color:transparent;background:transparent;color:var(--cr-text-2);}
+    #cr-design-root .cr-btn-ghost:hover{background:var(--cr-surface-3);border-color:transparent;color:var(--cr-text);}
+    #cr-design-root .cr-btn-block{width:100%;}
+    #cr-design-root .cr-btn-square{
+      width:36px;height:36px;flex:none;padding:0;border:1px solid var(--cr-border);
+      border-radius:var(--cr-radius-md);background:var(--cr-surface);color:var(--cr-text-4);
+      display:flex;align-items:center;justify-content:center;cursor:pointer;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease;
+    }
+    #cr-design-root .cr-btn-square:hover{background:var(--cr-primary-soft);border-color:var(--cr-primary-border);color:var(--cr-primary-text);}
+    #cr-design-root .cr-btn-square svg{width:14px;height:14px;}
+
+    /* 结果区 */
+    #cr-design-root .cr-result{
+      margin-top:10px;min-height:86px;padding:10px 11px;
+      border:1px solid var(--cr-border);border-left:3px solid var(--cr-border-strong);
+      border-radius:var(--cr-radius-md);background:var(--cr-surface);
+      font-family:var(--cr-mono);font-size:10.5px;line-height:1.55;color:var(--cr-text-2);
+      white-space:pre-wrap;word-break:break-word;
+    }
+    #cr-design-root .cr-result.is-ok{border-left-color:var(--cr-success);background:var(--cr-success-soft);color:var(--cr-success-text);}
+    #cr-design-root .cr-result.is-warn{border-left-color:var(--cr-warning);background:var(--cr-warning-soft);color:var(--cr-warning-text);}
+    #cr-design-root .cr-result.is-err{border-left-color:var(--cr-danger);background:var(--cr-danger-soft);color:var(--cr-danger-text);}
+
+    /* 输出端口（只读信息） */
+    #cr-design-root .cr-ports{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+    #cr-design-root .cr-port{
+      display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;
+      border:1px solid var(--cr-border);border-radius:6px;background:var(--cr-surface);
+      font-size:10.5px;color:var(--cr-text-2);white-space:nowrap;
+    }
+    #cr-design-root .cr-port code{font-family:var(--cr-mono);font-size:10px;color:var(--cr-primary-text);}
+
+    /* ---- 预览区 ---- */
+    #cr-design-root .cr-preview{
+      min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+      border:1px solid var(--cr-border);border-radius:var(--cr-radius-xl);background:var(--cr-surface);
+    }
+    #cr-design-root .cr-preview-head{
+      height:44px;flex:none;display:flex;align-items:center;gap:8px;
+      padding:0 10px;border-bottom:1px solid var(--cr-border-soft);background:var(--cr-surface);
+    }
+    #cr-design-root .cr-file-chip{
+      width:26px;height:26px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;
+      background:var(--cr-surface-3);color:var(--cr-text-2);
+    }
+    #cr-design-root .cr-file-chip svg{width:13px;height:13px;}
+    #cr-design-root .cr-file-name{
+      font-size:12.5px;font-weight:600;line-height:1.3;color:var(--cr-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;
+    }
+    #cr-design-root .cr-file-meta{
+      flex:none;font-size:10.5px;line-height:1.3;color:var(--cr-text-3);
+      font-variant-numeric:tabular-nums;white-space:nowrap;
+    }
+    #cr-design-root .cr-preview-tools{margin-left:auto;display:flex;align-items:center;gap:1px;flex:none;}
+    #cr-design-root .cr-tool-text{
+      height:26px;padding:0 7px;border:0;border-radius:6px;background:transparent;
+      color:var(--cr-text-4);font-size:10.5px;font-weight:600;line-height:1;cursor:pointer;
+      font-variant-numeric:tabular-nums;transition:background 150ms ease,color 150ms ease;
+    }
+    #cr-design-root .cr-tool-text:hover{background:var(--cr-surface-3);color:var(--cr-text);}
+    #cr-design-root .cr-window.is-narrow .cr-file-name{max-width:110px;}
+    #cr-design-root .cr-window.is-narrow .cr-file-meta{display:none;}
+    #cr-design-root .cr-window.is-narrow .cr-status-path{display:none;}
+
+    #cr-design-root .cr-canvas{
+      position:relative;flex:1;min-height:0;overflow:hidden;background:#0B1220;
+    }
+    #cr-design-root .cr-canvas-view{
+      position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      text-align:center;
+    }
+    #cr-design-root .cr-canvas-view:not([data-view="image"]){padding:24px;}
+    #cr-design-root .cr-canvas-view[data-view="image"]{display:block;}
+    #cr-design-root .cr-scene{width:100%;height:100%;display:block;}
+    #cr-design-root .cr-overlay{
+      position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:6px;pointer-events:none;
+    }
+    #cr-design-root .cr-chip{
+      display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;
+      background:rgba(15,23,42,.58);border:1px solid rgba(148,163,184,.22);color:#E2E8F0;
+      font-size:10.5px;line-height:1;font-variant-numeric:tabular-nums;
+      backdrop-filter:blur(6px);
+    }
+    #cr-design-root .cr-chip svg{width:11px;height:11px;color:#7DD3FC;}
+
+    #cr-design-root .cr-dropzone{
+      width:min(420px,82%);padding:26px 24px;border:1.5px dashed #334155;border-radius:14px;
+      background:rgba(30,41,59,.35);display:flex;flex-direction:column;align-items:center;text-align:center;
+      transition:border-color 150ms ease,background 150ms ease;
+    }
+    #cr-design-root .cr-dropzone:hover{border-color:var(--cr-primary);background:rgba(14,165,233,.08);}
+    #cr-design-root .cr-state-icon{
+      width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+      background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.18);color:#94A3B8;margin-bottom:13px;
+    }
+    #cr-design-root .cr-state-icon svg{width:22px;height:22px;}
+    #cr-design-root .cr-state-title{font-size:14px;font-weight:600;line-height:1.4;color:#E2E8F0;margin-bottom:4px;}
+    #cr-design-root .cr-state-sub{
+      max-width:350px;font-size:11.5px;line-height:1.6;color:#94A3B8;margin:0 0 2px;
+    }
+    #cr-design-root .cr-state-sub code{
+      font-family:var(--cr-mono);font-size:10.5px;color:#BAE6FD;background:rgba(14,165,233,.12);
+      padding:1px 5px;border-radius:4px;
+    }
+
+    #cr-design-root .cr-statusbar{
+      height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;
+      border-top:1px solid var(--cr-border-soft);background:var(--cr-surface);
+      font-size:11.5px;min-width:0;
+    }
+    #cr-design-root .cr-status-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--cr-text-3);}
+    #cr-design-root .cr-status-dot.is-ok{background:var(--cr-success);}
+    #cr-design-root .cr-status-dot.is-warn{background:var(--cr-warning);}
+    #cr-design-root .cr-status-dot.is-err{background:var(--cr-danger);}
+    #cr-design-root .cr-status-msg{
+      min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--cr-text-2);
+    }
+    #cr-design-root .cr-status-msg.is-ok{color:var(--cr-success-text);}
+    #cr-design-root .cr-status-msg.is-warn{color:var(--cr-warning-text);}
+    #cr-design-root .cr-status-msg.is-err{color:var(--cr-danger-text);}
+    #cr-design-root .cr-status-path{
+      margin-left:auto;max-width:48%;flex:none;
+      font-family:var(--cr-mono);font-size:10.5px;color:var(--cr-text-3);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+
+    /* ---- 底部（宿主外壳，不属于插件视图） ---- */
+    #cr-design-root .cr-footer{
+      height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;
+      border-top:1px solid var(--cr-border-soft);background:var(--cr-surface-2);
+    }
+    #cr-design-root .cr-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #cr-design-root .cr-status-chip{
+      display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;
+      background:var(--cr-surface);border:1px solid var(--cr-border);
+      font-size:11.5px;color:var(--cr-text-2);white-space:nowrap;
+    }
+    #cr-design-root .cr-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--cr-text-3);}
+    #cr-design-root .cr-elapsed{
+      font-family:var(--cr-mono);font-size:11px;color:var(--cr-text-3);font-variant-numeric:tabular-nums;
+      white-space:nowrap;
+    }
+    #cr-design-root .cr-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #cr-design-root .cr-footer .cr-btn{height:32px;padding:0 16px;font-size:12.5px;}
+    #cr-design-root .cr-footer .cr-btn-primary{padding:0 18px;}
+
+    /* ---- 说明区 ---- */
+    #cr-design-root .cr-notes{
+      max-width:1360px;margin:26px auto 0;
+      display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+      column-gap:28px;row-gap:0;
+    }
+    #cr-design-root .cr-notes-head{
+      grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;
+      color:var(--cr-text-2);
+    }
+    #cr-design-root .cr-note{
+      display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;
+      border-top:1px solid var(--cr-border);
+    }
+    #cr-design-root .cr-note-num{
+      width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      background:var(--cr-primary-light);color:var(--cr-primary-text);
+      font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;
+    }
+    #cr-design-root .cr-note b{
+      display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--cr-text);
+    }
+    #cr-design-root .cr-note span{
+      display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--cr-text-2);
+    }
+    #cr-design-root .cr-note code{font-family:var(--cr-mono);font-size:10.5px;color:var(--cr-primary-text);}
+
+    @media (prefers-reduced-motion: reduce){
+      #cr-design-root *{animation:none !important;transition:none !important;}
+    }
+    @media (max-width:1024px){
+      #cr-design-root .cr-page{padding:18px 14px 32px;}
+      #cr-design-root .cr-window{height:auto;min-height:640px;}
+      #cr-design-root .cr-content{grid-template-columns:1fr;}
+      #cr-design-root .cr-rail{overflow:visible;}
+      #cr-design-root .cr-preview{min-height:420px;}
+    }
+  </style>
+
+  <div class="cr-page">
+    <header class="cr-page-head">
+      <div class="cr-page-title-row">
+        <h1>码读取 · 配置窗口</h1>
+        <span class="cr-ver">v1</span>
+      </div>
+      <p class="cr-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、<b>LinkableValueEditor(Image)</b>、
+        <b>ImageReadOnly</b> 与全部参数绑定；不新增功能、不改端口名/命令名/持久化。
+        窗口 <b>960 × 680</b>，左侧配置轨 <b>356px</b>，右侧只读预览自适应。
+      </p>
+      <div class="cr-demo-bar">
+        <div class="cr-demo-group" role="group" aria-label="窗口宽度">
+          <span class="cr-demo-label">窗口宽度</span>
+          <div class="cr-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="cr-demo-group" role="group" aria-label="码制家族">
+          <span class="cr-demo-label">码制家族</span>
+          <div class="cr-seg">
+            <button type="button" data-family="2d" class="is-on" aria-pressed="true">二维码</button>
+            <button type="button" data-family="1d" aria-pressed="false">一维码</button>
+          </div>
+        </div>
+        <div class="cr-demo-group" role="group" aria-label="场景">
+          <span class="cr-demo-label">场景</span>
+          <div class="cr-seg">
+            <button type="button" data-state="normal" class="is-on" aria-pressed="true">默认 · 读到码</button>
+            <button type="button" data-state="empty" aria-pressed="false">空态 · 未绑定</button>
+            <button type="button" data-state="nocode" aria-pressed="false">无码 · Count=0</button>
+            <button type="button" data-state="failure" aria-pressed="false">失败 · 试算异常</button>
+          </div>
+        </div>
+      </div>
+      <div class="cr-scope">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span><b>本稿未纳入（需新增功能或契约）：</b>加载骨架、图像尺寸 / 文件大小、放大 / 缩小、打开所在文件夹、系统导航。
+        本插件不做定位，因此没有 ROI / 框选；图像只有一个来源：上游 <code>Image</code> 端口。</span>
+      </div>
+    </header>
+
+    <div class="cr-window" id="cr-window">
+      <div class="cr-titlebar">
+        <div class="cr-app-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5v14"></path><path d="M7 5v14"></path><path d="M11 5v14"></path><path d="M15 5v14"></path><path d="M19 5v14"></path><path d="M21 5v14"></path></svg>
+        </div>
+        <div class="cr-title-text">
+          <div class="cr-title-line">
+            <div class="cr-title">码读取</div>
+          </div>
+          <div class="cr-subtitle">读取一维条码与二维码（Data Matrix / QR / Micro QR / PDF417 / Aztec / DotCode 等）</div>
+        </div>
+        <div class="cr-title-actions">
+          <button type="button" class="cr-icon-btn" aria-label="关闭" title="关闭（宿主外壳）">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="cr-content">
+        <aside class="cr-rail" aria-label="码读取配置">
+          <div class="cr-rail-scroll">
+          <!-- 图像输入 -->
+          <section class="cr-panel">
+            <div class="cr-section-head"><span>图像输入</span><span class="cr-section-hint">HImage · 只读</span></div>
+            <div class="cr-field">
+              <label class="cr-label">待读码图像 <span class="cr-req">*</span></label>
+              <div class="cr-link-row">
+                <div class="cr-link-box" id="cr-link-box">需链接变量</div>
+                <button type="button" class="cr-icon-btn" id="cr-link-btn" aria-label="链接变量" title="链接上游端口或变量（演示：空态下点击会模拟绑定）">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+                </button>
+              </div>
+              <p class="cr-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                本节点不做定位：请由上游把码裁好并完整包住、留点余量。贴边裁可能导致找不到码。
+              </p>
+            </div>
+          </section>
+
+          <div class="cr-divider"></div>
+
+          <!-- 码制 -->
+          <section class="cr-panel">
+            <div class="cr-section-head">
+              <span>码制</span>
+              <span class="cr-family" id="cr-family-badge">二维码</span>
+            </div>
+            <div class="cr-field">
+              <label class="cr-label" for="cr-symbology">选择码制</label>
+              <div class="cr-select-wrap">
+                <select class="cr-select" id="cr-symbology">
+                  <optgroup label="一维码">
+                    <option data-family="1d" value="auto">一维·自动识别码制（较慢）</option>
+                    <option data-family="1d" value="Code 128">Code 128</option>
+                    <option data-family="1d" value="Code 39">Code 39</option>
+                    <option data-family="1d" value="Code 93">Code 93</option>
+                    <option data-family="1d" value="GS1-128">GS1-128</option>
+                    <option data-family="1d" value="EAN-13">EAN-13</option>
+                    <option data-family="1d" value="EAN-8">EAN-8</option>
+                    <option data-family="1d" value="UPC-A">UPC-A</option>
+                    <option data-family="1d" value="UPC-E">UPC-E</option>
+                    <option data-family="1d" value="2/5 Interleaved">2/5 Interleaved（交插二五码）</option>
+                    <option data-family="1d" value="Codabar">Codabar</option>
+                    <option data-family="1d" value="Code 32">Code 32（意大利医药码）</option>
+                    <option data-family="1d" value="MSI">MSI</option>
+                    <option data-family="1d" value="PharmaCode">PharmaCode</option>
+                  </optgroup>
+                  <optgroup label="二维码">
+                    <option data-family="2d" value="Data Matrix ECC 200" selected>Data Matrix ECC 200</option>
+                    <option data-family="2d" value="QR Code">QR Code</option>
+                    <option data-family="2d" value="Micro QR Code">Micro QR Code</option>
+                    <option data-family="2d" value="PDF417">PDF417</option>
+                    <option data-family="2d" value="Aztec Code">Aztec Code</option>
+                    <option data-family="2d" value="DotCode">DotCode</option>
+                  </optgroup>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+              <p class="cr-help" id="cr-symbology-hint">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                <span>二维码：可调极性。一个模型只能是一种码制，切码制会重建模型。</span>
+              </p>
+            </div>
+          </section>
+
+          <!-- 二维码参数 -->
+          <section class="cr-panel" id="cr-2d-panel">
+            <div class="cr-section-head"><span>二维码参数</span><span class="cr-section-hint">仅二维码</span></div>
+            <div class="cr-field">
+              <label class="cr-label" for="cr-polarity">极性</label>
+              <div class="cr-select-wrap">
+                <select class="cr-select" id="cr-polarity">
+                  <option value="any" selected>自动（两种都试，推荐）</option>
+                  <option value="dark_on_light">dark_on_light（暗码亮底）</option>
+                  <option value="light_on_dark">light_on_dark（亮码暗底）</option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+              <p class="cr-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                默认「自动」：激光打码在金属上常是亮码暗底或低对比，两种都试更稳。已知极性时明确指定可提速。
+              </p>
+            </div>
+          </section>
+
+          <div class="cr-divider"></div>
+
+          <!-- 通用参数 -->
+          <section class="cr-panel">
+            <div class="cr-section-head"><span>通用参数</span><span class="cr-section-hint">仅本节点</span></div>
+            <div class="cr-field">
+              <label class="cr-label" for="cr-timeout">搜索超时 (ms) <span class="cr-family">0 = 不限</span></label>
+              <input class="cr-input" id="cr-timeout" type="number" value="500" min="0" style="font-variant-numeric:tabular-nums;">
+              <p class="cr-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                图上没有码时 HALCON 会在候选区域反复尝试。没有超时保护会拖住整条流程。
+              </p>
+            </div>
+          </section>
+
+          <div class="cr-divider"></div>
+
+          <!-- 输出端口（只读信息） -->
+          <section class="cr-panel">
+            <div class="cr-section-head"><span>输出端口</span><span class="cr-section-hint">运行期写入</span></div>
+            <div class="cr-ports">
+              <span class="cr-port"><code>Codes</code> string[]</span>
+              <span class="cr-port"><code>Count</code> int</span>
+              <span class="cr-port"><code>Text</code> string</span>
+            </div>
+            <p class="cr-help">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              Count = 0 是正常工况（翻面 / 未打码 / 码被遮挡）；只有程序级异常才失败。
+            </p>
+          </section>
+          </div><!-- /cr-rail-scroll -->
+
+          <!-- 试算：固定在左栏底部，主操作常驻 -->
+          <section class="cr-panel cr-trial-fixed">
+            <div class="cr-section-head"><span>试算</span><span class="cr-section-hint">与运行同一条读码路径</span></div>
+            <div class="cr-field">
+              <button type="button" class="cr-btn cr-btn-primary cr-btn-block" id="cr-try">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></svg>
+                试算一下
+              </button>
+              <div class="cr-result" id="cr-result">尚未试算</div>
+            </div>
+          </section>
+        </aside>
+
+        <section class="cr-preview" aria-label="图像预览">
+          <div class="cr-preview-head">
+            <div class="cr-file-chip">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg>
+            </div>
+            <span class="cr-file-name" id="cr-file-name">上游图像</span>
+            <span class="cr-file-meta">只读 · 不参与定位</span>
+            <div class="cr-preview-tools">
+              <button type="button" class="cr-icon-btn" data-zoom="fit" aria-label="适应窗口" title="适应窗口">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
+              </button>
+              <button type="button" class="cr-tool-text" data-zoom="one" aria-label="实际像素 1:1" title="实际像素 1:1">1:1</button>
+            </div>
+          </div>
+
+          <div class="cr-canvas">
+            <div class="cr-canvas-view" data-view="image">
+              <svg class="cr-scene" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="cr-scene-title cr-scene-desc">
+                <title id="cr-scene-title">工业读码预览示意</title>
+                <desc id="cr-scene-desc">深色背景上的金属工件，表面有 Data Matrix、QR 码与一维条码，带取景角标与十字线。</desc>
+                <defs>
+                  <linearGradient id="cr-bg" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#0B1220"></stop>
+                    <stop offset="100%" stop-color="#151F31"></stop>
+                  </linearGradient>
+                  <radialGradient id="cr-metal" cx="42%" cy="38%" r="66%">
+                    <stop offset="0%" stop-color="#E8EDF3"></stop>
+                    <stop offset="45%" stop-color="#AEB9C6"></stop>
+                    <stop offset="75%" stop-color="#7B8794"></stop>
+                    <stop offset="100%" stop-color="#4B5563"></stop>
+                  </radialGradient>
+                  <pattern id="cr-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293B" stroke-width="1"></path>
+                  </pattern>
+                  <filter id="cr-soft" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="9"></feGaussianBlur>
+                  </filter>
+                </defs>
+                <rect width="800" height="520" fill="url(#cr-bg)"></rect>
+                <rect width="800" height="520" fill="url(#cr-grid)" opacity=".55"></rect>
+                <ellipse cx="400" cy="280" rx="250" ry="205" fill="#000000" opacity=".45" filter="url(#cr-soft)"></ellipse>
+                <rect x="150" y="110" width="500" height="300" rx="18" fill="url(#cr-metal)" stroke="#D7DEE8" stroke-width="2"></rect>
+                <rect x="172" y="132" width="456" height="256" rx="10" fill="#7B8794" opacity=".35" stroke="#C7D0DB" stroke-width="1"></rect>
+
+                <!-- Data Matrix 示意 -->
+                <g transform="translate(196 158)">
+                  <rect width="118" height="118" fill="#111827" stroke="#E2E8F0" stroke-width="2"></rect>
+                  <g fill="#E2E8F0">
+                    <rect x="8" y="8" width="102" height="6"></rect>
+                    <rect x="8" y="8" width="6" height="102"></rect>
+                    <rect x="20" y="20" width="12" height="12"></rect><rect x="38" y="20" width="12" height="12"></rect>
+                    <rect x="74" y="20" width="12" height="12"></rect><rect x="92" y="20" width="12" height="12"></rect>
+                    <rect x="20" y="38" width="12" height="12"></rect><rect x="56" y="38" width="12" height="12"></rect>
+                    <rect x="92" y="38" width="12" height="12"></rect>
+                    <rect x="38" y="56" width="12" height="12"></rect><rect x="74" y="56" width="12" height="12"></rect>
+                    <rect x="20" y="74" width="12" height="12"></rect><rect x="56" y="74" width="12" height="12"></rect>
+                    <rect x="92" y="74" width="12" height="12"></rect>
+                    <rect x="38" y="92" width="12" height="12"></rect><rect x="74" y="92" width="12" height="12"></rect>
+                  </g>
+                </g>
+
+                <!-- QR 示意 -->
+                <g transform="translate(352 158)">
+                  <rect width="118" height="118" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="2"></rect>
+                  <g fill="#0F172A">
+                    <rect x="8" y="8" width="28" height="28"></rect><rect x="12" y="12" width="20" height="20" fill="#FFFFFF"></rect><rect x="17" y="17" width="10" height="10"></rect>
+                    <rect x="82" y="8" width="28" height="28"></rect><rect x="86" y="12" width="20" height="20" fill="#FFFFFF"></rect><rect x="91" y="17" width="10" height="10"></rect>
+                    <rect x="8" y="82" width="28" height="28"></rect><rect x="12" y="86" width="20" height="20" fill="#FFFFFF"></rect><rect x="17" y="91" width="10" height="10"></rect>
+                    <rect x="46" y="8" width="8" height="8"></rect><rect x="62" y="8" width="8" height="8"></rect>
+                    <rect x="46" y="24" width="8" height="8"></rect><rect x="70" y="24" width="8" height="8"></rect>
+                    <rect x="54" y="40" width="8" height="8"></rect><rect x="86" y="40" width="8" height="8"></rect>
+                    <rect x="8" y="46" width="8" height="8"></rect><rect x="24" y="46" width="8" height="8"></rect>
+                    <rect x="46" y="56" width="8" height="8"></rect><rect x="62" y="56" width="8" height="8"></rect><rect x="94" y="56" width="8" height="8"></rect>
+                    <rect x="8" y="70" width="8" height="8"></rect><rect x="32" y="70" width="8" height="8"></rect>
+                    <rect x="54" y="74" width="8" height="8"></rect><rect x="78" y="74" width="8" height="8"></rect>
+                    <rect x="46" y="92" width="8" height="8"></rect><rect x="70" y="92" width="8" height="8"></rect><rect x="94" y="92" width="8" height="8"></rect>
+                  </g>
+                </g>
+
+                <!-- 一维条码示意 -->
+                <g transform="translate(196 306)">
+                  <rect width="274" height="64" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="2"></rect>
+                  <g fill="#0F172A">
+                    <rect x="12" y="10" width="4" height="44"></rect><rect x="20" y="10" width="8" height="44"></rect>
+                    <rect x="32" y="10" width="4" height="44"></rect><rect x="40" y="10" width="12" height="44"></rect>
+                    <rect x="58" y="10" width="4" height="44"></rect><rect x="66" y="10" width="8" height="44"></rect>
+                    <rect x="80" y="10" width="12" height="44"></rect><rect x="98" y="10" width="4" height="44"></rect>
+                    <rect x="106" y="10" width="8" height="44"></rect><rect x="120" y="10" width="4" height="44"></rect>
+                    <rect x="128" y="10" width="12" height="44"></rect><rect x="146" y="10" width="8" height="44"></rect>
+                    <rect x="160" y="10" width="4" height="44"></rect><rect x="168" y="10" width="12" height="44"></rect>
+                    <rect x="186" y="10" width="4" height="44"></rect><rect x="194" y="10" width="8" height="44"></rect>
+                    <rect x="208" y="10" width="12" height="44"></rect><rect x="226" y="10" width="4" height="44"></rect>
+                    <rect x="234" y="10" width="8" height="44"></rect><rect x="248" y="10" width="12" height="44"></rect>
+                  </g>
+                  <text x="137" y="60" text-anchor="middle" font-family="Cascadia Mono, Consolas, monospace" font-size="9" fill="#334155">SN-8842-0017</text>
+                </g>
+
+                <g fill="none" stroke="#FFFFFF" stroke-opacity=".18" stroke-width="1">
+                  <path d="M 245 260 A 155 155 0 0 1 400 105"></path>
+                  <path d="M 555 260 A 155 155 0 0 0 400 415"></path>
+                </g>
+                <g stroke="#38BDF8" stroke-opacity=".85" stroke-width="1">
+                  <path d="M 400 40 V 96"></path><path d="M 400 424 V 480"></path>
+                  <path d="M 176 260 H 230"></path><path d="M 570 260 H 624"></path>
+                </g>
+                <g stroke="#38BDF8" stroke-opacity=".55" stroke-width="2" fill="none">
+                  <path d="M 30 30 H 70 M 30 30 V 70"></path>
+                  <path d="M 770 30 H 730 M 770 30 V 70"></path>
+                  <path d="M 30 490 H 70 M 30 490 V 450"></path>
+                  <path d="M 770 490 H 730 M 770 490 V 450"></path>
+                </g>
+              </svg>
+              <div class="cr-overlay">
+                <span class="cr-chip">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path></svg>
+                  只读预览
+                </span>
+              </div>
+            </div>
+
+            <div class="cr-canvas-view" data-view="empty" hidden>
+              <div class="cr-dropzone">
+                <div class="cr-state-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5h6"></path><path d="M19 2v6"></path><path d="M21 11.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5"></path><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path><circle cx="9" cy="9" r="2"></circle></svg>
+                </div>
+                <div class="cr-state-title">等待上游图像</div>
+                <p class="cr-state-sub">本节点不做定位，图像只有一个来源：在左侧「图像输入」点 <code>🔗</code> 绑定上游端口或变量；点「执行」试运行后也会自动显示进来。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="cr-statusbar" aria-live="polite">
+            <span class="cr-status-dot is-ok" id="cr-status-dot"></span>
+            <span class="cr-status-msg is-ok" id="cr-status-msg">已载入上游图像 · 可点「试算一下」</span>
+            <span class="cr-status-path" id="cr-status-path">Image · HImage</span>
+          </div>
+        </section>
+      </div>
+
+      <div class="cr-footer">
+        <div class="cr-footer-left">
+          <span class="cr-status-chip">
+            <span class="cr-footer-dot"></span>
+            <span>状态: 待执行</span>
+          </span>
+          <span class="cr-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="cr-footer-right">
+          <button type="button" class="cr-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></svg>
+            执行
+          </button>
+          <button type="button" class="cr-btn cr-btn-ghost">取消</button>
+          <button type="button" class="cr-btn cr-btn-primary">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="cr-notes">
+      <div class="cr-notes-head">关键改动（v1）</div>
+      <div class="cr-note">
+        <div class="cr-note-num">01</div>
+        <div><b>单页两栏，配置与预览同屏</b><span>左 356px 配置轨、右预览工作区；不再把试算结果埋在按钮下面，结果区独立成块。</span></div>
+      </div>
+      <div class="cr-note">
+        <div class="cr-note-num">02</div>
+        <div><b>图像输入只保留唯一入口</b><span><code>LinkableValueEditor</code> 绑定 <code>Image</code> 端口；本插件没有文件浏览功能，所以没有「浏览」按钮，也不新增。</span></div>
+      </div>
+      <div class="cr-note">
+        <div class="cr-note-num">03</div>
+        <div><b>码制家族可读</b><span>码制下拉仍绑 <code>Symbology</code>（存 HALCON 原始名）；右侧家族徽标由 <code>Is2D</code> 驱动，二维码参数卡只在二维时出现。</span></div>
+      </div>
+      <div class="cr-note">
+        <div class="cr-note-num">04</div>
+        <div><b>预览是只读工作区</b><span>保留 <code>ImageReadOnly</code>；无图时用纯 WPF 空态，有图才由 <code>DataTemplate</code> 创建控件，避免折叠后不重绘。</span></div>
+      </div>
+      <div class="cr-note">
+        <div class="cr-note-num">05</div>
+        <div><b>试算结果与提示分层</b><span><code>Hint</code> 讲「下一步怎么做」，<code>ResultSummary</code> 只放试算输出；不把结果混进提示文字。</span></div>
+      </div>
+      <div class="cr-note">
+        <div class="cr-note-num">06</div>
+        <div><b>全令牌化</b><span>颜色映射 <code>Colors.xaml</code> / <code>PluginConfigColors.xaml</code>；视图内零十六进制，不改共享字典。</span></div>
+      </div>
+      <div class="cr-note">
+        <div class="cr-note-num">07</div>
+        <div><b>五态与键盘可达</b><span>hover / pressed / focus / disabled 全量；图标按钮 30×30 + <code>Padding=0</code>（R68），焦点环走 <code>DialogFocusVisual</code>。</span></div>
+      </div>
+      <div class="cr-note">
+        <div class="cr-note-num">08</div>
+        <div><b>只读信息不冒充配置</b><span>输出端口只做静态说明（Codes / Count / Text），不新增可编辑控件，也不改变端口契约。</span></div>
+      </div>
+
+      <div class="cr-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="cr-note">
+        <div class="cr-note-num">C1</div>
+        <div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不引入独立 VM。</span></div>
+      </div>
+      <div class="cr-note">
+        <div class="cr-note-num">C2</div>
+        <div><b>LinkableValueEditor(Image)</b><span><code>Port={Binding Image}</code>、<code>StepData={Binding StepData}</code> 原样保留；HImage 端口不可文本输入，只显示占位与 🔗。</span></div>
+      </div>
+      <div class="cr-note">
+        <div class="cr-note-num">C3</div>
+        <div><b>ImageReadOnly.HImage = DisplayImage</b><span>经 <code>ContentControl</code> + <code>DataTemplate</code> 承载，模板内 <code>HImage="{Binding Mode=OneWay}"</code>；控件类型、缩放、右键菜单不变。</span></div>
+      </div>
+      <div class="cr-note">
+        <div class="cr-note-num">C4</div>
+        <div><b>Symbology / Polarity / TimeoutMs</b><span>码制与极性用 <code>SelectedValue</code> + <code>SelectedValuePath</code> 存 HALCON 原始值；超时仍是 int 的 <code>TextBox</code> 绑定。</span></div>
+      </div>
+      <div class="cr-note">
+        <div class="cr-note-num">C5</div>
+        <div><b>试算 / 提示 / 结果</b><span><code>TryPreviewRecognize()</code>、<code>Hint</code>、<code>ResultSummary</code>、<code>Is2D</code>、两个选项集合原样消费；本插件没有 Mode / SelectedItem / StatusLevel，不凭空添加。</span></div>
+      </div>
+
+      <div class="cr-notes-head" style="margin-top:20px;">明确延后（需新增功能或契约）</div>
+      <div class="cr-note">
+        <div class="cr-note-num">D1</div>
+        <div><b>加载骨架 / 蓝色加载态</b><span>需要 VM 新增 <code>IsPreviewLoading</code> 或状态枚举；当前只有 <code>Hint</code> / <code>ResultSummary</code> 两段文字。</span></div>
+      </div>
+      <div class="cr-note">
+        <div class="cr-note-num">D2</div>
+        <div><b>图像尺寸 / 文件大小</b><span>需要 VM 新增只读属性（<code>HImage.GetImageSize</code> / <code>FileInfo.Length</code>）；本稿预览头只显示「上游图像 · 只读」。</span></div>
+      </div>
+      <div class="cr-note">
+        <div class="cr-note-num">D3</div>
+        <div><b>放大 / 缩小按钮</b><span><code>HalconBase</code> 只有 <code>FitToWindow()</code> / <code>FitToImage()</code>，没有公开 zoom；本稿只保留「适应窗口 / 1:1」。</span></div>
+      </div>
+      <div class="cr-note">
+        <div class="cr-note-num">D4</div>
+        <div><b>打开所在文件夹 / 系统导航</b><span>需要新增 <code>Process.Start</code> 或宿主导航契约；本插件图像来自上游端口，没有文件路径，故不提供。</span></div>
+      </div>
+      <div class="cr-note">
+        <div class="cr-note-num">D5</div>
+        <div><b>试算三档状态 / 耗时</b><span>需要 VM 新增 <code>StatusLevel</code> / 耗时属性；本稿只用结果区文字表达，不扩展状态枚举。</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('cr-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#cr-window');
+      var familyButtons = Array.prototype.slice.call(root.querySelectorAll('[data-family]'));
+      var stateButtons = Array.prototype.slice.call(root.querySelectorAll('[data-state]'));
+      var sizeButtons = Array.prototype.slice.call(root.querySelectorAll('[data-width]'));
+      var views = Array.prototype.slice.call(root.querySelectorAll('.cr-canvas-view'));
+
+      var familyBadge = root.querySelector('#cr-family-badge');
+      var panel2d = root.querySelector('#cr-2d-panel');
+      var symbology = root.querySelector('#cr-symbology');
+      var symbologyHint = root.querySelector('#cr-symbology-hint span');
+      var resultBox = root.querySelector('#cr-result');
+      var statusDot = root.querySelector('#cr-status-dot');
+      var statusMsg = root.querySelector('#cr-status-msg');
+      var statusPath = root.querySelector('#cr-status-path');
+      var fileName = root.querySelector('#cr-file-name');
+      var linkBox = root.querySelector('#cr-link-box');
+      var tryBtn = root.querySelector('#cr-try');
+
+      var family = '2d';
+      var scenario = 'normal';
+      var busy = false;
+
+      var hints = {
+        '2d': '二维码：可调极性。一个模型只能是一种码制，切码制会重建模型。',
+        '1d': '一维码：无极性参数（一维读码本身对极性鲁棒）。选具体码制比用「自动」快得多。'
+      };
+
+      function selectedOption() {
+        return symbology.options[symbology.selectedIndex];
+      }
+
+      function symbologyName() {
+        return selectedOption().text;
+      }
+
+      function resultText() {
+        var name = symbologyName();
+        if (scenario === 'empty') return '尚未试算';
+        if (scenario === 'failure') {
+          return '试算失败：码制模型创建失败（HALCON #5200）\n请检查码制与输入图像类型';
+        }
+        if (scenario === 'nocode') {
+          return '码制：' + name + '\n读到 0 个码\n（未读到码）';
+        }
+        return family === '2d'
+          ? '码制：' + name + '\n读到 2 个码\nDM-2026-0042\nQR-LOT-A17'
+          : '码制：' + name + '\n读到 1 个码\nSN-8842-0017';
+      }
+
+      function setStatus(level, msg, path) {
+        statusDot.className = 'cr-status-dot is-' + level;
+        statusMsg.className = 'cr-status-msg is-' + level;
+        statusMsg.textContent = msg;
+        statusPath.textContent = path;
+      }
+
+      function syncSeg(buttons, attr, value) {
+        buttons.forEach(function (btn) {
+          var on = btn.dataset[attr] === value;
+          btn.classList.toggle('is-on', on);
+          btn.setAttribute('aria-pressed', String(on));
+        });
+      }
+
+      function render() {
+        var is2d = family === '2d';
+
+        familyBadge.textContent = is2d ? '二维码' : '一维码';
+        familyBadge.className = 'cr-family' + (is2d ? '' : ' is-1d');
+        panel2d.hidden = !is2d;
+        symbologyHint.textContent = hints[family];
+
+        // 保证下拉选中项与家族一致；切家族时优先落到该家族的代表码制
+        if (selectedOption().dataset.family !== family) {
+          var preferred = family === '2d' ? 'Data Matrix ECC 200' : 'Code 128';
+          for (var i = 0; i < symbology.options.length; i++) {
+            if (symbology.options[i].value === preferred) {
+              symbology.selectedIndex = i;
+              break;
+            }
+          }
+        }
+
+        views.forEach(function (view) {
+          view.hidden = view.dataset.view !== (scenario === 'empty' ? 'empty' : 'image');
+        });
+
+        resultBox.textContent = resultText();
+        resultBox.className = 'cr-result'
+          + (scenario === 'normal' ? ' is-ok' : '')
+          + (scenario === 'nocode' ? ' is-warn' : '')
+          + (scenario === 'failure' ? ' is-err' : '');
+
+        if (scenario === 'empty') {
+          fileName.textContent = '未绑定图像';
+          linkBox.textContent = '需链接变量';
+          linkBox.className = 'cr-link-box';
+          setStatus('muted', '先在「图像输入」点 🔗 绑定上游图像，再点「试算一下」', 'Image · HImage');
+        } else if (scenario === 'nocode') {
+          fileName.textContent = '上游图像';
+          linkBox.textContent = '上游步骤.裁切图';
+          linkBox.className = 'cr-link-box is-linked';
+          setStatus('warn', '本帧未读到码（Count = 0，属正常工况）', symbologyName());
+        } else if (scenario === 'failure') {
+          fileName.textContent = '上游图像';
+          linkBox.textContent = '上游步骤.裁切图';
+          linkBox.className = 'cr-link-box is-linked';
+          setStatus('err', '试算失败：请检查码制与输入图像类型', symbologyName());
+        } else {
+          fileName.textContent = '上游图像';
+          linkBox.textContent = '上游步骤.裁切图';
+          linkBox.className = 'cr-link-box is-linked';
+          setStatus('ok', '已载入上游图像 · 可点「试算一下」', symbologyName());
+        }
+
+        syncSeg(familyButtons, 'family', family);
+        syncSeg(stateButtons, 'state', scenario);
+      }
+
+      familyButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          family = btn.dataset.family;
+          render();
+        });
+      });
+
+      stateButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          scenario = btn.dataset.state;
+          render();
+        });
+      });
+
+      sizeButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var narrow = btn.dataset.width === '640';
+          win.classList.toggle('is-narrow', narrow);
+          syncSeg(sizeButtons, 'width', btn.dataset.width);
+        });
+      });
+
+      symbology.addEventListener('change', function () {
+        family = selectedOption().dataset.family;
+        render();
+      });
+
+      root.querySelector('#cr-link-btn').addEventListener('click', function () {
+        if (scenario === 'empty') {
+          scenario = 'normal';
+          render();
+        } else {
+          linkBox.focus();
+        }
+      });
+
+      tryBtn.addEventListener('click', function () {
+        if (busy) return;
+        if (scenario === 'empty') {
+          resultBox.textContent = '先点「载入」把示意图读进来再试算';
+          resultBox.className = 'cr-result is-warn';
+          return;
+        }
+        busy = true;
+        tryBtn.disabled = true;
+        resultBox.textContent = '正在试算…';
+        resultBox.className = 'cr-result';
+        setTimeout(function () {
+          busy = false;
+          tryBtn.disabled = false;
+          render();
+        }, 550);
+      });
+
+      Array.prototype.slice.call(root.querySelectorAll('[data-zoom]')).forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var old = statusMsg.textContent;
+          var oldClass = statusMsg.className;
+          statusMsg.textContent = btn.dataset.zoom === 'fit' ? '已适应窗口' : '已按 1:1 显示';
+          statusMsg.className = 'cr-status-msg';
+          setTimeout(function () {
+            statusMsg.textContent = old;
+            statusMsg.className = oldClass;
+          }, 1100);
+        });
+      });
+
+      render();
+    })();
+  </script>
+</div>
+</body>
+</html>

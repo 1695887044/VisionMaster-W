@@ -110,6 +110,10 @@ namespace VisionMaster.Scada
                 ["LeftToRight"] = "从左到右",
                 ["RightToLeft"] = "从右到左",
 
+                // ---- 报警确认范围（Phase 2 P0：Hmi.AckButton） ----
+                ["All"] = "全部",
+                ["Oldest"] = "最早一条",
+
                 // ---- 图像缩放方式（图像显示图元） ----
                 ["Fill"] = "拉伸填满",
                 ["Uniform"] = "保持比例",

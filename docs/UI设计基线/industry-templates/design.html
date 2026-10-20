@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>行业公共模板 · Web 设计基线 v1</title>
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1100px 620px at 50% -12%, #F8FAFC 0%, rgba(248,250,252,0) 62%),
+      radial-gradient(circle at 1px 1px, rgba(148,163,184,.14) 1px, transparent 0) 0 0/24px 24px,
+      #E9EEF5;
+    color:#0F172A;
+    font-family:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    font-size:13px;line-height:1.5;padding:28px 28px 80px;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit;}
+  a{color:inherit;}
+
+  /* ---------- 页头 ---------- */
+  .page-head{max-width:1560px;margin:0 auto 16px;}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;
+    letter-spacing:.12em;text-transform:uppercase;color:#0369A1;margin-bottom:8px;
+  }
+  .eyebrow::before{content:"";width:18px;height:2px;border-radius:1px;background:#0EA5E9;}
+  .page-head h1{margin:0;font-size:24px;font-weight:600;letter-spacing:-.02em;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .ver{
+    display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+    background:#E0F2FE;color:#0369A1;font-size:11px;font-weight:700;
+  }
+  .page-head .meta{margin:8px 0 0;color:#475569;font-size:13px;max-width:1180px;line-height:1.65;}
+  .page-head .meta b{color:#0F172A;font-weight:600;}
+  .page-head .meta code{
+    font-family:"Cascadia Mono","Consolas",monospace;font-size:11.5px;padding:1px 5px;
+    border:1px solid #E2E8F0;border-radius:4px;background:rgba(255,255,255,.72);white-space:nowrap;
+  }
+  .meta-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;}
+  .meta-chip{
+    display:inline-flex;align-items:center;height:24px;padding:0 9px;border:1px solid #E2E8F0;
+    border-radius:12px;background:rgba(255,255,255,.72);color:#475569;font-size:11px;
+  }
+  .meta-chip strong{color:#0F172A;font-weight:600;margin-right:3px;}
+
+  /* ---------- 页签 ---------- */
+  .tabs{max-width:1560px;margin:0 auto 18px;display:flex;gap:6px;flex-wrap:wrap;padding:7px;background:rgba(255,255,255,.72);border:1px solid #E2E8F0;border-radius:10px;}
+  .tabs button{
+    appearance:none;border:1px solid transparent;background:transparent;color:#475569;
+    height:30px;padding:0 12px;border-radius:7px;font-size:11.5px;cursor:pointer;
+  }
+  .tabs button:hover{background:#F1F5F9;}
+  .tabs button.is-on{background:#0F172A;color:#fff;border-color:#0F172A;font-weight:600;}
+  .tabs .tab-badge{
+    display:inline-flex;align-items:center;justify-content:center;height:15px;padding:0 5px;
+    margin-left:5px;border-radius:4px;background:rgba(255,255,255,.18);font-size:8.5px;font-weight:700;
+  }
+
+  /* ---------- 模板区块 ---------- */
+  .template{display:none;max-width:1560px;margin:0 auto;}
+  .template.is-on{display:block;}
+  .tpl-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:2px 0 0;}
+  .tpl-head h2{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em;}
+  .tpl-head h2 span{color:#0EA5E9;font-family:"Cascadia Mono","Consolas",monospace;font-size:13px;margin-right:6px;}
+  .tpl-head p{margin:4px 0 0;color:#475569;font-size:11.5px;max-width:980px;}
+  .tpl-meta{display:flex;gap:6px;flex-wrap:wrap;}
+  .tpl-meta span{display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;background:#fff;color:#475569;font-size:10px;}
+  .tpl-meta b{color:#0F172A;font-weight:600;margin-right:3px;}
+
+  /* ---------- 1440 × 900 运行画面 ---------- */
+  .screen{
+    --c-bg:#0E1318;--c-surface:#151C23;--c-surface-2:#1B242D;--c-surface-3:#222D38;
+    --c-border:#2A3745;--c-border-2:#3A4A5C;--c-outline:#526274;
+    --c-text:#E6EEF7;--c-text-2:#A9B7C6;--c-text-3:#7C8A99;
+    --c-accent:#38BDF8;--c-accent-2:#0EA5E9;--c-accent-strong:#0284C7;
+    --c-success:#22C55E;--c-success-fill:#15803D;--c-success-soft:rgba(34,197,94,.14);
+    --c-warning:#F59E0B;--c-warning-fill:#B45309;--c-warning-soft:rgba(245,158,11,.14);
+    --c-danger:#EF4444;--c-danger-fill:#B91C1C;--c-danger-soft:rgba(239,68,68,.14);
+    --c-info:#3B82F6;--c-off:#64748B;--c-track:#26313D;
+    --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+    position:relative;width:1440px;height:900px;margin:12px auto 0;overflow:hidden;
+    background:var(--c-bg);color:var(--c-text);border:1px solid #1E2A36;border-radius:12px;
+    box-shadow:0 18px 50px rgba(15,23,42,.18);font-size:12px;line-height:1.45;
+  }
+  .screen ::selection{background:#C7D2FE;color:#0F172A;}
+
+  /* 顶栏 */
+  .topbar{height:56px;display:flex;align-items:center;gap:14px;padding:0 18px;background:var(--c-surface);border-bottom:1px solid var(--c-border);}
+  .brand{display:flex;align-items:center;gap:9px;flex:none;}
+  .logo{
+    width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#0EA5E9,#0284C7);
+    display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;color:#fff;letter-spacing:.04em;
+  }
+  .brand b{display:block;font-size:13px;font-weight:600;line-height:1.2;}
+  .brand small{display:block;font-size:9px;color:var(--c-text-3);line-height:1.3;}
+  .status-chip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;font-size:10px;font-weight:600;white-space:nowrap;}
+  .status-chip i{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor;}
+  .status-chip.run{background:rgba(34,197,94,.14);color:#86EFAC;border:1px solid rgba(34,197,94,.3);}
+  .status-chip.warn{background:rgba(245,158,11,.14);color:#FCD34D;border:1px solid rgba(245,158,11,.32);}
+  .status-chip.bad{background:rgba(239,68,68,.14);color:#FCA5A5;border:1px solid rgba(239,68,68,.32);}
+  .mode-pill{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:5px;background:var(--c-surface-2);border:1px solid var(--c-border);color:var(--c-text-2);font-family:var(--mono);font-size:9.5px;white-space:nowrap;}
+  .spacer{flex:1;}
+  .top-stat{display:flex;flex-direction:column;gap:1px;padding:0 10px;border-left:1px solid var(--c-border);white-space:nowrap;}
+  .top-stat span{font-size:8.5px;color:var(--c-text-3);}
+  .top-stat b{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--c-text);}
+  .alarm-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:6px;background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.32);color:#FCA5A5;font-size:9.5px;font-weight:600;white-space:nowrap;}
+  .alarm-chip.warning{background:rgba(245,158,11,.13);border-color:rgba(245,158,11,.3);color:#FCD34D;}
+  .alarm-chip i{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor;}
+  .user{display:flex;flex-direction:column;gap:1px;padding-left:10px;border-left:1px solid var(--c-border);white-space:nowrap;}
+  .user span{font-size:8.5px;color:var(--c-text-3);}
+  .user b{font-size:10.5px;font-weight:600;color:var(--c-text-2);}
+  .clock{font-family:var(--mono);font-size:12px;color:var(--c-text-2);white-space:nowrap;}
+
+  /* 外壳 */
+  .shell{display:flex;height:814px;}
+  .nav{width:200px;flex:none;background:#111820;border-right:1px solid var(--c-border);padding:10px 8px;display:flex;flex-direction:column;gap:3px;}
+  .nav-item{display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border-radius:6px;color:var(--c-text-3);font-size:11px;white-space:nowrap;}
+  .nav-item .ico{width:16px;text-align:center;font-size:13px;color:var(--c-text-3);flex:none;}
+  .nav-item.active{background:var(--c-surface-2);color:var(--c-text);box-shadow:inset 2px 0 0 var(--c-accent);}
+  .nav-item.active .ico{color:var(--c-accent);}
+  .nav-sep{height:1px;background:var(--c-border);margin:8px 6px;}
+  .nav-foot{margin-top:auto;padding:10px 8px 4px;border-top:1px solid var(--c-border);}
+  .conn{display:flex;align-items:center;gap:6px;font-size:9.5px;color:#86EFAC;}
+  .conn i{width:6px;height:6px;border-radius:50%;background:#22C55E;box-shadow:0 0 6px rgba(34,197,94,.8);}
+  .conn-sub{font-size:8.5px;color:var(--c-text-3);margin-top:2px;padding-left:12px;}
+  .main{flex:1;min-width:0;padding:14px;display:flex;flex-direction:column;gap:12px;overflow:hidden;}
+  .rail{width:320px;flex:none;background:#111820;border-left:1px solid var(--c-border);padding:12px;display:flex;flex-direction:column;gap:12px;overflow:hidden;}
+  .bottombar{height:30px;display:flex;align-items:center;gap:16px;padding:0 18px;background:#0B1015;border-top:1px solid var(--c-border);font-size:9.5px;color:var(--c-text-3);}
+  .bottombar .dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:#22C55E;margin-right:5px;vertical-align:1px;}
+
+  /* 卡片 */
+  .card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:8px;padding:12px;display:flex;flex-direction:column;min-height:0;overflow:hidden;}
+  .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;flex:none;}
+  .card-head b{display:block;font-size:12px;font-weight:600;color:var(--c-text);line-height:1.3;}
+  .card-head span{display:block;font-size:9.5px;color:var(--c-text-3);margin-top:1px;line-height:1.35;}
+  .card-head .chip{flex:none;}
+  .chip{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:var(--c-surface-2);border:1px solid var(--c-border);color:var(--c-text-2);font-size:9px;font-weight:600;white-space:nowrap;}
+  .chip.ok{background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.3);color:#86EFAC;}
+  .chip.warn{background:rgba(245,158,11,.13);border-color:rgba(245,158,11,.3);color:#FCD34D;}
+  .chip.danger{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.32);color:#FCA5A5;}
+  .legend-inline{display:flex;align-items:center;gap:10px;font-size:9px;color:var(--c-text-3);flex-wrap:wrap;}
+  .legend-inline span{display:inline-flex;align-items:center;gap:4px;}
+  .legend-inline i{width:7px;height:7px;border-radius:50%;display:inline-block;}
+  .legend-inline i.run{background:var(--c-success);}
+  .legend-inline i.stop{background:var(--c-off);}
+  .legend-inline i.alarm{background:var(--c-danger);}
+
+  /* 趋势 */
+  .trend{flex:1;min-height:0;width:100%;}
+  .process{flex:1;min-height:0;position:relative;}
+  .process svg{width:100%;height:100%;}
+
+  /* 右栏：报警 / KPI / 设备 / 批次 */
+  .alarm-card{height:228px;flex:none;}
+  .alarm-list{display:flex;flex-direction:column;gap:6px;overflow:hidden;}
+  .alarm-row{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;gap:7px;align-items:center;padding:6px 8px;border-radius:5px;background:var(--c-surface-2);border-left:3px solid var(--c-off);font-size:9.5px;color:var(--c-text-2);}
+  .alarm-row.critical{border-left-color:var(--c-danger);}
+  .alarm-row.warning{border-left-color:var(--c-warning);}
+  .alarm-row.info{border-left-color:var(--c-info);}
+  .alarm-row .sev{font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;border:1px solid currentColor;white-space:nowrap;}
+  .alarm-row.critical .sev{color:#FCA5A5;}
+  .alarm-row.warning .sev{color:#FCD34D;}
+  .alarm-row.info .sev{color:#93C5FD;}
+  .alarm-row .time{font-family:var(--mono);font-size:8.5px;color:var(--c-text-3);white-space:nowrap;}
+  .alarm-row .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--c-text);}
+  .alarm-row .state{font-size:8.5px;color:var(--c-text-3);white-space:nowrap;}
+  .kpi-card{height:188px;flex:none;}
+  .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1;}
+  .kpi{background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;justify-content:center;min-height:0;}
+  .kpi span{font-size:9px;color:var(--c-text-3);}
+  .kpi b{font-family:var(--mono);font-size:21px;font-weight:600;color:var(--c-text);line-height:1.15;}
+  .kpi b small{font-size:10px;color:var(--c-text-3);font-weight:400;margin-left:1px;}
+  .kpi em{font-style:normal;font-size:8.5px;color:#86EFAC;}
+  .equip-card{flex:1;min-height:0;}
+  .equip-list{display:flex;flex-direction:column;gap:7px;overflow:hidden;}
+  .equip-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:7px;align-items:center;font-size:9.5px;color:var(--c-text-2);}
+  .equip-row .lamp{width:7px;height:7px;border-radius:50%;background:var(--c-off);}
+  .equip-row .lamp.on{background:var(--c-success);box-shadow:0 0 6px rgba(34,197,94,.7);}
+  .equip-row .lamp.warn{background:var(--c-warning);box-shadow:0 0 6px rgba(245,158,11,.7);}
+  .equip-row .lamp.bad{background:var(--c-danger);box-shadow:0 0 6px rgba(239,68,68,.7);}
+  .equip-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .equip-row b{font-family:var(--mono);font-size:9px;font-weight:500;color:var(--c-text);white-space:nowrap;}
+  .batch-card{height:130px;flex:none;}
+  .batch-meta{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:4px 8px;font-size:9px;color:var(--c-text-3);align-items:center;}
+  .batch-meta b{font-size:9.5px;color:var(--c-text);font-weight:500;}
+  .progress{height:6px;border-radius:999px;background:var(--c-track);overflow:hidden;margin:9px 0 6px;}
+  .progress i{display:block;height:100%;border-radius:999px;background:var(--c-accent);}
+  .batch-foot{display:flex;justify-content:space-between;font-size:9px;color:var(--c-text-3);}
+  .batch-foot b{font-family:var(--mono);color:var(--c-text);font-weight:600;}
+
+  /* 运控 */
+  .axis-row{display:flex;gap:12px;height:250px;flex:none;}
+  .axis-card{flex:1;min-width:0;background:var(--c-surface);border:1px solid var(--c-border);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;overflow:hidden;}
+  .axis-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+  .axis-head b{font-size:12px;font-weight:600;}
+  .axis-head span{display:block;font-size:9px;color:var(--c-text-3);margin-top:1px;}
+  .axis-pos{font-family:var(--mono);font-size:28px;font-weight:600;color:var(--c-text);line-height:1.15;margin-top:4px;}
+  .axis-pos span{font-size:10px;color:var(--c-text-3);font-weight:400;margin-left:3px;}
+  .axis-sub{display:flex;gap:12px;font-size:9px;color:var(--c-text-3);margin-top:1px;}
+  .axis-sub b{font-family:var(--mono);color:var(--c-text-2);font-weight:500;}
+  .axis-lamps{display:grid;grid-template-columns:repeat(4,1fr);gap:5px 6px;margin:8px 0 7px;}
+  .axis-lamp{display:flex;align-items:center;gap:4px;font-size:8px;color:var(--c-text-3);white-space:nowrap;}
+  .axis-lamp i{width:5px;height:5px;border-radius:50%;background:var(--c-off);flex:none;}
+  .axis-lamp.on i{background:var(--c-success);box-shadow:0 0 5px rgba(34,197,94,.7);}
+  .axis-lamp.bad i{background:var(--c-danger);box-shadow:0 0 5px rgba(239,68,68,.7);}
+  .axis-btns{display:flex;gap:4px;flex-wrap:wrap;margin-top:auto;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;height:22px;padding:0 7px;border-radius:4px;border:1px solid var(--c-border-2);background:var(--c-surface-2);color:var(--c-text-2);font-size:8.5px;white-space:nowrap;}
+  .btn.primary{background:var(--c-accent-2);border-color:var(--c-accent-2);color:#fff;font-weight:600;}
+  .btn.danger{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.38);color:#FCA5A5;font-weight:600;}
+  .sequence-card{height:210px;flex:none;}
+  .seq-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+  .mode-switch{display:inline-flex;padding:2px;border-radius:5px;background:var(--c-surface-2);border:1px solid var(--c-border);}
+  .mode-switch span{display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:4px;font-size:8.5px;color:var(--c-text-3);}
+  .mode-switch span.on{background:var(--c-success-fill);color:#fff;font-weight:600;}
+  .steps{display:flex;align-items:flex-start;gap:0;margin-top:12px;}
+  .step{display:flex;flex-direction:column;align-items:center;gap:5px;flex:none;width:64px;}
+  .step i{width:28px;height:28px;border-radius:50%;border:1px solid var(--c-border-2);background:var(--c-surface-2);display:flex;align-items:center;justify-content:center;font-style:normal;font-size:10px;color:var(--c-text-3);}
+  .step span{font-size:9px;color:var(--c-text-3);white-space:nowrap;}
+  .step.done i{background:var(--c-success-fill);border-color:var(--c-success);color:#fff;font-weight:700;}
+  .step.on i{background:var(--c-accent);border-color:var(--c-accent);color:#04121b;font-weight:700;box-shadow:0 0 0 4px rgba(56,189,248,.14);}
+  .step.on span{color:var(--c-text);font-weight:600;}
+  .step-line{flex:1;height:1px;background:var(--c-border-2);margin-top:14px;min-width:18px;}
+  .step-line.on{background:var(--c-success);}
+  .seq-foot{display:flex;gap:18px;margin-top:auto;font-size:9px;color:var(--c-text-3);}
+  .seq-foot b{font-family:var(--mono);color:var(--c-text);font-weight:500;}
+  .io-card{flex:1;min-height:0;}
+  .io-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;flex:1;}
+  .io-tile{background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:6px;padding:7px 9px;display:flex;flex-direction:column;gap:3px;min-height:0;}
+  .io-tile .io-name{font-size:9px;color:var(--c-text-3);}
+  .io-tile .state{display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;color:var(--c-text-2);}
+  .io-tile .state i{width:6px;height:6px;border-radius:50%;background:currentColor;}
+  .io-tile.ok .state{color:#86EFAC;}
+  .io-tile.warn .state{color:#FCD34D;}
+  .io-tile.bad .state{color:#FCA5A5;}
+  .io-tile .io-sub{font-family:var(--mono);font-size:8px;color:var(--c-text-3);}
+  .points-card{flex:1;min-height:0;}
+  .point-row{display:grid;grid-template-columns:28px minmax(0,1fr) 66px;gap:6px;align-items:center;padding:5px 0;border-bottom:1px solid var(--c-border);font-size:9px;color:var(--c-text-2);}
+  .point-row:last-child{border-bottom:0;}
+  .point-row b{font-family:var(--mono);font-size:8.5px;color:var(--c-text);font-weight:500;text-align:right;}
+  .point-row .tag{font-size:8px;color:var(--c-text-3);}
+  .point-row.on{background:rgba(56,189,248,.08);border-radius:4px;padding-left:5px;padding-right:5px;}
+  .point-row.on .tag{color:var(--c-accent);}
+  .maint-card{height:150px;flex:none;}
+  .maint-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;font-size:9px;color:var(--c-text-2);margin-bottom:7px;}
+  .maint-row b{font-family:var(--mono);font-size:8.5px;color:var(--c-text);font-weight:500;}
+  .maint-bar{height:5px;border-radius:999px;background:var(--c-track);overflow:hidden;margin-top:3px;}
+  .maint-bar i{display:block;height:100%;border-radius:999px;background:var(--c-warning);}
+
+  /* 视觉 */
+  .vision-top{display:flex;gap:12px;height:500px;flex:none;}
+  .image-card{flex:1;min-width:0;}
+  .image-stage{flex:1;min-height:0;background:#0B1015;border:1px solid var(--c-border);border-radius:6px;overflow:hidden;position:relative;}
+  .image-stage svg{width:100%;height:100%;display:block;}
+  .image-foot{display:flex;gap:16px;font-size:9px;color:var(--c-text-3);padding-top:7px;flex:none;}
+  .image-foot b{font-family:var(--mono);color:var(--c-text-2);font-weight:500;}
+  .result-card{width:300px;flex:none;}
+  .result-badge{display:flex;align-items:center;justify-content:center;height:92px;border-radius:8px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#FCA5A5;font-family:var(--mono);font-size:34px;font-weight:700;letter-spacing:.06em;margin-bottom:10px;}
+  .result-badge.ok{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.3);color:#86EFAC;}
+  .result-rows{display:flex;flex-direction:column;gap:0;}
+  .result-row{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px dashed var(--c-border);font-size:9.5px;color:var(--c-text-3);}
+  .result-row b{font-family:var(--mono);font-size:9.5px;color:var(--c-text);font-weight:500;text-align:right;}
+  .result-actions{display:flex;gap:5px;flex-wrap:wrap;margin-top:auto;padding-top:9px;}
+  .vision-bottom{display:flex;gap:12px;flex:1;min-height:0;}
+  .table-card{flex:1;min-width:0;}
+  .data-table{display:flex;flex-direction:column;flex:1;min-height:0;}
+  .data-row{display:grid;grid-template-columns:64px 46px minmax(0,1fr) 58px 58px;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--c-border);font-size:9px;color:var(--c-text-2);}
+  .data-row.head{color:var(--c-text-3);font-size:8.5px;border-bottom:1px solid var(--c-border-2);}
+  .data-row:last-child{border-bottom:0;}
+  .data-row .mono{font-family:var(--mono);}
+  .data-row .ng{color:#FCA5A5;font-weight:600;}
+  .data-row .ok{color:#86EFAC;font-weight:600;}
+  .stats-card{width:250px;flex:none;}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;flex:1;}
+  .stat{background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:6px;padding:7px 8px;display:flex;flex-direction:column;justify-content:center;min-height:0;}
+  .stat span{font-size:8.5px;color:var(--c-text-3);}
+  .stat b{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--c-text);line-height:1.2;}
+  .stat b.danger{color:#FCA5A5;}
+  .mini-trend-card{width:220px;flex:none;}
+  .mini-trend{flex:1;min-height:0;width:100%;}
+  .recipe-card{height:190px;flex:none;}
+  .recipe-body{display:flex;gap:10px;align-items:center;flex:1;min-height:0;}
+  .recipe-thumb{width:86px;height:72px;border-radius:6px;border:1px solid var(--c-border-2);background:var(--c-surface-2);overflow:hidden;flex:none;}
+  .recipe-thumb svg{width:100%;height:100%;display:block;}
+  .recipe-rows{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1;}
+  .recipe-row{display:flex;justify-content:space-between;gap:8px;font-size:9px;color:var(--c-text-3);}
+  .recipe-row b{font-family:var(--mono);font-size:9px;color:var(--c-text);font-weight:500;}
+  .camera-card{height:190px;flex:none;}
+  .param-row{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed var(--c-border);font-size:9.5px;color:var(--c-text-3);}
+  .param-row b{font-family:var(--mono);font-size:9.5px;color:var(--c-text);font-weight:500;}
+  .vision-alarm-card{flex:1;min-height:0;}
+
+  /* ---------- 说明区 ---------- */
+  .notes{max-width:1440px;margin:14px auto 0;display:grid;grid-template-columns:1.1fr .9fr;gap:14px;}
+  .note-card{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px;box-shadow:0 1px 2px rgba(15,23,42,.05);}
+  .note-card h3{margin:0 0 8px;font-size:12.5px;font-weight:600;color:#0F172A;}
+  .note-card h3:not(:first-child){margin-top:14px;}
+  .note-card p{margin:0 0 8px;font-size:11px;line-height:1.7;color:#475569;}
+  .note-card ul,.note-card ol{margin:0 0 8px;padding-left:18px;font-size:11px;line-height:1.75;color:#475569;}
+  .note-card li{margin:0 0 3px;}
+  .note-card code{font-family:"Cascadia Mono","Consolas",monospace;font-size:10px;padding:1px 4px;border:1px solid #E2E8F0;border-radius:3px;background:#F8FAFC;white-space:nowrap;}
+  .note-card a,.tpl-head a{color:#0284C7;text-decoration:underline;}
+  .layout-map{font-family:"Cascadia Mono","Consolas",monospace;font-size:10px;line-height:1.55;color:#475569;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;padding:9px 10px;white-space:pre;overflow:auto;margin:0 0 8px;}
+  .zone-table{width:100%;border-collapse:collapse;font-size:10.5px;color:#475569;}
+  .zone-table td{padding:5px 6px;border-bottom:1px solid #EEF2F7;vertical-align:top;line-height:1.55;}
+  .zone-table td:first-child{width:24px;font-family:"Cascadia Mono","Consolas",monospace;font-weight:700;color:#0284C7;white-space:nowrap;}
+  .zone-table tr:last-child td{border-bottom:0;}
+  .tag-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;}
+  .tag-list span{display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:4px;background:#F1F5F9;border:1px solid #E2E8F0;color:#475569;font-family:"Cascadia Mono","Consolas",monospace;font-size:9px;white-space:nowrap;}
+  .tag-list span.cand{background:#FFF7ED;border-color:#FED7AA;color:#9A3412;}
+
+  /* ---------- 截图模式 ---------- */
+  body.shot{padding:0;background:#0E1318;}
+  body.shot .page-head,body.shot .tabs,body.shot .tpl-head,body.shot .notes{display:none !important;}
+  body.shot .template{max-width:none;}
+  body.shot .screen{margin:0;border:0;border-radius:0;box-shadow:none;}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <div class="eyebrow">Industry Templates · Web Design Baseline</div>
+  <h1>行业公共模板 <span class="ver">v1</span></h1>
+  <p class="meta">
+    覆盖 <b>SCADA 监控</b>、<b>自动化设备运控</b>、<b>视觉行业</b> 三类典型 HMI 页面。
+    三套模板共用同一副“公共壳”（顶栏 / 左导航 / 右信息栏 / 底栏），只替换中间的主工作区；
+    每套都标出页面结构、信息层级与使用图元，可直接作为方案页面的起点。
+  </p>
+  <div class="meta-row">
+    <span class="meta-chip"><strong>视口</strong>1440 × 900</span>
+    <span class="meta-chip"><strong>主题</strong>深色运行画面</span>
+    <span class="meta-chip"><strong>模板</strong>3 套</span>
+    <span class="meta-chip"><strong>日期</strong>2026-10-20</span>
+    <span class="meta-chip"><strong>状态</strong>待确认</span>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs" role="tablist" aria-label="行业模板">
+  <button type="button" class="is-on" data-tpl="tpl-scada">01 SCADA 监控</button>
+  <button type="button" data-tpl="tpl-motion">02 自动化设备运控</button>
+  <button type="button" data-tpl="tpl-vision">03 视觉行业</button>
+</nav>
+
+<!-- ============================================================ -->
+<!-- 01 SCADA 监控                                                -->
+<!-- ============================================================ -->
+<section class="template is-on" id="tpl-scada">
+  <div class="tpl-head">
+    <div>
+      <h2><span>01</span>SCADA 监控 · 流程行业灌装线</h2>
+      <p>典型结构：顶栏状态 → 左导航 → 工艺流程图 + 关键趋势 → 右栏报警 / KPI / 设备状态 → 底栏连接信息。适合流程行业总览页、产线监控页。完整 7 界面套件见 <a href="scada-suite/design.html">scada-suite/design.html</a>。</p>
+    </div>
+    <div class="tpl-meta">
+      <span><b>页面</b>总览</span>
+      <span><b>行业</b>食品 / 化工 / 制药</span>
+      <span><b>主区</b>工艺流程图</span>
+    </div>
+  </div>
+
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand">
+        <span class="logo">VM</span>
+        <div><b>3# 灌装线</b><small>SCADA · 流程监控</small></div>
+      </div>
+      <span class="status-chip run"><i></i>运行中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>节拍</span><b>42.5 瓶/分</b></div>
+      <div class="top-stat"><span>批次</span><b>B20261020-01</b></div>
+      <div class="alarm-chip"><i></i>3 条未确认</div>
+      <div class="user"><span>操作员</span><b>张三</b></div>
+      <div class="clock">14:32:08</div>
+    </div>
+
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item active"><span class="ico">▦</span>总览</div>
+        <div class="nav-item"><span class="ico">⌁</span>工艺流程图</div>
+        <div class="nav-item"><span class="ico">◔</span>趋势</div>
+        <div class="nav-item"><span class="ico">△</span>报警</div>
+        <div class="nav-item"><span class="ico">▤</span>配方</div>
+        <div class="nav-item"><span class="ico">▥</span>报表</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">≡</span>设置</div>
+        <div class="nav-foot">
+          <div class="conn"><i></i>PLC 已连接</div>
+          <div class="conn-sub">12 ms · 0 丢包</div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <section class="card process-card" style="flex:1.55;">
+          <div class="card-head">
+            <div><b>工艺流程</b><span>3# 灌装线 · 实时状态</span></div>
+            <div class="legend-inline">
+              <span><i class="run"></i>运行</span>
+              <span><i class="stop"></i>停机</span>
+              <span><i class="alarm"></i>报警</span>
+              <span><i style="background:#F59E0B;opacity:.6"></i>CIP 清洗</span>
+            </div>
+          </div>
+          <div class="process">
+            <svg viewBox="0 0 860 350" preserveAspectRatio="none" aria-hidden="true">
+  <!-- 主流程管道 -->
+  <path d="M90 105 H116" stroke="#3A4A5C" stroke-width="16" stroke-linecap="round"/>
+  <path d="M90 105 H116" stroke="#26313D" stroke-width="12" stroke-linecap="round"/>
+  <path d="M164 105 H180" stroke="#3A4A5C" stroke-width="16" stroke-linecap="round"/>
+  <path d="M164 105 H180" stroke="#26313D" stroke-width="12" stroke-linecap="round"/>
+  <path d="M230 105 H260" stroke="#3A4A5C" stroke-width="16" stroke-linecap="round"/>
+  <path d="M230 105 H260" stroke="#26313D" stroke-width="12" stroke-linecap="round"/>
+  <path d="M320 105 H350" stroke="#3A4A5C" stroke-width="16" stroke-linecap="round"/>
+  <path d="M320 105 H350" stroke="#26313D" stroke-width="12" stroke-linecap="round"/>
+  <path d="M430 105 H456" stroke="#3A4A5C" stroke-width="16" stroke-linecap="round"/>
+  <path d="M430 105 H456" stroke="#26313D" stroke-width="12" stroke-linecap="round"/>
+  <path d="M504 105 H520" stroke="#3A4A5C" stroke-width="16" stroke-linecap="round"/>
+  <path d="M504 105 H520" stroke="#26313D" stroke-width="12" stroke-linecap="round"/>
+  <path d="M560 105 H590" stroke="#3A4A5C" stroke-width="16" stroke-linecap="round"/>
+  <path d="M560 105 H590" stroke="#26313D" stroke-width="12" stroke-linecap="round"/>
+  <path d="M634 105 H660" stroke="#3A4A5C" stroke-width="16" stroke-linecap="round"/>
+  <path d="M634 105 H660" stroke="#26313D" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- 主流程流向 -->
+  <path d="M100 99 L110 105 L100 111 Z" fill="#22C55E"/>
+  <path d="M170 99 L180 105 L170 111 Z" fill="#22C55E"/>
+  <path d="M240 99 L250 105 L240 111 Z" fill="#22C55E"/>
+  <path d="M330 99 L340 105 L330 111 Z" fill="#22C55E"/>
+  <path d="M440 99 L450 105 L440 111 Z" fill="#22C55E"/>
+  <path d="M512 99 L522 105 L512 111 Z" fill="#22C55E"/>
+  <path d="M570 99 L580 105 L570 111 Z" fill="#22C55E"/>
+  <path d="M640 99 L650 105 L640 111 Z" fill="#22C55E"/>
+
+  <!-- CIP 供给 / 返回 -->
+  <path d="M128 265 H650" stroke="#F59E0B" stroke-width="6" stroke-dasharray="6 5" opacity=".55"/>
+  <path d="M340 265 V160" stroke="#F59E0B" stroke-width="6" stroke-dasharray="6 5" opacity=".55"/>
+  <path d="M650 265 V150 H660" stroke="#F59E0B" stroke-width="6" stroke-dasharray="6 5" opacity=".55"/>
+  <path d="M760 150 H820 V318 H50 V305" stroke="#38BDF8" stroke-width="5" stroke-dasharray="3 5" opacity=".45"/>
+  <path d="M330 214 L340 222 L330 230 Z M350 214 L340 222 L350 230 Z" fill="#B45309" opacity=".8"/>
+  <path d="M640 214 L650 222 L640 230 Z M660 214 L650 222 L660 230 Z" fill="#B45309" opacity=".8"/>
+  <text x="200" y="258" fill="#F59E0B" font-size="8" opacity=".8">CIP 供给</text>
+  <text x="300" y="312" fill="#38BDF8" font-size="8" opacity=".8">CIP 返回</text>
+
+  <!-- T-101 原料罐 -->
+  <g>
+    <rect x="20" y="50" width="70" height="110" rx="12" fill="#26313D" stroke="#526274" stroke-width="2"/>
+    <path d="M20 95 H90 V148 Q90 160 78 160 H32 Q20 160 20 148 Z" fill="#38BDF8" opacity=".8"/>
+    <text x="55" y="180" text-anchor="middle" fill="#A9B7C6" font-size="9">T-101 原料罐</text>
+    <text x="55" y="193" text-anchor="middle" fill="#7C8A99" font-size="8">68% · 680 L</text>
+  </g>
+
+  <!-- P-101 进料泵 -->
+  <g>
+    <circle cx="140" cy="105" r="24" fill="#26313D" stroke="#526274" stroke-width="2"/>
+    <path d="M140 89 L154 111 L126 111 Z" fill="#22C55E"/>
+    <circle cx="140" cy="105" r="2.5" fill="#151C23"/>
+    <text x="140" y="145" text-anchor="middle" fill="#A9B7C6" font-size="9">P-101 进料泵</text>
+    <text x="140" y="158" text-anchor="middle" fill="#7C8A99" font-size="8">12.4 L/min</text>
+  </g>
+
+  <!-- F-101 过滤器 -->
+  <g>
+    <rect x="180" y="82" width="50" height="46" rx="6" fill="#26313D" stroke="#526274" stroke-width="2"/>
+    <path d="M188 90 L222 120 M222 90 L188 120 M188 105 H222" stroke="#3B82F6" stroke-width="1.5" opacity=".7"/>
+    <text x="205" y="145" text-anchor="middle" fill="#A9B7C6" font-size="9">F-101 过滤器</text>
+    <text x="205" y="158" text-anchor="middle" fill="#7C8A99" font-size="8">ΔP 0.03 MPa</text>
+  </g>
+
+  <!-- E-101 换热器 -->
+  <g>
+    <rect x="260" y="80" width="60" height="50" rx="6" fill="#26313D" stroke="#526274" stroke-width="2"/>
+    <path d="M268 90 L282 120 L296 90 L310 120" fill="none" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/>
+    <text x="290" y="145" text-anchor="middle" fill="#A9B7C6" font-size="9">E-101 换热器</text>
+    <text x="290" y="158" text-anchor="middle" fill="#7C8A99" font-size="8">72.5 °C</text>
+  </g>
+
+  <!-- T-102 混合罐 + M-201 搅拌 -->
+  <g>
+    <rect x="350" y="40" width="80" height="120" rx="12" fill="#26313D" stroke="#526274" stroke-width="2"/>
+    <path d="M350 80 H430 V148 Q430 160 418 160 H362 Q350 160 350 148 Z" fill="#38BDF8" opacity=".7"/>
+    <rect x="380" y="22" width="20" height="16" rx="3" fill="#1B242D" stroke="#526274" stroke-width="1.5"/>
+    <path d="M390 38 V92" stroke="#A9B7C6" stroke-width="2"/>
+    <path d="M376 92 H404" stroke="#A9B7C6" stroke-width="2" stroke-linecap="round"/>
+    <text x="390" y="180" text-anchor="middle" fill="#A9B7C6" font-size="9">T-102 混合罐</text>
+  </g>
+
+  <!-- P-102 输送泵 -->
+  <g>
+    <circle cx="480" cy="105" r="24" fill="#26313D" stroke="#526274" stroke-width="2"/>
+    <path d="M480 89 L494 111 L466 111 Z" fill="#22C55E"/>
+    <circle cx="480" cy="105" r="2.5" fill="#151C23"/>
+    <text x="480" y="145" text-anchor="middle" fill="#A9B7C6" font-size="9">P-102 输送泵</text>
+    <text x="480" y="158" text-anchor="middle" fill="#7C8A99" font-size="8">12.4 L/min</text>
+  </g>
+
+  <!-- FT-101 流量计 -->
+  <g>
+    <rect x="520" y="88" width="40" height="34" rx="6" fill="#26313D" stroke="#526274" stroke-width="2"/>
+    <text x="540" y="109" text-anchor="middle" fill="#38BDF8" font-size="10" font-family="Consolas">FT</text>
+    <text x="540" y="145" text-anchor="middle" fill="#A9B7C6" font-size="9">FT-101 流量计</text>
+    <text x="540" y="158" text-anchor="middle" fill="#7C8A99" font-size="8">12.4 L/min</text>
+  </g>
+
+  <!-- FV-101 灌装阀 -->
+  <g>
+    <path d="M590 88 L612 105 L590 122 Z M634 88 L612 105 L634 122 Z" fill="#15803D" stroke="#526274" stroke-width="2"/>
+    <text x="612" y="145" text-anchor="middle" fill="#A9B7C6" font-size="9">FV-101 灌装阀</text>
+    <text x="612" y="158" text-anchor="middle" fill="#7C8A99" font-size="8">开度 68%</text>
+  </g>
+
+  <!-- 灌装机 -->
+  <g>
+    <rect x="660" y="50" width="100" height="100" rx="10" fill="#1B242D" stroke="#3A4A5C" stroke-width="2"/>
+    <rect x="675" y="50" width="30" height="16" rx="3" fill="#26313D" stroke="#526274" stroke-width="1.5"/>
+    <rect x="715" y="50" width="30" height="16" rx="3" fill="#26313D" stroke="#526274" stroke-width="1.5"/>
+    <path d="M690 66 V92 M730 66 V92" stroke="#38BDF8" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="690" cy="96" r="3" fill="#38BDF8"/>
+    <circle cx="730" cy="96" r="3" fill="#38BDF8"/>
+    <text x="710" y="180" text-anchor="middle" fill="#A9B7C6" font-size="9">灌装机 · 2 头</text>
+    <text x="710" y="193" text-anchor="middle" fill="#7C8A99" font-size="8">42.5 瓶/分</text>
+  </g>
+
+  <!-- 成品输送 -->
+  <g>
+    <line x1="660" y1="200" x2="800" y2="200" stroke="#3A4A5C" stroke-width="12" stroke-linecap="round"/>
+    <line x1="660" y1="200" x2="800" y2="200" stroke="#26313D" stroke-width="8" stroke-linecap="round"/>
+    <rect x="675" y="176" width="28" height="20" rx="3" fill="#38BDF8" opacity=".85"/>
+    <rect x="720" y="176" width="28" height="20" rx="3" fill="#38BDF8" opacity=".55"/>
+    <rect x="765" y="176" width="28" height="20" rx="3" fill="#38BDF8" opacity=".25"/>
+    <text x="730" y="225" text-anchor="middle" fill="#A9B7C6" font-size="9">成品输送 · 3 箱</text>
+  </g>
+
+  <!-- T-103 CIP 罐 -->
+  <g>
+    <rect x="20" y="235" width="60" height="70" rx="10" fill="#26313D" stroke="#526274" stroke-width="2"/>
+    <path d="M20 258 H80 V295 Q80 305 68 305 H32 Q20 305 20 295 Z" fill="#F59E0B" opacity=".35"/>
+    <text x="50" y="325" text-anchor="middle" fill="#A9B7C6" font-size="9">T-103 CIP 罐</text>
+    <text x="50" y="337" text-anchor="middle" fill="#7C8A99" font-size="8">80% · 800 L</text>
+  </g>
+
+  <!-- P-103 CIP 泵 -->
+  <g>
+    <circle cx="110" cy="265" r="18" fill="#26313D" stroke="#526274" stroke-width="2"/>
+    <path d="M110 253 L121 271 L99 271 Z" fill="#F59E0B" opacity=".8"/>
+    <circle cx="110" cy="265" r="2" fill="#151C23"/>
+    <text x="110" y="295" text-anchor="middle" fill="#A9B7C6" font-size="9">P-103 CIP 泵</text>
+    <text x="110" y="308" text-anchor="middle" fill="#7C8A99" font-size="8">待机</text>
+  </g>
+</svg>
+          </div>
+        </section>
+
+        <section class="card trend-card" style="flex:1;">
+          <div class="card-head">
+            <div><b>关键趋势</b><span>最近 60 秒 · 1 秒采样</span></div>
+            <div class="legend-inline">
+              <span><i style="background:#38BDF8"></i>原料液位</span>
+              <span><i style="background:#22C55E"></i>混合液位</span>
+              <span><i style="background:#F59E0B"></i>灌装压力</span>
+            </div>
+          </div>
+          <svg class="trend" viewBox="0 0 860 220" preserveAspectRatio="none" aria-hidden="true">
+            <g stroke="#2A3745" stroke-width="1">
+              <line x1="40" y1="20" x2="40" y2="190"/>
+              <line x1="40" y1="190" x2="840" y2="190"/>
+              <line x1="40" y1="150" x2="840" y2="150"/>
+              <line x1="40" y1="110" x2="840" y2="110"/>
+              <line x1="40" y1="70" x2="840" y2="70"/>
+              <line x1="40" y1="30" x2="840" y2="30"/>
+            </g>
+            <g fill="#7C8A99" font-size="9" font-family="Consolas">
+              <text x="8" y="193">0</text>
+              <text x="8" y="153">25</text>
+              <text x="8" y="113">50</text>
+              <text x="8" y="73">75</text>
+              <text x="8" y="33">100</text>
+              <text x="40" y="210">-60s</text>
+              <text x="230" y="210">-45s</text>
+              <text x="420" y="210">-30s</text>
+              <text x="610" y="210">-15s</text>
+              <text x="800" y="210">now</text>
+            </g>
+            <path d="M40 120 L110 112 L180 118 L250 96 L320 104 L390 88 L460 94 L530 78 L600 86 L670 72 L740 80 L810 66 L840 70" fill="none" stroke="#38BDF8" stroke-width="2"/>
+            <path d="M40 140 L110 132 L180 138 L250 126 L320 130 L390 118 L460 124 L530 112 L600 118 L670 108 L740 114 L810 104 L840 108" fill="none" stroke="#22C55E" stroke-width="2"/>
+            <path d="M40 100 L110 96 L180 104 L250 88 L320 92 L390 84 L460 88 L530 76 L600 82 L670 70 L740 76 L810 64 L840 68" fill="none" stroke="#F59E0B" stroke-width="2" stroke-dasharray="5 4"/>
+          </svg>
+        </section>
+      </main>
+
+      <aside class="rail">
+        <section class="card alarm-card">
+          <div class="card-head"><div><b>实时报警</b><span>按严重度排序</span></div><span class="chip danger">3 条未确认</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row critical"><span class="sev">严重</span><span class="time">14:31:42</span><span class="name">1# 主轴温度高</span><span class="state">激活</span></div>
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:30:17</span><span class="name">2# 泵出口压力低</span><span class="state">激活</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:28:03</span><span class="name">3# 线换型完成</span><span class="state">激活</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:25:11</span><span class="name">配方切换完成</span><span class="state">已确认</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:22:45</span><span class="name">设备点检完成</span><span class="state">已确认</span></div>
+          </div>
+        </section>
+
+        <section class="card kpi-card">
+          <div class="card-head"><div><b>生产 KPI</b><span>当前班次</span></div><span class="chip">08:00–16:00</span></div>
+          <div class="kpi-grid">
+            <div class="kpi"><span>OEE</span><b>92.4<small>%</small></b><em>↑ 1.2%</em></div>
+            <div class="kpi"><span>产量</span><b>12,840</b><em>目标 15,000</em></div>
+            <div class="kpi"><span>良率</span><b>99.1<small>%</small></b><em>↑ 0.3%</em></div>
+            <div class="kpi"><span>停机</span><b>12<small>min</small></b><em>↓ 4 min</em></div>
+          </div>
+        </section>
+
+        <section class="card equip-card">
+          <div class="card-head"><div><b>设备状态</b><span>关键设备 6/6 在线</span></div><span class="chip ok">正常</span></div>
+          <div class="equip-list">
+              <div class="equip-row"><i class="lamp on"></i><span>T-101 原料罐</span><b>68% · 680 L</b></div>
+              <div class="equip-row"><i class="lamp on"></i><span>P-101 进料泵</span><b>12.4 L/min</b></div>
+              <div class="equip-row"><i class="lamp on"></i><span>F-101 过滤器</span><b>ΔP 0.03 MPa</b></div>
+              <div class="equip-row"><i class="lamp on"></i><span>E-101 换热器</span><b>72.5 °C</b></div>
+              <div class="equip-row"><i class="lamp on"></i><span>T-102 混合罐</span><b>72% · 320 rpm</b></div>
+              <div class="equip-row"><i class="lamp on"></i><span>灌装机</span><b>42.5 瓶/分</b></div>
+          </div>
+        </section>
+
+        <section class="card batch-card">
+          <div class="card-head"><div><b>当前批次</b><span>B20261020-01</span></div><span class="chip ok">进行中</span></div>
+          <div class="batch-meta"><span>配方</span><b>草莓 500mL</b><span>开始</span><b>14:02:11</b></div>
+          <div class="progress"><i style="width:68%"></i></div>
+          <div class="batch-foot"><span>已生产 8,740 / 12,840</span><b>68%</b></div>
+        </section>
+      </aside>
+    </div>
+
+    <div class="bottombar">
+      <span><i class="dot"></i>PLC 已连接 · 12 ms</span>
+      <span>采集周期 100 ms</span>
+      <span>节拍 42.5 瓶/分</span>
+      <span class="spacer"></span>
+      <span>方案：3#灌装线.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <h3>页面结构</h3>
+      <pre class="layout-map">┌──────────────────────────────────────────────┐
+│ A  TOP BAR   site / mode / alarm / user / clock│
+├────────┬───────────────────────────┬─────────┤
+│ B NAV  │ C WORKSPACE               │ D RAIL  │
+│        │ process flow + trend      │ alarm   │
+│        │                           │ KPI     │
+│        │                           │ equip   │
+├────────┴───────────────────────────┴─────────┤
+│ E  STATUS BAR   connection / cycle / version  │
+└──────────────────────────────────────────────┘</pre>
+      <table class="zone-table">
+        <tr><td>A</td><td><b>顶栏</b>：产线名、运行模式、节拍、批次、报警、操作员、时钟。一眼回答“这条线现在正不正常、谁在操作”。</td></tr>
+        <tr><td>B</td><td><b>左导航</b>：总览 / 工艺流程图 / 趋势 / 报警 / 配方 / 报表 / 设置；底部固定连接状态。</td></tr>
+        <tr><td>C</td><td><b>主工作区</b>：上半是工艺流程图（罐、泵、阀、管道、灌装机、关键测点），下半是 60 秒关键趋势。设备状态直接落在流程图上，不做第二套。</td></tr>
+        <tr><td>D</td><td><b>右信息栏</b>：实时报警 → 生产 KPI → 设备状态 → 当前批次，固定从上到下的处置顺序。</td></tr>
+        <tr><td>E</td><td><b>底栏</b>：PLC 连接、采集周期、节拍、方案与版本；不放操作按钮。</td></tr>
+      </table>
+    </div>
+    <div class="note-card">
+      <h3>信息层级</h3>
+      <ol>
+        <li><b>L1 是否正常</b>：顶栏运行状态 + 未确认报警数；异常时先看到红色。</li>
+        <li><b>L2 哪里异常</b>：工艺流程图上的设备状态与关键测点（液位/流量/压力/温度）。</li>
+        <li><b>L3 趋势与指标</b>：关键趋势 + 右栏 KPI，判断是瞬时波动还是持续偏离。</li>
+        <li><b>L4 处置</b>：报警列表逐条确认、批次进度、配方入口。</li>
+      </ol>
+      <h3>使用图元</h3>
+      <div class="tag-list">
+        <span>Hmi.Panel</span><span>Hmi.Tank</span><span>Hmi.Pump</span><span>Hmi.Valve</span><span>Hmi.Pipe</span>
+        <span>Hmi.KpiBoard</span><span>Hmi.AlarmBanner</span><span>Hmi.ChartTrend</span><span>Hmi.ProgressBar</span>
+        <span>Hmi.Lamp</span><span>Hmi.Text</span><span>Hmi.Button</span><span>Hmi.AckButton</span>
+        <span class="cand">Hmi.MultiTrend · 候选</span>
+      </div>
+      <h3>复用方式</h3>
+      <p>公共壳原样保留；主工作区换成目标产线的工艺流程图与趋势。关键趋势卡按 3 条曲线设计；当前可用 3 个 <code>Hmi.ChartTrend</code> 叠放，<code>Hmi.MultiTrend</code> 落地后替换。右栏四张卡按“报警 → KPI → 设备 → 批次”顺序固定，不要按页面随意重排。</p>
+      <p><a href="scada-suite/design.html">打开 SCADA 完整套件（7 个界面）</a></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 02 自动化设备运控                                            -->
+<!-- ============================================================ -->
+<section class="template" id="tpl-motion">
+  <div class="tpl-head">
+    <div>
+      <h2><span>02</span>自动化设备运控 · 装配单元</h2>
+      <p>典型结构：顶栏状态 → 左导航 → 三轴状态卡 + 自动流程步序 + I/O 联锁 → 右栏 KPI / 报警 / 点位表 / 维护。适合设备单机、工作站、装配/加工单元。</p>
+    </div>
+    <div class="tpl-meta">
+      <span><b>页面</b>手动 / 自动</span>
+      <span><b>行业</b>3C / 汽车零部件 / 通用自动化</span>
+      <span><b>主区</b>轴卡 + 步序</span>
+    </div>
+  </div>
+
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand">
+        <span class="logo">VM</span>
+        <div><b>1# 装配单元</b><small>Motion · 设备运控</small></div>
+      </div>
+      <span class="status-chip run"><i></i>自动运行</span>
+      <span class="mode-pill">AUTO · 循环</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>节拍</span><b>12.4 s</b></div>
+      <div class="top-stat"><span>当前步</span><b>3 / 5 压装</b></div>
+      <div class="alarm-chip warning"><i></i>1 条警告</div>
+      <div class="user"><span>操作员</span><b>李四</b></div>
+      <div class="clock">14:32:08</div>
+    </div>
+
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item"><span class="ico">▦</span>总览</div>
+        <div class="nav-item active"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item"><span class="ico">⌁</span>自动流程</div>
+        <div class="nav-item"><span class="ico">◎</span>点位管理</div>
+        <div class="nav-item"><span class="ico">△</span>报警</div>
+        <div class="nav-item"><span class="ico">▤</span>参数</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">◈</span>维护</div>
+        <div class="nav-foot">
+          <div class="conn"><i></i>EtherCAT 已连接</div>
+          <div class="conn-sub">3 轴 · 1 ms 周期</div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <div class="axis-row">
+          <div class="axis-card">
+            <div class="axis-head"><div><b>X 轴</b><span>伺服 · 1.5 kW</span></div><span class="chip ok">使能</span></div>
+            <div class="axis-pos">123.456<span>mm</span></div>
+            <div class="axis-sub"><span>速度 <b>120.0</b> mm/s</span><span>负载 <b>32%</b></span></div>
+            <div class="axis-lamps">
+              <span class="axis-lamp on"><i></i>使能</span>
+              <span class="axis-lamp on"><i></i>到位</span>
+              <span class="axis-lamp on"><i></i>原点</span>
+              <span class="axis-lamp"><i></i>报警</span>
+              <span class="axis-lamp"><i></i>正限位</span>
+              <span class="axis-lamp"><i></i>反限位</span>
+              <span class="axis-lamp"><i></i>急停</span>
+              <span class="axis-lamp on"><i></i>运动</span>
+            </div>
+            <div class="axis-btns"><span class="btn">使能</span><span class="btn">◀ 点动</span><span class="btn">点动 ▶</span><span class="btn">回零</span><span class="btn danger">停止</span><span class="btn">清报警</span></div>
+          </div>
+
+          <div class="axis-card">
+            <div class="axis-head"><div><b>Y 轴</b><span>伺服 · 0.75 kW</span></div><span class="chip ok">使能</span></div>
+            <div class="axis-pos">45.000<span>mm</span></div>
+            <div class="axis-sub"><span>速度 <b>80.0</b> mm/s</span><span>负载 <b>21%</b></span></div>
+            <div class="axis-lamps">
+              <span class="axis-lamp on"><i></i>使能</span>
+              <span class="axis-lamp on"><i></i>到位</span>
+              <span class="axis-lamp on"><i></i>原点</span>
+              <span class="axis-lamp"><i></i>报警</span>
+              <span class="axis-lamp"><i></i>正限位</span>
+              <span class="axis-lamp"><i></i>反限位</span>
+              <span class="axis-lamp"><i></i>急停</span>
+              <span class="axis-lamp"><i></i>运动</span>
+            </div>
+            <div class="axis-btns"><span class="btn">使能</span><span class="btn">◀ 点动</span><span class="btn">点动 ▶</span><span class="btn">回零</span><span class="btn danger">停止</span><span class="btn">清报警</span></div>
+          </div>
+
+          <div class="axis-card">
+            <div class="axis-head"><div><b>Z 轴</b><span>伺服 + 抱闸 · 0.4 kW</span></div><span class="chip warn">警告</span></div>
+            <div class="axis-pos">-12.500<span>mm</span></div>
+            <div class="axis-sub"><span>速度 <b>60.0</b> mm/s</span><span>负载 <b>41%</b></span></div>
+            <div class="axis-lamps">
+              <span class="axis-lamp on"><i></i>使能</span>
+              <span class="axis-lamp on"><i></i>到位</span>
+              <span class="axis-lamp on"><i></i>原点</span>
+              <span class="axis-lamp bad"><i></i>报警</span>
+              <span class="axis-lamp"><i></i>正限位</span>
+              <span class="axis-lamp"><i></i>反限位</span>
+              <span class="axis-lamp"><i></i>急停</span>
+              <span class="axis-lamp on"><i></i>运动</span>
+            </div>
+            <div class="axis-btns"><span class="btn">使能</span><span class="btn">◀ 点动</span><span class="btn">点动 ▶</span><span class="btn">回零</span><span class="btn danger">停止</span><span class="btn">清报警</span></div>
+          </div>
+        </div>
+
+        <section class="card sequence-card">
+          <div class="card-head">
+            <div><b>自动流程</b><span>当前步 3/5 · 压装 · 本步已运行 3.8 s</span></div>
+            <div class="seq-actions">
+              <span class="mode-switch"><span>手动</span><span class="on">自动</span></span>
+              <span class="btn primary">启动</span>
+              <span class="btn">暂停</span>
+              <span class="btn">复位</span>
+            </div>
+          </div>
+          <div class="steps">
+            <div class="step done"><i>✓</i><span>上料</span></div>
+            <span class="step-line on"></span>
+            <div class="step done"><i>✓</i><span>定位</span></div>
+            <span class="step-line on"></span>
+            <div class="step on"><i>3</i><span>压装</span></div>
+            <span class="step-line"></span>
+            <div class="step"><i>4</i><span>检测</span></div>
+            <span class="step-line"></span>
+            <div class="step"><i>5</i><span>下料</span></div>
+          </div>
+          <div class="seq-foot"><span>本步耗时 <b>3.8 s</b></span><span>剩余 <b>2 步</b></span><span>预计完成 <b>14:32:22</b></span><span>循环次数 <b>4,820</b></span></div>
+        </section>
+
+        <section class="card io-card">
+          <div class="card-head"><div><b>I/O 与联锁</b><span>启动许可条件 · 实时</span></div><span class="chip ok">6/6 满足</span></div>
+          <div class="io-grid">
+            <div class="io-tile ok"><span class="io-name">安全门</span><span class="state"><i></i>闭合</span><span class="io-sub">LS-01 / LS-02</span></div>
+            <div class="io-tile ok"><span class="io-name">安全光栅</span><span class="state"><i></i>正常</span><span class="io-sub">OSSD 双通道</span></div>
+            <div class="io-tile ok"><span class="io-name">气压</span><span class="state"><i></i>0.62 MPa</span><span class="io-sub">范围 0.50–0.70</span></div>
+            <div class="io-tile ok"><span class="io-name">急停</span><span class="state"><i></i>未按下</span><span class="io-sub">E-Stop 回路</span></div>
+            <div class="io-tile ok"><span class="io-name">工件在位</span><span class="state"><i></i>有料</span><span class="io-sub">2# 工位</span></div>
+            <div class="io-tile ok"><span class="io-name">夹具到位</span><span class="state"><i></i>到位</span><span class="io-sub">夹紧压力 OK</span></div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="rail">
+        <section class="card kpi-card">
+          <div class="card-head"><div><b>生产 KPI</b><span>当前班次</span></div><span class="chip">08:00–16:00</span></div>
+          <div class="kpi-grid">
+            <div class="kpi"><span>节拍</span><b>12.4<small>s</small></b><em>目标 12.0 s</em></div>
+            <div class="kpi"><span>今日产量</span><b>4,820</b><em>↑ 3.1%</em></div>
+            <div class="kpi"><span>良率</span><b>99.3<small>%</small></b><em>↑ 0.2%</em></div>
+            <div class="kpi"><span>停机</span><b>8<small>min</small></b><em>↓ 6 min</em></div>
+          </div>
+        </section>
+
+        <section class="card alarm-card">
+          <div class="card-head"><div><b>报警</b><span>按严重度排序</span></div><span class="chip warn">1 条警告</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:31:58</span><span class="name">Z 轴跟随误差接近上限</span><span class="state">激活</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:20:00</span><span class="name">润滑周期剩余 36 h</span><span class="state">已确认</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:18:30</span><span class="name">设备点检完成</span><span class="state">已确认</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:10:02</span><span class="name">配方切换完成</span><span class="state">已确认</span></div>
+          </div>
+        </section>
+
+        <section class="card points-card">
+          <div class="card-head"><div><b>点位表</b><span>当前目标 P2 · 压装位</span></div><span class="chip">4 个点位</span></div>
+          <div class="point-row"><span class="tag">P1</span><span>上料位</span><b>X0 Y0</b></div>
+          <div class="point-row on"><span class="tag">P2</span><span>压装位</span><b>X120 Y45</b></div>
+          <div class="point-row"><span class="tag">P3</span><span>检测位</span><b>X210 Y45</b></div>
+          <div class="point-row"><span class="tag">P4</span><span>下料位</span><b>X260 Y0</b></div>
+        </section>
+
+        <section class="card maint-card">
+          <div class="card-head"><div><b>维护提醒</b><span>按运行小时</span></div><span class="chip">3 项</span></div>
+          <div class="maint-row"><span>导轨润滑<b>剩余 120 h</b></span><span></span></div>
+          <div class="maint-bar"><i style="width:72%"></i></div>
+          <div class="maint-row"><span>同步带张紧<b>剩余 36 h</b></span><span></span></div>
+          <div class="maint-bar"><i style="width:32%;background:#EF4444"></i></div>
+          <div class="maint-row"><span>过滤器更换<b>剩余 8 h</b></span><span></span></div>
+          <div class="maint-bar"><i style="width:12%;background:#EF4444"></i></div>
+        </section>
+      </aside>
+    </div>
+
+    <div class="bottombar">
+      <span><i class="dot"></i>EtherCAT 已连接 · 1 ms</span>
+      <span>循环 12.4 s</span>
+      <span>3 轴使能</span>
+      <span class="spacer"></span>
+      <span>方案：1#装配单元.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <h3>页面结构</h3>
+      <pre class="layout-map">┌──────────────────────────────────────────────┐
+│ A  TOP BAR   unit / mode / cycle / step / alarm│
+├────────┬───────────────────────────┬─────────┤
+│ B NAV  │ C WORKSPACE               │ D RAIL  │
+│        │ axis cards                │ KPI     │
+│        │ sequence + I/O            │ alarm   │
+│        │                           │ points  │
+├────────┴───────────────────────────┴─────────┤
+│ E  STATUS BAR   bus / cycle / axes / version  │
+└──────────────────────────────────────────────┘</pre>
+      <table class="zone-table">
+        <tr><td>A</td><td><b>顶栏</b>：单元名、自动/手动、节拍、当前步、报警、操作员、时钟。当前步直接上顶栏，操作员不用先找流程卡。</td></tr>
+        <tr><td>B</td><td><b>左导航</b>：总览 / 手动操作 / 自动流程 / 点位管理 / 报警 / 参数 / 维护；底部固定总线状态。</td></tr>
+        <tr><td>C</td><td><b>主工作区</b>：三轴状态卡（位置/速度/负载/8 状态灯/操作按钮）→ 自动流程步序 → I/O 联锁。按“先看能不能动、再看在哪一步、最后看许可条件”的顺序排。</td></tr>
+        <tr><td>D</td><td><b>右信息栏</b>：生产 KPI → 报警 → 点位表 → 维护提醒；点位表只显示摘要，详细编辑进“点位管理”。</td></tr>
+        <tr><td>E</td><td><b>底栏</b>：总线、循环时间、轴使能数、方案与版本。</td></tr>
+      </table>
+    </div>
+    <div class="note-card">
+      <h3>信息层级</h3>
+      <ol>
+        <li><b>L1 能不能动</b>：使能 / 急停 / 限位 / 报警；异常时轴卡与顶栏同时变红。</li>
+        <li><b>L2 现在在哪一步</b>：自动流程步序 + 当前步耗时 + 预计完成。</li>
+        <li><b>L3 轴在哪、怎么动</b>：三轴位置/速度/负载 + 手动操作按钮。</li>
+        <li><b>L4 为什么不能启动</b>：I/O 与联锁矩阵；绿=满足、红=不满足、灰=旁路。</li>
+      </ol>
+      <h3>使用图元</h3>
+      <div class="tag-list">
+        <span>Hmi.AxisConsole</span><span>Hmi.AxisPanel</span><span>Hmi.SelectorSwitch</span><span>Hmi.Button</span>
+        <span>Hmi.Lamp</span><span>Hmi.KpiBoard</span><span>Hmi.AlarmBanner</span><span>Hmi.ProgressBar</span>
+        <span class="cand">Hmi.SequenceStep · 候选</span><span class="cand">Hmi.InterlockMatrix · 候选</span><span class="cand">Hmi.DataTable · 候选</span>
+      </div>
+      <h3>复用方式</h3>
+      <p>公共壳原样保留；主工作区按轴数复制轴卡（1~6 轴），自动流程卡按实际步序替换。点位表在总览只读，编辑入口固定在“点位管理”，避免总览页误操作。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 03 视觉行业                                                  -->
+<!-- ============================================================ -->
+<section class="template" id="tpl-vision">
+  <div class="tpl-head">
+    <div>
+      <h2><span>03</span>视觉行业 · 在线外观检测</h2>
+      <p>典型结构：顶栏状态 → 左导航 → 实时图像 + 检测结果 + 最近检测 / 班次统计 / 通过率趋势 → 右栏配方 / 相机 / 报警 / 触发。适合视觉检测机、在线外观检、尺寸测量站。</p>
+    </div>
+    <div class="tpl-meta">
+      <span><b>页面</b>实时检测</span>
+      <span><b>行业</b>3C / 新能源 / 精密零件</span>
+      <span><b>主区</b>图像 + 结果</span>
+    </div>
+  </div>
+
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand">
+        <span class="logo">VM</span>
+        <div><b>2# 外观检测</b><small>Vision · 在线检测</small></div>
+      </div>
+      <span class="status-chip run"><i></i>在线</span>
+      <span class="mode-pill">CAM-01 · 连续触发</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>帧率</span><b>30 fps</b></div>
+      <div class="top-stat"><span>模型</span><b>v3.2</b></div>
+      <div class="alarm-chip warning"><i></i>1 条警告</div>
+      <div class="user"><span>操作员</span><b>王五</b></div>
+      <div class="clock">14:32:08</div>
+    </div>
+
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item active"><span class="ico">▣</span>实时检测</div>
+        <div class="nav-item"><span class="ico">▤</span>图像回放</div>
+        <div class="nav-item"><span class="ico">◈</span>配方管理</div>
+        <div class="nav-item"><span class="ico">◔</span>统计</div>
+        <div class="nav-item"><span class="ico">△</span>报警</div>
+        <div class="nav-item"><span class="ico">◎</span>标定</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">≡</span>设置</div>
+        <div class="nav-foot">
+          <div class="conn"><i></i>相机已连接</div>
+          <div class="conn-sub">CAM-01 · 30 fps</div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <div class="vision-top">
+          <section class="card image-card">
+            <div class="card-head"><div><b>CAM-01 · 实时图像</b><span>1920 × 1080 · 30 fps · 连续触发</span></div><span class="chip ok">采集中</span></div>
+            <div class="image-stage">
+              <svg viewBox="0 0 560 400" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+                <rect width="560" height="400" fill="#0B1015"/>
+                <g stroke="#1B242D" stroke-width="1">
+                  <line x1="70" y1="0" x2="70" y2="400"/><line x1="140" y1="0" x2="140" y2="400"/>
+                  <line x1="210" y1="0" x2="210" y2="400"/><line x1="280" y1="0" x2="280" y2="400"/>
+                  <line x1="350" y1="0" x2="350" y2="400"/><line x1="420" y1="0" x2="420" y2="400"/>
+                  <line x1="490" y1="0" x2="490" y2="400"/>
+                  <line x1="0" y1="80" x2="560" y2="80"/><line x1="0" y1="160" x2="560" y2="160"/>
+                  <line x1="0" y1="240" x2="560" y2="240"/><line x1="0" y1="320" x2="560" y2="320"/>
+                </g>
+
+                <!-- 产品 -->
+                <rect x="110" y="80" width="340" height="240" rx="18" fill="#222D38" stroke="#3A4A5C" stroke-width="2"/>
+                <rect x="150" y="120" width="60" height="30" rx="4" fill="#26313D" stroke="#526274" stroke-width="1.5"/>
+                <circle cx="280" cy="200" r="72" fill="#1B242D" stroke="#526274" stroke-width="2"/>
+                <circle cx="280" cy="200" r="40" fill="#26313D" stroke="#3A4A5C" stroke-width="1.5"/>
+                <circle cx="280" cy="200" r="8" fill="#151C23" stroke="#526274" stroke-width="1.5"/>
+                <rect x="380" y="140" width="40" height="20" rx="3" fill="#26313D" stroke="#526274" stroke-width="1.5"/>
+                <!-- 划痕 -->
+                <path d="M345 255 L402 276" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round"/>
+
+                <!-- 检测框 -->
+                <rect x="206" y="152" width="148" height="96" fill="none" stroke="#22C55E" stroke-width="2"/>
+                <text x="206" y="146" fill="#86EFAC" font-size="10" font-family="Consolas">OK 0.99</text>
+                <rect x="330" y="244" width="88" height="42" fill="none" stroke="#EF4444" stroke-width="2"/>
+                <text x="330" y="238" fill="#FCA5A5" font-size="10" font-family="Consolas">NG 划痕 0.97</text>
+                <rect x="150" y="120" width="60" height="30" fill="none" stroke="#F59E0B" stroke-width="1.5" stroke-dasharray="4 3"/>
+                <text x="150" y="114" fill="#FCD34D" font-size="9" font-family="Consolas">ROI-2</text>
+
+                <!-- 十字线 -->
+                <line x1="280" y1="20" x2="280" y2="380" stroke="#38BDF8" stroke-width="1" opacity=".22"/>
+                <line x1="20" y1="200" x2="540" y2="200" stroke="#38BDF8" stroke-width="1" opacity=".22"/>
+
+                <text x="16" y="24" fill="#7C8A99" font-size="9" font-family="Consolas">CAM-01 / LIVE</text>
+                <text x="16" y="386" fill="#7C8A99" font-size="9" font-family="Consolas">X 812 · Y 436 · 18.6 ms</text>
+              </svg>
+            </div>
+            <div class="image-foot"><span>曝光 <b>8.0 ms</b></span><span>增益 <b>2.0</b></span><span>触发 <b>连续</b></span><span>光源 <b>72%</b></span></div>
+          </section>
+
+          <section class="card result-card">
+            <div class="card-head"><div><b>检测结果</b><span>第 12,841 件 · 14:32:08</span></div><span class="chip danger">NG</span></div>
+            <div class="result-badge">NG</div>
+            <div class="result-rows">
+              <div class="result-row"><span>缺陷类型</span><b>划痕</b></div>
+              <div class="result-row"><span>置信度</span><b>0.97</b></div>
+              <div class="result-row"><span>位置</span><b>X 812 / Y 436</b></div>
+              <div class="result-row"><span>尺寸</span><b>12.4 × 3.1 mm</b></div>
+              <div class="result-row"><span>耗时</span><b>18.6 ms</b></div>
+            </div>
+            <div class="result-actions"><span class="btn danger">确认 NG</span><span class="btn">复检</span><span class="btn">保存图像</span></div>
+          </section>
+        </div>
+
+        <div class="vision-bottom">
+          <section class="card table-card">
+            <div class="card-head"><div><b>最近检测</b><span>最近 5 件 · 自动刷新</span></div><span class="chip">实时</span></div>
+            <div class="data-table">
+              <div class="data-row head"><span>时间</span><span>结果</span><span>缺陷</span><span>置信度</span><span>耗时</span></div>
+              <div class="data-row"><span class="mono">14:32:08</span><span class="ng">NG</span><span>划痕</span><span class="mono">0.97</span><span class="mono">18.6 ms</span></div>
+              <div class="data-row"><span class="mono">14:32:05</span><span class="ok">OK</span><span>—</span><span class="mono">0.99</span><span class="mono">17.9 ms</span></div>
+              <div class="data-row"><span class="mono">14:32:02</span><span class="ok">OK</span><span>—</span><span class="mono">0.99</span><span class="mono">18.1 ms</span></div>
+              <div class="data-row"><span class="mono">14:31:59</span><span class="ok">OK</span><span>—</span><span class="mono">0.98</span><span class="mono">18.4 ms</span></div>
+              <div class="data-row"><span class="mono">14:31:56</span><span class="ng">NG</span><span>缺口</span><span class="mono">0.95</span><span class="mono">19.2 ms</span></div>
+            </div>
+          </section>
+
+          <section class="card stats-card">
+            <div class="card-head"><div><b>班次统计</b><span>08:00–16:00</span></div></div>
+            <div class="stat-grid">
+              <div class="stat"><span>通过率</span><b>98.7%</b></div>
+              <div class="stat"><span>NG 数</span><b class="danger">12</b></div>
+              <div class="stat"><span>平均耗时</span><b>18.2 ms</b></div>
+              <div class="stat"><span>今日检测</span><b>12,840</b></div>
+            </div>
+          </section>
+
+          <section class="card mini-trend-card">
+            <div class="card-head"><div><b>通过率趋势</b><span>最近 60 分钟</span></div></div>
+            <svg class="mini-trend" viewBox="0 0 220 120" preserveAspectRatio="none" aria-hidden="true">
+              <g stroke="#2A3745" stroke-width="1">
+                <line x1="24" y1="14" x2="24" y2="98"/>
+                <line x1="24" y1="98" x2="210" y2="98"/>
+                <line x1="24" y1="70" x2="210" y2="70"/>
+                <line x1="24" y1="42" x2="210" y2="42"/>
+              </g>
+              <g fill="#7C8A99" font-size="7.5" font-family="Consolas">
+                <text x="4" y="101">96</text><text x="4" y="73">98</text><text x="4" y="45">100</text>
+                <text x="24" y="114">-60m</text><text x="180" y="114">now</text>
+              </g>
+              <path d="M24 78 L55 74 L86 80 L117 66 L148 70 L179 58 L210 62" fill="none" stroke="#22C55E" stroke-width="2"/>
+              <path d="M24 78 L55 74 L86 80 L117 66 L148 70 L179 58 L210 62 L210 98 L24 98 Z" fill="#22C55E" opacity=".10"/>
+            </svg>
+          </section>
+        </div>
+      </main>
+
+      <aside class="rail">
+        <section class="card recipe-card">
+          <div class="card-head"><div><b>当前配方</b><span>产品 A · 外壳</span></div><span class="chip ok">已加载</span></div>
+          <div class="recipe-body">
+            <div class="recipe-thumb">
+              <svg viewBox="0 0 86 72" aria-hidden="true">
+                <rect width="86" height="72" fill="#1B242D"/>
+                <rect x="14" y="12" width="58" height="48" rx="6" fill="#26313D" stroke="#526274" stroke-width="1.5"/>
+                <circle cx="43" cy="36" r="14" fill="#1B242D" stroke="#3A4A5C" stroke-width="1.5"/>
+                <circle cx="43" cy="36" r="5" fill="#38BDF8" opacity=".7"/>
+              </svg>
+            </div>
+            <div class="recipe-rows">
+              <div class="recipe-row"><span>模型</span><b>v3.2</b></div>
+              <div class="recipe-row"><span>阈值</span><b>0.75</b></div>
+              <div class="recipe-row"><span>ROI</span><b>3 个</b></div>
+              <div class="recipe-row"><span>更新</span><b>14:02</b></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card camera-card">
+          <div class="card-head"><div><b>相机与光源</b><span>CAM-01 · 海康</span></div><span class="chip ok">在线</span></div>
+          <div class="param-row"><span>曝光</span><b>8.0 ms</b></div>
+          <div class="param-row"><span>增益</span><b>2.0 dB</b></div>
+          <div class="param-row"><span>触发</span><b>连续</b></div>
+          <div class="param-row"><span>光源亮度</span><b>72%</b></div>
+        </section>
+
+        <section class="card vision-alarm-card" style="height:190px;flex:none;">
+          <div class="card-head"><div><b>报警</b><span>按严重度排序</span></div><span class="chip warn">1 条警告</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:28:12</span><span class="name">相机丢帧 1 次</span><span class="state">激活</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:02:00</span><span class="name">模型 v3.2 已加载</span><span class="state">已确认</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">13:58:36</span><span class="name">光源亮度自动调整完成</span><span class="state">已确认</span></div>
+          </div>
+        </section>
+
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>触发与编码器</b><span>连续触发模式</span></div><span class="chip ok">同步</span></div>
+          <div class="param-row"><span>触发源</span><b>编码器</b></div>
+          <div class="param-row"><span>编码器</span><b>1,250 ppr</b></div>
+          <div class="param-row"><span>触发间隔</span><b>120 mm</b></div>
+          <div class="param-row"><span>丢帧</span><b>0</b></div>
+        </section>
+      </aside>
+    </div>
+
+    <div class="bottombar">
+      <span><i class="dot"></i>相机已连接 · 30 fps</span>
+      <span>触发 连续</span>
+      <span>模型 v3.2</span>
+      <span class="spacer"></span>
+      <span>方案：2#外观检测.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <h3>页面结构</h3>
+      <pre class="layout-map">┌──────────────────────────────────────────────┐
+│ A  TOP BAR   station / camera / model / alarm │
+├────────┬───────────────────────────┬─────────┤
+│ B NAV  │ C WORKSPACE               │ D RAIL  │
+│        │ image + result            │ recipe  │
+│        │ recent + stats + trend    │ camera  │
+│        │                           │ alarm   │
+├────────┴───────────────────────────┴─────────┤
+│ E  STATUS BAR   camera / trigger / model      │
+└──────────────────────────────────────────────┘</pre>
+      <table class="zone-table">
+        <tr><td>A</td><td><b>顶栏</b>：工位名、相机、触发模式、帧率、模型版本、报警、操作员、时钟。模型版本必须上顶栏，换型后一眼能确认。</td></tr>
+        <tr><td>B</td><td><b>左导航</b>：实时检测 / 图像回放 / 配方管理 / 统计 / 报警 / 标定 / 设置；底部固定相机状态。</td></tr>
+        <tr><td>C</td><td><b>主工作区</b>：大图 + 检测结果（左图右果）→ 最近检测明细 → 班次统计 + 通过率趋势。图像上直接标 OK/NG 框与缺陷标签。</td></tr>
+        <tr><td>D</td><td><b>右信息栏</b>：当前配方（含标准样图缩略图）→ 相机与光源 → 报警 → 触发与编码器。</td></tr>
+        <tr><td>E</td><td><b>底栏</b>：相机连接、帧率、触发模式、模型版本、方案与版本。</td></tr>
+      </table>
+    </div>
+    <div class="note-card">
+      <h3>信息层级</h3>
+      <ol>
+        <li><b>L1 当前件 OK/NG</b>：结果大徽标 + 图像上的红/绿检测框；NG 时红色同时出现在顶栏报警、结果卡、明细行。</li>
+        <li><b>L2 哪里 NG</b>：缺陷位置、类型、置信度、尺寸；图像框与结果明细一一对应。</li>
+        <li><b>L3 是偶发还是趋势</b>：最近检测明细 + 班次统计 + 通过率趋势。</li>
+        <li><b>L4 为什么</b>：配方/阈值、相机曝光/增益/光源、触发与编码器状态。</li>
+      </ol>
+      <h3>使用图元</h3>
+      <div class="tag-list">
+        <span>Hmi.ImageView</span><span>Hmi.Picture</span><span>Hmi.Panel</span><span>Hmi.KpiBoard</span>
+        <span>Hmi.ChartTrend</span><span>Hmi.AlarmBanner</span><span>Hmi.IOField</span><span>Hmi.ComboBox</span>
+        <span>Hmi.Button</span><span>Hmi.Lamp</span><span class="cand">Hmi.DataTable · 候选</span><span class="cand">Hmi.ChartBar · 候选</span>
+      </div>
+      <h3>复用方式</h3>
+      <p>公共壳原样保留；主工作区固定“左图右果 + 下方明细/统计”。配方缩略图用 <code>Hmi.Picture</code>（只给缩略图与加载/替换，不暴露路径）；相机参数用数值域/下拉，不把参数编辑塞进图像区。</p>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+  var tabs=Array.prototype.slice.call(document.querySelectorAll('[data-tpl]'));
+  var sections=Array.prototype.slice.call(document.querySelectorAll('.template'));
+  var map={scada:'tpl-scada',motion:'tpl-motion',vision:'tpl-vision'};
+  function show(id){
+    sections.forEach(function(s){s.classList.toggle('is-on',s.id===id);});
+    tabs.forEach(function(t){t.classList.toggle('is-on',t.getAttribute('data-tpl')===id);});
+  }
+  tabs.forEach(function(t){
+    t.addEventListener('click',function(){
+      var id=t.getAttribute('data-tpl');
+      show(id);
+      var key=id.replace('tpl-','');
+      if(history.replaceState){history.replaceState(null,'','#'+key);}
+    });
+  });
+  var hash=(location.hash||'').replace('#','');
+  show(map[hash]||'tpl-scada');
+  if(location.search.indexOf('shot=1')>=0){document.body.classList.add('shot');}
+})();
+</script>
+</body>
+</html>

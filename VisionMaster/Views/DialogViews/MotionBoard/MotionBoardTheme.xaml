@@ -473,6 +473,8 @@
                     <Grid>
                         <ToggleButton
                             x:Name="Toggle"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="1"

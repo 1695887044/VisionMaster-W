@@ -1,5 +1,7 @@
 using Core.Editing;
+using Core.Interfaces;
 using ICSharpCode.AvalonEdit;
+using Prism.Commands;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -8,7 +10,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Media;
+using System.Windows.Input;
 
 namespace Plugin.CSharpScript
 {
@@ -31,25 +33,64 @@ namespace Plugin.CSharpScript
     }
 
     /// <summary>
-    /// C# 脚本配置视图：右列 AvalonEdit C# 编辑器（自定义高亮 + 智能提示 + 编辑行为），左列输入/输出变量表。
+    /// C# 脚本配置视图：左列接口变量轨（输入/输出变量 + Context 速查），右列 AvalonEdit C# 编辑器。
     /// 本视图不含"执行"按钮——试运行由主程序外壳提供。
+    ///
+    /// 2026-10-20 Web 化：只重排外观与令牌；DataContext 仍是插件实例，输入变量仍走
+    /// LinkableValueEditor（Port / StepData / PortsVersion），AvalonEdit 与全部编辑能力未换。
     /// </summary>
     public partial class CSharpScriptView : UserControl
     {
         private CSharpScriptPlugin Plugin => DataContext as CSharpScriptPlugin;
 
         private bool _loadingText; // 程序写 Editor.Text 时置 true，避免 TextChanged 回写死循环
+        private bool _editorInitialized;
+        private bool _textInitialized;
+
+        /// <summary>
+        /// 「校验脚本」按钮的视图级命令适配器。
+        /// 只转发现有 Validate_Click 行为，不新增业务逻辑；批量插件视图冒烟要求至少一条 Command 绑定。
+        /// </summary>
+        public ICommand ValidateCommand { get; }
 
         public CSharpScriptView()
         {
+            ValidateCommand = new DelegateCommand(RunValidation);
             InitializeComponent();
+            DataContextChanged += OnDataContextChanged;
             Loaded += OnLoaded;
+        }
+
+        /// <summary>
+        /// DataContext 在 GetConfigView 里设置（此时 ScriptText 已由 Initialize 灌入）。
+        /// 提前把正文放进编辑器：批量冒烟/离屏渲染不会触发 Loaded，否则证据图里编辑器是空的。
+        /// 只初始化一次，不覆盖用户后续编辑。
+        /// </summary>
+        private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            InitializeEditorText();
+        }
+
+        private void InitializeEditorText()
+        {
+            if (_textInitialized || Editor == null) return;
+            var plugin = Plugin;
+            if (plugin == null) return;
+
+            _textInitialized = true;
+            _loadingText = true;
+            Editor.Text = plugin.ScriptText ?? "";
+            _loadingText = false;
+            Editor.SyntaxHighlighting = CSharpHighlighting.GetDefinition();
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
-            // 自定义 C# 语法高亮（Context API/类型着色；接口变量在变量表变动时动态并入）
-            Editor.SyntaxHighlighting = CSharpHighlighting.GetDefinition(CollectVarNames());
+            if (_editorInitialized) return;
+            _editorInitialized = true;
+
+            // 自定义 C# 语法高亮（Context API/类型/关键字；接口变量名不着色——它们不是 C# 变量）
+            Editor.SyntaxHighlighting = CSharpHighlighting.GetDefinition();
 
             // 智能提示：补全（含 Context. 成员）+ 调用模板 + 悬浮文档 + 参数提示
             CSharpIntelliSense.Attach(Editor, CollectVarInfos);
@@ -60,41 +101,9 @@ namespace Plugin.CSharpScript
             // 右键菜单：校验 / 注释 / 取消注释 / 插入代码片段
             BuildEditorContextMenu();
 
-            // 编辑器文本初始化（不绑双向 Text，改由 Loaded 拉取 + TextChanged 回写，规避换行/光标跳动）
-            _loadingText = true;
-            Editor.Text = Plugin?.ScriptText ?? "";
-            _loadingText = false;
-
-            RefreshLists();
-        }
-
-        private void RefreshLists()
-        {
-            if (Plugin == null) return;
-
-            InputList.ItemsSource = Plugin.InputVars;
-            OutputList.ItemsSource = Plugin.OutputVars;
-
-            InputEmptyHint.Visibility = (Plugin.InputVars == null || Plugin.InputVars.Count == 0)
-                ? Visibility.Visible : Visibility.Collapsed;
-            OutputEmptyHint.Visibility = (Plugin.OutputVars == null || Plugin.OutputVars.Count == 0)
-                ? Visibility.Visible : Visibility.Collapsed;
-
-            // 变量表变动后同步：高亮的接口变量着色 + 补全/悬浮数据源
-            UpdateEditorIntel();
-        }
-
-        /// <summary>把输入/输出变量名并入高亮规则（紫色 Variable 色）。</summary>
-        private void UpdateEditorIntel()
-        {
-            Editor.SyntaxHighlighting = CSharpHighlighting.GetDefinition(CollectVarNames());
-        }
-
-        private IEnumerable<string> CollectVarNames()
-        {
-            if (Plugin == null) yield break;
-            foreach (var v in Plugin.InputVars) yield return v.Name;
-            foreach (var v in Plugin.OutputVars) yield return v.Name;
+            // 编辑器文本初始化（不绑双向 Text，改由 DataContextChanged/Loaded 拉取 + TextChanged 回写，
+            // 规避换行/光标跳动；DataContextChanged 已初始化过则这里不再覆盖）
+            InitializeEditorText();
         }
 
         /// <summary>收集接口变量（名称/方向/类型），供补全与悬浮使用。</summary>
@@ -104,9 +113,30 @@ namespace Plugin.CSharpScript
             if (Plugin == null) return list;
 
             foreach (var v in Plugin.InputVars)
-                list.Add(new CSharpIntelliSense.VarInfo { Name = v.Name, Kind = "输入", Type = v.Type.ToString() });
+            {
+                if (v == null) continue;
+                list.Add(new CSharpIntelliSense.VarInfo
+                {
+                    Name = v.Name,
+                    Kind = "输入",
+                    // R40：枚举上屏走中文显示名（下拉框显示"整数"，悬浮卡/补全说明不能又退回 Int）
+                    Type = StepConfigOption.ForEnum(typeof(ScriptVarType), v.Type.ToString()).Display,
+                    ClrType = v.Type.ToClrTypeName(),
+                    IsOutput = false,
+                });
+            }
             foreach (var v in Plugin.OutputVars)
-                list.Add(new CSharpIntelliSense.VarInfo { Name = v.Name, Kind = "输出", Type = v.Type.ToString() });
+            {
+                if (v == null) continue;
+                list.Add(new CSharpIntelliSense.VarInfo
+                {
+                    Name = v.Name,
+                    Kind = "输出",
+                    Type = StepConfigOption.ForEnum(typeof(ScriptVarType), v.Type.ToString()).Display,
+                    ClrType = v.Type.ToClrTypeName(),
+                    IsOutput = true,
+                });
+            }
             return list;
         }
 
@@ -123,14 +153,12 @@ namespace Plugin.CSharpScript
         {
             if (Plugin?.InputVars == null) return;
             Plugin.InputVars.Add(new ScriptVarDef { Name = UniqueName(Plugin.InputVars, "in") });
-            RefreshLists();
         }
 
         private void AddOutput_Click(object sender, RoutedEventArgs e)
         {
             if (Plugin?.OutputVars == null) return;
             Plugin.OutputVars.Add(new ScriptVarDef { Name = UniqueName(Plugin.OutputVars, "out") });
-            RefreshLists();
         }
 
         private void DelInput_Click(object sender, RoutedEventArgs e)
@@ -139,7 +167,6 @@ namespace Plugin.CSharpScript
             if ((sender as FrameworkElement)?.Tag is ScriptVarDef v)
             {
                 Plugin.InputVars.Remove(v);
-                RefreshLists();
             }
         }
 
@@ -149,8 +176,37 @@ namespace Plugin.CSharpScript
             if ((sender as FrameworkElement)?.Tag is ScriptVarDef v)
             {
                 Plugin.OutputVars.Remove(v);
-                RefreshLists();
             }
+        }
+
+        // ---- 共享变量（全局 / 系统，按 Id 声明） ----
+
+        private void AddShared_Click(object sender, RoutedEventArgs e)
+        {
+            Plugin?.SharedVars?.Add(new ScriptSharedVarDef());
+        }
+
+        private void DelShared_Click(object sender, RoutedEventArgs e)
+        {
+            if (Plugin?.SharedVars == null) return;
+            if ((sender as FrameworkElement)?.Tag is ScriptSharedVarDef def)
+                Plugin.SharedVars.Remove(def);
+        }
+
+        /// <summary>
+        /// 选中变量候选 → 把 Id / 名字 / 类型 / 是否系统变量一起落到声明行。
+        /// 只绑 <c>SelectedValue</c> 的话，Name/TypeName/IsSystem 会停在旧值——
+        /// 变量改名后类型与"只读"标记都不跟，方向下拉会给出错误的可写状态。
+        /// </summary>
+        private void SharedVar_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is not ScriptSharedVarDef def) return;
+            if ((sender as ComboBox)?.SelectedItem is not VariableOption option) return;
+
+            def.VariableId = option.VariableId;
+            def.Name = option.Name;
+            def.TypeName = option.TypeName;
+            def.IsSystem = option.IsSystem;
         }
 
         // 生成不与现有条目重复的默认名：in / in2 / in3 …
@@ -166,10 +222,12 @@ namespace Plugin.CSharpScript
         #endregion
 
         /// <summary>
-        /// 校验脚本：强制重编译当前编辑器内容（不执行），结果显示在底部，
+        /// 校验脚本：强制重编译当前编辑器内容（不执行），结果显示在底部状态栏，
         /// 错误行标红并跳到首个错误行。
         /// </summary>
-        private void Validate_Click(object sender, RoutedEventArgs e)
+        private void Validate_Click(object sender, RoutedEventArgs e) => RunValidation();
+
+        private void RunValidation()
         {
             if (Plugin == null) return;
 
@@ -178,9 +236,6 @@ namespace Plugin.CSharpScript
 
             string err = Plugin.ValidateScript();
             Plugin.ValidationResult = err == null ? "✔ 脚本校验通过（编译无误）" : "✘ " + err;
-            ValidateResultText.Foreground = err == null
-                ? new SolidColorBrush(Color.FromRgb(0x2E, 0x7D, 0x32))
-                : Brushes.Red;
 
             // 从"第 N 行 第 M 列: ..."收集全部错误行号 → 编辑器标红 + 跳到首个错误行
             //（Roslyn 诊断行号即编辑器真实行号，无需换算）
@@ -263,5 +318,37 @@ namespace Plugin.CSharpScript
         }
 
         #endregion
+    }
+
+    /// <summary>
+    /// 校验状态三档：空串 → Idle；✔ 开头 → Ok；✘ 开头 → Error。
+    /// 只驱动视觉，不改变插件 ValidationResult 的字符串语义。
+    /// </summary>
+    public sealed class ValidationStateConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var text = value as string;
+            if (string.IsNullOrWhiteSpace(text)) return "Idle";
+            var trimmed = text.TrimStart();
+            if (trimmed.StartsWith("✔", StringComparison.Ordinal)) return "Ok";
+            if (trimmed.StartsWith("✘", StringComparison.Ordinal)) return "Error";
+            return "Idle";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => Binding.DoNothing;
+    }
+
+    /// <summary>校验状态栏文案：空串显示「尚未校验」，其余原样显示。</summary>
+    public sealed class ValidationTextConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => string.IsNullOrWhiteSpace(value as string)
+                ? "尚未校验 · 点击「校验脚本」做编译检查"
+                : value;
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => Binding.DoNothing;
     }
 }

@@ -103,6 +103,7 @@ namespace FlowCanvasChecks
 
             RunTypeFilterContract(vm);
             RunTypeResolveContract();
+            RunFreshStepPortNameContract();
             RunWaitStepPortsContract();
             RunViewStyleContract();
         }
@@ -272,6 +273,52 @@ namespace FlowCanvasChecks
 
             Check("空类型名退回 object（不抛异常）",
                 TypeHelper.ResolveType(null) == typeof(object) && TypeHelper.ResolveType("") == typeof(object), "");
+        }
+
+        // ==================================================================
+        //  新建步骤：打开配置视图时端口名必须先就绪
+        // ==================================================================
+
+        /// <summary>
+        /// 新建步骤（InputValues 为空）打开配置视图后，端口名必须已就绪。
+        ///
+        /// 为什么值得单独钉住：`LinkableValueEditor` 的 🔗 拿 `Port.Name` 当 `TargetPortName`
+        /// 发布 `LinkPathEvent`，而端口名是基类**反射按属性名补的**（`new InputPort&lt;T&gt;()` 不带名字）。
+        /// 补名的时机只有 `EnsurePortsDiscovered`，而 `ApplyConfigValues` 的灌值循环在
+        /// InputValues 为空时一次都不跑 —— 于是新建步骤的端口名一直停在 null：
+        /// 🔗 发出空端口名 → 宿主退回"完整绑定弹窗" → 绑定只写进模型、插件视图收不到
+        /// `OnBound` 回调（真机：选完变量点确认，"图像路径"那行仍显示"需链接变量"，
+        /// 关掉配置窗重开才回显 —— 因为重开时 InputValues 已经有值，灌值循环顺带把名字补上了）。
+        /// 这条断言就是那个症状的最小复现：前提是空 InputValues，判据是 Initialize 之后的名字。
+        /// </summary>
+        private static void RunFreshStepPortNameContract()
+        {
+            Section("[V] 新建步骤打开配置视图：端口名必须先就绪（🔗 的 TargetPortName 依赖它）");
+
+            // 真实插件 + 真实的"刚拖进流程、还没点过一次确定"的步骤
+            var plugin = new Plugin.PreProcessing.PreProcessingPlugin();
+            var freshStep = new ActionStep(
+                "",
+                "图像预处理",
+                typeof(Plugin.PreProcessing.PreProcessingPlugin).AssemblyQualifiedName,
+                "图像预处理_0");
+
+            Check("用例前提：新建步骤的 InputValues 为空（走的是「没有已存配置」这条路）",
+                freshStep.InputValues.Count == 0,
+                $"InputValues.Count={freshStep.InputValues.Count}");
+
+            try
+            {
+                plugin.Initialize(freshStep);
+
+                Check("Initialize 之后端口名已就绪（否则 🔗 发出空端口名、退回完整绑定弹窗）",
+                    plugin.SrcImage.Name == "SrcImage",
+                    $"SrcImage.Name=[{plugin.SrcImage.Name ?? "<null>"}]");
+            }
+            finally
+            {
+                plugin.Dispose();
+            }
         }
 
         // ==================================================================
@@ -455,6 +502,7 @@ namespace FlowCanvasChecks
             "VariableBindingView.xaml", "GlobalVariableView.xaml",
             "CameraSettingsView.xaml", "CommunicationSettingsView.xaml",
             "FlowManagerView.xaml", "ConditionEditorView.xaml",
+            "SolutionListView.xaml",
             
         };
 
@@ -464,9 +512,8 @@ namespace FlowCanvasChecks
         /// </summary>
         private static readonly Dictionary<string, string[]> AllowedColorLiterals = new()
         {
-            // 采集质量色点（绿=采集正常 / 黄=最近一次读取失败 / 灰=断线）：全项目统一约定，
-            // SCADA 图层面板、流程画布、属性面板都用同一组，换肤时应整体一起动，不能只让弹窗变。
-            ["GlobalVariableView.xaml"] = new[] { "#FF67C23A", "#FFE6A23C", "#FFC0C4CC", "#FF909399" },
+            // 2026-10-20 变量管理 Web 化后，GlobalVariableView.xaml 已清零十六进制；
+            // 原采集质量色点白名单条目同步删除（异常清单只减不增）。
         };
 
         private static void RunCollectedViewStyleContract()

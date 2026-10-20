@@ -1,0 +1,977 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SCADA 数据表格图元 · 设计基线 v1</title>
+<style>
+  /* =====================================================================
+     SCADA 数据表格图元（Hmi.DataGrid）· 设计基线 v1
+     设计媒介，不是交付物（AGENTS.md R126）。
+     视觉语言沿用《插件自定义视图 Web 化改造 SOP》与 scada-controls v1：
+     8px 圆角、12px 标签、11.5px 帮助文字、五态齐全、全令牌化。
+     本页所有控件均为 HTML/CSS 表达，仅使用 WPF 可还原的能力：
+     Border / Path / TextBlock / Grid / Canvas / DropShadowEffect。
+     ===================================================================== */
+  :root{
+    --bg:#E9EEF5;
+    --surface:#FFFFFF;
+    --surface-2:#F8FAFC;
+    --surface-3:#F1F5F9;
+    --border:#E2E8F0;
+    --border-soft:#EEF2F7;
+    --border-strong:#CBD5E1;
+    --text:#0F172A;
+    --text-2:#475569;
+    --text-3:#94A3B8;
+    --text-4:#64748B;
+    --primary:#0EA5E9;
+    --primary-strong:#0284C7;
+    --primary-text:#0369A1;
+    --primary-soft:#F0F9FF;
+    --primary-light:#E0F2FE;
+    --primary-border:#BAE6FD;
+    /*  主按钮上的文字色、选中行底色：口径 1 要求页面内 0 个游离十六进制，全部收进令牌  */
+    --on-primary:#FFFFFF;
+    --selection-bg:#E0F2FE;
+    --success:#22C55E;
+    --success-text:#15803D;
+    --success-soft:#F0FDF4;
+    --success-border:#BBF7D0;
+    --danger:#EF4444;
+    --danger-text:#B91C1C;
+    --danger-soft:#FEF2F2;
+    --danger-border:#FECACA;
+    --warning:#F59E0B;
+    --warning-text:#B45309;
+    --warning-soft:#FFF4E5;
+    --warning-border:#FDE68A;
+    --font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+    --shadow-1:0 1px 2px rgba(15,23,42,.05);
+    --shadow-2:0 10px 28px rgba(15,23,42,.10),0 2px 6px rgba(15,23,42,.05);
+    --shadow-3:0 0 0 3px rgba(14,165,233,.14),0 8px 22px rgba(14,165,233,.10);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1100px 620px at 50% -12%, #F8FAFC 0%, rgba(248,250,252,0) 62%),
+      radial-gradient(circle at 1px 1px, rgba(148,163,184,.14) 1px, transparent 0) 0 0/24px 24px,
+      var(--bg);
+    color:var(--text);
+    font-family:var(--font);
+    font-size:13px;
+    line-height:1.5;
+    padding:28px 28px 96px;
+    -webkit-font-smoothing:antialiased;
+  }
+  button,input,select{font-family:inherit;}
+  svg{display:block;}
+  ::selection{background:#C7D2FE;color:#0F172A;}
+  a{color:inherit;}
+  code{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);border:1px solid var(--border-soft);border-radius:4px;padding:0 4px;color:var(--text-2);}
+
+  /* ---------- 页面头 ---------- */
+  .page-head{max-width:1360px;margin:0 auto 20px;}
+  .eyebrow{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);font-weight:600;}
+  .page-head h1{margin:6px 0 10px;font-size:26px;letter-spacing:-.01em;}
+  .page-head h1 .ver{font-size:12px;vertical-align:middle;color:var(--primary-text);background:var(--primary-light);border:1px solid var(--primary-border);border-radius:999px;padding:2px 8px;margin-left:8px;}
+  .page-head p.meta{max-width:1000px;margin:0 0 12px;color:var(--text-2);font-size:12.5px;}
+  .meta-row{display:flex;flex-wrap:wrap;gap:8px;}
+  .meta-chip{font-size:11.5px;color:var(--text-2);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:4px 10px;box-shadow:var(--shadow-1);}
+  .meta-chip strong{color:var(--text);font-weight:600;margin-right:4px;}
+
+  /* ---------- 导航 ---------- */
+  .page-nav{position:sticky;top:0;z-index:30;max-width:1360px;margin:0 auto 18px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:8px;background:rgba(255,255,255,.86);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-1);}
+  .page-nav a{font-size:11.5px;color:var(--text-2);text-decoration:none;padding:5px 9px;border-radius:6px;}
+  .page-nav a:hover{background:var(--surface-3);color:var(--text);}
+  .theme-toggle{margin-left:auto;display:flex;gap:4px;padding:2px;background:var(--surface-3);border-radius:8px;}
+  .theme-toggle button{border:0;background:transparent;color:var(--text-2);font-size:11.5px;padding:5px 10px;border-radius:6px;cursor:pointer;}
+  .theme-toggle button.is-on{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1);font-weight:600;}
+
+  /* ---------- 区块 ---------- */
+  main{max-width:1360px;margin:0 auto;}
+  .section{margin:0 0 34px;}
+  .sec-head{display:flex;align-items:baseline;gap:10px;margin:0 0 12px;}
+  .sec-index{font-family:var(--mono);font-size:11px;color:var(--primary-text);background:var(--primary-light);border:1px solid var(--primary-border);border-radius:6px;padding:2px 6px;}
+  .sec-head h2{margin:0;font-size:16px;}
+  .sec-head p{margin:0;color:var(--text-4);font-size:12px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);padding:16px;}
+  .card + .card{margin-top:12px;}
+  .grid-2{display:grid;grid-template-columns:1fr 340px;gap:14px;align-items:start;}
+  .note{font-size:11.5px;color:var(--text-4);}
+  .note b{color:var(--text-2);}
+
+  /* =====================================================================
+     运行画面令牌：一套控件两种底色（scada-controls 基线口径 7）
+     ===================================================================== */
+  .screen{
+    --sc-bg:#0E141B;
+    --sc-surface:#151D26;
+    --sc-chrome:#111820;
+    --sc-border:#26303B;
+    --sc-text:#F1F5F9;
+    --sc-text-2:#CBD5E1;
+    --sc-muted:#94A3B8;
+    --sc-faint:#64748B;
+    --sc-green:#4ADE80;
+    --sc-red:#F87171;
+    --sc-amber:#FBBF24;
+    --sc-blue:#7DD3FC;
+    --sc-grid:rgba(148,163,184,.10);
+  }
+  .screen[data-theme="light"]{
+    --sc-bg:#F5F7FA;
+    --sc-surface:#FFFFFF;
+    --sc-chrome:#EEF2F7;
+    --sc-border:#DDE3EC;
+    --sc-text:#1F2937;
+    --sc-text-2:#475569;
+    --sc-muted:#64748B;
+    --sc-faint:#94A3B8;
+    --sc-green:#15803D;
+    --sc-red:#B91C1C;
+    --sc-amber:#B45309;
+    --sc-blue:#0369A1;
+    --sc-grid:rgba(100,116,139,.16);
+  }
+
+  /* ---------- 画布（设计态） ---------- */
+  .workbench{display:grid;grid-template-columns:1fr 320px;gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow-1);}
+  .canvas{
+    position:relative;min-height:520px;padding:26px;
+    background-color:var(--sc-bg);
+    background-image:linear-gradient(var(--sc-grid) 1px,transparent 1px),linear-gradient(90deg,var(--sc-grid) 1px,transparent 1px);
+    background-size:20px 20px;
+  }
+  .canvas-toolbar{position:absolute;left:0;right:0;top:0;height:34px;display:flex;align-items:center;gap:8px;padding:0 10px;background:var(--sc-chrome);border-bottom:1px solid var(--sc-border);color:var(--sc-muted);font-size:11.5px;}
+  .canvas-toolbar .dot{width:7px;height:7px;border-radius:50%;background:var(--sc-green);}
+  .canvas-stage{position:absolute;left:26px;top:60px;}
+  .dg-wrap{position:relative;width:720px;}
+  /*  设计态的图元按"配置尺寸"给死高度：标题条与脚注贴边、行区吃掉中间，和真机一致  */
+  .dg-wrap .dg{height:300px;}
+
+  /* ---------- 数据表格图元 ---------- */
+  .dg{
+    position:relative;width:100%;
+    display:flex;flex-direction:column;
+    background:var(--sc-surface);
+    border:1px solid var(--sc-border);
+    border-radius:8px;
+    overflow:hidden;
+    box-shadow:0 6px 18px rgba(0,0,0,.22);
+  }
+  .screen[data-theme="light"] .dg{box-shadow:0 6px 18px rgba(15,23,42,.08);}
+  .dg-head{
+    display:flex;align-items:center;gap:8px;
+    height:30px;padding:0 10px;
+    background:var(--sc-chrome);
+    border-bottom:1px solid var(--sc-border);
+  }
+  .dg-title{font-size:11.5px;font-weight:600;color:var(--sc-text);letter-spacing:.02em;}
+  .dg-badge{font-size:10.5px;color:var(--sc-muted);background:rgba(148,163,184,.12);border:1px solid var(--sc-border);border-radius:999px;padding:1px 7px;font-variant-numeric:tabular-nums;}
+  .dg-live{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--sc-green);}
+  .dg-live .pulse{width:6px;height:6px;border-radius:50%;background:var(--sc-green);box-shadow:0 0 0 3px rgba(74,222,128,.18);}
+
+  .dg-cols{display:grid;grid-template-columns:88px 200px 78px 62px 1fr;align-items:center;height:26px;padding:0 10px;background:rgba(148,163,184,.06);border-bottom:1px solid var(--sc-border);}
+  .dg-cols span{font-size:10.5px;letter-spacing:.06em;color:var(--sc-muted);font-weight:600;}
+  .dg-cols span.r{text-align:right;}
+  .dg-cols span.c{text-align:center;}
+
+  .dg-body{position:relative;flex:1;overflow:hidden;}
+  .dg-row{display:grid;grid-template-columns:88px 200px 78px 62px 1fr;align-items:center;height:28px;padding:0 10px;border-bottom:1px solid rgba(148,163,184,.07);}
+  .dg-row:nth-child(even){background:rgba(148,163,184,.045);}
+  .dg-row:last-child{border-bottom:0;}
+  .dg-row .t{font-family:var(--mono);font-size:11px;color:var(--sc-faint);font-variant-numeric:tabular-nums;}
+  .dg-row .sn{font-family:var(--mono);font-size:11.5px;color:var(--sc-text-2);}
+  .dg-row .ang{font-family:var(--mono);font-size:11.5px;color:var(--sc-text);text-align:right;font-variant-numeric:tabular-nums;}
+  .dg-row .res{text-align:center;}
+  .dg-row .mes{font-size:11px;color:var(--sc-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .tag{display:inline-block;font-size:10.5px;font-weight:600;border-radius:999px;padding:1px 8px;line-height:16px;}
+  .tag.ok{color:var(--sc-green);background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.28);}
+  .tag.ng{color:var(--sc-red);background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.30);}
+  .dg-row.is-ng{box-shadow:inset 2px 0 0 var(--sc-red);}
+  .dg-row.is-ng .ang{color:var(--sc-red);}
+  .dg-row.is-fresh{animation:fresh 1.6s ease-out;}
+  @keyframes fresh{from{background:rgba(125,211,252,.16);}to{background:transparent;}}
+
+  .dg-foot{display:flex;align-items:center;gap:10px;height:24px;padding:0 10px;background:rgba(148,163,184,.05);border-top:1px solid var(--sc-border);font-size:10.5px;color:var(--sc-faint);}
+  .dg-foot .sp{margin-left:auto;font-variant-numeric:tabular-nums;}
+
+  /* ---------- 选中框（设计态） ---------- */
+  .sel{position:absolute;inset:-1px;border:2px solid var(--primary);border-radius:8px;pointer-events:none;}
+  .sel i{position:absolute;width:7px;height:7px;background:var(--surface);border:1.5px solid var(--primary);border-radius:1px;}
+  .sel i:nth-child(1){left:-4px;top:-4px;}
+  .sel i:nth-child(2){left:50%;top:-4px;margin-left:-3px;}
+  .sel i:nth-child(3){right:-4px;top:-4px;}
+  .sel i:nth-child(4){right:-4px;top:50%;margin-top:-3px;}
+  .sel i:nth-child(5){right:-4px;bottom:-4px;}
+  .sel i:nth-child(6){left:50%;bottom:-4px;margin-left:-3px;}
+  .sel i:nth-child(7){left:-4px;bottom:-4px;}
+  .sel i:nth-child(8){left:-4px;top:50%;margin-top:-3px;}
+  .sel-tag{position:absolute;left:0;top:-22px;font-size:10.5px;color:#fff;background:var(--primary-strong);border-radius:4px 4px 0 0;padding:1px 7px;font-variant-numeric:tabular-nums;}
+
+  /* ---------- 属性面板（设计态右侧） ---------- */
+  .panel{background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;min-height:520px;}
+  .panel-head{display:flex;align-items:center;height:34px;padding:0 10px;border-bottom:1px solid var(--border);font-size:12.5px;font-weight:600;}
+  .panel-head .acts{margin-left:auto;display:flex;gap:8px;color:var(--text-3);font-size:11px;}
+  .obj{display:flex;align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid var(--border);background:var(--surface-2);}
+  .obj-ico{width:26px;height:26px;border-radius:6px;background:var(--surface-3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-2);}
+  .obj-name{font-size:12.5px;font-weight:600;line-height:1.25;}
+  .obj-type{font-size:10.5px;color:var(--text-3);font-family:var(--mono);}
+  .obj .lock{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-2);}
+  .sw{width:32px;height:18px;border-radius:9px;background:var(--border-strong);position:relative;}
+  .sw::after{content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--surface);border:1px solid var(--border-strong);}
+  .search{margin:8px 10px;display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border:1px solid var(--border);border-radius:6px;color:var(--text-3);font-size:11.5px;background:var(--surface);}
+  .grp{border-bottom:1px solid var(--border-soft);}
+  .grp-head{display:flex;align-items:center;height:30px;padding:0 10px;font-size:12px;font-weight:600;color:var(--text);}
+  .grp-head .cnt{margin-left:6px;font-size:10px;font-weight:500;color:var(--text-4);background:var(--surface-3);border-radius:999px;padding:0 5px;}
+  .grp-head .chev{margin-left:auto;color:var(--text-3);font-size:10px;}
+  .row{display:grid;grid-template-columns:74px 1fr;gap:8px;align-items:center;padding:3px 10px;}
+  .row .lb{font-size:11.5px;color:var(--text-2);}
+  .ctl{height:26px;display:flex;align-items:center;padding:0 7px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:11.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ctl.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+  .ctl .unit{margin-left:auto;color:var(--text-3);font-size:10.5px;}
+  .ctl.link{color:var(--primary-text);background:var(--primary-soft);border-color:var(--primary-border);}
+  .ctl.ro{background:var(--surface-3);color:var(--text-2);}
+  .row .hint{grid-column:2;font-size:10.5px;color:var(--text-3);margin-top:-2px;}
+  .row-2{grid-template-columns:74px minmax(0,1fr) auto;}
+  .fx{width:22px;height:22px;border:1px solid var(--border);border-radius:6px;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-4);font-size:11px;}
+  .chk{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-2);}
+  .box{width:14px;height:14px;border:1px solid var(--border-strong);border-radius:3px;background:var(--surface);}
+  .box.on{background:var(--primary);border-color:var(--primary);position:relative;}
+  .box.on::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);}
+
+  /* ---------- 弹窗（列配置） ---------- */
+  .modal-scrim{background:rgba(15,23,42,.28);border-radius:12px;padding:22px;display:flex;justify-content:center;}
+  .modal{width:760px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-2);overflow:hidden;}
+  .modal-head{display:flex;align-items:center;height:40px;padding:0 12px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;}
+  .modal-head .x{margin-left:auto;color:var(--text-3);}
+  .modal-body{padding:14px;}
+  .modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:10px 12px;border-top:1px solid var(--border);background:var(--surface-2);}
+  .btn{height:28px;padding:0 14px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;cursor:pointer;}
+  /*  五态（口径 2）：hover / pressed / focus-visible / disabled 一个都不能少。
+      禁用态<b>不靠整体透明度</b>：文字跟着一起变淡就读不清了，改用语义令牌（浅底 + 次要字）。  */
+  .btn:hover{border-color:var(--primary-border);color:var(--primary-text);}
+  .btn:active{background:var(--surface-3);}
+  .btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
+  .btn:disabled{background:var(--surface-3);border-color:var(--border-soft);color:var(--text-3);cursor:not-allowed;}
+  .btn.primary{background:var(--primary-strong);border-color:var(--primary-strong);color:var(--on-primary);font-weight:600;}
+  .btn.primary:hover{background:var(--primary-text);border-color:var(--primary-text);color:var(--on-primary);}
+  .btn.primary:active{background:var(--primary-text);}
+  .btn.primary:disabled{background:var(--surface-3);border-color:var(--border-soft);color:var(--text-3);}
+  .btn.ghost{background:var(--primary-soft);border-color:var(--primary-border);color:var(--primary-text);}
+
+  table.cols{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;}
+  table.cols th{text-align:left;font-size:11px;letter-spacing:.05em;color:var(--text-4);font-weight:600;padding:0 8px 6px;}
+  table.cols td{padding:5px 8px;border-top:1px solid var(--border-soft);vertical-align:middle;}
+  /*  操作列三颗按钮不许换行（24px × 3 + 间距 = 86，列宽 88 刚好，换行就是挤了）  */
+  table.cols td:last-child{white-space:nowrap;}
+  table.cols tr.sel-row td{background:var(--primary-soft);}
+  .cell-in{height:26px;display:flex;align-items:center;padding:0 7px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:11.5px;}
+  .cell-in.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+  /*  行内按钮 24×24（口径 3 的下限 26 减去描边内缩；再小就点不准），命中区靠 Padding 补  */
+  .mini{width:24px;height:24px;border:1px solid var(--border);border-radius:5px;background:var(--surface);display:inline-flex;align-items:center;justify-content:center;color:var(--text-2);font-size:11px;cursor:pointer;}
+  .mini:hover{border-color:var(--primary);color:var(--primary-text);background:var(--primary-soft);}
+  .mini:active{background:var(--surface-3);}
+  .mini:focus-visible{outline:2px solid var(--primary);outline-offset:1px;}
+  .mini:disabled{color:var(--text-3);background:var(--surface-3);border-color:var(--border-soft);cursor:not-allowed;}
+  /*  弹窗内表格区滚动 + 表头吸顶（列多了不该把弹窗撑出屏幕）  */
+  .cols-scroll{max-height:320px;overflow:auto;}
+  .cols-scroll thead th{position:sticky;top:0;background:var(--surface);z-index:1;}
+  /*  中性帮助条：⚠ 黄只留给"确定不可用"这类真警告，帮助信息别抢视线  */
+  .info-strip{display:flex;gap:8px;align-items:flex-start;margin-top:10px;padding:9px 10px;border:1px solid var(--border-soft);background:var(--surface-2);border-radius:8px;font-size:11.5px;color:var(--text-2);}
+  .warn-strip{display:flex;gap:8px;align-items:flex-start;margin-top:10px;padding:9px 10px;border:1px solid var(--warning-border);background:var(--warning-soft);border-radius:8px;font-size:11.5px;color:var(--warning-text);}
+
+  /* ---------- 状态矩阵 ---------- */
+  .states{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+  .state{background:var(--sc-surface);border:1px solid var(--sc-border);border-radius:10px;overflow:hidden;}
+  .state .cap{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;background:var(--sc-chrome);border-bottom:1px solid var(--sc-border);font-size:11.5px;color:var(--sc-text-2);}
+  .state .cap b{color:var(--sc-text);}
+  .state .cap .why{margin-left:auto;font-size:10.5px;color:var(--sc-faint);}
+  .state .body{min-height:104px;padding:10px;display:flex;align-items:center;justify-content:center;}
+  .empty{text-align:center;color:var(--sc-faint);}
+  .empty .ic{width:34px;height:34px;margin:0 auto 8px;border:1px solid var(--sc-border);border-radius:9px;display:flex;align-items:center;justify-content:center;background:rgba(148,163,184,.06);}
+  .empty h4{margin:0 0 3px;font-size:12px;color:var(--sc-text-2);font-weight:600;}
+  .empty p{margin:0;font-size:10.5px;line-height:1.5;}
+  .skeleton{width:100%;}
+  .sk-row{display:grid;grid-template-columns:88px 200px 78px 62px 1fr;gap:8px;align-items:center;height:22px;}
+  .sk{height:8px;border-radius:4px;background:rgba(148,163,184,.18);}
+  .stale{width:100%;}
+  .stale .dg{width:100%;opacity:.55;filter:grayscale(.4);}
+  .stale .flag{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--sc-amber);margin-top:6px;}
+
+  /* ---------- 表格（文档用） ---------- */
+  .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface);}
+  table.data{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;}
+  table.data th{position:sticky;top:0;background:var(--surface-2);text-align:left;font-size:11px;letter-spacing:.05em;color:var(--text-4);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--border);}
+  table.data td{padding:8px 10px;border-bottom:1px solid var(--border-soft);vertical-align:top;color:var(--text-2);}
+  table.data tr:last-child td{border-bottom:0;}
+  table.data td b{color:var(--text);}
+  .sev{display:inline-block;font-size:10.5px;font-weight:600;border-radius:999px;padding:1px 8px;}
+  .sev.high{color:var(--danger-text);background:var(--danger-soft);border:1px solid var(--danger-border);}
+  .sev.mid{color:var(--warning-text);background:var(--warning-soft);border:1px solid var(--warning-border);}
+  .sev.low{color:var(--success-text);background:var(--success-soft);border:1px solid var(--success-border);}
+  .yes{color:var(--success-text);font-weight:600;}
+  .no{color:var(--danger-text);font-weight:600;}
+  ul.tight{margin:6px 0 0;padding-left:18px;color:var(--text-2);font-size:12px;}
+  ul.tight li{margin:3px 0;}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <div class="eyebrow">VisionMaster · UI 设计基线</div>
+  <h1>SCADA 数据表格图元 <span class="ver">v1</span></h1>
+  <p class="meta">
+    现场需求：测完一个产品要能看到<b>历史记录</b>——产品 SN、角度、结果，以及 MES 回传的信息。
+    本页给出 <code>Hmi.DataGrid</code> 的设计基线：设计态长什么样、列怎么配、运行态怎么显示、
+    空/无数据/断连怎么表现。本页是<b>设计媒介，不是交付物</b>（R126）；确认后按 R127 第 ③ 步复刻到 WPF。
+  </p>
+  <div class="meta-row">
+    <span class="meta-chip"><strong>覆盖</strong>1 个新 TypeKey（<code>Hmi.DataGrid</code>）+ 列配置弹窗 + 5 个运行态</span>
+    <span class="meta-chip"><strong>上下文</strong>深色运行画面 + 浅色编辑工作台</span>
+    <span class="meta-chip"><strong>行来源</strong>信号触发采行（阶段 1）／绑定集合（阶段 2）</span>
+    <span class="meta-chip"><strong>日期</strong>2026-10-20</span>
+    <span class="meta-chip"><strong>状态</strong>待用户确认</span>
+  </div>
+</header>
+
+<nav class="page-nav">
+  <a href="#brief">01 需求与判断</a>
+  <a href="#design">02 设计态</a>
+  <a href="#columns">03 列配置</a>
+  <a href="#runtime">04 运行态</a>
+  <a href="#states">05 状态矩阵</a>
+  <a href="#mapping">06 复刻映射</a>
+  <a href="#open">07 待确认</a>
+  <span class="theme-toggle">
+    <button type="button" class="is-on" data-screen-theme="dark">深色画面</button>
+    <button type="button" data-screen-theme="light">浅色画面</button>
+  </span>
+</nav>
+
+<main>
+
+  <!-- ============================================================ -->
+  <!-- 01 需求与判断 -->
+  <!-- ============================================================ -->
+  <section class="section" id="brief">
+    <div class="sec-head">
+      <span class="sec-index">01</span>
+      <h2>需求与设计判断</h2>
+      <p>先定"它到底是什么"，再谈长什么样。</p>
+    </div>
+
+    <div class="card">
+      <div class="grid-2">
+        <div>
+          <p style="margin:0 0 10px;color:var(--text-2);font-size:12.5px;">
+            这个需求本质是一张<b>滚动历史表</b>（一个产品一行，逐件追加），不是"把某个对象的结构画出来"。
+            所以设计上把两件事拆开：<b>列是设计期的数据</b>（用户自己配），<b>行是运行期的数据</b>（宿主按列取值、按信号采一行）。
+          </p>
+          <table class="data" style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+            <thead>
+              <tr><th style="width:180px;">方案</th><th style="width:96px;">本版</th><th>理由</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>列定义 + 信号采行</b></td>
+                <td><span class="sev low">做</span></td>
+                <td>直接命中"历史 SN / 角度 / 结果 / MES"；不碰变量系统与插件契约，纯 <code>Scada.Controls</code> + 宿主一个供数服务。</td>
+              </tr>
+              <tr>
+                <td><b>绑定一个集合变量</b></td>
+                <td><span class="sev mid">阶段 2</span></td>
+                <td>绑定管线只在"值变了"时推送；算子往同一个 <code>List</code> 里 <code>Add</code> 时引用没变，表格不会刷新（R138 同族）。要做得先定"集合变更通知"的口径。</td>
+              </tr>
+              <tr>
+                <td><b>反射任意用户自定义类</b></td>
+                <td><span class="sev high">不做</span></td>
+                <td>要在 <code>.vms</code> 里存类型（本仓刻意用字符串 TypeKey、不用 <code>$type</code>）、设计期定义字段、运行期反射取列、还要兼容旧版本。代价远超"四列、每件一行"。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:600;margin-bottom:6px;">这一版要回答的四个问题</div>
+          <ul class="tight">
+            <li>设计态：这个图元在画布上长什么样、选中时给出什么反馈？</li>
+            <li>配置：列怎么加、怎么排、每列绑哪个变量？</li>
+            <li>运行：一行什么时候产生？满了怎么办？</li>
+            <li>异常：没数据 / 断连 / 变量找不到，用户看到什么？</li>
+          </ul>
+          <div class="note" style="margin-top:12px;">
+            <b>不做的事</b>：不做排序、不做筛选、不做单元格编辑、不做导出——那是「报警历史」那种独立页面的活。
+            图元只负责"把最近 N 条摆出来给人看"。
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 02 设计态 -->
+  <!-- ============================================================ -->
+  <section class="section" id="design">
+    <div class="sec-head">
+      <span class="sec-index">02</span>
+      <h2>设计态：画布上的图元 + 属性面板</h2>
+      <p>浅色工作台、深色画布；选中给 8 个手柄，面板里能配列与采行。</p>
+    </div>
+
+    <div class="workbench">
+      <div class="canvas screen" data-theme="dark">
+        <div class="canvas-toolbar">
+          <span class="dot"></span>画面_1
+          <span style="color:var(--sc-faint);">·</span>1280 × 800
+          <span style="color:var(--sc-faint);">·</span>网格 20 px
+          <span style="margin-left:auto;color:var(--sc-faint);">选中：数据表格</span>
+        </div>
+        <div class="canvas-stage">
+          <div class="dg-wrap">
+          <div class="dg">
+            <div class="dg-head">
+              <span class="dg-title">产品角度记录</span>
+              <span class="dg-badge">4 列</span>
+              <span class="dg-live"><span class="pulse"></span>运行中</span>
+            </div>
+            <div class="dg-cols">
+              <span>时间</span><span>SN</span><span class="r">角度</span><span class="c">结果</span><span>MES 工单</span>
+            </div>
+            <div class="dg-body">
+              <div class="dg-row"><span class="t">14:22:03.418</span><span class="sn">SN2026102000417</span><span class="ang">12.84°</span><span class="res"><span class="tag ok">OK</span></span><span class="mes">WO-2026-1020-07</span></div>
+              <div class="dg-row"><span class="t">14:22:05.902</span><span class="sn">SN2026102000418</span><span class="ang">12.71°</span><span class="res"><span class="tag ok">OK</span></span><span class="mes">WO-2026-1020-07</span></div>
+              <div class="dg-row is-ng"><span class="t">14:22:08.117</span><span class="sn">SN2026102000419</span><span class="ang">14.36°</span><span class="res"><span class="tag ng">NG</span></span><span class="mes">WO-2026-1020-07</span></div>
+              <div class="dg-row"><span class="t">14:22:10.640</span><span class="sn">SN2026102000420</span><span class="ang">12.90°</span><span class="res"><span class="tag ok">OK</span></span><span class="mes">WO-2026-1020-07</span></div>
+              <div class="dg-row"><span class="t">14:22:12.885</span><span class="sn">SN2026102000421</span><span class="ang">12.63°</span><span class="res"><span class="tag ok">OK</span></span><span class="mes">WO-2026-1020-07</span></div>
+              <div class="dg-row"><span class="t">14:22:15.204</span><span class="sn">SN2026102000422</span><span class="ang">13.02°</span><span class="res"><span class="tag ok">OK</span></span><span class="mes">WO-2026-1020-07</span></div>
+            </div>
+            <div class="dg-foot">
+              <span>缓存 100 行</span>
+              <span>·</span>
+              <span>新行在上</span>
+              <span class="sp">14:22:15</span>
+            </div>
+          </div>
+          <!--  选中框放在 .dg 外面：.dg 有 overflow:hidden（圆角裁剪），手柄在 -4px 会被裁掉  -->
+          <div class="sel">
+            <span class="sel-tag">720 × 300</span>
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="panel">
+        <div class="panel-head">属性<span class="acts">▾ ⚲ ✕</span></div>
+        <div class="obj">
+          <div class="obj-ico">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+              <path d="M3 9h18M9 9v11"></path>
+            </svg>
+          </div>
+          <div>
+            <div class="obj-name">产品角度记录</div>
+            <div class="obj-type">Hmi.DataGrid</div>
+          </div>
+          <div class="lock">锁定<span class="sw"></span></div>
+        </div>
+        <div class="search">⌕ 搜索属性</div>
+
+        <div class="grp">
+          <div class="grp-head">基本<span class="cnt">2</span><span class="chev">▴</span></div>
+          <div class="row"><span class="lb">名称</span><div class="ctl">产品角度记录</div></div>
+          <div class="row"><span class="lb">类型</span><div class="ctl ro mono">Hmi.DataGrid</div></div>
+        </div>
+
+        <div class="grp">
+          <div class="grp-head">列<span class="cnt">1</span><span class="chev">▴</span></div>
+          <div class="row row-2">
+            <span class="lb">列定义</span>
+            <div class="ctl">4 列 · 时间 / SN / 角度 / 结果</div>
+            <button class="btn ghost" style="height:26px;padding:0 10px;font-size:11.5px;">选择列…</button>
+          </div>
+          <div class="row"><span class="hint" style="grid-column:1 / -1;">列是设计期配置：表头、宽度、对齐、格式、绑哪个变量。存在图元属性里（规范 JSON），随 .vms 走。</span></div>
+        </div>
+
+        <div class="grp">
+          <div class="grp-head">数据<span class="cnt">6</span><span class="chev">▴</span></div>
+          <div class="row row-2">
+            <span class="lb">采行信号</span>
+            <div class="ctl"><span style="color:var(--primary-text);">ƒ 采行触发</span></div>
+            <span class="fx">ƒ</span>
+          </div>
+          <div class="row"><span class="hint" style="grid-column:1 / -1;">这个变量每来一个上升沿，就把当前各列的值攒成一行（现场一般是"结果已存"位）。</span></div>
+          <div class="row row-2">
+            <span class="lb">收录确认</span>
+            <div class="ctl" style="color:var(--text-3);">（留空 = 不写）</div>
+            <span class="fx">ƒ</span>
+          </div>
+          <div class="row"><span class="hint" style="grid-column:1 / -1;">填了就在每采一行后把它 <b>+1</b>。是计数不是脉冲——脉冲总得有人复位，那就又把"读"变成"写"了。</span></div>
+          <div class="row"><span class="lb">缓存行数</span><div class="ctl mono">100<span class="unit">行</span></div></div>
+          <div class="row"><span class="lb">行高</span><div class="ctl mono">28<span class="unit">px</span></div></div>
+          <div class="row"><span class="lb">新行在上</span><div class="chk"><span class="box on"></span>最新的排最上面</div></div>
+          <div class="row"><span class="lb">斑马纹</span><div class="chk"><span class="box on"></span>隔行浅底</div></div>
+        </div>
+
+        <div class="grp">
+          <div class="grp-head">外观<span class="cnt">4</span><span class="chev">▾</span></div>
+        </div>
+        <div class="grp">
+          <div class="grp-head">文本<span class="cnt">3</span><span class="chev">▾</span></div>
+        </div>
+        <div class="grp">
+          <div class="grp-head">交互<span class="cnt">1</span><span class="chev">▾</span></div>
+        </div>
+        <div class="grp">
+          <div class="grp-head">事件<span class="cnt">2</span><span class="chev">▾</span></div>
+        </div>
+        <div class="grp">
+          <div class="grp-head">动画<span class="cnt">4</span><span class="chev">▾</span></div>
+        </div>
+      </aside>
+    </div>
+
+    <p class="note" style="margin-top:10px;">
+      <b>为什么"列定义"长成一行按钮而不是一堆输入框</b>：列是 N 条、每条 5 个字段，塞进 320 宽的面板会把整块挤成表格。
+      沿用轴控台「候选轴」那一套（<code>AxisList</code>）：行上只显示摘要，点「选择列…」进弹窗。
+    </p>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 03 列配置弹窗 -->
+  <!-- ============================================================ -->
+  <section class="section" id="columns">
+    <div class="sec-head">
+      <span class="sec-index">03</span>
+      <h2>列配置弹窗</h2>
+      <p>加、删、排序、绑变量；右侧实时预览一行。</p>
+    </div>
+
+    <div class="card">
+      <div class="modal-scrim">
+        <div class="modal">
+          <div class="modal-head">配置列<span class="x">✕</span></div>
+          <div class="modal-body">
+            <div class="cols-scroll">
+            <table class="cols">
+              <thead>
+                <tr>
+                  <th style="width:34px;">#</th>
+                  <th style="width:132px;">表头</th>
+                  <th style="width:150px;">绑定变量</th>
+                  <th style="width:76px;">宽度</th>
+                  <th style="width:96px;">对齐</th>
+                  <th style="width:104px;">格式</th>
+                  <th style="width:88px;">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="sel-row">
+                  <td class="num" style="color:var(--text-3);font-family:var(--mono);">1</td>
+                  <td><div class="cell-in">时间</div></td>
+                  <td><div class="cell-in mono">$Time</div></td>
+                  <td><div class="cell-in mono">88</div></td>
+                  <td><div class="cell-in">左对齐</div></td>
+                  <td><div class="cell-in mono">HH:mm:ss.fff</div></td>
+                  <td><span class="mini">↑</span> <span class="mini">↓</span> <span class="mini">✕</span></td>
+                </tr>
+                <tr>
+                  <td class="num" style="color:var(--text-3);font-family:var(--mono);">2</td>
+                  <td><div class="cell-in">SN</div></td>
+                  <td><div class="cell-in mono">产品SN</div></td>
+                  <td><div class="cell-in mono">160</div></td>
+                  <td><div class="cell-in">左对齐</div></td>
+                  <td><div class="cell-in mono">—</div></td>
+                  <td><span class="mini">↑</span> <span class="mini">↓</span> <span class="mini">✕</span></td>
+                </tr>
+                <tr>
+                  <td class="num" style="color:var(--text-3);font-family:var(--mono);">3</td>
+                  <td><div class="cell-in">角度</div></td>
+                  <td><div class="cell-in mono">角度值</div></td>
+                  <td><div class="cell-in mono">78</div></td>
+                  <td><div class="cell-in">右对齐</div></td>
+                  <td><div class="cell-in mono">F2</div></td>
+                  <td><span class="mini">↑</span> <span class="mini">↓</span> <span class="mini">✕</span></td>
+                </tr>
+                <tr>
+                  <td class="num" style="color:var(--text-3);font-family:var(--mono);">4</td>
+                  <td><div class="cell-in">结果</div></td>
+                  <td><div class="cell-in mono">判定结果</div></td>
+                  <td><div class="cell-in mono">62</div></td>
+                  <td><div class="cell-in">居中</div></td>
+                  <td><div class="cell-in mono">—</div></td>
+                  <td><span class="mini">↑</span> <span class="mini">↓</span> <span class="mini">✕</span></td>
+                </tr>
+                <tr>
+                  <td class="num" style="color:var(--text-3);font-family:var(--mono);">5</td>
+                  <td><div class="cell-in">MES 工单</div></td>
+                  <td><div class="cell-in mono">MES_OrderNo</div></td>
+                  <td><div class="cell-in mono">0</div></td>
+                  <td><div class="cell-in">左对齐</div></td>
+                  <td><div class="cell-in mono">—</div></td>
+                  <td><span class="mini">↑</span> <span class="mini">↓</span> <span class="mini">✕</span></td>
+                </tr>
+              </tbody>
+            </table>
+            </div>
+
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <button class="btn ghost">＋ 添加列</button>
+            </div>
+
+            <div class="info-strip">
+              <span>ⓘ</span>
+              <span>
+                「结果」列可以配一组<b>值映射</b>（<code>1=OK / 0=NG</code>），映射后单元格按状态色显示；不配就按原值显示文本。
+                <b>宽度填 0 = 占满剩余</b>（一般给最后一列）；多列填 0 时平分剩余。
+              </span>
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn">取消</button>
+            <button class="btn primary">确定</button>
+          </div>
+        </div>
+      </div>
+      <p class="note" style="margin-top:12px;">
+        <b>列的落盘形态</b>：一条规范 JSON 存进图元属性袋（与轴候选 <code>ScadaAxisOptionsCodec</code> 同构），
+        形如 <code>[{"h":"SN","v":"产品SN","w":160,"a":"left"}, …]</code>。不存 CLR 类型、不存程序集名。
+      </p>
+    </div>
+
+    <div class="card">
+      <div style="font-size:12.5px;font-weight:600;margin-bottom:10px;">另外两种状态（评审要看的）</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+
+        <!--  空态  -->
+        <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface);">
+          <div style="display:flex;align-items:center;height:34px;padding:0 12px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:12px;font-weight:600;">
+            配置列<span style="margin-left:auto;color:var(--text-3);font-weight:400;">✕</span>
+          </div>
+          <div style="padding:18px 16px;min-height:150px;display:flex;align-items:center;justify-content:center;">
+            <div style="text-align:center;color:var(--text-3);">
+              <div style="width:34px;height:34px;margin:0 auto 8px;border:1px solid var(--border);border-radius:9px;display:flex;align-items:center;justify-content:center;background:var(--surface-3);font-size:14px;">▦</div>
+              <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:3px;">还没有列</div>
+              <div style="font-size:10.5px;line-height:1.55;">先「添加列」，再选一列要显示的数据。<br>表头留空就用变量名。</div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 12px;border-top:1px solid var(--border);background:var(--surface-2);">
+            <button class="btn ghost" style="margin-right:auto;">＋ 添加列</button>
+            <button class="btn">取消</button>
+            <button class="btn primary" disabled>确定</button>
+          </div>
+        </div>
+
+        <!--  校验错误  -->
+        <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface);">
+          <div style="display:flex;align-items:center;height:34px;padding:0 12px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:12px;font-weight:600;">
+            配置列<span style="margin-left:auto;color:var(--text-3);font-weight:400;">✕</span>
+          </div>
+          <div style="padding:12px;min-height:150px;">
+            <table class="cols" style="width:100%;">
+              <thead>
+                <tr><th style="width:30px;">#</th><th>表头</th><th>绑定变量</th><th style="width:64px;">宽度</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="color:var(--text-3);font-family:var(--mono);">1</td>
+                  <td><div class="cell-in">SN</div></td>
+                  <td><div class="cell-in mono">产品SN</div></td>
+                  <td><div class="cell-in mono">160</div></td>
+                </tr>
+                <tr>
+                  <td style="color:var(--text-3);font-family:var(--mono);">2</td>
+                  <td>
+                    <div class="cell-in" style="border-color:var(--danger);background:var(--danger-soft);color:var(--danger-text);">角度</div>
+                    <div style="font-size:10px;color:var(--danger-text);margin-top:3px;">变量不存在</div>
+                  </td>
+                  <td><div class="cell-in mono" style="border-color:var(--danger);background:var(--danger-soft);color:var(--danger-text);">角度值</div></td>
+                  <td><div class="cell-in mono">78</div></td>
+                </tr>
+                <tr>
+                  <td style="color:var(--text-3);font-family:var(--mono);">3</td>
+                  <td><div class="cell-in">MES</div></td>
+                  <td><div class="cell-in mono" style="border-color:var(--danger);background:var(--danger-soft);color:var(--danger-text);"></div>
+                    <div style="font-size:10px;color:var(--danger-text);margin-top:3px;">还没选变量</div>
+                  </td>
+                  <td><div class="cell-in mono">0</div></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="warn-strip" style="margin-top:8px;">
+              <span>⚠</span>
+              <span>2 处待修：第 2 列的变量在工程里找不到，第 3 列还没选变量。<b>确定按钮不可用</b>，改完才放行。</span>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 12px;border-top:1px solid var(--border);background:var(--surface-2);">
+            <button class="btn">取消</button>
+            <button class="btn primary" disabled>确定</button>
+          </div>
+        </div>
+      </div>
+
+      <p class="note" style="margin-top:12px;">
+        <b>两条交互口径</b>：① 校验在<b>弹窗内</b>就地标红并说明原因（变量不存在 / 没选变量 / 宽度非法），
+        不等到点「确定」才弹一个笼统的错；② <b>有错时「确定」不可用</b>——取消永远是退路，
+        半截配置落进 <code>.vms</code> 会让运行期出现一排「—」。
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 04 运行态 -->
+  <!-- ============================================================ -->
+  <section class="section" id="runtime">
+    <div class="sec-head">
+      <span class="sec-index">04</span>
+      <h2>运行态：一条产线，一屏看全</h2>
+      <p>深色画面是默认；右上角可切浅色画面预览同一张表。</p>
+    </div>
+
+    <div class="screen" data-theme="dark" style="border:1px solid var(--sc-border);border-radius:12px;overflow:hidden;background:var(--sc-bg);">
+      <div style="display:flex;align-items:center;gap:10px;height:44px;padding:0 14px;background:var(--sc-chrome);border-bottom:1px solid var(--sc-border);">
+        <span style="width:8px;height:8px;border-radius:50%;background:var(--sc-green);box-shadow:0 0 0 3px rgba(74,222,128,.18);"></span>
+        <span style="font-size:13px;font-weight:600;color:var(--sc-text);">产品角度检测</span>
+        <span style="font-size:11px;color:var(--sc-muted);">循环运行中</span>
+        <span style="margin-left:auto;display:flex;gap:16px;font-size:11px;color:var(--sc-muted);font-variant-numeric:tabular-nums;">
+          <span>节拍 <b style="color:var(--sc-text);font-family:var(--mono);">2.48 s</b></span>
+          <span>今日 <b style="color:var(--sc-text);font-family:var(--mono);">1 284</b></span>
+          <span>NG <b style="color:var(--sc-red);font-family:var(--mono);">7</b></span>
+        </span>
+      </div>
+
+      <div style="padding:16px;">
+        <div class="dg" style="width:100%;">
+          <div class="dg-head">
+            <span class="dg-title">产品角度记录</span>
+            <span class="dg-badge">采集 128 · 显示 100</span>
+            <span class="dg-live"><span class="pulse"></span>实时</span>
+          </div>
+          <div class="dg-cols">
+            <span>时间</span><span>SN</span><span class="r">角度</span><span class="c">结果</span><span>MES 工单</span>
+          </div>
+          <div class="dg-body">
+            <div class="dg-row is-fresh"><span class="t">14:22:15.204</span><span class="sn">SN2026102000422</span><span class="ang">13.02°</span><span class="res"><span class="tag ok">OK</span></span><span class="mes">WO-2026-1020-07</span></div>
+            <div class="dg-row"><span class="t">14:22:12.885</span><span class="sn">SN2026102000421</span><span class="ang">12.63°</span><span class="res"><span class="tag ok">OK</span></span><span class="mes">WO-2026-1020-07</span></div>
+            <div class="dg-row"><span class="t">14:22:10.640</span><span class="sn">SN2026102000420</span><span class="ang">12.90°</span><span class="res"><span class="tag ok">OK</span></span><span class="mes">WO-2026-1020-07</span></div>
+            <div class="dg-row is-ng"><span class="t">14:22:08.117</span><span class="sn">SN2026102000419</span><span class="ang">14.36°</span><span class="res"><span class="tag ng">NG</span></span><span class="mes">WO-2026-1020-07</span></div>
+            <div class="dg-row"><span class="t">14:22:05.902</span><span class="sn">SN2026102000418</span><span class="ang">12.71°</span><span class="res"><span class="tag ok">OK</span></span><span class="mes">WO-2026-1020-07</span></div>
+            <div class="dg-row"><span class="t">14:22:03.418</span><span class="sn">SN2026102000417</span><span class="ang">12.84°</span><span class="res"><span class="tag ok">OK</span></span><span class="mes">WO-2026-1020-07</span></div>
+            <div class="dg-row"><span class="t">14:22:01.077</span><span class="sn">SN2026102000416</span><span class="ang">12.95°</span><span class="res"><span class="tag ok">OK</span></span><span class="mes">WO-2026-1020-07</span></div>
+            <div class="dg-row"><span class="t">14:21:58.630</span><span class="sn">SN2026102000415</span><span class="ang">12.88°</span><span class="res"><span class="tag ok">OK</span></span><span class="mes">WO-2026-1020-07</span></div>
+          </div>
+          <div class="dg-foot">
+            <span>缓存 100 行（满行后最旧的一行自动退出）</span>
+            <span class="sp">最后更新 14:22:15</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="note" style="margin-top:10px;">
+      <b>三条硬口径</b>：① 数字列（角度）用等宽字体 + <code>tabular-nums</code>，列与列之间数字对齐才扫得动；
+      ② 状态色只表达状态（OK 绿 / NG 红），不做装饰；③ 新行插入时**不滚动、不抢焦点**——现场正在看历史时被拽走是最烦的，
+      所以默认"新行在上"，最新一条永远在第一行。
+    </p>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 05 状态矩阵 -->
+  <!-- ============================================================ -->
+  <section class="section" id="states">
+    <div class="sec-head">
+      <span class="sec-index">05</span>
+      <h2>状态矩阵</h2>
+      <p>四种"不正常"都要说清楚，否则用户会以为表格坏了。</p>
+    </div>
+
+    <div class="states screen" data-theme="dark">
+      <div class="state">
+        <div class="cap"><b>空态</b>：已绑信号，还没来第一行<span class="why">首次启动 / 刚换班</span></div>
+        <div class="body">
+          <div class="empty">
+            <div class="ic">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 10h18M9 10v9"></path>
+              </svg>
+            </div>
+            <h4>等待第一条记录</h4>
+            <p>采行信号还没触发。产品过站后会在这里逐条出现。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="state">
+        <div class="cap"><b>未配置</b>：没绑采行信号<span class="why">设计漏配</span></div>
+        <div class="body">
+          <div class="empty">
+            <div class="ic" style="color:var(--sc-amber);border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.10);">⚠</div>
+            <h4>还没有绑定采行信号</h4>
+            <p>在属性面板「数据 → 采行信号」里选一个变量，表格才会开始记录。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="state">
+        <div class="cap"><b>断连 / 停更</b>：值不刷新<span class="why">通讯断 / 流程停</span></div>
+        <div class="body" style="display:block;">
+          <div class="stale">
+            <div class="dg" style="width:100%;">
+              <div class="dg-cols"><span>时间</span><span>SN</span><span class="r">角度</span><span class="c">结果</span><span>MES 工单</span></div>
+              <div class="dg-body">
+                <div class="dg-row"><span class="t">14:22:15.204</span><span class="sn">SN2026102000422</span><span class="ang">13.02°</span><span class="res"><span class="tag ok">OK</span></span><span class="mes">WO-2026-1020-07</span></div>
+                <div class="dg-row"><span class="t">14:22:12.885</span><span class="sn">SN2026102000421</span><span class="ang">12.63°</span><span class="res"><span class="tag ok">OK</span></span><span class="mes">WO-2026-1020-07</span></div>
+              </div>
+            </div>
+            <div class="flag">⚠ 已 2 分 14 秒没有新记录 · 最后更新 14:22:15</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="state">
+        <div class="cap"><b>列变量找不到</b>：配置指向了不存在的变量<span class="why">换方案 / 改名</span></div>
+        <div class="body" style="display:block;">
+          <div class="dg" style="width:100%;">
+            <div class="dg-cols"><span>时间</span><span>SN</span><span class="r">角度</span><span class="c">结果</span><span>MES 工单</span></div>
+            <div class="dg-body">
+              <div class="dg-row"><span class="t">14:22:15.204</span><span class="sn">SN2026102000422</span><span class="ang">13.02°</span><span class="res"><span class="tag ok">OK</span></span><span class="mes" style="color:var(--sc-red);">— 变量不存在 —</span></div>
+              <div class="dg-row"><span class="t">14:22:12.885</span><span class="sn">SN2026102000421</span><span class="ang">12.63°</span><span class="res"><span class="tag ok">OK</span></span><span class="mes" style="color:var(--sc-red);">— 变量不存在 —</span></div>
+            </div>
+            <div class="dg-foot"><span style="color:var(--sc-red);">1 列未解析：MES 工单 → MES_OrderNo</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="note" style="margin-top:10px;">
+      四种状态的文案都写"<b>为什么</b> + <b>怎么办</b>"，不写"暂无数据"。断连时**保留最后一屏内容并灰化**，
+      而不是清空——现场要靠它回看最后一件产品是什么。
+    </p>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 06 复刻映射 -->
+  <!-- ============================================================ -->
+  <section class="section" id="mapping">
+    <div class="sec-head">
+      <span class="sec-index">06</span>
+      <h2>令牌映射与复刻要点</h2>
+      <p>这一节是给第 ③ 步（WPF 复刻）看的。</p>
+    </div>
+
+    <div class="card">
+      <div style="font-size:12.5px;font-weight:600;margin-bottom:8px;">颜色令牌</div>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th style="width:200px;">本页 CSS 变量</th><th style="width:240px;">WPF 资源键</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td><code>--sc-surface</code></td><td><code>ScadaSurfaceBrush</code></td><td>表格底、表头底</td></tr>
+            <tr><td><code>--sc-chrome</code></td><td><code>ScadaTitleBarBrush</code></td><td>图元标题条</td></tr>
+            <tr><td><code>--sc-border</code></td><td><code>ScadaPanelBorderBrush</code></td><td>外框、列头分隔线</td></tr>
+            <tr><td><code>--sc-text</code> / <code>--sc-text-2</code></td><td><code>ScadaTextBrush</code> / <code>ScadaLabelTextBrush</code></td><td>正文、SN 列</td></tr>
+            <tr><td><code>--sc-muted</code> / <code>--sc-faint</code></td><td><code>ScadaSecondaryTextBrush</code> / <code>ScadaFaintTextBrush</code></td><td>列头、时间戳、脚注</td></tr>
+            <tr><td><code>--sc-green</code> / <code>--sc-red</code></td><td><code>FlowCanvasSuccessBrush</code> / <code>ScadaDangerBrush</code></td><td>OK / NG</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="font-size:12.5px;font-weight:600;margin:16px 0 8px;">复刻要点（踩过的坑，别重犯）</div>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th style="width:190px;">点</th><th>要求</th><th style="width:120px;">来源</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><b>表格控件</b></td>
+              <td>用 <code>ListView + GridView</code>，<b>不要用 WPF <code>DataGrid</code></b>：它自带编辑/排序/虚拟化一整套，样式在 Fluent 下更难压，而且我们要的只是"只读展示"。</td>
+              <td><span class="sev mid">取舍</span></td>
+            </tr>
+            <tr>
+              <td><b>隐式样式</b></td>
+              <td>必须挂 <code>GridListViewStyle</code>（否则 Fluent 的隐式 ListView 样式会让**列头整体消失**）、行模板里必须是 <code>GridViewRowPresenter</code>（否则整行显示成类型全名）、就地合并 <code>GridView.xaml</code>。</td>
+              <td><span class="sev high">R19–R22</span></td>
+            </tr>
+            <tr>
+              <td><b>ToggleButton</b></td>
+              <td>若标题条上有展开/折叠开关，自定义模板里的 <code>ToggleButton</code> 必须显式 <code>HorizontalAlignment="Stretch"</code>。</td>
+              <td><span class="sev high">R148</span></td>
+            </tr>
+            <tr>
+              <td><b>数字列</b></td>
+              <td>等宽字体 + 右对齐；格式化走不变文化（<code>F2</code>），否则中文系统上小数点是逗号。</td>
+              <td><span class="sev mid">R34</span></td>
+            </tr>
+            <tr>
+              <td><b>列定义落盘</b></td>
+              <td>一条规范 JSON 进属性袋（新 <code>ElementPropertyKind.ColumnList</code> + codec），与轴候选同构；<b>不存 CLR 类型</b>。</td>
+              <td><span class="sev low">照抄</span></td>
+            </tr>
+            <tr>
+              <td><b>行数据来源</b></td>
+              <td>图元不认识变量：宿主侧新增 <code>IScadaGridSource</code> 每拍按列取值，图元只接 <code>Rows</code> 快照（与 <code>IScadaAxisSource</code> 同构）。</td>
+              <td><span class="sev low">照抄</span></td>
+            </tr>
+            <tr>
+              <td><b>收录确认</b></td>
+              <td>采行成功之后，经 <code>IScadaValueWriter</code> 把确认变量 <b>+1</b>；写失败只记诊断、<b>不回滚已入表的行</b>（边沿判定保证不会重复采）。配置期就校验目标可写，别等运行期。</td>
+              <td><span class="sev low">复用</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 07 待确认 -->
+  <!-- ============================================================ -->
+  <section class="section" id="open">
+    <div class="sec-head">
+      <span class="sec-index">07</span>
+      <h2>待确认</h2>
+      <p>这几条定下来，第 ③ 步就能直接开工。</p>
+    </div>
+
+    <div class="card">
+      <table class="data" style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+        <thead><tr><th style="width:36px;">#</th><th style="width:220px;">问题</th><th style="width:260px;">我的建议</th><th>备选</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td><b>采行触发</b></td><td><b>已定</b>：信号上升沿（<code>false→true</code> 采一行），<b>默认不复位</b>——采行信号由 PLC / 流程自己落，图元只读</td><td>可选「采行后复位」（图元写回变量，需目标可写，且顺序必须"取值→落行→复位"）；手动命令（多一个状态机）</td></tr>
+          <tr><td class="num">2</td><td><b>缓存行数上限</b></td><td>默认 100，可配到 500；超过就丢最旧的一行</td><td>不设上限——内存与渲染都会失控，不建议</td></tr>
+          <tr><td class="num">3</td><td><b>行序</b></td><td>默认新行在上（最新一条永远第一行，不用滚动）</td><td>老行在上 + 自动滚到底（现场看历史时会被拽走）</td></tr>
+          <tr><td class="num">4</td><td><b>要不要导出 CSV</b></td><td>第一版不做，只做展示</td><td>要的话做成事件动作「导出当前表格」，别塞进图元模板</td></tr>
+          <tr><td class="num">5</td><td><b>结果列的值映射</b></td><td>列上配 <code>1=OK / 0=NG</code>，映射后按状态色显示</td><td>不配就显示原值；第一版只做"文本 + 可选状态色"</td></tr>
+          <tr><td class="num">6</td><td><b>列宽单位</b></td><td>像素（与属性面板其它尺寸一致），最后一列可填「余量」</td><td>百分比——缩放时表现更好，但与其它属性不统一</td></tr>
+          <tr><td class="num">7</td><td><b>「已收录」怎么让流程知道</b></td><td><b>已定（方案 A）</b>：加可选的「收录确认变量」，每采一行 <b>+1</b>；<b>采行信号本身不动</b>，图元对它是只读的</td><td>B：流程自己置采行信号；C：图元复位采行信号（不推荐）</td></tr>
+        </tbody>
+      </table>
+      <p class="note" style="margin-top:12px;">
+        确认后按 R127：② 定稿与令牌映射（写进本目录 README）→ ③ WPF 复刻（<code>Scada.Controls</code> 新增图元 + 宿主供数服务 + 列配置弹窗）
+        → ④ 同屏同状态截图对照验收。
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  (function () {
+    var buttons = document.querySelectorAll('[data-screen-theme]');
+    var screens = document.querySelectorAll('.screen');
+
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var theme = btn.getAttribute('data-screen-theme');
+
+        buttons.forEach(function (b) { b.classList.toggle('is-on', b === btn); });
+        screens.forEach(function (s) { s.setAttribute('data-theme', theme); });
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>

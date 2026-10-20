@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using HalconDotNet;
@@ -9,21 +11,19 @@ using Microsoft.Win32;
 namespace Plugin.BeadInspect
 {
     /// <summary>
-    /// 胶路检测的配置视图（方案说明书 §6）。
+    /// 胶路检测的配置视图（Web 基线 v1）。
     ///
     /// 视图不写业务逻辑：点列/配方/学习/提取的都在 BeadInspectPlugin（DataContext）里。
-    /// 本文件只做三件事：
-    /// ① 按钮事件转发；
-    /// ② Loaded 后经视觉树拿到共享控件 ImageEdit 内部的 HSmartWindowControlWPF，
-    ///    直接订阅它的鼠标事件（HMouseEventArgsWPF 自带图像坐标 Row/Column，无需自算
-    ///    SetPart 缩放换算）——这是**叠加**鼠标事件，不改共享控件源码；
-    /// ③ Ctrl+Z 撤销键与点列表格的编辑提交转发。
+    /// 本文件只做四件事：
+    /// ① 按钮命令转发（UiCommand → 插件现有公开方法）；
+    /// ② Loaded 后从主画布 ImageEdit 的视觉树拿到 HSmartWindowControlWPF，订阅鼠标事件；
+    /// ③ Ctrl+Z 撤销键与点列表格的编辑提交转发；
+    /// ④ 纯显示转换器（极性 dark/light 的中文显示）。
     ///
     /// 与共享控件的相处（不改 Core.Halcon 的边界）：
-    /// · 左键拖动留给「拖点」→ 实例级关闭 HMoveContent（涂抹模式同款处理）；
-    /// · 右键 = 删最近点 → 实例级清掉 ImageEdit 在 RegisterMouseMethods 里注册的右键菜单；
-    /// · 叠加层（路径/点/矫正四点）走共享控件的 Annotations 通道：整体换 List 触发 RenderAll，
-    ///   不直接画 HWindow，避免与控件内部重绘互相覆盖。
+    /// · 左键拖动留给「拖点」→ 实例级关闭 HMoveContent；
+    /// · 右键 = 删最近点 → 实例级清掉 ImageEdit 的右键菜单；
+    /// · 叠加层走共享控件的 Annotations 通道，不直接画 HWindow。
     /// </summary>
     public partial class BeadInspectView : UserControl
     {
@@ -33,11 +33,40 @@ namespace Plugin.BeadInspect
         public BeadInspectView()
         {
             InitializeComponent();
+
+            LearnCommand = new UiCommand(() => Plugin?.LearnRecipe());
+            AutoExtractCommand = new UiCommand(() => Plugin?.AutoExtractCenterline());
+            UndoCommand = new UiCommand(() => Plugin?.UndoLastPick());
+            ClearPointsCommand = new UiCommand(() => Plugin?.ClearPickedPoints());
+            ToggleQuadPickCommand = new UiCommand(() => Plugin?.ToggleQuadPick());
+            ClearQuadCommand = new UiCommand(() => Plugin?.ClearRectifyQuad());
+            FitCommand = new UiCommand(() => Canvas.FitToImage());
+            AddEntryCommand = new UiCommand(() => Plugin?.AddRecipeEntry());
+            DeleteEntryCommand = new UiCommand(() => Plugin?.DeleteSelectedEntry());
+            SetDefaultCommand = new UiCommand(() => Plugin?.SetRecipeAsDefault());
+            LoadRefCommand = new UiCommand(LoadRef);
+            ApplyRectCommand = new UiCommand(() => Plugin?.ApplyExplicitRectifyTarget());
+
             Loaded += OnViewLoaded;
             PreviewKeyDown += OnViewPreviewKeyDown;
         }
 
         private BeadInspectPlugin? Plugin => DataContext as BeadInspectPlugin;
+
+        // 按钮命令：DataContext 是插件实例，所以命令挂在视图上、用 RelativeSource 绑定。
+        // 只转发到插件现有的公开方法，不新增任何业务行为。
+        public ICommand LearnCommand { get; }
+        public ICommand AutoExtractCommand { get; }
+        public ICommand UndoCommand { get; }
+        public ICommand ClearPointsCommand { get; }
+        public ICommand ToggleQuadPickCommand { get; }
+        public ICommand ClearQuadCommand { get; }
+        public ICommand FitCommand { get; }
+        public ICommand AddEntryCommand { get; }
+        public ICommand DeleteEntryCommand { get; }
+        public ICommand SetDefaultCommand { get; }
+        public ICommand LoadRefCommand { get; }
+        public ICommand ApplyRectCommand { get; }
 
         private void OnViewLoaded(object sender, RoutedEventArgs e)
         {
@@ -45,24 +74,28 @@ namespace Plugin.BeadInspect
             GrabHSmart();
         }
 
-        /// <summary>拿到模板里的 HSmartWindowControlWPF（模板已应用后视觉树里才有）</summary>
+        /// <summary>
+        /// 拿到主画布 ImageEdit 模板里的 HSmartWindowControlWPF。
+        /// 必须从 Canvas 子树找，不能从整个视图找：结果预览里的 ImageReadOnly 也是 HSmart 宿主，
+        /// 从视图根找可能先命中预览，把点拾取事件挂到只读预览上。
+        /// </summary>
         private void GrabHSmart()
         {
             if (_hSmart != null)
                 return;
-            var smart = FindDescendant<HSmartWindowControlWPF>(this);
+            var smart = FindDescendant<HSmartWindowControlWPF>(Canvas);
             if (smart == null)
                 return;
             _hSmart = smart;
 
             // 左键拖动留给"拖点"：关掉控件自带的拖拽平移（同 HalconBase 涂抹模式的处理）。
-            // 缩放走滚轮，"适应图片"走按钮 —— 精确拾取优先
+            // 缩放走滚轮，"适应图片"走按钮 —— 精确拾取优先。
             _hSmart.HMoveContent = false;
             _hSmart.HMouseDown += OnCanvasMouseDown;
             _hSmart.HMouseMove += OnCanvasMouseMove;
             _hSmart.HMouseUp += OnCanvasMouseUp;
 
-            // 右键 = 删最近点：屏蔽 ImageEdit 共享控件注册的 ROI 右键菜单（实例级，不改共享控件）
+            // 右键 = 删最近点：屏蔽 ImageEdit 共享控件注册的 ROI 右键菜单（实例级，不改共享控件）。
             Canvas.ContextMenu = null;
         }
 
@@ -137,27 +170,14 @@ namespace Plugin.BeadInspect
             }
         }
 
-        // ── 按钮转发（业务都在插件） ──
-
-        private void OnAddEntryClick(object sender, RoutedEventArgs e) => Plugin?.AddRecipeEntry();
-
-        private void OnDeleteEntryClick(object sender, RoutedEventArgs e) => Plugin?.DeleteSelectedEntry();
-
-        private void OnSetDefaultClick(object sender, RoutedEventArgs e) => Plugin?.SetRecipeAsDefault();
+        // ── 命令实现（业务都在插件） ──
 
         /// <summary>
         /// 「载入」= 载入当前配方的参考图（平面可变形对齐的模板 + 坐标系基准）。
-        ///
-        /// 2026-10-09 用户真机第一问「这个载入是不是没有效果」的修复：
-        /// 本插件此前没有任何文件选择器（全插件 grep OpenFileDialog 零命中），用户必须在 200% 缩放的
-        /// 窗口里手打完整图片路径才能用「载入」——空路径时 LoadRefImage 只写一行状态文字就 return，
-        /// 屏幕上就是"点了没反应"（用户截图：路径框空、底部一行"还没有参考图路径…"）。
-        /// 现在：路径为空或文件已失效 → 弹文件选择框（<see cref="RefImagePicker"/> /
-        /// <see cref="PickRefImageFile"/>）→ 选定后写回 RefImagePath（INPC 自动刷新路径框）
-        /// 再载入；路径有效 → 保持原行为（直接载入）。取消选择 = 什么都不动。
-        /// 业务逻辑一行不动：真正的"读图/切底图/写状态"仍全在 BeadInspectPlugin.LoadRefImage 里。
+        /// 路径为空或文件不存在时弹文件选择框，选定后写回 RefImagePath（INPC 刷新路径框）再载入；
+        /// 路径有效时直接载入；取消选择 = 什么都不动。真正的读图/切底图/写状态仍在插件里。
         /// </summary>
-        private void OnLoadRefClick(object sender, RoutedEventArgs e)
+        private void LoadRef()
         {
             var plugin = Plugin;
             if (plugin?.EditingEntry is not { } entry)
@@ -169,24 +189,17 @@ namespace Plugin.BeadInspect
                 var picked = (RefImagePicker ?? PickRefImageFile)(path);
                 if (string.IsNullOrWhiteSpace(picked))
                     return; // 用户取消：路径框与画布都保持原样
-                entry.RefImagePath = picked; // INPC → 路径框立刻回显（不用用户再手打一遍）
+                entry.RefImagePath = picked; // INPC → 路径框立刻回显
             }
             plugin.LoadRefImage();
         }
 
         /// <summary>
-        /// 「载入」选文件的委托。默认 null = 走下面的 <see cref="PickRefImageFile"/>（真 OpenFileDialog）；
-        /// 离屏探针 / 断言宿主里没有交互桌面（模态框弹不出来），把它换成一个返回固定路径的替身，
-        /// 就能在无人值守下走通"空路径 → 选文件 → 写回 RefImagePath → LoadRefImage"整条链
-        /// （见 _BeadViewProbe 的 P1 自检）。实例级而非 static：视图之间互不影响。
+        /// 「载入」选文件的委托。默认 null = 走 <see cref="PickRefImageFile"/>（真 OpenFileDialog）；
+        /// 离屏探针 / 断言宿主里没有交互桌面，把它换成一个返回固定路径的替身即可。
         /// </summary>
         public Func<string?, string?>? RefImagePicker { get; set; }
 
-        /// <summary>
-        /// 选参考图文件的弹框（「载入」在路径为空/文件不存在时调用）。
-        /// Filter / Title 的写法照 <c>Plugin.ImageAcquisition.ImageAcquisitionPlugin.BrowseFile</c>；
-        /// InitialDirectory 优先路径框现有目录，其次仓库自带的 <c>Image\bead</c>（存在才用）。
-        /// </summary>
         private string? PickRefImageFile(string? currentPath)
         {
             var dlg = new OpenFileDialog
@@ -209,22 +222,6 @@ namespace Plugin.BeadInspect
             return dlg.ShowDialog() == true ? dlg.FileName : null;
         }
 
-        private void OnLearnClick(object sender, RoutedEventArgs e) => Plugin?.LearnRecipe();
-
-        private void OnAutoExtractClick(object sender, RoutedEventArgs e) => Plugin?.AutoExtractCenterline();
-
-        private void OnUndoClick(object sender, RoutedEventArgs e) => Plugin?.UndoLastPick();
-
-        private void OnClearPointsClick(object sender, RoutedEventArgs e) => Plugin?.ClearPickedPoints();
-
-        private void OnToggleQuadPickClick(object sender, RoutedEventArgs e) => Plugin?.ToggleQuadPick();
-
-        private void OnClearQuadClick(object sender, RoutedEventArgs e) => Plugin?.ClearRectifyQuad();
-
-        private void OnApplyRectClick(object sender, RoutedEventArgs e) => Plugin?.ApplyExplicitRectifyTarget();
-
-        private void OnFitClick(object sender, RoutedEventArgs e) => Canvas.FitToImage();
-
         // ── 点列表格：编辑提交 / 行删除 ──
 
         private void OnPointCellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
@@ -241,6 +238,46 @@ namespace Plugin.BeadInspect
             int index = p.PointRows.IndexOf(row);
             if (index >= 0)
                 p.DeletePointAt(index);
+        }
+    }
+
+    /// <summary>
+    /// 极性显示转换器：持久化值仍是 "dark" / "light"，只把下拉里的文字换成中文。
+    /// 不改变 SelectedItem 的类型，也不改变配方条目的 Polarity 字符串。
+    /// </summary>
+    public sealed class PolarityNameConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is string text)
+            {
+                if (string.Equals(text, "dark", StringComparison.OrdinalIgnoreCase))
+                    return "暗胶（dark）";
+                if (string.Equals(text, "light", StringComparison.OrdinalIgnoreCase))
+                    return "亮胶（light）";
+            }
+            return value ?? string.Empty;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+            Binding.DoNothing;
+    }
+
+    /// <summary>视图内按钮用的最小 ICommand 实现：只执行、不做 CanExecute 门槛。</summary>
+    internal sealed class UiCommand : ICommand
+    {
+        private readonly Action _execute;
+
+        public UiCommand(Action execute) => _execute = execute;
+
+        public bool CanExecute(object? parameter) => true;
+
+        public void Execute(object? parameter) => _execute();
+
+        public event EventHandler? CanExecuteChanged
+        {
+            add => CommandManager.RequerySuggested += value;
+            remove => CommandManager.RequerySuggested -= value;
         }
     }
 }

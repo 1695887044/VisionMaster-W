@@ -7,6 +7,7 @@ using System.Windows.Threading;
 using Core.Interfaces;
 using Prism.Commands;
 using Prism.Mvvm;
+using VisionMaster.Models;
 using VisionMaster.Services;
 
 namespace VisionMaster.ViewModels.DialogViewModels
@@ -187,6 +188,17 @@ namespace VisionMaster.ViewModels.DialogViewModels
     {
         private readonly MotionProvider _provider;
         private readonly MotionBoardViewModel _shell;
+        private readonly IWorkspaceManager _workspace;
+
+        /// <summary>
+        /// 本面板发起、尚未结束的手动等待（回零 / 走到并等待）按设备计数。
+        ///
+        /// 不能只记一张卡：回零途中切到另一张卡再定位，两路等待会重叠；
+        /// 单槽会被后一路覆盖，关窗时就只取消后一张卡，前一张在无人看管下继续走。
+        /// 用引用相等判"同一张卡"——设备实例由 Provider 持有，不重写 Equals。
+        /// </summary>
+        private readonly Dictionary<IMotionDevice, int> _pendingManualDevices =
+            new(ReferenceEqualityComparer.Instance);
 
         private DispatcherTimer? _jogWatchdog;
         private DateTime _lastJogPulseUtc = DateTime.MinValue;
@@ -206,6 +218,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             MotionProvider provider, IWorkspaceManager workspace, MotionBoardViewModel shell)
         {
             _provider = provider;
+            _workspace = workspace;
             _shell = shell;
 
             ToggleConnectCommand = new DelegateCommand(ToggleConnect);
@@ -535,12 +548,30 @@ namespace VisionMaster.ViewModels.DialogViewModels
             MoveAbsoluteAndWaitCommand.RaiseCanExecuteChanged();
         }
 
-        /// <summary>外壳打开时启动点动看门狗</summary>
-        public void OnShellOpened()
+        /// <summary>外壳打开时启动点动看门狗（幂等：已存在就不重建）</summary>
+        public void OnShellOpened() => OnShellActivated();
+
+        /// <summary>
+        /// 页面重新可见：只保证看门狗在跑。可多次调用，不重建已存在的定时器。
+        /// </summary>
+        public void OnShellActivated()
         {
+            if (_jogWatchdog != null) return;
+
             _jogWatchdog = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
             _jogWatchdog.Tick += (_, _) => CheckJogWatchdog();
             _jogWatchdog.Start();
+        }
+
+        /// <summary>
+        /// 页面被切走：停看门狗 + 停点动。<b>不 CancelAll</b> —— 同一张卡上可能还有流程命令，
+        /// 切个页签把它们砍掉是生产事故。完整关闭才走 <see cref="OnShellClosed"/>。
+        /// </summary>
+        public void OnShellDeactivated()
+        {
+            _jogWatchdog?.Stop();
+            _jogWatchdog = null;
+            StopJog("页面已切换");
         }
 
         /// <summary>
@@ -556,27 +587,75 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// </summary>
         public void OnShellClosed()
         {
-            _jogWatchdog?.Stop();
-            _jogWatchdog = null;
-            StopJog("调试面板已关闭");
+            OnShellDeactivated();
 
-            if (!IsWaitingHome && !IsWaitingArrival) return;
+            if (!HasPendingManualMotion) return;
 
-            var device = CurrentDevice;
+            // 流程在跑时 CancelAll 会连流程命令一起砍（CancelAll 是设备级清队列，
+            // 不是"只撤本面板发起的"）。宁可不撤手动命令并提示，也不制造生产事故。
+            if (AnyFlowRunning())
+            {
+                StatusText = "流程运行中：已保留手动回零/定位命令；请先停止流程或确认轴状态后再关闭。";
+                _shell.NotifyError("流程运行中，未取消手动回零/定位命令；请确认轴状态。");
+                return;
+            }
+
+            // 每一张有未结束手动等待的卡都要撤：只撤一张会留下另一张在无人看管下继续走。
+            // 计数为空但等待标志还在（理论上不该发生）时，退回撤当前卡，至少不什么都不做。
+            var devices = _pendingManualDevices.Count > 0
+                ? _pendingManualDevices.Keys.ToArray()
+                : new[] { CurrentDevice };
+            _pendingManualDevices.Clear();
             _modeByAxis.Clear();
             IsWaitingHome = false;
             IsWaitingArrival = false;
             MoveAbsoluteAndWaitCommand.RaiseCanExecuteChanged();
 
-            try
+            foreach (var device in devices)
             {
-                device?.CancelAll("手动调试面板已关闭");
+                try
+                {
+                    device?.CancelAll("手动调试面板已关闭");
+                }
+                catch (Exception ex)
+                {
+                    // 关窗路径上不再抛：这里唯一的后果是"没能撤掉"，日志留痕即可
+                    System.Diagnostics.Debug.WriteLine($"[MotionDebug] 关闭时取消命令失败：{ex.Message}");
+                }
             }
-            catch (Exception ex)
+        }
+
+        /// <summary>本面板是否还有自己发起、尚未结束的手动回零/定位等待。</summary>
+        public bool HasPendingManualMotion => _pendingManualDevices.Count > 0;
+
+        private void BeginPendingManual(IMotionDevice? device)
+        {
+            if (device == null) return;
+            _pendingManualDevices.TryGetValue(device, out var count);
+            _pendingManualDevices[device] = count + 1;
+        }
+
+        private void EndPendingManual(IMotionDevice? device)
+        {
+            if (device == null) return;
+            if (!_pendingManualDevices.TryGetValue(device, out var count)) return;
+
+            if (count <= 1) _pendingManualDevices.Remove(device);
+            else _pendingManualDevices[device] = count - 1;
+        }
+
+        private bool AnyFlowRunning()
+        {
+            var flows = _workspace.CurrentSolution?.Flows;
+            if (flows == null) return false;
+
+            foreach (var flow in flows)
             {
-                // 关窗路径上不再抛：这里唯一的后果是"没能撤掉"，日志留痕即可
-                System.Diagnostics.Debug.WriteLine($"[MotionDebug] 关闭时取消命令失败：{ex.Message}");
+                if (flow != null && flow.RunState != FlowRunState.Stopped)
+                    return true;
             }
+
+            return false;
         }
 
         #endregion
@@ -877,6 +956,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
 
             IsWaitingArrival = true;
+            BeginPendingManual(device);
             try
             {
                 var deadline = DateTime.UtcNow.AddMilliseconds(waitMs);
@@ -911,6 +991,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             finally
             {
                 IsWaitingArrival = false;
+                EndPendingManual(device);
                 MoveAbsoluteAndWaitCommand.RaiseCanExecuteChanged();
             }
         }
@@ -976,7 +1057,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             if (homeMode == HomeMode.PresetZero)
             {
-                await Task.Run(() => command.Completion.Wait(command.Timeout));
+                BeginPendingManual(device);
+                try
+                {
+                    await Task.Run(() => command.Completion.Wait(command.Timeout));
+                }
+                finally
+                {
+                    EndPendingManual(device);
+                }
+
                 if (command.State == MotionCommandState.Done)
                     _shell.NotifyOk($"{axis.LogicalName} 当前位置已置零");
                 else
@@ -986,10 +1076,19 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             _modeByAxis[axis.LogicalName] = "回零";
             IsWaitingHome = true;
+            BeginPendingManual(device);
             StatusText = $"轴「{axis.LogicalName}」回零中（{MotionEnumDisplay.Text(homeMode)}）…";
 
-            var completed = await Task.Run(() => command.Completion.Wait(command.Timeout));
-            IsWaitingHome = false;
+            var completed = false;
+            try
+            {
+                completed = await Task.Run(() => command.Completion.Wait(command.Timeout));
+            }
+            finally
+            {
+                IsWaitingHome = false;
+                EndPendingManual(device);
+            }
 
             if (!completed)
                 StatusText = $"回零超时（>120s）";

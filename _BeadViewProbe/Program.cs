@@ -312,8 +312,10 @@ namespace BeadViewProbe
         ///
         /// 弹框本身在离屏宿主里弹不出来（没有交互桌面），所以把视图的
         /// <see cref="BeadInspectView.RefImagePicker"/> 换成返回固定路径的替身，
-        /// 按钮用 RaiseEvent 走**真实 Click 链路**（Click → OnLoadRefClick → 选文件 → entry.RefImagePath
+        /// 按钮走**真实命令链路**（Command → LoadRefCommand → 选文件 → entry.RefImagePath
         /// → Plugin.LoadRefImage）——这就是"空路径走弹框分支"的代码级证据。
+        /// 2026-10-20 Web 化后「载入」从 Click 改为 `Command="{Binding LoadRefCommand}"`；
+        /// RaiseEvent(Button.ClickEvent) 不会执行 Command，必须调用 Command.Execute。
         /// （不用派生视图：XAML 根的 BAML 只能由它自己的类型 LoadComponent，派生类会抛
         /// "组件不具有由 URI 识别的资源"，2026-10-09 实测。）
         /// </summary>
@@ -358,13 +360,13 @@ namespace BeadViewProbe
                 Pump(400);
 
                 var loadBtn = FindAll<Button>(view).FirstOrDefault(b => (b.Content as string) == "载入");
-                Check("P1-a 视图里能定位「载入」按钮（Click 接线的真实入口）", loadBtn != null,
+                Check("P1-a 视图里能定位「载入」按钮（Command 接线的真实入口）", loadBtn != null,
                     loadBtn == null ? "没找到" : $"实际宽={loadBtn.ActualWidth:F0}");
                 if (loadBtn == null)
                     return;
 
                 // ① 空路径 → 选文件分支被调用 → 路径回填 → 参考图真的上画布
-                loadBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                ClickLoadButton(loadBtn);
                 Pump(300);
                 Check("P1① 空路径点「载入」→ 走文件选择分支（1 次）", pickCalls == 1, $"pickCalls={pickCalls}");
                 Check("P1① 选中路径写回 EditingEntry.RefImagePath（路径框随之刷新）",
@@ -375,7 +377,7 @@ namespace BeadViewProbe
                 p6.EditingEntry.RefImagePath = "";
                 p6.LoadRefImage(); // 让底图回到与"空路径"一致的状态
                 pickResult = null;
-                loadBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                ClickLoadButton(loadBtn);
                 Pump(250);
                 Check("P1② 取消选文件 → 选择分支确实被走到（2 次）", pickCalls == 2, $"pickCalls={pickCalls}");
                 Check("P1② 取消 → 路径仍为空（不写回）", string.IsNullOrEmpty(p6.EditingEntry.RefImagePath),
@@ -385,14 +387,14 @@ namespace BeadViewProbe
 
                 // ③ 路径有效 → 不弹框（保持原行为：直接载入）
                 p6.EditingEntry.RefImagePath = refPath;
-                loadBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                ClickLoadButton(loadBtn);
                 Pump(250);
                 Check("P1③ 路径有效点「载入」→ 不弹框（pickCalls 仍为 2）", pickCalls == 2, $"pickCalls={pickCalls}");
                 Check("P1③ 路径有效 → 直接载入画布（底图 = 参考图）", BaseHint(p6).Contains("参考图"), BaseHint(p6));
 
                 // ④ 路径填了但文件不存在（用户手打错路径）→ 也要弹框兜底
                 p6.EditingEntry.RefImagePath = Path.Combine(BeadDir, "not_exist_2026.png");
-                loadBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                ClickLoadButton(loadBtn);
                 Pump(250);
                 Check("P1④ 路径失效点「载入」→ 走文件选择分支（3 次）", pickCalls == 3, $"pickCalls={pickCalls}");
 
@@ -411,6 +413,19 @@ namespace BeadViewProbe
                 try { win?.Close(); } catch { }
                 try { p6.Dispose(); } catch { }
             }
+        }
+
+        /// <summary>
+        /// 驱动「载入」按钮：新视图是 Command 接线（`Command="{Binding LoadRefCommand}"`），
+        /// RaiseEvent(Button.ClickEvent) 不会执行 Command，会让 P1 断言假绿。
+        /// 因此这里只走 Command；没有 Command 绑定直接报错，而不是回退到 Click。
+        /// </summary>
+        private static void ClickLoadButton(Button loadBtn)
+        {
+            if (loadBtn.Command == null)
+                throw new InvalidOperationException(
+                    "「载入」按钮没有 Command 绑定（期望 LoadRefCommand）；RaiseEvent 不会执行 Command。");
+            loadBtn.Command.Execute(loadBtn.CommandParameter);
         }
 
         /// <summary>反射读新属性：探针要在"改前/改后"两版插件上都能编译（属性不存在时返回默认值）</summary>

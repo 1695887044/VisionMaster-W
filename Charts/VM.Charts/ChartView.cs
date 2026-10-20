@@ -1155,6 +1155,31 @@ namespace VM.Charts
             _plot.Refresh();
         }
 
+        // 实例级表面色覆盖：SCADA 趋势图要落在深色运行画面上，但不能改全局 ChartTheme
+        // （同一个进程里还有独立图表窗口/探针，它们仍应跟随 Fluent 主题）。
+        private System.Windows.Media.Color? _figureBackgroundOverride;
+        private System.Windows.Media.Color? _dataBackgroundOverride;
+        private System.Windows.Media.Color? _gridOverride;
+        private System.Windows.Media.Color? _tickOverride;
+
+        /// <summary>
+        /// 显式覆盖本实例的画布/数据区/网格/刻度色；传 null 表示恢复跟随 <see cref="ChartTheme"/>。
+        /// 供深色画布上的嵌入式图表使用（如 SCADA 趋势图元）。
+        /// </summary>
+        public void SetSurfaceColors(
+            System.Windows.Media.Color? figureBackground,
+            System.Windows.Media.Color? dataBackground,
+            System.Windows.Media.Color? grid,
+            System.Windows.Media.Color? tick)
+        {
+            _figureBackgroundOverride = figureBackground;
+            _dataBackgroundOverride = dataBackground;
+            _gridOverride = grid;
+            _tickOverride = tick;
+            ApplyTheme();
+            _plot.Refresh();
+        }
+
         /// <summary>
         /// 显式设置轴范围(含右轴;传 null 表示不动该轴)。
         /// 供宿主实现"X 随数据增长拉伸""固定 Y 量程"等策略。
@@ -1885,10 +1910,10 @@ namespace VM.Charts
             {
                 try { _plot.Plot.Font.Set("SimSun"); } catch { }
             }
-            _plot.Plot.FigureBackground.Color = ChartTheme.ToSP(ChartTheme.FigureBackground);
-            _plot.Plot.DataBackground.Color = ChartTheme.ToSP(ChartTheme.DataBackground);
-            _plot.Plot.Axes.Color(ChartTheme.ToSP(ChartTheme.Tick));
-            _plot.Plot.Grid.MajorLineColor = ChartTheme.ToSP(ChartTheme.Grid);
+            _plot.Plot.FigureBackground.Color = ChartTheme.ToSP(_figureBackgroundOverride ?? ChartTheme.FigureBackground);
+            _plot.Plot.DataBackground.Color = ChartTheme.ToSP(_dataBackgroundOverride ?? ChartTheme.DataBackground);
+            _plot.Plot.Axes.Color(ChartTheme.ToSP(_tickOverride ?? ChartTheme.Tick));
+            _plot.Plot.Grid.MajorLineColor = ChartTheme.ToSP(_gridOverride ?? ChartTheme.Grid);
         }
 
         private static void OnAnnotationsSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

@@ -84,7 +84,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             _realTree.Clear();
 
-            foreach (var gv in _workspace.GlobalVariables)
+            foreach (var gv in EnumerateTreeVariables())
             {
                 var rootNode = CreateRootNode(gv);
                 rootNode.IsExpanded = gv.VariableId != Guid.Empty
@@ -101,6 +101,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             UpdateFlatList();
         }
+
+        /// <summary>
+        /// 明细树的数据源。
+        ///
+        /// 默认只有用户变量（<see cref="IWorkspaceManager.GlobalVariables"/>）。
+        /// 变量管理弹窗还要把「系统变量」分区显示出来，而系统/IO 变量自 2026-10-18 起
+        /// 住在 <see cref="IWorkspaceManager.SystemVariables"/>（不落盘、不进 GlobalVariables），
+        /// 所以由子类覆写把两边合并；本基类的其它消费方（无）保持原语义。
+        /// </summary>
+        protected virtual IEnumerable<IVariable> EnumerateTreeVariables() => _workspace.GlobalVariables;
 
         #region 子类重写方法
         /// <summary>

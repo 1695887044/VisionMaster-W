@@ -297,6 +297,8 @@ namespace VisionMaster.Scada
             ScadaActionType.StartFlow => _flowName ?? string.Empty,
             ScadaActionType.StopFlow => _flowName ?? string.Empty,
             ScadaActionType.RunFlowOnce => _flowName ?? string.Empty,
+            ScadaActionType.PauseFlow => _flowName ?? string.Empty,
+            ScadaActionType.ResumeFlow => _flowName ?? string.Empty,
             // 运动九条的行内摘要（属性面板 260px 宽，只放"哪根轴 + 关键数字"，
             // 完整的措辞在 Describe 里给日志与审计用）。
             // 轴一律走 AxisLabel：没选轴时它给"（未选轴）"，只剩 Id 时给"轴#前8位"，
@@ -438,6 +440,12 @@ namespace VisionMaster.Scada
             ScadaActionType.RunFlowOnce => !HasFlow
                 ? "执行一次流程（未选流程）"
                 : $"执行一次流程 {_flowName}",
+            ScadaActionType.PauseFlow => !HasFlow
+                ? "暂停流程（未选流程）"
+                : $"暂停流程 {_flowName}",
+            ScadaActionType.ResumeFlow => !HasFlow
+                ? "恢复流程（未选流程）"
+                : $"恢复流程 {_flowName}",
             // 运动九条：未选轴的措辞与另外三种同款（"××（未选轴）"），面板据此亮橙色提示。
             // 速度只在"配了才提"：没配速度走卡级默认是常态，每行都缀一句"默认速度"会把日志读花。
             ScadaActionType.MotionEnable => !HasAxis

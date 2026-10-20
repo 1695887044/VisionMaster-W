@@ -56,8 +56,16 @@
                         <Setter.Value>
                             <ControlTemplate TargetType="Expander">
                                 <StackPanel>
+                                    <!--  ★ HorizontalAlignment / VerticalAlignment 必须显式写 Stretch：
+                                          App.xaml 最后合并的 .NET 9 Fluent 主题给「所有」ToggleButton 设了
+                                          HorizontalAlignment=Left + VerticalAlignment=Center（实测 setter 链）。
+                                          自定义模板里的 ToggleButton 没挂 Style，就会吃到那一份 ——
+                                          表现是组头那圈下划线只到内容宽度、箭头贴在计数徽标后面
+                                          （2026-10-20 真机截图复现）。  -->
                                     <ToggleButton
                                         x:Name="HeaderSite"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
                                         Focusable="False"
                                         IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
                                         <ToggleButton.Template>
@@ -215,6 +223,29 @@
                         Style="{StaticResource ValueBox}"
                         ToolTip="{Binding ErrorText}"
                         Text="{Binding Value, UpdateSourceTrigger=LostFocus}" />
+                </DataTemplate>
+
+                <!--  只读行（「类型」）：给一块与输入框同尺码的底色，但不可聚焦、不可编辑。
+                      为什么不复用 EditText + IsReadOnly：那仍然是个能聚焦、能选中、能打字的框，
+                      而打进去的字会被静默丢掉——"看起来能改"比"看起来不能改"更伤信任
+                      （与图像行不给输入框同一条理由）。  -->
+                <DataTemplate x:Key="EditReadOnly">
+                    <Border
+                        MinHeight="26"
+                        Padding="6,3"
+                        VerticalAlignment="Center"
+                        Background="{StaticResource ScadaBadgeBackgroundBrush}"
+                        BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                            Text="{Binding Value}"
+                            TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding Value}" />
+                    </Border>
                 </DataTemplate>
 
                 <!--
@@ -566,7 +597,13 @@
                         <Setter.Value>
                             <ControlTemplate TargetType="ComboBox">
                                 <Grid SnapsToDevicePixels="True">
+                                    <!--  ★ 同组头那处：Fluent 的隐式 ToggleButton 样式把对齐设成 Left/Center，
+                                          这一颗是 ComboBox 的「外壳」，缩成内容宽度后只剩箭头那么大 ——
+                                          框看不见、箭头跑到文字左边（2026-10-20 真机截图复现）。
+                                          显式 Stretch 把它拉回整格。  -->
                                     <ToggleButton
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
                                         ClickMode="Press"
                                         Focusable="False"
                                         IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
@@ -743,10 +780,51 @@
                     </Grid>
                 </DataTemplate>
 
+                <!--  列定义（数据表格）：值是一整条 JSON，手填不现实 —— 行上只放摘要 + 「选择列…」。
+                      与上面「候选轴」同一形态；按钮配色走令牌（R140：不许新增硬编码色值）。  -->
+                <DataTemplate x:Key="EditColumnList">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                            Text="{Binding Summary}"
+                            TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding Summary}" />
+                        <Button
+                            Grid.Column="1"
+                            Margin="6,0,0,0"
+                            Padding="8,2"
+                            Background="{StaticResource ScadaSurfaceBrush}"
+                            BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                            BorderThickness="1"
+                            Command="{Binding PickColumnsCommand}"
+                            Content="选择列…"
+                            Cursor="Hand"
+                            FontSize="11"
+                            Foreground="{StaticResource ScadaTextBrush}">
+                            <Button.Resources>
+                                <Style TargetType="Border">
+                                    <Setter Property="CornerRadius" Value="3" />
+                                </Style>
+                            </Button.Resources>
+                        </Button>
+                    </Grid>
+                </DataTemplate>
+
                 <Style x:Key="RowEditorHost" TargetType="ContentControl">
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding Kind}" Value="Text">
                             <Setter Property="ContentTemplate" Value="{StaticResource EditText}" />
+                        </DataTrigger>
+                        <!--  只读事实（类型键）：只给一块底色，不给输入框  -->
+                        <DataTrigger Binding="{Binding Kind}" Value="ReadOnly">
+                            <Setter Property="ContentTemplate" Value="{StaticResource EditReadOnly}" />
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Kind}" Value="Number">
                             <Setter Property="ContentTemplate" Value="{StaticResource EditNumber}" />
@@ -772,6 +850,10 @@
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Kind}" Value="AxisList">
                             <Setter Property="ContentTemplate" Value="{StaticResource EditAxisList}" />
+                        </DataTrigger>
+                        <!--  列定义：摘要 + 「选择列…」（与候选轴同一形态）  -->
+                        <DataTrigger Binding="{Binding Kind}" Value="ColumnList">
+                            <Setter Property="ContentTemplate" Value="{StaticResource EditColumnList}" />
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
@@ -1555,28 +1637,70 @@
 
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <!--  ====================  标题：编辑的是谁 + 锁定  ====================  -->
+            <!--  ====================  对象头：编辑的是谁 + 锁定  ====================  -->
+            <!--  两行而不是一行（对齐设计基线）：第一行名字、第二行类型键。
+                  旧版是一行「类型显示名 · 名字」，而新建图元的 Name 默认就等于 DisplayName，
+                  于是面板顶上长期显示成「按钮 · 按钮」——两段一样的信息各占一半宽度。  -->
+            <!--  图标只给一个视觉锚点，不按图元类型换：图元库没有图标资产（工具箱那边也只是名字 + 类型键），
+                  在这里现造一张"类型 → 码点"的映射表，加一类图元就要多记一处，不值当。  -->
             <Border
                 Grid.Row="0"
                 Background="{StaticResource ScadaTitleBarBrush}"
                 BorderBrush="{StaticResource ScadaPanelBorderBrush}"
                 BorderThickness="0,0,0,1">
                 <Grid Margin="10,7">
-                    <TextBlock
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border
+                        Grid.Column="0"
+                        Width="26"
+                        Height="26"
+                        Margin="0,0,8,0"
                         VerticalAlignment="Center"
-                        FontSize="12.5"
-                        FontWeight="SemiBold"
-                        Foreground="{StaticResource ScadaTextBrush}"
-                        Text="{Binding HeaderText}"
-                        TextTrimming="CharacterEllipsis" />
+                        Background="{StaticResource ScadaBadgeBackgroundBrush}"
+                        BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="12"
+                            Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                            Text="{Binding HeaderGlyph}" />
+                    </Border>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock
+                            FontSize="12.5"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource ScadaTextBrush}"
+                            Text="{Binding HeaderTitle}"
+                            TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding HeaderTitle}" />
+                        <!--  类型键：写进 .vms 的那个标识（Hmi.Button），不是 CLR 类名  -->
+                        <TextBlock
+                            Margin="0,1,0,0"
+                            FontSize="11"
+                            Foreground="{StaticResource ScadaFaintTextBrush}"
+                            Text="{Binding HeaderSubtitle}"
+                            TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding HeaderSubtitle}" />
+                    </StackPanel>
+
                     <!--  锁定是模型字段（要落盘），画布的拖动/改尺寸都认它。  -->
                     <!--  写回经视图模型转一道（IsElementLocked → SetSelectedLocked → TrySetElementLocked），  -->
                     <!--  而不是直绑 Element.IsLocked：裸 setter 绕开了 BeginEdit，撤销按钮上只会显示"编辑"。  -->
                     <StackPanel
-                        HorizontalAlignment="Right"
+                        Grid.Column="2"
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
                         Visibility="{Binding HasElement, Converter={StaticResource BoolVis}}">
@@ -1594,11 +1718,87 @@
                 </Grid>
             </Border>
 
+            <!--  ====================  搜索  ====================  -->
+            <!--  匹配属性名 / 键名 / 分组名（口径见 VM 的 MatchesSearch）。  -->
+            <!--  只过滤"显示哪些行"，不重建行——重建会把正在编辑的输入框连焦点一起换掉。  -->
+            <Border
+                Grid.Row="1"
+                Margin="10,6,10,4"
+                Background="{StaticResource ScadaSurfaceBrush}"
+                BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        Grid.Column="0"
+                        Margin="7,0,5,0"
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource DialogIconFont}"
+                        FontSize="11"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                        Text="&#xf002;" />
+
+                    <TextBox
+                        Grid.Column="1"
+                        Padding="0,4"
+                        VerticalContentAlignment="Center"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        FontSize="12"
+                        Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <!--  占位提示：WPF 没有内建 placeholder，用一层不接鼠标的文字盖在输入框上  -->
+                    <TextBlock
+                        Grid.Column="1"
+                        Margin="1,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                        IsHitTestVisible="False"
+                        Text="搜索属性">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SearchText}" Value="">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <!--  清空：只有打了字才出现。固定 18×18 + Padding=0（R68：图标字符按钮必须自己定内边距，
+                          否则会吃应用级 Fluent 隐式 Button 样式的 11,5,11,6，把 ✕ 削掉）。  -->
+                    <Button
+                        Grid.Column="2"
+                        Width="18"
+                        Height="18"
+                        Margin="0,0,4,0"
+                        Padding="0"
+                        VerticalAlignment="Center"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Command="{Binding ClearSearchCommand}"
+                        Content="✕"
+                        Cursor="Hand"
+                        FontSize="10"
+                        Foreground="{StaticResource ScadaChipCloseBrush}"
+                        Visibility="{Binding HasSearchText, Converter={StaticResource BoolVis}}" />
+                </Grid>
+            </Border>
+
             <!--  ====================  属性行  ====================  -->
             <!--  水平边距交给行自己（12px），这里只留纵向：滚动条占掉右缘时，
                "行的内边距"与"面板的内边距"不会各算一套、左右还不对称。  -->
             <ScrollViewer
-                Grid.Row="1"
+                Grid.Row="2"
                 Margin="0,4,0,4"
                 HorizontalScrollBarVisibility="Disabled"
                 VerticalScrollBarVisibility="Auto">
@@ -1640,17 +1840,16 @@
             <!--  ====================  空态  ====================  -->
             <!--  判空看 HasRows，不看 HasElement：画面模式下没有选中图元，但面板有六行内容，  -->
             <!--  用 HasElement 判空会把水印盖在画面属性上。文案由 VM 按成因给出（未打开方案 /  -->
-            <!--  类型未注册 / 画面没有可编辑属性），这里不再写死。  -->
-            <TextBlock
-                Grid.Row="1"
-                Margin="16,24,16,0"
-                FontSize="12"
-                Foreground="{StaticResource ScadaSecondaryTextBrush}"
-                IsHitTestVisible="False"
-                Text="{Binding EmptyHint}"
-                TextWrapping="Wrap">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
+            <!--  类型未注册 / 画面没有可编辑属性 / 搜索无结果），这里不再写死。  -->
+            <!--  三件套（图标 + 标题 + 正文）而不是一段长句：旧版四行字挤在一起，  -->
+            <!--  扫一眼分不清是"没选对象"还是"这个图元本机不认识"。  -->
+            <StackPanel
+                Grid.Row="2"
+                Margin="20,28,20,0"
+                HorizontalAlignment="Center"
+                IsHitTestVisible="False">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding HasRows}" Value="False">
@@ -1658,8 +1857,41 @@
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
-                </TextBlock.Style>
-            </TextBlock>
+                </StackPanel.Style>
+
+                <Border
+                    Width="40"
+                    Height="40"
+                    HorizontalAlignment="Center"
+                    Background="{StaticResource ScadaBadgeBackgroundBrush}"
+                    BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="10">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource DialogIconFont}"
+                        FontSize="15"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                        Text="&#xf245;" />
+                </Border>
+
+                <TextBlock
+                    Margin="0,10,0,0"
+                    HorizontalAlignment="Center"
+                    FontSize="12.5"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource ScadaTextBrush}"
+                    Text="{Binding EmptyTitle}" />
+
+                <TextBlock
+                    Margin="0,4,0,0"
+                    FontSize="11.5"
+                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                    Text="{Binding EmptyHint}"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap" />
+            </StackPanel>
         </Grid>
     </Border>
 </UserControl>

@@ -39,7 +39,11 @@
 **四个数组端口永远逐项对齐**：`ErrorTypes[i]` / `ErrorLengths[i]` / `ErrorRows[i]` / `ErrorCols[i]` 描述的是同一段，
 `ErrorCount` 就是它们共同的长度。
 
-## 三、参数（配置界面「模块参数」里可见的 18 项）
+## 三、参数（配置界面「模块参数」里可见的 20 项）
+
+> 「可见」= 配置界面里有入口。除下表 20 项外，配置界面的「自动提取输入」折叠区还有一个
+> **`ExtractTargetPoints`（抽稀目标点数）**：它是配置会话属性、**不是** `[StepConfig]`，
+> 不落盘、不进 `.vms` 的 `InputValues`（见第六节）。
 
 | 参数 | 默认 | 范围 / 夹紧 | 改了影响什么 |
 | --- | --- | --- | --- |
@@ -49,16 +53,16 @@
 | `WidthTolerance` | 8 | — | 胶宽容差（像素）：宽/细出这个幅度判「太粗 / 太细」。自动提取的路径偏差实测上界 8.39px，所以默认不是范例里的 7 |
 | `PositionTolerance` | 30 | — | 位置容差（像素）：中心线偏离参考路径超过它判「位置偏移」。上线前应用 3~5 张良品重测 |
 | `MinErrorLength` | 5 | — | 错误段长度下限（像素），短于此的碎段不计数也不进 `ErrorSegments`（滤小误报） |
-| `MinScore` | 0.4 | 夹到 0 ~ 1 | 平面匹配最低分数，低于它判对齐失败 |
-| `PlanarNumLevels` | 5 | 夹到 1 ~ 10 | 平面匹配金字塔层数 |
+| `MinScore` | 0.4 | 界面 0 ~ 1（赋值处同样夹到 0~1） | 平面匹配最低分数，低于它判对齐失败。**配置界面 ⑤ 卡「最低分数」** |
+| `PlanarNumLevels` | 5 | 界面 1 ~ 10 整数（赋值处夹到 1~10） | 平面匹配金字塔层数。**配置界面 ⑤ 卡「金字塔层数」** |
 | `FindAngleStartDeg` | -22.35 | 单位是**度** | 平面匹配起始角（只在调算法处换算成弧度） |
 | `FindAngleExtentDeg` | 44.69 | 度 | 从起始角起的搜索范围 |
 | `FindScaleRMin` / `FindScaleRMax` | 1.0 / 1.0 | 1 = 不允许缩放 | 行向缩放搜索区间；工件远近变化时设成如 0.9 ~ 1.1 |
 | `FindScaleCMin` / `FindScaleCMax` | 1.0 / 1.0 | 同上 | 列向缩放搜索区间（各向异性时与行向分开设） |
 | `UnitOutput` | `Pixel`（「像素」） | 像素 / 毫米 | 只影响 `TotalErrorLength` 的换算层，模型参数永远以像素计 |
-| `PixelSizeMm` | 0（未填） | > 0 才有效 | 毫米输出的兜底当量；有 `Transform` 时轮不到它 |
+| `PixelSizeMm` | 0（未填） | 界面 0 ~ 1000；> 0 才有效 | 毫米输出的兜底当量；有 `Transform` 时轮不到它。**配置界面 ④ 卡「像素当量(mm/px)」** |
 | `DisplayViewIndex` | 1 | 0 ~ 9，0 = 不发布 | 标注图发布到主界面几号视图窗口 |
-| `OutputAlignedImage` | true | — | 关闭后 `AlignedImage` 输出侧不再写图（对齐本身照做） |
+| `OutputAlignedImage` | true | — | 关闭后 `AlignedImage` 输出侧不再写图（对齐本身照做）。**配置界面 ④ 卡「输出对齐图」勾选框** |
 | `RecipeLibraryJson` | `[]` | — | 整个配方库的序列化文本，由配置界面维护，不建议手改 |
 | `DefaultRecipeName` | 空 | — | 「设为默认」写入；`RecipeName` 未连接/为空时使用 |
 
@@ -88,3 +92,13 @@
 ErrorRows / ErrorCols / ErrorSegments 的坐标：对齐后的参考位姿坐标系（RoiRegion 不会改变它）
 点列 RefPointsJson：矫正后参考图坐标系（设了矫正四点时）
 ```
+
+## 六、不落盘的配置会话属性
+
+| 属性 | 默认 | 范围 | 为什么不在 `.vms` 里 |
+| --- | --- | --- | --- |
+| `ExtractTargetPoints` | 40 | 10 ~ 500 的整数 | 它是「自动提取中心线」这一次操作的抽稀目标点数，属于**教学会话**参数而非产线判定参数：不标 `[StepConfig]`，`OnConfirm` 不写 `InputValues`，重开配置界面回到 40 |
+
+配置界面把它放在「① 配方库 → 自动提取输入（可选）」折叠区最后一行，并常驻一句
+**「仅本次配置会话生效，不落盘」**。想固定成别的值，目前只能每次打开配置界面时手填——
+真要落盘属于契约变更（会动 `InputValues` 键数，需另开版本）。

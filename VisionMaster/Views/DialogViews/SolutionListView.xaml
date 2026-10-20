@@ -2,236 +2,931 @@
     x:Class="VisionMaster.Views.DialogViews.SolutionListView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Width="900"
-    Height="560"
-    Background="#1E1E22">
+    xmlns:local="clr-namespace:VisionMaster.Views.DialogViews"
+    Background="{StaticResource DialogBackgroundBrush}"
+    Loaded="OnLoaded"
+    MinWidth="900"
+    MinHeight="560">
 
+    <!--
+        ============================================================================
+        方案列表（Web 设计基线 v1：表格 + 右侧动作栏 + 默认启动状态条）
+        ============================================================================
+        为什么用 DataGrid 而不是 ListView + GridView：
+          GridView 没有星号列宽，路径列只能写死；旧版 50+150+220+330=750 大于
+          列表视口 722，默认尺寸必出横向滚动条。DataGrid 的路径列用 Width="1.7*"
+          + MinWidth=220，960/900 两档都不溢出。
+        列宽预算（必须扣行内边距 24 + 卡片边框 2 + WPF 滚动条 17）：
+          960 档：764 - 24 - 2 - 17 = 721；固定列 40+72=112；名称约 192 / 注释约 160 / 路径约 257。
+          900 档：704 - 24 - 2 - 17 = 661；固定列 40+72=112；路径约 232（MinWidth 220）。
+          名称 1.2* / 注释 1.0* / 路径 1.6*：真实方案名较长，固定 152 会把
+          「解决方案-20260829224154」截成一条；比例列在窗口放大时也同步变宽。
+        契约（一个都不能改）：
+          DataContext = SolutionListViewModel；Solutions / SelectedSolution /
+          StartupSolutionPath；9 个命令；Comment 的 TwoWay + PropertyChanged；
+          OnDelete 只移出清单、不删磁盘文件；OnConfirm 只写变了的项。
+    -->
     <UserControl.Resources>
-        <ResourceDictionary>
-            <!--  就地合并：断言宿主（ScadaChecks 直连 new 视图）没有 Application，取不到 App 级主题字典，
-                 而本视图引用了 GridListViewStyle —— 合并进自身 Resources 后引用只走自身链，
-                 与 App.xaml 的合并顺序无关（同 List.xaml / FluentAliases 的既有模式）。
-                 注意用相对 pack 写法：pack://application:,,,/ 那种要靠 Application.ResourceAssembly，
-                 没有 Application 时会静默回落成"找不到资源"。  -->
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="/UI;component/Themes/Controls/GridView.xaml" />
-            </ResourceDictionary.MergedDictionaries>
-        <!--  行容器：整行可点，选中/悬停沿用本对话框的深色系（#2A2A31 / #33334A + 蓝紫描边）。
-             为什么必须自带（不能只靠全局样式）：
-             App.xaml 合并的 Fluent 主题给 ListViewItem 留了一条**隐式样式**，行模板是裸
-             ContentPresenter —— 列布局整体丢失，屏幕上就是一行行的类型全名
-             VisionMaster.Models.AppSolutionEntry（2026-10-06 真机缺陷）。
-             隐式样式按类型作键，优先级高于框架默认样式，所以 GridView 视图必须自带行容器样式。  -->
-        <Style x:Key="SolutionRowStyle" TargetType="ListViewItem">
-            <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Foreground" Value="#DDD" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ListViewItem">
-                        <Border
-                            x:Name="RowBorder"
-                            Padding="4,6"
-                            Background="Transparent"
-                            BorderBrush="#2A2A31"
-                            BorderThickness="0,0,0,1">
-                            <!--  ★ 必须是 GridViewRowPresenter，不能用裸 ContentPresenter ★
-                                  四列（序号/名称/注释/路径）的摆位全靠它按 Columns 排；
-                                  换成 ContentPresenter 后列布局整体丢失（上面那条真机缺陷）。  -->
-                            <!--  ★ 行容器左右内边距取 4 而不是 8：GridViewRowPresenter 会给每个单元格
-                                  再内置 6px 水平外边距，4 + 6 = 10，正好与列头 Padding 8（列头元素自身
-                                  比行容器右移 2px）落在同一条竖线上。对齐破了就是"表头压在数据上"。  -->
-                            <GridViewRowPresenter
-                                Columns="{TemplateBinding GridView.ColumnCollection}"
-                                Content="{TemplateBinding Content}"
-                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                SnapsToDevicePixels="True"
-                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="RowBorder" Property="Background" Value="#2A2A31" />
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="RowBorder" Property="Background" Value="#33334A" />
-                                <Setter TargetName="RowBorder" Property="BorderBrush" Value="#6B6BEF" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!--  右侧操作按钮（蓝紫圆角，对照方案列表原型）  -->
-        <Style x:Key="ActionButton" TargetType="Button">
-            <Setter Property="Background" Value="#6B6BEF" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="FontWeight" Value="DemiBold" />
-            <Setter Property="Height" Value="34" />
-            <Setter Property="Margin" Value="0,0,0,14" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="5">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#7F7FF5" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#5757D6" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Background" Value="#3A3A44" />
-                                <Setter Property="Foreground" Value="#777" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!--  确认按钮（红色）  -->
-        <Style
-            x:Key="ConfirmButton"
-            BasedOn="{StaticResource ActionButton}"
-            TargetType="Button">
-            <Setter Property="Background" Value="#E23B3B" />
-            <Setter Property="Margin" Value="0" />
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#F05252" />
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#C42F2F" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-        </ResourceDictionary>
+        <local:PathEqualsToVisibilityConverter x:Key="PathEqualsToVisibility" />
+        <local:StartupSummaryConverter x:Key="StartupSummary" />
+        <local:NullToVisibilityConverter x:Key="NullToVisibility" />
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
     </UserControl.Resources>
 
-    <Grid Margin="14">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <Grid Margin="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="152" />
+        </Grid.ColumnDefinitions>
 
-        <!--  方案清单 + 操作按钮区  -->
-        <Grid Grid.Row="0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="150" />
-            </Grid.ColumnDefinitions>
+        <!--  ==================== 主卡片 ====================  -->
+        <Border Grid.Column="0" Style="{StaticResource DialogCardBorder}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="64" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="56" />
+                </Grid.RowDefinitions>
 
-            <ListView
-                x:Name="SolutionItems"
-                Grid.Column="0"
-                Background="#252529"
-                BorderBrush="#3A3A44"
-                BorderThickness="1"
-                ItemContainerStyle="{StaticResource SolutionRowStyle}"
-                ItemsSource="{Binding Solutions}"
-                SelectedItem="{Binding SelectedSolution}"
-                SelectionMode="Single"
-                Style="{StaticResource GridListViewStyle}">
+                <!--  卡片头：图标 + 标题 + 计数 + 默认 chip + 副标题  -->
+                <Grid Grid.Row="0" Margin="16,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="32" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border
+                        Width="32"
+                        Height="32"
+                        VerticalAlignment="Center"
+                        Background="{StaticResource DialogAccentLightBrush}"
+                        CornerRadius="9">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="14"
+                            Foreground="{StaticResource DialogAccentTextBrush}"
+                            Text="&#xf0ca;" />
+                    </Border>
+                    <StackPanel
+                        Grid.Column="1"
+                        Margin="10,0,0,0"
+                        VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Style="{StaticResource DialogCardTitle}"
+                                Text="方案清单" />
+                            <Border
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource DialogChipAccent}">
+                                <TextBlock
+                                    x:Name="CountBadge"
+                                    Style="{StaticResource DialogChipTextAccent}"
+                                    Text="{Binding Solutions.Count}" />
+                            </Border>
+                            <Border
+                                x:Name="DefaultChipOn"
+                                MaxWidth="230"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding StartupSolutionPath, Converter={StaticResource NullToVisibility}}">
+                                <Border.Style>
+                                    <Style BasedOn="{StaticResource DialogChip}" TargetType="Border">
+                                        <Setter Property="Height" Value="22" />
+                                        <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                        <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                                        <Setter Property="BorderThickness" Value="1" />
+                                        <Setter Property="CornerRadius" Value="6" />
+                                        <Setter Property="Padding" Value="8,0" />
+                                    </Style>
+                                </Border.Style>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontFamily="{StaticResource DialogIconFont}"
+                                        FontSize="9"
+                                        Style="{StaticResource DialogChipTextAccent}"
+                                        Text="&#xf005;" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Margin="4,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource DialogChipTextAccent}"
+                                        TextTrimming="CharacterEllipsis">
+                                        <TextBlock.Text>
+                                            <MultiBinding Converter="{StaticResource StartupSummary}">
+                                                <Binding Path="Solutions" />
+                                                <Binding Path="StartupSolutionPath" />
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+                            <Border
+                                x:Name="DefaultChipOff"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding StartupSolutionPath, Converter={StaticResource NullToVisibility}, ConverterParameter=Invert}">
+                                <Border.Style>
+                                    <Style BasedOn="{StaticResource DialogChip}" TargetType="Border">
+                                        <Setter Property="Height" Value="22" />
+                                        <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                                        <Setter Property="BorderThickness" Value="1" />
+                                        <Setter Property="CornerRadius" Value="6" />
+                                        <Setter Property="Padding" Value="8,0" />
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Style="{StaticResource DialogChipTextNeutral}"
+                                    Text="未设置默认启动" />
+                            </Border>
+                        </StackPanel>
+                        <TextBlock
+                            Margin="0,3,0,0"
+                            FontSize="10.5"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            Text="选中一行后可打开、设为默认、排序或移除；注释可直接编辑。"
+                            TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Grid>
 
-                <ListView.View>
-                    <GridView>
-                        <GridView.ColumnHeaderContainerStyle>
-                            <Style TargetType="GridViewColumnHeader">
-                                <Setter Property="Background" Value="#32323A" />
-                                <Setter Property="Foreground" Value="#DDD" />
-                                <Setter Property="BorderBrush" Value="#3A3A44" />
-                                <Setter Property="Padding" Value="8,6" />
-                                <!--  列头左对齐：框架默认是居中，四列文字会飘在各列中间，与左对齐的
-                                      单元格正文对不上（四个组态弹窗的列头样式同样这么写）。
-                                      实测本对话框两边文字都落在 x=12：列头 = 元素 x4 + 这里的 Padding 8；
-                                      单元格 = 行容器内边距 4 + GridViewRowPresenter 给单元格内置的 6。  -->
-                                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <!--  表格 + 空态  -->
+                <Grid Grid.Row="1">
+                    <DataGrid
+                        x:Name="SolutionGrid"
+                        AlternationCount="1"
+                        AutoGenerateColumns="False"
+                        Background="{StaticResource DialogSurfaceBrush}"
+                        BorderThickness="0"
+                        CanUserAddRows="False"
+                        CanUserDeleteRows="False"
+                        CanUserReorderColumns="False"
+                        CanUserResizeColumns="False"
+                        CanUserResizeRows="False"
+                        CanUserSortColumns="False"
+                        GridLinesVisibility="Horizontal"
+                        HeadersVisibility="Column"
+                        HorizontalGridLinesBrush="{StaticResource DialogBorderLightBrush}"
+                        IsReadOnly="True"
+                        ItemsSource="{Binding Solutions}"
+                        RowHeight="52"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Auto"
+                        SelectedItem="{Binding SelectedSolution, Mode=TwoWay}"
+                        SelectionMode="Single"
+                        SelectionUnit="FullRow"
+                        Style="{StaticResource DialogDataGrid}">
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style BasedOn="{StaticResource DialogDataGridColumnHeader}" TargetType="DataGridColumnHeader">
+                                <Setter Property="Height" Value="40" />
+                                <Setter Property="Padding" Value="12,0,0,0" />
+                                <Setter Property="FontSize" Value="10.5" />
+                                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                                <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+                                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
                             </Style>
-                        </GridView.ColumnHeaderContainerStyle>
-                        <GridViewColumn DisplayMemberBinding="{Binding Index}" Header="序号" Width="50" />
-                        <GridViewColumn DisplayMemberBinding="{Binding Name}" Header="名称" Width="150" />
-                        <GridViewColumn Header="注释" Width="220">
-                            <GridViewColumn.CellTemplate>
-                                <DataTemplate>
-                                    <TextBox
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Foreground="#CCC"
-                                        Text="{Binding Comment, UpdateSourceTrigger=PropertyChanged}" />
-                                </DataTemplate>
-                            </GridViewColumn.CellTemplate>
-                        </GridViewColumn>
-                        <GridViewColumn DisplayMemberBinding="{Binding Path}" Header="路径" Width="330" />
-                    </GridView>
-                </ListView.View>
-            </ListView>
+                        </DataGrid.ColumnHeaderStyle>
+                        <DataGrid.RowStyle>
+                            <Style BasedOn="{StaticResource DialogDataGridRow}" TargetType="DataGridRow">
+                                <Setter Property="Margin" Value="0" />
+                                <Setter Property="MinHeight" Value="52" />
+                                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+                            </Style>
+                        </DataGrid.RowStyle>
+                        <DataGrid.CellStyle>
+                            <Style BasedOn="{StaticResource DialogDataGridCell}" TargetType="DataGridCell">
+                                <Setter Property="Padding" Value="12,0,0,0" />
+                            </Style>
+                        </DataGrid.CellStyle>
+                        <DataGrid.Columns>
+                            <!--  序号：选中态 2px 左条画在单元格内，避免用 Row.BorderThickness 造成内容位移  -->
+                            <DataGridTemplateColumn
+                                Width="40"
+                                Header="序号"
+                                IsReadOnly="True">
+                                <DataGridTemplateColumn.CellStyle>
+                                    <Style BasedOn="{StaticResource DialogDataGridCell}" TargetType="DataGridCell">
+                                        <Setter Property="Padding" Value="0" />
+                                    </Style>
+                                </DataGridTemplateColumn.CellStyle>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Border
+                                                Width="2"
+                                                HorizontalAlignment="Left"
+                                                Background="{StaticResource DialogAccentBrush}"
+                                                Visibility="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}, Converter={StaticResource BoolToVisibility}}" />
+                                            <TextBlock
+                                                Margin="12,0,0,0"
+                                                VerticalAlignment="Center"
+                                                FontFamily="Cascadia Mono, Consolas"
+                                                FontSize="11"
+                                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                                Text="{Binding Index}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-            <StackPanel Grid.Column="1" Margin="14,0,0,0">
-                <Button
-                    Command="{Binding OpenCommand}"
-                    Content="打开"
-                    Style="{StaticResource ActionButton}" />
-                <Button
-                    Command="{Binding SetStartupCommand}"
-                    Content="设置默认启动"
-                    Style="{StaticResource ActionButton}" />
-                <Button
-                    Command="{Binding AddCurrentCommand}"
-                    Content="添加当前方案"
-                    Style="{StaticResource ActionButton}" />
-                <Button
-                    Command="{Binding AddCommand}"
-                    Content="添加"
-                    Style="{StaticResource ActionButton}" />
-                <Button
-                    Command="{Binding DeleteCommand}"
-                    Content="删除"
-                    Style="{StaticResource ActionButton}" />
-                <Button
-                    Command="{Binding MoveUpCommand}"
-                    Content="上移"
-                    Style="{StaticResource ActionButton}" />
-                <Button
-                    Command="{Binding MoveDownCommand}"
-                    Content="下移"
-                    Style="{StaticResource ActionButton}" />
-            </StackPanel>
-        </Grid>
+                            <!--  方案名称：文件图标 + 名称，超长省略 + ToolTip  -->
+                            <DataGridTemplateColumn
+                                Width="1.2*"
+                                MinWidth="160"
+                                Header="方案名称"
+                                IsReadOnly="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid VerticalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border
+                                                Width="22"
+                                                Height="22"
+                                                VerticalAlignment="Center"
+                                                Background="{StaticResource DialogRowHoverBrush}"
+                                                CornerRadius="6">
+                                                <TextBlock
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    FontFamily="{StaticResource DialogIconFont}"
+                                                    FontSize="10"
+                                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                                    Text="&#xf15b;" />
+                                            </Border>
+                                            <TextBlock
+                                                Grid.Column="1"
+                                                Margin="7,0,0,0"
+                                                VerticalAlignment="Center"
+                                                FontSize="12.5"
+                                                FontWeight="SemiBold"
+                                                Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                                Text="{Binding Name}"
+                                                TextTrimming="CharacterEllipsis">
+                                                <TextBlock.ToolTip>
+                                                    <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="{Binding Name}" />
+                                                </TextBlock.ToolTip>
+                                            </TextBlock>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-        <!--  底部：自动加载路径 + 取消/确认  -->
-        <Grid Grid.Row="1" Margin="0,12,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+                            <!--  注释：安静输入框（hover 显边、focus 主色环），右侧铅笔提示可编辑  -->
+                            <DataGridTemplateColumn
+                                Width="1.0*"
+                                MinWidth="100"
+                                Header="注释"
+                                IsReadOnly="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid VerticalAlignment="Center">
+                                            <TextBox
+                                                Height="30"
+                                                Padding="8,0,26,0"
+                                                VerticalContentAlignment="Center"
+                                                AutomationProperties.Name="注释"
+                                                Background="{StaticResource DialogRowAlternateBrush}"
+                                                FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                                PreviewKeyDown="CommentBox_PreviewKeyDown"
+                                                Style="{StaticResource DialogCellInputQuiet}"
+                                                Text="{Binding Comment, UpdateSourceTrigger=PropertyChanged}">
+                                                <TextBox.ToolTip>
+                                                    <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="注释（直接编辑）" />
+                                                </TextBox.ToolTip>
+                                            </TextBox>
+                                            <TextBlock
+                                                Margin="0,0,8,0"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                FontFamily="{StaticResource DialogIconFont}"
+                                                FontSize="10"
+                                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                                IsHitTestVisible="False"
+                                                Text="&#xf304;" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
-                <TextBlock Foreground="#BBB" Text="自动加载路径: " />
-                <TextBlock Foreground="#DDD" Text="{Binding StartupSolutionPath}" TextTrimming="CharacterEllipsis" />
-            </StackPanel>
+                            <!--  路径：星号列，吃掉剩余宽度；900 档仍有 221px  -->
+                            <DataGridTemplateColumn
+                                Width="1.6*"
+                                MinWidth="220"
+                                Header="路径"
+                                IsReadOnly="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontFamily="Cascadia Mono, Consolas"
+                                            FontSize="11"
+                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                            Text="{Binding Path}"
+                                            TextTrimming="CharacterEllipsis">
+                                            <TextBlock.ToolTip>
+                                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="{Binding Path}" />
+                                            </TextBlock.ToolTip>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-            <Button
-                Grid.Column="1"
-                Width="110"
-                Margin="0,0,12,0"
-                Command="{Binding CancelCommand}"
-                Content="取 消"
-                Style="{StaticResource ActionButton}" />
-            <Button
-                Grid.Column="2"
-                Width="110"
-                Command="{Binding ConfirmCommand}"
-                Content="确 认"
-                Style="{StaticResource ConfirmButton}" />
-        </Grid>
+                            <!--  默认：Path == StartupSolutionPath 时显示 chip（纯显示派生，不改 VM）  -->
+                            <DataGridTemplateColumn
+                                Width="72"
+                                Header="默认"
+                                IsReadOnly="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Border
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Center">
+                                            <Border.Style>
+                                                <Style BasedOn="{StaticResource DialogChip}" TargetType="Border">
+                                                    <Setter Property="Height" Value="22" />
+                                                    <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                                                    <Setter Property="CornerRadius" Value="6" />
+                                                    <Setter Property="Padding" Value="7,0" />
+                                                </Style>
+                                            </Border.Style>
+                                            <Border.Visibility>
+                                                <MultiBinding Converter="{StaticResource PathEqualsToVisibility}">
+                                                    <Binding Path="Path" />
+                                                    <Binding Path="DataContext.StartupSolutionPath" RelativeSource="{RelativeSource AncestorType=DataGrid}" />
+                                                </MultiBinding>
+                                            </Border.Visibility>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontFamily="{StaticResource DialogIconFont}"
+                                                    FontSize="9"
+                                                    Style="{StaticResource DialogChipTextAccent}"
+                                                    Text="&#xf005;" />
+                                                <TextBlock
+                                                    Margin="4,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Style="{StaticResource DialogChipTextAccent}"
+                                                    Text="默认" />
+                                            </StackPanel>
+                                            <Border.ToolTip>
+                                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="默认启动方案（开机自动加载）" />
+                                            </Border.ToolTip>
+                                        </Border>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!--  空态：覆盖行区域，保留表头；判据 Solutions.Count == 0  -->
+                    <Grid
+                        x:Name="EmptyState"
+                        Margin="0,40,0,0"
+                        Background="{StaticResource DialogSurfaceBrush}">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Solutions.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <StackPanel
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                            <Grid
+                                Width="48"
+                                Height="48"
+                                HorizontalAlignment="Center">
+                                <Rectangle
+                                    RadiusX="14"
+                                    RadiusY="14"
+                                    Stroke="{StaticResource DialogBorderStrongBrush}"
+                                    StrokeDashArray="3 3" />
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="20"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text="&#xf65d;" />
+                            </Grid>
+                            <TextBlock
+                                Style="{StaticResource DialogEmptyStateTitle}"
+                                Text="还没有添加方案"
+                                TextAlignment="Center" />
+                            <TextBlock
+                                MaxWidth="380"
+                                Style="{StaticResource DialogEmptyStateHint}"
+                                Text="把当前方案加入清单，或从磁盘选择一个 .vms 文件；清单只影响启动时可选方案，不会复制或移动文件。"
+                                TextAlignment="Center"
+                                TextWrapping="Wrap" />
+                            <StackPanel
+                                Margin="0,10,0,0"
+                                HorizontalAlignment="Center"
+                                Orientation="Horizontal">
+                                <Button
+                                    x:Name="EmptyAddCurrentButton"
+                                    Height="32"
+                                    FontSize="12"
+                                    Command="{Binding AddCurrentCommand}"
+                                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                    Style="{StaticResource DialogPrimaryButton}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontFamily="{StaticResource DialogIconFont}"
+                                            FontSize="11"
+                                            Text="&#xf15b;" />
+                                        <TextBlock
+                                            Margin="6,0,0,0"
+                                            VerticalAlignment="Center"
+                                            Text="添加当前方案" />
+                                    </StackPanel>
+                                </Button>
+                                <Button
+                                    x:Name="EmptyAddButton"
+                                    Height="32"
+                                    Margin="8,0,0,0"
+                                    FontSize="12"
+                                    Command="{Binding AddCommand}"
+                                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                    Style="{StaticResource DialogSecondaryButton}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontFamily="{StaticResource DialogIconFont}"
+                                            FontSize="11"
+                                            Text="&#xf65d;" />
+                                        <TextBlock
+                                            Margin="6,0,0,0"
+                                            VerticalAlignment="Center"
+                                            Text="浏览添加…" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+
+                <!--  底栏：默认启动路径 + 取消/确认 + 键盘提示  -->
+                <Border
+                    Grid.Row="2"
+                    Background="{StaticResource DialogRowAlternateBrush}"
+                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,11,11">
+                    <Grid Margin="16,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal">
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogAccentBrush}"
+                                    Text="&#xf005;" />
+                                <TextBlock
+                                    Margin="5,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="10.5"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text="默认启动" />
+                            </StackPanel>
+                            <Border
+                                x:Name="StartupPathChip"
+                                Grid.Column="1"
+                                Height="26"
+                                Margin="8,0,0,0"
+                                Padding="8,0"
+                                VerticalAlignment="Center"
+                                CornerRadius="6">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                                        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                                        <Setter Property="BorderThickness" Value="1" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding StartupSolutionPath}" Value="">
+                                                <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <Grid>
+                                    <TextBlock
+                                        x:Name="StartupPathText"
+                                        VerticalAlignment="Center"
+                                        FontFamily="Cascadia Mono, Consolas"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                        Text="{Binding StartupSolutionPath}"
+                                        TextTrimming="CharacterEllipsis"
+                                        Visibility="{Binding StartupSolutionPath, Converter={StaticResource NullToVisibility}}">
+                                        <TextBlock.ToolTip>
+                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="{Binding StartupSolutionPath}" />
+                                        </TextBlock.ToolTip>
+                                    </TextBlock>
+                                    <TextBlock
+                                        x:Name="StartupPathEmpty"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="未设置"
+                                        Visibility="{Binding StartupSolutionPath, Converter={StaticResource NullToVisibility}, ConverterParameter=Invert}" />
+                                </Grid>
+                            </Border>
+                        </Grid>
+                        <StackPanel
+                            Grid.Column="1"
+                            VerticalAlignment="Center">
+                            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                <Button
+                                    x:Name="CancelButton"
+                                    Width="72"
+                                    Height="36"
+                                    FontSize="12"
+                                    Command="{Binding CancelCommand}"
+                                    Content="取消"
+                                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                    IsCancel="True"
+                                    Style="{StaticResource DialogSecondaryButton}">
+                                    <Button.ToolTip>
+                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="放弃本次修改，不写盘" />
+                                    </Button.ToolTip>
+                                </Button>
+                                <Button
+                                    x:Name="ConfirmButton"
+                                    Width="72"
+                                    Height="36"
+                                    Margin="8,0,0,0"
+                                    FontSize="12"
+                                    Command="{Binding ConfirmCommand}"
+                                    Content="确认"
+                                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                    IsDefault="True"
+                                    Style="{StaticResource DialogPrimaryButton}">
+                                    <Button.ToolTip>
+                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="只写入变了的项，然后关闭弹窗" />
+                                    </Button.ToolTip>
+                                </Button>
+                            </StackPanel>
+                            <StackPanel
+                                Margin="0,2,0,0"
+                                HorizontalAlignment="Right"
+                                Orientation="Horizontal">
+                                <Border
+                                    Padding="5,1"
+                                    Background="{StaticResource DialogSurfaceBrush}"
+                                    BorderBrush="{StaticResource DialogBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4">
+                                    <TextBlock
+                                        FontFamily="Cascadia Mono, Consolas"
+                                        FontSize="9.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="Enter" />
+                                </Border>
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="10"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text=" 确认 · " />
+                                <Border
+                                    Padding="5,1"
+                                    Background="{StaticResource DialogSurfaceBrush}"
+                                    BorderBrush="{StaticResource DialogBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4">
+                                    <TextBlock
+                                        FontFamily="Cascadia Mono, Consolas"
+                                        FontSize="9.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="Esc" />
+                                </Border>
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="10"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text=" 取消" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!--  ==================== 右侧动作栏 ====================  -->
+        <Border
+            Grid.Column="1"
+            Margin="12,0,0,0"
+            Padding="12"
+            Background="{StaticResource DialogRowAlternateBrush}"
+            BorderBrush="{StaticResource DialogBorderLightBrush}"
+            BorderThickness="1"
+            CornerRadius="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <StackPanel Grid.Row="0">
+                    <Button
+                        x:Name="OpenButton"
+                        Height="38"
+                        FontSize="12"
+                        Command="{Binding OpenCommand}"
+                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                        Style="{StaticResource DialogPrimaryButton}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="12"
+                                Text="&#xf07c;" />
+                            <TextBlock
+                                Margin="6,0,0,0"
+                                VerticalAlignment="Center"
+                                Text="打开方案" />
+                        </StackPanel>
+                        <Button.ToolTip>
+                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="加载选中方案并关闭弹窗" />
+                        </Button.ToolTip>
+                    </Button>
+
+                    <Grid Margin="2,10,2,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            FontSize="10.5"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            Text="清单" />
+                        <Border
+                            Grid.Column="1"
+                            Height="1"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource DialogBorderBrush}" />
+                    </Grid>
+                    <Button
+                        x:Name="SetStartupButton"
+                        Height="36"
+                        Margin="0,0,0,8"
+                        FontSize="12"
+                        Command="{Binding SetStartupCommand}"
+                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                        Padding="8,0"
+                        Style="{StaticResource DialogSecondaryButton}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="11"
+                                Text="&#xf005;" />
+                            <TextBlock
+                                Margin="6,0,0,0"
+                                VerticalAlignment="Center"
+                                Text="设为默认启动" />
+                        </StackPanel>
+                        <Button.ToolTip>
+                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="把选中方案设为开机自动加载" />
+                        </Button.ToolTip>
+                    </Button>
+                    <Button
+                        x:Name="AddCurrentButton"
+                        Height="36"
+                        Margin="0,0,0,8"
+                        FontSize="12"
+                        Command="{Binding AddCurrentCommand}"
+                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                        Padding="8,0"
+                        Style="{StaticResource DialogSecondaryButton}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="11"
+                                Text="&#xf15b;" />
+                            <TextBlock
+                                Margin="6,0,0,0"
+                                VerticalAlignment="Center"
+                                Text="添加当前方案" />
+                        </StackPanel>
+                        <Button.ToolTip>
+                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="把当前已保存的方案加入清单" />
+                        </Button.ToolTip>
+                    </Button>
+                    <Button
+                        x:Name="AddButton"
+                        Height="36"
+                        Margin="0,0,0,8"
+                        FontSize="12"
+                        Command="{Binding AddCommand}"
+                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                        Padding="8,0"
+                        Style="{StaticResource DialogSecondaryButton}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="11"
+                                Text="&#xf65d;" />
+                            <TextBlock
+                                Margin="6,0,0,0"
+                                VerticalAlignment="Center"
+                                Text="浏览添加…" />
+                        </StackPanel>
+                        <Button.ToolTip>
+                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="从磁盘选择一个 .vms 文件" />
+                        </Button.ToolTip>
+                    </Button>
+
+                    <Grid Margin="2,10,2,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            FontSize="10.5"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            Text="排序" />
+                        <Border
+                            Grid.Column="1"
+                            Height="1"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource DialogBorderBrush}" />
+                    </Grid>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button
+                            x:Name="MoveUpButton"
+                            Height="34"
+                            FontSize="11.5"
+                            Command="{Binding MoveUpCommand}"
+                            FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                            Padding="4,0"
+                            Style="{StaticResource DialogGhostButton}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="10"
+                                    Text="&#xf062;" />
+                                <TextBlock
+                                    Margin="4,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Text="上移" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            x:Name="MoveDownButton"
+                            Grid.Column="1"
+                            Height="34"
+                            Margin="6,0,0,0"
+                            FontSize="11.5"
+                            Command="{Binding MoveDownCommand}"
+                            FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                            Padding="4,0"
+                            Style="{StaticResource DialogGhostButton}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="10"
+                                    Text="&#xf063;" />
+                                <TextBlock
+                                    Margin="4,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Text="下移" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <Grid Margin="2,10,2,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            FontSize="10.5"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            Text="危险操作" />
+                        <Border
+                            Grid.Column="1"
+                            Height="1"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource DialogBorderBrush}" />
+                    </Grid>
+                    <Button
+                        x:Name="DeleteButton"
+                        Height="36"
+                        FontSize="12"
+                        Command="{Binding DeleteCommand}"
+                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                        Padding="8,0"
+                        Style="{StaticResource DialogDangerButton}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="11"
+                                Text="&#xf2ed;" />
+                            <TextBlock
+                                Margin="6,0,0,0"
+                                VerticalAlignment="Center"
+                                Text="从清单移除" />
+                        </StackPanel>
+                        <Button.ToolTip>
+                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="只从清单移除，不删除磁盘上的 .vms 文件" />
+                        </Button.ToolTip>
+                    </Button>
+
+                    <TextBlock
+                        x:Name="RailHintNone"
+                        Margin="2,8,2,0"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="选中一行后可打开 / 设为默认 / 排序 / 移除。"
+                        TextWrapping="Wrap"
+                        Visibility="{Binding SelectedSolution, Converter={StaticResource NullToVisibility}, ConverterParameter=Invert}" />
+                    <TextBlock
+                        x:Name="RailHintSelected"
+                        Margin="2,8,2,0"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="{Binding SelectedSolution.Name, StringFormat=已选中「{0}」}"
+                        TextWrapping="Wrap"
+                        Visibility="{Binding SelectedSolution, Converter={StaticResource NullToVisibility}}" />
+                </StackPanel>
+
+                <Border
+                    Grid.Row="2"
+                    Margin="0,10,0,0"
+                    Padding="8"
+                    Background="{StaticResource DialogSurfaceBrush}"
+                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                    BorderThickness="1"
+                    CornerRadius="9">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="10"
+                                Foreground="{StaticResource DialogAccentBrush}"
+                                Text="&#xf05a;" />
+                            <TextBlock
+                                Margin="5,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="10.5"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="说明" />
+                        </StackPanel>
+                        <TextBlock
+                            Margin="0,3,0,0"
+                            FontSize="10.5"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            Text="注释可直接编辑；“从清单移除”不删磁盘文件。"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

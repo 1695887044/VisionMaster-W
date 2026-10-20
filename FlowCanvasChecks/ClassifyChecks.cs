@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Core.Interfaces;
 using HalconDotNet;
@@ -37,6 +38,9 @@ namespace FlowCanvasChecks
 
             Section("[深度学习分类] 插件壳与端口契约");
             RunPluginShellChecks();
+
+            Section("[深度学习分类] 模型状态契约（DL1）");
+            RunStateContractChecks();
         }
 
         // ==================================================================
@@ -287,6 +291,109 @@ namespace FlowCanvasChecks
         {
             string? fromEnv = Environment.GetEnvironmentVariable("CLASSIFY_TEST_MODEL");
             return !string.IsNullOrWhiteSpace(fromEnv) && File.Exists(fromEnv) ? fromEnv : null;
+        }
+
+        // ==================================================================
+        //  DL1：模型状态契约
+        // ==================================================================
+
+        /// <summary>
+        /// 三态（NotLoaded / Ready / Failed）与静态扫描。
+        /// 核心口径：视图的红卡/错误态只认 ModelState，**不许匹配 ModelSummary 的中文文案**。
+        /// </summary>
+        private static void RunStateContractChecks()
+        {
+            Check("状态契约：DlModelState 恰好三态（NotLoaded/Ready/Failed）",
+                Enum.GetNames(typeof(DlModelState)).SequenceEqual(new[] { "NotLoaded", "Ready", "Failed" }),
+                string.Join(",", Enum.GetNames(typeof(DlModelState))));
+
+            var plugin = new DlClassifyPlugin { InstanceName = "STATE_0" };
+            Check("状态契约：新建 → ModelState=NotLoaded",
+                plugin.ModelState == DlModelState.NotLoaded, $"ModelState={plugin.ModelState}");
+
+            plugin.RefreshModelState();
+            Check("状态契约：ModelPath 为空 → RefreshModelState 后仍是 NotLoaded（不判失败）",
+                plugin.ModelState == DlModelState.NotLoaded,
+                $"ModelState={plugin.ModelState} Summary='{plugin.ModelSummary}'");
+
+            plugin.ModelPath = @"C:\不存在的分类模型.onnx";
+            plugin.RefreshModelState();
+            Check("状态契约：模型路径不存在 → ModelState=Failed",
+                plugin.ModelState == DlModelState.Failed,
+                $"ModelState={plugin.ModelState} Summary='{plugin.ModelSummary}'");
+
+            var image = MakeTestImage();
+            plugin.Image.Value = image;
+            plugin.TryPreviewClassify();
+            Check("状态契约：模型失败时试算 → ModelState=Failed（会话级失败）",
+                plugin.ModelState == DlModelState.Failed,
+                $"ModelState={plugin.ModelState} Result='{plugin.ResultSummary}'");
+
+            var step = new FakeStepData();
+            plugin.OnConfirm(step);
+            Check("状态契约：OnConfirm 不写 ModelState（运行态不落盘）",
+                !step.InputValues.ContainsKey(nameof(DlClassifyPlugin.ModelState)),
+                "keys=" + string.Join(",", step.InputValues.Keys.OrderBy(k => k)));
+
+            var stateProps = typeof(DlClassifyPlugin).GetProperties()
+                .Where(p => p.Name == nameof(DlClassifyPlugin.ModelState))
+                .ToArray();
+            Check("状态契约：ModelState 不带 [StepConfig]（源生成器不会收它）",
+                stateProps.Length == 1
+                && stateProps.All(p => p.GetCustomAttributes(typeof(StepConfigAttribute), true).Length == 0),
+                $"命中属性={stateProps.Length}");
+
+            string? model = ResolveTestModel();
+            if (model == null)
+            {
+                Check("状态契约：真实模型加载 → ModelState=Ready", true,
+                    "跳过：未找到分类模型（CLASSIFY_TEST_MODEL 未设置）");
+            }
+            else
+            {
+                var readyPlugin = new DlClassifyPlugin { InstanceName = "STATE_1", ModelPath = model };
+                readyPlugin.RefreshModelState();
+                Check("状态契约：真实模型加载 → ModelState=Ready",
+                    readyPlugin.ModelState == DlModelState.Ready,
+                    $"ModelState={readyPlugin.ModelState} Summary='{readyPlugin.ModelSummary}'");
+                readyPlugin.Dispose();
+            }
+
+            plugin.Dispose();
+            image.Dispose();
+
+            RunStateStaticScanChecks();
+        }
+
+        /// <summary>
+        /// 静态扫描：4 处失败态必须全部改绑 ModelState；中文文案 Value 归零。
+        /// 变异反证：把任一处改回 `Value="模型加载失败，详见提示"`，枚举计数与中文计数会同时不满足。
+        /// </summary>
+        private static void RunStateStaticScanChecks()
+        {
+            string root = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..\"));
+            string xamlPath = Path.Combine(root, @"Plugins\Plugin.DlClassify\ClassifyView.xaml");
+            if (!File.Exists(xamlPath))
+            {
+                Check("状态契约：分类视图静态扫描（文件存在）", false, $"找不到 {xamlPath}");
+                return;
+            }
+
+            string xaml = File.ReadAllText(xamlPath);
+            int chineseValues = Regex.Matches(xaml, Regex.Escape("Value=\"模型加载失败，详见提示\"")).Count;
+            int enumTriggers = Regex.Matches(xaml, @"x:Static\s+local:DlModelState\.Failed").Count;
+            int summaryValueTriggers = Regex.Matches(
+                xaml, @"Binding=""\{Binding ModelSummary\}""\s+Value=").Count;
+
+            Check("状态契约：4 处失败态改绑 ModelState（中文 Value=0 / 枚举 Trigger=4）",
+                chineseValues == 0 && enumTriggers == 4,
+                $"中文 Value={chineseValues}，枚举 Trigger={enumTriggers}");
+
+            Check("状态契约：ModelSummary 仅作文本绑定，不再参与状态判断",
+                xaml.Contains("Text=\"{Binding ModelSummary}\"", StringComparison.Ordinal)
+                && summaryValueTriggers == 0,
+                $"文本绑定={(xaml.Contains("Text=\"{Binding ModelSummary}\"") ? "在" : "缺失")}，"
+                + $"ModelSummary 作 Value 的 Trigger={summaryValueTriggers}");
         }
     }
 }

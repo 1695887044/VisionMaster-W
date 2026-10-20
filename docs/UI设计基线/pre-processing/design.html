@@ -1,0 +1,966 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>图像预处理 · 配置窗口 · 设计基线 v1</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #pp-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="pp-design-root">
+  <style>
+    #pp-design-root{
+      color-scheme:light;
+      --pp-surface:#FFFFFF;
+      --pp-surface-2:#F8FAFC;
+      --pp-surface-3:#F1F5F9;
+      --pp-border:#E2E8F0;
+      --pp-border-soft:#EEF2F7;
+      --pp-border-strong:#CBD5E1;
+      --pp-text:#0F172A;
+      --pp-text-2:#475569;
+      --pp-text-3:#94A3B8;
+      --pp-text-4:#64748B;
+      --pp-primary:#0EA5E9;
+      --pp-primary-strong:#0284C7;
+      --pp-primary-text:#0369A1;
+      --pp-primary-soft:#F0F9FF;
+      --pp-primary-light:#E0F2FE;
+      --pp-primary-border:#BAE6FD;
+      --pp-success:#22C55E;
+      --pp-success-text:#15803D;
+      --pp-success-soft:#F0FDF4;
+      --pp-success-border:#BBF7D0;
+      --pp-danger:#EF4444;
+      --pp-danger-text:#B91C1C;
+      --pp-danger-soft:#FEF2F2;
+      --pp-danger-border:#FECACA;
+      --pp-warning:#F59E0B;
+      --pp-warning-text:#B45309;
+      --pp-warning-soft:#FFF4E5;
+      --pp-warning-border:#FDE68A;
+      --pp-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --pp-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --pp-radius-sm:6px;
+      --pp-radius-md:8px;
+      --pp-radius-lg:10px;
+      --pp-radius-xl:12px;
+      --pp-radius-window:16px;
+      --pp-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--pp-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #pp-design-root *{box-sizing:border-box;}
+    #pp-design-root button,
+    #pp-design-root input,
+    #pp-design-root select,
+    #pp-design-root textarea{font-family:inherit;}
+    #pp-design-root button{color:inherit;}
+    #pp-design-root [hidden]{display:none !important;}
+    #pp-design-root :focus-visible{outline:2px solid var(--pp-primary);outline-offset:2px;}
+
+    #pp-design-root .pp-page{max-width:1360px;margin:0 auto;padding:24px 24px 44px;background:transparent;}
+    #pp-design-root .pp-page-head{max-width:1360px;margin:0 auto 16px;}
+    #pp-design-root .pp-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #pp-design-root .pp-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--pp-text);}
+    #pp-design-root .pp-ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--pp-primary-light);color:var(--pp-primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;}
+    #pp-design-root .pp-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--pp-text-2);}
+    #pp-design-root .pp-page-sub b{color:var(--pp-text);font-weight:600;}
+    #pp-design-root .pp-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #pp-design-root .pp-demo-group{display:flex;align-items:center;gap:8px;}
+    #pp-design-root .pp-demo-label{font-size:11.5px;color:var(--pp-text-4);}
+    #pp-design-root .pp-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--pp-text-2);}
+    #pp-design-root .pp-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--pp-warning-text);}
+    #pp-design-root .pp-scope b{color:var(--pp-text);font-weight:600;}
+    #pp-design-root .pp-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--pp-radius-md);background:var(--pp-surface-3);}
+    #pp-design-root .pp-seg button{height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--pp-text-2);font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;}
+    #pp-design-root .pp-seg button:hover{color:var(--pp-text);}
+    #pp-design-root .pp-seg button.is-on{background:#FFFFFF;color:var(--pp-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+
+    /* ================= 窗口 ================= */
+    #pp-design-root .pp-window{width:1120px;max-width:100%;height:680px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:var(--pp-surface);border-radius:var(--pp-radius-window);box-shadow:var(--pp-shadow-window);transition:width 200ms ease;}
+    #pp-design-root .pp-window.is-narrow{width:960px;}
+
+    #pp-design-root .pp-titlebar{height:72px;flex:none;display:flex;align-items:center;padding:0 20px;background:var(--pp-surface);border-bottom:1px solid var(--pp-border-soft);}
+    #pp-design-root .pp-app-icon{width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--pp-primary-light);color:var(--pp-primary-text);}
+    #pp-design-root .pp-app-icon svg{width:19px;height:19px;}
+    #pp-design-root .pp-title-text{margin-left:12px;min-width:0;flex:1;}
+    #pp-design-root .pp-title-line{display:flex;align-items:center;gap:8px;min-width:0;}
+    #pp-design-root .pp-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--pp-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #pp-design-root .pp-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--pp-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #pp-design-root .pp-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+
+    #pp-design-root .pp-content{flex:1;min-height:0;display:grid;grid-template-columns:280px minmax(0,1fr) 360px;gap:12px;padding:16px 20px 20px;background:var(--pp-surface);}
+    #pp-design-root .pp-window.is-card-layout .pp-content{grid-template-columns:280px minmax(0,1fr) 520px;}
+    #pp-design-root .pp-window.is-card-layout .pp-file-meta,
+    #pp-design-root .pp-window.is-card-layout .pp-target-hint{display:none;}
+    #pp-design-root .pp-window.is-narrow .pp-content{grid-template-columns:280px minmax(0,1fr) 360px;gap:12px;padding:14px 20px 16px;}
+    #pp-design-root .pp-window.is-narrow.is-card-layout .pp-content{grid-template-columns:280px minmax(0,1fr) 520px;}
+
+    /* ================= 左栏 ================= */
+    #pp-design-root .pp-rail{min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:14px;border:1px solid var(--pp-border-soft);border-radius:var(--pp-radius-xl);background:var(--pp-surface-2);}
+    #pp-design-root .pp-rail-scroll{min-height:0;flex:1;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;padding-right:2px;}
+    #pp-design-root .pp-rail-scroll::-webkit-scrollbar{width:8px;}
+    #pp-design-root .pp-rail-scroll::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+    #pp-design-root .pp-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;font-size:12px;font-weight:600;color:var(--pp-text-2);}
+    #pp-design-root .pp-section-hint{font-size:10.5px;font-weight:400;color:var(--pp-text-3);white-space:nowrap;}
+    #pp-design-root .pp-panel + .pp-panel{margin-top:16px;padding-top:14px;border-top:1px solid var(--pp-border);}
+    #pp-design-root .pp-label{display:flex;align-items:center;gap:5px;margin-bottom:6px;font-size:12px;font-weight:500;line-height:1.3;color:var(--pp-text-2);}
+    #pp-design-root .pp-input-row{display:flex;align-items:center;gap:8px;}
+    #pp-design-root .pp-input,#pp-design-root .pp-select{width:100%;height:36px;padding:0 10px;border:1px solid var(--pp-border);border-radius:var(--pp-radius-md);background:var(--pp-surface);color:var(--pp-text);font-size:12.5px;line-height:1;outline:none;transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;}
+    #pp-design-root .pp-input:hover,#pp-design-root .pp-select:hover{border-color:var(--pp-border-strong);}
+    #pp-design-root .pp-input:focus,#pp-design-root .pp-select:focus{border-color:var(--pp-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #pp-design-root .pp-input[readonly]{background:var(--pp-surface-3);color:var(--pp-text-4);}
+    #pp-design-root .pp-select{appearance:none;-webkit-appearance:none;padding-right:30px;cursor:pointer;}
+    #pp-design-root .pp-select-wrap{position:relative;}
+    #pp-design-root .pp-select-wrap > svg{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--pp-text-3);pointer-events:none;}
+    #pp-design-root .pp-help{display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;font-size:11.5px;line-height:1.5;color:var(--pp-text-4);}
+    #pp-design-root .pp-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--pp-text-3);}
+
+    #pp-design-root .pp-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 13px;border:1px solid var(--pp-border);border-radius:var(--pp-radius-md);background:var(--pp-surface);color:var(--pp-text);font-size:12.5px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;}
+    #pp-design-root .pp-btn svg{width:14px;height:14px;}
+    #pp-design-root .pp-btn:hover{background:var(--pp-surface-2);border-color:var(--pp-border-strong);}
+    #pp-design-root .pp-btn:active{background:var(--pp-surface-3);}
+    #pp-design-root .pp-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #pp-design-root .pp-btn-sm{height:30px;padding:0 10px;font-size:11.5px;}
+    #pp-design-root .pp-btn-ghost{border-color:transparent;background:transparent;color:var(--pp-text-2);}
+    #pp-design-root .pp-btn-ghost:hover{background:var(--pp-surface-3);border-color:transparent;color:var(--pp-text);}
+    #pp-design-root .pp-btn-square{width:36px;height:36px;flex:none;padding:0;border:1px solid var(--pp-border);border-radius:var(--pp-radius-md);background:var(--pp-surface);color:var(--pp-text-4);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;}
+    #pp-design-root .pp-btn-square:hover{background:var(--pp-primary-soft);border-color:var(--pp-primary-border);color:var(--pp-primary-text);}
+    #pp-design-root .pp-btn-square svg{width:14px;height:14px;}
+
+    #pp-design-root .pp-icon-btn{width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--pp-radius-md);display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--pp-text-4);cursor:pointer;transition:background 150ms ease,color 150ms ease;}
+    #pp-design-root .pp-icon-btn svg{width:15px;height:15px;}
+    #pp-design-root .pp-icon-btn:hover{background:var(--pp-surface-3);color:var(--pp-text);}
+    #pp-design-root .pp-icon-btn:active{background:var(--pp-border);}
+    #pp-design-root .pp-icon-btn:disabled{opacity:.4;cursor:not-allowed;}
+    #pp-design-root .pp-tool-text{height:26px;padding:0 7px;border:0;border-radius:6px;background:transparent;color:var(--pp-text-4);font-size:10.5px;font-weight:600;line-height:1;cursor:pointer;font-variant-numeric:tabular-nums;transition:background 150ms ease,color 150ms ease;}
+    #pp-design-root .pp-tool-text:hover{background:var(--pp-surface-3);color:var(--pp-text);}
+
+    /* 算子库 */
+    #pp-design-root .pp-lib-group{margin-bottom:10px;}
+    #pp-design-root .pp-lib-title{display:flex;align-items:center;gap:6px;margin:0 2px 4px;font-size:10.5px;font-weight:700;letter-spacing:.02em;color:var(--pp-primary-text);}
+    #pp-design-root .pp-lib-title .pp-count{font-weight:400;color:var(--pp-text-3);}
+    #pp-design-root .pp-lib-item{display:flex;align-items:center;gap:7px;width:100%;height:28px;padding:0 7px;border:0;border-radius:6px;background:transparent;color:var(--pp-text-2);font-size:12px;text-align:left;cursor:pointer;transition:background 150ms ease,color 150ms ease;}
+    #pp-design-root .pp-lib-item:hover{background:var(--pp-primary-light);color:var(--pp-primary-text);}
+    #pp-design-root .pp-lib-item .pp-plus{width:14px;height:14px;flex:none;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;background:var(--pp-surface-3);color:var(--pp-text-4);font-size:12px;font-weight:700;line-height:1;}
+    #pp-design-root .pp-lib-item:hover .pp-plus{background:var(--pp-primary);color:#FFFFFF;}
+    #pp-design-root .pp-output{margin-top:12px;padding-top:12px;border-top:1px solid var(--pp-border);}
+
+    /* ================= 预览工作区 ================= */
+    #pp-design-root .pp-preview{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--pp-border);border-radius:var(--pp-radius-xl);background:var(--pp-surface);}
+    #pp-design-root .pp-preview-head{height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid var(--pp-border-soft);background:var(--pp-surface);}
+    #pp-design-root .pp-file-chip{width:26px;height:26px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;background:var(--pp-surface-3);color:var(--pp-text-2);}
+    #pp-design-root .pp-file-chip svg{width:13px;height:13px;}
+    #pp-design-root .pp-file-name{font-size:12.5px;font-weight:600;line-height:1.3;color:var(--pp-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:210px;}
+    #pp-design-root .pp-file-meta{flex:none;font-size:10.5px;line-height:1.3;color:var(--pp-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+    #pp-design-root .pp-preview-tools{margin-left:auto;display:flex;align-items:center;gap:2px;flex:none;}
+    #pp-design-root .pp-target-row{height:40px;flex:none;display:flex;align-items:center;gap:10px;padding:0 10px;border-bottom:1px solid var(--pp-border-soft);background:var(--pp-surface);}
+    #pp-design-root .pp-target-hint{margin-left:auto;font-size:10.5px;color:var(--pp-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #pp-design-root .pp-window.is-narrow .pp-target-hint{display:none;}
+
+    #pp-design-root .pp-banner{display:flex;align-items:flex-start;gap:8px;margin:8px 10px 0;padding:8px 10px;border:1px solid;border-radius:var(--pp-radius-md);font-size:11.5px;line-height:1.5;}
+    #pp-design-root .pp-banner svg{width:13px;height:13px;flex:none;margin-top:1px;}
+    #pp-design-root .pp-banner.is-warn{background:var(--pp-warning-soft);border-color:var(--pp-warning-border);color:var(--pp-warning-text);}
+    #pp-design-root .pp-banner.is-muted{background:var(--pp-surface-2);border-color:var(--pp-border);color:var(--pp-text-2);}
+
+    #pp-design-root .pp-canvas{position:relative;flex:1;min-height:0;margin:8px 10px 0;overflow:hidden;background:#0B1220;border-radius:var(--pp-radius-lg);}
+    #pp-design-root .pp-canvas-view{position:absolute;inset:0;}
+    #pp-design-root .pp-scene{width:100%;height:100%;display:block;}
+    #pp-design-root .pp-overlay{position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:6px;pointer-events:none;}
+    #pp-design-root .pp-chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;background:rgba(15,23,42,.62);border:1px solid rgba(148,163,184,.22);color:#E2E8F0;font-size:10.5px;line-height:1;font-variant-numeric:tabular-nums;}
+    #pp-design-root .pp-chip svg{width:11px;height:11px;color:#7DD3FC;}
+    #pp-design-root .pp-chip.is-box{border-color:rgba(14,165,233,.55);color:#BAE6FD;}
+    #pp-design-root .pp-empty-state{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:#0B1220;}
+    #pp-design-root .pp-state-icon{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.18);color:#94A3B8;margin-bottom:13px;}
+    #pp-design-root .pp-state-icon svg{width:22px;height:22px;}
+    #pp-design-root .pp-state-title{font-size:14px;font-weight:600;line-height:1.4;color:#E2E8F0;margin-bottom:4px;}
+    #pp-design-root .pp-state-sub{max-width:330px;font-size:11.5px;line-height:1.6;color:#94A3B8;margin:0;}
+
+    #pp-design-root .pp-statusbar{height:40px;flex:none;display:flex;align-items:center;gap:8px;margin-top:8px;padding:0 12px;border-top:1px solid var(--pp-border-soft);background:var(--pp-surface);font-size:11.5px;min-width:0;}
+    #pp-design-root .pp-status-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--pp-text-3);}
+    #pp-design-root .pp-status-dot.is-ok{background:var(--pp-success);}
+    #pp-design-root .pp-status-dot.is-warn{background:var(--pp-warning);}
+    #pp-design-root .pp-status-msg{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--pp-text-2);}
+    #pp-design-root .pp-status-msg.is-ok{color:var(--pp-success-text);}
+    #pp-design-root .pp-status-msg.is-warn{color:var(--pp-warning-text);}
+    #pp-design-root .pp-status-count{margin-left:auto;flex:none;font-size:10.5px;color:var(--pp-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+
+    /* ================= 右栏：处理链 + 参数 ================= */
+    #pp-design-root .pp-right{min-height:0;display:grid;grid-template-rows:minmax(240px,3fr) 8px minmax(200px,2fr);}
+    #pp-design-root .pp-card{min-height:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--pp-border);border-radius:var(--pp-radius-xl);background:var(--pp-surface);}
+    #pp-design-root .pp-card-head{height:42px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--pp-border-soft);}
+    #pp-design-root .pp-card-title{font-size:12.5px;font-weight:600;color:var(--pp-text);}
+    #pp-design-root .pp-card-meta{margin-left:auto;font-size:10.5px;color:var(--pp-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;}
+    #pp-design-root .pp-chain-list{min-height:0;flex:1;overflow-y:auto;padding:4px;scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+    #pp-design-root .pp-chain-list::-webkit-scrollbar{width:8px;}
+    #pp-design-root .pp-chain-list::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+    #pp-design-root .pp-chain-row{display:grid;grid-template-columns:20px 18px minmax(0,1fr);align-items:center;gap:7px;min-height:44px;padding:5px 8px;border:1px solid transparent;border-radius:8px;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,opacity 150ms ease;}
+    #pp-design-root .pp-chain-row:hover{background:var(--pp-surface-2);}
+    #pp-design-root .pp-chain-row.is-selected{background:var(--pp-primary-soft);border-color:var(--pp-primary-border);}
+    #pp-design-root .pp-chain-row.is-disabled{opacity:.45;}
+    #pp-design-root .pp-step-no{font-size:10.5px;color:var(--pp-text-3);text-align:right;font-variant-numeric:tabular-nums;}
+    #pp-design-root .pp-check{width:14px;height:14px;margin:0;accent-color:var(--pp-primary);cursor:pointer;}
+    #pp-design-root .pp-chain-text{min-width:0;}
+    #pp-design-root .pp-chain-name{font-size:12px;font-weight:500;color:var(--pp-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #pp-design-root .pp-chain-summary{margin-top:2px;font-size:10.5px;color:var(--pp-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #pp-design-root .pp-chain-actions{flex:none;display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px 0;border-top:1px solid var(--pp-border-soft);}
+    #pp-design-root .pp-chain-actions:last-child{padding-bottom:10px;}
+
+    #pp-design-root .pp-param-body{min-height:0;flex:1;overflow-y:auto;padding:10px 12px 12px;scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+    #pp-design-root .pp-param-body::-webkit-scrollbar{width:8px;}
+    #pp-design-root .pp-param-body::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+    #pp-design-root .pp-param-group{margin-bottom:10px;padding:8px 10px 10px;border:1px solid var(--pp-border-soft);border-radius:var(--pp-radius-lg);background:var(--pp-surface-2);}
+    #pp-design-root .pp-param-group:last-child{margin-bottom:0;}
+    #pp-design-root .pp-param-group-title{margin:0 0 7px;font-size:10.5px;font-weight:700;letter-spacing:.03em;color:var(--pp-text-3);}
+    #pp-design-root .pp-param-row{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:8px;min-height:32px;}
+    #pp-design-root .pp-param-row + .pp-param-row{border-top:1px solid var(--pp-border-soft);}
+    #pp-design-root .pp-param-label{font-size:11.5px;color:var(--pp-text-2);}
+    #pp-design-root .pp-param-value{height:28px;display:flex;align-items:center;padding:0 8px;border:1px solid var(--pp-border);border-radius:6px;background:var(--pp-surface);font-size:12px;color:var(--pp-text);font-variant-numeric:tabular-nums;}
+    #pp-design-root .pp-param-value.is-check{height:auto;padding:0;border:0;background:transparent;}
+    #pp-design-root .pp-param-empty{display:flex;height:100%;align-items:center;justify-content:center;padding:24px;text-align:center;font-size:11.5px;line-height:1.6;color:var(--pp-text-3);}
+
+    /* ================= 底部 ================= */
+    #pp-design-root .pp-footer{height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid var(--pp-border-soft);background:var(--pp-surface-2);}
+    #pp-design-root .pp-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #pp-design-root .pp-status-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--pp-surface);border:1px solid var(--pp-border);font-size:11.5px;color:var(--pp-text-2);white-space:nowrap;}
+    #pp-design-root .pp-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--pp-text-3);}
+    #pp-design-root .pp-elapsed{font-family:var(--pp-mono);font-size:11px;color:var(--pp-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+    #pp-design-root .pp-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #pp-design-root .pp-footer .pp-btn{height:32px;padding:0 16px;font-size:12.5px;}
+
+    /* ================= 说明 ================= */
+    #pp-design-root .pp-notes{max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;}
+    #pp-design-root .pp-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--pp-text-2);}
+    #pp-design-root .pp-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--pp-border);}
+    #pp-design-root .pp-note-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--pp-primary-light);color:var(--pp-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}
+    #pp-design-root .pp-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--pp-text);}
+    #pp-design-root .pp-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--pp-text-2);}
+    #pp-design-root .pp-note code{font-family:var(--pp-mono);font-size:10.5px;color:var(--pp-primary-text);background:var(--pp-primary-light);padding:1px 4px;border-radius:4px;}
+
+    @media (prefers-reduced-motion: reduce){#pp-design-root *{animation:none !important;transition:none !important;}}
+    @media (max-width:1100px){
+      #pp-design-root .pp-page{padding:18px 14px 32px;}
+      #pp-design-root .pp-window{height:auto;min-height:640px;}
+      #pp-design-root .pp-content{grid-template-columns:1fr;}
+      #pp-design-root .pp-rail{max-height:420px;}
+      #pp-design-root .pp-preview{min-height:420px;}
+      #pp-design-root .pp-right{min-height:520px;}
+    }
+  </style>
+
+  <div class="pp-page">
+    <header class="pp-page-head">
+      <div class="pp-page-title-row">
+        <h1>图像预处理 · 配置窗口</h1>
+        <span class="pp-ver">v1</span>
+      </div>
+      <p class="pp-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、
+        <b>LinkableValueEditor</b>、常驻 <b>ImageEdit</b>（HImage / DrawObjectList / ActiveRoi）、
+        算子库 / 处理链 / 属性面板的全部命令与绑定；不新增功能、不改端口名与持久化。
+        窗口 <b>1120 × 680</b>，左栏 <b>280px</b>，右侧「处理链 + 参数」<b>360px</b>（卡片式 520px）。
+      </p>
+      <div class="pp-demo-bar">
+        <div class="pp-demo-group" role="group" aria-label="窗口宽度">
+          <span class="pp-demo-label">窗口宽度</span>
+          <div class="pp-seg">
+            <button type="button" data-width="1120" class="is-on" aria-pressed="true">1120</button>
+            <button type="button" data-width="960" aria-pressed="false">960</button>
+          </div>
+        </div>
+        <div class="pp-demo-group" role="group" aria-label="界面状态">
+          <span class="pp-demo-label">界面状态</span>
+          <div class="pp-seg">
+            <button type="button" data-state="normal" class="is-on" aria-pressed="true">正常</button>
+            <button type="button" data-state="empty" aria-pressed="false">空链</button>
+            <button type="button" data-state="warning" aria-pressed="false">加载警告</button>
+            <button type="button" data-state="disabled" aria-pressed="false">含停用步</button>
+          </div>
+        </div>
+        <div class="pp-demo-group" role="group" aria-label="参数面板布局">
+          <span class="pp-demo-label">参数面板</span>
+          <div class="pp-seg">
+            <button type="button" data-layout="flat" class="is-on" aria-pressed="true">表格</button>
+            <button type="button" data-layout="card" aria-pressed="false">卡片</button>
+          </div>
+        </div>
+      </div>
+      <div class="pp-scope">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span><b>未纳入（需新增功能或契约）：</b>加载骨架、图像尺寸 / 文件大小、放大 / 缩小、打开所在文件夹、系统导航、
+        参数面板内联搜索。画布空态不做 WPF 覆盖层（HALCON HwndHost 不支持 WPF 元素叠加），
+        改由画布上方信息条 + 状态栏提示，见 README「已知偏差」。
+        <br><b>尺寸口径：</b>宿主 1120×680 → 内容 1080×520（表格式预览 416 / 卡片式 256）；
+        960×680 → 内容 920×520（表格式预览 256 / 卡片式仅 96，<b>不建议</b>，卡片式需横向滚动 1074）；
+        640×560 → 内容 600×400，根滚动容器按自然尺寸滚动（表格式 914×448 / 卡片式 1074×448），不裁切。</span>
+      </div>
+    </header>
+
+    <div class="pp-window" id="pp-window">
+      <div class="pp-titlebar">
+        <div class="pp-app-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="14" y1="4" y2="4"></line><line x1="10" x2="3" y1="4" y2="4"></line><line x1="21" x2="12" y1="12" y2="12"></line><line x1="8" x2="3" y1="12" y2="12"></line><line x1="21" x2="16" y1="20" y2="20"></line><line x1="12" x2="3" y1="20" y2="20"></line><line x1="14" x2="14" y1="2" y2="6"></line><line x1="8" x2="8" y1="10" y2="14"></line><line x1="16" x2="16" y1="18" y2="22"></line></svg>
+        </div>
+        <div class="pp-title-text">
+          <div class="pp-title-line"><div class="pp-title">图像预处理</div></div>
+          <div class="pp-subtitle">串接色彩 / 几何 / 滤波 / 形态学 / 增强 / 二值化算子，支持逐步预览与单步启停</div>
+        </div>
+        <div class="pp-title-actions">
+          <button type="button" class="pp-icon-btn" data-tooltip="关闭" aria-label="关闭">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="pp-content">
+        <!-- ================= 左：图像输入 + 算子库 ================= -->
+        <aside class="pp-rail" aria-label="图像输入与算子库">
+          <div class="pp-rail-scroll">
+            <section class="pp-panel">
+              <div class="pp-section-head"><span>图像输入</span><span class="pp-section-hint">上游 / 变量</span></div>
+              <label class="pp-label" for="pp-src-input">图像路径</label>
+              <div class="pp-input-row">
+                <input class="pp-input" id="pp-src-input" type="text" value="SrcImage · 由上游提供" readonly>
+                <button type="button" class="pp-btn-square" data-tooltip="变量链接（WPF 由 LinkableValueEditor 承载）" aria-label="变量链接">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+                </button>
+              </div>
+              <p class="pp-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                输入图像来自上游节点或变量；配置态以实际取到的图为准，未取到图时画布保持常驻。
+              </p>
+            </section>
+
+            <section class="pp-panel">
+              <div class="pp-section-head"><span>算子库</span><span class="pp-section-hint">点击添加到链尾</span></div>
+              <div id="pp-lib">
+                <div class="pp-lib-group">
+                  <div class="pp-lib-title">图像增强 <span class="pp-count">5</span></div>
+                  <button type="button" class="pp-lib-item" data-op="锐化" data-summary="7 × 7 / 1"><span class="pp-plus">+</span>锐化</button>
+                  <button type="button" class="pp-lib-item" data-op="对比度" data-summary="101 × 101 / 0.7"><span class="pp-plus">+</span>对比度</button>
+                  <button type="button" class="pp-lib-item" data-op="亮度调节" data-summary="×1  0"><span class="pp-plus">+</span>亮度调节</button>
+                  <button type="button" class="pp-lib-item" data-op="反色" data-summary="亮暗互换"><span class="pp-plus">+</span>反色</button>
+                  <button type="button" class="pp-lib-item" data-op="直方图均衡" data-summary="灰度动态范围拉伸"><span class="pp-plus">+</span>直方图均衡</button>
+                </div>
+                <div class="pp-lib-group">
+                  <div class="pp-lib-title">滤波 <span class="pp-count">3</span></div>
+                  <button type="button" class="pp-lib-item" data-op="均值滤波" data-summary="5 × 5"><span class="pp-plus">+</span>均值滤波</button>
+                  <button type="button" class="pp-lib-item" data-op="中值滤波" data-summary="5 × 5 / 方形"><span class="pp-plus">+</span>中值滤波</button>
+                  <button type="button" class="pp-lib-item" data-op="高斯滤波" data-summary="5 × 5 / σ 1.5"><span class="pp-plus">+</span>高斯滤波</button>
+                </div>
+                <div class="pp-lib-group">
+                  <div class="pp-lib-title">灰度形态学 <span class="pp-count">6</span></div>
+                  <button type="button" class="pp-lib-item" data-op="灰度膨胀" data-summary="5 × 5"><span class="pp-plus">+</span>灰度膨胀</button>
+                  <button type="button" class="pp-lib-item" data-op="灰度腐蚀" data-summary="5 × 5"><span class="pp-plus">+</span>灰度腐蚀</button>
+                  <button type="button" class="pp-lib-item" data-op="灰度开运算" data-summary="5 × 5"><span class="pp-plus">+</span>灰度开运算</button>
+                  <button type="button" class="pp-lib-item" data-op="灰度闭运算" data-summary="5 × 5"><span class="pp-plus">+</span>灰度闭运算</button>
+                  <button type="button" class="pp-lib-item" data-op="灰度顶帽" data-summary="5 × 5"><span class="pp-plus">+</span>灰度顶帽</button>
+                  <button type="button" class="pp-lib-item" data-op="灰度黑帽" data-summary="5 × 5"><span class="pp-plus">+</span>灰度黑帽</button>
+                </div>
+                <div class="pp-lib-group">
+                  <div class="pp-lib-title">二值化 <span class="pp-count">2</span></div>
+                  <button type="button" class="pp-lib-item" data-op="二值化" data-summary="128 ~ 255"><span class="pp-plus">+</span>二值化</button>
+                  <button type="button" class="pp-lib-item" data-op="均值二值化" data-summary="15 × 15 / 比局部均值亮"><span class="pp-plus">+</span>均值二值化</button>
+                </div>
+                <div class="pp-lib-group">
+                  <div class="pp-lib-title">边缘检测 <span class="pp-count">2</span></div>
+                  <button type="button" class="pp-lib-item" data-op="Sobel 边缘" data-summary="3 × 3 / 绝对值和"><span class="pp-plus">+</span>Sobel 边缘</button>
+                  <button type="button" class="pp-lib-item" data-op="Laplace 边缘" data-summary="4 邻域"><span class="pp-plus">+</span>Laplace 边缘</button>
+                </div>
+                <div class="pp-lib-group">
+                  <div class="pp-lib-title">几何调整 <span class="pp-count">6</span></div>
+                  <button type="button" class="pp-lib-item" data-op="图像镜像" data-summary="水平镜像"><span class="pp-plus">+</span>图像镜像</button>
+                  <button type="button" class="pp-lib-item" data-op="图像旋转" data-summary="90 度"><span class="pp-plus">+</span>图像旋转</button>
+                  <button type="button" class="pp-lib-item" data-op="修改图像尺寸" data-summary="1024 × 768"><span class="pp-plus">+</span>修改图像尺寸</button>
+                  <button type="button" class="pp-lib-item" data-op="按比例缩放" data-summary="×0.5 / 双线性"><span class="pp-plus">+</span>按比例缩放</button>
+                  <button type="button" class="pp-lib-item" data-op="固定框裁剪" data-summary="中心(512, 640) 480×360"><span class="pp-plus">+</span>固定框裁剪</button>
+                  <button type="button" class="pp-lib-item" data-op="框外屏蔽" data-summary="框外 0  中心(512, 640) 480×360"><span class="pp-plus">+</span>框外屏蔽</button>
+                </div>
+                <div class="pp-lib-group">
+                  <div class="pp-lib-title">色彩与通道 <span class="pp-count">1</span></div>
+                  <button type="button" class="pp-lib-item" data-op="彩色空间转换" data-summary="转灰度（三通道加权合成）"><span class="pp-plus">+</span>彩色空间转换</button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="pp-output">
+            <div class="pp-section-head"><span>输出</span><span class="pp-section-hint">运行结果</span></div>
+            <label class="pp-label" for="pp-view-select">显示窗口</label>
+            <div class="pp-select-wrap">
+              <select class="pp-select" id="pp-view-select">
+                <option>不显示</option>
+                <option selected>图像窗口 1</option>
+                <option>图像窗口 2</option>
+                <option>图像窗口 3</option>
+                <option>图像窗口 4</option>
+                <option>图像窗口 5</option>
+                <option>图像窗口 6</option>
+                <option>图像窗口 7</option>
+                <option>图像窗口 8</option>
+                <option>图像窗口 9</option>
+              </select>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+            </div>
+            <p class="pp-help">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line></svg>
+              0 = 不显示；1~9 对应主界面视图窗口。
+            </p>
+          </div>
+        </aside>
+
+        <!-- ================= 中：预览工作区 ================= -->
+        <section class="pp-preview" aria-label="预处理预览">
+          <div class="pp-preview-head">
+            <div class="pp-file-chip">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg>
+            </div>
+            <span class="pp-file-name">预处理预览</span>
+            <span class="pp-file-meta" id="pp-preview-meta">算子输出 · 第 3 步</span>
+            <div class="pp-preview-tools">
+              <button type="button" class="pp-icon-btn" data-tooltip="适应窗口（FitToWindow）" aria-label="适应窗口">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
+              </button>
+              <button type="button" class="pp-tool-text" data-tooltip="实际像素 1:1（FitToImage）" aria-label="实际像素">1:1</button>
+              <button type="button" class="pp-icon-btn" data-tooltip="刷新预览（RefreshPreviewCommand）" aria-label="刷新预览">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>
+              </button>
+              <button type="button" class="pp-btn pp-btn-sm" style="margin-left:4px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>导出图片
+              </button>
+            </div>
+          </div>
+
+          <div class="pp-target-row">
+            <div class="pp-seg" role="group" aria-label="预览目标">
+              <button type="button" data-target="source" aria-pressed="false">原图</button>
+              <button type="button" data-target="input" aria-pressed="false">输入图</button>
+              <button type="button" data-target="output" class="is-on" aria-pressed="true">算子输出</button>
+            </div>
+            <span class="pp-target-hint">带框算子请切到「输入图」拖框</span>
+          </div>
+
+          <div class="pp-banner is-warn" id="pp-warn-banner" hidden>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+            <span id="pp-warn-text">有 1 个算子在当前版本中不存在，已跳过：old_sharpen</span>
+          </div>
+          <div class="pp-banner is-muted" id="pp-empty-banner" hidden>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+            <span>尚无预览：在左侧添加算子；若上游没有图像，可在「图像输入」里绑定图像变量。</span>
+          </div>
+
+          <div class="pp-canvas">
+            <div class="pp-canvas-view" id="pp-canvas-image">
+              <svg class="pp-scene" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="pp-scene-title pp-scene-desc">
+                <title id="pp-scene-title">预处理画布预览</title>
+                <desc id="pp-scene-desc">深色画布上显示工业零件图像，带可拖拽编辑框与预览目标角标。</desc>
+                <defs>
+                  <radialGradient id="pp-metal" cx="42%" cy="38%" r="66%">
+                    <stop offset="0%" stop-color="#E8EDF3"></stop>
+                    <stop offset="45%" stop-color="#AEB9C6"></stop>
+                    <stop offset="75%" stop-color="#7B8794"></stop>
+                    <stop offset="100%" stop-color="#4B5563"></stop>
+                  </radialGradient>
+                  <linearGradient id="pp-bg" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#0B1220"></stop>
+                    <stop offset="100%" stop-color="#151F31"></stop>
+                  </linearGradient>
+                  <pattern id="pp-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293B" stroke-width="1"></path>
+                  </pattern>
+                  <filter id="pp-soft" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="9"></feGaussianBlur>
+                  </filter>
+                </defs>
+                <rect width="800" height="520" fill="url(#pp-bg)"></rect>
+                <rect width="800" height="520" fill="url(#pp-grid)" opacity=".55"></rect>
+                <ellipse cx="400" cy="278" rx="232" ry="205" fill="#000000" opacity=".45" filter="url(#pp-soft)"></ellipse>
+                <circle cx="400" cy="260" r="190" fill="url(#pp-metal)" stroke="#D7DEE8" stroke-width="2"></circle>
+                <circle cx="400" cy="260" r="160" fill="none" stroke="#5B6675" stroke-width="2" opacity=".7"></circle>
+                <circle cx="400" cy="260" r="118" fill="#8C97A5" stroke="#D7DEE8" stroke-width="1.5"></circle>
+                <circle cx="400" cy="260" r="92" fill="#5F6B7A" stroke="#AEB9C6" stroke-width="1.5"></circle>
+                <circle cx="400" cy="260" r="52" fill="#2F3947" stroke="#7B8794" stroke-width="2"></circle>
+                <g fill="#1F2937" stroke="#C7D0DB" stroke-width="1.2">
+                  <circle cx="400" cy="118" r="15"></circle>
+                  <circle cx="523" cy="189" r="15"></circle>
+                  <circle cx="523" cy="331" r="15"></circle>
+                  <circle cx="400" cy="402" r="15"></circle>
+                  <circle cx="277" cy="331" r="15"></circle>
+                  <circle cx="277" cy="189" r="15"></circle>
+                </g>
+                <circle cx="400" cy="260" r="24" fill="#111827" stroke="#94A3B8" stroke-width="1"></circle>
+                <g fill="none" stroke="#FFFFFF" stroke-opacity=".18" stroke-width="1">
+                  <path d="M 245 260 A 155 155 0 0 1 400 105"></path>
+                  <path d="M 555 260 A 155 155 0 0 0 400 415"></path>
+                  <path d="M 300 260 A 100 100 0 0 1 400 160"></path>
+                </g>
+                <g stroke="#38BDF8" stroke-opacity=".85" stroke-width="1">
+                  <path d="M 400 40 V 110"></path>
+                  <path d="M 400 410 V 480"></path>
+                  <path d="M 180 260 H 240"></path>
+                  <path d="M 560 260 H 620"></path>
+                </g>
+                <circle cx="400" cy="260" r="6" fill="none" stroke="#38BDF8" stroke-width="1.5"></circle>
+                <g stroke="#38BDF8" stroke-opacity=".55" stroke-width="2" fill="none">
+                  <path d="M 30 30 H 70 M 30 30 V 70"></path>
+                  <path d="M 770 30 H 730 M 770 30 V 70"></path>
+                  <path d="M 30 490 H 70 M 30 490 V 450"></path>
+                  <path d="M 770 490 H 730 M 770 490 V 450"></path>
+                </g>
+                <g id="pp-roi-box">
+                  <rect x="248" y="170" width="304" height="220" fill="rgba(14,165,233,.08)" stroke="#38BDF8" stroke-width="1.6" stroke-dasharray="6 4"></rect>
+                  <g fill="#38BDF8">
+                    <rect x="244" y="166" width="8" height="8"></rect><rect x="548" y="166" width="8" height="8"></rect>
+                    <rect x="244" y="386" width="8" height="8"></rect><rect x="548" y="386" width="8" height="8"></rect>
+                    <rect x="396" y="166" width="8" height="8"></rect><rect x="396" y="386" width="8" height="8"></rect>
+                    <rect x="244" y="276" width="8" height="8"></rect><rect x="548" y="276" width="8" height="8"></rect>
+                  </g>
+                  <text x="258" y="160" fill="#7DD3FC" font-family="Cascadia Mono, Consolas, monospace" font-size="11">固定框裁剪 · 480 × 360</text>
+                </g>
+              </svg>
+              <div class="pp-overlay">
+                <span class="pp-chip" id="pp-target-chip">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path></svg>
+                  只读预览 · 算子输出
+                </span>
+                <span class="pp-chip is-box" id="pp-box-chip" hidden>编辑框 · 可拖拽</span>
+              </div>
+            </div>
+            <div class="pp-empty-state" id="pp-canvas-empty" hidden>
+              <div class="pp-state-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg>
+              </div>
+              <div class="pp-state-title">添加算子开始预览</div>
+              <p class="pp-state-sub">从左侧算子库点击任意算子，它会追加到处理链末尾并自动选中；预览会在参数改动后自动重算。</p>
+            </div>
+          </div>
+
+          <div class="pp-statusbar" aria-live="polite">
+            <span class="pp-status-dot is-ok" id="pp-status-dot"></span>
+            <span class="pp-status-msg is-ok" id="pp-status-msg">参数改动会自动重算预览</span>
+            <span class="pp-status-count" id="pp-status-count">共 4 步</span>
+          </div>
+        </section>
+
+        <!-- ================= 右：处理链 + 参数 ================= -->
+        <aside class="pp-right" aria-label="处理链与算子参数">
+          <section class="pp-card">
+            <div class="pp-card-head">
+              <span class="pp-card-title">处理链</span>
+              <span class="pp-card-meta" id="pp-chain-count">共 4 步</span>
+            </div>
+            <div class="pp-chain-list" id="pp-chain-list"></div>
+            <div class="pp-chain-actions">
+              <button type="button" class="pp-btn pp-btn-sm" data-cmd="up">上移</button>
+              <button type="button" class="pp-btn pp-btn-sm" data-cmd="down">下移</button>
+              <button type="button" class="pp-btn pp-btn-sm" data-cmd="remove">删除</button>
+              <button type="button" class="pp-btn pp-btn-sm" data-cmd="clear">清空</button>
+            </div>
+            <div class="pp-chain-actions">
+              <button type="button" class="pp-btn pp-btn-sm" data-cmd="copy">复制整链</button>
+              <button type="button" class="pp-btn pp-btn-sm" data-cmd="paste">粘贴到链尾</button>
+            </div>
+          </section>
+
+          <div></div>
+
+          <section class="pp-card">
+            <div class="pp-card-head">
+              <span class="pp-card-title">算子参数</span>
+              <span class="pp-card-meta" id="pp-param-name">对比度</span>
+            </div>
+            <div class="pp-param-body" id="pp-param-body"></div>
+          </section>
+        </aside>
+      </div>
+
+      <div class="pp-footer">
+        <div class="pp-footer-left">
+          <span class="pp-status-chip"><span class="pp-footer-dot"></span><span>状态: 待执行</span></span>
+          <span class="pp-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="pp-footer-right">
+          <button type="button" class="pp-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></svg>执行
+          </button>
+          <button type="button" class="pp-btn pp-btn-ghost">取消</button>
+          <button type="button" class="pp-btn" style="background:var(--pp-primary);border-color:var(--pp-primary);color:#fff;font-weight:600;">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="pp-notes">
+      <div class="pp-notes-head">关键改动（V1）</div>
+      <div class="pp-note">
+        <div class="pp-note-num">01</div>
+        <div><b>三栏工作区替代“左库 / 中图 / 右链”老布局</b><span>左 280px 输入与算子库、中间预览工作区、右侧处理链 + 参数；间距与卡片节奏统一到 ImageAcquisition V2 的 12/16px 体系。</span></div>
+      </div>
+      <div class="pp-note">
+        <div class="pp-note-num">02</div>
+        <div><b>预览升级为工作区</b><span>预览头 + 目标分段（原图 / 输入图 / 算子输出）+ 工具条（适应窗口 / 1:1 / 刷新 / 导出）+ 状态栏；全部接现有方法或命令。</span></div>
+      </div>
+      <div class="pp-note">
+        <div class="pp-note-num">03</div>
+        <div><b>处理链行信息重排</b><span>步号 + 启用勾选 + 算子名 + 参数摘要；选中行用主色浅底，停用行整行淡化，与 <code>IsMuted</code> 触发器一致。</span></div>
+      </div>
+      <div class="pp-note">
+        <div class="pp-note-num">04</div>
+        <div><b>参数面板保留反射生成</b><span>仍由 <code>FlatPropertyGrid</code> / <code>CardPropertyGrid</code> 绑定 <code>SelectedOperator</code>；视图只改容器、标题与空态，不改共享控件内部。</span></div>
+      </div>
+      <div class="pp-note">
+        <div class="pp-note-num">05</div>
+        <div><b>算子库分组更紧凑</b><span>组标题 + 可点击行，悬停用主色浅底；点击仍走 <code>AddOperatorCommand</code>，参数是 <code>OperatorDescriptor</code>。</span></div>
+      </div>
+      <div class="pp-note">
+        <div class="pp-note-num">06</div>
+        <div><b>加载警告与操作反馈前置</b><span><code>LoadWarning</code> 显示为琥珀色横幅；<code>ActionHint</code> 落在预览状态栏，空串显示“参数改动会自动重算预览”。</span></div>
+      </div>
+      <div class="pp-note">
+        <div class="pp-note-num">07</div>
+        <div><b>颜色全部令牌化</b><span>映射 <code>Colors.xaml</code> 的 <code>Dialog*</code> 与 <code>PluginConfigColors.xaml</code> 的 <code>PluginPreview*</code>；视图 XAML 十六进制颜色 = 0。</span></div>
+      </div>
+      <div class="pp-note">
+        <div class="pp-note-num">08</div>
+        <div><b>五态与键盘可达</b><span>hover / pressed / focus / disabled 全量；图标按钮 30×30 且 <code>Padding=0</code>（R68），焦点环走 <code>DialogFocusVisual</code>，ToolTip 走 <code>DialogToolTipStyle</code>。</span></div>
+      </div>
+
+      <div class="pp-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="pp-note">
+        <div class="pp-note-num">C1</div>
+        <div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不引入独立 VM，否则确认不保存。</span></div>
+      </div>
+      <div class="pp-note">
+        <div class="pp-note-num">C2</div>
+        <div><b>LinkableValueEditor 只包裹不替换</b><span><code>Port=SrcImage</code>、<code>StepData=StepData</code> 原样；标签外置（<code>Label=""</code>），控件内部链接 / 解除链接逻辑不动。</span></div>
+      </div>
+      <div class="pp-note">
+        <div class="pp-note-num">C3</div>
+        <div><b>ImageEdit 常驻</b><span><code>HImage=DisplayImage</code>、<code>DrawObjectList=CanvasRois</code>、<code>ActiveRoi=CanvasActiveRoi</code> 逐字保留；不用 <code>Visibility=Collapsed</code> 显隐已设图的画布。</span></div>
+      </div>
+      <div class="pp-note">
+        <div class="pp-note-num">C4</div>
+        <div><b>SelectedOperator / DisplayViewIndex</b><span><code>ListBox.SelectedItem=SelectedOperator</code>（对象）、<code>ComboBox.SelectedIndex=DisplayViewIndex</code>（int 0~9）；类型不能换。</span></div>
+      </div>
+      <div class="pp-note">
+        <div class="pp-note-num">C5</div>
+        <div><b>全部命令与三档状态语义</b><span><code>Add/Remove/MoveUp/MoveDown/Clear/Refresh/Copy/Paste/Export/DeleteBox</code> 原样；本插件无 <code>StatusLevel</code>，状态由 <code>LoadWarning</code> + <code>ActionHint</code> 表达，不新增第四档。</span></div>
+      </div>
+
+      <div class="pp-notes-head" style="margin-top:20px;">明确延后（需新增功能或契约）</div>
+      <div class="pp-note">
+        <div class="pp-note-num">D1</div>
+        <div><b>加载骨架 / 蓝色加载态</b><span>需要 VM 新增 <code>IsPreviewLoading</code> 或 <code>PreviewState</code>；本版只用现有状态字段。</span></div>
+      </div>
+      <div class="pp-note">
+        <div class="pp-note-num">D2</div>
+        <div><b>图像尺寸 / 文件大小</b><span>需要 VM 新增只读属性；本版预览头只显示“预处理预览”与当前预览目标。</span></div>
+      </div>
+      <div class="pp-note">
+        <div class="pp-note-num">D3</div>
+        <div><b>放大 / 缩小按钮</b><span><code>HalconBase</code> 只有 <code>FitToWindow()</code> / <code>FitToImage()</code>，没有公开 zoom 方法；本版不做。</span></div>
+      </div>
+      <div class="pp-note">
+        <div class="pp-note-num">D4</div>
+        <div><b>打开所在文件夹 / 系统导航</b><span>需要新增 <code>Process.Start</code> 或宿主导航契约；本版不做，也不造死按钮。</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('pp-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#pp-window');
+      var chainList = root.querySelector('#pp-chain-list');
+      var chainCount = root.querySelector('#pp-chain-count');
+      var paramName = root.querySelector('#pp-param-name');
+      var paramBody = root.querySelector('#pp-param-body');
+      var statusMsg = root.querySelector('#pp-status-msg');
+      var statusDot = root.querySelector('#pp-status-dot');
+      var statusCount = root.querySelector('#pp-status-count');
+      var warnBanner = root.querySelector('#pp-warn-banner');
+      var warnText = root.querySelector('#pp-warn-text');
+      var emptyBanner = root.querySelector('#pp-empty-banner');
+      var canvasImage = root.querySelector('#pp-canvas-image');
+      var canvasEmpty = root.querySelector('#pp-canvas-empty');
+      var previewMeta = root.querySelector('#pp-preview-meta');
+      var targetChip = root.querySelector('#pp-target-chip');
+      var boxChip = root.querySelector('#pp-box-chip');
+      var roiBox = root.querySelector('#pp-roi-box');
+
+      var defaultChain = [
+        { name: '彩色空间转换', summary: '转灰度（三通道加权合成）', enabled: true },
+        { name: '中值滤波', summary: '5 × 5 / 方形', enabled: true },
+        { name: '对比度', summary: '101 × 101 / 0.7', enabled: true },
+        { name: '二值化', summary: '128 ~ 255', enabled: true }
+      ];
+      var chain = defaultChain.map(function (x) { return Object.assign({}, x); });
+      var selected = 2;
+      var state = 'normal';
+      var layout = 'flat';
+      var target = 'output';
+
+      var opParams = {
+        '彩色空间转换': [
+          { group: '参数', label: '转换方式', value: '转灰度（三通道加权合成）' },
+          { group: '参数', label: '目标通道', value: '第一通道' }
+        ],
+        '中值滤波': [
+          { group: '参数', label: '模板宽度', value: '5' },
+          { group: '参数', label: '模板高度', value: '5' },
+          { group: '参数', label: '模板形状', value: '方形' },
+          { group: '参数', label: '边缘扩充', value: '镜像扩充' }
+        ],
+        '对比度': [
+          { group: '参数', label: '模板宽度', value: '101' },
+          { group: '参数', label: '模板高度', value: '101' },
+          { group: '参数', label: '增强因子', value: '0.7' }
+        ],
+        '二值化': [
+          { group: '参数', label: '灰度下限', value: '128' },
+          { group: '参数', label: '灰度上限', value: '255' },
+          { group: '参数', label: '反转', value: 'false', check: true }
+        ],
+        '锐化': [
+          { group: '参数', label: '模板宽度', value: '7' },
+          { group: '参数', label: '模板高度', value: '7' },
+          { group: '参数', label: '增强因子', value: '1.0' }
+        ],
+        '固定框裁剪': [
+          { group: '编辑框', label: '中心行', value: '512' },
+          { group: '编辑框', label: '中心列', value: '640' },
+          { group: '编辑框', label: '框宽度', value: '480' },
+          { group: '编辑框', label: '框高度', value: '360' }
+        ],
+        '框外屏蔽': [
+          { group: '参数', label: '框外灰度', value: '0' },
+          { group: '编辑框', label: '中心行', value: '512' },
+          { group: '编辑框', label: '中心列', value: '640' },
+          { group: '编辑框', label: '框宽度', value: '480' },
+          { group: '编辑框', label: '框高度', value: '360' }
+        ]
+      };
+      var defaultParams = [
+        { group: '参数', label: '参数 1', value: '—' },
+        { group: '参数', label: '参数 2', value: '—' }
+      ];
+
+      function toast(text, kind) {
+        statusMsg.textContent = text;
+        statusMsg.className = 'pp-status-msg' + (kind === 'warn' ? ' is-warn' : ' is-ok');
+        statusDot.className = 'pp-status-dot' + (kind === 'warn' ? ' is-warn' : ' is-ok');
+        window.clearTimeout(toast._timer);
+        toast._timer = window.setTimeout(function () {
+          statusMsg.textContent = '参数改动会自动重算预览';
+          statusMsg.className = 'pp-status-msg is-ok';
+          statusDot.className = 'pp-status-dot is-ok';
+        }, 2600);
+      }
+
+      function enabledCount() { return chain.filter(function (x) { return x.enabled; }).length; }
+
+      function renderChain() {
+        chainList.innerHTML = '';
+        chain.forEach(function (item, i) {
+          var row = document.createElement('div');
+          row.className = 'pp-chain-row' + (i === selected ? ' is-selected' : '') + (!item.enabled ? ' is-disabled' : '');
+          row.setAttribute('data-index', String(i));
+          row.innerHTML =
+            '<div class="pp-step-no">' + (i + 1) + '.</div>' +
+            '<input class="pp-check" type="checkbox" ' + (item.enabled ? 'checked' : '') + ' aria-label="启用第 ' + (i + 1) + ' 步">' +
+            '<div class="pp-chain-text"><div class="pp-chain-name">' + item.name + '</div>' +
+            '<div class="pp-chain-summary">' + item.summary + '</div></div>';
+          row.addEventListener('click', function (e) {
+            if (e.target && e.target.classList.contains('pp-check')) return;
+            selected = i;
+            renderChain();
+            renderParams();
+          });
+          var check = row.querySelector('.pp-check');
+          check.addEventListener('change', function () {
+            item.enabled = check.checked;
+            renderChain();
+            updateStatus();
+          });
+          chainList.appendChild(row);
+        });
+        chainCount.textContent = '共 ' + chain.length + ' 步';
+        updateStatus();
+      }
+
+      function renderParams() {
+        var item = chain[selected];
+        if (!item) {
+          paramName.textContent = '未选中算子';
+          paramBody.innerHTML = '<div class="pp-param-empty">在上方选中一个算子，参数面板会按 <code>FlatPropertyGrid</code> 反射生成。</div>';
+          return;
+        }
+        paramName.textContent = item.name;
+        var rows = opParams[item.name] || defaultParams;
+        if (layout === 'flat') {
+          paramBody.innerHTML = '<div class="pp-param-group"><div class="pp-param-group-title">算子</div>' +
+            '<div class="pp-param-row"><div class="pp-param-label">启用</div><div class="pp-param-value is-check"><input class="pp-check" type="checkbox" checked></div></div></div>' +
+            rows.map(function (r) {
+              return '<div class="pp-param-group"><div class="pp-param-group-title">' + r.group + '</div>' +
+                '<div class="pp-param-row"><div class="pp-param-label">' + r.label + '</div><div class="pp-param-value">' + r.value + '</div></div></div>';
+            }).join('');
+        } else {
+          var groups = {};
+          rows.forEach(function (r) { (groups[r.group] = groups[r.group] || []).push(r); });
+          paramBody.innerHTML = '<div class="pp-param-group"><div class="pp-param-group-title">算子</div>' +
+            '<div class="pp-param-row"><div class="pp-param-label">启用</div><div class="pp-param-value is-check"><input class="pp-check" type="checkbox" checked></div></div></div>' +
+            Object.keys(groups).map(function (g) {
+              return '<div class="pp-param-group"><div class="pp-param-group-title">' + g + '</div>' +
+                groups[g].map(function (r) {
+                  return '<div class="pp-param-row"><div class="pp-param-label">' + r.label + '</div><div class="pp-param-value">' + r.value + '</div></div>';
+                }).join('') + '</div>';
+            }).join('');
+        }
+      }
+
+      function updateStatus() {
+        statusCount.textContent = '共 ' + chain.length + ' 步';
+        if (state === 'empty' || chain.length === 0) {
+          statusMsg.textContent = '尚无算子：从左侧算子库添加';
+          statusMsg.className = 'pp-status-msg';
+          statusDot.className = 'pp-status-dot';
+          statusCount.textContent = '共 0 步';
+        }
+      }
+
+      function setTarget(t) {
+        target = t;
+        Array.prototype.forEach.call(root.querySelectorAll('[data-target]'), function (b) {
+          var on = b.getAttribute('data-target') === t;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        var label = t === 'source' ? '原图' : t === 'input' ? '输入图' : '算子输出';
+        previewMeta.textContent = label + ' · 第 ' + (selected + 1) + ' 步';
+        targetChip.lastChild.textContent = ' 只读预览 · ' + label;
+        var showBox = t === 'input' && chain[selected] && /裁剪|屏蔽/.test(chain[selected].name);
+        boxChip.hidden = !showBox;
+        roiBox.style.display = showBox ? '' : 'none';
+      }
+
+      function setState(s) {
+        state = s;
+        Array.prototype.forEach.call(root.querySelectorAll('[data-state]'), function (b) {
+          var on = b.getAttribute('data-state') === s;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        warnBanner.hidden = s !== 'warning';
+        emptyBanner.hidden = s !== 'empty';
+        canvasEmpty.hidden = s !== 'empty';
+        canvasImage.style.display = s === 'empty' ? 'none' : '';
+        if (s === 'empty') {
+          chain = [];
+          selected = -1;
+          renderChain();
+          renderParams();
+          updateStatus();
+        } else {
+          if (chain.length === 0) {
+            chain = defaultChain.map(function (x) { return Object.assign({}, x); });
+            selected = 2;
+          }
+          if (s === 'normal') chain.forEach(function (x) { x.enabled = true; });
+          if (s === 'disabled' && chain.length > 0) chain[chain.length - 1].enabled = false;
+          renderChain();
+          renderParams();
+        }
+        if (s === 'warning') {
+          warnText.textContent = '有 1 个算子在当前版本中不存在，已跳过：old_sharpen';
+        }
+      }
+
+      function setLayout(l) {
+        layout = l;
+        Array.prototype.forEach.call(root.querySelectorAll('[data-layout]'), function (b) {
+          var on = b.getAttribute('data-layout') === l;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        root.querySelector('.pp-right').style.gridTemplateColumns = '';
+        win.classList.toggle('is-card-layout', l === 'card');
+        renderParams();
+      }
+
+      root.querySelectorAll('[data-width]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var w = b.getAttribute('data-width');
+          win.classList.toggle('is-narrow', w === '960');
+          root.querySelectorAll('[data-width]').forEach(function (x) {
+            var on = x === b;
+            x.classList.toggle('is-on', on);
+            x.setAttribute('aria-pressed', on ? 'true' : 'false');
+          });
+        });
+      });
+      root.querySelectorAll('[data-target]').forEach(function (b) {
+        b.addEventListener('click', function () { setTarget(b.getAttribute('data-target')); });
+      });
+      root.querySelectorAll('[data-state]').forEach(function (b) {
+        b.addEventListener('click', function () { setState(b.getAttribute('data-state')); });
+      });
+      root.querySelectorAll('[data-layout]').forEach(function (b) {
+        b.addEventListener('click', function () { setLayout(b.getAttribute('data-layout')); });
+      });
+
+      root.querySelectorAll('.pp-lib-item').forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (state === 'empty') {
+            state = 'normal';
+            canvasEmpty.hidden = true;
+            canvasImage.style.display = '';
+            emptyBanner.hidden = true;
+          }
+          chain.push({ name: b.getAttribute('data-op'), summary: b.getAttribute('data-summary'), enabled: true });
+          selected = chain.length - 1;
+          renderChain();
+          renderParams();
+          setTarget(target);
+          toast('已添加「' + b.getAttribute('data-op') + '」到链尾');
+        });
+      });
+
+      root.querySelectorAll('[data-cmd]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var cmd = b.getAttribute('data-cmd');
+          if (cmd === 'up' && selected > 0) {
+            var t = chain[selected]; chain[selected] = chain[selected - 1]; chain[selected - 1] = t; selected--;
+          } else if (cmd === 'down' && selected >= 0 && selected < chain.length - 1) {
+            var d = chain[selected]; chain[selected] = chain[selected + 1]; chain[selected + 1] = d; selected++;
+          } else if (cmd === 'remove' && selected >= 0) {
+            chain.splice(selected, 1);
+            selected = chain.length ? Math.min(selected, chain.length - 1) : -1;
+          } else if (cmd === 'clear') {
+            chain = []; selected = -1;
+          } else if (cmd === 'copy') {
+            toast('已复制 ' + chain.length + ' 步到剪贴板（演示）');
+            return;
+          } else if (cmd === 'paste') {
+            toast('剪贴板里没有处理链（演示）', 'warn');
+            return;
+          }
+          renderChain();
+          renderParams();
+          setTarget(target);
+        });
+      });
+
+      renderChain();
+      renderParams();
+      setTarget('output');
+    })();
+  </script>
+</div>
+</body>
+</html>

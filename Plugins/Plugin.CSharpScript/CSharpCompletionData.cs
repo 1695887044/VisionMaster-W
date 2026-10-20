@@ -80,7 +80,13 @@ namespace Plugin.CSharpScript
         }
     }
 
-    /// <summary>接口变量补全项：插入变量名，优先级最高。</summary>
+    /// <summary>
+    /// 接口变量补全项：插入**正确调用模板**（Context.GetInput&lt;T&gt;("名") / Context.SetOutput("名", )），
+    /// 优先级最高。
+    ///
+    /// 旧实现插入的是裸变量名——接口变量只是端口名/字典键，不是 C# 局部变量，
+    /// 裸名一定 CS0103；补全越"顺手"，用户越会写成错的那份。
+    /// </summary>
     public sealed class VarCompletionData : ICompletionData
     {
         private readonly CSharpIntelliSense.VarInfo _v;
@@ -90,12 +96,19 @@ namespace Plugin.CSharpScript
         public ImageSource Image => null;
         public string Text => _v.Name;
         public object Content => _v.Name;
-        public object Description => $"接口{_v.Kind}变量 · {_v.Type}";
+        public object Description =>
+            $"接口{_v.Kind}变量 · {_v.Type} · 插入 {CSharpIntelliSense.DescribeVarUsage(_v)}";
         public double Priority => 10;
 
         public void Complete(TextArea textArea, ISegment completionSegment, EventArgs insertionRequestEventArgs)
         {
-            textArea.Document.Replace(completionSegment, _v.Name);
+            var (insert, caretFromEnd) = CSharpIntelliSense.BuildVarInsertWithCaret(_v);
+            textArea.Document.Replace(completionSegment, insert);
+
+            // 输出模板 "Context.SetOutput("out", )" 把光标放在逗号后（等用户填值）；
+            // 输入模板是完整表达式，光标落在末尾。
+            int caret = completionSegment.Offset + insert.Length - caretFromEnd;
+            textArea.Caret.Offset = Math.Max(completionSegment.Offset, caret);
         }
     }
 }

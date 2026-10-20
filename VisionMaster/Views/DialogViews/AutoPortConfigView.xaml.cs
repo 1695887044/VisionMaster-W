@@ -1,16 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using Core.Controls;
 using Core.Interfaces;
 
 namespace VisionMaster.Views.DialogViews
 {
     /// <summary>
-    /// 框架给**没有自定义配置视图**的插件自动包的一层参数面板。
+    /// 框架给**没有自定义配置视图**的插件自动包的一层参数面板（Web 设计基线 v1）。
     ///
     /// 【要解决的问题】
     /// 插件不实现 <see cref="IPluginCustomViewProvider"/> 时，此前是回退到「变量绑定」窗口
@@ -25,7 +25,7 @@ namespace VisionMaster.Views.DialogViews
     /// <see cref="VisionPluginBase.OnConfirm(IStepConfigData)"/> 把端口值写回 InputValues。
     /// <see cref="LinkableValueEditor"/> 又能直接吃 <see cref="IInputPort"/> 并自己读写
     ///（含发布 <see cref="LinkPathEvent"/> 请主程序呼出绑定弹窗、自己处理清除）。
-    /// 所以这一层的职责只有一个：**把端口逐个渲染成行**。
+    /// 所以这一层的职责只有两个：**把端口逐个渲染成行**、**把步骤上下文与统计显示出来**。
     ///
     /// 【只列输入端口，不列 [StepConfig] 常量】
     /// 这是刻意的，不是遗漏：本面板只在"插件没有自定义视图"时启用，
@@ -36,6 +36,7 @@ namespace VisionMaster.Views.DialogViews
     public partial class AutoPortConfigView : UserControl, IPluginConfigView
     {
         private readonly VisionPluginBase? _plugin;
+        private IStepConfigData? _stepData;
 
         public AutoPortConfigView(IVisionPlugin plugin)
         {
@@ -57,50 +58,47 @@ namespace VisionMaster.Views.DialogViews
 
         public void Initialize(IStepConfigData stepData)
         {
-            // 清空后重建：本方法可能被外壳与本视图各调一次（谁先谁后不确定），
-            // 做成幂等的比去猜调用顺序可靠。
-            PortPanel.Children.Clear();
+            _stepData = stepData;
 
-            var rows = (_plugin?.Inputs?.Values ?? (IEnumerable<IInputPort>)Array.Empty<IInputPort>())
-                .Where(p => p != null)
-                .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var rows = GetPorts();
+            var existing = PortPanel.Children.OfType<AutoPortRow>().ToList();
 
-            if (rows.Count == 0)
+            // 外壳与视图都可能调一次 Initialize（谁先谁后不确定）。
+            // 端口集合与顺序都没变时**复用现有行**：LinkableValueEditor 在设置 Port 时会
+            // 订阅 IInputPort.ValueChanged，但共享控件没有卸载退订入口；重建行会让旧编辑器
+            // 继续挂在同一个端口事件上，调用两次就多一份订阅。复用是这里最稳的幂等做法。
+            if (existing.Count == rows.Count
+                && existing.Select(r => r.Port).SequenceEqual(rows))
             {
-                PortPanel.Children.Add(new TextBlock
-                {
-                    Text = "该步骤没有输入参数。",
-                    TextWrapping = TextWrapping.Wrap,
-                    Margin = new Thickness(2, 0, 2, 8),
-                    Opacity = 0.7,
-                });
+                foreach (var row in existing)
+                    row.RefreshStepData(stepData);
+                UpdateStepCard(stepData, rows);
+                UpdateSectionState(rows.Count > 0);
+                if (rows.Count == 0)
+                    UpdateEmptyState();
                 return;
             }
 
-            PortPanel.Children.Add(BuildHintBar());
+            // 端口集合变了才清空重建；旧行先退订本视图的统计回调。
+            foreach (var oldRow in existing)
+                oldRow.LinkStateChanged -= OnRowLinkStateChanged;
+            PortPanel.Children.Clear();
+
+            UpdateStepCard(stepData, rows);
+            UpdateSectionState(rows.Count > 0);
+
+            if (rows.Count == 0)
+            {
+                UpdateEmptyState();
+                return;
+            }
 
             foreach (var port in rows)
             {
-                PortPanel.Children.Add(new LinkableValueEditor
-                {
-                    Port = port,
-
-                    // 标签优先用描述（"延时时间(ms)"）—— 那才是写给人看的一句话；
-                    // 端口名（Delay / Axis）是给流程与代码用的键，不该直接摆在界面上。
-                    Label = string.IsNullOrWhiteSpace(port.Description) ? port.Name : port.Description,
-
-                    StepData = stepData,
-
-                    // 行距 6：编辑器的输入框是"下划线"样式，紧贴在一起会看不出哪条线属于哪个标签。
-                    Margin = new Thickness(0, 0, 0, 6),
-
-                    // 限宽：编辑器内部是「标签 | 输入框(占满剩余) | 🔗 | ✕」，
-                    // 不限宽时输入框会一路铺到屏幕最右边 —— 一个填 500 的框占一米宽，
-                    // 既难看出"这里该填什么"，也和旁边的控件对不齐。
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    Width = 520,
-                });
+                // 行的标签优先用 port.Description，为空回退 port.Name（见 AutoPortRow）。
+                var row = new AutoPortRow(port, stepData);
+                row.LinkStateChanged += OnRowLinkStateChanged;
+                PortPanel.Children.Add(row);
             }
         }
 
@@ -117,54 +115,90 @@ namespace VisionMaster.Views.DialogViews
 
             if (Window.GetWindow(this) is not { } window) return;
 
+            // MinWidth 必须一起调小：PluginConfigShellView 的 WindowStyle 给插件自带视图
+            // 留了 640 的保底宽度；不改它，Width=560 会被外壳钳成 640（设计基线 v1 的 560 就落不了地）。
+            window.MinWidth = 560;
             window.Width = 560;
             window.SizeToContent = SizeToContent.Height;
 
-            // MinHeight 必须一起调小：外壳默认的 420 是给插件大视图留的保底高度，
-            // 留着它就等于"内容 260、窗口 420"，下方依旧是一块空白。
+            // MinHeight 必须一起调小：外壳默认的 560 是给插件大视图留的保底高度，
+            // 留着它就等于"内容 260、窗口 560"，下方依旧是一块空白。
             window.MinHeight = 180;
             window.MaxHeight = 760;   // 参数多到超过就交给本视图里的滚动条
         }
 
         /// <summary>
-        /// 提示条（浅主色圆角条 + ℹ️）。
+        /// 实时端口集合（按 Name 排序）。
         ///
-        /// 用 Border 包一层、而不是直接放一段文字：这句话讲的是"这个界面怎么用"，
-        /// 需要和参数行拉开层次 —— 否则会被当成"又一条参数"，而它偏偏没有输入框，
-        /// 看着像界面出了故障。
+        /// 必须取插件实例上的端口，不能取 PluginService 的 PortDefinition 快照 ——
+        /// 编辑器要读写端口实时值、并把链接挂到这个实例上，快照里的值是空的。
         /// </summary>
-        private static Border BuildHintBar()
+        private List<IInputPort> GetPorts() =>
+            (_plugin?.Inputs?.Values ?? (IEnumerable<IInputPort>)Array.Empty<IInputPort>())
+                .Where(p => p != null)
+                .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+        /// <summary>步骤卡：图标 + 名称 + 静态副标题 + 三个统计。</summary>
+        private void UpdateStepCard(IStepConfigData? stepData, IReadOnlyList<IInputPort> ports)
         {
-            var text = new TextBlock
-            {
-                Text = "该步骤没有自定义配置界面，参数如下：没有绑定需求时直接填入常量，"
-                       + "需要连上游变量就点右侧的链接图标。",
-                TextWrapping = TextWrapping.Wrap,
-                FontSize = 12,
-                Foreground = (Brush)Application.Current.FindResource("DialogAccentTextBrush"),
-                MaxWidth = 470,
-            };
-
-            var row = new StackPanel { Orientation = Orientation.Horizontal };
-            row.Children.Add(new TextBlock
-            {
-                Text = "\u2139",   // ℹ 信息图标
-                FontSize = 13,
-                Margin = new Thickness(0, 0, 8, 0),
-                Foreground = (Brush)Application.Current.FindResource("DialogAccentBrush"),
-                VerticalAlignment = VerticalAlignment.Top,
-            });
-            row.Children.Add(text);
-
-            return new Border
-            {
-                Background = (Brush)Application.Current.FindResource("DialogAccentLightBrush"),
-                CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(12, 10, 12, 10),
-                Margin = new Thickness(0, 0, 0, 14),
-                Child = row,
-            };
+            StepIconText.Text = string.IsNullOrWhiteSpace(stepData?.Icon) ? "\uf110" : stepData.Icon;
+            StepNameText.Text = string.IsNullOrWhiteSpace(stepData?.StepName) ? "插件配置" : stepData.StepName;
+            UpdateMetrics(stepData, ports);
         }
+
+        /// <summary>输入数 / 必填数 / 已链接数（链接判据与 LinkableValueEditor 同源）。</summary>
+        private void UpdateMetrics(IStepConfigData? stepData, IReadOnlyList<IInputPort> ports)
+        {
+            InputMetricText.Text = ports.Count.ToString(CultureInfo.InvariantCulture);
+            RequiredMetricText.Text = ports.Count(p => p.IsRequired).ToString(CultureInfo.InvariantCulture);
+            LinkedMetricText.Text = ports.Count(p => IsPortLinked(stepData, p.Name)).ToString(CultureInfo.InvariantCulture);
+            SectionCountText.Text = ports.Count.ToString(CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>列表 / 空态切换：空态时区块头与清单一起收起。</summary>
+        private void UpdateSectionState(bool hasPorts)
+        {
+            SectionHeader.Visibility = hasPorts ? Visibility.Visible : Visibility.Collapsed;
+            PortListBorder.Visibility = hasPorts ? Visibility.Visible : Visibility.Collapsed;
+            EmptyState.Visibility = hasPorts ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        /// <summary>
+        /// 空态文案：插件实例没注入时说明"读不到端口"，而不是让用户以为插件真的没有参数。
+        /// </summary>
+        private void UpdateEmptyState()
+        {
+            if (_plugin == null)
+            {
+                EmptyTitleText.Text = "无法读取插件参数";
+                EmptyDescriptionText.Text =
+                    "插件实例未注入，无法读取输入端口；确认 / 取消 / 执行入口保持可用。";
+                return;
+            }
+
+            EmptyTitleText.Text = "该步骤没有输入参数";
+            EmptyDescriptionText.Text =
+                "插件没有声明任何输入端口，因此没有可编辑的参数。仍可执行、确认或取消；"
+                + "若该插件应有参数，请检查插件是否把配置写成了 [StepConfig]（本版兜底面板只渲染 InputPort）。";
+        }
+
+        /// <summary>
+        /// 链接 / 解除链接后刷新「已链接」统计。
+        /// 行背景由 AutoPortRow 自己的 DataTrigger 跟随，不在这里处理。
+        /// </summary>
+        private void OnRowLinkStateChanged(object? sender, EventArgs e)
+        {
+            if (_stepData == null) return;
+            UpdateMetrics(_stepData, GetPorts());
+        }
+
+        /// <summary>
+        /// 与 LinkableValueEditor.RestoreLinkState 同一口径：先看 IsLinked，再兜底看地址非空。
+        /// </summary>
+        private static bool IsPortLinked(IStepConfigData? stepData, string portName) =>
+            stepData != null
+            && (stepData.IsLinked(portName) || !string.IsNullOrEmpty(stepData.GetLinkedAddress(portName)));
 
         /// <summary>
         /// 确认：写回步骤配置。

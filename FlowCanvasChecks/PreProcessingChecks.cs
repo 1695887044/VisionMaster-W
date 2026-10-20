@@ -41,6 +41,49 @@ namespace FlowCanvasChecks
             RunEdgePixels();
             RunNormalizeAndPersistence();
             RunChainEndToEnd();
+            RunPreviewRefreshContract();
+        }
+
+        // ==================================================================
+        //  ⑤ 试运行桥接输入图 → 预览必须跟着刷新
+        // ==================================================================
+
+        /// <summary>
+        /// 点「执行」后画面不刷新（真机 2026-10-20）：状态栏显示"成功"，画布还是黑的。
+        ///
+        /// 链路是 `PluginTestRunner.BridgeInputs` 把上游实际值写进**配置实例**的同名端口
+        /// （走 `port.Value`），而本插件此前只在"视图就绪 / 参数变更 / 链变更"时取图 ——
+        /// 端口灌值这条路径没有任何订阅，`_sourceImage` 一直是 null，`DisplayImage` 自然是黑的。
+        /// 这里复刻那一步（直接给 SrcImage 灌一张图），钉住"灌完立刻能看到"。
+        ///
+        /// 注意：断言宿主没有 `Application`，走的是 `SchedulePreview` 的同步分支
+        /// （有 Application 时是 200ms 防抖），所以这条在无头环境里也是确定的。
+        /// </summary>
+        private static void RunPreviewRefreshContract()
+        {
+            Section("[PRE] 试运行桥接输入图后预览要跟着刷新（点「执行」画面不能还是黑的）");
+
+            var plugin = new PreProcessingPlugin { InstanceName = "预处理预览断言" };
+            using var img = MakeImage(100, (20, 20, 60, 60, 200));
+            try
+            {
+                plugin.OnViewLoaded();
+                Check("视图就绪、上游还没给图 → 预览为空（画布显示「尚无预览」）",
+                    plugin.DisplayImage == null,
+                    plugin.DisplayImage == null ? "null" : "不该有图");
+
+                // 与 BridgeInputs 同一个动作：配置实例的输入端口被灌入上游实际值
+                plugin.SrcImage.Value = img;
+
+                Check("灌入输入图后预览立刻取到这张图（不用再动一下参数）",
+                    ReferenceEquals(plugin.DisplayImage, img),
+                    plugin.DisplayImage == null ? "null（没刷新）"
+                        : ReferenceEquals(plugin.DisplayImage, img) ? "同一张图" : "另一张图");
+            }
+            finally
+            {
+                plugin.Dispose();
+            }
         }
 
         // ==================================================================

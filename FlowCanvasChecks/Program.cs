@@ -65,6 +65,17 @@ namespace FlowCanvasChecks
                 return 0;
             }
 
+            // 尺寸实量子模式：--measure-canvas 起 Application、实例化真 FlowCanvasView 并量
+            // 卡片/标题/小地图的 ActualWidth/ActualHeight，把机器可读行打给父进程（CanvasDesignChecks）。
+            // 为什么是子进程：主断言进程 new Application 会让后续投射类断言失效且退出时挂住
+            //（见 BlobDetectChecks 类注释），所以"真量"必须在独立进程里做。
+            if (args.Length >= 1 && args[0] == "--measure-canvas")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                RenderProbe.RunMeasure();
+                return Environment.ExitCode;
+            }
+
             // 逻辑暴力测试加力档：--brute [N] 只跑 B0 随机图对拍（默认 2000 张），不进常规 gate。
             // 定种子：同一条命令跑出来的图与结果完全确定（finding 的图可由 seed+i 复现）。
             if (args.Length >= 1 && args[0] == "--brute")
@@ -139,6 +150,10 @@ namespace FlowCanvasChecks
             // [Z4] 必填参数黄叹号 / [Z5] 拖动对齐参考线 / [Z7] 视图态持久化口径
             CanvasVisualizationChecks.Run();
 
+            // flow-logic 设计稿收尾守门（操作徽标 GTE/XOR / 节点 156×58 / 小地图 180×118）：
+            // 真模型 + 真 XAML；"真实测量"走子进程（--measure-canvas，主进程不能 new Application）
+            CanvasDesignChecks.Run();
+
             ParallelContainerChecks.Run();
 
             // 流程栏树模板覆盖守门（U1-U5：类型键模板缺 ParallelStep → "VisionMaster.Models.ParallelStep" 上屏事故）
@@ -146,6 +161,12 @@ namespace FlowCanvasChecks
 
             // 流程栏分支卡片点击守门（V1-V5：双击分支弹"上一个算子"参数窗 / 弹空白条件窗事故）
             ProcessTreeInteractionChecks.Run();
+
+            // 条件编辑器 v2 复刻守门（契约保留 / 展示层口径 / 诊断只读 / 源码契约）
+            ConditionEditorV2Checks.Run();
+
+            // 条件编辑器左栏摘要实时性（真视图 + 真绑定；改表达式不切分支摘要要跟着走）
+            ConditionEditorSummaryProbe.Run();
 
             // 并行分组配置面板（W1-W7：执行模式/失败聚合/汇合超时/分支增删的草稿→校验→写回）
             ParallelGroupConfigChecks.Run();
@@ -211,6 +232,7 @@ namespace FlowCanvasChecks
             GlobalVariableChecks.Run();
             MotionChecks.Run();
             MotionZMotionChecks.Run();
+            HardwareManagerChecks.Run();
             MatchingChecks.Run();
             CreateRoiChecks.Run();
 
@@ -229,6 +251,15 @@ namespace FlowCanvasChecks
 
             // 变量赋值：运行时 / 全局两种作用域
             VariableAssignmentCheck.Run();
+
+            // 通讯立刻读 / 立刻写：元数据 / 端口候选 / 成功失败路径 / 发起前短路
+            CommOperatorChecks.Run();
+
+            // C#脚本：变量改名/删行的连线收尾（孤儿键会让整条流程编译失败）+ 补全插入可编译模板
+            CSharpScriptChecks.Run();
+
+            // C#脚本·共享变量（阶段1 只读）：别名/未声明/类型转换/候选快照/持久化
+            CSharpSharedVarChecks.Run();
 
             // 颜色序列检查插件（第一刀）：ROI 采样区的画框 / 存盘 / 回填
             ColorCheckRoiCheck.Run();
@@ -381,10 +412,60 @@ namespace FlowCanvasChecks
             Check("顶层步骤 = 只有 a（容器另算）",
                 h.MainSteps().Count == 1 && h.MainSteps()[0].StepId == a.StepID, $"顶层 {h.MainSteps().Count}");
 
-            Check("容器框带类型徽标：If / For",
-                h.Node(cond)!.TypeBadge == "If" && h.Node(outer)!.TypeBadge == "For"
+            Check("容器框带类型徽标：IF / FOR",
+                h.Node(cond)!.TypeBadge == "IF" && h.Node(outer)!.TypeBadge == "FOR"
                 && h.Node(a)!.TypeBadge == "",
                 $"'{h.Node(cond)!.TypeBadge}'/'{h.Node(outer)!.TypeBadge}'");
+
+            // 子类必须先于基类判定：While/Case 都继承 ConditionStep，判错会退化成 IF。
+            var whileStep = new WhileStep("f01e", "While", "BuiltIn_While", "while_0");
+            whileStep.Children[0].Expression = "DI == 1";
+            var caseStep = new CaseStep("f126", "分支匹配", "BuiltIn_Case", "case_0") { JudgeExpression = "Recipe" };
+            var waitStep = new WaitStep("f252", "等待", "BuiltIn_Wait", "wait_0") { ConditionExpression = "DI == 1" };
+            var whileNode = new CanvasNodeViewModel(whileStep);
+            var caseNode = new CanvasNodeViewModel(caseStep);
+            var waitNode = new CanvasNodeViewModel(waitStep);
+            Check("容器类型徽标：WHILE / CASE 不被基类判成 IF",
+                whileNode.TypeBadge == "WHILE" && caseNode.TypeBadge == "CASE",
+                $"'{whileNode.TypeBadge}'/'{caseNode.TypeBadge}'");
+            Check("等待节点徽标 = WAIT（Step 模板可见性放行）",
+                waitNode.TypeBadge == "WAIT" && waitNode.TypeBadgeVisibility == System.Windows.Visibility.Visible,
+                $"'{waitNode.TypeBadge}' / {waitNode.TypeBadgeVisibility}");
+            Check("容器摘要：While 条件 / Case 判据 / For 次数 / 并行模式",
+                whileNode.ContainerSummary == "DI == 1"
+                && caseNode.ContainerSummary == "Recipe"
+                && h.Node(outer)!.ContainerSummary == "10 次"
+                && new CanvasNodeViewModel(new ParallelStep("f0f7", "并行", "BuiltIn_Parallel", "par_0") { JoinTimeoutMs = 15000 })
+                    .ContainerSummary == "顺序 · 15s",
+                $"while='{whileNode.ContainerSummary}' case='{caseNode.ContainerSummary}' for='{h.Node(outer)!.ContainerSummary}'");
+
+            // ---- 摘要必须“改了就变”，不能只验初值 ----
+            // 分支条件在条件编辑器里改、并行模式/循环次数在检查器里改，节点池复用不重建，
+            // 不订阅分支/模型通知的话画布头会一直停在旧值。
+            string whileBefore = whileNode.ContainerSummary;
+            bool whileNotified = false;
+            whileNode.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(CanvasNodeViewModel.ContainerSummary)) whileNotified = true;
+            };
+            whileStep.Children[0].Expression = "DI == 2";
+            Check("改分支条件 → 容器摘要实时刷新（并发出 PropertyChanged）",
+                whileNotified && whileNode.ContainerSummary == "DI == 2",
+                $"before='{whileBefore}' after='{whileNode.ContainerSummary}' notified={whileNotified}");
+
+            string forBefore = h.Node(outer)!.ContainerSummary;
+            outer.DefaultLoopCount = 3;
+            Check("改循环次数 → 容器摘要实时刷新",
+                h.Node(outer)!.ContainerSummary == "3 次" && forBefore == "10 次",
+                $"before='{forBefore}' after='{h.Node(outer)!.ContainerSummary}'");
+
+            var parModel = new ParallelStep("f0f7", "并行", "BuiltIn_Parallel", "par_0") { JoinTimeoutMs = 15000 };
+            var parNode = new CanvasNodeViewModel(parModel);
+            string parBefore = parNode.ContainerSummary;
+            parModel.ExecutionMode = VisionMaster.Models.ParallelExecutionMode.Parallel;
+            Check("改并行执行模式 → 容器摘要实时刷新",
+                parNode.ContainerSummary == "真并发 · 15s" && parBefore == "顺序 · 15s",
+                $"before='{parBefore}' after='{parNode.ContainerSummary}'");
             Check("泳道按引用挂住分支",
                 h.Lane(ifBranch) != null && h.Lane(outer.Children[0]) != null, "");
             Check("有内容的分支不算空泳道", h.Lane(ifBranch)!.IsLaneEmpty == false, "");

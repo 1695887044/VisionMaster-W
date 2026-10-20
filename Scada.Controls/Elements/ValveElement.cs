@@ -78,39 +78,39 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>开度（0~100；开关阀只给 0 或 100）</summary>
         [ScadaProperty(Key = "Opening", DisplayName = "开度", Kind = ElementPropertyKind.Number,
-                       Group = "数据", DefaultValue = "0", Min = 0, Max = 100, IsBindable = true,
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "0", Min = 0, Max = 100, IsBindable = true,
                        Description = "运行态把工程变量绑到这里（0~100 的实数）；开关阀只给 0 或 100，" +
                                      "中间值就是调节阀。超出 0~100 按两端收敛，坏值不会把整页渲染打断")]
         public partial double Opening { get; set; }
 
         /// <summary>开度显示格式串</summary>
         [ScadaProperty(Key = "OpeningFormat", DisplayName = "开度格式", Kind = ElementPropertyKind.Text,
-                       Group = "数据", DefaultValue = "0.#",
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "0.#",
                        Description = "标准 .NET 数字格式串（0.0 定一位小数、F0 取整）；" +
                                      "写错了退回通用格式，不会让画面出错")]
         public partial string? OpeningFormat { get; set; }
 
         /// <summary>阀体空腔色（也是全关时阀体的颜色：没开就没有介质，露出来的就是空腔）</summary>
         [ScadaProperty(Key = "TrackColor", DisplayName = "空腔色", Kind = ElementPropertyKind.Color,
-                       Group = "外观", DefaultValue = "#FF3A3A3A",
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FF3A3A3A",
                        Description = "阀体空腔的底色，也是全关时阀体的样子（没开就没有介质）")]
         public partial Brush? TrackColor { get; set; }
 
         /// <summary>中间位色（0 &lt; 开度 &lt; 100 时的填充色）</summary>
         [ScadaProperty(Key = "ThrottleColor", DisplayName = "中间位色", Kind = ElementPropertyKind.Color,
-                       Group = "外观", DefaultValue = "#FF2F80ED",
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FF2F80ED",
                        Description = "0 < 开度 < 100 时介质填充的颜色；蓝色是「正在调节」的通用语汇")]
         public partial Brush? ThrottleColor { get; set; }
 
         /// <summary>全开色（开度 ≥ 100 时的填充色）</summary>
         [ScadaProperty(Key = "OpenColor", DisplayName = "全开色", Kind = ElementPropertyKind.Color,
-                       Group = "外观", DefaultValue = "#FF34C759",
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FF34C759",
                        Description = "开度 ≥ 100 时介质填充的颜色；绿色 = 通路打开")]
         public partial Brush? OpenColor { get; set; }
 
         /// <summary>是否显示开度</summary>
         [ScadaProperty(Key = "ShowValue", DisplayName = "显示开度", Kind = ElementPropertyKind.Bool,
-                       Group = "文字", DefaultValue = "True",
+                       Group = ScadaPropertyGroups.Text, DefaultValue = "True",
                        Description = "关掉只留阀体（读数交给旁边的数值域），默认开：阀开没开全靠这个数说话")]
         public partial bool ShowValue { get; set; }
 

@@ -45,6 +45,7 @@ namespace VisionMaster.Communications
             // ---- Modbus ----
             int fc = -1;
             int start = -1;
+            int station = -1;   // -1 = 地址里没有 s= 前缀，用连接自己的站号
 
             if (s.IndexOf(';') >= 0)
             {
@@ -56,10 +57,15 @@ namespace VisionMaster.Communications
                     {
                         if (!int.TryParse(p.Substring(2), out fc)) return null;
                     }
-                    else if (p.StartsWith("s=", StringComparison.OrdinalIgnoreCase) ||
-                             p.StartsWith("w=", StringComparison.OrdinalIgnoreCase))
+                    else if (p.StartsWith("s=", StringComparison.OrdinalIgnoreCase))
                     {
-                        // 站号/写功能码不参与分组（站号由连接配置决定）
+                        // 站号逐帧生效（HSL 组帧时写帧头、应答按本次站号校验），必须保留进 GroupKey 与段前缀：
+                        // 丢掉它 → 不同从站的同地址变量被合并成一段，另一站静默读到错值。
+                        if (!int.TryParse(p.Substring(2), out station) || station < 0 || station > 255) return null;
+                    }
+                    else if (p.StartsWith("w=", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // 写功能码不参与分组
                     }
                     else if (!int.TryParse(p, out start))
                     {
@@ -89,12 +95,13 @@ namespace VisionMaster.Communications
 
             bool bitArea = fc is 1 or 2;
             int units = bitArea ? 1 : Math.Max(1, (elementSize + 1) / 2);
+            string stationPrefix = station >= 0 ? $"s={station};" : string.Empty;
 
             return new PollAddress
             {
                 Protocol = PollProtocol.Modbus,
-                GroupKey = $"FC{fc}",
-                SegmentPrefix = $"x={fc};",
+                GroupKey = $"{stationPrefix}FC{fc}",
+                SegmentPrefix = $"{stationPrefix}x={fc};",
                 Start = start,
                 SpanUnits = units,
                 IsBitArea = bitArea,

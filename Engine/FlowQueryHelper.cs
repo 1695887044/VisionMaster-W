@@ -61,6 +61,7 @@ namespace VisionMaster.Helpers
                 var globalNode = new ToolItemModel()
                 {
                     ModuleGroup = "Global",
+                    SourceCategory = "Variable",
                     DefaultLinkKind = LinkKind.GlobalVariable,
                     Name = "全局变量 (Global)",
                     Icon = "\uf0ac",
@@ -96,6 +97,7 @@ namespace VisionMaster.Helpers
                 {
                     Id = LinkProtocol.RuntimeVariableMarkerGuid,
                     ModuleGroup = "Runtime",
+                    SourceCategory = "Variable",
                     DefaultLinkKind = LinkKind.RuntimeVariable,
                     Name = "运行时变量 (Runtime)",
                     Icon = "\uf085",
@@ -143,6 +145,33 @@ namespace VisionMaster.Helpers
             }
 
             return treeNodes;
+        }
+
+        /// <summary>
+        /// 按"这个输入端口是否允许接全局/系统变量"过滤候选树。
+        ///
+        /// C#脚本的输入只接上游数据流：全局/系统变量走它自己的「共享变量」声明表
+        /// （按 VariableId 寻址、可声明读写方向）。把「全局变量」节点整块摘掉，
+        /// 比"选得到但运行期不生效"清楚得多。
+        ///
+        /// 抽成纯函数：断言可以直接构造 ToolItemModel 验证过滤口径，不必起绑定窗口。
+        /// </summary>
+        public static List<ToolItemModel> FilterGlobalNodes(
+            IEnumerable<ToolItemModel> nodes,
+            bool allowGlobals)
+        {
+            var result = new List<ToolItemModel>();
+            if (nodes == null) return result;
+
+            foreach (var node in nodes)
+            {
+                if (node == null) continue;
+                if (!allowGlobals && string.Equals(node.ModuleGroup, "Global", StringComparison.Ordinal))
+                    continue;
+                result.Add(node);
+            }
+
+            return result;
         }
 
         /// <summary>

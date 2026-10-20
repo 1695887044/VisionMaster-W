@@ -80,15 +80,19 @@ namespace VisionMaster.Scada.Controls
         /// 两副画刷都冻结：每帧都可能赋给 <see cref="Shape.Stroke"/>，没冻结的 Freezable
         /// 每次赋值都要做一次变更通知与克隆判定（与上面两副线型同一个理由）。
         /// </summary>
-        private static readonly Brush SelectionStroke = ScadaBrushes.Frozen(Color.FromRgb(0x00, 0x7A, 0xCC));
+        // 与 Themes/ScadaTokens.xaml 的 HmiSelectionBrush 同值（#38BDF8）。
+        // 静态字段不能在静态初始化里查 Application 资源（断言宿主没有 Application），
+        // 所以这里存同值常量；两处漂移由 ScadaChecks 的 Phase1 UI 断言对比守住。
+        private static readonly Brush SelectionStroke = ScadaBrushes.Frozen(Color.FromRgb(0x38, 0xBD, 0xF8));
 
         /// <summary>
         /// 锁定的金色。
         ///
-        /// 刻意<b>不</b>用诊断层的警示橙 <c>#E88B1A</c>：那个橙的意思是"这个图元没接上变量"，
+        /// 刻意<b>不</b>用诊断层的警示橙（HmiDiagnosticWarningBrush）：那个橙的意思是"这个图元没接上变量"，
         /// 与"这个图元被保护了"是两回事。同色的话，同一幅画面上两个角标会互相冒充。
         /// 这里往黄侧挪一档（色相 26° → 41°），并排看能分开。
         /// </summary>
+        // 与 Themes/ScadaTokens.xaml 的 HmiLockedBrush 同值（#E3A51B）。
         private static readonly Brush LockedStroke = ScadaBrushes.Frozen(Color.FromRgb(0xE3, 0xA5, 0x1B));
 
         /// <summary>
@@ -1767,7 +1771,7 @@ namespace VisionMaster.Scada.Controls
             {
                 Stroke = SelectionStroke,
                 StrokeDashArray = MultiDash,
-                Fill = ScadaBrushes.Frozen(Color.FromArgb(0x22, 0x00, 0x7A, 0xCC)),
+                Fill = ScadaBrushes.Frozen(Color.FromArgb(0x22, 0x38, 0xBD, 0xF8)),
                 IsHitTestVisible = false, // 纯提示，不能挡住它自己正框着的那些图元
                 Visibility = Visibility.Collapsed,
             };

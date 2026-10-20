@@ -5,6 +5,7 @@
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
     xmlns:prism="http://prismlibrary.com/"
     xmlns:ui="http://schemas.UI.com/ui"
+    xmlns:local="clr-namespace:VisionMaster.Views.DialogViews"
     prism:ViewModelLocator.AutoWireViewModel="True"
     Background="{StaticResource DialogBackgroundBrush}">
 
@@ -36,7 +37,7 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="52" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -51,6 +52,16 @@
             Background="{StaticResource DialogRowAlternateBrush}"
             BorderBrush="{StaticResource DialogBorderLightBrush}"
             BorderThickness="0,0,0,1">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding (local:EmbeddedMode.IsEmbedded), RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <Grid Margin="20,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -161,6 +172,7 @@
                         MinWidth="128"
                         VerticalAlignment="Center"
                         Command="{Binding AddCommand}"
+                        IsEnabled="{Binding IsConfigEditable}"
                         Style="{StaticResource DialogPrimaryButton}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock
@@ -296,6 +308,7 @@
                                             Margin="0,0,12,0"
                                             HorizontalAlignment="Right"
                                             VerticalAlignment="Center"
+                                            IsEnabled="{Binding DataContext.IsRuntimeOperable, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                             Orientation="Horizontal">
                                             <!--  连接 / 断开  -->
                                             <Button Command="{Binding DataContext.ToggleConnectionCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}">
@@ -343,6 +356,7 @@
                                                 Command="{Binding DataContext.EditCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                 CommandParameter="{Binding}"
                                                 Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                IsEnabled="{Binding DataContext.IsConfigEditable, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                 Style="{StaticResource DialogIconButton}"
                                                 ToolTip="编辑参数">
                                                 <TextBlock
@@ -356,6 +370,7 @@
                                                 Command="{Binding DataContext.EditScanGroupsCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                 CommandParameter="{Binding}"
                                                 Foreground="{StaticResource DialogAccentBrush}"
+                                                IsEnabled="{Binding DataContext.IsConfigEditable, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                 Style="{StaticResource DialogIconButton}"
                                                 ToolTip="扫描组">
                                                 <TextBlock
@@ -369,6 +384,7 @@
                                                 Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                 CommandParameter="{Binding}"
                                                 Foreground="{StaticResource DialogDangerBrush}"
+                                                IsEnabled="{Binding DataContext.IsConfigEditable, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                 Style="{StaticResource DialogIconButton}"
                                                 ToolTip="删除">
                                                 <TextBlock
@@ -503,7 +519,7 @@
                     <!--  作用于"选中行"：没选就置灰，点不动  -->
                     <Button
                         Command="{Binding ConnectSelectedCommand}"
-                        IsEnabled="{Binding HasSelection}"
+                        IsEnabled="{Binding CanOperateSelection}"
                         Style="{StaticResource DialogGhostButton}"
                         ToolTip="建立所选连接的常驻连接">
                         <StackPanel Orientation="Horizontal">
@@ -519,7 +535,7 @@
                     </Button>
                     <Button
                         Command="{Binding DisconnectSelectedCommand}"
-                        IsEnabled="{Binding HasSelection}"
+                        IsEnabled="{Binding CanOperateSelection}"
                         Style="{StaticResource DialogGhostButton}"
                         ToolTip="断开所选连接">
                         <StackPanel Orientation="Horizontal">
@@ -547,6 +563,7 @@
                     -->
                     <Button
                         Command="{Binding ConnectAllCommand}"
+                        IsEnabled="{Binding IsRuntimeOperable}"
                         Style="{StaticResource DialogGhostButton}"
                         ToolTip="连接当前筛选结果里的全部连接">
                         <StackPanel Orientation="Horizontal">
@@ -562,6 +579,7 @@
                     </Button>
                     <Button
                         Command="{Binding DisconnectAllCommand}"
+                        IsEnabled="{Binding IsRuntimeOperable}"
                         Style="{StaticResource DialogGhostButton}"
                         ToolTip="断开当前筛选结果里的全部连接">
                         <StackPanel Orientation="Horizontal">
@@ -577,13 +595,22 @@
                     </Button>
                 </StackPanel>
 
-                <Button
-                    Grid.Column="1"
-                    Width="96"
-                    VerticalAlignment="Center"
-                    Command="{Binding CloseCommand}"
-                    Content="确 定"
-                    Style="{StaticResource DialogPrimaryButton}" />
+                <Border Grid.Column="1" Width="96" VerticalAlignment="Center">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding (local:EmbeddedMode.IsEmbedded), RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Button
+                        Command="{Binding CloseCommand}"
+                        Content="确 定"
+                        Style="{StaticResource DialogPrimaryButton}" />
+                </Border>
             </Grid>
         </Border>
         </Grid>

@@ -2,7 +2,7 @@
 
 > 分类：图像处理 ｜ 来源：插件 Plugin.Yolo ｜ 读者：开发
 
-守门文件：`FlowCanvasChecks\YoloChecks.cs`（46 条）。下面每条给"症状 → 机理 → 断言名"，断言名逐字取自该文件。
+守门文件：`FlowCanvasChecks\YoloChecks.cs`（59 条）。下面每条给"症状 → 机理 → 断言名"，断言名逐字取自该文件。
 
 ## A 组：违反就报错或结果明显不对
 
@@ -68,6 +68,37 @@
     **机理** onnxruntime 原生库没进宿主 exe 目录，或进程是 32 位。
     **守门断言名** `ONNX 依赖链路 set`、`真实推理链路 3 条`。
 
+## C 组：配置界面状态契约（YO3，违反不报错，只是界面判据静默失效）
+
+16. **症状** 模型路径明明失败了，预览却仍显示"等待图像输入"；或者模型可用，界面却一直红着。
+    **机理** 旧视图用 `ModelSummary.Contains("模型加载失败")` / `Hint.Contains("失败")` 判错误态——文案一改就静默失效。
+    **守门断言名** `状态契约：新建 → ModelState=NotLoaded / PreviewState=Idle`、`状态契约：ModelPath 为空 → RefreshModelState 后 ModelState=NotLoaded（不判失败）`、`状态契约：模型路径不存在 → ModelState=Failed`。
+
+17. **症状** 换了一张上游图，结果卡还显示上一张图的检测结论。
+    **机理** `ShowUpstreamImage()` 成功后没有把预览态与结果复位。
+    **守门断言名** `状态契约：有图 → DisplayImage 就绪 / PreviewState=Idle / ResultSummary 回到「尚未试算」`。
+
+18. **症状** 没有图点「试算一下」，结果卡变红说"试算失败"。
+    **机理** 无图是 `Idle`（还没试算），不是 `Error`。
+    **守门断言名** `状态契约：无图试算 → PreviewState=Idle（不是 Error）`。
+
+19. **症状** 0 个目标被当成失败（结果卡变红），或者有目标却显示黄色。
+    **机理** 检测数量到预览态的映射写反/漏判。
+    **守门断言名** `状态契约：FromDetectionCount(0/-1) → Empty，1/5 → Ready`、`状态契约：模型失败时试算 → PreviewState=Error 且 ModelState=Failed`。
+
+20. **症状** 模型加载成功、只是类别过滤填错，模型信息卡却被判成"加载失败"。
+    **机理** 把"本次试算失败"与"会话级失败"混为一谈；只有 `_sessionError` 非空才允许写 `ModelState=Failed`。
+    **守门断言名** `状态契约：非会话级失败（类别过滤非法）→ PreviewState=Error 且 ModelState 保持 Ready`（需要测试模型）。
+
+21. **症状** 保存配置后 `.vms` 里多出 `ModelState` / `PreviewState` 键。
+    **机理** 运行态属性误加了 `[StepConfig]`。
+    **守门断言名** `状态契约：OnConfirm 不写 ModelState/PreviewState（运行态不落盘）`、`状态契约：ModelState/PreviewState 不带 [StepConfig]（源生成器不会收它们）`。
+
+22. **症状** 视图又退回"按中文文案判状态"，编译期全绿、界面状态全错。
+    **机理** 中文前缀判据（`Contains("失败")` / `StartsWith("试算失败")`）无法被类型系统约束。
+    **守门断言名** `状态契约：视图不再引用 ResultState/YoloState 转换器，且状态触发走枚举（≥4 处）`、`状态契约：视图源码禁止用中文文案前缀判状态（Contains/StartsWith + 中文）`。
+    **变异反证**：把 `Contains("失败")` 写回 `YoloView.xaml.cs`，第二条必须准确变红。
+
 ## 并行安全声明
 
 带 `[ParallelSafe]`。成立的前提是三条：`YoloSession.Cache` 有 `CacheLock`、`Session.Run` 线程安全、
@@ -76,7 +107,7 @@
 ## 改后必做动作
 
 ```
-1) 改预处理或后处理：跑 FlowCanvasChecks，YoloChecks 46 条必须全绿
+1) 改预处理、后处理或配置界面状态：跑 FlowCanvasChecks，YoloChecks 59 条必须全绿
 2) 改端口名或类型：重建宿主，用旧 .vms 开一次确认连线还在；顺带核对 BoxesText 的分隔符没变
 3) 改 [ParallelSafe] 或会话锁：做一次多流程并发压测，看 CachedSessionCount 是否等于"被引用的不同模型数"
 4) 改 Help\ 页面：核对 HM5 HM6 HM7 HM8 HM9 HM12b HM13（M 档开发章节 ≥150 行）

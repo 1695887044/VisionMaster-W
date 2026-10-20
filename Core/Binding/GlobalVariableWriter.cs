@@ -24,7 +24,7 @@ namespace VisionMaster.Binding
     /// （跑一次多一个变量），而组态画面绑定的又是设计期那批名字，问题极难复现。
     /// 变量是设计期资产，运行期只能写，不能增。
     /// </summary>
-    public sealed class GlobalVariableWriter : IGlobalVariableWriter
+    public sealed class GlobalVariableWriter : IGlobalVariableWriter, ISharedVariableAccess
     {
         private readonly IWorkspaceManager _workspace;
 
@@ -63,6 +63,64 @@ namespace VisionMaster.Binding
                 return false;
             }
 
+            return WriteResolved(variable, value, out error);
+        }
+
+        /// <inheritdoc />
+        public bool TryRead(Guid variableId, string fallbackName, out object? value, out string? error)
+        {
+            value = null;
+            var variable = Resolve(variableId, fallbackName, out error);
+            if (variable == null)
+                return false;
+
+            // IVariable 继承自 IOutputPort：当前值就是 Value（网络变量是通信线程镜像的那份）。
+            value = variable.Value;
+            return true;
+        }
+
+        /// <inheritdoc />
+        public bool TryWrite(Guid variableId, string fallbackName, object? value, out string? error)
+        {
+            var variable = Resolve(variableId, fallbackName, out error);
+            return variable != null && WriteResolved(variable, value, out error);
+        }
+
+        /// <summary>
+        /// 按"Id 优先、名字兜底"解析变量（与 <c>VariableRegistry.ResolveGlobalLink</c> 同一口径）。
+        /// Id 是权威寻址：变量改名后声明表仍能命中；名字兜底服务旧方案与手输。
+        /// </summary>
+        private IVariable? Resolve(Guid variableId, string fallbackName, out string? error)
+        {
+            error = null;
+
+            if (_workspace == null)
+            {
+                error = "当前执行环境没有绑定工作区，无法访问共享变量";
+                return null;
+            }
+
+            var registry = _workspace.VariableRegistry;
+            IVariable? variable = variableId != Guid.Empty ? registry?.FindById(variableId) : null;
+            if (variable == null && !string.IsNullOrWhiteSpace(fallbackName))
+                variable = registry?.FindByName(fallbackName.Trim());
+
+            if (variable == null)
+            {
+                var name = string.IsNullOrWhiteSpace(fallbackName) ? "（未记录名字）" : $"「{fallbackName.Trim()}」";
+                error = $"找不到共享变量 {name}（Id={variableId}），请检查变量管理，或重新选择该声明";
+            }
+
+            return variable;
+        }
+
+        /// <summary>
+        /// 类型守门 + 落值（按名写与按 Id 写共用，避免两套口径）。
+        /// </summary>
+        private static bool WriteResolved(IVariable variable, object? value, out string? error)
+        {
+            error = null;
+
             var declared = variable.DataType;
             if (value != null && declared != null && !declared.IsInstanceOfType(value))
             {
@@ -75,7 +133,7 @@ namespace VisionMaster.Binding
                 // 口径与运行时变量那条路（VariableAssignmentPlugin 的 Convert.ChangeType）一致：
                 // 能转就转，转不了明确报错。只放宽文本 —— 类型化的值（double 塞进 int 变量）
                 // 仍按原样报错，那多半是上游接线错了，静默截断会把错因推迟到很远的地方。
-                if (!TryCoerceText(value, declared, out var coerced))
+                if (!ValueTextCoercion.TryCoerce(value, declared, out var coerced))
                 {
                     error = $"全局变量「{variable.Name}」的类型是 {declared.Name}，无法写入 {value.GetType().Name}（值 [{value}]）";
                     return false;
@@ -95,49 +153,13 @@ namespace VisionMaster.Binding
                 return false;
             }
 
-            error = $"全局变量「{variable.Name}」不支持写入（该变量类型未实现可写契约）";
+            // 系统变量是运动轴状态的投影，刻意不实现 IWritableVariable（只读）。
+            // 这里给一句能直接展示的专门说明，别让用户以为"这个变量坏了"。
+            error = variable.VariableType == VariableType.System
+                ? $"「{variable.Name}」是系统变量（只读），不能写入"
+                : $"全局变量「{variable.Name}」不支持写入（该变量类型未实现可写契约）";
             return false;
         }
 
-        /// <summary>
-        /// 把**文本**值按变量的声明类型解析一次。
-        ///
-        /// 只管文本：界面能产出的只有文本，而"文本→数值/布尔"正是用户写字面量的方式。
-        /// 数组 / 枚举 / HImage 这类目标一律解析不了 → 返回 false，由调用方报"类型不匹配"。
-        /// Nullable 先剥掉，否则 <c>Nullable&lt;int&gt;</c> 会让 ChangeType 直接抛。
-        ///
-        /// 两条口径：
-        ///   · **不变区域性**（InvariantCulture）：本机的 zh-CN 与不变区域性在小数点上一致（`.`），
-        ///     但显式写死才能保证换机器/换区域设置时同一个方案解析出同一个数；
-        ///   · **数值不许带千分位分隔符**：默认的 Convert 会把 `2,5` 读成 `25` ——
-        ///     用户想写 2.5 而系统静默写成 25，属于"应当报错却改了值"的一类，宁可让他改写法
-        ///     （`1500` 写错成 `1,500` 会被拒，重打一遍就好）。
-        /// </summary>
-        private static bool TryCoerceText(object value, Type declared, out object? coerced)
-        {
-            coerced = value;
-            if (value is not string raw)
-                return false;
-
-            var text = raw.Trim();
-            var target = Nullable.GetUnderlyingType(declared) ?? declared;
-
-            if (text.Length == 0)
-                return false;
-
-            if (TypeHelper.IsNumericType(target) && text.IndexOf(',') >= 0)
-                return false;
-
-            try
-            {
-                coerced = Convert.ChangeType(text, target, CultureInfo.InvariantCulture);
-                return true;
-            }
-            catch
-            {
-                // 解析不了就交给调用方报错（错误信息里带上原值，用户才知道是哪个值被拒了）
-                return false;
-            }
-        }
     }
 }

@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    M0 探针模块：模拟将来 Web\Probe.ScadaWeb.dll 的形态。
+    - 只引用 VM.Core（VM.Core 再带出 VM.Scada / Core.Controls / Core.Interfaces / Prism）
+    - 不引用 VisionMaster.exe
+    - Private="false"：模块目录里不放 VM.*.dll（验证 E：依赖从宿主目录解析）
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <AssemblyName>Probe.ScadaWeb</AssemblyName>
+    <RootNamespace>Probe.ScadaWeb</RootNamespace>
+    <OutputPath>$(MSBuildThisFileDirectory)..\out\Web\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Private=false suppresses the direct VM.Core.dll copy; transitive project outputs
+         (VM.Scada / Core.*) are still copied by the SDK, so the target below strips them.
+         This mirrors the real deployment: <publish>\Web\ carries only the module's own files. -->
+    <ProjectReference Include="..\..\Core\VM.Core.csproj" Private="false" />
+    <!-- Extra observation G: private dependency, copied next to the module (Web\), unknown to the host. -->
+    <ProjectReference Include="..\ExtraDep\ExtraDep.csproj" />
+  </ItemGroup>
+
+  <!-- Extra observation H: a real web client needs the ASP.NET Core shared framework. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- Experiment scaffolding (E): keep Web\ free of VM.*.dll / Core.*.dll -->
+  <Target Name="StripHostOwnedAssembliesFromWebDir" AfterTargets="Build">
+    <ItemGroup>
+      <_WebProbeHostOwned Include="$(OutputPath)VM.*.dll;$(OutputPath)Core.*.dll" />
+    </ItemGroup>
+    <Message Importance="high" Text="[probe] stripping host-owned assemblies from Web\: @(_WebProbeHostOwned->'%(Filename)%(Extension)', ', ')" />
+    <Delete Files="@(_WebProbeHostOwned)" />
+  </Target>
+
+</Project>

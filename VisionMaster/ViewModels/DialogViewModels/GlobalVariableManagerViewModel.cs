@@ -33,13 +33,38 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public string Icon { get; set; } = "\uf0ac";
         public bool IsNetwork { get; set; }
 
+        /// <summary>
+        /// 连接协议显示名（仅网络来源使用）：Modbus TCP / Siemens S7 / Modbus RTU。
+        /// 不直接绑 <c>Protocol.ToString()</c>——那会显示成 ModbusTcp / SiemensS7。
+        /// </summary>
+        public string ProtocolText { get; set; } = string.Empty;
+
         private int _count;
         /// <summary>来源下变量数（INPC：新建/删除变量后计数徽标实时刷新）</summary>
         public int Count { get => _count; set => SetProperty(ref _count, value); }
 
         private bool _isOnline;
-        /// <summary>连接在线状态（INPC：连接状态变化后徽标实时刷新）</summary>
-        public bool IsOnline { get => _isOnline; set => SetProperty(ref _isOnline, value); }
+        /// <summary>连接在线状态（INPC：连接状态变化后徽标与副行实时刷新）</summary>
+        public bool IsOnline
+        {
+            get => _isOnline;
+            set
+            {
+                if (SetProperty(ref _isOnline, value))
+                    RaisePropertyChanged(nameof(Subtitle));
+            }
+        }
+
+        /// <summary>
+        /// 左栏来源卡片的副行（纯显示）：
+        /// 网络 = 协议 · 在线/离线；本地 = 内存变量 · 可编辑；系统 = 宿主维护 · 只读。
+        /// 计算属性保证连接断线/重连时副行跟着 IsOnline 一起变，而不是停在建树那一刻。
+        /// </summary>
+        public string Subtitle => IsNetwork
+            ? $"{ProtocolText} · {(IsOnline ? "在线" : "离线")}"
+            : string.Equals(Key, GlobalVariableManagerViewModel.SystemSourceKey, StringComparison.Ordinal)
+                ? "宿主维护 · 只读"
+                : "内存变量 · 可编辑";
     }
 
     /// <summary>
@@ -67,22 +92,23 @@ namespace VisionMaster.ViewModels.DialogViewModels
             get => _selectedSource;
             set
             {
+                // 分组视图刷新/集合重建时 ListBox 可能把选中项写回 null；
+                // 这里忽略 null，避免"左栏没选中、右栏显示本地"的错位。
+                if (value == null) return;
+
                 if (SetProperty(ref _selectedSource, value))
                 {
                     UpdateFilteredList();
 
                     // 左栏选中项是"要建哪种变量"的唯一决定者（原中栏的本地/网络胶囊已撤）：
-                    // 选本地节点 → IsNetworkSource=false（明细表收起网络三列）；
+                    // 选本地/系统节点 → IsNetworkSource=false（明细表收起网络三列）；
                     // 选连接节点 → true，并把「所属连接」跟着换成它（草稿的默认值从这来）
-                    if (value != null)
-                    {
-                        IsNetworkSource = value.IsNetwork;
+                    IsNetworkSource = value.IsNetwork;
 
-                        if (value.IsNetwork)
-                            SelectedConnection = Connections.FirstOrDefault(c => c.ConnectionName == value.Key);
-                        else
-                            SelectedConnection = null;
-                    }
+                    if (value.IsNetwork)
+                        SelectedConnection = Connections.FirstOrDefault(c => c.ConnectionName == value.Key);
+                    else
+                        SelectedConnection = null;
                 }
             }
         }
@@ -116,6 +142,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     DisplayName = conn.ConnectionName,
                     Icon = "\uf1eb",
                     IsNetwork = true,
+                    ProtocolText = ProtocolDisplayName(conn.Protocol),
                     Count = _workspace.GlobalVariables.Count(v => v is NetworkVariableModel n && n.ConnectionName == conn.ConnectionName),
                     IsOnline = _communicationManager.GetConnection(conn.ConnectionName)?.IsConnected ?? false
                 });
@@ -123,6 +150,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             SelectedSource = SourceNodes.FirstOrDefault(s => s.Key == currentKey) ?? SourceNodes[0];
         }
+
+        /// <summary>协议枚举 → 界面显示名（左栏副行用；不直接把枚举成员名上屏）</summary>
+        private static string ProtocolDisplayName(CommunicationType protocol) => protocol switch
+        {
+            CommunicationType.ModbusTcp => "Modbus TCP",
+            CommunicationType.ModbusRtu => "Modbus RTU",
+            CommunicationType.SiemensS7 => "Siemens S7",
+            _ => protocol.ToString(),
+        };
 
         /// <summary>轻量刷新来源计数（新建/删除变量后调用，不重建树不改变选中）</summary>
         private void RefreshSourceCounts()
@@ -145,8 +181,40 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private static bool IsSystemVariable(IVariable? variable)
             => variable?.VariableType is VariableType.System or VariableType.Io;
 
-        private int CountSystemVariables()
-            => _workspace.GlobalVariables.Count(IsSystemVariable);
+        private int CountSystemVariables() => CopySystemVariables().Count;
+
+        /// <summary>
+        /// 系统变量快照。
+        ///
+        /// 两个必须：① 系统/IO 变量自 2026-10-18 起住在 <c>Workspace.SystemVariables</c>，
+        /// **不在** <c>GlobalVariables</c> 里（不落盘），所以明细树必须显式并进来，
+        /// 否则「系统变量」来源永远是 0 行、只读横幅下面是一张空表；
+        /// ② 该集合由运动发布器/IO 目录在后台线程改写，直接 foreach 会抛
+        /// 「集合已更改，枚举器无效」——按 ScadaVariablePickerViewModel 的同一做法重试 3 次。
+        /// </summary>
+        private List<IVariable> CopySystemVariables()
+        {
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                try
+                {
+                    var snapshot = new List<IVariable>();
+                    foreach (var variable in _workspace.SystemVariables)
+                        snapshot.Add(variable);
+                    return snapshot;
+                }
+                catch (InvalidOperationException)
+                {
+                    // 发布器正在改写集合，再试一次
+                }
+            }
+
+            return new List<IVariable>();
+        }
+
+        /// <summary>明细树数据源 = 用户变量 + 系统变量快照（系统侧只读展示）。</summary>
+        protected override IEnumerable<IVariable> EnumerateTreeVariables()
+            => _workspace.GlobalVariables.Concat(CopySystemVariables());
 
         private void RefreshSourceStates()
         {
@@ -154,6 +222,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 node.IsOnline = _communicationManager.GetConnection(node.Key)?.IsConnected ?? false;
             }
+
+            // 正在编辑当前值时不重建树：RefreshTree 会 Clear+重建节点，
+            // 把 IsEditingValue 与输入中的草稿一起丢掉（断线抖动是产线常态，
+            // 一次抖动就吞掉操作员刚敲的值不可接受）。徽标由上面的 IsOnline 通知刷新。
+            if (FilteredDisplayNodes.Any(n => n.IsEditingValue)) return;
+
             RefreshTree(); // 节点 IsConnected 徽标同步
         }
 
@@ -255,19 +329,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
             get => _isNetworkSource;
             set
             {
-                if (SetProperty(ref _isNetworkSource, value))
-                {
-                    // 联动来源树：切本地→选中本地分组；切网络→保持当前网络连接或选首个
-                    if (value)
-                    {
-                        if (SelectedSource == null || !SelectedSource.IsNetwork)
-                            SelectedSource = SourceNodes.FirstOrDefault(s => s.IsNetwork);
-                    }
-                    else
-                    {
-                        SelectedSource = SourceNodes.FirstOrDefault(s => s.Key == "Local");
-                    }
-                }
+                // 2026-10-15 中栏「本地/网络」分段胶囊撤掉后，本属性只由 SelectedSource 驱动，
+                // 是"右栏三列收放"的纯派生信号。这里不能再反向改 SelectedSource：
+                // 选中「系统变量」(IsNetwork=false) 时若走旧的 else 分支，会被强制改回「本地变量」，
+                // 导致系统来源永远进不去（系统横幅/只读 chip 全部不可达）。
+                SetProperty(ref _isNetworkSource, value);
             }
         }
 
@@ -380,7 +446,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>某连接的存储区候选（显示名，顺序 = 枚举声明序）；连接为空/协议未实现时给空表</summary>
         private static IReadOnlyList<string> GetAreaOptions(CommunicationConfig? connection) => connection?.Protocol switch
         {
-            CommunicationType.ModbusTcp => Enum.GetValues(typeof(ModbusArea)).Cast<ModbusArea>().Select(a => AreaDisplayNames[a]).ToList(),
+            // ModbusRtu 与 ModbusTcp 的地址语义完全相同（都是 Modbus 存储区），只是链路不同。
+            // 漏掉它会让"串口变量"在变量管理里根本选不出存储区——IO 层下线后串口就彻底没法配了。
+            CommunicationType.ModbusTcp or CommunicationType.ModbusRtu
+                => Enum.GetValues(typeof(ModbusArea)).Cast<ModbusArea>().Select(a => AreaDisplayNames[a]).ToList(),
             CommunicationType.SiemensS7 => Enum.GetValues(typeof(S7Area)).Cast<S7Area>().Select(a => AreaDisplayNames[a]).ToList(),
             _ => Array.Empty<string>(),
         };
@@ -388,7 +457,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>协议的默认存储区显示名（Modbus = 保持寄存器 / S7 = 内部标志位，与旧表单的默认选中一致）</summary>
         private static string GetDefaultAreaName(CommunicationType protocol) => protocol switch
         {
-            CommunicationType.ModbusTcp => AreaDisplayNames[ModbusArea.HoldingRegisters],
+            CommunicationType.ModbusTcp or CommunicationType.ModbusRtu => AreaDisplayNames[ModbusArea.HoldingRegisters],
             CommunicationType.SiemensS7 => AreaDisplayNames[S7Area.M],
             _ => string.Empty,
         };
@@ -403,7 +472,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             area = null!;
             if (string.IsNullOrWhiteSpace(displayName)) return false;
 
-            if (protocol == CommunicationType.ModbusTcp)
+            if (protocol is CommunicationType.ModbusTcp or CommunicationType.ModbusRtu)
             {
                 foreach (ModbusArea a in Enum.GetValues(typeof(ModbusArea)))
                 {
@@ -806,7 +875,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             if (!TryResolveArea(connection.Protocol, draft.AreaName, out var area)) return "（先选存储区）";
 
-            return TryBuildAddress(connection.Protocol, area, draft.Offset, draft.BitOffset, targetType, out var address, out var error)
+            return TryBuildAddress(connection.Protocol, area, draft.Offset, draft.BitOffset, targetType,
+                    out var address, out var error,
+                    station: draft.Station)
                 ? address.Address
                 : $"（{error}）";
         }
@@ -897,7 +968,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             try
             {
-                if (!TryBuildAddress(connection.Protocol, area, draft.Offset, draft.BitOffset, targetType, out var address, out var addressError))
+                if (!TryBuildAddress(
+                        connection.Protocol, area, draft.Offset, draft.BitOffset, targetType,
+                        out var address, out var addressError,
+                        station: draft.Station,
+                        enableConversion: draft.EnableConversion,
+                        scale: draft.Scale,
+                        engineeringOffset: draft.EngineeringOffset,
+                        unit: draft.Unit))
                 {
                     EasyDialog.ShowSync(addressError, "提示");
                     return;
@@ -917,6 +995,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 // 建的时候就定好节拍：桥接器注册时会把 ScanGroup 抄进 CommunicationVariable，
                 // 事后再改要走 ReRegister，这里一次到位
                 netVar.ScanGroup = ToStoredScanGroup(draft.ScanGroupName);
+
+                // 区域合并读开关：同样在注册时被抄进轮询计划，建的时候一次到位
+                netVar.MergeAdjacentRead = draft.MergeAdjacentRead;
 
                 // 基准与起始值同源（弹窗的「初始值」）：此刻尚未 Bind 通信管理器，
                 // Value setter 的隐式写设备会静默跳过，只落镜像值
@@ -947,7 +1028,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// </summary>
         private static bool TryBuildAddress(
             CommunicationType protocol, Enum area, string? offset, int bitOffset, Type targetType,
-            out DeviceAddressBase address, out string error)
+            out DeviceAddressBase address, out string error,
+            int station = 0, bool enableConversion = false,
+            double scale = 1.0, double engineeringOffset = 0, string? unit = null)
         {
             address = null!;
             error = string.Empty;
@@ -958,30 +1041,53 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             switch (protocol)
             {
+                // ModbusRtu 与 ModbusTcp 的地址模型完全相同，只是链路不同（TCP / 串口）。
+                // 站号逐帧生效：一条串口挂多个从站时靠它区分（0 = 跟随连接默认站号）。
                 case CommunicationType.ModbusTcp:
-                    address = new ModbusAddress
+                case CommunicationType.ModbusRtu:
+                {
+                    var modbus = new ModbusAddress
                     {
                         Area = (ModbusArea)area,
                         Offset = offset ?? "0",
                         DataType = ToDataValueType(targetType),
-                        BitOffset = effectiveBitOffset
+                        BitOffset = effectiveBitOffset,
+                        Station = station
                     };
+                    ApplyConversion(modbus, enableConversion, scale, engineeringOffset, unit);
+                    address = modbus;
                     return true;
+                }
 
                 case CommunicationType.SiemensS7:
-                    address = new S7Address
+                {
+                    var s7 = new S7Address
                     {
                         Area = (S7Area)area,
                         Offset = offset ?? "0",
                         DataType = ToDataValueType(targetType),
                         BitOffset = effectiveBitOffset
                     };
+                    ApplyConversion(s7, enableConversion, scale, engineeringOffset, unit);
+                    address = s7;
                     return true;
+                }
 
                 default:
                     error = $"协议 {protocol} 的变量创建暂不支持";
                     return false;
             }
+        }
+
+        /// <summary>把草稿里的工程量换算参数落到地址对象上（未启用则保持默认关闭）。</summary>
+        private static void ApplyConversion(
+            DeviceAddressBase address, bool enabled, double scale, double engineeringOffset, string? unit)
+        {
+            if (!enabled) return;
+            address.EnableConversion = true;
+            address.Scale = scale;
+            address.EngineeringOffset = engineeringOffset;
+            address.Unit = unit;
         }
 
         /// <summary>CLR 类型 → 通信地址数据类型</summary>
@@ -1036,7 +1142,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         private void ResetVariable(VariableNode node)
         {
-            (node?.OriginalModel)?.ResetToDefault();
+            var model = node?.OriginalModel;
+            if (model == null) return;
+
+            // 视图里 ↺ 只在可编辑态出现；这里再守一道，防止键盘/其它入口对
+            // 系统变量或只读存储区执行"恢复初始值"（写了也不会回灌设备）。
+            if (IsSystemVariable(model)) return;
+            if ((model as IVariableDisplaySource)?.IsReadOnly == true) return;
+
+            model.ResetToDefault();
         }
 
         /// <summary>

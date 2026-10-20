@@ -252,16 +252,4 @@ namespace Core.Interfaces.Io
         public int PeriodMs { get; set; } = 50;
         public List<string> PointIds { get; set; } = new();
     }
-
-    /// <summary>运行时上下文：驱动只拿日志等最小能力，不拿容器。</summary>
-    public interface IIoRuntimeContext
-    {
-        ILogService Log { get; }
-    }
-
-    public sealed class IoRuntimeContext : IIoRuntimeContext
-    {
-        public IoRuntimeContext(ILogService log) => Log = log;
-        public ILogService Log { get; }
-    }
 }

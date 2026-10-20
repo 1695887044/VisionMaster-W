@@ -255,11 +255,18 @@ namespace FlowCanvasChecks
 
             var autoView = ResolveRepoFile(@"VisionMaster\Views\DialogViews\AutoPortConfigView.xaml.cs");
             string autoText = autoView != null ? File.ReadAllText(autoView) : string.Empty;
+            var autoViewXaml = ResolveRepoFile(@"VisionMaster\Views\DialogViews\AutoPortConfigView.xaml");
+            string autoViewXamlText = autoViewXaml != null ? File.ReadAllText(autoViewXaml) : string.Empty;
+            var autoRow = ResolveRepoFile(@"VisionMaster\Views\DialogViews\AutoPortRow.xaml.cs");
+            string autoRowText = autoRow != null ? File.ReadAllText(autoRow) : string.Empty;
+            var autoRowXaml = ResolveRepoFile(@"VisionMaster\Views\DialogViews\AutoPortRow.xaml");
+            string autoRowXamlText = autoRowXaml != null ? File.ReadAllText(autoRowXaml) : string.Empty;
             Check("自动参数层一行一个可链接编辑器（标签 + 值 + 🔗 + ✕），且标签优先用端口描述",
-                autoText.Contains("LinkableValueEditor") && autoText.Contains("port.Description"),
-                autoView == null ? "定位不到 AutoPortConfigView.xaml.cs" : "");
+                autoRowText.Contains("new LinkableValueEditor") && autoRowText.Contains("port.Description")
+                && autoRowXamlText.Contains("EditorHost"),
+                autoRow == null ? "定位不到 AutoPortRow.xaml.cs" : "");
 
-            Check("自动参数层幂等重建（外壳与视图都可能调 Initialize，不幂等会重复出行）",
+            Check("自动参数层端口变化时可重建（Initialize 幂等复用由 UIThemeSmokeTest 覆盖）",
                 autoText.Contains("PortPanel.Children.Clear()"), "");
 
             // ★ 枚举候选。用户在「轴运动」的参数面板里看不到"绝对/相对"的候选值，只看到一个空文本框。
@@ -419,8 +426,8 @@ namespace FlowCanvasChecks
                 enumType != null && enumType.IsEnum && Enum.GetNames(enumType).Length > 0,
                 $"解析结果={enumType?.Name ?? "null"}");
 
-            Check("自动参数面板的行有宽度与行距（不限宽时输入框会一路铺到屏幕最右边）",
-                autoText.Contains("Width = 520") && autoText.Contains("Thickness(0, 0, 0, 6)"), "");
+            Check("自动参数面板的行有宽度与行高（240px 编辑列 + 48px 行高，避免输入框铺满或行距糊在一起）",
+                autoRowXamlText.Contains("Width=\"240\"") && autoRowXamlText.Contains("MinHeight=\"48\""), "");
 
             // ★ 参数面板窗口尺寸：一条参数不该出现「一屏空白」。
             //   外壳默认尺寸是给"插件自带视图"准备的固定大画布（创建 ROI 那类需要足够绘制区），
@@ -441,8 +448,8 @@ namespace FlowCanvasChecks
                 autoViewCs.Contains("Window.GetWindow(this)") && autoViewCs.Contains("SizeToContent"),
                 autoView == null ? "定位不到 AutoPortConfigView.xaml.cs" : "");
 
-            Check("★自适应时必须同时调小 MinHeight（外壳那个 420 是给插件大视图的保底，留着就还是空白）",
-                autoViewCs.Contains("MinHeight = 180"), "");
+            Check("★自适应时必须同时调小 MinWidth / MinHeight（外壳的 640×560 是给插件大视图的保底，留着就还是空白/被钳宽）",
+                autoViewCs.Contains("MinWidth = 560") && autoViewCs.Contains("MinHeight = 180"), "");
 
             Check("★按钮圆角走模板（Button 没有 CornerRadius，改默认模板里的 Border 是无效的——上一版就是直角）",
                 shellXaml.Contains("ControlTemplate TargetType=\"Button\"") && shellXaml.Contains("CornerRadius=\"8\""), "");
@@ -466,8 +473,9 @@ namespace FlowCanvasChecks
                 shellXaml.Contains("StatusChipStyle") && shellXaml.Contains("Consolas")
                 && shellXaml.Contains("▶"), "");
 
-            Check("参数面板里的提示条是浅主色圆角条（不是一段裸文字，否则像界面出故障）",
-                autoText.Contains("BuildHintBar") && autoText.Contains("DialogAccentLightBrush"), "");
+            Check("参数面板有使用提示行（常量直接填 · 需要上游供值点链接），不再是裸文字堆在端口上方",
+                autoViewXamlText.Contains("常量直接填 · 需要上游供值点链接")
+                && autoViewXamlText.Contains("SectionHintTextStyle"), "");
 
             // ★ "方案提供的常量值不能被绑定"：轴名（以及卡名）的合法值由方案决定，
             //   绑上游等于允许流程填一个方案里不存在的轴 —— 那不是灵活，是把编译期能发现的问题

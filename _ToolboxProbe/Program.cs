@@ -202,6 +202,60 @@ namespace ToolboxProbe
             vm.SearchText = "";
             Layout(host);
 
+            // ---- 3b. 原地更新：保住的分组与条目连容器一起留住（ToolViewModel.ApplyFilter） ----
+            // 旧实现每敲一个字符都 Clear+Add，把整棵可视树拆掉重建（42 条目量级实测 150~200 ms）。
+            // 现在只增删变化的条目，所以两条断言：命中集没变时分组 VM 与条目容器必须是同一个实例；
+            // 换组时旧组必须离场、新组新建（防止写成"什么都不更新"）。
+            List<Border> ItemBorders() => Descendants<ContentPresenter>(view)
+                .Where(cp => ReferenceEquals(cp.ContentTemplate, listTemplate)
+                             || ReferenceEquals(cp.ContentTemplate, gridTemplate))
+                .Select(cp => VisualTreeHelper.GetChildrenCount(cp) > 0 ? VisualTreeHelper.GetChild(cp, 0) : null)
+                .OfType<Border>()
+                .ToList();
+
+            var caliper = provider.ModulePlugins["Probe.Measure"];
+
+            vm.SearchText = "卡尺";
+            Layout(host);
+            var caliperGroup = vm.FilteredToolBarSource.FirstOrDefault();
+            var caliperBorder = ItemBorders().FirstOrDefault(b => ReferenceEquals(b.DataContext, caliper));
+
+            vm.SearchText = "卡尺测";     // 命中集不变（还是那一条）
+            Layout(host);
+            var caliperGroupAfter = vm.FilteredToolBarSource.FirstOrDefault();
+            var caliperBorderAfter = ItemBorders().FirstOrDefault(b => ReferenceEquals(b.DataContext, caliper));
+
+            Check("命中集没变：分组 VM 与条目容器都原地保留（不拆可视树）",
+                caliperGroup != null && caliperBorder != null
+                && ReferenceEquals(caliperGroup, caliperGroupAfter)
+                && ReferenceEquals(caliperBorder, caliperBorderAfter),
+                $"组={caliperGroup?.Name} 容器前={caliperBorder != null} 后={caliperBorderAfter != null}"
+                + $" 同实例={ReferenceEquals(caliperBorder, caliperBorderAfter)}");
+
+            vm.SearchText = "模板";       // 命中集变了（换组、换条目）
+            Layout(host);
+            var changedGroup = vm.FilteredToolBarSource.FirstOrDefault();
+            Check("命中集变了：旧组离场、新组新建（没有写成「什么都不更新」）",
+                changedGroup != null && !ReferenceEquals(changedGroup, caliperGroup),
+                $"新组={changedGroup?.Name} 旧组={caliperGroup?.Name}");
+
+            // 分组是原地复用的，而 Count 是派生属性——Children 变了必须自己通知，
+            // 否则分组头上的数量胶囊会停在旧数字上（旧实现整份重建，靠新建实例"蒙对"了）
+            var countGroup = new ToolboxGroupViewModel();
+            int countRaises = 0;
+            countGroup.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(ToolboxGroupViewModel.Count)) countRaises++;
+            };
+            countGroup.Children.Add(caliper);
+            countGroup.Children.Add(leaf);
+            countGroup.Children.Remove(caliper);
+            Check("分组数量胶囊：Children 原地增删会通知 Count（原地复用的前提）",
+                countRaises == 3 && countGroup.Count == 1, $"通知={countRaises} Count={countGroup.Count}");
+
+            vm.SearchText = "";
+            Layout(host);
+
             // ---- 4. 网格模式：ItemsPanel 换 UniformGrid(2 列) ----
             vm.SetViewModeCommand.Execute("Grid");
             Layout(host);

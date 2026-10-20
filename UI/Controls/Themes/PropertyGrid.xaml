@@ -4,56 +4,80 @@
     xmlns:local="clr-namespace:UI.CustomControl">
 
     <!--
-        属性网格的画刷**不再自带色值**，全部指向 FluentTokens。
-        改造前这里是全库第四份强调色（#409EFF），与 Colors.xaml 的 #3182CE、
-        DefaultStyle 的 AccentBrush、PluginConfigColors 的 PluginAccentBrush 互不相干 ——
-        改配色要改四处，漏一处就是"属性面板和其它地方不是一个蓝"。
+        属性网格主题（v1 设计基线：docs\UI设计基线\property-grid\design.html）。
 
-        键名保留：LayoutProcessor / EasyDialog 是按名字取这些资源的（含 FindResource），
-        改名会让取不到的一方直接抛异常。
+        改动要点（对应基线 README 的「v1 方向」）：
+          · 行高统一 36px：输入框 / 数值框 / 下拉 / 开关四类控件同高、8px 圆角，单行 48px 节奏。
+          · 颜色全令牌化：一律 Dialog*（Colors.xaml 第一层令牌），不再自带色值。
+          · 扁平式页签 44px + 2px 主色下划线（原来是 20,12 内边距的 40px 灰底条）。
+          · 卡片式左栏改 176px 浅底导航：组名 + 条目计数 + 选中项白底卡片与左侧强调条
+            （原来是 128px 灰底 + 一条 3px 竖线）。
+          · 行悬停整行浅底；错误行浅红底由 ValidationProcessor 在运行期挂。
 
         依赖就地合并（同 FluentControls 的理由）：本字典常被单独取用，
-        不能指望外层 Generic 已经把 FluentTokens 合并好。
+        不能指望外层 Generic 已经把 Colors.xaml 合并好；R30/R31 要求
+        {StaticResource} 必须能在「本分册 + 本分册自己 merge 的子树」里解析。
     -->
     <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/Fluent/FluentTokens.xaml" />
     </ResourceDictionary.MergedDictionaries>
 
-    <SolidColorBrush x:Key="SidebarBg" Color="{Binding Color, Source={StaticResource FluentSurfaceSunkenBrush}}" />
-    <SolidColorBrush x:Key="ContentBg" Color="{Binding Color, Source={StaticResource FluentSurfaceBrush}}" />
-    <SolidColorBrush x:Key="TextMain" Color="{Binding Color, Source={StaticResource FluentTextPrimaryBrush}}" />
-    <SolidColorBrush x:Key="TextRegular" Color="{Binding Color, Source={StaticResource FluentTextSecondaryBrush}}" />
-    <SolidColorBrush x:Key="BorderLight" Color="{Binding Color, Source={StaticResource FluentBorderBrush}}" />
+    <!--
+        兼容桥接键：LayoutProcessor / 生成器 / EasyDialog 是按名字取这些资源的（含 FindResource），
+        改名会让取不到的一方直接抛异常。值统一指向第一层令牌。
+    -->
+    <SolidColorBrush x:Key="SidebarBg" Color="{Binding Color, Source={StaticResource DialogRowAlternateBrush}}" />
+    <SolidColorBrush x:Key="ContentBg" Color="{Binding Color, Source={StaticResource DialogSurfaceBrush}}" />
+    <SolidColorBrush x:Key="TextMain" Color="{Binding Color, Source={StaticResource DialogTextPrimaryBrush}}" />
+    <SolidColorBrush x:Key="TextRegular" Color="{Binding Color, Source={StaticResource DialogTextSecondaryBrush}}" />
+    <SolidColorBrush x:Key="BorderLight" Color="{Binding Color, Source={StaticResource DialogBorderBrush}}" />
 
-    <SolidColorBrush x:Key="AccentBlue" Color="{Binding Color, Source={StaticResource FluentAccentBrush}}" />
-    <SolidColorBrush x:Key="AccentBlueHover" Color="{Binding Color, Source={StaticResource FluentAccentHoverBrush}}" />
-    <SolidColorBrush x:Key="AccentBlueActive" Color="{Binding Color, Source={StaticResource FluentAccentPressedBrush}}" />
+    <SolidColorBrush x:Key="AccentBlue" Color="{Binding Color, Source={StaticResource DialogAccentBrush}}" />
+    <SolidColorBrush x:Key="AccentBlueHover" Color="{Binding Color, Source={StaticResource DialogAccentDarkBrush}}" />
+    <SolidColorBrush x:Key="AccentBlueActive" Color="{Binding Color, Source={StaticResource DialogAccentDarkBrush}}" />
 
-    <!--  以下两个键原来在库内从未定义（卡片式模板直接引用 AppBg/CardBg），
-          导致要么靠宿主 App.xaml 偷偷供给、要么潜在 XamlParseException。
-          这里补齐桥接，与上面 SidebarBg/ContentBg 等保持一致，统一指向 Fluent 令牌。  -->
-    <SolidColorBrush x:Key="AppBg" Color="{Binding Color, Source={StaticResource FluentBackgroundBrush}}" />
-    <SolidColorBrush x:Key="CardBg" Color="{Binding Color, Source={StaticResource FluentCardBackgroundBrush}}" />
+    <SolidColorBrush x:Key="AppBg" Color="{Binding Color, Source={StaticResource DialogBackgroundBrush}}" />
+    <SolidColorBrush x:Key="CardBg" Color="{Binding Color, Source={StaticResource DialogSurfaceBrush}}" />
 
     <!--
-        PropertyLabelStyle / FlatButtonStyle / FlatButtonVariantStyle 已从本文件移除：
-        它们在 FluentAliases.xaml 里被同名键重定向到 Fluent 样式，Generic 合并顺序
-        决定 Aliases 最后生效，故这里的旧（硬编码色值）版本是死代码，留着只误导人。
-        布局处理器按名取这些键时，解析到的是 FluentAliases 的版本。
+        键盘焦点环：DialogFocusVisual 在 Dialog.Misc.xaml 里，而本分册在 Generic.xaml 中排在
+        Dialog 分册**之前**，跨分册 StaticResource 会解析失败（R30/R31）。这里自带一份同形定义。
+        加 PG 前缀是为了不与该键撞名（资源字典同名键后合并者覆盖，会静默换掉弹窗那支）。
     -->
+    <Style x:Key="PropertyGridFocusVisual">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border
+                        Margin="2"
+                        BorderBrush="{StaticResource DialogAccentBrush}"
+                        BorderThickness="2"
+                        CornerRadius="6"
+                        SnapsToDevicePixels="True" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 
+    <!--
+        页签（扁平式）：44px 高、选中 2px 主色下划线。
+        高度由样式显式给（MinHeight + Padding），不用「Grid Auto 行 + 子元素 Margin」表达留白 —— R133。
+    -->
     <Style x:Key="LightFlatTabItemStyle" TargetType="TabItem">
-        <Setter Property="Foreground" Value="{StaticResource TextRegular}" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
         <Setter Property="Background" Value="Transparent" />
-        <Setter Property="Padding" Value="20,12" />
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Padding" Value="14,0" />
+        <Setter Property="MinHeight" Value="44" />
+        <Setter Property="FontSize" Value="12.5" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource PropertyGridFocusVisual}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
                     <Border
-                        x:Name="Border"
+                        x:Name="Bd"
                         Padding="{TemplateBinding Padding}"
                         Background="{TemplateBinding Background}"
                         BorderBrush="Transparent"
@@ -66,14 +90,15 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Foreground" Value="{StaticResource TextMain}" />
-                            <Setter TargetName="Border" Property="Background" Value="{StaticResource FluentSurfaceSunkenBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Foreground" Value="{StaticResource AccentBlue}" />
-                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource AccentBlue}" />
-                            <Setter TargetName="Border" Property="Background" Value="Transparent" />
+                            <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
                             <Setter TargetName="ContentSite" Property="TextElement.FontWeight" Value="SemiBold" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -81,8 +106,9 @@
         </Setter>
     </Style>
 
+    <!-- ==================== 扁平式 ==================== -->
     <Style TargetType="{x:Type local:FlatPropertyGrid}">
-        <Setter Property="Background" Value="{StaticResource ContentBg}" />
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type local:FlatPropertyGrid}">
@@ -101,16 +127,16 @@
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="*" />
                                         </Grid.RowDefinitions>
+                                        <!--  页签条：44px，底部 1px 分隔线；选中项靠 TabItem 模板的 2px 下划线  -->
                                         <Border
                                             x:Name="HeaderPanel"
                                             Grid.Row="0"
-                                            Margin="16,8,16,0"
-                                            BorderBrush="{StaticResource BorderLight}"
+                                            Height="44"
+                                            Padding="18,0"
+                                            Background="{StaticResource DialogSurfaceBrush}"
+                                            BorderBrush="{StaticResource DialogBorderBrush}"
                                             BorderThickness="0,0,0,1">
-                                            <TabPanel
-                                                Margin="0,0,0,-1"
-                                                IsItemsHost="true"
-                                                KeyboardNavigation.TabIndex="1" />
+                                            <TabPanel IsItemsHost="true" KeyboardNavigation.TabIndex="1" />
                                         </Border>
                                         <ContentPresenter
                                             x:Name="PART_SelectedContentHost"
@@ -130,8 +156,10 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!-- ==================== 卡片式 ==================== -->
     <Style TargetType="{x:Type local:CardPropertyGrid}">
-        <Setter Property="Background" Value="{StaticResource AppBg}" />
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type local:CardPropertyGrid}">
@@ -141,30 +169,27 @@
                             Background="Transparent"
                             BorderThickness="0"
                             TabStripPlacement="Left">
-
                             <TabControl.Template>
                                 <ControlTemplate TargetType="TabControl">
-                                    <Grid IsItemsHost="False">
+                                    <Grid>
                                         <Grid.ColumnDefinitions>
                                             <!--
-                                                页签条宽度：原先写死 180，加上内容区 24×2 与卡片 32,24×2 的留白，
-                                                卡片式的固定开销是 292px —— 放不宽的地方（如插件配置壳 540 的参数列）
-                                                参数区只剩 248px，比表格式的 360 全宽还窄，切过去只会更难看。
-                                                这里减重到 128 + 14×2 + 20,16×2 = 196px：
-                                                同一处能剩 344px，与表格式基本等价（实测见 2026-10-09 记录）。
-                                                128 对 2~4 字的组名（算子/编辑框/连接…）依然宽松。
+                                                左栏 176px（基线）。原 128px 是为「插件配置壳 540px 参数列」让宽，
+                                                这里取 176 是因为导航项改成「图标 + 组名 + 计数」后 128 会挤；
+                                                窄宿主下由 ControlTemplate 的 MinWidth 兜底，见 README 复刻约束 6。
                                             -->
-                                            <ColumnDefinition Width="128" />
+                                            <ColumnDefinition x:Name="RailColumn" Width="176" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
 
                                         <Border
+                                            x:Name="RailHost"
                                             Grid.Column="0"
-                                            Background="{StaticResource SidebarBg}"
-                                            BorderBrush="{StaticResource BorderLight}"
+                                            Background="{StaticResource DialogRowAlternateBrush}"
+                                            BorderBrush="{StaticResource DialogBorderBrush}"
                                             BorderThickness="0,0,1,0">
                                             <ScrollViewer
-                                                Padding="8,16"
+                                                Padding="10,12"
                                                 HorizontalScrollBarVisibility="Disabled"
                                                 VerticalScrollBarVisibility="Auto">
                                                 <ItemsPresenter />
@@ -175,58 +200,83 @@
                                             <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent" />
                                         </Border>
                                     </Grid>
+                                    <ControlTemplate.Triggers>
+                                        <!--
+                                            空态：收起左栏（176px 空导航条 + 一条空态说明并排很难看）。
+                                            判据是控件自己的只读依赖属性，不是 Items.Count —— 空态会塞一个
+                                            Header 为空的占位页签，Count 恒为 1，不能拿来判。
+                                        -->
+                                        <DataTrigger Binding="{Binding IsEmptyState, RelativeSource={RelativeSource AncestorType={x:Type local:CardPropertyGrid}}}" Value="True">
+                                            <Setter TargetName="RailColumn" Property="Width" Value="0" />
+                                            <Setter TargetName="RailHost" Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </ControlTemplate.Triggers>
                                 </ControlTemplate>
                             </TabControl.Template>
 
                             <TabControl.ItemContainerStyle>
                                 <Style TargetType="TabItem">
-                                    <Setter Property="Margin" Value="0,2,0,2" />
+                                    <Setter Property="Margin" Value="0,0,0,2" />
+                                    <Setter Property="MinHeight" Value="34" />
+                                    <Setter Property="FocusVisualStyle" Value="{StaticResource PropertyGridFocusVisual}" />
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="TabItem">
                                                 <Border
-                                                    x:Name="BaseBorder"
-                                                    Padding="0,4"
+                                                    x:Name="Bd"
+                                                    Padding="10,0"
                                                     Background="Transparent"
-                                                    CornerRadius="4">
-                                                    <Grid Height="36">
+                                                    CornerRadius="8">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <!--  选中项左侧 3px 强调条（未选中时透明占位，避免文字左右跳动）  -->
                                                         <Border
                                                             x:Name="ActiveMark"
+                                                            Grid.Column="0"
                                                             Width="3"
                                                             Height="16"
-                                                            Margin="4,0,0,0"
-                                                            HorizontalAlignment="Left"
+                                                            Margin="0,0,7,0"
+                                                            VerticalAlignment="Center"
                                                             Background="Transparent"
                                                             CornerRadius="2" />
 
                                                         <ContentPresenter
                                                             x:Name="TextHost"
-                                                            Margin="16,0,10,0"
+                                                            Grid.Column="1"
                                                             VerticalAlignment="Center"
                                                             ContentSource="Header"
-                                                            TextBlock.FontSize="13"
-                                                            TextBlock.Foreground="{StaticResource TextRegular}" />
+                                                            TextBlock.FontSize="12.5"
+                                                            TextBlock.Foreground="{StaticResource DialogTextSecondaryBrush}" />
+
+                                                        <!--  条目计数：由 PropertyGridAttach.GroupCount 提供  -->
+                                                        <TextBlock
+                                                            x:Name="CountHost"
+                                                            Grid.Column="2"
+                                                            Margin="8,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="10.5"
+                                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                                            Text="{Binding Path=(local:PropertyGridAttach.GroupCount), RelativeSource={RelativeSource TemplatedParent}}" />
                                                     </Grid>
                                                 </Border>
                                                 <ControlTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding Path=(local:PropertyGridAttach.GroupCount), RelativeSource={RelativeSource Self}}" Value="0">
+                                                        <Setter TargetName="CountHost" Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
                                                     <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="BaseBorder" Property="Background" Value="{StaticResource BorderLight}" />
-                                                        <Setter TargetName="TextHost" Property="TextBlock.Foreground" Value="{StaticResource TextMain}" />
+                                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                                        <Setter TargetName="TextHost" Property="TextBlock.Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
                                                     </Trigger>
                                                     <Trigger Property="IsSelected" Value="True">
-                                                        <Setter TargetName="BaseBorder" Property="Background" Value="{StaticResource CardBg}" />
-                                                        <Setter TargetName="ActiveMark" Property="Background" Value="{StaticResource AccentBlue}" />
-                                                        <Setter TargetName="TextHost" Property="TextBlock.Foreground" Value="{StaticResource AccentBlue}" />
+                                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                                                        <Setter TargetName="ActiveMark" Property="Background" Value="{StaticResource DialogAccentBrush}" />
+                                                        <Setter TargetName="TextHost" Property="TextBlock.Foreground" Value="{StaticResource DialogAccentTextBrush}" />
                                                         <Setter TargetName="TextHost" Property="TextBlock.FontWeight" Value="SemiBold" />
-                                                        <Setter TargetName="BaseBorder" Property="Effect">
-                                                            <Setter.Value>
-                                                                <DropShadowEffect
-                                                                    BlurRadius="5"
-                                                                    Direction="270"
-                                                                    Opacity="0.05"
-                                                                    ShadowDepth="1" />
-                                                            </Setter.Value>
-                                                        </Setter>
                                                     </Trigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
@@ -238,33 +288,18 @@
                             <TabControl.ContentTemplate>
                                 <DataTemplate>
                                     <ScrollViewer
-                                        Padding="14"
+                                        Padding="16"
                                         HorizontalScrollBarVisibility="Disabled"
                                         VerticalScrollBarVisibility="Auto">
-                                        <Border
-                                            Padding="20,16"
-                                            Background="{StaticResource CardBg}"
-                                            BorderBrush="Transparent"
-                                            BorderThickness="0"
-                                            CornerRadius="8">
-                                            <Border.Effect>
-                                                <DropShadowEffect
-                                                    BlurRadius="25"
-                                                    Direction="270"
-                                                    Opacity="0.06"
-                                                    ShadowDepth="6"
-                                                    Color="#000000" />
-                                            </Border.Effect>
-                                            <ContentPresenter Content="{Binding}" />
-                                        </Border>
+                                        <ContentPresenter Content="{Binding}" />
                                     </ScrollViewer>
                                 </DataTemplate>
                             </TabControl.ContentTemplate>
-
                         </TabControl>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
+
 </ResourceDictionary>

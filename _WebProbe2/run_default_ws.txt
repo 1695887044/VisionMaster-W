@@ -1,0 +1,5 @@
+=== probe: WebSocket with DEFAULT settings (WebSockets.Enable untouched) ===
+[default-ws] WebSockets.Enable = False
+[default-ws] listening http://127.0.0.1:18090  (IsListening=True)
+   [CLIENT] default settings, no Enable -> connect FAILED: System.Net.WebSockets.WebSocketException: The server returned status code '400' when status code '101' was expected. | WebSocketErrorCode=NotAWebSocket
+[default-ws] RESULT: connect FAILED: System.Net.WebSockets.WebSocketException: The server returned status code '400' when status code '101' was expected. | WebSocketErrorCode=NotAWebSocket

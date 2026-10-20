@@ -83,6 +83,19 @@ namespace VisionMaster.Communications
         [SuperDisplay(Name = "开机自启", Group = new string[] { "3. 运行调度" }, Order = 2, ColSpan = 6)]
         public bool AutoStart { get; set; } = true;
 
+        /// <summary>
+        /// <para>坏段隔离：某段连续失败达阈值后，把它移出正常轮询、改为每 5 秒低频探测一次。</para>
+        /// <para><b>默认关闭</b>，因为默认行为（每轮都试）是既有契约：诊断面板的"连续失败 N 轮"
+        /// 靠每轮真读才累加得出来，关掉重试后那个数字就不再反映真实时长。隔离是给
+        /// "快周期 + 单个恒坏地址"这种病态场景用的——50ms 周期下一个坏地址每轮烧满读超时
+        /// （默认 5s），会把同组的其它变量一起拖到 5 秒一拍。</para>
+        /// <para>开启后的代价：坏段的值会停在旧值（质量 Uncertain），直到 5 秒后的探测。
+        /// 地址修好后探测成功即自动恢复，不需要人工复位。</para>
+        /// </summary>
+        [SuperDisplay(Name = "坏段隔离", Group = new string[] { "3. 运行调度" }, Order = 5, ColSpan = 6,
+            Description = "连续失败 3 轮的段改为每 5 秒探测一次（默认关闭：关闭时每轮都试，诊断计数才反映真实时长）")]
+        public bool IsolateFaultedSegments { get; set; }
+
         [SuperDisplay(Name = "自动重连", Group = new string[] { "3. 运行调度" }, Order = 3, ColSpan = 6)]
         public bool AutoReconnect { get; set; } = true;
 
@@ -252,6 +265,7 @@ namespace VisionMaster.Communications
                 IsEnabled = IsEnabled,
                 AutoReconnect = AutoReconnect,
                 AutoStart = AutoStart,
+                IsolateFaultedSegments = IsolateFaultedSegments,
                 Description = Description,
             };
 
@@ -276,6 +290,7 @@ namespace VisionMaster.Communications
             IsEnabled = other.IsEnabled;
             AutoReconnect = other.AutoReconnect;
             AutoStart = other.AutoStart;
+            IsolateFaultedSegments = other.IsolateFaultedSegments;
             Description = other.Description;
             UpdateModifiedTime();
 

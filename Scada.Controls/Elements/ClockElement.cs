@@ -48,14 +48,14 @@ namespace VisionMaster.Scada.Controls
         /// <see cref="OnFormatPropertyChanged"/> 主动重算一次，不需要 WPF 再排一次重绘。
         /// </summary>
         [ScadaProperty(Key = "Format", DisplayName = "格式", Kind = ElementPropertyKind.Text,
-                       Group = "数据", DefaultValue = "yyyy-MM-dd HH:mm:ss", AffectsRender = false,
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "yyyy-MM-dd HH:mm:ss", AffectsRender = false,
                        Description = "标准 .NET 日期时间格式串：HH:mm:ss 只显时间，带 dddd 会出星期；"
                                    + "写错了退回默认形状，不会让整页渲染中断")]
         public partial string? Format { get; set; }
 
         /// <summary>刷新节拍（秒）</summary>
         [ScadaProperty(Key = "Interval", DisplayName = "刷新节拍", Kind = ElementPropertyKind.Number,
-                       Group = "数据", DefaultValue = "1", Min = 0.1, Max = 60, AffectsRender = false,
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "1", Min = 0.1, Max = 60, AffectsRender = false,
                        Description = "单位秒。落在 0.1~60 之外会被收敛进区间（0 或负数不会变成一个失控的定时器）；"
                                    + "跳动会对齐整拍，不慢半拍")]
         public partial double Interval { get; set; }

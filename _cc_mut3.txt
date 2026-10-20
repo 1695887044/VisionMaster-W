@@ -1,0 +1,449 @@
+========== 通信断言（扫描组 / 多周期优先级调度） ==========
+
+---- C1 组表过滤边界（PollScheduler.ResolveGroupNames） ----
+  [√通过] C1-1 配置为 null 时组表只剩默认组  →  默认组
+  [√通过] C1-2 默认组恒在首位（它是虚拟组，永远存在）  →  默认组,快组,慢组
+  [√通过] C1-3 默认组周期取连接配置的 ReadCycleMs  →  实测 250 ms
+  [√通过] C1-4 ReadCycleMs=0 时默认组周期回落 1000（不留 0 周期空转）  →  实测 1000 ms
+  [√通过] C1-4 ReadCycleMs=-5 时默认组周期回落 1000  →  实测 1000 ms
+  [√通过] C1-5 自定义组用保留名「默认组」被剔除（周期只有一个真相源）  →  默认组
+  [√通过] C1-6 周期越界被剔除（下限-1 / 上限+1）  →  默认组
+  [√通过] C1-7 周期边界值本身被接受（闭区间）  →  默认组,下限,上限
+  [√通过] C1-8 空名 / 纯空白名被剔除  →  默认组
+  [√通过] C1-9 组名前后空白被 Trim  →  默认组,快组
+  [√通过] C1-10 重名取首个（后一个被丢弃，不报错）  →  100 ms
+  [√通过] C1-11 自定义组封顶 MaxScanGroups（默认组不占额度）  →  9 组（1 默认 + 8 自定义）
+  [√通过] C1-12 被剔除的组不占用封顶额度  →  默认组,合法0,合法1,合法2,合法3,合法4,合法5,合法6,合法7
+
+---- C2 归桶 / 回落 / 不丢点（PollScheduler.Create） ----
+  [√通过] C2-1 变量集为空 → Create 返回 null（不空转）
+  [√通过] C2-2 全部变量只写（无可轮询项）→ Create 返回 null
+  [√通过] C2-3 归桶正确：默认组 + 快组 + 慢组 = 3 组  →  快组 100ms(2变量/1段) | 默认组 1000ms(1变量/1段) | 慢组 5000ms(1变量/1段)
+  [√通过] C2-3 变量数守恒（4 个变量一个不少）  →  快组=2,默认组=1,慢组=1
+  [√通过] C2-4 组按周期升序排列（首个最快 = 最高优先级）  →  快组 100ms(2变量/1段) | 默认组 1000ms(1变量/1段) | 慢组 5000ms(1变量/1段)
+  [√通过] C2-5 同组相邻地址合并为 1 段（3 变量 1 段，无单读兜底）  →  快组 100ms(3变量/1段)
+  [√通过] C2-6 不同扫描组不合并（周期不同，各自独立成段）  →  快组 100ms(1变量/1段) | 慢组 5000ms(1变量/1段)
+  [√通过] C2-7 指向不存在组的变量回落到默认组（不丢点）  →  默认组 1000ms(3变量/1段)
+  [√通过] C2-7 回落汇总只出一条日志（几万点不逐变量刷屏）  →  3 个变量的扫描组名在连接组表中不存在（可能组已被删除），已回落到默认组
+  [√通过] C2-8 变量扫描组写「默认组」直接归默认组，不计入回落  →  默认组 1000ms(1变量/1段)
+  [√通过] C2-9 没有任何变量的自定义组整组跳过（不留空转节拍）  →  默认组 1000ms(1变量/1段)
+  [√通过] C2-10 变量组名的前后空白被 Trim 后归组（与组表解析同一口径）  →  快组 100ms(1变量/1段)
+  [√通过] C2-11 连接配置缺失（组表未知）→ 全部回落默认组，不丢点  →  默认组 1000ms(1变量/1段)
+
+---- C3 改名级联 / 删组回落（AdvancedCommunicationManager.ReassignScanGroup） ----
+[12:52:26] [INFO] AdvancedCommunicationManager 初始化完成
+  [√通过] C3-1 变量已进入 Manager 私有注册表（反射探针）
+  [√通过] C3-2 改名级联：受影响数 = 2  →  返回 2
+  [√通过] C3-2 改的是注册表里的那一份实例（引用未换，重建后仍生效）  →  V1=慢组 V2=慢组
+  [√通过] C3-2 未命中组名的变量不受影响  →  VX=''
+  [√通过] C3-3 删组回落：3 个变量全部回落默认组（newName=null → 空串）  →  返回 3
+  [√通过] C3-4 newName 为纯空白 → 同样回落默认组  →  返回 1
+  [√通过] C3-5 老组名已无变量指向时返回 0（幂等，重复点删除不出错）
+  [√通过] C3-6 连接名 / 老组名为空 → 返回 0（不抛异常）
+  [√通过] C3-6 未注册的连接 → 返回 0
+  [√通过] C3-7 GetScanGroupNames 空连接名 → 仅默认组（编辑器下拉不空）  →  默认组
+  [√通过] C3-8 连接未缓存配置时组名只剩默认组（安全兜底，不抛）  →  默认组
+  [√通过] C3-9 无组表时预览只剩默认组，变量数守恒  →  默认组=5
+  [√通过] C3-10 传入组表副本即可预览「刚加的组」（编辑器取消不弄脏活对象）  →  新增组=1,默认组=5
+  [√通过] C3-11 预览是静态画像：实测周期恒为 0（还没上线测量）
+  [√通过] C3-12 预览不要求连接在线（未 AddConnection 也能算，故可离线断言）  →  连接数 0
+  [√通过] C3-13 无已注册变量的连接 → 预览为空表
+[12:52:26] [INFO] 正在释放 AdvancedCommunicationManager 资源...
+[12:52:26] [INFO] 正在停止所有连接...
+[12:52:26] [INFO] AdvancedCommunicationManager 资源释放完成
+
+---- C4 组表复制（CommunicationConfig.Clone / CopyFrom） ----
+  [√通过] C4-1 Clone 深拷组表（容器与元素都不是同一引用）
+  [√通过] C4-2 Clone 保留组定义内容与默认组周期  →  快组(100ms),慢组(5000ms) / 默认 750ms
+  [√通过] C4-3 Clone 改连接名（副本不抢占原名）  →  PLC1_Copy
+  [√通过] C4-4 改副本的组不影响原件（深拷的全部意义）  →  100
+  [√通过] C4-5 CopyFrom 深拷组表
+  [√通过] C4-6 CopyFrom 后「轮询」列文案联动（PollHint 收到通知）  →  通知 1 次
+  [√通过] C4-7 PollHint 文案 = 默认周期 + 自定义组数  →  默认 750 ms  +2 组
+  [√通过] C4-8 无自定义组时 PollHint 只报默认周期  →  默认 500 ms
+  [√通过] C4-9 原件组表为 null 时 Clone 仍给空表（不抛 NRE）
+
+---- C5 变量级扫描组落盘往返（VariableDto.ScanGroup / VariablePersistenceService） ----
+  [√通过] C5-1 Capture 把 NetworkVariableModel.ScanGroup 抄进快照  →  NetFast='快组' NetDefault=''
+  [√通过] C5-2 本地变量快照不受影响（本地变量没有扫描组概念）  →  3 条快照
+  [√通过] C5-3 序列化文本里真的有 ScanGroup 字段（不是内存里对、落盘丢）
+  [√通过] C5-4 反序列化后快照里的扫描组存活  →  快组
+  [√通过] C5-5 Restore 把扫描组还原到 NetworkVariableModel（桥接器随后抄进 CommunicationVariable）  →  快组
+  [√通过] C5-6 还原后变量数守恒（本地 1 + 网络 2）  →  3
+  [√通过] C5-7 还原后的组名能归进对应的自定义组（端到端闭环）  →  快组 100ms(1变量/1段)
+  [√通过] C5-8 构造出「旧方案」（VariableSnapshots 内无 ScanGroup 字段）
+  [√通过] C5-9 旧方案缺字段 → 还原为空串（= 默认组，行为与改造前完全一致）  →  ''
+
+---- C7 连接超时下发到 HSL 设备（config.TimeoutMs → device.ConnectTimeOut） ----
+  [√通过] C7-1 ModbusTcp：默认超时 3000 下发到设备（HSL 默认是 10000，不下发就被盖掉）  →  设备实际值 3000ms
+  [√通过] C7-2 ModbusTcp：改成 60000 同样如实下发（用户调大超时时能真的等更久）  →  设备实际值 60000ms
+  [√通过] C7-3 SiemensS7：配置值同样下发（基类字段对每种连接都可见，不能只有 Modbus 生效）  →  设备实际值 1234ms
+
+---- C8 读超时下发到 HSL 设备（config.ReadTimeoutMs → device.ReceiveTimeOut） ----
+  [√通过] C8-1 ModbusTcp：默认读超时 5000 在设备上（与 HSL 默认同值，保证不填=旧行为）  →  设备实际值 5000ms
+  [√通过] C8-2 ModbusTcp：改成 800 如实下发（掉线设备能更快暴露，不必死等 5 秒）  →  设备实际值 800ms
+  [√通过] C8-3 SiemensS7：配置值同样下发（S7 建连的 COTP 握手读也受它约束）  →  设备实际值 2500ms
+  [√通过] C8-4 串口：读超时同样下发（TimeoutMs 在串口无处可用，读超时才是它的实际超时）  →  设备实际值 1500ms
+
+---- C9 串口隐藏无效的「超时时间(ms)」（SerialConfig.TimeoutMs → Visible = false） ----
+  [√通过] C9-1 串口：TimeoutMs 声明为不显示（改了没反应的框不该留在界面上）  →  Visible=False
+  [√通过] C9-2 串口：ReadTimeoutMs 仍显示（它是串口唯一真正生效的超时）  →  Visible=True
+  [√通过] C9-3 ModbusTcp：TimeoutMs 仍显示（连接超时对以太网是有效配置，不能被误伤）  →  Visible=True
+  [√通过] C9-4 串口：TimeoutMs 在反射里只出现一次（必须 override 而非 new，否则字段会渲染两行）  →  同名属性数 1
+  [√通过] C9-5 串口：隐藏仅作用于界面，模型仍可读写（老方案里的值不会丢）  →  本体 4321 / 克隆 4321
+
+---- C10 串口字节序跟随配置（读写两侧同源） ----
+  [√通过] C10-1 串口：ByteOrder 默认 ABCD（读侧历史行为，保住存量连接的读数不变）  →  默认值 ABCD
+  [√通过] C10-2 串口：Clone 带上字序（漏拷的话克隆一份配置就把设置丢了）  →  克隆后 CDAB
+  [√通过] C10-3 串口：连接的字序跟随配置（写死常量就等于配置摆着看）  →  连接读出的字序 CDAB
+  [√通过] C10-4 串口：配 CDAB 时写侧 DataFormat 是 CDAB（HSL 默认值，证明没被改坏）  →  设备实际 DataFormat CDAB
+  [√通过] C10-5 串口：配 ABCD 时写侧确实改成 ABCD（只测 CDAB 测不出「根本没下发」）  →  设备实际 DataFormat ABCD
+
+---- C11 S7 读长度取自字节表（bool 必须 1 字节） ----
+  [√通过] C11-1 字节表：bool → 1（S7 单点读 bool 只能要 1 字节）  →  实际 1 字节
+  [√通过] C11-2 字节表：定长数值类型整表正确（byte1/short2/int4/long8/float4/double8）  →  10 个类型全对
+  [√通过] C11-3 字节表：未知类型（decimal）返回 0 —— Read<T> 靠它走回退分支  →  实际 0
+  [√通过] C11-4 哨兵：Marshal.SizeOf<bool>() 仍是 4（旧写法确实会多读 3 字节）  →  实际 4
+  [√通过] C11-5 回退分支：decimal 字节表为 0 且 Marshal 非 0（回退不是死代码）  →  字节表 0 / Marshal 16
+
+---- C12 坏段不再静默（连续失败计数 + 旁路健康通道） ----
+  [√通过] C12-0 前提：两个远隔地址拆成 2 段（可分别注入失败）  →  默认组 1000ms(2变量/2段)
+  [√通过] C12-1 部分段失败 → Poll 仍返回 true（不误判为链路故障 → 不会无限重连）  →  Run 返回 True
+  [√通过] C12-2 坏段变量质量 = Uncertain（不是 Bad：值保留旧值，黄点提示最近一次读失败）  →  实际 Uncertain
+  [√通过] C12-2 好段变量质量 = Good（同一轮里互不牵连）  →  实际 Good
+  [√通过] C12-2 连续失败 1 轮 < 阈值 3 → 还不算异常段（单轮抖动不该报警）  →  异常段 0 / 摘要 null
+  [√通过] C12-3 连续失败按轮累计：2 轮仍 < 阈值 3（仍不算异常段）  →  异常段 0
+  [√通过] C12-4 连续失败达阈值 3 → 计为 1 个异常段  →  异常段 1
+  [√通过] C12-4 异常段摘要含地址与连续次数（面板 ToolTip 直接可读）  →  x=3;200（连续失败 3 轮）：模拟设备拒绝该地址：x=3;200
+  [√通过] C12-4 跨阈值那一刻发一条不节流告警（走 LogThrottled 会被 5 秒窗口吞掉）  →  告警 1 条：段读失败 x=3;200（1 单元）: 模拟设备拒绝该地址：x=3;200 || [轮询] 段连续 3 轮读失败，已计为异常段：x=3;200（1 单元）: 模拟设备拒绝该地址：x=3;200
+  [√通过] C12-4 持续坏 → 计数继续累加（4 轮），告警不重复刷（仍只有 1 条）  →  x=3;200（连续失败 4 轮）：模拟设备拒绝该地址：x=3;200 / 告警 1 条
+  [√通过] C12-3 成功一轮即归零：异常段消失（不需要人工复位）  →  异常段 0 / 摘要 null
+  [√通过] C12-3 归零后重新计数：再坏 2 轮仍 < 阈值（未归零的话此刻早已是异常段）  →  异常段 0
+  [√通过] C12-5 全段失败 → Poll 返回 false（通信级故障语义未被改坏，仍触发重连）  →  Run 返回 False
+
+---- C19 轮询派发异常隔离（F1：下游订阅者抛异常不污染质量戳） ----
+  [√通过] C19-0 前提：两个相邻地址合并为 1 段（同一次段读，异常隔离可对照）  →  默认组 1000ms(2变量/1段)
+  [√通过] C19-1 派发异常不影响 Poll 返回值（通信本身成功，不该触发重连）  →  Run 返回 True
+  [√通过] C19-2 派发异常不把变量降级为 Uncertain（值已读到，质量戳必须保持 Good）  →  实际 Good
+  [√通过] C19-3 值已更新（异常发生在派发阶段，写值先于回调）  →  当前值 0
+  [√通过] C19-4 同段其它变量不受牵连（异常隔离到单个变量）  →  V2 质量 Good / 值 0
+  [√通过] C19-5 日志不误报「解码失败」，而是指向下游处理  →  值已更新但下游处理异常 V1（x=3;0）: 模拟下游订阅者异常
+
+---- C20 值与时间戳发布配对（F2：并发读不到撕裂组合） ----
+  [√通过] C20-0 初始状态：值 null / 时间戳 default / 质量 Bad  →  值 null / 时间戳 0001-01-01T00:00:00.0000000 / 质量 Bad
+  [√通过] C20-1 更新后三项同步可见（值 / 时间戳 / 质量）  →  值 42 / 时间戳 2026-10-20T12:52:27.9660287 / 质量 Good
+  [√通过] C20-2 并发读写（写 200,000 轮）：时间戳非默认 ⇒ 值必非 null（发布配对无撕裂）  →  未观察到撕裂
+
+---- C21 热路径解码零分配重载（P-A3：Span 入口 + 行为等价） ----
+  [√通过] C21-0 前提：能定位 internal HslHelper 类型（取不到就红，不静默跳过）  →  VisionMaster.Communications.HslHelper
+  [√通过] C21-1 ConvertTo 存在 ReadOnlySpan<byte> 重载（不再 Clone + new byte[]）  →  ConvertTo(Byte[], ByteOrderFormat)；ConvertTo(ReadOnlySpan`1, ByteOrderFormat)
+  [√通过] C21-2 ConvertToByType 存在 ReadOnlySpan<byte> 重载（段内切片直接解码）  →  ConvertToByType(Byte[], Type, ByteOrderFormat)；ConvertToByType(ReadOnlySpan`1, Type, ByteOrderFormat)
+  [√通过] C21-3 能取到 byte[] 版 ConvertToByType（行为等价测试入口）  →  System.Object ConvertToByType(Byte[], System.Type, VisionMaster.ByteOrderFormat)
+  [√通过] C21-4 解码行为等价：10 组（4 种字序 × short/int/float）逐值一致  →  全部一致
+
+---- C13 写命令优先级与队列背压（N1：写插队 / N2：满队列先等再判失败） ----
+  [√通过] C13-1 队列容量已放宽（旧实现固定 256，UI 连点写 / 批量写易打满）  →  实际容量 4096
+  [√通过] C13-2 写命令插队：读先入队、写后入队，执行顺序仍是「写 → 读」（旧实现是「读 → 写」）  →  实际顺序 写:D100 → 读:D0
+  [√通过] C13-3 InvokeWrite 与 Invoke 语义一致：能取回结果
+  [√通过] C13-4 InvokeWrite 把委托异常回抛给调用方（走写队列不等于吞异常）
+  [√通过] C13-5 空闲时投递命令被立刻唤醒执行（<150ms，不等满 200ms 空闲等待）  →  耗时 0ms
+  [√通过] C13-6 队列满 → 先等 2000ms 让 Worker 消化，超时才判失败（旧实现立即失败）  →  等待 2008ms，抛异常=True，消息「连接 STUB_ORDER 命令队列已满（等待 2000ms 仍未消化）」
+
+---- C14 等待时长按到期算（C1）/ 限流 key 含连接名（C5） ----
+  [√通过] C14-1 刚编译好的调度器：距最近到期为 0（首轮立即可跑，不必空等一个周期）  →  实际 0ms
+  [√通过] C14-2 跑完一拍后：等待时长 ≈ 目标周期 200ms（不再是固定 10ms 空转）  →  实际 200ms
+  [√通过] C14-3 前提：编出两个组（快组 100ms / 默认组 1000ms）  →  快组 100ms(1变量/1段) | 默认组 1000ms(1变量/1段)
+  [√通过] C14-3 多组时取「最近到期」的那个（≈100ms 快组，而不是默认组的 1000ms）  →  实际 100ms
+  [√通过] C14-4 前提：长周期组（60s）距到期远大于等待上限 200ms  →  距到期 60000ms / 上限 200ms
+  [√通过] C14-4 长周期组不睡满 60s：等待时长被封顶为 200ms（脏标记的最坏响应不劣于旧实现）  →  实际 200ms
+  [√通过] C14-5 已连接且有轮询工作：等待时长 > 10ms 且 ≤ 200ms（旧实现恒为 10ms → 100Hz 空转）  →  实际 200ms
+  [√通过] C14-5 有组已到期：等待仍 ≥ 1ms（返回 0 会让 Wait 立即返回，边角场景下变成死循环空转）  →  实际 1ms
+  [√通过] C14-6 前提：两条连接的变量地址完全相同（同址不同连接才会撞 key）  →  x=3;200 / x=3;200
+  [√通过] C14-6 两条连接读同一坏地址：各自都报出限流日志（旧 key 只有地址，第二条会被第一条的 5 秒窗口吞掉）  →  A=1 条 / B=1 条
+  [√通过] C14-6 同一连接 5 秒内重复失败仍被限流（修的是 key 的粒度，不是把限流关掉）  →  A=1 条 / B=1 条
+  [√通过] C14-7 从未 Start 的 Worker 能安全 Dispose（Join 的 ThreadStateException 已被捕获，不再穿透）  →  正常释放
+
+---- C15 空档容忍按传输分档（以太网放开 / 串口不变） ----
+  [√通过] C15-1 以太网档：100 点 / 步长 10 → 9 段（空档近乎免费，只受单请求上限 120 约束）  →  默认组 1000ms(100变量/9段)
+  [√通过] C15-2 串口档：同一点表 → 100 段（空档要花真实线时，行为与改动前一字不差）  →  默认组 1000ms(100变量/100段)
+  [√通过] C15-3 两种档位点数守恒（合并只改变往返次数，一个点都不丢）  →  TCP=100 / RTU=100
+  [√通过] C15-4 以太网档仍受单请求上限封顶：900 个连续寄存器 → 8 段（不是 1 段）  →  默认组 1000ms(900变量/8段)
+
+---- C16 Modbus 站号逐帧生效（一条串口多从站） ----
+  [√通过] C22-1 站号 > 0 时地址带 s= 前缀（HSL 富地址，逐帧写帧头）  →  s=2;x=3;100
+  [√通过] C22-2 站号 = 0（默认）时不写 s= 前缀——历史行为一字不差  →  x=3;100
+  [√通过] C22-3 不同站号 + 同地址 → 不合并（2 段），否则另一站静默读到错值  →  默认组 1000ms(2变量/2段)
+  [√通过] C22-4 两个变量都还在轮询里（分组只改变往返次数，一个点都不丢）  →  2 变量
+  [√通过] C22-5 同站号 + 相邻地址 → 照常合并成 1 段（站号不破坏批量化）  →  默认组 1000ms(2变量/1段)
+  [√通过] C22-6 TryCreatePollAddress 把站号写进 GroupKey 与段前缀  →  s=2;FC3 / s=2;x=3;
+  [√通过] C22-7 旧字符串地址 s=2;x=3;100 也保留站号（手填地址不被合并掉）  →  s=2;FC3 / s=2;x=3;
+  [√通过] C22-8 旧字符串地址无站号 → GroupKey 与改动前一致（FC3，零回归）  →  FC3
+  [√通过] C22-9 离散输入判定按 x= 段解析：s=2;x=2;100 认作 FC2（不是线圈）  →  前缀判断会把 s=2;x=2;100 误判成线圈
+
+---- C17 逐变量「区域合并读」开关 ----
+  [√通过] C23-1 默认（开关开）三个相邻变量合并成 1 段  →  默认组 1000ms(3变量/1段)
+  [√通过] C23-2 中间变量关掉合并 → 3 段（关掉的自成一段，左右不跨过它合并）  →  默认组 1000ms(3变量/3段)
+  [√通过] C23-3 关掉合并的变量仍在轮询里（不是退回单点反射读、更不是丢弃）  →  3 变量
+  [√通过] C23-4 全部关掉 → 3 段（每个变量读自己的跨度）  →  默认组 1000ms(3变量/3段)
+  [√通过] C23-5 关合并的变量落在邻居跨度内 → 仍分成 2 段且各自有归属（不挂错段）  →  默认组 1000ms(2变量/2段)
+
+---- C18 工程量换算（读路径与写路径对称） ----
+  [√通过] C24-1 未启用换算 → 原值返回（默认行为零变化）  →  1234
+  [√通过] C24-2 启用换算：原始值 1000 → 工程值 105（×0.1 + 5）  →  105
+  [√通过] C24-3 读写互逆：工程值 105 经 ConvertToRaw 回到原始值 1000  →  1000
+  [√通过] C24-4 bool/string/byte[] 不参与换算（只换算数值）  →  非数值类型原样返回
+  [×失败] C24-5 端到端：轮询读到的原始值 1000 → 变量上发布的是工程值 105  →  1000
+
+---- C25 坏段隔离（显式开启；连续失败移出正常轮询，可自愈） ----
+  [√通过] C25-0 前提：两个不相邻地址分成 2 段（否则隔离无从验证）  →  默认组 1000ms(2变量/2段)
+  [√通过] C25-1 未达阈值前，坏段每轮都被读（隔离还没生效）  →  累计 6 次读（2 段 × 3 轮）
+  [√通过] C25-2 达阈值后坏段被跳过：本轮只读好段（读次数 = 1，不是 2）  →  本轮读 1 次
+  [√通过] C25-3 好段不受隔离影响（隔离只针对坏段，不牵连整条连接）  →  Good
+  [√通过] C25-4 探测间隔过后重新尝试（不是永久放弃）  →  探测读 2 次
+  [√通过] C25-5 探测成功后恢复为每轮都读（自愈，不需要人工复位）  →  恢复后两轮共读 4 次（期望 4）
+  [√通过] C25-6 反向：未开启隔离时坏段仍每轮都试（默认契约不许被改掉）  →  本轮读 2 次（期望 2）
+
+---- C20 通讯驱动注册表（自定义协议只实现接口即可接入） ----
+  [√通过] C26-1 注册后可按 DriverId 取到  →  fake.protocol
+  [√通过] C26-2 DriverId 大小写不敏感（落盘字符串不因大小写分裂）  →  FAKE.PROTOCOL
+  [√通过] C26-3 可按配置类型反推驱动（反序列化后不用 DriverId 也能找回）  →  FakeConfig
+  [√通过] C26-4 同 Id 重复注册抛异常（不静默覆盖——否则跑的是哪个实现全看运气）  →  已抛出 InvalidOperationException
+  [√通过] C26-5 空 Id / 空显示名被拒绝  →  空 Id 与空显示名都必须抛 ArgumentException
+  [√通过] C26-6 未注册的驱动造连接 → NotSupportedException 且列出可用清单  →  错误信息里带可用驱动清单
+  [√通过] C26-7 注册的驱动能真的造出连接实例（自定义协议只需实现接口）  →  ScriptedConnection
+  [√通过] C26-8 注销后取不到（测试夹具可替换实现）  →  注销后 TryGet 返回 false
+  [√通过] C26-9 生产注册表含内建三协议（modbus.tcp / modbus.rtu / siemens.s7）  →  modbus.tcp / modbus.rtu / siemens.s7
+  [√通过] C26-10 生产注册表的驱动数与已实现协议数一致（两套清单不许分裂）  →  驱动 3 个 / 已实现协议 3 个
+
+---- B3 协议清单合一 / B4 添加连接失败回滚 ----
+  [√通过] B3-1 CommunicationProtocols.Implemented 与连接工厂注册表完全一致（跨层手工同步的自动校验）  →  清单=[ModbusTcp/ModbusRtu/SiemensS7] 工厂=[ModbusTcp/ModbusRtu/SiemensS7]
+  [√通过] B3-1 前提：确实存在「未实现」协议（否则下面几条对比毫无意义）  →  已实现 3 个 / 未实现 4 个：[OmronFins/MitsubishiMc/FreeProtocol/OpcUa]
+  [√通过] B3-2 下拉选中未实现协议 OmronFins 不抛异常（属性写入路径必须安静）  →  Config=ModbusTcp
+  [√通过] B3-2 未实现协议 OmronFins 保留原 Config 而不置 null（属性面板的嵌套分组才有处展开）  →  Config=ModbusTcp
+  [√通过] B3-2 未实现协议 OmronFins 的 Validate 报「尚未实现」+ 可用清单，而非含糊的「协议类型不匹配」  →  协议 OmronFins 尚未实现，当前可用：ModbusTcp / ModbusRtu / SiemensS7
+  [√通过] B3-2 工厂层对未实现协议 OmronFins 兜底抛 NotSupportedException（Validate 被绕过也不放行）  →  不支持的通讯协议: OmronFins
+  [√通过] B3-2 下拉选中未实现协议 MitsubishiMc 不抛异常（属性写入路径必须安静）  →  Config=ModbusTcp
+  [√通过] B3-2 未实现协议 MitsubishiMc 保留原 Config 而不置 null（属性面板的嵌套分组才有处展开）  →  Config=ModbusTcp
+  [√通过] B3-2 未实现协议 MitsubishiMc 的 Validate 报「尚未实现」+ 可用清单，而非含糊的「协议类型不匹配」  →  协议 MitsubishiMc 尚未实现，当前可用：ModbusTcp / ModbusRtu / SiemensS7
+  [√通过] B3-2 工厂层对未实现协议 MitsubishiMc 兜底抛 NotSupportedException（Validate 被绕过也不放行）  →  不支持的通讯协议: MitsubishiMc
+  [√通过] B3-2 下拉选中未实现协议 FreeProtocol 不抛异常（属性写入路径必须安静）  →  Config=ModbusTcp
+  [√通过] B3-2 未实现协议 FreeProtocol 保留原 Config 而不置 null（属性面板的嵌套分组才有处展开）  →  Config=ModbusTcp
+  [√通过] B3-2 未实现协议 FreeProtocol 的 Validate 报「尚未实现」+ 可用清单，而非含糊的「协议类型不匹配」  →  协议 FreeProtocol 尚未实现，当前可用：ModbusTcp / ModbusRtu / SiemensS7
+  [√通过] B3-2 工厂层对未实现协议 FreeProtocol 兜底抛 NotSupportedException（Validate 被绕过也不放行）  →  不支持的通讯协议: FreeProtocol
+  [√通过] B3-2 下拉选中未实现协议 OpcUa 不抛异常（属性写入路径必须安静）  →  Config=ModbusTcp
+  [√通过] B3-2 未实现协议 OpcUa 保留原 Config 而不置 null（属性面板的嵌套分组才有处展开）  →  Config=ModbusTcp
+  [√通过] B3-2 未实现协议 OpcUa 的 Validate 报「尚未实现」+ 可用清单，而非含糊的「协议类型不匹配」  →  协议 OpcUa 尚未实现，当前可用：ModbusTcp / ModbusRtu / SiemensS7
+  [√通过] B3-2 工厂层对未实现协议 OpcUa 兜底抛 NotSupportedException（Validate 被绕过也不放行）  →  不支持的通讯协议: OpcUa
+  [√通过] B3-3 new CommunicationConfig(ModbusTcp) 立即 Validate 通过且 Config.Type 与协议一致  →  Config.Type=ModbusTcp
+  [√通过] B3-3 new CommunicationConfig(ModbusRtu) 立即 Validate 通过且 Config.Type 与协议一致  →  Config.Type=ModbusRtu
+  [√通过] B3-3 new CommunicationConfig(SiemensS7) 立即 Validate 通过且 Config.Type 与协议一致  →  Config.Type=SiemensS7
+  [√通过] B3-4 误选 OmronFins 后再改回 ModbusTcp：Validate 立刻恢复正常（保留原 Config 不会卡死对象）  →  Config.Type=ModbusTcp
+[12:52:36] [INFO] AdvancedCommunicationManager 初始化完成
+[12:52:36] [INFO] 正在添加连接: B4_Rollback (ModbusTcp)
+[12:52:36] [INFO] 连接状态变化: B4_Rollback Disconnected -> Disconnected
+[12:52:36] [ERROR] 添加连接失败: B4_Rollback
+[12:52:36] [ERROR] 异常详情: System.InvalidOperationException: B4 测试：订阅者故意抛异常
+   at CommChecks.Program.<>c__DisplayClass49_0.<CommunicationProtocolsAndAddRollback>b__3(Object _, ConnectionStateChangedEventArgs _) in D:\C#\VM\CommChecks\Program.cs:line 2270
+   at VisionMaster.Communications.AdvancedCommunicationManager.OnConnectionStateChanged(String name, ConnectionState oldState, ConnectionState newState) in D:\C#\VM\Communication\Communications\Manager\AdvancedCommunicationManager.cs:line 1245
+   at VisionMaster.Communications.AdvancedCommunicationManager.AddConnection(CommunicationConfig config) in D:\C#\VM\Communication\Communications\Manager\AdvancedCommunicationManager.cs:line 196
+  [√通过] B4-1 前提：失败发生在「五个登记动作全做完之后」（订阅者抛异常时连接已在册、也已进列表）  →  抛=True / 当时在 _connections=True / 当时在列表=True
+  [√通过] B4-1 失败后 GetConnection 查不到它（不留「界面看不见、线程却在跑」的隐形僵尸）
+  [√通过] B4-1 失败后连接清单里也没有它（UI 列表不该出现删不掉的假条目）  →  []
+  [√通过] B4-1 失败后 ConnectionCount 归零  →  0
+  [√通过] B4-1 失败后 Worker 注册表也空了（登记进去的线程已被释放，不是只删了引用）  →  剩余 0 条
+[12:52:36] [INFO] 正在添加连接: B4_Rollback (ModbusTcp)
+[12:52:36] [INFO] 连接状态变化: B4_Rollback Disconnected -> Disconnected
+[12:52:36] [INFO] 连接添加成功: B4_Rollback
+  [√通过] B4-2 同名可立即重试成功（旧实现因残留登记会永远报「已存在同名连接」，除了删连接无路可走）  →  ConnectionCount=1
+  [√通过] B4-3 拿「同名但非登记对象」去回滚：真实连接毫发无损（ReferenceEquals 护栏，防 TOCTOU 误删）  →  Count=1
+[12:52:36] [INFO] 正在移除连接: B4_Rollback
+[12:52:36] [INFO] 连接工作线程已停止: B4_Rollback
+[12:52:36] [INFO] 连接移除完成: B4_Rollback
+  [√通过] B4-3 收尾：真实连接可正常移除（回滚护栏没把管理器弄坏）  →  ConnectionCount=0
+[12:52:36] [INFO] 正在释放 AdvancedCommunicationManager 资源...
+[12:52:36] [INFO] 正在停止所有连接...
+[12:52:36] [INFO] AdvancedCommunicationManager 资源释放完成
+
+---- C16 KeepAlive 死配置落地（EnableKeepAlive/KeepAliveIntervalMs → device.SocketKeepAliveTime） ----
+  [√通过] C16-1 ModbusTcp：契约默认值（true/30000）已下发到设备（HSL 建连成功后按它启用）  →  设备 SocketKeepAliveTime=30000
+  [√通过] C16-2 ModbusTcp：EnableKeepAlive=false → 不设置（保持 HSL 默认 -1，未启用时零行为变化）  →  设备 SocketKeepAliveTime=-1
+  [√通过] C16-3 ModbusTcp：自定义间隔 5000 如实下发（不是恰好等于默认值的假通过）  →  设备 SocketKeepAliveTime=5000
+  [√通过] C16-4 SiemensS7：契约默认值同样下发（与 Modbus 同一基类路径）  →  设备 SocketKeepAliveTime=30000
+  [√通过] C16-5 SiemensS7：EnableKeepAlive=false → 不设置（HSL 默认 -1）  →  设备 SocketKeepAliveTime=-1
+
+---- C18 communications.json 逐条隔离（单条坏点只影响该条；文件级语法错误加载 0 条且不抛） ----
+[12:52:36] [INFO] AdvancedCommunicationManager 初始化完成
+[12:52:36] [INFO] 正在加载配置: C:\Users\16958\AppData\Local\Temp\CommChecksJson\case.json
+[12:52:36] [INFO] 正在添加连接: J_A (ModbusTcp)
+[12:52:36] [INFO] 连接状态变化: J_A Disconnected -> Disconnected
+[12:52:36] [INFO] 连接添加成功: J_A
+[12:52:36] [INFO] 配置加载完成: 共 1 条，成功 1 条，跳过 0 条
+[12:52:36] [INFO] 正在释放 AdvancedCommunicationManager 资源...
+[12:52:36] [INFO] 正在停止所有连接...
+[12:52:36] [INFO] 正在断开连接: J_A
+[12:52:36] [INFO] 连接已断开: J_A
+[12:52:36] [INFO] AdvancedCommunicationManager 资源释放完成
+  [√通过] C18-1 正常单条 → 加载 1 条（基线不回归）
+[12:52:36] [INFO] AdvancedCommunicationManager 初始化完成
+[12:52:36] [INFO] 正在加载配置: C:\Users\16958\AppData\Local\Temp\CommChecksJson\case.json
+[12:52:36] [ERROR] 配置文件 JSON 解析失败（整份损坏），本次加载 0 条连接: Unterminated string. Expected delimiter: ". Path '[1].config', line 1, position 185.
+[12:52:36] [INFO] 正在释放 AdvancedCommunicationManager 资源...
+[12:52:36] [INFO] 正在停止所有连接...
+[12:52:36] [INFO] AdvancedCommunicationManager 资源释放完成
+  [√通过] C18-2 文件级语法错误（截断）→ 不抛异常，加载 0 条（旧实现抛 JsonReaderException 且整份丢弃）
+[12:52:36] [INFO] AdvancedCommunicationManager 初始化完成
+[12:52:36] [INFO] 正在加载配置: C:\Users\16958\AppData\Local\Temp\CommChecksJson\case.json
+[12:52:36] [ERROR] 加载连接配置失败: 第 1 条 J_E
+[12:52:36] [ERROR] 异常详情: Newtonsoft.Json.JsonSerializationException: Error resolving type specified in JSON 'System.DateTime, System.Private.CoreLib'. Path '[0].config.$type', line 1, position 97.
+ ---> Newtonsoft.Json.JsonSerializationException: 配置文件包含未被允许的类型: System.DateTime
+   at VisionMaster.Communications.ConnectionConfigSerializationBinder.BindToType(String assemblyName, String typeName) in D:\C#\VM\Core\CommunicationContracts\ConnectionConfigJsonConverter.cs:line 50
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.ResolveTypeName(JsonReader reader, Type& objectType, JsonContract& contract, JsonProperty member, JsonContainerContract containerContract, JsonProperty containerMember, String qualifiedTypeName)
+   --- End of inner exception stack trace ---
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.ResolveTypeName(JsonReader reader, Type& objectType, JsonContract& contract, JsonProperty member, JsonContainerContract containerContract, JsonProperty containerMember, String qualifiedTypeName)
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.ReadMetadataProperties(JsonReader reader, Type& objectType, JsonContract& contract, JsonProperty member, JsonContainerContract containerContract, JsonProperty containerMember, Object existingValue, Object& newValue, String& id)
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.CreateObject(JsonReader reader, Type objectType, JsonContract contract, JsonProperty member, JsonContainerContract containerContract, JsonProperty containerMember, Object existingValue)
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.CreateValueInternal(JsonReader reader, Type objectType, JsonContract contract, JsonProperty member, JsonContainerContract containerContract, JsonProperty containerMember, Object existingValue)
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.SetPropertyValue(JsonProperty property, JsonConverter propertyConverter, JsonContainerContract containerContract, JsonProperty containerProperty, JsonReader reader, Object target)
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.PopulateObject(Object newObject, JsonReader reader, JsonObjectContract contract, JsonProperty member, String id)
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.CreateObject(JsonReader reader, Type objectType, JsonContract contract, JsonProperty member, JsonContainerContract containerContract, JsonProperty containerMember, Object existingValue)
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.CreateValueInternal(JsonReader reader, Type objectType, JsonContract contract, JsonProperty member, JsonContainerContract containerContract, JsonProperty containerMember, Object existingValue)
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.Deserialize(JsonReader reader, Type objectType, Boolean checkAdditionalContent)
+   at Newtonsoft.Json.JsonSerializer.DeserializeInternal(JsonReader reader, Type objectType)
+   at Newtonsoft.Json.JsonSerializer.Deserialize(JsonReader reader, Type objectType)
+   at Newtonsoft.Json.Linq.JToken.ToObject(Type objectType, JsonSerializer jsonSerializer)
+   at Newtonsoft.Json.Linq.JToken.ToObject[T](JsonSerializer jsonSerializer)
+   at VisionMaster.Communications.AdvancedCommunicationManager.ApplyConfigJson(String json) in D:\C#\VM\Communication\Communications\Manager\AdvancedCommunicationManager.cs:line 1062
+[12:52:36] [INFO] 正在添加连接: J_A (ModbusTcp)
+[12:52:36] [INFO] 连接状态变化: J_A Disconnected -> Disconnected
+[12:52:36] [INFO] 连接添加成功: J_A
+[12:52:36] [INFO] 配置加载完成: 共 2 条，成功 1 条，跳过 1 条
+[12:52:36] [INFO] 正在释放 AdvancedCommunicationManager 资源...
+[12:52:36] [INFO] 正在停止所有连接...
+[12:52:36] [INFO] 正在断开连接: J_A
+[12:52:36] [INFO] 连接已断开: J_A
+[12:52:36] [INFO] AdvancedCommunicationManager 资源释放完成
+  [√通过] C18-3 $type 越权条在前、好条在后 → 只跳过坏条，好条照常加载（逐条隔离的核心证据）  →  加载 [J_A]
+[12:52:36] [INFO] AdvancedCommunicationManager 初始化完成
+[12:52:36] [INFO] 正在加载配置: C:\Users\16958\AppData\Local\Temp\CommChecksJson\case.json
+[12:52:36] [INFO] 正在添加连接: J_A (ModbusTcp)
+[12:52:36] [INFO] 连接状态变化: J_A Disconnected -> Disconnected
+[12:52:36] [INFO] 连接添加成功: J_A
+[12:52:36] [ERROR] 加载连接配置失败: 第 2 条 J_E
+[12:52:36] [ERROR] 异常详情: Newtonsoft.Json.JsonSerializationException: Error resolving type specified in JSON 'System.DateTime, System.Private.CoreLib'. Path '[1].config.$type', line 1, position 227.
+ ---> Newtonsoft.Json.JsonSerializationException: 配置文件包含未被允许的类型: System.DateTime
+   at VisionMaster.Communications.ConnectionConfigSerializationBinder.BindToType(String assemblyName, String typeName) in D:\C#\VM\Core\CommunicationContracts\ConnectionConfigJsonConverter.cs:line 50
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.ResolveTypeName(JsonReader reader, Type& objectType, JsonContract& contract, JsonProperty member, JsonContainerContract containerContract, JsonProperty containerMember, String qualifiedTypeName)
+   --- End of inner exception stack trace ---
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.ResolveTypeName(JsonReader reader, Type& objectType, JsonContract& contract, JsonProperty member, JsonContainerContract containerContract, JsonProperty containerMember, String qualifiedTypeName)
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.ReadMetadataProperties(JsonReader reader, Type& objectType, JsonContract& contract, JsonProperty member, JsonContainerContract containerContract, JsonProperty containerMember, Object existingValue, Object& newValue, String& id)
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.CreateObject(JsonReader reader, Type objectType, JsonContract contract, JsonProperty member, JsonContainerContract containerContract, JsonProperty containerMember, Object existingValue)
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.CreateValueInternal(JsonReader reader, Type objectType, JsonContract contract, JsonProperty member, JsonContainerContract containerContract, JsonProperty containerMember, Object existingValue)
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.SetPropertyValue(JsonProperty property, JsonConverter propertyConverter, JsonContainerContract containerContract, JsonProperty containerProperty, JsonReader reader, Object target)
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.PopulateObject(Object newObject, JsonReader reader, JsonObjectContract contract, JsonProperty member, String id)
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.CreateObject(JsonReader reader, Type objectType, JsonContract contract, JsonProperty member, JsonContainerContract containerContract, JsonProperty containerMember, Object existingValue)
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.CreateValueInternal(JsonReader reader, Type objectType, JsonContract contract, JsonProperty member, JsonContainerContract containerContract, JsonProperty containerMember, Object existingValue)
+   at Newtonsoft.Json.Serialization.JsonSerializerInternalReader.Deserialize(JsonReader reader, Type objectType, Boolean checkAdditionalContent)
+   at Newtonsoft.Json.JsonSerializer.DeserializeInternal(JsonReader reader, Type objectType)
+   at Newtonsoft.Json.JsonSerializer.Deserialize(JsonReader reader, Type objectType)
+   at Newtonsoft.Json.Linq.JToken.ToObject(Type objectType, JsonSerializer jsonSerializer)
+   at Newtonsoft.Json.Linq.JToken.ToObject[T](JsonSerializer jsonSerializer)
+   at VisionMaster.Communications.AdvancedCommunicationManager.ApplyConfigJson(String json) in D:\C#\VM\Communication\Communications\Manager\AdvancedCommunicationManager.cs:line 1062
+[12:52:36] [INFO] 配置加载完成: 共 2 条，成功 1 条，跳过 1 条
+[12:52:36] [INFO] 正在释放 AdvancedCommunicationManager 资源...
+[12:52:36] [INFO] 正在停止所有连接...
+[12:52:36] [INFO] 正在断开连接: J_A
+[12:52:36] [INFO] 连接已断开: J_A
+[12:52:36] [INFO] AdvancedCommunicationManager 资源释放完成
+  [√通过] C18-4 $type 越权条在后、好条在前 → 同样只跳过坏条（顺序无关）
+[12:52:36] [INFO] AdvancedCommunicationManager 初始化完成
+[12:52:36] [INFO] 正在加载配置: C:\Users\16958\AppData\Local\Temp\CommChecksJson\case.json
+[12:52:36] [INFO] 正在添加连接: J_A (ModbusTcp)
+[12:52:36] [INFO] 连接状态变化: J_A Disconnected -> Disconnected
+[12:52:36] [INFO] 连接添加成功: J_A
+[12:52:36] [ERROR] 加载连接配置失败: 第 2 条 J_B
+[12:52:36] [ERROR] 异常详情: System.InvalidOperationException: 连接配置验证失败: 协议 OmronFins 尚未实现，当前可用：ModbusTcp / ModbusRtu / SiemensS7
+   at VisionMaster.Communications.AdvancedCommunicationManager.AddConnection(CommunicationConfig config) in D:\C#\VM\Communication\Communications\Manager\AdvancedCommunicationManager.cs:line 167
+   at VisionMaster.Communications.AdvancedCommunicationManager.ApplyConfigJson(String json) in D:\C#\VM\Communication\Communications\Manager\AdvancedCommunicationManager.cs:line 1064
+[12:52:36] [INFO] 配置加载完成: 共 2 条，成功 1 条，跳过 1 条
+[12:52:36] [INFO] 正在释放 AdvancedCommunicationManager 资源...
+[12:52:36] [INFO] 正在停止所有连接...
+[12:52:36] [INFO] 正在断开连接: J_A
+[12:52:36] [INFO] 连接已断开: J_A
+[12:52:36] [INFO] AdvancedCommunicationManager 资源释放完成
+  [√通过] C18-5 未实现协议条 → 仍按 AddConnection 阶段隔离（旧语义保持）
+[12:52:36] [INFO] AdvancedCommunicationManager 初始化完成
+[12:52:36] [INFO] 正在加载配置: C:\Users\16958\AppData\Local\Temp\CommChecksJson\case.json
+[12:52:36] [INFO] 正在添加连接: J_C (ModbusTcp)
+[12:52:36] [INFO] 连接状态变化: J_C Disconnected -> Disconnected
+[12:52:36] [INFO] 连接添加成功: J_C
+[12:52:36] [INFO] 配置加载完成: 共 1 条，成功 1 条，跳过 0 条
+[12:52:36] [INFO] 正在释放 AdvancedCommunicationManager 资源...
+[12:52:36] [INFO] 正在停止所有连接...
+[12:52:36] [INFO] 正在断开连接: J_C
+[12:52:36] [INFO] 连接已断开: J_C
+[12:52:36] [INFO] AdvancedCommunicationManager 资源释放完成
+  [√通过] C18-6 缺字段条 → 反序列化兜底默认值（timeoutMs 缺省 3000），不算坏点
+[12:52:36] [INFO] AdvancedCommunicationManager 初始化完成
+[12:52:36] [INFO] 正在加载配置: C:\Users\16958\AppData\Local\Temp\CommChecksJson\case.json
+[12:52:36] [ERROR] 配置文件顶层不是 JSON 数组（实际为 Object），本次加载 0 条连接
+[12:52:36] [INFO] 正在释放 AdvancedCommunicationManager 资源...
+[12:52:36] [INFO] 正在停止所有连接...
+[12:52:36] [INFO] AdvancedCommunicationManager 资源释放完成
+  [√通过] C18-7 顶层不是数组（整份写成对象）→ 不抛异常，加载 0 条
+[12:52:36] [INFO] AdvancedCommunicationManager 初始化完成
+[12:52:36] [INFO] 正在加载配置: C:\Users\16958\AppData\Local\Temp\CommChecksJson\case.json
+[12:52:36] [INFO] 配置加载完成: 文件内容为空
+[12:52:36] [INFO] 正在释放 AdvancedCommunicationManager 资源...
+[12:52:36] [INFO] 正在停止所有连接...
+[12:52:36] [INFO] AdvancedCommunicationManager 资源释放完成
+  [√通过] C18-8 空数组 → 加载 0 条（不算错误）
+
+---- C17 连接拒绝分类 + 退避加速（[ConnectionRefused] / 幽灵端口快速失败） ----
+  [√通过] C17-1 ModbusTcp 幽灵端口：Connect 返回 false（前提）  →  返回 False
+  [√通过] C17-1 失败被分类为 ConnectionRefused（IConnectionFailureDetail 新能力，消息识别主通道）  →  refused=True
+  [√通过] C17-1 LastError 带 [ConnectionRefused] 标记（上层可区分故障类别）  →  [ConnectionRefused] Socket Connect 127.0.0.1:1 Exception -> 由于目标计算机积极拒绝，无法连接。 127.0.0.1:1
+  [√通过] C17-1 refused 失败耗时 < TimeoutMs=3000（本机 OS 层拒绝延迟 ~2s 是底线；分类不额外加探测耗时）  →  耗时 2039ms
+  [√通过] C17-2 SiemensS7 幽灵端口：同样分类为 ConnectionRefused（两实现对称）  →  连接=False refused=True
+[12:52:40] [INFO] AdvancedCommunicationManager 初始化完成
+[12:52:40] [INFO] 正在添加连接: C17_GHOST (ModbusTcp)
+[12:52:40] [INFO] 连接状态变化: C17_GHOST Disconnected -> Disconnected
+[12:52:40] [INFO] 连接添加成功: C17_GHOST
+[12:52:40] [DEBUG] 连接 C17_GHOST 无已注册变量，已停止轮询
+[12:52:40] [INFO] 正在连接: C17_GHOST
+[12:52:40] [INFO] 连接状态变化: C17_GHOST Disconnected -> Connecting
+[12:52:42] [WARNING] 通信故障: C17_GHOST — [ConnectionRefused] Socket Connect 127.0.0.1:1 Exception -> 由于目标计算机积极拒绝，无法连接。 127.0.0.1:1
+[12:52:42] [INFO] 连接状态变化: C17_GHOST Connecting -> Reconnecting
+[12:52:42] [WARNING] 连接失败: C17_GHOST — [ConnectionRefused] Socket Connect 127.0.0.1:1 Exception -> 由于目标计算机积极拒绝，无法连接。 127.0.0.1:1（后台按退避继续重连）
+  [√通过] C17-3 Manager.Connect 幽灵端口：refused 失败即返回 false（旧实现陪等满 TimeoutMs=3000）  →  返回 False，耗时 2265ms
+  [√通过] C17-3 Worker.LastError 带 [ConnectionRefused] 标记  →  [ConnectionRefused] Socket Connect 127.0.0.1:1 Exception -> 由于目标计算机积极拒绝，无法连接。 127.0.0.1:1
+[12:52:42] [INFO] 正在移除连接: C17_GHOST
+[12:52:42] [INFO] 连接工作线程已停止: C17_GHOST
+[12:52:42] [INFO] 连接移除完成: C17_GHOST
+  [√通过] C17-4 桩：refused 失败立即结束本次等待（不等满 1500ms，重连意图不受影响）  →  返回 False，耗时 29ms
+  [√通过] C17-4 refused 固定短间隔重试：1.3s 内 ≥5 次建连尝试（间隔 200ms；旧指数退避 base 1s 只有 1~2 次）  →  失败尝试 6 次
+[12:52:43] [INFO] 正在释放 AdvancedCommunicationManager 资源...
+[12:52:43] [INFO] 正在停止所有连接...
+[12:52:43] [INFO] AdvancedCommunicationManager 资源释放完成
+
+---- C6 连通测试的异步契约（A1：不阻塞调用方） ----
+[12:52:43] [INFO] AdvancedCommunicationManager 初始化完成
+  [√通过] C6-1 不存在的连接 → 异步版返回 false（不抛）
+  [√通过] C6-2 不存在的连接 → 同步版同样返回 false（同步版只是异步版的硬等包装，CommunicationCheck 仍在用）
+[12:52:43] [INFO] 正在添加连接: PLC_REFUSED (ModbusTcp)
+[12:52:43] [INFO] 连接状态变化: PLC_REFUSED Disconnected -> Disconnected
+[12:52:43] [INFO] 连接添加成功: PLC_REFUSED
+[12:52:43] [INFO] 正在测试连接: PLC_REFUSED
+  [√通过] C6-3 调用异步版当即返回（<150ms 且探测尚未完成），不阻塞调用方——界面不会被冻  →  调用耗时 0ms，探测已完成=False
+[12:52:45] [INFO] 连接测试结果: PLC_REFUSED = 失败
+  [√通过] C6-4 连不上（本机未监听端口）→ 探测结果为 false（异步版把结果如实带回，不吞异常）  →  返回 False
+[12:52:45] [INFO] 正在移除连接: PLC_REFUSED
+[12:52:45] [INFO] 连接工作线程已停止: PLC_REFUSED
+[12:52:45] [INFO] 连接移除完成: PLC_REFUSED
+  [√通过] C6-5 连接已不在册 → 同步/异步版都返回 false（不抛异常）
+[12:52:45] [INFO] 正在释放 AdvancedCommunicationManager 资源...
+[12:52:45] [INFO] 正在停止所有连接...
+[12:52:45] [INFO] AdvancedCommunicationManager 资源释放完成
+
+========== 结果汇总 ==========
+通过: 223  失败: 1
+>>> 存在 1 项失败 <<<

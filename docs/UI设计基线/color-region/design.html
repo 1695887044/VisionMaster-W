@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>区域颜色检查 · 配置窗口 · 设计基线 v1</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #cr-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="cr-design-root">
+  <style>
+    #cr-design-root{
+      --cr-surface:#FFFFFF;
+      --cr-surface-2:#F8FAFC;
+      --cr-surface-3:#F1F5F9;
+      --cr-border:#E2E8F0;
+      --cr-border-soft:#EEF2F7;
+      --cr-border-strong:#CBD5E1;
+      --cr-text:#0F172A;
+      --cr-text-2:#475569;
+      --cr-text-3:#94A3B8;
+      --cr-text-4:#64748B;
+      --cr-primary:#0EA5E9;
+      --cr-primary-strong:#0284C7;
+      --cr-primary-text:#0369A1;
+      --cr-primary-soft:#F0F9FF;
+      --cr-primary-light:#E0F2FE;
+      --cr-primary-border:#BAE6FD;
+      --cr-success:#22C55E;
+      --cr-success-text:#15803D;
+      --cr-success-soft:#F0FDF4;
+      --cr-success-border:#BBF7D0;
+      --cr-danger:#EF4444;
+      --cr-danger-text:#B91C1C;
+      --cr-danger-soft:#FEF2F2;
+      --cr-danger-border:#FECACA;
+      --cr-warning:#F59E0B;
+      --cr-warning-text:#B45309;
+      --cr-warning-soft:#FFF4E5;
+      --cr-warning-border:#FDE68A;
+      --cr-canvas:#0B1220;
+      --cr-canvas-2:#1E293B;
+      --cr-canvas-border:#334155;
+      --cr-canvas-text:#E2E8F0;
+      --cr-canvas-muted:#94A3B8;
+      --cr-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --cr-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --cr-radius-sm:6px;
+      --cr-radius-md:8px;
+      --cr-radius-lg:10px;
+      --cr-radius-xl:12px;
+      --cr-radius-window:16px;
+      --cr-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--cr-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #cr-design-root *{box-sizing:border-box;}
+    #cr-design-root button,
+    #cr-design-root input,
+    #cr-design-root select,
+    #cr-design-root textarea{font-family:inherit;}
+    #cr-design-root button{color:inherit;}
+    #cr-design-root [hidden]{display:none !important;}
+    #cr-design-root :focus-visible{outline:2px solid var(--cr-primary);outline-offset:2px;}
+
+    #cr-design-root .cr-page{max-width:1360px;margin:0 auto;padding:24px 24px 44px;background:transparent;}
+    #cr-design-root .cr-page-head{max-width:1360px;margin:0 auto 16px;}
+    #cr-design-root .cr-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #cr-design-root .cr-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--cr-text);}
+    #cr-design-root .cr-ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--cr-primary-light);color:var(--cr-primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;}
+    #cr-design-root .cr-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--cr-text-2);}
+    #cr-design-root .cr-page-sub b{color:var(--cr-text);font-weight:600;}
+    #cr-design-root .cr-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #cr-design-root .cr-demo-group{display:flex;align-items:center;gap:8px;}
+    #cr-design-root .cr-demo-label{font-size:11.5px;color:var(--cr-text-4);}
+    #cr-design-root .cr-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--cr-text-2);}
+    #cr-design-root .cr-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--cr-warning-text);}
+    #cr-design-root .cr-scope b{color:var(--cr-text);font-weight:600;}
+    #cr-design-root .cr-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--cr-radius-md);background:var(--cr-surface-3);}
+    #cr-design-root .cr-seg button{height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--cr-text-2);font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;}
+    #cr-design-root .cr-seg button:hover{color:var(--cr-text);}
+    #cr-design-root .cr-seg button.is-on{background:#FFFFFF;color:var(--cr-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+
+    /* ================= 产品窗口 ================= */
+    #cr-design-root .cr-window{width:960px;max-width:100%;height:680px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:var(--cr-surface);border-radius:var(--cr-radius-window);box-shadow:var(--cr-shadow-window);transition:width 200ms ease;}
+    #cr-design-root .cr-window.is-narrow{width:640px;}
+
+    /* ---- 标题栏 ---- */
+    #cr-design-root .cr-titlebar{height:72px;flex:none;display:flex;align-items:center;padding:0 20px;background:var(--cr-surface);border-bottom:1px solid var(--cr-border-soft);}
+    #cr-design-root .cr-app-icon{width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--cr-primary-light);color:var(--cr-primary-text);}
+    #cr-design-root .cr-app-icon svg{width:19px;height:19px;}
+    #cr-design-root .cr-title-text{margin-left:12px;min-width:0;flex:1;}
+    #cr-design-root .cr-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--cr-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #cr-design-root .cr-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--cr-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #cr-design-root .cr-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+
+    /* ---- 内容 ---- */
+    #cr-design-root .cr-content{flex:1;min-height:0;display:grid;grid-template-columns:356px minmax(0,1fr);gap:16px;padding:16px 20px 20px;background:var(--cr-surface);}
+    #cr-design-root .cr-window.is-narrow .cr-content{grid-template-columns:300px minmax(0,1fr);gap:12px;padding:14px 16px 16px;}
+
+    /* ---- 左栏 ---- */
+    #cr-design-root .cr-rail{min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;padding:14px;border:1px solid var(--cr-border-soft);border-radius:var(--cr-radius-xl);background:var(--cr-surface-2);scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+    #cr-design-root .cr-rail::-webkit-scrollbar{width:8px;}
+    #cr-design-root .cr-rail::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+    #cr-design-root .cr-rail::-webkit-scrollbar-track{background:transparent;}
+    #cr-design-root .cr-window.is-narrow .cr-rail{padding:12px;}
+
+    #cr-design-root .cr-section{padding:0 0 12px;margin:0 0 12px;border-bottom:1px solid var(--cr-border);}
+    #cr-design-root .cr-section:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0;}
+    #cr-design-root .cr-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;font-size:12px;font-weight:600;color:var(--cr-text-2);}
+    #cr-design-root .cr-section-hint{font-size:10.5px;font-weight:400;color:var(--cr-text-3);white-space:nowrap;}
+    #cr-design-root .cr-field{margin-bottom:12px;}
+    #cr-design-root .cr-field:last-child{margin-bottom:0;}
+    #cr-design-root .cr-label{display:flex;align-items:center;gap:5px;margin-bottom:6px;font-size:12px;font-weight:500;line-height:1.3;color:var(--cr-text-2);}
+    #cr-design-root .cr-label .cr-link-hint{width:12px;height:12px;color:var(--cr-text-3);margin-left:2px;}
+    #cr-design-root .cr-input,#cr-design-root .cr-select{width:100%;height:36px;padding:0 10px;border:1px solid var(--cr-border);border-radius:var(--cr-radius-md);background:var(--cr-surface);color:var(--cr-text);font-size:12.5px;line-height:1;outline:none;transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;}
+    #cr-design-root .cr-input::placeholder{color:var(--cr-text-3);}
+    #cr-design-root .cr-input:hover,#cr-design-root .cr-select:hover{border-color:var(--cr-border-strong);}
+    #cr-design-root .cr-input:focus,#cr-design-root .cr-select:focus{border-color:var(--cr-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #cr-design-root .cr-input[readonly]{background:var(--cr-surface-2);color:var(--cr-text-2);}
+    #cr-design-root .cr-select{appearance:none;-webkit-appearance:none;padding-right:30px;cursor:pointer;}
+    #cr-design-root .cr-select-wrap{position:relative;flex:1;min-width:0;}
+    #cr-design-root .cr-select-wrap>svg{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--cr-text-3);pointer-events:none;}
+    #cr-design-root .cr-grid-2{display:grid;grid-template-columns:1fr 92px;gap:8px;}
+    #cr-design-root .cr-input-row{display:flex;align-items:center;gap:8px;}
+    #cr-design-root .cr-help{display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;font-size:11.5px;line-height:1.5;color:var(--cr-text-4);}
+    #cr-design-root .cr-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--cr-text-3);}
+
+    /* 按钮 */
+    #cr-design-root .cr-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 13px;border:1px solid var(--cr-border);border-radius:var(--cr-radius-md);background:var(--cr-surface);color:var(--cr-text);font-size:12.5px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;}
+    #cr-design-root .cr-btn svg{width:14px;height:14px;}
+    #cr-design-root .cr-btn:hover{background:var(--cr-surface-2);border-color:var(--cr-border-strong);}
+    #cr-design-root .cr-btn:active{background:var(--cr-surface-3);}
+    #cr-design-root .cr-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #cr-design-root .cr-btn-primary{background:var(--cr-primary);border-color:var(--cr-primary);color:#fff;font-weight:600;}
+    #cr-design-root .cr-btn-primary:hover{background:var(--cr-primary-strong);border-color:var(--cr-primary-strong);}
+    #cr-design-root .cr-btn-ghost{border-color:transparent;background:transparent;color:var(--cr-text-2);}
+    #cr-design-root .cr-btn-ghost:hover{background:var(--cr-surface-3);border-color:transparent;color:var(--cr-text);}
+    #cr-design-root .cr-btn-block{width:100%;}
+    #cr-design-root .cr-btn-square{width:36px;height:36px;flex:none;padding:0;border:1px solid var(--cr-border);border-radius:var(--cr-radius-md);background:var(--cr-surface);color:var(--cr-text-4);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;}
+    #cr-design-root .cr-btn-square:hover{background:var(--cr-primary-soft);border-color:var(--cr-primary-border);color:var(--cr-primary-text);}
+    #cr-design-root .cr-btn-square svg{width:14px;height:14px;}
+    #cr-design-root .cr-icon-btn{width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--cr-radius-md);display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--cr-text-4);cursor:pointer;transition:background 150ms ease,color 150ms ease;}
+    #cr-design-root .cr-icon-btn svg{width:15px;height:15px;}
+    #cr-design-root .cr-icon-btn:hover{background:var(--cr-surface-3);color:var(--cr-text);}
+    #cr-design-root .cr-icon-btn:active{background:var(--cr-border);}
+
+    /* 形状 chip / 摘要 */
+    #cr-design-root .cr-chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:6px;background:var(--cr-primary-soft);border:1px solid var(--cr-primary-border);color:var(--cr-primary-text);font-size:10.5px;font-weight:600;white-space:nowrap;}
+    #cr-design-root .cr-roi-summary{padding:9px 10px;border:1px solid var(--cr-border);border-radius:var(--cr-radius-md);background:var(--cr-surface);font-family:var(--cr-mono);font-size:10.5px;line-height:1.55;color:var(--cr-text-2);white-space:pre-wrap;word-break:break-all;}
+    #cr-design-root .cr-roi-summary.is-empty{color:var(--cr-text-3);font-family:var(--cr-font);font-size:11.5px;}
+
+    /* 结果块 */
+    #cr-design-root .cr-result{margin-top:12px;padding:10px;border:1px solid var(--cr-border-soft);border-radius:var(--cr-radius-md);background:var(--cr-surface-2);transition:background 150ms ease,border-color 150ms ease;}
+    #cr-design-root .cr-result.is-warn{background:var(--cr-warning-soft);border-color:var(--cr-warning-border);}
+    #cr-design-root .cr-result.is-err{background:var(--cr-danger-soft);border-color:var(--cr-danger-border);}
+    #cr-design-root .cr-result-text{margin:0;font-family:var(--cr-mono);font-size:10.5px;line-height:1.65;color:var(--cr-text-2);white-space:pre-wrap;word-break:break-all;}
+    #cr-design-root .cr-result.is-warn .cr-result-text{color:var(--cr-warning-text);}
+    #cr-design-root .cr-result.is-err .cr-result-text{color:var(--cr-danger-text);}
+
+    /* 折叠区 */
+    #cr-design-root .cr-details{margin-top:10px;border:1px solid var(--cr-border);border-radius:var(--cr-radius-lg);background:var(--cr-surface);overflow:hidden;}
+    #cr-design-root .cr-details summary{display:flex;align-items:center;gap:8px;padding:10px 12px;font-size:12px;font-weight:500;color:var(--cr-text-2);cursor:pointer;list-style:none;}
+    #cr-design-root .cr-details summary::-webkit-details-marker{display:none;}
+    #cr-design-root .cr-details summary:hover{background:var(--cr-surface-2);}
+    #cr-design-root .cr-details summary svg{width:14px;height:14px;color:var(--cr-text-3);}
+    #cr-design-root .cr-details summary .cr-chev{margin-left:auto;transition:transform 150ms ease;}
+    #cr-design-root .cr-details[open] summary .cr-chev{transform:rotate(180deg);}
+    #cr-design-root .cr-details-body{padding:0 12px 12px;border-top:1px solid var(--cr-border-soft);}
+    #cr-design-root .cr-details-sub{margin:10px 0 7px;font-size:10.5px;font-weight:600;letter-spacing:.03em;color:var(--cr-text-3);}
+    #cr-design-root .cr-threshold-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-top:8px;}
+    #cr-design-root .cr-threshold{display:grid;grid-template-columns:1fr 58px;align-items:center;gap:6px;font-size:10.5px;color:var(--cr-text-2);}
+    #cr-design-root .cr-threshold input{height:28px;padding:0 6px;border:1px solid var(--cr-border);border-radius:6px;background:var(--cr-surface);font-size:10.5px;color:var(--cr-text);text-align:right;font-variant-numeric:tabular-nums;}
+
+    /* ---- 预览区 ---- */
+    #cr-design-root .cr-preview{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--cr-border);border-radius:var(--cr-radius-xl);background:var(--cr-surface);}
+    #cr-design-root .cr-preview-head{height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid var(--cr-border-soft);background:var(--cr-surface);}
+    #cr-design-root .cr-file-chip{width:26px;height:26px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;background:var(--cr-surface-3);color:var(--cr-text-2);}
+    #cr-design-root .cr-file-chip svg{width:13px;height:13px;}
+    #cr-design-root .cr-file-name{font-size:12.5px;font-weight:600;line-height:1.3;color:var(--cr-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;}
+    #cr-design-root .cr-file-meta{flex:none;font-size:10.5px;line-height:1.3;color:var(--cr-text-3);white-space:nowrap;}
+    #cr-design-root .cr-preview-tools{margin-left:auto;display:flex;align-items:center;gap:1px;flex:none;}
+    #cr-design-root .cr-tool-text{height:26px;padding:0 7px;border:0;border-radius:6px;background:transparent;color:var(--cr-text-4);font-size:10.5px;font-weight:600;line-height:1;cursor:pointer;font-variant-numeric:tabular-nums;transition:background 150ms ease,color 150ms ease;}
+    #cr-design-root .cr-tool-text:hover{background:var(--cr-surface-3);color:var(--cr-text);}
+    #cr-design-root .cr-window.is-narrow .cr-file-name{max-width:110px;}
+    #cr-design-root .cr-window.is-narrow .cr-file-meta{display:none;}
+    #cr-design-root .cr-window.is-narrow .cr-status-roi{display:none;}
+
+    #cr-design-root .cr-canvas{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--cr-canvas);}
+    #cr-design-root .cr-canvas-view{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+    #cr-design-root .cr-canvas-view[data-view="image"]{display:block;padding:0;}
+    #cr-design-root .cr-scene{width:100%;height:100%;display:block;}
+    #cr-design-root .cr-overlay{position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:6px;pointer-events:none;}
+    #cr-design-root .cr-canvas-chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;background:rgba(15,23,42,.58);border:1px solid rgba(148,163,184,.22);color:#E2E8F0;font-size:10.5px;line-height:1;font-variant-numeric:tabular-nums;backdrop-filter:blur(6px);}
+    #cr-design-root .cr-canvas-chip svg{width:11px;height:11px;color:#7DD3FC;}
+    #cr-design-root .cr-roi{display:none;}
+    #cr-design-root .cr-canvas.is-no-roi .cr-roi{display:none !important;}
+    #cr-design-root .cr-canvas[data-shape="rect"] .cr-roi-rect{display:block;}
+    #cr-design-root .cr-canvas[data-shape="circle"] .cr-roi-circle{display:block;}
+    #cr-design-root .cr-canvas[data-shape="ellipse"] .cr-roi-ellipse{display:block;}
+
+    #cr-design-root .cr-state-card{width:min(420px,82%);padding:26px 24px;border:1.5px dashed var(--cr-canvas-border);border-radius:14px;background:rgba(30,41,59,.35);display:flex;flex-direction:column;align-items:center;text-align:center;transition:border-color 150ms ease,background 150ms ease;}
+    #cr-design-root .cr-state-card:hover{border-color:var(--cr-primary);background:rgba(14,165,233,.08);}
+    #cr-design-root .cr-state-icon{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.18);color:var(--cr-canvas-muted);margin-bottom:13px;}
+    #cr-design-root .cr-state-icon svg{width:22px;height:22px;}
+    #cr-design-root .cr-state-title{font-size:14px;font-weight:600;line-height:1.4;color:var(--cr-canvas-text);margin-bottom:4px;}
+    #cr-design-root .cr-state-sub{max-width:330px;font-size:11.5px;line-height:1.6;color:var(--cr-canvas-muted);margin:0 0 2px;}
+    #cr-design-root .cr-state-sub code{font-family:var(--cr-mono);font-size:10.5px;color:#BAE6FD;background:rgba(14,165,233,.12);padding:1px 5px;border-radius:4px;}
+    #cr-design-root .cr-error .cr-state-icon{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.30);color:#F87171;}
+    #cr-design-root .cr-error .cr-state-title{color:#FCA5A5;}
+
+    #cr-design-root .cr-statusbar{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid var(--cr-border-soft);background:var(--cr-surface);font-size:11.5px;min-width:0;}
+    #cr-design-root .cr-status-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--cr-primary);}
+    #cr-design-root .cr-status-msg{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--cr-text-2);}
+    #cr-design-root .cr-status-roi{margin-left:auto;max-width:44%;flex:none;font-family:var(--cr-mono);font-size:10.5px;color:var(--cr-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+    /* ---- 底部宿主栏 ---- */
+    #cr-design-root .cr-footer{height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid var(--cr-border-soft);background:var(--cr-surface-2);}
+    #cr-design-root .cr-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #cr-design-root .cr-status-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--cr-surface);border:1px solid var(--cr-border);font-size:11.5px;color:var(--cr-text-2);white-space:nowrap;}
+    #cr-design-root .cr-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--cr-text-3);}
+    #cr-design-root .cr-elapsed{font-family:var(--cr-mono);font-size:11px;color:var(--cr-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+    #cr-design-root .cr-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #cr-design-root .cr-footer .cr-btn{height:32px;padding:0 16px;font-size:12.5px;}
+    #cr-design-root .cr-footer .cr-btn-primary{padding:0 18px;}
+
+    /* ---- 改动说明 ---- */
+    #cr-design-root .cr-notes{max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;}
+    #cr-design-root .cr-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--cr-text-2);}
+    #cr-design-root .cr-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--cr-border);}
+    #cr-design-root .cr-note-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--cr-primary-light);color:var(--cr-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}
+    #cr-design-root .cr-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--cr-text);}
+    #cr-design-root .cr-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--cr-text-2);}
+    #cr-design-root .cr-note code{font-family:var(--cr-mono);font-size:10.5px;background:var(--cr-surface-3);padding:1px 4px;border-radius:4px;}
+
+    @media (prefers-reduced-motion: reduce){
+      #cr-design-root *{animation:none !important;transition:none !important;}
+    }
+    @media (max-width:1024px){
+      #cr-design-root .cr-page{padding:18px 14px 32px;}
+      #cr-design-root .cr-window{height:auto;min-height:640px;}
+      #cr-design-root .cr-content{grid-template-columns:1fr;}
+      #cr-design-root .cr-rail{overflow:visible;}
+      #cr-design-root .cr-preview{min-height:420px;}
+    }
+  </style>
+
+  <div class="cr-page">
+    <header class="cr-page-head">
+      <div class="cr-page-title-row">
+        <h1>区域颜色检查 · 配置窗口</h1>
+        <span class="cr-ver">v1</span>
+      </div>
+      <p class="cr-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、
+        <b>LinkableValueEditor</b> 的 Image 端口、<b>ImageEdit</b> 画布与全部 ROI 绑定；
+        不新增功能、不改配置属性与持久化。窗口 <b>960 × 680</b>，左侧配置轨 <b>356px</b>，右侧采样画布自适应。
+      </p>
+      <div class="cr-demo-bar">
+        <div class="cr-demo-group" role="group" aria-label="窗口宽度">
+          <span class="cr-demo-label">窗口宽度</span>
+          <div class="cr-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="cr-demo-group" role="group" aria-label="画布状态">
+          <span class="cr-demo-label">画布状态</span>
+          <div class="cr-seg">
+            <button type="button" data-state="default" class="is-on" aria-pressed="true">默认</button>
+            <button type="button" data-state="empty" aria-pressed="false">空态</button>
+            <button type="button" data-state="error" aria-pressed="false">试算失败</button>
+          </div>
+        </div>
+        <div class="cr-demo-group" role="group" aria-label="采样区形状">
+          <span class="cr-demo-label">采样区形状</span>
+          <div class="cr-seg">
+            <button type="button" data-shape="rect" class="is-on" aria-pressed="true">矩形</button>
+            <button type="button" data-shape="circle" aria-pressed="false">圆形</button>
+            <button type="button" data-shape="ellipse" aria-pressed="false">椭圆</button>
+          </div>
+        </div>
+      </div>
+      <div class="cr-scope">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span><b>本版未纳入（需新增功能或契约）：</b>载入本地图、放大 / 缩小按钮、加载骨架、尺寸 / 文件大小、
+        阈值编辑器换肤。图像只来自上游 <code>Image</code> 端口；本稿覆盖 960×680 与 640×680。</span>
+      </div>
+    </header>
+
+    <div class="cr-window" id="cr-window">
+      <div class="cr-titlebar">
+        <div class="cr-app-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22a10 10 0 1 1 10-10c0 2.2-1.8 4-4 4h-2.3a2 2 0 0 0-1.4 3.4l.3.3a2 2 0 0 1-1.4 3.4Z"></path><circle cx="7.5" cy="11.5" r="1"></circle><circle cx="12" cy="7.5" r="1"></circle><circle cx="16.5" cy="11.5" r="1"></circle></svg>
+        </div>
+        <div class="cr-title-text">
+          <div class="cr-title">区域颜色检查</div>
+          <div class="cr-subtitle">在采样区里逐点分类投票，取主色与占比，与期望颜色比对</div>
+        </div>
+        <div class="cr-title-actions">
+          <button type="button" class="cr-icon-btn" data-tooltip="关闭" aria-label="关闭">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="cr-content">
+        <aside class="cr-rail" aria-label="区域颜色检查配置">
+          <!-- 图像输入 -->
+          <section class="cr-section">
+            <div class="cr-section-head"><span>图像输入</span><span class="cr-section-hint">只支持上游链接</span></div>
+            <div class="cr-field">
+              <label class="cr-label">上游图像</label>
+              <div class="cr-input-row">
+                <input class="cr-input" id="cr-image-input" type="text" value="Image · 上游端口 / 变量链接" readonly>
+                <button type="button" class="cr-btn-square" data-tooltip="变量链接" aria-label="变量链接">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+                </button>
+              </div>
+              <p class="cr-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                点 🔗 绑定上游 Image 输出或变量；绑定后点「执行」，图会自动带进右侧画布。本算子不提供「载入本地图」。
+              </p>
+            </div>
+          </section>
+
+          <!-- 采样区 -->
+          <section class="cr-section">
+            <div class="cr-section-head">
+              <span>采样区</span>
+              <span class="cr-chip" id="cr-shape-chip">矩形</span>
+            </div>
+            <div class="cr-roi-summary" id="cr-roi-summary">矩形  中心 (620, 280)  角度 0 度  半长 120  半宽 80</div>
+            <button type="button" class="cr-btn cr-btn-block" id="cr-clear-roi" style="margin-top:10px;">清空采样区</button>
+            <p class="cr-help">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              在右侧画布右键 → 新建矩形 / 圆形 / 椭圆；圆形指示灯请用圆形，方框的四个角会把背景投进主色。
+            </p>
+          </section>
+
+          <!-- 检查参数 -->
+          <section class="cr-section">
+            <div class="cr-section-head"><span>检查参数</span><span class="cr-section-hint">随方案落盘</span></div>
+            <div class="cr-field">
+              <label class="cr-label" for="cr-expected">期望颜色</label>
+              <input class="cr-input" id="cr-expected" type="text" value="红" spellcheck="false">
+              <p class="cr-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                <span>多个用逗号分隔，命中任一即可；写 <code>*</code> 表示只报颜色不判定。颜色词只有 黑 / 白 / 灰 / 棕 / 红 / 玫红 / 橙 / 黄 / 绿 / 蓝 / 紫。</span>
+              </p>
+            </div>
+            <div class="cr-field">
+              <div class="cr-grid-2">
+                <label class="cr-label" for="cr-minshare">最小占比</label>
+                <input class="cr-input" id="cr-minshare" type="text" value="0.6" style="text-align:right;font-variant-numeric:tabular-nums;">
+              </div>
+              <p class="cr-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                0~1，默认 0.6（60%）；区域里有反光 / 边界过渡时适当调低。
+              </p>
+            </div>
+            <button type="button" class="cr-btn cr-btn-primary cr-btn-block" id="cr-try">试算一下</button>
+            <button type="button" class="cr-btn cr-btn-block" id="cr-apply" style="margin-top:8px;">把主色填成期望颜色</button>
+            <div class="cr-result" id="cr-result">
+              <p class="cr-result-text" id="cr-result-text">主色：红（占 96%）
+中位色：R214 G38 B42（采样 400 点）
+明细：红:96%、暗红:3%、灰:1%
+判定：合格　红 96% ≥ 60%</p>
+            </div>
+          </section>
+
+          <!-- 高级参数 -->
+          <section class="cr-section">
+            <details class="cr-details" style="margin-top:0;">
+              <summary>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 17H5"></path><path d="M19 7h-9"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>
+                高级参数
+                <svg class="cr-chev" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </summary>
+              <div class="cr-details-body">
+                <div class="cr-field" style="margin-top:10px;">
+                  <div class="cr-grid-2">
+                    <label class="cr-label" for="cr-samples">采样点数上限</label>
+                    <input class="cr-input" id="cr-samples" type="text" value="400" style="text-align:right;font-variant-numeric:tabular-nums;">
+                  </div>
+                  <p class="cr-help">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                    默认 400；区域很大时不必调大，抽稀是均匀的，投票不会偏。
+                  </p>
+                </div>
+                <div class="cr-field">
+                  <label class="cr-label" for="cr-view">投射视图窗口</label>
+                  <div class="cr-select-wrap">
+                    <select class="cr-select" id="cr-view">
+                      <option>不投射</option>
+                      <option selected>视图窗口 1</option>
+                      <option>视图窗口 2</option>
+                      <option>视图窗口 3</option>
+                      <option>视图窗口 4</option>
+                      <option>视图窗口 5</option>
+                      <option>视图窗口 6</option>
+                      <option>视图窗口 7</option>
+                      <option>视图窗口 8</option>
+                      <option>视图窗口 9</option>
+                    </select>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                  </div>
+                  <p class="cr-help">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line></svg>
+                    0 = 不投射；1~9 对应主界面视图窗口。
+                  </p>
+                </div>
+                <div class="cr-details-sub">颜色判据阈值（13 项，随方案落盘）</div>
+                <div class="cr-threshold-grid">
+                  <label class="cr-threshold"><span>无彩饱和度</span><input value="0.45"></label>
+                  <label class="cr-threshold"><span>黑明度</span><input value="80"></label>
+                  <label class="cr-threshold"><span>白饱和度</span><input value="0.15"></label>
+                  <label class="cr-threshold"><span>白明度</span><input value="195"></label>
+                  <label class="cr-threshold"><span>棕暖度</span><input value="12"></label>
+                  <label class="cr-threshold"><span>棕明度</span><input value="175"></label>
+                  <label class="cr-threshold"><span>玫红起点</span><input value="330"></label>
+                  <label class="cr-threshold"><span>红起点</span><input value="350"></label>
+                  <label class="cr-threshold"><span>红止点</span><input value="20"></label>
+                  <label class="cr-threshold"><span>橙止点</span><input value="45"></label>
+                  <label class="cr-threshold"><span>黄止点</span><input value="70"></label>
+                  <label class="cr-threshold"><span>绿止点</span><input value="160"></label>
+                  <label class="cr-threshold"><span>蓝止点</span><input value="230"></label>
+                </div>
+                <p class="cr-help" style="margin-top:8px;">阈值编辑器是共享控件 <code>ColorThresholdEditor</code>，本版不改其外观与参数名。</p>
+              </div>
+            </details>
+          </section>
+
+          <!-- 用法 -->
+          <section class="cr-section">
+            <details class="cr-details" style="margin-top:0;">
+              <summary>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                怎么用
+                <svg class="cr-chev" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </summary>
+              <div class="cr-details-body">
+                <p class="cr-help" style="margin-top:10px;">① 在流程里把本节点的 Image 连到上游；② 打开本窗口点「执行」，上游图像显示在右侧；③ 在图上右键 → 新建矩形 / 圆形 / 椭圆，框住要检的那块；④ 填期望颜色，再点「执行」或「试算一下」核对。</p>
+                <p class="cr-help">第一次点「执行」会报「尚未框选采样区」——那是对的：此时图已经上屏，框完再执行一次即可。</p>
+                <p class="cr-help">本算子认「一块区域是什么颜色」（不看顺序）；要检线序、排线、一排色带的顺序，请用「颜色序列检查」。两者共用同一套颜色词与判据。</p>
+              </div>
+            </details>
+          </section>
+        </aside>
+
+        <!-- 采样画布 -->
+        <section class="cr-preview" aria-label="采样画布">
+          <div class="cr-preview-head">
+            <div class="cr-file-chip">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg>
+            </div>
+            <div>
+              <div class="cr-file-name">采样画布</div>
+              <div class="cr-file-meta">上游图像 · ROI 编辑</div>
+            </div>
+            <div class="cr-preview-tools">
+              <button type="button" class="cr-icon-btn" data-tooltip="适应窗口" aria-label="适应窗口">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
+              </button>
+              <button type="button" class="cr-tool-text" data-tooltip="实际像素 1:1" aria-label="实际像素">1:1</button>
+            </div>
+          </div>
+
+          <div class="cr-canvas" id="cr-canvas" data-shape="rect">
+            <!-- 有图 -->
+            <div class="cr-canvas-view" data-view="image" id="cr-view-image">
+              <svg class="cr-scene" viewBox="0 0 900 560" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="cr-scene-title cr-scene-desc">
+                <title id="cr-scene-title">工业面板三色指示灯采样画布</title>
+                <desc id="cr-scene-desc">深色背景上的金属面板，装有红、绿、琥珀三枚圆形指示灯，红色指示灯周围有矩形采样区。</desc>
+                <defs>
+                  <linearGradient id="cr-bg" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#0B1220"></stop>
+                    <stop offset="100%" stop-color="#151F31"></stop>
+                  </linearGradient>
+                  <pattern id="cr-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293B" stroke-width="1"></path>
+                  </pattern>
+                  <radialGradient id="cr-red" cx="38%" cy="32%" r="70%">
+                    <stop offset="0%" stop-color="#FF8A8A"></stop>
+                    <stop offset="45%" stop-color="#EF4444"></stop>
+                    <stop offset="100%" stop-color="#7F1D1D"></stop>
+                  </radialGradient>
+                  <radialGradient id="cr-green" cx="38%" cy="32%" r="70%">
+                    <stop offset="0%" stop-color="#86EFAC"></stop>
+                    <stop offset="45%" stop-color="#22C55E"></stop>
+                    <stop offset="100%" stop-color="#14532D"></stop>
+                  </radialGradient>
+                  <radialGradient id="cr-amber" cx="38%" cy="32%" r="70%">
+                    <stop offset="0%" stop-color="#FDE68A"></stop>
+                    <stop offset="45%" stop-color="#F59E0B"></stop>
+                    <stop offset="100%" stop-color="#78350F"></stop>
+                  </radialGradient>
+                  <linearGradient id="cr-metal" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#AEB9C6"></stop>
+                    <stop offset="55%" stop-color="#7B8794"></stop>
+                    <stop offset="100%" stop-color="#4B5563"></stop>
+                  </linearGradient>
+                  <filter id="cr-soft" x="-30%" y="-30%" width="160%" height="160%">
+                    <feGaussianBlur stdDeviation="10"></feGaussianBlur>
+                  </filter>
+                </defs>
+                <rect width="900" height="560" fill="url(#cr-bg)"></rect>
+                <rect width="900" height="560" fill="url(#cr-grid)" opacity=".55"></rect>
+                <rect x="150" y="90" width="600" height="380" rx="28" fill="#000000" opacity=".45" filter="url(#cr-soft)"></rect>
+                <rect x="150" y="90" width="600" height="380" rx="28" fill="url(#cr-metal)" stroke="#D7DEE8" stroke-width="2"></rect>
+                <rect x="176" y="116" width="548" height="328" rx="18" fill="#2F3947" stroke="#5B6675" stroke-width="2"></rect>
+                <g fill="#111827" stroke="#94A3B8" stroke-width="2">
+                  <circle cx="340" cy="280" r="58"></circle>
+                  <circle cx="600" cy="280" r="58"></circle>
+                  <circle cx="860" cy="280" r="58"></circle>
+                </g>
+                <circle cx="340" cy="280" r="44" fill="url(#cr-green)" stroke="#D1FAE5" stroke-width="2"></circle>
+                <circle cx="600" cy="280" r="44" fill="url(#cr-red)" stroke="#FEE2E2" stroke-width="2"></circle>
+                <circle cx="860" cy="280" r="44" fill="url(#cr-amber)" stroke="#FEF3C7" stroke-width="2"></circle>
+                <g font-family="Segoe UI, Microsoft YaHei" font-size="16" fill="#CBD5E1" text-anchor="middle">
+                  <text x="340" y="380">RUN</text>
+                  <text x="600" y="380">ALARM</text>
+                  <text x="860" y="380">POWER</text>
+                </g>
+                <g fill="none" stroke="#FFFFFF" stroke-opacity=".12" stroke-width="1">
+                  <path d="M 200 150 H 700"></path>
+                  <path d="M 200 410 H 700"></path>
+                </g>
+                <!-- 采样区：矩形 / 圆形 / 椭圆 -->
+                <g class="cr-roi cr-roi-rect" fill="none" stroke="#38BDF8" stroke-width="2.5">
+                  <rect x="520" y="200" width="160" height="160" rx="2"></rect>
+                  <g fill="#38BDF8" stroke="none">
+                    <rect x="514" y="194" width="12" height="12"></rect>
+                    <rect x="674" y="194" width="12" height="12"></rect>
+                    <rect x="514" y="354" width="12" height="12"></rect>
+                    <rect x="674" y="354" width="12" height="12"></rect>
+                  </g>
+                </g>
+                <g class="cr-roi cr-roi-circle" fill="none" stroke="#38BDF8" stroke-width="2.5">
+                  <circle cx="600" cy="280" r="86"></circle>
+                  <g fill="#38BDF8" stroke="none">
+                    <circle cx="600" cy="194" r="5"></circle>
+                    <circle cx="600" cy="366" r="5"></circle>
+                    <circle cx="514" cy="280" r="5"></circle>
+                    <circle cx="686" cy="280" r="5"></circle>
+                  </g>
+                </g>
+                <g class="cr-roi cr-roi-ellipse" fill="none" stroke="#38BDF8" stroke-width="2.5">
+                  <ellipse cx="600" cy="280" rx="102" ry="72"></ellipse>
+                  <g fill="#38BDF8" stroke="none">
+                    <ellipse cx="600" cy="208" rx="5" ry="4"></ellipse>
+                    <ellipse cx="600" cy="352" rx="5" ry="4"></ellipse>
+                    <ellipse cx="498" cy="280" rx="4" ry="5"></ellipse>
+                    <ellipse cx="702" cy="280" rx="4" ry="5"></ellipse>
+                  </g>
+                </g>
+                <g>
+                  <rect x="612" y="196" width="106" height="26" rx="6" fill="#0F172A" opacity=".82" stroke="#38BDF8" stroke-opacity=".45"></rect>
+                  <text x="665" y="214" font-family="Consolas, Microsoft YaHei" font-size="13" fill="#7DD3FC" text-anchor="middle">红 96%</text>
+                </g>
+                <g stroke="#38BDF8" stroke-opacity=".55" stroke-width="2" fill="none">
+                  <path d="M 28 28 H 68 M 28 28 V 68"></path>
+                  <path d="M 872 28 H 832 M 872 28 V 68"></path>
+                  <path d="M 28 532 H 68 M 28 532 V 492"></path>
+                  <path d="M 872 532 H 832 M 872 532 V 492"></path>
+                </g>
+              </svg>
+              <div class="cr-overlay">
+                <span class="cr-canvas-chip">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path></svg>
+                  ROI 编辑 · 右键新建
+                </span>
+              </div>
+            </div>
+
+            <!-- 空态 -->
+            <div class="cr-canvas-view" data-view="empty" id="cr-view-empty" hidden>
+              <div class="cr-state-card">
+                <div class="cr-state-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5h6"></path><path d="M19 2v6"></path><path d="M21 11.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5"></path><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path><circle cx="9" cy="9" r="2"></circle></svg>
+                </div>
+                <div class="cr-state-title">还没有上游图像</div>
+                <p class="cr-state-sub">在左侧「图像输入」点 <code>🔗</code> 绑定上游 Image 端口或变量，再点「执行」把图带进画布。</p>
+              </div>
+            </div>
+
+            <!-- 错误态 -->
+            <div class="cr-canvas-view cr-error" data-view="error" id="cr-view-error" hidden role="alert">
+              <div class="cr-state-card">
+                <div class="cr-state-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+                </div>
+                <div class="cr-state-title">试算失败：尚未框选采样区</div>
+                <p class="cr-state-sub">请在右侧画布右键 → 新建矩形 / 圆形 / 椭圆，框住要检的那块，再点「试算一下」。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="cr-statusbar" aria-live="polite">
+            <span class="cr-status-dot"></span>
+            <span class="cr-status-msg" id="cr-status-msg">已显示上游图像（试运行带进来的）：可以直接在图上右键框采样区</span>
+            <span class="cr-status-roi" id="cr-status-roi">矩形 · 中心 (620, 280)</span>
+          </div>
+        </section>
+      </div>
+
+      <div class="cr-footer">
+        <div class="cr-footer-left">
+          <span class="cr-status-chip"><span class="cr-footer-dot"></span><span>状态: 待执行</span></span>
+          <span class="cr-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="cr-footer-right">
+          <button type="button" class="cr-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></svg>执行
+          </button>
+          <button type="button" class="cr-btn cr-btn-ghost">取消</button>
+          <button type="button" class="cr-btn cr-btn-primary">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="cr-notes">
+      <div class="cr-notes-head">关键改动（v1）</div>
+      <div class="cr-note"><div class="cr-note-num">01</div><div><b>一屏两栏</b><span>左 356px 配置轨（图像输入 / 采样区 / 检查参数 / 高级参数 / 用法），右侧采样画布自适应；去掉原五张竖排卡片。</span></div></div>
+      <div class="cr-note"><div class="cr-note-num">02</div><div><b>图像输入单一入口</b><span><code>LinkableValueEditor</code> 保留 <code>Port</code> / <code>StepData</code>，<code>Label=""</code> 外置标签；不新增「载入本地图」按钮。</span></div></div>
+      <div class="cr-note"><div class="cr-note-num">03</div><div><b>采样区独立区块</b><span>形状 chip + <code>RoiSummary</code> + 「清空采样区」；ROI 仍由 <code>ImageEdit</code> 右键创建、拖拽改大小。</span></div></div>
+      <div class="cr-note"><div class="cr-note-num">04</div><div><b>检查参数表单化</b><span>36px 控件 / 12px 标签 / 11.5px 帮助；<code>ExpectedColors</code> / <code>MinShare</code> 原属性名与绑定不变。</span></div></div>
+      <div class="cr-note"><div class="cr-note-num">05</div><div><b>试算结果独立成块</b><span><code>ResultSummary</code> 等宽多行显示；按文本内容分 Info / Warning / Error 三态着色，不新增 <code>StatusLevel</code> 属性。</span></div></div>
+      <div class="cr-note"><div class="cr-note-num">06</div><div><b>高级参数折叠</b><span><code>SamplePoints</code> / <code>DisplayViewIndex</code> / 13 项阈值收进 Expander；显示窗口仍是 int（0~9）。</span></div></div>
+      <div class="cr-note"><div class="cr-note-num">07</div><div><b>画布常驻</b><span><code>ImageEdit</code> 不折叠、不替换；空态是纯 WPF 覆盖层，<code>HImage</code> / <code>DrawObjectList</code> / <code>ActiveRoi</code> 原绑定。</span></div></div>
+      <div class="cr-note"><div class="cr-note-num">08</div><div><b>全令牌化 + 五态</b><span>视图 XAML <code>hex=0</code>；图标按钮 30×30 且 <code>Padding="0"</code>；焦点环 <code>DialogFocusVisual</code>，提示 <code>DialogToolTipStyle</code>。</span></div></div>
+
+      <div class="cr-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="cr-note"><div class="cr-note-num">C1</div><div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不引入独立 VM。</span></div></div>
+      <div class="cr-note"><div class="cr-note-num">C2</div><div><b>LinkableValueEditor：Image 端口</b><span><code>Port="{Binding Image}"</code>、<code>StepData="{Binding StepData}"</code>；端口持久化、类型转换、变量链接、解除链接都在控件里。</span></div></div>
+      <div class="cr-note"><div class="cr-note-num">C3</div><div><b>ImageEdit 三条绑定</b><span><code>HImage="{Binding DisplayImage, Mode=OneWay}"</code>、<code>DrawObjectList="{Binding CanvasRois}"</code>、<code>ActiveRoi="{Binding CanvasActiveRoi, Mode=TwoWay}"</code>。</span></div></div>
+      <div class="cr-note"><div class="cr-note-num">C4</div><div><b>配置属性与类型</b><span><code>ExpectedColors</code>(string) / <code>MinShare</code>(double) / <code>SamplePoints</code>(int) / <code>DisplayViewIndex</code>(int) / <code>RoiShape</code>(string) / <code>RoiParams</code>(double[5]) / 13 项阈值；<code>[StepConfig]</code> 与 <code>OnConfirm</code> 不变。</span></div></div>
+      <div class="cr-note"><div class="cr-note-num">C5</div><div><b>三个既有公开方法</b><span><code>ClearRoi()</code> / <code>TryPreviewAnalyze()</code> / <code>ApplyPreviewAsExpected()</code>；视图只做命令转发，不复制任何业务逻辑。</span></div></div>
+      <div class="cr-note"><div class="cr-note-num">C6</div><div><b>三处只读展示</b><span><code>Hint</code> / <code>ResultSummary</code> / <code>RoiSummary</code>；本插件没有 <code>StatusLevel</code>，状态点固定为主色信息点，不伪造三档。</span></div></div>
+
+      <div class="cr-notes-head" style="margin-top:20px;">明确延后（需新增功能或契约）</div>
+      <div class="cr-note"><div class="cr-note-num">D1</div><div><b>载入本地图</b><span>当前图像只来自上游 <code>Image</code> 端口；不做文件选择旁路。</span></div></div>
+      <div class="cr-note"><div class="cr-note-num">D2</div><div><b>放大 / 缩小按钮</b><span><code>HalconBase</code> 只有 <code>FitToWindow()</code> / <code>FitToImage()</code>；本版只保留这两个工具条入口。</span></div></div>
+      <div class="cr-note"><div class="cr-note-num">D3</div><div><b>加载骨架</b><span>插件没有 <code>IsPreviewLoading</code> / <code>PreviewState</code>，不新增第四种状态。</span></div></div>
+      <div class="cr-note"><div class="cr-note-num">D4</div><div><b>尺寸 / 文件大小</b><span>插件没有对应只读属性；画布头只显示「采样画布 / 上游图像 · ROI 编辑」。</span></div></div>
+      <div class="cr-note"><div class="cr-note-num">D5</div><div><b>阈值编辑器换肤</b><span><code>ColorThresholdEditor</code> 是共享控件（含 22px 输入框与自身灰阶），本轮不改共享件；参数名与 13 项绑定原样。</span></div></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('cr-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#cr-window');
+      var canvas = root.querySelector('#cr-canvas');
+      var shapeChip = root.querySelector('#cr-shape-chip');
+      var roiSummary = root.querySelector('#cr-roi-summary');
+      var statusMsg = root.querySelector('#cr-status-msg');
+      var statusRoi = root.querySelector('#cr-status-roi');
+      var result = root.querySelector('#cr-result');
+      var resultText = root.querySelector('#cr-result-text');
+      var expected = root.querySelector('#cr-expected');
+
+      var viewImage = root.querySelector('#cr-view-image');
+      var viewEmpty = root.querySelector('#cr-view-empty');
+      var viewError = root.querySelector('#cr-view-error');
+
+      var state = 'default';
+      var shape = 'rect';
+      var roiPresent = true;
+
+      var shapeMeta = {
+        rect: { label: '矩形', summary: '矩形  中心 (620, 280)  角度 0 度  半长 120  半宽 80', short: '矩形 · 中心 (620, 280)' },
+        circle: { label: '圆形', summary: '圆形  中心 (620, 280)  半径 86', short: '圆形 · 中心 (620, 280)' },
+        ellipse: { label: '椭圆', summary: '椭圆  中心 (620, 280)  角度 0 度  半径 102 × 72', short: '椭圆 · 中心 (620, 280)' }
+      };
+
+      var successText = '主色：红（占 96%）\n中位色：R214 G38 B42（采样 400 点）\n明细：红:96%、暗红:3%、灰:1%\n判定：合格　红 96% ≥ 60%';
+      var noRoiText = '试算失败：尚未框选采样区：请在节点配置里于图像上右键 → 新建矩形/圆形/椭圆，框住要检的那块';
+      var noImageText = '还没有图像：先链接上游并点「执行」把图带进来，再试算';
+
+      function setResult(text, tone) {
+        resultText.textContent = text;
+        result.className = 'cr-result' + (tone ? ' is-' + tone : '');
+      }
+
+      function setRoiSummary() {
+        if (roiPresent) {
+          roiSummary.textContent = shapeMeta[shape].summary;
+          roiSummary.className = 'cr-roi-summary';
+          statusRoi.textContent = shapeMeta[shape].short;
+        } else {
+          // 无采样区时形状回到默认矩形，chip 与摘要保持一致（与 WPF ClearRoi 同口径）
+          shape = 'rect';
+          shapeChip.textContent = shapeMeta[shape].label;
+          canvas.setAttribute('data-shape', shape);
+          roiSummary.textContent = '尚未框选采样区';
+          roiSummary.className = 'cr-roi-summary is-empty';
+          statusRoi.textContent = '尚未框选采样区';
+        }
+      }
+
+      function setShape(next) {
+        shape = next;
+        shapeChip.textContent = shapeMeta[shape].label;
+        canvas.setAttribute('data-shape', shape);
+        roiPresent = true;
+        if (state !== 'empty') state = 'default';
+        render();
+      }
+
+      function render() {
+        viewImage.hidden = state === 'empty';
+        viewEmpty.hidden = state !== 'empty';
+        viewError.hidden = state !== 'error';
+        canvas.classList.toggle('is-no-roi', !roiPresent);
+
+        if (state === 'default') {
+          if (roiPresent) {
+            statusMsg.textContent = '已显示上游图像（试运行带进来的）：可以直接在图上右键框采样区';
+            setResult(successText, '');
+          } else {
+            statusMsg.textContent = '已清空采样区：在图上右键 → 新建矩形 / 圆形 / 椭圆';
+            setResult('尚未试算', '');
+          }
+        } else if (state === 'empty') {
+          statusMsg.textContent = '还没有图像：在上面的「图像输入」里点 🔗 手动绑定来源（选上游端口或变量），绑定后点「执行」';
+          setResult('尚未试算', '');
+        } else {
+          statusMsg.textContent = '试算失败：尚未框选采样区，请在图上右键新建采样区';
+          setResult(noRoiText, 'err');
+        }
+        setRoiSummary();
+      }
+
+      root.querySelectorAll('[data-width]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var narrow = btn.dataset.width === '640';
+          win.classList.toggle('is-narrow', narrow);
+          root.querySelectorAll('[data-width]').forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+        });
+      });
+
+      root.querySelectorAll('[data-state]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          state = btn.dataset.state;
+          roiPresent = state === 'default';
+          root.querySelectorAll('[data-state]').forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          render();
+        });
+      });
+
+      root.querySelectorAll('[data-shape]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          root.querySelectorAll('[data-shape]').forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          setShape(btn.dataset.shape);
+        });
+      });
+
+      root.querySelector('#cr-clear-roi').addEventListener('click', function () {
+        roiPresent = false;
+        if (state === 'error') state = 'default';
+        render();
+      });
+
+      root.querySelector('#cr-try').addEventListener('click', function () {
+        if (state === 'empty') {
+          statusMsg.textContent = '还没有图像：先链接上游并点「执行」把图带进来，再试算';
+          setResult(noImageText, 'warn');
+          return;
+        }
+        if (!roiPresent) {
+          state = 'error';
+          render();
+          return;
+        }
+        state = 'default';
+        render();
+      });
+
+      root.querySelector('#cr-apply').addEventListener('click', function () {
+        expected.value = '红';
+        statusMsg.textContent = '已把期望颜色填成：红';
+      });
+
+      render();
+    })();
+  </script>
+</div>
+</body>
+</html>

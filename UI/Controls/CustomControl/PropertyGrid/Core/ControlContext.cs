@@ -30,6 +30,19 @@ namespace UI.CustomControl.PropertyGrid
         /// 的标签列宽互相牵制）。布局处理器据此设置标签列的 SharedSizeGroup。
         /// </summary>
         public string SharedLabelGroup { get; set; } = "PropertyGridLabel";
+
+        /// <summary>
+        /// 是否是本分组内的最后一行。扁平式靠它去掉最后一行的底边线（由外框收口），
+        /// 否则外框圆角内侧会多出一条压在描边上的分隔线。卡片式忽略此值。
+        /// </summary>
+        public bool IsLastRow { get; set; }
+
+        /// <summary>
+        /// 是否处于校验失败态（由 <see cref="ValidationProcessor"/> 置位）。
+        /// 布局处理器在它**之前**执行，所以不靠它渲染 —— 校验器自己改容器底色。
+        /// 留这个字段是给"外部处理器想在错误态下改布局"用的扩展点。
+        /// </summary>
+        public bool HasValidationError { get; set; }
     }
 
     /// <summary>

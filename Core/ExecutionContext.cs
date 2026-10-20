@@ -74,9 +74,14 @@ namespace VisionMaster.Services
         public IFlowInvoker FlowInvoker { get; init; } = NullFlowInvoker.Instance;
 
         /// <summary>
-        /// IO 设备仓库（方案级硬件资源）。默认 NullIoProvider，生产组合由流程引擎注入真实 provider。
+        /// 通讯变量立刻读写入口（「立刻读 / 立刻写」步骤用）。
+        ///
+        /// 默认值是 <see cref="NullCommVariableAccess"/>，与 Cameras / Motions / FlowInvoker 同一口径：
+        /// 容器注册用的简化构造与单元测试夹具走这条默认路径，
+        /// 插件侧只需判 TryReadNow / TryWriteNow 的返回值，不必再判能力是否为空。
+        /// 真正可用的一份由宿主在构造上下文时注入。
         /// </summary>
-        public IIoProvider Ios { get; init; } = NullIoProvider.Instance;
+        public ICommVariableAccess Comms { get; init; } = NullCommVariableAccess.Instance;
 
         /// <summary>
         /// 当前执行节点的ID（用于调试和追踪）
@@ -98,7 +103,7 @@ namespace VisionMaster.Services
         /// </summary>
         public IDictionary<string, object> LocalVariables { get; protected init; } = new Dictionary<string, object>();
 
-        private IGlobalVariableWriter? _globalVariables;
+        private GlobalVariableWriter? _variableStore;
 
         /// <summary>
         /// 全局变量写入口（懒建：绝大多数节点用不到，不必每次执行都构造）。
@@ -108,7 +113,14 @@ namespace VisionMaster.Services
         /// 这样插件侧只判断 TryWrite 的返回值即可，不必再判能力是否为空。
         /// </summary>
         public IGlobalVariableWriter GlobalVariables
-            => _globalVariables ??= new GlobalVariableWriter(Workspace);
+            => _variableStore ??= new GlobalVariableWriter(Workspace);
+
+        /// <summary>
+        /// 共享变量按 Id 读写入口（与 <see cref="GlobalVariables"/> 共用同一个写入器实例：
+        /// 类型守门与落值逻辑只有一份）。
+        /// </summary>
+        public ISharedVariableAccess SharedVariables
+            => _variableStore ??= new GlobalVariableWriter(Workspace);
 
         /// <summary>
         /// 构造函数（简化版本）

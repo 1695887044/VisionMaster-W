@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>坐标变换 · 配置窗口 · 设计基线 v1</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+</style>
+</head>
+<body>
+<div id="pt-design-root">
+  <style>
+    #pt-design-root{
+      --pt-surface:#FFFFFF;
+      --pt-surface-2:#F8FAFC;
+      --pt-surface-3:#F1F5F9;
+      --pt-border:#E2E8F0;
+      --pt-border-soft:#EEF2F7;
+      --pt-border-strong:#CBD5E1;
+      --pt-text:#0F172A;
+      --pt-text-2:#475569;
+      --pt-text-3:#94A3B8;
+      --pt-text-4:#64748B;
+      --pt-primary:#0EA5E9;
+      --pt-primary-strong:#0284C7;
+      --pt-primary-text:#0369A1;
+      --pt-primary-soft:#F0F9FF;
+      --pt-primary-light:#E0F2FE;
+      --pt-primary-border:#BAE6FD;
+      --pt-success:#22C55E;
+      --pt-success-text:#15803D;
+      --pt-success-soft:#F0FDF4;
+      --pt-success-border:#BBF7D0;
+      --pt-danger:#EF4444;
+      --pt-danger-text:#B91C1C;
+      --pt-danger-soft:#FEF2F2;
+      --pt-danger-border:#FECACA;
+      --pt-warning:#F59E0B;
+      --pt-warning-text:#B45309;
+      --pt-warning-soft:#FFF4E5;
+      --pt-warning-border:#FDE68A;
+      --pt-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --pt-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --pt-radius-sm:6px;
+      --pt-radius-md:8px;
+      --pt-radius-lg:10px;
+      --pt-radius-xl:12px;
+      --pt-radius-window:16px;
+      --pt-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--pt-font);
+      -webkit-font-smoothing:antialiased;
+      color:var(--pt-text);
+    }
+    #pt-design-root *{box-sizing:border-box;}
+    #pt-design-root button,
+    #pt-design-root input,
+    #pt-design-root select,
+    #pt-design-root textarea{font-family:inherit;}
+    #pt-design-root button{color:inherit;}
+    #pt-design-root [hidden]{display:none !important;}
+    #pt-design-root :focus-visible{outline:2px solid var(--pt-primary);outline-offset:2px;}
+    #pt-design-root .pt-icon{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+
+    #pt-design-root .pt-page{max-width:1360px;margin:0 auto;padding:24px 24px 44px;background:transparent;}
+    #pt-design-root .pt-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #pt-design-root .pt-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--pt-text);}
+    #pt-design-root .pt-ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--pt-primary-light);color:var(--pt-primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;}
+    #pt-design-root .pt-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--pt-text-2);}
+    #pt-design-root .pt-page-sub b{color:var(--pt-text);font-weight:600;}
+    #pt-design-root .pt-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #pt-design-root .pt-demo-group{display:flex;align-items:center;gap:8px;}
+    #pt-design-root .pt-demo-label{font-size:11.5px;color:var(--pt-text-4);}
+    #pt-design-root .pt-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--pt-radius-md);background:var(--pt-surface-3);}
+    #pt-design-root .pt-seg button{height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--pt-text-2);font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;}
+    #pt-design-root .pt-seg button:hover{color:var(--pt-text);}
+    #pt-design-root .pt-seg button.is-on{background:#FFFFFF;color:var(--pt-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+    #pt-design-root .pt-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--pt-text-2);}
+    #pt-design-root .pt-scope .pt-icon{width:13px;height:13px;margin-top:2px;color:var(--pt-warning-text);}
+    #pt-design-root .pt-scope b{color:var(--pt-text);font-weight:600;}
+
+    /* ============ 产品窗口 ============ */
+    #pt-design-root .pt-window{width:960px;max-width:100%;height:680px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:var(--pt-surface);border-radius:var(--pt-radius-window);box-shadow:var(--pt-shadow-window);transition:width 200ms ease;}
+    #pt-design-root .pt-window.is-narrow{width:640px;height:560px;}
+    #pt-design-root .pt-titlebar{height:72px;flex:none;display:flex;align-items:center;padding:0 20px;background:var(--pt-surface);border-bottom:1px solid var(--pt-border-soft);}
+    #pt-design-root .pt-app-icon{width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--pt-primary-light);color:var(--pt-primary-text);}
+    #pt-design-root .pt-app-icon .pt-icon{width:19px;height:19px;}
+    #pt-design-root .pt-title-text{margin-left:12px;min-width:0;flex:1;}
+    #pt-design-root .pt-title-line{display:flex;align-items:center;gap:8px;min-width:0;}
+    #pt-design-root .pt-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--pt-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #pt-design-root .pt-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--pt-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #pt-design-root .pt-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+
+    #pt-design-root .pt-content{flex:1;min-height:0;display:grid;grid-template-columns:356px minmax(0,1fr);gap:16px;padding:16px 20px 20px;background:var(--pt-surface);}
+    #pt-design-root .pt-window.is-narrow .pt-content{grid-template-columns:300px minmax(0,1fr);gap:12px;padding:14px 16px 16px;}
+
+    /* ============ 左配置轨 ============ */
+    #pt-design-root .pt-rail{min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;padding:14px;border:1px solid var(--pt-border-soft);border-radius:var(--pt-radius-xl);background:var(--pt-surface-2);scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+    #pt-design-root .pt-rail::-webkit-scrollbar{width:8px;}
+    #pt-design-root .pt-rail::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+    #pt-design-root .pt-mode-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+    #pt-design-root .pt-mode{position:relative;display:flex;align-items:center;gap:6px;min-height:56px;padding:8px 9px;border:1px solid var(--pt-border);border-radius:var(--pt-radius-lg);background:var(--pt-surface);text-align:left;cursor:pointer;transition:border-color 150ms ease,background 150ms ease,box-shadow 150ms ease;}
+    #pt-design-root .pt-mode:hover{border-color:var(--pt-border-strong);background:#FBFDFF;}
+    #pt-design-root .pt-mode:active{background:var(--pt-surface-3);}
+    #pt-design-root .pt-mode.is-active{border-color:var(--pt-primary);background:var(--pt-primary-soft);box-shadow:0 0 0 3px rgba(14,165,233,.10);}
+    #pt-design-root .pt-mode-icon{width:24px;height:24px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;background:var(--pt-surface-3);color:var(--pt-text-4);transition:background 150ms ease,color 150ms ease;}
+    #pt-design-root .pt-mode-icon .pt-icon{width:14px;height:14px;}
+    #pt-design-root .pt-mode.is-active .pt-mode-icon{background:var(--pt-primary-light);color:var(--pt-primary-text);}
+    #pt-design-root .pt-mode-text{display:flex;flex-direction:column;min-width:0;padding-right:14px;}
+    #pt-design-root .pt-mode-text b{font-size:12px;font-weight:600;line-height:1.35;color:var(--pt-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #pt-design-root .pt-mode-text small{margin-top:2px;font-size:10px;line-height:1.3;color:var(--pt-text-4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #pt-design-root .pt-mode-check{position:absolute;right:7px;top:50%;transform:translateY(-50%);width:16px;height:16px;border-radius:50%;display:none;align-items:center;justify-content:center;background:var(--pt-primary);color:#fff;}
+    #pt-design-root .pt-mode-check .pt-icon{width:10px;height:10px;}
+    #pt-design-root .pt-mode.is-active .pt-mode-check{display:flex;}
+
+    #pt-design-root .pt-card{margin-top:10px;padding:12px;border:1px solid var(--pt-border-soft);border-radius:var(--pt-radius-lg);background:var(--pt-surface);}
+    #pt-design-root .pt-card:first-child{margin-top:0;}
+    #pt-design-root .pt-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;font-weight:600;color:var(--pt-text-2);}
+    #pt-design-root .pt-card-hint{font-size:10.5px;font-weight:400;color:var(--pt-text-3);white-space:nowrap;}
+    #pt-design-root .pt-field{margin-top:10px;}
+    #pt-design-root .pt-field:first-of-type{margin-top:10px;}
+    #pt-design-root .pt-label{display:flex;align-items:center;gap:5px;margin-bottom:6px;font-size:12px;font-weight:500;line-height:1.3;color:var(--pt-text-2);}
+    #pt-design-root .pt-req{color:var(--pt-danger);font-size:11px;}
+    #pt-design-root .pt-input-row{display:flex;align-items:center;gap:6px;}
+    #pt-design-root .pt-input{width:100%;height:36px;padding:0 10px;border:1px solid var(--pt-border);border-radius:var(--pt-radius-md);background:var(--pt-surface);color:var(--pt-text);font-size:12.5px;line-height:1;outline:none;transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;}
+    #pt-design-root .pt-input::placeholder{color:var(--pt-text-3);}
+    #pt-design-root .pt-input:hover{border-color:var(--pt-border-strong);}
+    #pt-design-root .pt-input:focus{border-color:var(--pt-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #pt-design-root .pt-input:disabled{background:var(--pt-surface-3);color:var(--pt-text-3);cursor:not-allowed;}
+    #pt-design-root .pt-input.is-link{color:var(--pt-primary-text);border-color:var(--pt-primary-border);background:var(--pt-primary-soft);font-size:12px;}
+    #pt-design-root .pt-input.is-placeholder{color:var(--pt-text-3);}
+    #pt-design-root .pt-btn-square{width:30px;height:30px;flex:none;padding:0;border:1px solid var(--pt-border);border-radius:var(--pt-radius-md);background:var(--pt-surface);color:var(--pt-text-4);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;}
+    #pt-design-root .pt-btn-square:hover{background:var(--pt-primary-soft);border-color:var(--pt-primary-border);color:var(--pt-primary-text);}
+    #pt-design-root .pt-btn-square .pt-icon{width:14px;height:14px;}
+    #pt-design-root .pt-help{display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;font-size:11.5px;line-height:1.5;color:var(--pt-text-4);}
+    #pt-design-root .pt-help .pt-icon{width:12px;height:12px;margin-top:1px;color:var(--pt-text-3);}
+    #pt-design-root .pt-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+
+    #pt-design-root .pt-check{display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:12px;line-height:1.45;color:var(--pt-text-2);cursor:pointer;}
+    #pt-design-root .pt-check input{width:15px;height:15px;margin:1px 0 0;accent-color:var(--pt-primary);flex:none;}
+    #pt-design-root .pt-check b{color:var(--pt-text);font-weight:600;}
+
+    #pt-design-root .pt-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 13px;border:1px solid var(--pt-border);border-radius:var(--pt-radius-md);background:var(--pt-surface);color:var(--pt-text);font-size:12.5px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;}
+    #pt-design-root .pt-btn .pt-icon{width:14px;height:14px;}
+    #pt-design-root .pt-btn:hover{background:var(--pt-surface-2);border-color:var(--pt-border-strong);}
+    #pt-design-root .pt-btn:active{background:var(--pt-surface-3);}
+    #pt-design-root .pt-btn-sm{height:36px;padding:0 11px;font-size:12px;}
+    #pt-design-root .pt-btn-primary{background:var(--pt-primary);border-color:var(--pt-primary);color:#fff;font-weight:600;}
+    #pt-design-root .pt-btn-primary:hover{background:var(--pt-primary-strong);border-color:var(--pt-primary-strong);}
+    #pt-design-root .pt-icon-btn{width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--pt-radius-md);display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--pt-text-4);cursor:pointer;transition:background 150ms ease,color 150ms ease;}
+    #pt-design-root .pt-icon-btn .pt-icon{width:15px;height:15px;}
+    #pt-design-root .pt-icon-btn:hover{background:var(--pt-surface-3);color:var(--pt-text);}
+    #pt-design-root .pt-tool-text{height:26px;padding:0 7px;border:0;border-radius:6px;background:transparent;color:var(--pt-text-4);font-size:10.5px;font-weight:600;line-height:1;cursor:pointer;font-variant-numeric:tabular-nums;}
+    #pt-design-root .pt-tool-text:hover{background:var(--pt-surface-3);color:var(--pt-text);}
+
+    /* 标定信息 */
+    #pt-design-root .pt-info-block{padding:10px;border:1px solid var(--pt-border);border-radius:var(--pt-radius-md);background:var(--pt-surface-2);font-size:11.5px;line-height:1.6;color:var(--pt-success-text);word-break:break-all;}
+    #pt-design-root .pt-info-block.is-warn{color:var(--pt-warning-text);background:var(--pt-warning-soft);border-color:var(--pt-warning-border);}
+    #pt-design-root .pt-info-block.is-err{color:var(--pt-danger-text);background:var(--pt-danger-soft);border-color:var(--pt-danger-border);}
+    #pt-design-root .pt-info-block b{font-weight:600;}
+
+    /* ============ 右预览 ============ */
+    #pt-design-root .pt-preview{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--pt-border);border-radius:var(--pt-radius-xl);background:var(--pt-surface);}
+    #pt-design-root .pt-preview-head{height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid var(--pt-border-soft);background:var(--pt-surface);}
+    #pt-design-root .pt-file-chip{width:26px;height:26px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;background:var(--pt-surface-3);color:var(--pt-text-2);}
+    #pt-design-root .pt-file-chip .pt-icon{width:13px;height:13px;}
+    #pt-design-root .pt-preview-title{font-size:12.5px;font-weight:600;line-height:1.3;color:var(--pt-text);white-space:nowrap;}
+    #pt-design-root .pt-preview-meta{flex:none;font-size:10.5px;line-height:1.3;color:var(--pt-text-3);white-space:nowrap;}
+    #pt-design-root .pt-preview-tools{margin-left:auto;display:flex;align-items:center;gap:1px;flex:none;}
+    #pt-design-root .pt-preview-hint{flex:none;display:flex;align-items:flex-start;gap:6px;padding:7px 12px;border-bottom:1px solid var(--pt-border-soft);background:var(--pt-surface-2);font-size:11.5px;line-height:1.5;color:var(--pt-text-2);}
+    #pt-design-root .pt-preview-hint .pt-icon{width:13px;height:13px;margin-top:1px;color:var(--pt-text-3);}
+    #pt-design-root .pt-preview-hint.is-warn{background:var(--pt-warning-soft);border-bottom-color:var(--pt-warning-border);color:var(--pt-warning-text);}
+    #pt-design-root .pt-preview-hint.is-err{background:var(--pt-danger-soft);border-bottom-color:var(--pt-danger-border);color:var(--pt-danger-text);}
+    #pt-design-root .pt-preview-hint.is-warn .pt-icon,#pt-design-root .pt-preview-hint.is-err .pt-icon{color:currentColor;}
+    #pt-design-root .pt-canvas{position:relative;flex:1;min-height:0;overflow:hidden;background:#0B1220;}
+    #pt-design-root .pt-canvas svg{position:absolute;inset:0;width:100%;height:100%;display:block;}
+    #pt-design-root .pt-canvas-chip{position:absolute;left:10px;top:10px;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:6px;background:rgba(15,23,42,.62);border:1px solid rgba(148,163,184,.22);color:#E2E8F0;font-size:10.5px;line-height:1;pointer-events:none;}
+    #pt-design-root .pt-canvas-chip .pt-icon{width:11px;height:11px;color:#7DD3FC;}
+    #pt-design-root .pt-canvas-legend{position:absolute;left:10px;bottom:10px;display:flex;align-items:center;gap:12px;padding:5px 9px;border-radius:6px;background:rgba(15,23,42,.62);border:1px solid rgba(148,163,184,.22);font-size:10.5px;line-height:1;color:#CBD5E1;pointer-events:none;}
+    #pt-design-root .pt-legend-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:1px;}
+    #pt-design-root .pt-statusbar{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid var(--pt-border-soft);background:var(--pt-surface);font-size:11.5px;min-width:0;}
+    #pt-design-root .pt-status-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--pt-success);}
+    #pt-design-root .pt-status-dot.is-warn{background:var(--pt-warning);}
+    #pt-design-root .pt-status-dot.is-err{background:var(--pt-danger);}
+    #pt-design-root .pt-status-dot.is-muted{background:var(--pt-text-3);}
+    #pt-design-root .pt-status-msg{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--pt-success-text);}
+    #pt-design-root .pt-status-msg.is-warn{color:var(--pt-warning-text);}
+    #pt-design-root .pt-status-msg.is-err{color:var(--pt-danger-text);}
+    #pt-design-root .pt-status-msg.is-muted{color:var(--pt-text-2);}
+    #pt-design-root .pt-status-extra{margin-left:auto;max-width:44%;flex:none;font-size:10.5px;color:var(--pt-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums;}
+
+    /* ============ 底部宿主栏 ============ */
+    #pt-design-root .pt-footer{height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid var(--pt-border-soft);background:var(--pt-surface-2);}
+    #pt-design-root .pt-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #pt-design-root .pt-status-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--pt-surface);border:1px solid var(--pt-border);font-size:11.5px;color:var(--pt-text-2);white-space:nowrap;}
+    #pt-design-root .pt-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--pt-text-3);}
+    #pt-design-root .pt-elapsed{font-family:var(--pt-mono);font-size:11px;color:var(--pt-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+    #pt-design-root .pt-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #pt-design-root .pt-footer .pt-btn{height:32px;padding:0 16px;font-size:12.5px;}
+    #pt-design-root .pt-footer .pt-btn-primary{padding:0 18px;}
+
+    /* ============ 说明 ============ */
+    #pt-design-root .pt-notes{max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;}
+    #pt-design-root .pt-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--pt-text-2);}
+    #pt-design-root .pt-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--pt-border);}
+    #pt-design-root .pt-note-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--pt-primary-light);color:var(--pt-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}
+    #pt-design-root .pt-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--pt-text);}
+    #pt-design-root .pt-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--pt-text-2);}
+    #pt-design-root .pt-note code{font-family:var(--pt-mono);font-size:10.5px;color:var(--pt-primary-text);background:var(--pt-primary-soft);padding:1px 4px;border-radius:4px;}
+
+    @media (prefers-reduced-motion: reduce){#pt-design-root *{animation:none !important;transition:none !important;}}
+    @media (max-width:1024px){
+      #pt-design-root .pt-page{padding:18px 14px 32px;}
+      #pt-design-root .pt-window{height:auto;min-height:640px;}
+      #pt-design-root .pt-content{grid-template-columns:1fr;}
+      #pt-design-root .pt-rail{overflow:visible;}
+      #pt-design-root .pt-preview{min-height:420px;}
+    }
+  </style>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="pt-i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+      <symbol id="pt-i-link" viewBox="0 0 24 24"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></symbol>
+      <symbol id="pt-i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+      <symbol id="pt-i-folder" viewBox="0 0 24 24"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></symbol>
+      <symbol id="pt-i-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></symbol>
+      <symbol id="pt-i-crosshair" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><circle cx="12" cy="12" r="2"/></symbol>
+      <symbol id="pt-i-ruler" viewBox="0 0 24 24"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></symbol>
+      <symbol id="pt-i-maximize" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+      <symbol id="pt-i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+      <symbol id="pt-i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+      <symbol id="pt-i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+      <symbol id="pt-i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></symbol>
+      <symbol id="pt-i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></symbol>
+    </defs>
+  </svg>
+
+  <div class="pt-page">
+    <header>
+      <div class="pt-page-title-row">
+        <h1>坐标变换 · 配置窗口</h1>
+        <span class="pt-ver">v1</span>
+      </div>
+      <p class="pt-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、<b>11 个 LinkableValueEditor</b>、
+        <b>ImageEdit 常驻画布</b> 与全部命令/状态绑定；不新增功能、不改绑定类型。窗口 <b>960 × 680</b>，
+        左侧配置轨 <b>356px</b>，右侧叠加预览工作区自适应。
+      </p>
+      <div class="pt-demo-bar">
+        <div class="pt-demo-group" role="group" aria-label="窗口宽度">
+          <span class="pt-demo-label">窗口宽度</span>
+          <div class="pt-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="pt-demo-group" role="group" aria-label="变换模式">
+          <span class="pt-demo-label">模式</span>
+          <div class="pt-seg">
+            <button type="button" data-mode="follow" class="is-on" aria-pressed="true">位姿跟随</button>
+            <button type="button" data-mode="mechanical" aria-pressed="false">像素→机械</button>
+          </div>
+        </div>
+        <div class="pt-demo-group" role="group" aria-label="状态">
+          <span class="pt-demo-label">状态</span>
+          <div class="pt-seg">
+            <button type="button" data-state="ready" class="is-on" aria-pressed="true">就绪</button>
+            <button type="button" data-state="warn" aria-pressed="false">警告</button>
+            <button type="button" data-state="error" aria-pressed="false">错误</button>
+            <button type="button" data-state="empty" aria-pressed="false">空预览</button>
+          </div>
+        </div>
+      </div>
+      <div class="pt-scope">
+        <svg class="pt-icon"><use href="#pt-i-info"/></svg>
+        <span><b>v1 未纳入（需新增功能或契约）：</b>加载骨架、尺寸/文件大小、放大/缩小、打开所在文件夹、系统导航。
+        本稿覆盖 960×680 与 640×560 两档；ImageEdit 始终常驻，空态用画布上方的提示条表达，不折叠 HALCON 控件。</span>
+      </div>
+    </header>
+
+    <div class="pt-window" id="pt-window">
+      <div class="pt-titlebar">
+        <div class="pt-app-icon"><svg class="pt-icon"><use href="#pt-i-crosshair"/></svg></div>
+        <div class="pt-title-text">
+          <div class="pt-title-line"><div class="pt-title">坐标变换</div></div>
+          <div class="pt-subtitle">位姿跟随与像素↔机械换算：把定位位姿变成下游能用的跟随 ROI 与机械坐标</div>
+        </div>
+        <div class="pt-title-actions">
+          <button type="button" class="pt-icon-btn" data-tooltip="关闭" aria-label="关闭"><svg class="pt-icon"><use href="#pt-i-x"/></svg></button>
+        </div>
+      </div>
+
+      <div class="pt-content">
+        <aside class="pt-rail" aria-label="坐标变换配置">
+          <div class="pt-mode-grid" role="group" aria-label="变换模式">
+            <button type="button" class="pt-mode is-active" data-mode-card="follow" aria-pressed="true">
+              <span class="pt-mode-icon"><svg class="pt-icon"><use href="#pt-i-crosshair"/></svg></span>
+              <span class="pt-mode-text"><b>位姿跟随</b><small>ROI 跟随</small></span>
+              <span class="pt-mode-check"><svg class="pt-icon"><use href="#pt-i-check"/></svg></span>
+            </button>
+            <button type="button" class="pt-mode" data-mode-card="mechanical" aria-pressed="false">
+              <span class="pt-mode-icon"><svg class="pt-icon"><use href="#pt-i-ruler"/></svg></span>
+              <span class="pt-mode-text"><b>像素→机械</b><small>标定换算</small></span>
+              <span class="pt-mode-check"><svg class="pt-icon"><use href="#pt-i-check"/></svg></span>
+            </button>
+          </div>
+
+          <!-- ================= 位姿跟随 ================= -->
+          <section data-panel="follow">
+            <div class="pt-card">
+              <div class="pt-card-head"><span>位姿跟随输入</span><span class="pt-card-hint">端口 / 变量链接</span></div>
+              <div class="pt-field">
+                <label class="pt-label" for="pt-base-region">基准 ROI <span class="pt-req">*</span></label>
+                <div class="pt-input-row">
+                  <input class="pt-input is-link" id="pt-base-region" type="text" value="创建ROI.MaskRegion" spellcheck="false">
+                  <button type="button" class="pt-btn-square" data-tooltip="改链" aria-label="改链"><svg class="pt-icon"><use href="#pt-i-link"/></svg></button>
+                  <button type="button" class="pt-btn-square" data-tooltip="解除链接" aria-label="解除链接"><svg class="pt-icon"><use href="#pt-i-x"/></svg></button>
+                </div>
+                <p class="pt-help"><svg class="pt-icon"><use href="#pt-i-info"/></svg>必须画在模板图上（画在别的图会系统性偏移）。</p>
+              </div>
+              <div class="pt-field">
+                <div class="pt-grid-2">
+                  <div>
+                    <label class="pt-label" for="pt-pose-row">位姿 Row</label>
+                    <input class="pt-input" id="pt-pose-row" type="text" value="412.60" spellcheck="false">
+                  </div>
+                  <div>
+                    <label class="pt-label" for="pt-pose-col">位姿 Col</label>
+                    <input class="pt-input" id="pt-pose-col" type="text" value="538.20" spellcheck="false">
+                  </div>
+                </div>
+              </div>
+              <div class="pt-field">
+                <label class="pt-label" for="pt-pose-angle">位姿角度（度）</label>
+                <input class="pt-input" id="pt-pose-angle" type="text" value="12.50" spellcheck="false">
+              </div>
+              <p class="pt-help"><svg class="pt-icon"><use href="#pt-i-info"/></svg>位姿=模板参考点且角度 0 时，跟随 ROI 与基准 ROI 完全重合（验收自检）。</p>
+            </div>
+
+            <div class="pt-card">
+              <div class="pt-card-head"><span>模板参考点</span><span class="pt-card-hint">默认派生</span></div>
+              <label class="pt-check"><input id="pt-derived" type="checkbox" checked><span><b>模板参考点由基准 ROI 中心派生</b><br>开启时参考点 = 基准 ROI 中心；关闭后用下面两个端口的值。</span></label>
+              <div class="pt-field">
+                <button type="button" class="pt-btn pt-btn-sm" id="pt-take-center"><svg class="pt-icon"><use href="#pt-i-crosshair"/></svg>取基准 ROI 中心</button>
+              </div>
+              <div class="pt-field" id="pt-ref-fields">
+                <div class="pt-grid-2">
+                  <div>
+                    <label class="pt-label" for="pt-ref-row">参考点 Row</label>
+                    <input class="pt-input" id="pt-ref-row" type="text" value="400.00" spellcheck="false" disabled>
+                  </div>
+                  <div>
+                    <label class="pt-label" for="pt-ref-col">参考点 Col</label>
+                    <input class="pt-input" id="pt-ref-col" type="text" value="520.00" spellcheck="false" disabled>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-card">
+              <div class="pt-card-head"><span>输出</span><span class="pt-card-hint">可选</span></div>
+              <label class="pt-check"><input id="pt-emit-image" type="checkbox"><span><b>输出对齐图</b><br>把当前图重采样回模板参考位姿；默认关，少一次重采样与内存拷贝。</span></label>
+              <p class="pt-help"><svg class="pt-icon"><use href="#pt-i-info"/></svg>与「模板匹配」输出对齐图的分工：那边把目标重采样成标准位姿；本插件保留原图坐标、只跟随 ROI/点位。</p>
+            </div>
+          </section>
+
+          <!-- ================= 像素→机械 ================= -->
+          <section data-panel="mechanical" hidden>
+            <div class="pt-card">
+              <div class="pt-card-head"><span>标定与像素点</span><span class="pt-card-hint">端口 / 变量链接</span></div>
+              <div class="pt-field">
+                <label class="pt-label" for="pt-transform">标定 <span class="pt-req">*</span></label>
+                <div class="pt-input-row">
+                  <input class="pt-input is-link" id="pt-transform" type="text" value="标定.Transform" spellcheck="false">
+                  <button type="button" class="pt-btn-square" data-tooltip="改链" aria-label="改链"><svg class="pt-icon"><use href="#pt-i-link"/></svg></button>
+                  <button type="button" class="pt-btn-square" data-tooltip="解除链接" aria-label="解除链接"><svg class="pt-icon"><use href="#pt-i-x"/></svg></button>
+                </div>
+                <p class="pt-help"><svg class="pt-icon"><use href="#pt-i-info"/></svg>只接「标定」插件的 Transform 输出（不允许手填矩阵——单一事实源）。</p>
+              </div>
+              <div class="pt-field">
+                <div class="pt-grid-2">
+                  <div>
+                    <label class="pt-label" for="pt-pixel-row">像素点 Row</label>
+                    <input class="pt-input" id="pt-pixel-row" type="text" value="412.60" spellcheck="false">
+                  </div>
+                  <div>
+                    <label class="pt-label" for="pt-pixel-col">像素点 Col</label>
+                    <input class="pt-input" id="pt-pixel-col" type="text" value="538.20" spellcheck="false">
+                  </div>
+                </div>
+              </div>
+              <div class="pt-field">
+                <label class="pt-label" for="pt-pixel-angle">像素角度（度，可选）</label>
+                <input class="pt-input" id="pt-pixel-angle" type="text" value="12.50" spellcheck="false">
+              </div>
+              <p class="pt-help"><svg class="pt-icon"><use href="#pt-i-info"/></svg>接了或有非零值才输出机械角；输出机械坐标的同时给反向回显，偏差超容差才算过。</p>
+            </div>
+
+            <div class="pt-card">
+              <div class="pt-card-head"><span>标定信息</span><span class="pt-card-hint">只读</span></div>
+              <div class="pt-info-block" id="pt-calib-info">类型 九点 ｜ 来源 Calib_LineA ｜ 相机 40123456 ｜ 标定图 2448×2048 ｜ 创建 2026-10-18 09:12 ｜ 残差 RMS 0.284px / 最大 0.612px</div>
+              <p class="pt-help"><svg class="pt-icon"><use href="#pt-i-info"/></svg>与预览图尺寸不符、残差偏大或未接标定时，这里会给出原因。</p>
+            </div>
+          </section>
+
+          <!-- ================= 公共：参考图 / 预览底图 ================= -->
+          <div class="pt-card">
+            <div class="pt-card-head"><span>参考图与预览底图</span><span class="pt-card-hint">配置态</span></div>
+            <div class="pt-field">
+              <label class="pt-label" for="pt-src-image">参考图 SrcImage（可选）</label>
+              <div class="pt-input-row">
+                <input class="pt-input is-placeholder" id="pt-src-image" type="text" placeholder="需链接变量" readonly>
+                <button type="button" class="pt-btn-square" data-tooltip="链接变量" aria-label="链接变量"><svg class="pt-icon"><use href="#pt-i-link"/></svg></button>
+              </div>
+              <p class="pt-help"><svg class="pt-icon"><use href="#pt-i-info"/></svg>位姿跟随：勾了「输出对齐图」才用；像素→机械：接了才做图像尺寸失配校验（换分辨率必须失败）。不接也能工作。</p>
+            </div>
+            <div style="height:1px;margin:12px 0;background:var(--pt-border);"></div>
+            <div class="pt-field">
+              <label class="pt-label" for="pt-preview-path">预览底图（不参与运行）</label>
+              <div class="pt-input-row">
+                <input class="pt-input" id="pt-preview-path" type="text" value="D:\Images\template.bmp" spellcheck="false">
+                <button type="button" class="pt-btn pt-btn-sm" id="pt-browse"><svg class="pt-icon"><use href="#pt-i-folder"/></svg>浏览</button>
+              </div>
+              <p class="pt-help"><svg class="pt-icon"><use href="#pt-i-info"/></svg>叠加显示：基准 ROI（绿）、跟随 ROI（橙）、模板参考点十字（黄）。没载预览图时，若已接参考图 SrcImage 且其有值，就直接拿它当底图。</p>
+            </div>
+          </div>
+        </aside>
+
+        <!-- ================= 右预览 ================= -->
+        <section class="pt-preview" aria-label="叠加预览">
+          <div class="pt-preview-head">
+            <div class="pt-file-chip"><svg class="pt-icon"><use href="#pt-i-image"/></svg></div>
+            <span class="pt-preview-title">叠加预览</span>
+            <span class="pt-preview-meta" id="pt-mode-label">位姿跟随 · 配置</span>
+            <div class="pt-preview-tools">
+              <button type="button" class="pt-icon-btn" data-tooltip="适应窗口" aria-label="适应窗口"><svg class="pt-icon"><use href="#pt-i-maximize"/></svg></button>
+              <button type="button" class="pt-tool-text" data-tooltip="实际像素 1:1" aria-label="实际像素">1:1</button>
+            </div>
+          </div>
+
+          <div class="pt-preview-hint" id="pt-hint" hidden>
+            <svg class="pt-icon"><use href="#pt-i-info"/></svg>
+            <span id="pt-hint-text"></span>
+          </div>
+
+          <div class="pt-canvas">
+            <svg viewBox="0 0 800 520" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="pt-scene-title pt-scene-desc">
+              <title id="pt-scene-title">坐标变换叠加预览</title>
+              <desc id="pt-scene-desc">深色画布上显示工业零件底图，绿色基准 ROI、橙色跟随 ROI、黄色模板参考点十字与青色像素点坐标。</desc>
+              <defs>
+                <radialGradient id="pt-metal" cx="42%" cy="38%" r="66%">
+                  <stop offset="0%" stop-color="#E8EDF3"></stop>
+                  <stop offset="45%" stop-color="#AEB9C6"></stop>
+                  <stop offset="75%" stop-color="#7B8794"></stop>
+                  <stop offset="100%" stop-color="#4B5563"></stop>
+                </radialGradient>
+                <linearGradient id="pt-bg" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#0B1220"></stop>
+                  <stop offset="100%" stop-color="#151F31"></stop>
+                </linearGradient>
+                <pattern id="pt-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293B" stroke-width="1"></path>
+                </pattern>
+                <filter id="pt-soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="9"></feGaussianBlur></filter>
+              </defs>
+              <rect width="800" height="520" fill="url(#pt-bg)"></rect>
+              <rect width="800" height="520" fill="url(#pt-grid)" opacity=".55"></rect>
+              <g id="pt-scene-base">
+                <ellipse cx="400" cy="278" rx="232" ry="205" fill="#000000" opacity=".45" filter="url(#pt-soft)"></ellipse>
+                <circle cx="400" cy="260" r="190" fill="url(#pt-metal)" stroke="#D7DEE8" stroke-width="2"></circle>
+                <circle cx="400" cy="260" r="160" fill="none" stroke="#5B6675" stroke-width="2" opacity=".7"></circle>
+                <circle cx="400" cy="260" r="118" fill="#8C97A5" stroke="#D7DEE8" stroke-width="1.5"></circle>
+                <circle cx="400" cy="260" r="92" fill="#5F6B7A" stroke="#AEB9C6" stroke-width="1.5"></circle>
+                <circle cx="400" cy="260" r="52" fill="#2F3947" stroke="#7B8794" stroke-width="2"></circle>
+                <g fill="#1F2937" stroke="#C7D0DB" stroke-width="1.2">
+                  <circle cx="400" cy="118" r="15"></circle><circle cx="523" cy="189" r="15"></circle><circle cx="523" cy="331" r="15"></circle>
+                  <circle cx="400" cy="402" r="15"></circle><circle cx="277" cy="331" r="15"></circle><circle cx="277" cy="189" r="15"></circle>
+                </g>
+                <circle cx="400" cy="260" r="24" fill="#111827" stroke="#94A3B8" stroke-width="1"></circle>
+                <g fill="none" stroke="#FFFFFF" stroke-opacity=".18" stroke-width="1">
+                  <path d="M 245 260 A 155 155 0 0 1 400 105"></path><path d="M 555 260 A 155 155 0 0 0 400 415"></path><path d="M 300 260 A 100 100 0 0 1 400 160"></path>
+                </g>
+                <g stroke="#38BDF8" stroke-opacity=".85" stroke-width="1">
+                  <path d="M 400 40 V 110"></path><path d="M 400 410 V 480"></path><path d="M 180 260 H 240"></path><path d="M 560 260 H 620"></path>
+                </g>
+                <circle cx="400" cy="260" r="6" fill="none" stroke="#38BDF8" stroke-width="1.5"></circle>
+                <g stroke="#38BDF8" stroke-opacity=".55" stroke-width="2" fill="none">
+                  <path d="M 30 30 H 70 M 30 30 V 70"></path><path d="M 770 30 H 730 M 770 30 V 70"></path><path d="M 30 490 H 70 M 30 490 V 450"></path><path d="M 770 490 H 730 M 770 490 V 450"></path>
+                </g>
+              </g>
+
+              <!-- 位姿跟随叠加：绿=基准 ROI，橙=跟随 ROI，黄=模板参考点 -->
+              <g id="pt-overlay-follow">
+                <rect x="250" y="150" width="300" height="220" rx="8" fill="none" stroke="#22C55E" stroke-width="2.5" stroke-dasharray="8 5"></rect>
+                <text x="250" y="142" fill="#86EFAC" font-size="12" font-family="Consolas, monospace">基准 ROI</text>
+                <g transform="rotate(12.5 410 268)">
+                  <rect x="262" y="160" width="300" height="220" rx="8" fill="none" stroke="#F59E0B" stroke-width="2.5" stroke-dasharray="8 5"></rect>
+                  <text x="262" y="152" fill="#FCD34D" font-size="12" font-family="Consolas, monospace">跟随 ROI</text>
+                </g>
+                <g stroke="#FDE047" stroke-width="2">
+                  <path d="M 388 260 H 412 M 400 248 V 272"></path>
+                </g>
+                <circle cx="400" cy="260" r="4" fill="#FDE047"></circle>
+              </g>
+
+              <!-- 像素→机械叠加：青=像素点与机械轴 -->
+              <g id="pt-overlay-mechanical" hidden>
+                <g stroke="#22D3EE" stroke-width="2">
+                  <path d="M 400 260 H 472 M 400 260 V 188"></path>
+                  <path d="M 472 260 l -10 -5 l 0 10 z" fill="#22D3EE" stroke="none"></path>
+                  <path d="M 400 188 l -5 10 l 10 0 z" fill="#22D3EE" stroke="none"></path>
+                </g>
+                <circle cx="400" cy="260" r="7" fill="none" stroke="#22D3EE" stroke-width="2"></circle>
+                <circle cx="400" cy="260" r="2.5" fill="#22D3EE"></circle>
+                <text x="482" y="250" fill="#A5F3FC" font-size="12" font-family="Consolas, monospace">X 机械</text>
+                <text x="408" y="178" fill="#A5F3FC" font-size="12" font-family="Consolas, monospace">Y 机械</text>
+                <text x="286" y="452" fill="#A5F3FC" font-size="12" font-family="Consolas, monospace">像素 (412.60, 538.20)</text>
+              </g>
+
+              <!-- 空预览：只留暗底与网格，HALCON 画布在 WPF 里始终常驻 -->
+              <g id="pt-overlay-empty" hidden>
+                <rect x="250" y="190" width="300" height="140" rx="12" fill="rgba(30,41,59,.35)" stroke="#334155" stroke-width="1.5" stroke-dasharray="6 5"></rect>
+                <text x="400" y="252" text-anchor="middle" fill="#94A3B8" font-size="13" font-family="Segoe UI, Microsoft YaHei UI, sans-serif">预览底图未加载</text>
+                <text x="400" y="276" text-anchor="middle" fill="#64748B" font-size="11" font-family="Segoe UI, Microsoft YaHei UI, sans-serif">在左侧选择预览图，或接入参考图 SrcImage</text>
+              </g>
+            </svg>
+            <span class="pt-canvas-chip"><svg class="pt-icon"><use href="#pt-i-monitor"/></svg>配置态 · 只读</span>
+            <span class="pt-canvas-legend" id="pt-legend-follow">
+              <span><span class="pt-legend-dot" style="background:#22C55E"></span>基准 ROI</span>
+              <span><span class="pt-legend-dot" style="background:#F59E0B"></span>跟随 ROI</span>
+              <span><span class="pt-legend-dot" style="background:#FDE047"></span>模板参考点</span>
+            </span>
+            <span class="pt-canvas-legend" id="pt-legend-mechanical" hidden>
+              <span><span class="pt-legend-dot" style="background:#22D3EE"></span>像素点</span>
+              <span><span class="pt-legend-dot" style="background:#A5F3FC"></span>机械轴</span>
+            </span>
+          </div>
+
+          <div class="pt-statusbar" aria-live="polite">
+            <span class="pt-status-dot" id="pt-status-dot"></span>
+            <span class="pt-status-msg" id="pt-status-msg">就绪：跟随参数完整（试运行可看叠加效果）</span>
+            <span class="pt-status-extra" id="pt-status-extra">跟随面积 18,240 px²（相对基准 +0.3%）</span>
+          </div>
+        </section>
+      </div>
+
+      <div class="pt-footer">
+        <div class="pt-footer-left">
+          <span class="pt-status-chip"><span class="pt-footer-dot"></span><span>状态: 待执行</span></span>
+          <span class="pt-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="pt-footer-right">
+          <button type="button" class="pt-btn"><svg class="pt-icon"><use href="#pt-i-play"/></svg>执行</button>
+          <button type="button" class="pt-btn">取消</button>
+          <button type="button" class="pt-btn pt-btn-primary">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="pt-notes">
+      <div class="pt-notes-head">关键改动（v1）</div>
+      <div class="pt-note"><div class="pt-note-num">01</div><div><b>两栏固定分工</b><span>左 356px 配置轨（模式 + 模式专属参数 + 公共参考图/预览底图），右侧叠加预览工作区自适应；960×680 与 640×560 两档均可用。</span></div></div>
+      <div class="pt-note"><div class="pt-note-num">02</div><div><b>模式改为 2 张卡片</b><span>两个 <code>RadioButton</code> 套卡片模板 + <code>EnumConverter</code>；仍写 <code>Mode</code>，<code>OnModeChanged</code> 的校验/叠加刷新照常触发。</span></div></div>
+      <div class="pt-note"><div class="pt-note-num">03</div><div><b>11 个端口逐项保留</b><span><code>BaseRegion</code> / <code>TemplateRefRow</code> / <code>TemplateRefCol</code> / <code>PoseRow</code> / <code>PoseCol</code> / <code>PoseAngle</code> / <code>Transform</code> / <code>PixelPointRow</code> / <code>PixelPointCol</code> / <code>PixelAngle</code> / <code>SrcImage</code>，<code>Port</code>/<code>StepData</code> 原样绑定，不替换成普通输入框。</span></div></div>
+      <div class="pt-note"><div class="pt-note-num">04</div><div><b>ImageEdit 常驻</b><span>不折叠、不换成静态图；<code>HImage="{Binding DisplayImage, Mode=OneWay}"</code> 逐字保留。空态只在画布上方显示提示条。</span></div></div>
+      <div class="pt-note"><div class="pt-note-num">05</div><div><b>模板参考点派生可读</b><span>派生开启时两个参考点输入置灰（仍保留端口与链接入口）；「取基准 ROI 中心」按钮接现有 <code>TakeRefFromRegionCenterCommand</code>。</span></div></div>
+      <div class="pt-note"><div class="pt-note-num">06</div><div><b>标定信息独立成块</b><span>ToMechanical 的 <code>CalibrationInfoText</code> 用三档颜色（Info 绿 / Warning 橙 / Error 红），与 <code>CalibrationInfoLevel</code> 一一对应。</span></div></div>
+      <div class="pt-note"><div class="pt-note-num">07</div><div><b>状态栏三档</b><span><code>StatusMessage</code> + <code>StatusLevel</code>（Info / Warning / Error）原样消费；空串显示「就绪」，不新增第四档。</span></div></div>
+      <div class="pt-note"><div class="pt-note-num">08</div><div><b>全令牌化 + 五态</b><span>颜色全部走 <code>Colors.xaml</code> / <code>PluginConfigColors.xaml</code>；图标按钮 30×30 + <code>Padding="0"</code>（R68），焦点环 <code>DialogFocusVisual</code>，ToolTip <code>DialogToolTipStyle</code>。</span></div></div>
+
+      <div class="pt-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="pt-note"><div class="pt-note-num">C1</div><div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不引入独立 VM。</span></div></div>
+      <div class="pt-note"><div class="pt-note-num">C2</div><div><b>11 个 LinkableValueEditor</b><span>端口持久化、类型转换、变量链接、解除链接都在控件里；只改外观（<code>Label=""</code> 外置标签）。</span></div></div>
+      <div class="pt-note"><div class="pt-note-num">C3</div><div><b>ImageEdit 的 HImage / DrawObjectList / ActiveRoi</b><span>本插件当前只绑 <code>HImage</code>；保留控件类型与 <code>Mode=OneWay</code>，不折叠、不替换。</span></div></div>
+      <div class="pt-note"><div class="pt-note-num">C4</div><div><b>Mode 是枚举</b><span><code>TransformMode</code> 仍走 <code>EnumConverter</code>；不改成 int / string。</span></div></div>
+      <div class="pt-note"><div class="pt-note-num">C5</div><div><b>命令与状态</b><span><code>BrowsePreviewCommand</code> / <code>TakeRefFromRegionCenterCommand</code> + <code>StatusMessage</code>/<code>StatusLevel</code> 三档全部保留。</span></div></div>
+      <div class="pt-note"><div class="pt-note-num">C6</div><div><b>持久化键名</b><span><code>Mode</code> / <code>EmitFollowedImage</code> / <code>TemplateRefFromRegionCenter</code> / <code>PreviewImagePath</code> 与端口名一个不改。</span></div></div>
+
+      <div class="pt-notes-head" style="margin-top:20px;">v1 明确延后（需新增功能或契约）</div>
+      <div class="pt-note"><div class="pt-note-num">D1</div><div><b>加载骨架 / 加载态</b><span>需要 VM 新增 <code>IsPreviewLoading</code> 或 <code>PreviewState</code>；当前 <code>StatusLevel</code> 只有三档。</span></div></div>
+      <div class="pt-note"><div class="pt-note-num">D2</div><div><b>尺寸 / 文件大小</b><span>需要 VM 新增只读属性（<code>HImage.GetImageSize</code> / <code>FileInfo.Length</code>）；v1 预览头不显示。</span></div></div>
+      <div class="pt-note"><div class="pt-note-num">D3</div><div><b>放大 / 缩小按钮</b><span><code>HalconBase</code> 只有 <code>FitToWindow()</code> / <code>FitToImage()</code>，没有公开 zoom 方法；v1 只做「适应窗口 / 1:1」。</span></div></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('pt-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#pt-window');
+      var modeCards = Array.prototype.slice.call(root.querySelectorAll('[data-mode-card]'));
+      var modeSegs = Array.prototype.slice.call(root.querySelectorAll('[data-mode]'));
+      var stateSegs = Array.prototype.slice.call(root.querySelectorAll('[data-state]'));
+      var widthSegs = Array.prototype.slice.call(root.querySelectorAll('[data-width]'));
+      var panels = Array.prototype.slice.call(root.querySelectorAll('[data-panel]'));
+
+      var modeLabel = root.querySelector('#pt-mode-label');
+      var hint = root.querySelector('#pt-hint');
+      var hintText = root.querySelector('#pt-hint-text');
+      var statusDot = root.querySelector('#pt-status-dot');
+      var statusMsg = root.querySelector('#pt-status-msg');
+      var statusExtra = root.querySelector('#pt-status-extra');
+      var calibInfo = root.querySelector('#pt-calib-info');
+      var overlayFollow = root.querySelector('#pt-overlay-follow');
+      var overlayMechanical = root.querySelector('#pt-overlay-mechanical');
+      var overlayEmpty = root.querySelector('#pt-overlay-empty');
+      var sceneBase = root.querySelector('#pt-scene-base');
+      var legendFollow = root.querySelector('#pt-legend-follow');
+      var legendMechanical = root.querySelector('#pt-legend-mechanical');
+      var baseRegion = root.querySelector('#pt-base-region');
+      var poseRow = root.querySelector('#pt-pose-row');
+      var poseCol = root.querySelector('#pt-pose-col');
+      var poseAngle = root.querySelector('#pt-pose-angle');
+      var refRow = root.querySelector('#pt-ref-row');
+      var refCol = root.querySelector('#pt-ref-col');
+      var refFields = root.querySelector('#pt-ref-fields');
+      var derived = root.querySelector('#pt-derived');
+      var emitImage = root.querySelector('#pt-emit-image');
+      var transform = root.querySelector('#pt-transform');
+      var pixelRow = root.querySelector('#pt-pixel-row');
+      var pixelCol = root.querySelector('#pt-pixel-col');
+      var pixelAngle = root.querySelector('#pt-pixel-angle');
+      var previewPath = root.querySelector('#pt-preview-path');
+
+      var mode = 'follow';
+      var state = 'ready';
+
+      var copy = {
+        follow: {
+          ready: {
+            level: 'ok',
+            msg: '就绪：跟随参数完整（试运行可看叠加效果）',
+            extra: '跟随面积 18,240 px²（相对基准 +0.3%）',
+            hint: '',
+            hintLevel: '',
+            overlay: 'follow'
+          },
+          warn: {
+            level: 'warn',
+            msg: '基准 ROI 未接：请把 ROI 插件的 MaskRegion 接过来（画在模板图上）',
+            extra: '',
+            hint: '',
+            hintLevel: '',
+            overlay: 'none'
+          },
+          error: {
+            level: 'err',
+            msg: '预览图不存在：D:\\Images\\missing.bmp',
+            extra: '',
+            hint: '预览底图加载失败：文件不存在，请重新选择。',
+            hintLevel: 'is-err',
+            overlay: 'none'
+          },
+          empty: {
+            level: 'warn',
+            msg: '预览底图未加载：在左侧选择预览图，或接入参考图 SrcImage',
+            extra: '',
+            hint: '预览底图未加载：在左侧选择预览图，或接入参考图 SrcImage。配置态叠加不参与运行。',
+            hintLevel: '',
+            overlay: 'empty'
+          }
+        },
+        mechanical: {
+          ready: {
+            level: 'ok',
+            msg: '就绪：标定已接入（九点），运行输出机械坐标（含反向回显自校验）',
+            extra: '反向回显偏差 0.000px（容差 1e-6px）',
+            hint: '',
+            hintLevel: '',
+            overlay: 'mechanical',
+            calib: 'ok',
+            calibText: '类型 九点 ｜ 来源 Calib_LineA ｜ 相机 40123456 ｜ 标定图 2448×2048 ｜ 创建 2026-10-18 09:12 ｜ 残差 RMS 0.284px / 最大 0.612px'
+          },
+          warn: {
+            level: 'ok',
+            msg: '就绪：标定已接入（九点），运行输出机械坐标（含反向回显自校验）',
+            extra: '残差偏大：建议复核标定',
+            hint: '',
+            hintLevel: '',
+            overlay: 'mechanical',
+            calib: 'warn',
+            calibText: '类型 九点 ｜ 来源 Calib_LineA ｜ 相机 40123456 ｜ 标定图 2448×2048 ｜ 创建 2026-10-18 09:12 ｜ 残差 RMS 1.42px / 最大 2.10px（偏大）'
+          },
+          error: {
+            level: 'warn',
+            msg: '标定未接入：请把「标定」插件的 Transform 输出接过来',
+            extra: '',
+            hint: '标定未接入：运行会明确失败；请把「标定」插件的 Transform 输出接过来。',
+            hintLevel: 'is-warn',
+            overlay: 'none',
+            calib: 'err',
+            calibText: '未接标定：请把「标定」插件的 Transform 输出接过来（不允许手填矩阵——单一事实源）。'
+          },
+          empty: {
+            level: 'warn',
+            msg: '预览底图未加载：在左侧选择预览图，或接入参考图 SrcImage',
+            extra: '',
+            hint: '预览底图未加载：在左侧选择预览图，或接入参考图 SrcImage。配置态叠加不参与运行。',
+            hintLevel: '',
+            overlay: 'empty',
+            calib: 'ok',
+            calibText: '类型 九点 ｜ 来源 Calib_LineA ｜ 相机 40123456 ｜ 标定图 2448×2048 ｜ 创建 2026-10-18 09:12 ｜ 残差 RMS 0.284px / 最大 0.612px'
+          }
+        }
+      };
+
+      function setText(el, text) { if (el) el.textContent = text; }
+      function setClass(el, base, level) { if (el) el.className = base + (level ? ' is-' + level : ''); }
+
+      function applyMode() {
+        modeCards.forEach(function (b) {
+          var on = b.dataset.modeCard === mode;
+          b.classList.toggle('is-active', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        modeSegs.forEach(function (b) {
+          var on = b.dataset.mode === mode;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        panels.forEach(function (p) { p.hidden = p.dataset.panel !== mode; });
+        modeLabel.textContent = mode === 'follow' ? '位姿跟随 · 配置' : '像素→机械 · 配置';
+        if (mode === 'mechanical') {
+          previewPath.value = 'D:\\Images\\line-a-0042.bmp';
+        } else {
+          previewPath.value = 'D:\\Images\\template.bmp';
+        }
+        applyState();
+      }
+
+      function applyState() {
+        stateSegs.forEach(function (b) {
+          var on = b.dataset.state === state;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+
+        var item = copy[mode][state];
+        setClass(statusDot, 'pt-status-dot', item.level);
+        setClass(statusMsg, 'pt-status-msg', item.level);
+        statusMsg.textContent = item.msg;
+        statusExtra.textContent = item.extra;
+
+        if (item.hint) {
+          hint.hidden = false;
+          hint.className = 'pt-preview-hint ' + (item.hintLevel || '');
+          hintText.textContent = item.hint;
+        } else {
+          hint.hidden = true;
+        }
+
+        // SVG 的 <g> 没有 HTML 的 hidden IDL 属性；同时清掉初始 hidden 属性，
+        // 否则 [hidden]{display:none!important} 会一直压住 style.display。
+        function showSvg(el, visible) {
+          if (visible) {
+            el.removeAttribute('hidden');
+            el.style.display = '';
+          } else {
+            el.setAttribute('hidden', '');
+            el.style.display = 'none';
+          }
+        }
+        showSvg(overlayFollow, item.overlay === 'follow');
+        showSvg(overlayMechanical, item.overlay === 'mechanical');
+        showSvg(overlayEmpty, item.overlay === 'empty');
+
+        // 空预览 / 位姿跟随的预览加载失败：连底图一起隐藏，只留深色网格。
+        var hideScene = item.overlay === 'empty' || (mode === 'follow' && state === 'error');
+        showSvg(sceneBase, !hideScene);
+        legendFollow.hidden = hideScene || mode !== 'follow';
+        legendMechanical.hidden = hideScene || mode !== 'mechanical';
+
+        // 位姿跟随：警告态表示基准 ROI 未接，清空链接显示与位姿；就绪态恢复。
+        if (mode === 'follow') {
+          if (state === 'warn') {
+            baseRegion.value = '';
+            baseRegion.placeholder = '需链接变量';
+            baseRegion.classList.remove('is-link');
+            baseRegion.classList.add('is-placeholder');
+            poseRow.value = '0.00'; poseCol.value = '0.00'; poseAngle.value = '0.00';
+          } else if (state === 'ready') {
+            baseRegion.value = '创建ROI.MaskRegion';
+            baseRegion.classList.add('is-link');
+            baseRegion.classList.remove('is-placeholder');
+            poseRow.value = '412.60'; poseCol.value = '538.20'; poseAngle.value = '12.50';
+          }
+        }
+
+        // 像素→机械：错误态表示标定未接。
+        if (mode === 'mechanical') {
+          if (state === 'error') {
+            transform.value = '';
+            transform.placeholder = '需链接变量';
+            transform.classList.remove('is-link');
+            transform.classList.add('is-placeholder');
+          } else {
+            transform.value = '标定.Transform';
+            transform.classList.add('is-link');
+            transform.classList.remove('is-placeholder');
+          }
+          calibInfo.className = 'pt-info-block' + (item.calib === 'warn' ? ' is-warn' : item.calib === 'err' ? ' is-err' : '');
+          calibInfo.textContent = item.calibText;
+        }
+
+        // 参考点字段：派生开启时置灰。
+        var disabled = derived.checked;
+        refRow.disabled = disabled;
+        refCol.disabled = disabled;
+        refFields.style.opacity = disabled ? '0.62' : '1';
+      }
+
+      modeCards.forEach(function (btn) {
+        btn.addEventListener('click', function () { mode = btn.dataset.modeCard; applyMode(); });
+      });
+      modeSegs.forEach(function (btn) {
+        btn.addEventListener('click', function () { mode = btn.dataset.mode; applyMode(); });
+      });
+      stateSegs.forEach(function (btn) {
+        btn.addEventListener('click', function () { state = btn.dataset.state; applyState(); });
+      });
+      widthSegs.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var narrow = btn.dataset.width === '640';
+          win.classList.toggle('is-narrow', narrow);
+          widthSegs.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+        });
+      });
+
+      derived.addEventListener('change', applyState);
+      emitImage.addEventListener('change', function () {
+        if (!emitImage.checked) return;
+        statusExtra.textContent = '对齐图已启用：运行会多一次重采样';
+      });
+      root.querySelector('#pt-take-center').addEventListener('click', function () {
+        refRow.value = '400.00';
+        refCol.value = '520.00';
+        statusMsg.textContent = '已取基准 ROI 中心（400.00, 520.00）填入模板参考点';
+        setClass(statusDot, 'pt-status-dot', 'ok');
+        setClass(statusMsg, 'pt-status-msg', 'ok');
+      });
+      root.querySelector('#pt-browse').addEventListener('click', function () {
+        previewPath.focus();
+        previewPath.select();
+      });
+
+      applyMode();
+    })();
+  </script>
+</div>
+</body>
+</html>

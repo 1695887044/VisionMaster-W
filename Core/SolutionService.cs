@@ -141,6 +141,8 @@ namespace VisionMaster.Services
                 }
 
                 // IO/方案身份归一化：老文件没有这些字段时补默认值，避免运行期空引用。
+                // 注：IO 接入层已下线（配置折成通讯连接+网络变量，见 IoMigrationHook），
+                // 但旧字段仍要读出来——它是折算的输入，也是回退旧版本时的兼容面。
                 if (solution.SolutionId == Guid.Empty)
                     solution.SolutionId = Guid.NewGuid();
                 solution.IoBuses ??= new List<IoBusDescriptor>();
@@ -151,7 +153,14 @@ namespace VisionMaster.Services
                     device.Points ??= new List<IoPointDescriptor>();
                     device.Params ??= new IoParams();
                 }
-                MigrateIoConfig(solution);
+
+                // IO 接入层 → 通讯层的一次性折算（幂等：同名连接已存在就跳过该总线）。
+                // 合并的理由：IO 层与通讯层各持一条物理链路（各开一条 TCP / 一个 COM），
+                // 同一端点配了两边就会互抢端口；合并后链路与轮询调度都只有一套。
+                // 旧字段保留不删——回退到旧版本软件仍能读到配置。
+                // 注：折算本身分两层（草稿在 Core.Interfaces 算、真实对象在 Communication 造），
+                // 因为 Core 引用不到 Communication 的配置/地址类型（依赖方向不允许反过来）。
+                IoMigrationHook?.Invoke(solution);
 
                 // P1-⑦：老方案升级——历史版本 While 循环体误用 BranchType.Default 存储，
                 // 归一化为专属的 WhileLoop，使"未绑定条件"红灯红字与流程栏样式恢复正确判定
@@ -195,22 +204,17 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
+        /// IO → 通讯 折算钩子（由宿主在启动时挂接，指向 <c>IoMigrationApplier.Apply</c>）。
+        /// <para>为什么用钩子而不是直接调：Core 引用不到 Communication 的配置/地址类型
+        /// （依赖方向不允许反过来）。与 <c>WriteScope.AttachLeaseRegistry</c> 同一手法——
+        /// 把"需要跨层才能做的那一步"静态注入。</para>
+        /// <para>未挂接时跳过折算，行为与改造前一致（旧 IO 字段照常可用）。</para>
+        /// </summary>
+        public static Action<SolutionModel>? IoMigrationHook { get; set; }
+
+        /// <summary>
         /// 递归归一化分支类型（含嵌套在分支内的容器步骤）
         /// </summary>
-        /// <summary>
-        /// IO 配置的版本迁移 + 防御性归一化。
-        ///
-        /// 为什么在加载期做：迁移的输入是"磁盘上的旧结构"，只有这一刻它还存在；
-        /// 一旦进入运行期，provider 只会看到归一化后的对象。
-        /// 失败只记日志、不阻断加载（配置是现场资产，宁可留着让人修，也不要静默丢掉）。
-        /// </summary>
-        private static void MigrateIoConfig(SolutionModel solution)
-        {
-            var result = IoConfigMigrator.Migrate(solution.IoBuses, solution.IoDevices);
-            foreach (var message in result.Messages)
-                System.Diagnostics.Debug.WriteLine($"[IO 配置] {message}");
-        }
-
         private static void NormalizeBranchTypes(IEnumerable<StepModel> steps)
         {
             if (steps == null) return;

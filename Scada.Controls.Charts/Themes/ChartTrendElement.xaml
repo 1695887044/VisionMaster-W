@@ -4,18 +4,41 @@
     xmlns:local="clr-namespace:VisionMaster.Scada.Controls.Charts">
 
     <!--
-        趋势曲线图元的外观。
+        趋势曲线图元的外观（D6：深色图表令牌 + 空态 + LIVE 徽标）。
 
-        极简是有意的：曲线的"长相"（网格、刻度、坐标轴、数据提示）由 VM.Charts 的 ChartView
-        自己画在自己的 Canvas 上，这里只负责图元外框那一圈（底色 + 边框 + 圆角）。
+        曲线的“长相”（网格、刻度、坐标轴、数据提示）由 VM.Charts 的 ChartView 自己画，
+        本模板只负责图元外框、LIVE 徽标与“等待数据…”空态。
 
-        为什么不在模板里再套一层 Border 的 Margin：曲线要占满整个图元区域，
-        留内边距会让"画面上看到的曲线区"比"图元选中框"小一圈，
-        拖动命中与视觉范围对不上（选中框明明罩住了，点边缘却点不到曲线）。
+        空态显隐：ChartTrendElement.HasSamples 是只读依赖属性，在 AppendSample / ClearSamples
+        两处同步；这里用独立的 Style.DataTrigger 绑它（本环境 ControlTemplate.Triggers 里的
+        DataTrigger 不触发，见 ScadaElementBase.SetPartVisible 的注释）。
 
-        ClipToBounds="True"：ChartView 内部有自己的绘图画布，缩放数据时会短暂超出边界，
-        不裁的话曲线会溢出图元框、盖到相邻图元上。
+        颜色走 VM.Scada.Controls 的 ScadaTokens.xaml（本程序集引用该工程）；本分册就地合并，
+        不依赖 Generic.xaml 的合并顺序（R30）。本文件 hex=0（R140）。
     -->
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <Style x:Key="ChartLiveBadgeStyle" TargetType="Border">
+        <Setter Property="Opacity" Value="1" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding HasSamples, RelativeSource={RelativeSource AncestorType=local:ChartTrendElement}}" Value="False">
+                <Setter Property="Opacity" Value="0.35" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="ChartEmptyStateStyle" TargetType="Grid">
+        <Setter Property="Visibility" Value="Collapsed" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding HasSamples, RelativeSource={RelativeSource AncestorType=local:ChartTrendElement}}" Value="False">
+                <Setter Property="Visibility" Value="Visible" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style TargetType="{x:Type local:ChartTrendElement}">
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Focusable" Value="False" />
@@ -25,14 +48,81 @@
                 <ControlTemplate TargetType="{x:Type local:ChartTrendElement}">
                     <Border
                         ClipToBounds="True"
-                        Background="{TemplateBinding Fill}"
-                        BorderBrush="{TemplateBinding Stroke}"
+                        Background="{StaticResource HmiSurfaceBrush}"
+                        BorderBrush="{StaticResource HmiBorderBrush}"
                         BorderThickness="1"
-                        CornerRadius="2">
-                        <ContentControl
-                            x:Name="ChartHost"
-                            HorizontalContentAlignment="Stretch"
-                            VerticalContentAlignment="Stretch" />
+                        CornerRadius="8">
+                        <Grid>
+                            <!-- 用户配置的 Fill 叠在令牌底之上：不改变既有 Fill 语义 -->
+                            <Border Background="{TemplateBinding Fill}" CornerRadius="8" />
+
+                            <ContentControl
+                                x:Name="ChartHost"
+                                HorizontalContentAlignment="Stretch"
+                                VerticalContentAlignment="Stretch" />
+
+                            <!-- 空态：盖住绘图区，避免“白底/空轴”被误认为“曲线是平的” -->
+                            <Grid
+                                x:Name="EmptyState"
+                                Panel.ZIndex="10"
+                                Background="{StaticResource HmiSurfaceBrush}"
+                                Style="{StaticResource ChartEmptyStateStyle}">
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Path
+                                        Width="26"
+                                        Height="26"
+                                        HorizontalAlignment="Center"
+                                        Data="M3 17l5-5 4 4 8-8"
+                                        Stretch="Uniform"
+                                        Stroke="{StaticResource HmiAccentBrush}"
+                                        StrokeEndLineCap="Round"
+                                        StrokeLineJoin="Round"
+                                        StrokeStartLineCap="Round"
+                                        StrokeThickness="1.6" />
+                                    <TextBlock
+                                        Margin="0,8,0,0"
+                                        HorizontalAlignment="Center"
+                                        FontSize="12.5"
+                                        Foreground="{StaticResource HmiTextSecondaryBrush}"
+                                        Text="等待数据…" />
+                                    <TextBlock
+                                        Margin="0,2,0,0"
+                                        HorizontalAlignment="Center"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource HmiTextMutedBrush}"
+                                        Text="把「数值」绑到变量后开始记录" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- LIVE 徽标：有样本才亮，空态时淡出，避免“没数据却显示在直播” -->
+                            <Border
+                                x:Name="LiveBadge"
+                                Panel.ZIndex="20"
+                                Margin="8"
+                                Padding="6,1"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Background="{StaticResource HmiSurfaceRaisedBrush}"
+                                BorderBrush="{StaticResource HmiBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="9"
+                                IsHitTestVisible="False"
+                                Style="{StaticResource ChartLiveBadgeStyle}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse
+                                        Width="6"
+                                        Height="6"
+                                        Margin="0,0,4,0"
+                                        VerticalAlignment="Center"
+                                        Fill="{StaticResource HmiSuccessBrush}" />
+                                    <TextBlock
+                                        FontFamily="Cascadia Mono, Consolas"
+                                        FontSize="10"
+                                        Foreground="{StaticResource HmiSuccessBrush}"
+                                        Text="LIVE" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>

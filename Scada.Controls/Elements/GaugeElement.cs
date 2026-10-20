@@ -42,69 +42,69 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>当前值</summary>
         [ScadaProperty(Key = "Value", DisplayName = "当前值", Kind = ElementPropertyKind.Number,
-                       Group = "数据", DefaultValue = "0", IsBindable = true,
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "0", IsBindable = true,
                        Description = "运行态把工程变量绑到这里；指针角度 = 起始角 + 扫过角 × " +
                                      "(当前值 − 下限) ÷ (上限 − 下限)，超出量程按两端收敛")]
         public partial double Value { get; set; }
 
         /// <summary>量程下限</summary>
         [ScadaProperty(Key = "Minimum", DisplayName = "量程下限", Kind = ElementPropertyKind.Number,
-                       Group = "数据", DefaultValue = "0",
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "0",
                        Description = "下限不小于上限时指针停在起始角，而不是让非法量程把整页渲染打断")]
         public partial double Minimum { get; set; }
 
         /// <summary>量程上限</summary>
         [ScadaProperty(Key = "Maximum", DisplayName = "量程上限", Kind = ElementPropertyKind.Number,
-                       Group = "数据", DefaultValue = "100")]
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "100")]
         public partial double Maximum { get; set; }
 
         /// <summary>数值格式串</summary>
         [ScadaProperty(Key = "ValueFormat", DisplayName = "数值格式", Kind = ElementPropertyKind.Text,
-                       Group = "数据", DefaultValue = "0.#",
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "0.#",
                        Description = "标准 .NET 数字格式串（0.0 定一位小数、F2 补零到两位）；" +
                                      "写错了退回通用格式，不会让画面出错")]
         public partial string? ValueFormat { get; set; }
 
         /// <summary>单位（跟在数值后面的一小段字）</summary>
         [ScadaProperty(Key = "Unit", DisplayName = "单位", Kind = ElementPropertyKind.Text,
-                       Group = "数据", DefaultValue = "",
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "",
                        Description = "跟在数值后面的一小段字（MPa / rpm / ℃）；留空则只显数值")]
         public partial string? Unit { get; set; }
 
         /// <summary>起始角（度，WPF 约定：0° 向右、顺时针为正）</summary>
         [ScadaProperty(Key = "StartAngle", DisplayName = "起始角", Kind = ElementPropertyKind.Number,
-                       Group = "刻度", DefaultValue = "135", Min = -360, Max = 360,
+                       Group = ScadaPropertyGroups.Scale, DefaultValue = "135", Min = -360, Max = 360,
                        Description = "度。0° 指向右（3 点钟方向）、角度顺时针增加，所以 135° 是左下（7 点半）；" +
                                      "默认 135° 配 270° 缺口落在正下方，正是放读数的地方")]
         public partial double StartAngle { get; set; }
 
         /// <summary>扫过角度（度；负值表示逆时针）</summary>
         [ScadaProperty(Key = "SweepAngle", DisplayName = "扫过角", Kind = ElementPropertyKind.Number,
-                       Group = "刻度", DefaultValue = "270", Min = -360, Max = 360,
+                       Group = ScadaPropertyGroups.Scale, DefaultValue = "270", Min = -360, Max = 360,
                        Description = "度。正数顺时针、负数逆时针，绝对值 360 画整圈；超出 ±360 会收敛（刻度不会绕回来叠在一起）")]
         public partial double SweepAngle { get; set; }
 
         /// <summary>刻度格数（格数 + 1 = 刻度线根数；0 = 不画刻度）</summary>
         [ScadaProperty(Key = "TickDivisions", DisplayName = "刻度格数", Kind = ElementPropertyKind.Number,
-                       Group = "刻度", DefaultValue = "5", Min = 0, Max = 60,
+                       Group = ScadaPropertyGroups.Scale, DefaultValue = "5", Min = 0, Max = 60,
                        Description = "格数 + 1 = 刻度线根数（含两端），所以默认 5 格就是 0/20/40/60/80/100 六个读数点；0 = 不画刻度")]
         public partial int TickDivisions { get; set; }
 
         /// <summary>表盘底色</summary>
         [ScadaProperty(Key = "TrackColor", DisplayName = "盘底色", Kind = ElementPropertyKind.Color,
-                       Group = "外观", DefaultValue = "#FF3A3A3A",
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FF3A3A3A",
                        Description = "表盘面的填充色；浅色画面上要调亮，否则刻度线看不出来")]
         public partial Brush? TrackColor { get; set; }
 
         /// <summary>刻度色（刻度线与量程弧）</summary>
         [ScadaProperty(Key = "ScaleColor", DisplayName = "刻度色", Kind = ElementPropertyKind.Color,
-                       Group = "外观", DefaultValue = "#FF9AA5B1",
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FF9AA5B1",
                        Description = "量程弧与刻度线的颜色；要和盘底色拉开，否则操作员读不出格")]
         public partial Brush? ScaleColor { get; set; }
 
         /// <summary>是否显示数值</summary>
         [ScadaProperty(Key = "ShowValue", DisplayName = "显示数值", Kind = ElementPropertyKind.Bool,
-                       Group = "文字", DefaultValue = "True",
+                       Group = ScadaPropertyGroups.Text, DefaultValue = "True",
                        Description = "关掉只留指针（读数由旁边的数值域承担），一个没有读数的表盘在工业现场几乎没用，所以默认开")]
         public partial bool ShowValue { get; set; }
 

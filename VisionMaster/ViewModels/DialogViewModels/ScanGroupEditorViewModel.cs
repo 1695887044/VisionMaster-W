@@ -42,6 +42,23 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>入参键：要编辑哪条连接的扫描组表（与 CommunicationSettingsViewModel 约定一致）</summary>
         public const string ConnectionNameKey = "ConnectionName";
 
+        /// <summary>
+        /// 入参键：提交前的实时门禁（返回 false = 当前不允许改配置）。
+        /// 必须是**委托**而不是打开时算好的 bool：扫描组弹窗是模态的，流程可能在这期间启动、
+        /// 空闲超时也可能把角色降级，只在打开时查一次等于没查。
+        /// </summary>
+        public const string CanCommitKey = "CanCommit";
+
+        /// <summary>
+        /// 入参键：提交成功后通知宿主置脏。
+        /// "复制到其它连接"是**立即提交**（不等 OK 关闭），宿主收不到关闭回调，
+        /// 只能由编辑器在写完之后主动上报，否则"复制成功后点取消"会改了配置却不落盘。
+        /// </summary>
+        public const string MarkDirtyKey = "MarkDirty";
+
+        private Func<bool>? _canCommit;
+        private Action? _markDirty;
+
         private readonly AdvancedCommunicationManager _manager;
         private readonly IWorkspaceManager _workspace;
 
@@ -99,6 +116,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public void OnDialogOpened(IDialogParameters parameters)
         {
             parameters.TryGetValue<string>(ConnectionNameKey, out var name);
+            parameters.TryGetValue<Func<bool>>(CanCommitKey, out var canCommit);
+            parameters.TryGetValue<Action>(MarkDirtyKey, out var markDirty);
+            _canCommit = canCommit;
+            _markDirty = markDirty;
             _connectionName = name?.Trim() ?? string.Empty;
             RaisePropertyChanged(nameof(Title));
 
@@ -294,11 +315,18 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 return;
             }
 
+            if (!CanCommitNow())
+            {
+                Notifier.ShowWarning("需要管理员权限，或流程运行中禁止修改通讯配置。");
+                return;
+            }
+
             targetConfig.ScanGroups = _working.ScanGroups.Select(g => g.Clone()).ToList();
 
             // UpdateConnection 是 Remove + Add，Add 之后状态恒为 Disconnected——
             // 原本在线的连接必须显式请求重连，否则"复制个组表"就把对方轮询停了
             RebuildConnection(targetConfig);
+            _markDirty?.Invoke();
 
             Notifier.ShowSuccess($"已将 {count} 个扫描组复制到 [{target}]");
         }
@@ -317,6 +345,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 // 只会以为程序卡死，还得自己找「取消」才出得去。
                 RequestClose.Invoke(new DialogParameters(), ButtonResult.Cancel);
                 Notifier.ShowWarning($"连接 [{_connectionName}] 已不存在，本次未做任何修改");
+                return;
+            }
+
+            // 门禁必须在**任何活对象写入之前**查：一旦先 CopyFrom 再报"无权限"，
+            // 配置已经改了（连接也被 UpdateConnection 重建），只是没落盘而已。
+            if (!CanCommitNow())
+            {
+                Notifier.ShowWarning("需要管理员权限，或流程运行中禁止修改通讯配置。");
                 return;
             }
 
@@ -359,6 +395,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 ? $"扫描组已更新（{CustomGroupCount} 个自定义组）"
                 : $"扫描组已更新（{CustomGroupCount} 个自定义组，{moved} 个组发生改名/删除，相关变量已级联）");
         }
+
+        /// <summary>实时门禁；宿主没传委托时按"允许"处理（独立弹窗/测试路径）。</summary>
+        private bool CanCommitNow() => _canCommit == null || _canCommit();
 
         #endregion
 

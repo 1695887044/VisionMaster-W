@@ -96,7 +96,7 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>流向（正 / 反 / 不画箭头）</summary>
         [ScadaProperty(Key = "Direction", DisplayName = "流向", Kind = ElementPropertyKind.Choice,
-                       Group = "数据", DefaultValue = "LeftToRight",
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "LeftToRight",
                        Choices = new[] { "LeftToRight", "RightToLeft", "None" },
                        Description = "介质往哪走：LeftToRight=箭头朝右，RightToLeft=箭头朝左，None=只要管身不画箭头；" +
                                      "配管定死的走向，属于设计期属性，所以不参与变量绑定")]

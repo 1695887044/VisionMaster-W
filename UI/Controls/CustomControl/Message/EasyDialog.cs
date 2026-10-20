@@ -19,18 +19,27 @@ namespace UI.CustomControl
     {
         // 保证全局同一时刻只有一个弹窗
         private static readonly SemaphoreSlim _dialogLock = new(1, 1);
-        private static TaskCompletionSource<bool>? _tcs;
+        private static TaskCompletionSource<MessageResult>? _tcs;
 
         #region ====== 核心引擎 (解决跨线程、并发与 WPF 调度器挂起) ======
 
         /// <summary>
-        /// 核心异步调度引擎：动态生成透明遮罩窗体
+        /// 核心异步调度引擎：动态生成透明遮罩窗体。
+        ///
+        /// 返回值从 bool 扩成 <see cref="MessageResult"/>（Primary / Secondary / Close）：
+        /// 旧的消息调用仍按「Primary = true」映射回 bool，调用点零改动；
+        /// 新的 <see cref="MessageDialog"/> 直接拿到三态结果。
         /// </summary>
-        private static async Task<bool> InternalExecuteAsync(string title, string message, FrameworkElement? customContent, bool isModal)
+        private static async Task<MessageResult> InternalExecuteAsync(
+            string title,
+            string message,
+            FrameworkElement? customContent,
+            bool isModal,
+            MessageDialogOptions? messageOptions = null)
         {
             // 没有 WPF 应用上下文（设计器 / 单元测试 / 已关机）就没有可承载的窗口：
-            // 这里返回 false（= 用户取消），而不是让下面的 Dispatcher 访问抛 NRE。
-            if (Application.Current == null) return false;
+            // 这里返回 Close，而不是让下面的 Dispatcher 访问抛 NRE。
+            if (Application.Current == null) return MessageResult.Close;
 
             await _dialogLock.WaitAsync();
             Window? overlayWindow = null;
@@ -41,7 +50,7 @@ namespace UI.CustomControl
             // ★ tcs 同时以局部变量和静态字段存在：
             //   局部变量给本窗口的按钮/关闭事件用（闭包捕获，永不串台）；
             //   静态字段只为了让 EasyDialog.SetResult（OverlayHost 等外部承载控件）也能收口到"当前"这一个。
-            var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var tcs = new TaskCompletionSource<MessageResult>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             try
             {
@@ -55,14 +64,17 @@ namespace UI.CustomControl
                     // Owner 取当前激活窗口：从对话框（如变量管理）触发时弹窗跟随该窗口，
                     // 保证 Z 序在其之上且遮罩覆盖其范围；无激活窗口时回退主窗口。
                     // （原来固定绑 MainWindow，导致对话框内弹窗被对话框自身遮挡）
-                    owner = Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
+                    // MessageDialogOptions.Owner 显式给了就以它为准。
+                    owner = messageOptions?.Owner
+                            ?? Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
                             ?? Application.Current.MainWindow;
 
                     overlayWindow = new Window
                     {
                         WindowStyle = WindowStyle.None,
                         AllowsTransparency = true,
-                        Background = new SolidColorBrush(Color.FromArgb(100, 0, 0, 0)),
+                        // 设计基线：rgba(15,23,42,.44) → #700F172A（112/255 ≈ .439）
+                        Background = new SolidColorBrush(Color.FromArgb(112, 15, 23, 42)),
                         ShowInTaskbar = false,
                         Owner = owner,
                         WindowStartupLocation = owner == null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.Manual
@@ -90,23 +102,56 @@ namespace UI.CustomControl
                         owner.SizeChanged += sizeHandler;
                     }
 
-                    // ★ 窗口被"非按钮方式"关掉时必须收口成取消：
+                    // ★ 窗口被"非按钮方式"关掉时必须收口成 Close：
                     //   Owner 关闭 / 系统菜单 / 任何外部 Close 都会走到这里。
                     //   没有它，_tcs 永远不完成 → await 永久挂起 → finally 不执行 →
                     //   _dialogLock 不释放 → 之后**所有**弹窗永久失效（整个 EasyDialog 一次性死掉）。
-                    overlayWindow.Closed += (s, e) => tcs.TrySetResult(false);
+                    overlayWindow.Closed += (s, e) => tcs.TrySetResult(MessageResult.Close);
 
-                    // Esc = 取消（PreviewKeyDown：先于内部控件处理，属性框里的键盘操作不受影响）
+                    // 消息卡片的键盘契约在宿主窗口这一层收口：
+                    //   Esc → 次操作；Y → 主操作；N → 次操作；Enter → 默认按钮。
+                    // 只有卡片是 MessageDialogView 时才转发；自定义内容（属性表格 / 文本输入）
+                    // 保持旧行为（只接 Esc），否则会抢走输入框里的 Y/N/Enter。
+                    MessageDialogView? messageView = null;
                     overlayWindow.PreviewKeyDown += (s, e) =>
                     {
                         if (e.Key == System.Windows.Input.Key.Escape)
                         {
-                            tcs.TrySetResult(false);
+                            if (messageView != null) messageView.RequestSecondary();
+                            else tcs.TrySetResult(MessageResult.Secondary);
+                            e.Handled = true;
+                            return;
+                        }
+
+                        if (messageView == null) return;
+
+                        if (e.Key == System.Windows.Input.Key.Y)
+                        {
+                            messageView.RequestPrimary();
+                            e.Handled = true;
+                        }
+                        else if (e.Key == System.Windows.Input.Key.N)
+                        {
+                            messageView.RequestSecondary();
+                            e.Handled = true;
+                        }
+                        else if (e.Key == System.Windows.Input.Key.Enter)
+                        {
+                            // 焦点已经在某颗按钮上时，让这颗按钮自己收 Enter：
+                            // 否则危险场景 Tab 到「删除分组」后按 Enter 会被默认焦点（取消）抢走，
+                            // 键盘用户永远触发不了红色主按钮。
+                            if (System.Windows.Input.Keyboard.FocusedElement is Button)
+                                return;
+
+                            // 默认按钮由视图解析（危险场景 = 取消），Enter 不直接执行危险动作
+                            messageView.RequestDefault();
                             e.Handled = true;
                         }
                     };
 
-                    overlayWindow.Content = BuildDialogUI(title, message, customContent, isModal, tcs);
+                    var content = CreateDialogContent(title, message, customContent, messageOptions, tcs);
+                    messageView = content as MessageDialogView;
+                    overlayWindow.Content = content;
                     overlayWindow.Show();
 
                 }, DispatcherPriority.Background); // 👈 救命的优先级降级
@@ -147,10 +192,12 @@ namespace UI.CustomControl
             }
         }
 
+        /// <summary>
+        /// 外部承载控件（OverlayHost 等）收口结果：true = Primary，false = Secondary。
+        /// 旧语义「确定 / 取消」保持不变。
+        /// </summary>
         internal static void SetResult(bool result)
-        {
-            _tcs?.TrySetResult(result);
-        }
+            => _tcs?.TrySetResult(result ? MessageResult.Primary : MessageResult.Secondary);
 
         /// <summary>
         /// 取主题资源；宿主没合并 Fluent 主题（或根本不在 WPF 应用里）时返回 null，
@@ -174,8 +221,55 @@ namespace UI.CustomControl
 
         #region ====== UI 动态构建引擎 (纯 C# 零 XAML，使用主题 Style) ======
 
+        /// <summary>
+        /// 生成弹窗内容：
+        ///   · 自定义内容（属性表格 / 文本输入）→ 旧卡片，行为不变；
+        ///   · 消息弹窗（含旧 ShowAsync(title,message)）→ MessageDialogView。
+        /// 视图创建失败（宿主没合并 Dialog.Message.xaml / 资源断链）时退回旧卡片，
+        /// 保证"弹窗打不开"不会成为新的失败面。
+        /// </summary>
+        private static FrameworkElement CreateDialogContent(
+            string title,
+            string message,
+            FrameworkElement? customContent,
+            MessageDialogOptions? messageOptions,
+            TaskCompletionSource<MessageResult> tcs)
+        {
+            if (customContent != null)
+                return BuildDialogUI(title, message, customContent, tcs);
+
+            var options = messageOptions ?? BuildLegacyOptions(title, message);
+            try
+            {
+                var view = new MessageDialogView { Options = options };
+                view.ResultRequested += (_, result) => tcs.TrySetResult(result);
+                return view;
+            }
+            catch (Exception ex)
+            {
+                // 资源断链 / XAML 解析失败时静默退回旧卡片会让现场只看到"弹窗变旧了"，
+                // 无法定位是哪本字典断了；至少留一条调试输出（EasyDialog 不引日志服务）。
+                System.Diagnostics.Debug.WriteLine(
+                    "[EasyDialog] MessageDialogView 创建失败，回退旧卡片：" + ex);
+                return BuildDialogUI(options.Title, options.Message, null, tcs);
+            }
+        }
+
+        /// <summary>
+        /// 旧签名 ShowAsync(title, message) 的默认文案：保留原来的「确定 / 取消」，
+        /// 调用点不用改文案就能得到新卡片。
+        /// </summary>
+        private static MessageDialogOptions BuildLegacyOptions(string title, string message) => new()
+        {
+            Severity = MessageSeverity.Info,
+            Title = title ?? string.Empty,
+            Message = message ?? string.Empty,
+            PrimaryText = "确定",
+            SecondaryText = "取消",
+        };
+
         private static Border BuildDialogUI(
-            string title, string message, FrameworkElement? customContent, bool isModal, TaskCompletionSource<bool> tcs)
+            string title, string message, FrameworkElement? customContent, TaskCompletionSource<MessageResult> tcs)
         {
             // ★ 视觉一律取 Fluent 令牌（UI 库的 Themes/Fluent/FluentTokens.xaml），
             //   不再自己硬编码白底 / 8px 圆角 / 25 模糊的阴影：
@@ -295,7 +389,7 @@ namespace UI.CustomControl
             });
             cancelContent.Children.Add(new TextBlock { Text = "取 消" });
             btnCancel.Content = cancelContent;
-            btnCancel.Click += (s, e) => tcs.TrySetResult(false);
+            btnCancel.Click += (s, e) => tcs.TrySetResult(MessageResult.Secondary);
             btnPanel.Children.Add(btnCancel);
 
 
@@ -316,7 +410,7 @@ namespace UI.CustomControl
             });
             confirmContent.Children.Add(new TextBlock { Text = "确 定" });
             btnConfirm.Content = confirmContent;
-            btnConfirm.Click += (s, e) => tcs.TrySetResult(true);
+            btnConfirm.Click += (s, e) => tcs.TrySetResult(MessageResult.Primary);
             btnPanel.Children.Add(btnConfirm);
 
             // 默认焦点给「确定」：键盘用户打开即可回车，不必先 Tab 过去
@@ -381,18 +475,36 @@ namespace UI.CustomControl
 
         #region ====== 1. 标准文本提示框 ======
 
-        public static Task<bool> ShowAsync(string title, string message, bool isModal = true) =>
-            InternalExecuteAsync(title, message, null, isModal);
+        /// <summary>
+        /// 旧签名：返回 bool（Primary = true）。调用点零改动，
+        /// 内部已换成 MessageDialogView 的新卡片。
+        /// </summary>
+        public static async Task<bool> ShowAsync(string title, string message, bool isModal = true)
+            => await InternalExecuteAsync(title, message, null, isModal) == MessageResult.Primary;
 
         public static bool ShowSync(string title, string message, bool isModal = true) =>
             RunSync(() => ShowAsync(title, message, isModal));
+
+        /// <summary>公共消息弹窗（三态结果）：Primary / Secondary / Close。</summary>
+        public static Task<MessageResult> ShowMessageAsync(MessageDialogOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(options);
+            return InternalExecuteAsync(options.Title, options.Message, null, true, options);
+        }
+
+        public static MessageResult ShowMessageSync(MessageDialogOptions options)
+            => RunSync(() => ShowMessageAsync(options));
 
         #endregion
 
         #region ====== 2. 自定义控件弹窗 ======
 
-        public static Task<bool> ShowCustomAsync(string title, FrameworkElement customContent, bool isModal = true) =>
-            InternalExecuteAsync(title, string.Empty, customContent, isModal);
+        /// <summary>
+        /// 自定义内容（属性表格 / 文本输入）仍走旧卡片，行为不变；
+        /// 只有消息弹窗换成 MessageDialogView。
+        /// </summary>
+        public static async Task<bool> ShowCustomAsync(string title, FrameworkElement customContent, bool isModal = true)
+            => await InternalExecuteAsync(title, string.Empty, customContent, isModal) == MessageResult.Primary;
 
         public static bool ShowSync(string title, FrameworkElement customContent, bool isModal = true) =>
             RunSync(() => ShowCustomAsync(title, customContent, isModal));

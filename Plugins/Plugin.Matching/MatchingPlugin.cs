@@ -506,6 +506,9 @@ namespace Plugin.Matching
         /// <summary>编辑条目属性/掩膜变化 → 刷新徽标</summary>
         private void TouchModelStaleness()
         {
+            // IsTemplateCreated 也是计算属性：创建模板/切换条目后 Model 变了，
+            // 只通知 IsModelStale/TemplateStatusText 会让胶囊底色停在旧状态。
+            OnPropertyChanged(nameof(IsTemplateCreated));
             OnPropertyChanged(nameof(IsModelStale));
             OnPropertyChanged(nameof(TemplateStatusText));
         }
@@ -1724,13 +1727,16 @@ namespace Plugin.Matching
                             $"未找到目标（要求分数 ≥ {Math.Clamp(MinScore, 0.01, 1):0.00}）",
                         };
 
-                    MeasureImage.Value = RenderAnnotated(
+                    var annotated = RenderAnnotated(
                         src,
                         placed,
                         "green",
                         lines,
                         found ? "green" : "red"
                     );
+                    // RenderAnnotated 失败时返回 null（端口按 null 落值，下游拿不到标注图）；
+                    // 这里用 ! 只消除 nullable 注解告警，运行期语义与改造前一致。
+                    MeasureImage.Value = annotated!;
                 }
                 finally
                 {
@@ -1880,14 +1886,14 @@ namespace Plugin.Matching
             HObject? overlay,
             string overlayColor,
             string[]? lines,
-            string textColor
+            string? textColor
         )
         {
             var plan = new BakePlan();
             if (overlay != null && overlay.IsInitialized())
                 plan.Objects.Add(new BakeObj(overlay, overlayColor, 1, "margin"));
             // 左上角判定文字加白底框：任何背景上都读得清
-            plan.AddTextBlock(lines, textColor, 12, 12, 16, box: true);
+            plan.AddTextBlock(lines, textColor ?? string.Empty, 12, 12, 16, box: true);
             return _baker.Bake(baseImage, plan);
         }
 

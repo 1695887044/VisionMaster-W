@@ -109,7 +109,7 @@ namespace FlowCanvasChecks
 
             // ---- ⑦ 收敛入口不许绕过 ShowPanel 自己动可见性 ----
             {
-                string mode = MethodBody(guardCode, "ApplyScadaPanelMode");
+                string mode = MethodBody(guardCode, "ApplyScadaPanelMode", "DockingManager");
                 bool usesGuards = mode.Contains("ShowPanel(") && mode.Contains("HidePanel(");
                 bool bypasses = Regex.IsMatch(mode, @"\w+\.IsVisible\s*=");
                 Check("LV7 ApplyScadaPanelMode 只做 Show/Hide 编排（先 Show 目标再 Hide 对方），不许自己碰 IsVisible",
@@ -152,9 +152,13 @@ namespace FlowCanvasChecks
         }
 
         /// <summary>按签名找方法并花括号配对取出方法体（不写行号，改缩进加注释不误伤——R57 同思路）</summary>
-        private static string MethodBody(string code, string methodName)
+        private static string MethodBody(string code, string methodName, string? parameterHint = null)
         {
-            var m = Regex.Match(code, @"\b" + methodName + @"\s*\(");
+            // 同名重载可能先出现表达式体转发（ApplyScadaPanelMode(bool) => ...），
+            // 只按名字取第一个会抓到转发壳、把 LV7 误判成“不走 Show/Hide”。
+            string pattern = @"\b" + methodName + @"\s*\("
+                + (string.IsNullOrEmpty(parameterHint) ? "" : @"\s*" + parameterHint);
+            var m = Regex.Match(code, pattern);
             if (!m.Success) return "";
             int open = code.IndexOf('{', m.Index);
             if (open < 0) return "";

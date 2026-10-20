@@ -28,7 +28,7 @@
 
 ### 1.2 不适用
 
-- 没有自定义视图、走框架 `AutoPortConfigView` 的插件（不改）。
+- 没有自定义视图、走框架 `AutoPortConfigView` 的插件（不改；该兜底面板另有独立设计基线 `docs/UI设计基线/auto-port-config/`）。
 - 纯算法、相机驱动、运动驱动、通信驱动等无配置界面的插件（不改）。
 - 宿主主界面 `Shell.xaml`、`ProcessView.xaml` 等非插件视图（走各自的全局基线）。
 - 需要新增功能/契约才能做的项（加载骨架、尺寸/文件大小、放大缩小、打开文件夹、导航到系统设置等）——**先列入延后清单，不混进纯 UI 改造**。
@@ -136,7 +136,9 @@ Get-ChildItem Plugins -Recurse -Filter *.cs |
 1. 在 `docs/UI设计基线/<plugin>/` 建 `design.html` + `README.md`（自包含、无外部依赖；版本 v1）。
 2. 视觉语言沿用 ImageAcquisition V2：两栏/卡片/36px 控件/12px 标签/11.5px 帮助文字/8px 圆角/公共令牌/五态。
 3. README 必须写：版本、确认日期/人、覆盖范围、设计要点、令牌映射、复刻约束、已知偏差、未纳入项。
-4. **先确认再改 WPF**（R127）；设计基线确认后只读，改动升 v2/v3。
+4. **每个插件都出完整 `design.html`**（2026-10-20 用户裁定，严格 R127/R128）：不能只复用一张共享图；可用 ImageAcquisition V2 的 CSS/布局作为模板，但内容、字段、控件、状态必须按该插件实际视图重画。
+5. **先确认再改 WPF**（R127）；批量改造中用户已确认 V2 视觉语言与流程，插件页 README 记录"沿用 V2 基线"即可，但设计页仍要逐插件产出。
+6. 设计基线确认后只读，改动升 v2/v3。
 
 ### 5.3 令牌映射
 
@@ -210,9 +212,19 @@ dotnet build Plugins\<Project>\<Project>.csproj -v m
 - HALCON 预览：造一张小 `HImage` → 验证宿主 `Content` 绑 `PreviewImage`、`ImageReadOnly` 由模板创建且 `HImage` 引用相等。
 - 负向断言：至少一条"改坏就红"的变异反证（R38/R65）。
 
+**批量公共冒烟**
+
+- `dotnet run --project UIThemeSmokeTest --no-build -- --plugin-views <ProjectFilter>`：
+  从 `Modules\Plugin*.dll` 反射找 `IPluginCustomViewProvider`，真实实例化视图并检查
+  `DataContext`/`IPluginConfigView`、`LinkableValueEditor.Port`、`Button.Command`、`ComboBox`/`TextBox` 绑定、
+  `OnConfirm` 可执行、项目内 XAML `hex=0`，并渲染初始态 PNG 到 `docs/UI设计基线/_batch-evidence/`。
+- 这是批量改造的公共基线；**不替代**该插件的关键业务断言（端口名/命令名/画布交互）与 reviewer 复核。
+- 每个插件仍建议补一条插件特定断言或 reviewer 重点项，尤其是多画布/ROI/数值参数插件。
+
 **渲染**
 
-- `--<plugin>-render` 输出 4~5 张 PNG（主态/空态/错误态/其它模式）到 `docs/UI设计基线/<plugin>/evidence/`。
+- `--<plugin>-render` 输出 4~5 张 PNG（主态/空态/错误态/其它模式）到 `docs/UI设计基线/<plugin>/evidence/`；
+  批量模式可用 `--plugin-views` 的初始态 PNG 作为第一版证据。
 - `RenderTargetBitmap` 不捕获 HALCON `HwndHost`：证据图展示空态/错误态布局；真实图像预览需真机窗口。
 
 ### 5.8 回归 gate
@@ -295,7 +307,7 @@ dotnet run --project UIThemeSmokeTest --no-build -- --<plugin>-render
 12. **并发改动**：改共享字典前看 `LastWriteTime`；同一键被两个进程定义会抛 `ArgumentException`（本轮 `DialogChipDanger` 实例）；最小改名并记录。
 13. **UI 冒烟退出码**：`UIThemeSmokeTest` 恒为 1（既有 GridView 红灯）；以日志 PASS/FAIL 行为准（R46）。
 14. **改断言源码必须 build 再 run**（R65）；`--no-build` 跑旧二进制会假绿。
-15. **640×420**：宿主最小高度下预览可能过矮；设计基线只覆盖 960×680/640×680，需单独决策。
+15. **宿主 MinHeight**：2026-10-20 已统一提高到 **560**（`PluginConfigShellView.xaml`）；640×560 为最小档，640×420 不再允许。设计稿仍以 960×680/640×680 为主档，640×560 需检查左栏滚动与预览高度。
 16. **先织网再迁移**：复杂画布插件先补像素级/绑定级断言，再改 UI（R38 的经验）。
 
 ## 10. 单插件记录模板

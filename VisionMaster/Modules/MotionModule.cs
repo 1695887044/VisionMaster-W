@@ -201,7 +201,9 @@ namespace VisionMaster
         {
             // 提供器在契约层：属性面板用它渲染常量下拉，
             // 而**插件的输入端口**（Axis / Card 端口）也用它填 PresetOptions —— 两者共用一份。
-            StepConfigOptionSource.Register(kind =>
+            // 用 RegisterAdditional（不是 Register）：通讯模块也会追加"通讯变量名"来源，
+            // 两者顺序无关、互不覆盖。
+            StepConfigOptionSource.RegisterAdditional(kind =>
             {
                 var solution = container.Resolve<IWorkspaceManager>().CurrentSolution;
 

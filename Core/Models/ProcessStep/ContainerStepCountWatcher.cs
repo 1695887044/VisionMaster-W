@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
 
 namespace VisionMaster.Models
 {
@@ -17,11 +18,13 @@ namespace VisionMaster.Models
     internal sealed class ContainerStepCountWatcher
     {
         private readonly Action _notify;
+        private readonly Action<PropertyChangedEventArgs>? _notifyBranchChanged;
         private ObservableCollection<StepCollection>? _children;
 
-        public ContainerStepCountWatcher(Action notify)
+        public ContainerStepCountWatcher(Action notify, Action<PropertyChangedEventArgs>? notifyBranchChanged = null)
         {
             _notify = notify ?? throw new ArgumentNullException(nameof(notify));
+            _notifyBranchChanged = notifyBranchChanged;
         }
 
         /// <summary>把订阅面切到指定的 Children 集合（null 视为空集合）。重复传入同一实例是空操作。</summary>
@@ -34,7 +37,10 @@ namespace VisionMaster.Models
             {
                 _children.CollectionChanged -= OnChildrenChanged;
                 foreach (var branch in _children)
+                {
                     branch.Steps.CollectionChanged -= OnNestedChanged;
+                    branch.PropertyChanged -= OnBranchPropertyChanged;
+                }
             }
 
             _children = children;
@@ -43,7 +49,10 @@ namespace VisionMaster.Models
             {
                 _children.CollectionChanged += OnChildrenChanged;
                 foreach (var branch in _children)
+                {
                     branch.Steps.CollectionChanged += OnNestedChanged;
+                    branch.PropertyChanged += OnBranchPropertyChanged;
+                }
             }
         }
 
@@ -52,18 +61,27 @@ namespace VisionMaster.Models
             if (e.OldItems != null)
             {
                 foreach (StepCollection branch in e.OldItems)
+                {
                     branch.Steps.CollectionChanged -= OnNestedChanged;
+                    branch.PropertyChanged -= OnBranchPropertyChanged;
+                }
             }
 
             if (e.NewItems != null)
             {
                 foreach (StepCollection branch in e.NewItems)
+                {
                     branch.Steps.CollectionChanged += OnNestedChanged;
+                    branch.PropertyChanged += OnBranchPropertyChanged;
+                }
             }
 
             _notify();
         }
 
         private void OnNestedChanged(object? sender, NotifyCollectionChangedEventArgs e) => _notify();
+
+        private void OnBranchPropertyChanged(object? sender, PropertyChangedEventArgs e)
+            => _notifyBranchChanged?.Invoke(e);
     }
 }

@@ -21,10 +21,11 @@ namespace VisionMaster.Scada.Controls
     /// 所以取值要能表达"这是人机界面的图元"，而不是实现细节（类名/命名空间都可能重构）。
     ///
     /// 关于 <c>IsBindable</c>（属性面板那一列 ƒx）的声明口径：
-    /// <b>「位置与尺寸」与「外观」两组一律不声明可绑</b>——它们是设计期语言（版面 + 皮肤），
+    /// <b>「布局」与「外观」两组一律不声明可绑</b>——它们是设计期语言（版面 + 皮肤），
     /// 交给变量驱动只会让画面自己乱变；可绑的是数值 / 状态 / 文字这类运行期语言。
-    /// 口径由 <see cref="ElementDescriptor.NonBindableGroups"/> 在注册期兜底校验，
-    /// 写错会直接注册失败。理由见 <see cref="GeometryProperties"/> 的类注释。
+    /// 口径由 <see cref="ScadaPropertyGroups.NonBindable"/> 在注册期兜底校验（见
+    /// <see cref="ElementDescriptor.Validate"/>），写错会直接注册失败。
+    /// 理由见 <see cref="GeometryProperties"/> 的类注释。
     ///
     /// 关于 <see cref="ElementDescriptor.Events"/>（本图元能配哪些事件钩子）的声明口径：
     /// <b>只声明"已经有人发得出来"的事件</b>。属性面板按这份清单长行，清单里有一条发不出来的事件，
@@ -198,7 +199,7 @@ namespace VisionMaster.Scada.Controls
                 DefaultWidth = 140,
                 DefaultHeight = 28,
                 Description = "带边框的数值框：左边一行说明字，右边「数值 + 单位」；把「数值」绑到变量上即可（温度、计数、位置）。" +
-                              "模式选「InputOutput」后，运行态点一下框子就能就地改数并写回变量（还需当前角色的权限够，见属性面板「权限」那一行）",
+                              "模式选「InputOutput」后，运行态点一下框子就能就地改数并写回变量（还需当前角色的权限够，见属性面板「交互」那一行）",
                 // 手册 7.5.2 把"输入完成时"挂在数字IO域 / 字符IO域 / 日期时间域上；本库当前只有
                 // 这一个可输入图元，所以只在这一条描述符上声明。将来加了字符域/日期域，各自加一行即可。
                 Events = new[] { ScadaEventType.InputCompleted },
@@ -206,13 +207,14 @@ namespace VisionMaster.Scada.Controls
                     ScadaPropertyCatalog.Collect(typeof(IOFieldElement)),
                     TextProperties.Text("说明字",
                         description: "显示在数值左边的一行字（如「温度」「1#工位」）；留空则数值独占整行"),
-                    TextProperties.Foreground(displayName: "文字颜色"),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "文字颜色",
+                        description: "默认浅色：运行画面是深色底，深色字会糊成一片"),
                     TextProperties.FontSize("14"),
                     TextProperties.FontWeight(),
                     TextProperties.TextAlignment("Right", displayName: "数值对齐",
                         description: "默认 Right：小数点在右边排成一条线，一列数值扫起来才快；说明字不受它影响，恒靠左"),
-                    AppearanceProperties.Fill("#FFFFFFFF",
-                        "框内底色；深色画面上要跟着调暗，否则一列白框会盖过画面主体"),
+                    AppearanceProperties.Fill("#00FFFFFF",
+                        "框内底色；默认全透明（只读态露出画面底色，可写态靠 1px 边框辨识）"),
                     AppearanceProperties.Stroke("#FF7A7A7A"),
                     AppearanceProperties.StrokeThickness(),
                     AppearanceProperties.CornerRadius("2")),
@@ -386,13 +388,14 @@ namespace VisionMaster.Scada.Controls
                               "表头同时给出未确认条数与总条数；没有任何报警时显示「系统正常」",
                 Properties = GeometryProperties.WithGroups(
                     ScadaPropertyCatalog.Collect(typeof(AlarmBannerElement)),
-                    AppearanceProperties.Fill("#FFFFFFFF", displayName: "底色"),
-                    AppearanceProperties.Stroke("#FF7A7A7A"),
+                    AppearanceProperties.Fill("#FF151C23", displayName: "底色",
+                        description: "默认深色表面：报警条通常钉在深色运行画面上"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
                     AppearanceProperties.StrokeThickness(),
-                    AppearanceProperties.CornerRadius("4"),
+                    AppearanceProperties.CornerRadius("8"),
                     TextProperties.Text("标题", "实时报警",
                         description: "表头左侧那一行字；留空则表头只剩右侧的计数"),
-                    TextProperties.Foreground(displayName: "文字色",
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "文字色",
                         description: "标题与各行文字的颜色；行内的次要信息（时间、条件、状态）按七成不透明度显示"),
                     TextProperties.FontSize(
                         description: "表头与所有行的字号：调大给大屏用时，行高、徽标、时间会一起放大，不会错位"),
@@ -456,7 +459,7 @@ namespace VisionMaster.Scada.Controls
                             Key = ScadaAxisOptionsCodec.Key,
                             DisplayName = "候选轴",
                             Kind = ElementPropertyKind.AxisList,
-                            Group = "数据",
+                            Group = ScadaPropertyGroups.Data,
                             DefaultValue = string.Empty,
                             IsBindable = false,
                             Description = "整个轴控台（监控 + 运动 + 点位）共用的候选轴；只能从工程里已启用的轴中多选",
@@ -493,7 +496,7 @@ namespace VisionMaster.Scada.Controls
                             Key = ScadaAxisOptionsCodec.Key,
                             DisplayName = "候选轴",
                             Kind = ElementPropertyKind.AxisList,
-                            Group = "数据",
+                            Group = ScadaPropertyGroups.Data,
                             DefaultValue = string.Empty,
                             IsBindable = false,
                             Description = "运行期下拉框里的轴。只能从工程里已启用的轴中多选；" +
@@ -532,7 +535,7 @@ namespace VisionMaster.Scada.Controls
                             Key = ScadaAxisOptionsCodec.Key,
                             DisplayName = "候选轴",
                             Kind = ElementPropertyKind.AxisList,
-                            Group = "数据",
+                            Group = ScadaPropertyGroups.Data,
                             DefaultValue = string.Empty,
                             IsBindable = false,
                             Description = "点位表显示哪几根轴的点位；运行期用下拉框切换。单根轴时下拉框收起",
@@ -550,6 +553,251 @@ namespace VisionMaster.Scada.Controls
                     TextProperties.Text("标题", "点位表", isBindable: false),
                     TextProperties.Foreground("#FFFAFAFA"),
                     TextProperties.FontSize("11")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.Tank",
+                DisplayName = "罐体/料仓",
+                ControlType = typeof(TankElement),
+                Category = "工艺",
+                DefaultWidth = 160,
+                DefaultHeight = 200,
+                Description = "带液位填充的罐体/料仓符号；把「液位」绑到变量上即可，" +
+                              "读数按「容量 × 液位」显示（液位 50% × 容量 1000 L = 500 L）",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(TankElement)),
+                    // Fill 在这个图元里是「液体色」，不是罐体底色；罐体空腔由 TrackColor 负责。
+                    AppearanceProperties.Fill("#FF38BDF8", "液位填充色（液体那一段）", displayName: "液位色"),
+                    AppearanceProperties.Stroke("#FF3A4A5C", displayName: "罐体轮廓色"),
+                    AppearanceProperties.StrokeThickness(displayName: "轮廓粗细"),
+                    AppearanceProperties.CornerRadius("12",
+                        description: "罐体圆角半径；超过短边一半时 WPF 会自行收敛成胶囊形"),
+                    TextProperties.Text("位号",
+                        description: "压在罐体下方的一行字（如「T-101」）；工艺图上靠它认设备"),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "文字颜色",
+                        description: "默认浅色：位号与读数压在深色罐体/深色画面上，深色字会糊成一片"),
+                    TextProperties.FontSize(),
+                    TextProperties.FontWeight("SemiBold")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.KpiBoard",
+                DisplayName = "KPI 看板",
+                ControlType = typeof(KpiBoardElement),
+                Category = "数值",
+                DefaultWidth = 360,
+                DefaultHeight = 180,
+                Description = "把 2~4 组「数值 + 标签 + 单位」排成一块卡片（OEE、产量、良率、停机时长）；" +
+                              "四组数值都能单独绑变量，列数可选 2×2 或 4×1",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(KpiBoardElement)),
+                    AppearanceProperties.Fill("#FF151C23", "卡片底色；深色运行画面用 surface 档"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("8"),
+                    TextProperties.Text("标题",
+                        description: "卡片左上角的标题（如「2# 灌装单元」）；留空则只显示四格数据"),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "文字颜色",
+                        description: "数值与标题的主色；标签与单位用弱化色，层级靠透明度拉开")),
+            },
+
+            // ==================================================================
+            //  Phase 2 P0：输入/选择/报警确认四件套
+            // ==================================================================
+
+            new()
+            {
+                TypeKey = "Hmi.SelectorSwitch",
+                DisplayName = "多档旋钮",
+                ControlType = typeof(SelectorSwitchElement),
+                Category = "操作",
+                DefaultWidth = 120,
+                DefaultHeight = 36,
+                Description = "2~4 档保持式转换开关：点哪一档就把档位号写回变量（手/自动、本地/远程、工位选择）。" +
+                              "选中档用「填充色」高亮、未选档用「未选中底色」；写失败时原因留在图元上，不会假装已经拨过去",
+                // 刻意不声明 Pressed：画布在运行态已对命中的图元统一发一次 Pressed（见 ScadaCanvas.Interaction），
+                // 本控件又按契约在“档位写成功”时发一次。两条同时可配会让同一个动作执行两遍；
+                // 描述符不声明它，属性面板就不会长出这条永远双响的钩子（控件仍按契约在成功路径 raise）。
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(SelectorSwitchElement)),
+                    AppearanceProperties.Fill("#FF15803D",
+                        "选中档位的底色（设计基线的 success-fill 深绿；与白色文字对比足够）"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("8"),
+                    TextProperties.FontSize(),
+                    TextProperties.FontWeight("SemiBold")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.TextField",
+                DisplayName = "文本输入域",
+                ControlType = typeof(TextFieldElement),
+                Category = "数值",
+                DefaultWidth = 160,
+                DefaultHeight = 32,
+                Description = "字符串输入域：绑一个字符串变量，点一下就地编辑，回车/失焦提交、Esc 放弃；" +
+                              "提交时按 trim 后的长度校验（超长不写入），空串表示清除文本。批号、操作备注、配方名用它",
+                Events = new[] { ScadaEventType.InputCompleted },
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(TextFieldElement)),
+                    AppearanceProperties.Fill("#FF151C23", "输入框底色；深色运行画面用 surface 档"),
+                    AppearanceProperties.Stroke("#FF3A4A5C"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("4"),
+                    TextProperties.Text("标签", "",
+                        description: "显示在输入框左侧的一行说明字（如「批号」）；留空则输入框独占整行"),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "文字颜色",
+                        description: "默认浅色：运行画面是深色底，深色字会糊成一片"),
+                    TextProperties.FontSize(),
+                    TextProperties.FontWeight()),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.ComboBox",
+                DisplayName = "下拉选择器（枚举型）",
+                ControlType = typeof(ComboBoxElement),
+                Category = "数值",
+                DefaultWidth = 160,
+                DefaultHeight = 32,
+                Description = "枚举型下拉：绑一个 int 变量，用「选项映射」（0=手动;1=自动;2=检修）把数值翻译成显示名。" +
+                              "用户选择后写回变量；运行态变量变化只更新显示、不回写（否则会形成回写环）",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(ComboBoxElement)),
+                    AppearanceProperties.Fill("#FF151C23", "下拉框底色；深色运行画面用 surface 档"),
+                    AppearanceProperties.Stroke("#FF3A4A5C"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("4"),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "文字颜色",
+                        description: "默认浅色：运行画面是深色底，深色字会糊成一片"),
+                    TextProperties.FontSize(),
+                    TextProperties.FontWeight()),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.AckButton",
+                DisplayName = "报警确认按钮",
+                ControlType = typeof(AckButtonElement),
+                Category = "报警",
+                DefaultWidth = 120,
+                DefaultHeight = 36,
+                Description = "一键确认报警：范围可选「全部」或「当前列表第一条」；按钮上可显示待确认条数，" +
+                              "操作结果（已确认 N 条 / 没有待确认报警 / 没有权限）通过 CommandMessage 反馈",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(AckButtonElement)),
+                    AppearanceProperties.Fill("#FFEF4444", "确认按钮底色；报警语义红，与报警条严重色同族"),
+                    AppearanceProperties.Stroke("#FFB91C1C"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("6"),
+                    TextProperties.Text("按钮文字", "确认报警"),
+                    TextProperties.Foreground("#FFFFFFFF"),
+                    TextProperties.FontSize(),
+                    TextProperties.FontWeight("SemiBold")),
+            },
+
+            // ---- 数据表格（2026-10-21，设计基线 docs/UI设计基线/scada-datagrid/）----
+            //
+            // 它刻意<b>不声明</b> Fill / Stroke / FontSize：外观由模板固定（深色画面里的一张表），
+            // 声明了却不生效等于给用户一个"改了没反应"的假开关（R72 同族）。
+            // 可配的只有"数据怎么来"（采行信号 / 确认 / 缓存 / 行高 / 行序）与"列长什么样"。
+            new()
+            {
+                TypeKey = "Hmi.DataGrid",
+                DisplayName = "数据表格",
+                ControlType = typeof(DataGridElement),
+                Category = "数据",
+                DefaultWidth = 720,
+                DefaultHeight = 300,
+                Description = "把最近 N 条记录按列摆出来：列在设计期配（表头/宽度/对齐/格式/绑哪个变量），" +
+                              "采行信号每来一个上升沿就采一行。它是显示缓冲、不是记录系统——" +
+                              "要留痕请用「CSV 记录」插件",
+                Properties = GeometryProperties.WithGroups(
+                    new[]
+                    {
+                        new ElementPropertyDescriptor
+                        {
+                            Key = ScadaGridColumnsCodec.Key,
+                            DisplayName = "列定义",
+                            Kind = ElementPropertyKind.ColumnList,
+                            Group = ScadaPropertyGroups.Data,
+                            DefaultValue = string.Empty,
+                            IsBindable = false,
+                            Description = "列的规范 JSON：[{ \"Header\":\"SN\", \"Variable\":\"产品SN\", \"Width\":160, " +
+                                          "\"Align\":\"left\", \"Format\":\"\", \"Monospace\":false }, …]。宽度 0 = 吃掉剩余宽度；最多 12 列",
+                        },
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "SampleVariable",
+                            DisplayName = "采行信号",
+                            Kind = ElementPropertyKind.Text,
+                            Group = ScadaPropertyGroups.Data,
+                            DefaultValue = string.Empty,
+                            IsBindable = false,
+                            TargetProperty = DataGridElement.SampleVariableProperty,
+                            Description = "这个变量每来一个上升沿（false→true）就采一行（现场一般是「结果已存」位）。" +
+                                          "图元对它是只读的、不复位：信号由 PLC / 流程自己落",
+                        },
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "AckVariable",
+                            DisplayName = "收录确认",
+                            Kind = ElementPropertyKind.Text,
+                            Group = ScadaPropertyGroups.Data,
+                            DefaultValue = string.Empty,
+                            IsBindable = false,
+                            TargetProperty = DataGridElement.AckVariableProperty,
+                            Description = "留空 = 不写。填了就在每采一行后把它 +1（累加计数而不是脉冲：脉冲总得有人复位）",
+                        },
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "MaxRows",
+                            DisplayName = "缓存行数",
+                            Kind = ElementPropertyKind.Number,
+                            Group = ScadaPropertyGroups.Data,
+                            DefaultValue = "100",
+                            Min = 1,
+                            Max = DataGridElement.MaxRowsLimit,
+                            TargetProperty = DataGridElement.MaxRowsProperty,
+                            Description = "超过就丢最旧的一行。它是显示缓冲，不是记录系统（断电即失）",
+                        },
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "RowHeight",
+                            DisplayName = "行高",
+                            Kind = ElementPropertyKind.Number,
+                            Group = ScadaPropertyGroups.Data,
+                            DefaultValue = "28",
+                            Min = 18,
+                            Max = 60,
+                            TargetProperty = DataGridElement.RowHeightProperty,
+                        },
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "NewestFirst",
+                            DisplayName = "新行在上",
+                            Kind = ElementPropertyKind.Bool,
+                            Group = ScadaPropertyGroups.Data,
+                            DefaultValue = "True",
+                            TargetProperty = DataGridElement.NewestFirstProperty,
+                            Description = "最新一条永远第一行、不抢滚动——现场正在看历史时被拽走是最烦的",
+                        },
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "Zebra",
+                            DisplayName = "斑马纹",
+                            Kind = ElementPropertyKind.Bool,
+                            Group = ScadaPropertyGroups.Data,
+                            DefaultValue = "True",
+                            TargetProperty = DataGridElement.ZebraProperty,
+                        },
+                    },
+                    TextProperties.Text("标题", "产品记录", isBindable: false,
+                        description: "表格左上角的标题；留空则只剩右侧的行数")),
             },
         };
     }

@@ -301,6 +301,8 @@
                     <Grid>
                         <ToggleButton
                             x:Name="Chrome"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="1"

@@ -106,7 +106,7 @@ namespace VisionMaster.Services
         /// 软件级配置（AppConfig.json）。这里只用它两件事：读"运行窗口该长什么样"
         /// （<c>RunWindowMode</c>）和"该落在哪块屏"（<c>RunWindowMonitor</c>）。
         /// 每次 <see cref="Start"/> 现读 <c>Current</c>，所以「系统 → 运行窗口设置」改完立刻生效，
-        /// 不用重启软件——设置弹窗自己负责写盘（见 ScadaRunWindowSettingsViewModel）。
+        /// 不用重启软件——设置弹窗自己负责写盘（见 ScadaSystemSettingsViewModel）。
         /// </summary>
         private readonly AppSettingsService _appSettings;
 
@@ -499,8 +499,10 @@ namespace VisionMaster.Services
             // 权限出口（第四个）也一起装进去：图元要"写前先查"，可它只攥着这个上下文，
             // 够不着会话（_accessPolicy 在本类里，图元不认识本类）。它与写通道同一时机进出，
             // 且会话对象是活的——"此刻是谁"由它每次现问，登录/登出立刻生效。
+            // 值通道（第八个）：数据表格这类"列定义里写的是变量名"的图元要按名字解析句柄。
+            // 数据泵虽然拿着同一个值源，但它只按 ScadaBinding 推属性，帮不了"按名字取数"。
             window.CanvasHost.RuntimeContext = new ScadaRuntimeContext(
-                engine, beat, _valueWriter, _accessPolicy, _axisSource, _axisCommands, _confirmations);
+                engine, beat, _valueWriter, _accessPolicy, _axisSource, _axisCommands, _confirmations, _valueSource);
 
             engine.Attach();
             beat.Start();

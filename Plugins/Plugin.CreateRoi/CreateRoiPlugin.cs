@@ -412,7 +412,7 @@ namespace Plugin.CreateRoi
 
             // 二值掩膜（排除模式反转：ROI 内 0 外 255）+ 无效区置黑的合成图（发布主界面用）
             var visual = BuildMaskAndResult(src, merged, MaskInvert, out var mask, out _);
-            MaskImage.Value = mask; // 所有权移交端口
+            MaskImage.Value = mask!; // 所有权移交端口
             _runtimeMaskedImg = visual;
 
             // 发布主界面：0 = 不显示（此前选"不显示"仍会发布到窗口1）；发布合并掩膜合成图，
@@ -531,7 +531,7 @@ namespace Plugin.CreateRoi
                 snapshot.Add(new DynamicPortInfo
                 {
                     Name = portName,
-                    DataTypeName = typeof(HImage).AssemblyQualifiedName,
+                    DataTypeName = typeof(HImage).AssemblyQualifiedName!,
                     Description = $"ROI '{roi.Name}' 的裁剪图"
                 });
 
@@ -549,7 +549,7 @@ namespace Plugin.CreateRoi
                 snapshot.Add(new DynamicPortInfo
                 {
                     Name = domainName,
-                    DataTypeName = typeof(HImage).AssemblyQualifiedName,
+                    DataTypeName = typeof(HImage).AssemblyQualifiedName!,
                     Description = $"ROI '{roi.Name}' 带 domain 的原图（只在 ROI 内有像素，坐标仍为全局坐标）"
                 });
 
@@ -565,7 +565,7 @@ namespace Plugin.CreateRoi
                 snapshot.Add(new DynamicPortInfo
                 {
                     Name = rowName,
-                    DataTypeName = typeof(double).AssemblyQualifiedName,
+                    DataTypeName = typeof(double).AssemblyQualifiedName!,
                     Description = $"ROI '{roi.Name}' 裁剪图左上角在原图中的行坐标"
                 });
 
@@ -575,7 +575,7 @@ namespace Plugin.CreateRoi
                 snapshot.Add(new DynamicPortInfo
                 {
                     Name = colName,
-                    DataTypeName = typeof(double).AssemblyQualifiedName,
+                    DataTypeName = typeof(double).AssemblyQualifiedName!,
                     Description = $"ROI '{roi.Name}' 裁剪图左上角在原图中的列坐标"
                 });
             }
@@ -597,7 +597,7 @@ namespace Plugin.CreateRoi
         {
             if (!Outputs.TryGetValue(portName, out var port)) return false;
             if (port is not OutputPort<HImage> typed) return false;
-            typed.Value = image;
+            typed.Value = image!;
             return true;
         }
 

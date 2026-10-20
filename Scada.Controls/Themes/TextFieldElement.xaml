@@ -1,0 +1,194 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        文本输入域图元的外观（Hmi.TextField）。
+
+        四态（与设计基线 design.html 的 .hmi-io 一族同词汇，D9 的文本版）：
+          · 只读：透明底 + 仅底边线，像表格里的读数；
+          · 可写：1px 边框 + surface 底（Fill）；
+          · 编辑中：accent 边框 + 3px 焦点环（画在框外，不占内容区）；
+          · 校验失败：PART_Frame 的 BorderBrush 由控件代码改成红色（与数值域同一支红）。
+
+        模板只负责摆放，状态由控件已经算好的只读属性驱动：
+          · IsEditing / IsEditable —— 编辑态与可写态；
+          · EditText —— 双向绑到输入框；
+          · Placeholder —— 空值时的灰字提示；
+          · Value —— 非编辑态显示的那一行文本（PART_Display）。
+
+        显隐纪律：PART_Editor / PART_Placeholder 的 Visibility 由控件代码翻
+        （TextFieldElement.UpdateVisualState），模板里不写 Visibility 初值、也不写 DataTrigger；
+        PART_Display 的显隐是纯视觉派生，用 Style.Triggers 的 DataTrigger（本环境可用）。
+        颜色一律走 ScadaTokens.xaml（本文件 hex=0，R140）；本分册就地合并令牌（R30）。
+    -->
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <BooleanToVisibilityConverter x:Key="TextFieldBoolToVisibility" />
+
+    <!--  标签：留空时整行让给输入框（不留下 6px 的空槽）  -->
+    <Style x:Key="TextFieldLabelStyle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,0,6,0" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="">
+                <Setter Property="Visibility" Value="Collapsed" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  非编辑态的文本显示：进入编辑时让位给 PART_Editor（Style 触发器在本环境可用）  -->
+    <Style x:Key="TextFieldDisplayStyle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsEditing, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                <Setter Property="Visibility" Value="Collapsed" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="{x:Type local:TextFieldElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="FontFamily" Value="Microsoft YaHei" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+        <Setter Property="Fill" Value="{StaticResource HmiSurfaceBrush}" />
+        <Setter Property="Stroke" Value="{StaticResource HmiBorderStrongBrush}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="4" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:TextFieldElement}">
+                    <Grid>
+                        <!--
+                            编辑中的 3px 焦点环：画在框外（Margin=-4），不占内容区；
+                            正常编辑 = accent（0.28）；校验失败 = 红（0.22，与红边框同族）。
+                            Opacity 对应设计基线 rgba(56,189,248,.16) 在深色底上的观感。
+                        -->
+                        <Border
+                            x:Name="EditFocusRing"
+                            Margin="-4"
+                            BorderThickness="3"
+                            CornerRadius="8"
+                            IsHitTestVisible="False"
+                            Visibility="{Binding IsEditing, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource TextFieldBoolToVisibility}}">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="BorderBrush" Value="{StaticResource HmiDangerBrush}" />
+                                    <Setter Property="Opacity" Value="0.22" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding EditError, RelativeSource={RelativeSource TemplatedParent}}" Value="">
+                                            <Setter Property="BorderBrush" Value="{StaticResource HmiAccentBrush}" />
+                                            <Setter Property="Opacity" Value="0.28" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
+
+                        <!--
+                            外框：BorderBrush 由控件代码写（EditError 非空 = 红），模板只给初始值。
+                            Background / BorderThickness 由下面 Border.Style 的两个 DataTrigger 切换：
+                              只读 = 透明底 + 仅底边线；可写 / 编辑 = Fill 底 + 1px 全边框。
+                            （Border.Style 的 DataTrigger 属于 Style.Triggers，本环境照常工作。）
+                        -->
+                        <Border
+                            x:Name="PART_Frame"
+                            BorderBrush="{TemplateBinding Stroke}"
+                            CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}"
+                            SnapsToDevicePixels="True"
+                            ToolTip="{TemplateBinding EditError}">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="BorderThickness" Value="0,0,0,1" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsEditable, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                                            <Setter Property="Background" Value="{Binding Fill, RelativeSource={RelativeSource TemplatedParent}}" />
+                                            <Setter Property="BorderThickness" Value="1" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsEditing, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                                            <Setter Property="BorderThickness" Value="1" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+
+                            <Grid Margin="6,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    x:Name="LabelText"
+                                    Grid.Column="0"
+                                    FontFamily="{TemplateBinding FontFamily}"
+                                    FontSize="{TemplateBinding FontSize}"
+                                    FontWeight="{TemplateBinding FontWeight}"
+                                    Foreground="{TemplateBinding Foreground}"
+                                    Style="{StaticResource TextFieldLabelStyle}"
+                                    Text="{TemplateBinding Text}" />
+
+                                <Grid Grid.Column="1">
+                                    <!--  非编辑态的文本（控件代码不翻它的显隐，纯视觉派生走 Style 触发器）  -->
+                                    <TextBlock
+                                        x:Name="PART_Display"
+                                        FontFamily="Cascadia Mono, Consolas"
+                                        FontSize="{TemplateBinding FontSize}"
+                                        FontWeight="{TemplateBinding FontWeight}"
+                                        Foreground="{TemplateBinding Foreground}"
+                                        Style="{StaticResource TextFieldDisplayStyle}"
+                                        Text="{TemplateBinding Value}"
+                                        TextAlignment="Left"
+                                        Typography.NumeralAlignment="Tabular" />
+
+                                    <!--  占位提示：显隐由控件代码翻（不要写 Visibility 初值 / DataTrigger）  -->
+                                    <TextBlock
+                                        x:Name="PART_Placeholder"
+                                        VerticalAlignment="Center"
+                                        FontFamily="{TemplateBinding FontFamily}"
+                                        FontSize="{TemplateBinding FontSize}"
+                                        Foreground="{StaticResource HmiTextMutedBrush}"
+                                        IsHitTestVisible="False"
+                                        Text="{TemplateBinding Placeholder}"
+                                        TextAlignment="Left"
+                                        TextTrimming="CharacterEllipsis" />
+
+                                    <!--
+                                        就地编辑框：字体/前景与 PART_Display 逐项对齐，进编辑态字不跳。
+                                        显隐由控件代码翻（SetPartVisible），模板里不写 Visibility 初值。
+                                    -->
+                                    <TextBox
+                                        x:Name="PART_Editor"
+                                        Padding="0"
+                                        VerticalAlignment="Stretch"
+                                        VerticalContentAlignment="Center"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        CaretBrush="{TemplateBinding Foreground}"
+                                        FocusVisualStyle="{x:Null}"
+                                        FontFamily="{TemplateBinding FontFamily}"
+                                        FontSize="{TemplateBinding FontSize}"
+                                        FontWeight="{TemplateBinding FontWeight}"
+                                        Foreground="{TemplateBinding Foreground}"
+                                        IsReadOnly="{TemplateBinding IsReadOnly}"
+                                        Text="{Binding EditText, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        TextAlignment="Left" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

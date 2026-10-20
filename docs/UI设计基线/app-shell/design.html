@@ -1506,6 +1506,17 @@
   .app[data-mode="run"] .doc-tabs{ display:none; }
   .app[data-mode="run"] .doc-body{ background:#0B0F14; }
 
+  /* ---------- 模式隔离：文档标签 / 底部面板 / 状态栏 ---------- */
+  .app[data-mode="debug"] .doc-tab[data-doc="scada"],
+  .app[data-mode="config"] .doc-tab[data-doc="image"],
+  .app[data-mode="config"] .doc-tab[data-doc="flow"]{ display:none; }
+  .app[data-mode="config"] .bottom-panel,
+  .app[data-mode="config"] .splitter.h{ display:none !important; }
+  .statusbar .sb-config{ display:none; align-items:center; gap:8px; min-width:0; }
+  .app[data-mode="config"] .statusbar .sb-left{ display:none; }
+  .app[data-mode="config"] .statusbar .sb-config{ display:flex; }
+  .sb-config b{ color:var(--text); font-weight:600; }
+
   /* ---------- 顶栏场景切换 + 命令面板入口 ---------- */
   .mode-switch{
     display:flex; align-items:center; height:26px; padding:2px; gap:2px;
@@ -1535,7 +1546,7 @@
     font-family:var(--mono); font-size:9px;
   }
 
-  /* ---------- 左栏：流程导航（程序 + 流程栏合并） ---------- */
+  /* ---------- 左栏：流程导航（流程胶囊 + 当前流程树） ---------- */
   .program-panel,
   .left-col > .splitter.h{ display:none !important; }
   .left-col{ border-right:1px solid var(--border-soft); }
@@ -2159,6 +2170,164 @@
   @media (max-width: 1500px){
     :root{ --nav-w:280px; --inspector-w:300px; }
   }
+  /* =====================================================================
+     flow-logic 视觉语言整合（2026-10-19）
+     只改左侧流程导航 + 中央流程画布；Shell 布局、模式隔离、停靠逻辑不动。
+     分类色对应 ToolboxCategoryVisuals；容器类型色对应 flow-logic 基线。
+     ===================================================================== */
+  :root{
+    --cat-image:#3B82F6; --cat-image-soft:#EFF6FF; --cat-image-border:#BFDBFE;
+    --cat-locate:#F97316; --cat-locate-soft:#FFF7ED; --cat-locate-border:#FED7AA;
+    --cat-measure:#F59E0B; --cat-measure-soft:#FFFBEB; --cat-measure-border:#FDE68A;
+    --cat-var:#14B8A6; --cat-var-soft:#F0FDFA; --cat-var-border:#99F6E4;
+    --cat-data:#64748B; --cat-data-soft:#F8FAFC; --cat-data-border:#E2E8F0;
+    --cat-tool:#6B7280; --cat-tool-soft:#F3F4F6; --cat-tool-border:#E5E7EB;
+    --cat-motion:#65A30D; --cat-motion-soft:#F7FEE7; --cat-motion-border:#D9F99D;
+    --cat-defect:#EF4444; --cat-defect-soft:#FEF2F2; --cat-defect-border:#FECACA;
+    --cat-logic:#8B5CF6; --cat-logic-soft:#F5F3FF; --cat-logic-border:#DDD6FE;
+    --ct-if:#6366F1; --ct-if-soft:#EEF2FF; --ct-if-border:#C7D2FE; --ct-if-text:#4338CA;
+    --ct-par:#0EA5E9; --ct-par-soft:#F0F9FF; --ct-par-border:#BAE6FD; --ct-par-text:#0369A1;
+    --run:#2563EB;
+  }
+
+  /* 左栏：去掉重复的“程序”面板，让流程导航铺满（与 flow-logic 一致） */
+  .program-panel,
+  .nav-col > .splitter.h{ display:none !important; }
+  .process-panel{ flex:1 1 auto; }
+
+  /* 流程胶囊：flow-logic 尺寸 */
+  .flow-chips{ gap:6px; padding:8px 10px 9px; }
+  .flow-chip{ height:40px; padding:0 8px; border-radius:8px; gap:6px; }
+  .flow-chip.is-active{
+    background:var(--ct-if-soft); border-color:var(--ct-if-border);
+    box-shadow:inset 0 0 0 1px rgba(99,102,241,.10);
+  }
+  .flow-chip .chip-count{ font-size:9px; }
+  .flow-chip.is-active .chip-count{ color:var(--ct-if-text); }
+
+  /* 流程树：容器组头 / 分支胶囊 / 算子行 */
+  .tree-scroll{ padding:4px 6px 8px; }
+  .tree-children{ margin-left:0; border-left:0; }
+  .tree-children .tree-step{ margin-left:18px; }
+  .tree-group{
+    height:38px; margin:3px 0 2px; padding:0 10px 0 12px;
+    border-radius:8px;
+    background:linear-gradient(90deg,var(--ct-soft,#F8FAFC),#fff 72%);
+    border:1px solid var(--ct-border,#E2E8F0);
+    box-shadow:inset 3px 0 0 var(--ct,#6366F1);
+  }
+  .tree-group::before{ display:none; }
+  .tree-group:hover{ background:linear-gradient(90deg,var(--ct-soft,#F8FAFC),#F8FAFC 72%); }
+  .tree-group.is-selected{
+    background:linear-gradient(90deg,#EFF6FF,#fff 74%);
+    border-color:var(--run);
+    box-shadow:inset 3px 0 0 var(--run), 0 0 0 1px rgba(37,99,235,.12);
+  }
+  .tree-group.is-failed{ border-color:var(--danger); }
+  .g-type{
+    height:18px; padding:0 5px; border-radius:4px; margin-right:7px;
+    display:inline-flex; align-items:center;
+    background:var(--ct,#6366F1); color:#fff;
+    font-family:var(--mono); font-size:8.5px; font-weight:700;
+  }
+  .g-type svg{ display:none; }
+  .g-name{ font-size:11.5px; }
+  .g-meta{ font-size:8.5px; color:var(--text-3); }
+  .tree-branch{
+    height:28px; margin:1px 0 1px 18px; padding:0 7px 0 22px;
+    background:var(--branch-soft,#F8FAFC);
+    border:1px solid transparent;
+    box-shadow:inset 2px 0 0 var(--branch,#6366F1);
+  }
+  .tree-branch:hover{ background:var(--surface-2); border-color:transparent; }
+  .tree-branch.is-running{
+    background:#EFF6FF; border-color:var(--run);
+    box-shadow:inset 2px 0 0 var(--run);
+  }
+  .tree-branch.is-running .b-name{ color:var(--run); }
+  .b-chev{ left:6px; width:10px; height:10px; }
+  .b-dot{ width:6px; height:6px; margin-right:6px; background:var(--branch,#6366F1); }
+  .b-name{ font-size:10.5px; }
+  .b-count{ font-size:8.5px; color:var(--text-3); }
+  .tree-step{
+    min-height:34px; padding:0 8px; margin:1px 0; border-radius:7px;
+  }
+  .tree-step.is-selected{
+    background:var(--ct-if-soft);
+    box-shadow:inset 3px 0 0 var(--run);
+  }
+  .tree-step.is-selected::before{ display:none; }
+  .tree-step.is-running{ background:#EFF6FF; }
+  .tree-step.is-running .step-name,
+  .tree-step.is-running .step-type{ color:var(--run); }
+  .step-status{ width:14px; }
+  .status-dot{ width:7px; height:7px; }
+  .step-icon{
+    width:24px; height:24px; margin:0 7px 0 0; border-radius:7px;
+    background:var(--cat-soft,#F3F4F6); color:var(--cat,#6B7280);
+    border:1px solid var(--cat-border,#E5E7EB);
+  }
+  .tree-step.is-failed .step-icon,
+  .tree-step.is-running .step-icon{ background:var(--cat-soft,#F3F4F6); }
+  .step-name{ font-size:11.5px; }
+  .step-type{ font-size:9px; color:var(--text-3); }
+  .step-time{ font-size:9px; color:var(--text-3); }
+
+  /* 画布：叶子节点分类色 + 左侧身份条 */
+  .flow-node{
+    border-width:1px; border-color:var(--border); border-radius:10px;
+    box-shadow:0 1px 2px rgba(15,23,42,.05);
+  }
+  .flow-node::before{
+    background:var(--cat,#6366F1); top:8px; bottom:8px; width:3px;
+  }
+  .flow-node.is-running::before,
+  .flow-node.is-success::before,
+  .flow-node.is-failed::before{ background:var(--cat,#6366F1); }
+  .flow-node.is-running{ border-color:var(--run); }
+  .flow-node.is-success{ border-color:var(--border); }
+  .flow-node.is-failed{ border-color:var(--danger); background:#FFF7F7; }
+  .fn-icon{
+    background:var(--cat-soft,#F3F4F6); color:var(--cat,#6B7280);
+    border:1px solid var(--cat-border,#E5E7EB);
+  }
+  .flow-node.is-success .fn-icon{ background:var(--cat-soft,#F3F4F6); color:var(--cat,#6B7280); }
+  .flow-node.is-failed .fn-icon{ background:var(--cat-soft,#F3F4F6); color:var(--danger); }
+  .fn-title{ font-size:12px; }
+  .fn-sub{ font-size:9.5px; color:var(--text-3); }
+
+  /* 画布连线：数据蓝实线 / 顺序灰虚线（与 flow-logic 一致） */
+  .link-data{ stroke:#3B82F6; }
+  .link-order{ stroke:#94A3B8; stroke-dasharray:4 3; }
+  .link-label{ fill:#475569; }
+
+  /* 画布：容器 / 泳道 */
+  .flow-container.flow-logic{
+    border-width:1.5px; border-color:var(--ct-if-border);
+    background:linear-gradient(180deg,#fff,#FBFCFE);
+  }
+  .flow-logic::before{ background:var(--ct-if); }
+  .flow-logic .flow-container-head{
+    height:38px;
+    background:linear-gradient(90deg,var(--ct-if-soft),#fff 76%);
+    border-bottom-color:var(--ct-if-border);
+    color:var(--ct-if-text);
+  }
+  .flow-container-head > svg{ display:none; }
+  .flow-container-name{ font-size:12px; }
+  .flow-condition{ font-size:9.5px; }
+  .flow-container-meta{ font-size:9px; color:var(--text-3); }
+  .flow-lane{
+    background:var(--ct-if-soft);
+    border-color:var(--ct-if-border);
+    box-shadow:none;
+  }
+  .flow-lane-head{ color:var(--ct-if-text); }
+  .lane-name{ color:var(--ct-if-text); }
+  .lane-count{ color:var(--text-3); }
+  .lane-badge.ok{ background:#DCFCE7; color:#15803D; }
+  .lane-badge.else{ background:#F1F5F9; color:#475569; }
+
 </style>
 </head>
 <body>
@@ -2167,7 +2336,7 @@
   <h1>VisionMaster 主界面（Shell）<span class="ver">v2</span></h1>
   <p class="meta">
     设计媒介，不是交付物（AGENTS.md R126）。复刻 <b>Shell.xaml</b> 的停靠布局：
-    顶栏 / 左栏（程序 + 流程栏）/ 中央文档区（视觉图像 · 流程画布 · <span style="white-space:nowrap">组态画面</span>）/
+    顶栏 / 左栏（流程导航：流程胶囊 + 当前流程树）/ 中央文档区（视觉图像 · 流程画布 · <span style="white-space:nowrap">组态画面</span>）/
     底部三页签 / 右栏（属性 · 图层 · 工具箱）/ 状态栏。设计画布 <code>1920×1080</code>，按视口缩放。
   </p>
 </header>
@@ -2440,7 +2609,7 @@
 
       <!-- ============ 停靠工作区 ============ -->
       <div class="workspace">
-        <!-- 左栏：流程导航（程序 + 流程栏合并） -->
+        <!-- 左栏：流程导航（流程胶囊 + 当前流程树） -->
         <div class="left-col nav-col">
           <section class="panel program-panel" aria-label="程序">
             <div class="panel-head">
@@ -4138,6 +4307,14 @@
           <span class="sb-sep"></span>
           <span class="sb-user" id="sbUser" style="cursor:pointer" title="点击切换用户（也可走 系统 → 用户登录）">未登录（操作员）</span>
         </div>
+        <div class="sb-config">
+          <span>组态画面</span><span class="sb-sep"></span>
+          <span>主画面</span><span class="sb-sep"></span>
+          <span>1280 × 800</span><span class="sb-sep"></span>
+          <span>缩放 <b>61%</b></span><span class="sb-sep"></span>
+          <span>网格 <b>20 px</b></span><span class="sb-sep"></span>
+          <span>选中 <b>泵_1</b></span>
+        </div>
         <div class="sb-right">
           <button class="sb-health" type="button" title="系统资源">
             <svg class="icon" style="width:12px;height:12px"><use href="#i-cpu"></use></svg>系统
@@ -5228,6 +5405,90 @@
     }
     tickClock();
     setInterval(tickClock, 1000);
+
+    /* ---------------- flow-logic 视觉语言：分类色 / 容器类型色 ---------------- */
+    function applyFlowLogicVisuals() {
+      const catMap = [
+        [/图像采集/, '#6B7280', '#F3F4F6', '#E5E7EB'],
+        [/图像预处理/, '#3B82F6', '#EFF6FF', '#BFDBFE'],
+        [/模板匹配/, '#F97316', '#FFF7ED', '#FED7AA'],
+        [/卡尺测量/, '#F59E0B', '#FFFBEB', '#FDE68A'],
+        [/变量赋值/, '#14B8A6', '#F0FDFA', '#99F6E4'],
+        [/结果上报|报警输出/, '#64748B', '#F8FAFC', '#E2E8F0'],
+        [/等待/, '#6366F1', '#EEF2FF', '#C7D2FE'],
+        [/延时/, '#6B7280', '#F3F4F6', '#E5E7EB'],
+        [/坐标变换|位置修正/, '#F97316', '#FFF7ED', '#FED7AA'],
+        [/Blob|缺陷/, '#EF4444', '#FEF2F2', '#FECACA'],
+        [/码读取/, '#3B82F6', '#EFF6FF', '#BFDBFE'],
+        [/C#脚本|脚本/, '#6366F1', '#EEF2FF', '#C7D2FE'],
+        [/轴运动|等待到位/, '#65A30D', '#F7FEE7', '#D9F99D'],
+        [/逻辑运算|数值比较/, '#8B5CF6', '#F5F3FF', '#DDD6FE']
+      ];
+      const pickCat = function (text) {
+        for (let i = 0; i < catMap.length; i++) {
+          if (catMap[i][0].test(text)) return catMap[i];
+        }
+        return null;
+      };
+
+      document.querySelectorAll('.tree-step').forEach(function (row) {
+        const text = (row.querySelector('.step-type')?.textContent || '') + ' ' +
+                     (row.querySelector('.step-name')?.textContent || '');
+        const p = pickCat(text);
+        if (!p) return;
+        row.style.setProperty('--cat', p[1]);
+        row.style.setProperty('--cat-soft', p[2]);
+        row.style.setProperty('--cat-border', p[3]);
+      });
+
+      document.querySelectorAll('.flow-node').forEach(function (node) {
+        const text = (node.querySelector('.fn-sub')?.textContent || '') + ' ' +
+                     (node.querySelector('.fn-title')?.textContent || '');
+        const p = pickCat(text);
+        if (!p) return;
+        node.style.setProperty('--cat', p[1]);
+        node.style.setProperty('--cat-soft', p[2]);
+        node.style.setProperty('--cat-border', p[3]);
+      });
+
+      const ctMap = [
+        [/并行分组/, '#0EA5E9', '#F0F9FF', '#BAE6FD', '#0369A1', 'PAR'],
+        [/条件判断|条件_/, '#6366F1', '#EEF2FF', '#C7D2FE', '#4338CA', 'IF']
+      ];
+      let currentCt = null;
+      document.querySelectorAll('.tree-scroll .tree-group, .tree-scroll .tree-branch').forEach(function (row) {
+        if (row.classList.contains('tree-group')) {
+          const text = (row.querySelector('.g-name')?.textContent || '') + ' ' +
+                       (row.querySelector('.g-type')?.textContent || '');
+          let found = null;
+          for (let i = 0; i < ctMap.length; i++) {
+            if (ctMap[i][0].test(text)) { found = ctMap[i]; break; }
+          }
+          if (found) {
+            row.style.setProperty('--ct', found[1]);
+            row.style.setProperty('--ct-soft', found[2]);
+            row.style.setProperty('--ct-border', found[3]);
+            row.style.setProperty('--ct-text', found[4]);
+            const gType = row.querySelector('.g-type');
+            if (gType) gType.textContent = found[5];
+            currentCt = found;
+          }
+        } else if (currentCt) {
+          row.style.setProperty('--branch', currentCt[1]);
+          row.style.setProperty('--branch-soft', currentCt[2]);
+        }
+      });
+
+      /* 流程栏默认收起分支内部步骤：分支行只显示计数，和 flow-logic 一致；
+         点击分支行仍可展开查看子步骤。 */
+      document.querySelectorAll('.tree-branch + .tree-children').forEach(function (children) {
+        children.style.display = 'none';
+        const branch = children.previousElementSibling;
+        const use = branch ? branch.querySelector('.b-chev use') : null;
+        if (use) use.setAttribute('href', '#i-chevron-right');
+      });
+    }
+    applyFlowLogicVisuals();
   })();
 </script>
 </body>

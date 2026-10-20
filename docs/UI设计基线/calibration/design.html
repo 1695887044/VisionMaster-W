@@ -1,0 +1,948 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>标定 · 配置窗口 · 设计基线 v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+</style>
+</head>
+<body>
+<div id="cal-design-root">
+  <style>
+    #cal-design-root{
+      color-scheme: light;
+      --cal-surface:#FFFFFF;
+      --cal-surface-2:#F8FAFC;
+      --cal-surface-3:#F1F5F9;
+      --cal-border:#E2E8F0;
+      --cal-border-soft:#EEF2F7;
+      --cal-border-strong:#CBD5E1;
+      --cal-text:#0F172A;
+      --cal-text-2:#475569;
+      --cal-text-3:#94A3B8;
+      --cal-text-4:#64748B;
+      --cal-primary:#0EA5E9;
+      --cal-primary-strong:#0284C7;
+      --cal-primary-text:#0369A1;
+      --cal-primary-soft:#F0F9FF;
+      --cal-primary-light:#E0F2FE;
+      --cal-primary-border:#BAE6FD;
+      --cal-success:#22C55E;
+      --cal-success-text:#15803D;
+      --cal-success-soft:#F0FDF4;
+      --cal-success-border:#BBF7D0;
+      --cal-danger:#EF4444;
+      --cal-danger-text:#B91C1C;
+      --cal-danger-soft:#FEF2F2;
+      --cal-danger-border:#FECACA;
+      --cal-warning:#F59E0B;
+      --cal-warning-text:#B45309;
+      --cal-warning-soft:#FFF4E5;
+      --cal-warning-border:#FDE68A;
+      --cal-canvas:#0B1220;
+      --cal-canvas-2:#1E293B;
+      --cal-canvas-border:#334155;
+      --cal-canvas-text:#E2E8F0;
+      --cal-canvas-muted:#94A3B8;
+      --cal-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --cal-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --cal-radius-sm:6px;
+      --cal-radius-md:8px;
+      --cal-radius-lg:10px;
+      --cal-radius-xl:12px;
+      --cal-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--cal-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #cal-design-root *{box-sizing:border-box;}
+    #cal-design-root button,
+    #cal-design-root input,
+    #cal-design-root select,
+    #cal-design-root textarea{font-family:inherit;}
+    #cal-design-root button{color:inherit;}
+    #cal-design-root [hidden]{display:none !important;}
+    #cal-design-root :focus-visible{outline:2px solid var(--cal-primary);outline-offset:2px;}
+
+    #cal-design-root .cal-page{max-width:1360px;margin:0 auto;padding:24px 24px 44px;background:transparent;}
+    #cal-design-root .cal-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #cal-design-root .cal-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--cal-text);}
+    #cal-design-root .cal-ver{
+      display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+      background:var(--cal-primary-light);color:var(--cal-primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;
+    }
+    #cal-design-root .cal-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--cal-text-2);}
+    #cal-design-root .cal-page-sub b{color:var(--cal-text);font-weight:600;}
+    #cal-design-root .cal-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #cal-design-root .cal-demo-group{display:flex;align-items:center;gap:8px;}
+    #cal-design-root .cal-demo-label{font-size:11.5px;color:var(--cal-text-4);}
+    #cal-design-root .cal-scope{
+      display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--cal-text-2);
+    }
+    #cal-design-root .cal-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--cal-warning-text);}
+    #cal-design-root .cal-scope b{color:var(--cal-text);font-weight:600;}
+    #cal-design-root .cal-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--cal-radius-md);background:var(--cal-surface-3);}
+    #cal-design-root .cal-seg button{
+      height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--cal-text-2);
+      font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;
+    }
+    #cal-design-root .cal-seg button:hover{color:var(--cal-text);}
+    #cal-design-root .cal-seg button.is-on{background:#FFFFFF;color:var(--cal-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+
+    /* ================= 产品窗口 ================= */
+    #cal-design-root .cal-window{
+      width:960px;max-width:100%;height:680px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;
+      background:var(--cal-surface);border-radius:16px;box-shadow:var(--cal-shadow-window);transition:width 200ms ease;
+    }
+    #cal-design-root .cal-window.is-narrow{width:640px;}
+
+    #cal-design-root .cal-titlebar{height:72px;flex:none;display:flex;align-items:center;padding:0 20px;background:var(--cal-surface);border-bottom:1px solid var(--cal-border-soft);}
+    #cal-design-root .cal-app-icon{
+      width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;
+      background:var(--cal-primary-light);color:var(--cal-primary-text);
+    }
+    #cal-design-root .cal-app-icon svg{width:19px;height:19px;}
+    #cal-design-root .cal-title-text{margin-left:12px;min-width:0;flex:1;}
+    #cal-design-root .cal-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--cal-text);}
+    #cal-design-root .cal-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--cal-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #cal-design-root .cal-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+    #cal-design-root .cal-icon-btn{
+      width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--cal-radius-md);display:inline-flex;align-items:center;justify-content:center;
+      background:transparent;color:var(--cal-text-4);cursor:pointer;transition:background 150ms ease,color 150ms ease;
+    }
+    #cal-design-root .cal-icon-btn svg{width:15px;height:15px;}
+    #cal-design-root .cal-icon-btn:hover{background:var(--cal-surface-3);color:var(--cal-text);}
+
+    #cal-design-root .cal-content{
+      flex:1;min-height:0;display:grid;grid-template-columns:420px minmax(0,1fr);gap:16px;padding:16px 20px 20px;background:var(--cal-surface);
+    }
+    #cal-design-root .cal-window.is-narrow .cal-content{grid-template-columns:340px minmax(0,1fr);gap:12px;padding:14px 16px 16px;}
+
+    /* ---- 左栏 ---- */
+    #cal-design-root .cal-rail{
+      min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;padding:14px;
+      border:1px solid var(--cal-border-soft);border-radius:var(--cal-radius-xl);background:var(--cal-surface-2);
+      scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;
+    }
+    #cal-design-root .cal-rail::-webkit-scrollbar{width:8px;}
+    #cal-design-root .cal-rail::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+
+    #cal-design-root .cal-mode-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+    #cal-design-root .cal-mode{
+      position:relative;display:flex;align-items:center;gap:8px;min-height:56px;padding:8px 10px;
+      border:1px solid var(--cal-border);border-radius:var(--cal-radius-lg);background:var(--cal-surface);text-align:left;cursor:pointer;
+      transition:border-color 150ms ease,background 150ms ease,box-shadow 150ms ease;
+    }
+    #cal-design-root .cal-mode:hover{border-color:var(--cal-border-strong);background:#FBFDFF;}
+    #cal-design-root .cal-mode:active{background:var(--cal-surface-3);}
+    #cal-design-root .cal-mode.is-active{border-color:var(--cal-primary);background:var(--cal-primary-soft);box-shadow:0 0 0 3px rgba(14,165,233,.10);}
+    #cal-design-root .cal-mode-icon{
+      width:28px;height:28px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;
+      background:var(--cal-surface-3);color:var(--cal-text-4);transition:background 150ms ease,color 150ms ease;
+    }
+    #cal-design-root .cal-mode-icon svg{width:15px;height:15px;}
+    #cal-design-root .cal-mode.is-active .cal-mode-icon{background:var(--cal-primary-light);color:var(--cal-primary-text);}
+    #cal-design-root .cal-mode-text{display:flex;flex-direction:column;min-width:0;padding-right:18px;}
+    #cal-design-root .cal-mode-text b{font-size:12.5px;font-weight:600;line-height:1.35;color:var(--cal-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #cal-design-root .cal-mode-text small{margin-top:2px;font-size:10.5px;line-height:1.3;color:var(--cal-text-4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #cal-design-root .cal-mode-check{
+      position:absolute;right:9px;top:50%;transform:translateY(-50%);width:16px;height:16px;border-radius:50%;
+      display:none;align-items:center;justify-content:center;background:var(--cal-primary);color:#fff;
+    }
+    #cal-design-root .cal-mode-check svg{width:10px;height:10px;}
+    #cal-design-root .cal-mode.is-active .cal-mode-check{display:flex;}
+
+    #cal-design-root .cal-card{
+      margin-top:12px;padding:12px;border:1px solid var(--cal-border);border-radius:var(--cal-radius-lg);background:var(--cal-surface);
+    }
+    #cal-design-root .cal-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;font-size:12px;font-weight:600;color:var(--cal-text-2);}
+    #cal-design-root .cal-section-hint{font-size:10.5px;font-weight:400;color:var(--cal-text-3);white-space:nowrap;}
+    #cal-design-root .cal-field{margin-bottom:12px;}
+    #cal-design-root .cal-field:last-child{margin-bottom:0;}
+    #cal-design-root .cal-label{display:flex;align-items:center;gap:5px;margin-bottom:6px;font-size:12px;font-weight:500;line-height:1.3;color:var(--cal-text-2);}
+    #cal-design-root .cal-input-row{display:flex;align-items:center;gap:8px;}
+    #cal-design-root .cal-input,
+    #cal-design-root .cal-select,
+    #cal-design-root .cal-textarea{
+      width:100%;height:36px;padding:0 10px;border:1px solid var(--cal-border);border-radius:var(--cal-radius-md);
+      background:var(--cal-surface);color:var(--cal-text);font-size:12.5px;line-height:1;outline:none;
+      transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;
+    }
+    #cal-design-root .cal-input:hover,#cal-design-root .cal-select:hover,#cal-design-root .cal-textarea:hover{border-color:var(--cal-border-strong);}
+    #cal-design-root .cal-input:focus,#cal-design-root .cal-select:focus,#cal-design-root .cal-textarea:focus{border-color:var(--cal-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #cal-design-root .cal-input:disabled,#cal-design-root .cal-select:disabled{background:var(--cal-surface-3);color:var(--cal-text-3);cursor:not-allowed;}
+    #cal-design-root .cal-select{appearance:none;-webkit-appearance:none;padding-right:30px;cursor:pointer;}
+    #cal-design-root .cal-select-wrap{position:relative;flex:1;min-width:0;}
+    #cal-design-root .cal-select-wrap > svg{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--cal-text-3);pointer-events:none;}
+    #cal-design-root .cal-grid-2{display:grid;grid-template-columns:1fr 92px;gap:8px;}
+    #cal-design-root .cal-help{display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;font-size:11.5px;line-height:1.5;color:var(--cal-text-4);}
+    #cal-design-root .cal-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--cal-text-3);}
+    #cal-design-root .cal-mono{font-family:var(--cal-mono);font-variant-numeric:tabular-nums;}
+
+    /* 按钮 */
+    #cal-design-root .cal-btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 13px;
+      border:1px solid var(--cal-border);border-radius:var(--cal-radius-md);background:var(--cal-surface);color:var(--cal-text);
+      font-size:12.5px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;
+    }
+    #cal-design-root .cal-btn svg{width:14px;height:14px;}
+    #cal-design-root .cal-btn:hover{background:var(--cal-surface-2);border-color:var(--cal-border-strong);}
+    #cal-design-root .cal-btn:active{background:var(--cal-surface-3);}
+    #cal-design-root .cal-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #cal-design-root .cal-btn-sm{height:32px;padding:0 11px;font-size:12px;}
+    #cal-design-root .cal-btn-ghost{border-color:transparent;background:transparent;color:var(--cal-text-2);}
+    #cal-design-root .cal-btn-ghost:hover{background:var(--cal-surface-3);border-color:transparent;color:var(--cal-text);}
+    #cal-design-root .cal-btn-square{
+      width:36px;height:36px;flex:none;padding:0;border:1px solid var(--cal-border);border-radius:var(--cal-radius-md);
+      background:var(--cal-surface);color:var(--cal-text-4);display:flex;align-items:center;justify-content:center;cursor:pointer;
+    }
+    #cal-design-root .cal-btn-square:hover{background:var(--cal-primary-soft);border-color:var(--cal-primary-border);color:var(--cal-primary-text);}
+    #cal-design-root .cal-btn-square svg{width:14px;height:14px;}
+
+    /* 模式面板 */
+    #cal-design-root .cal-inline-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+    #cal-design-root .cal-inline-label{font-size:12px;color:var(--cal-text-2);white-space:nowrap;}
+    #cal-design-root .cal-num{width:88px;height:32px;padding:0 8px;border:1px solid var(--cal-border);border-radius:6px;background:var(--cal-surface);font-size:12px;color:var(--cal-text);}
+    #cal-design-root .cal-num.small{width:64px;}
+    #cal-design-root .cal-abc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+    #cal-design-root .cal-abc-cell{display:flex;align-items:center;gap:6px;}
+    #cal-design-root .cal-abc-cell span{width:38px;font-size:11.5px;color:var(--cal-text-4);}
+    #cal-design-root .cal-abc-cell input{flex:1;height:32px;padding:0 8px;border:1px solid var(--cal-border);border-radius:6px;background:var(--cal-surface);font-size:12px;color:var(--cal-text);}
+    #cal-design-root .cal-span{display:flex;align-items:flex-start;gap:5px;margin-top:8px;font-size:11.5px;line-height:1.5;color:var(--cal-success-text);}
+    #cal-design-root .cal-span.is-warn{color:var(--cal-warning-text);}
+    #cal-design-root .cal-span svg{width:12px;height:12px;flex:none;margin-top:1px;}
+
+    /* 标定表 */
+    #cal-design-root .cal-table-wrap{overflow-x:auto;border:1px solid var(--cal-border-soft);border-radius:8px;}
+    #cal-design-root .cal-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+    #cal-design-root .cal-table th{
+      padding:7px 5px;text-align:left;font-weight:600;color:var(--cal-text-3);background:var(--cal-surface-2);
+      border-bottom:1px solid var(--cal-border-soft);white-space:nowrap;
+    }
+    #cal-design-root .cal-table td{padding:4px 5px;border-bottom:1px solid var(--cal-border-soft);vertical-align:middle;}
+    #cal-design-root .cal-table tr:last-child td{border-bottom:0;}
+    #cal-design-root .cal-table .name{font-weight:600;color:var(--cal-success-text);}
+    #cal-design-root .cal-table .name.is-empty{color:var(--cal-text-3);font-weight:400;}
+    #cal-design-root .cal-table .name.is-partial{color:var(--cal-warning-text);}
+    #cal-design-root .cal-table input{width:100%;height:26px;padding:0 5px;border:1px solid transparent;border-radius:4px;background:transparent;font-size:11px;color:var(--cal-text);font-variant-numeric:tabular-nums;}
+    #cal-design-root .cal-table input:hover{border-color:var(--cal-border);}
+    #cal-design-root .cal-table input:focus{border-color:var(--cal-primary);background:var(--cal-surface);outline:none;}
+    #cal-design-root .cal-table .mini{
+      height:24px;padding:0 6px;border:1px solid var(--cal-border);border-radius:5px;background:var(--cal-surface);
+      font-size:10.5px;color:var(--cal-text-2);cursor:pointer;white-space:nowrap;
+    }
+    #cal-design-root .cal-table .mini:hover{border-color:var(--cal-primary-border);background:var(--cal-primary-soft);color:var(--cal-primary-text);}
+    #cal-design-root .cal-residual{font-family:var(--cal-mono);font-size:10.5px;color:var(--cal-text-3);text-align:right;white-space:nowrap;}
+    #cal-design-root .cal-table-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px;}
+    #cal-design-root .cal-table-note{margin:8px 0 0;font-size:11px;line-height:1.55;color:var(--cal-text-4);}
+
+    /* 折叠区 */
+    #cal-design-root .cal-details{margin-top:12px;border:1px solid var(--cal-border);border-radius:var(--cal-radius-lg);background:var(--cal-surface);overflow:hidden;}
+    #cal-design-root .cal-details summary{
+      display:flex;align-items:center;gap:8px;padding:10px 12px;font-size:12px;font-weight:600;color:var(--cal-text-2);
+      cursor:pointer;list-style:none;
+    }
+    #cal-design-root .cal-details summary::-webkit-details-marker{display:none;}
+    #cal-design-root .cal-details summary:hover{background:var(--cal-surface-2);}
+    #cal-design-root .cal-details summary svg{width:14px;height:14px;color:var(--cal-text-3);}
+    #cal-design-root .cal-details summary .chev{margin-left:auto;transition:transform 150ms ease;}
+    #cal-design-root .cal-details[open] summary .chev{transform:rotate(180deg);}
+    #cal-design-root .cal-details-body{padding:0 12px 12px;border-top:1px solid var(--cal-border-soft);}
+    #cal-design-root .cal-details-sub{margin:10px 0 7px;font-size:10.5px;font-weight:600;letter-spacing:.03em;color:var(--cal-text-3);}
+    #cal-design-root .cal-textarea{height:auto;min-height:66px;padding:8px 10px;resize:vertical;font-family:var(--cal-mono);font-size:10.5px;line-height:1.55;background:var(--cal-surface-2);color:var(--cal-text-2);}
+    #cal-design-root .cal-check{display:flex;align-items:flex-start;gap:7px;font-size:11.5px;line-height:1.5;color:var(--cal-text-2);}
+    #cal-design-root .cal-check input{width:15px;height:15px;margin:1px 0 0;accent-color:var(--cal-primary);}
+    #cal-design-root .cal-radio-line{display:flex;align-items:center;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--cal-text-2);}
+    #cal-design-root .cal-radio-line label{display:inline-flex;align-items:center;gap:6px;cursor:pointer;}
+    #cal-design-root .cal-radio-line input{accent-color:var(--cal-primary);}
+    #cal-design-root .cal-result{margin-top:8px;font-size:11.5px;line-height:1.55;color:var(--cal-text-2);white-space:pre-line;}
+    #cal-design-root .cal-result.is-ok{color:var(--cal-success-text);}
+    #cal-design-root .cal-result.is-warn{color:var(--cal-warning-text);}
+    #cal-design-root .cal-result.is-err{color:var(--cal-danger-text);}
+
+    /* 质量卡 */
+    #cal-design-root .cal-quality-line{font-size:12px;line-height:1.55;color:var(--cal-success-text);}
+    #cal-design-root .cal-quality-hint{margin-top:4px;font-size:11px;line-height:1.5;color:var(--cal-warning-text);}
+    #cal-design-root .cal-divider{height:1px;margin:10px 0;background:var(--cal-border-soft);}
+    #cal-design-root .cal-two-col{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    #cal-design-root .cal-three-col{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
+
+    /* ---- 右侧预览 ---- */
+    #cal-design-root .cal-preview{
+      min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+      border:1px solid var(--cal-border);border-radius:var(--cal-radius-xl);background:var(--cal-surface);
+    }
+    #cal-design-root .cal-pick-banner{
+      display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--cal-warning-soft);
+      border-bottom:1px solid var(--cal-warning-border);color:var(--cal-warning-text);font-size:11.5px;line-height:1.4;
+    }
+    #cal-design-root .cal-pick-banner svg{width:14px;height:14px;flex:none;}
+    #cal-design-root .cal-pick-banner .cal-btn{margin-left:auto;height:26px;padding:0 9px;font-size:11px;background:var(--cal-surface);border-color:var(--cal-warning-border);color:var(--cal-warning-text);}
+    #cal-design-root .cal-preview-head{height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid var(--cal-border-soft);background:var(--cal-surface);}
+    #cal-design-root .cal-file-chip{width:26px;height:26px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;background:var(--cal-surface-3);color:var(--cal-text-2);}
+    #cal-design-root .cal-file-chip svg{width:13px;height:13px;}
+    #cal-design-root .cal-file-name{font-size:12.5px;font-weight:600;line-height:1.3;color:var(--cal-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;}
+    #cal-design-root .cal-file-meta{flex:none;font-size:10.5px;line-height:1.3;color:var(--cal-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+    #cal-design-root .cal-preview-tools{margin-left:auto;display:flex;align-items:center;gap:6px;flex:none;}
+    #cal-design-root .cal-info-bar{
+      flex:none;display:flex;align-items:center;gap:8px;padding:8px 12px;
+      border-bottom:1px solid var(--cal-warning-border);background:var(--cal-warning-soft);
+      color:var(--cal-warning-text);font-size:11.5px;line-height:1.45;
+    }
+    #cal-design-root .cal-info-bar.is-err{border-bottom-color:var(--cal-danger-border);background:var(--cal-danger-soft);color:var(--cal-danger-text);}
+    #cal-design-root .cal-info-bar svg{width:14px;height:14px;flex:none;}
+    #cal-design-root .cal-info-bar span{min-width:0;flex:1;}
+    #cal-design-root .cal-info-bar .cal-btn{
+      height:26px;padding:0 9px;font-size:11px;flex:none;
+      background:var(--cal-surface);border-color:var(--cal-warning-border);color:var(--cal-warning-text);
+    }
+    #cal-design-root .cal-info-bar.is-err .cal-btn{border-color:var(--cal-danger-border);color:var(--cal-danger-text);}
+    #cal-design-root .cal-chip{
+      display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;
+      background:var(--cal-surface-3);color:var(--cal-text-4);font-size:10.5px;line-height:1;font-variant-numeric:tabular-nums;
+    }
+    #cal-design-root .cal-window.is-narrow .cal-file-name{max-width:100px;}
+    #cal-design-root .cal-window.is-narrow .cal-file-meta{display:none;}
+    #cal-design-root .cal-window.is-narrow .cal-status-path{display:none;}
+    #cal-design-root .cal-window.is-narrow .cal-canvas-hint{display:none;}
+
+    #cal-design-root .cal-canvas{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--cal-canvas);}
+    #cal-design-root .cal-canvas-view{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;}
+    #cal-design-root .cal-canvas-view[data-view="image"]{display:block;padding:0;}
+    #cal-design-root .cal-scene{width:100%;height:100%;display:block;}
+    #cal-design-root .cal-overlay{position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:6px;pointer-events:none;}
+    #cal-design-root .cal-overlay .cal-chip{background:rgba(15,23,42,.58);border:1px solid rgba(148,163,184,.22);color:#E2E8F0;backdrop-filter:blur(6px);}
+    #cal-design-root .cal-overlay .cal-chip svg{width:11px;height:11px;color:#7DD3FC;}
+    #cal-design-root .cal-state-icon{
+      width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+      background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.18);color:#94A3B8;margin-bottom:13px;
+    }
+    #cal-design-root .cal-state-icon svg{width:22px;height:22px;}
+    #cal-design-root .cal-state-title{font-size:14px;font-weight:600;line-height:1.4;color:#E2E8F0;margin-bottom:4px;}
+    #cal-design-root .cal-state-sub{max-width:330px;font-size:11.5px;line-height:1.6;color:#94A3B8;margin:0 0 14px;}
+    #cal-design-root .cal-state-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;}
+    #cal-design-root .cal-state-actions .cal-btn{background:rgba(255,255,255,.06);border-color:rgba(148,163,184,.28);color:#E2E8F0;}
+    #cal-design-root .cal-state-actions .cal-btn:hover{background:rgba(255,255,255,.12);border-color:rgba(148,163,184,.45);}
+    #cal-design-root .cal-state-actions .cal-btn-primary{background:var(--cal-primary);border-color:var(--cal-primary);color:#fff;}
+    #cal-design-root .cal-state-actions .cal-btn-primary:hover{background:var(--cal-primary-strong);border-color:var(--cal-primary-strong);}
+    #cal-design-root .cal-error .cal-state-icon{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.30);color:#F87171;}
+    #cal-design-root .cal-error .cal-state-title{color:#FCA5A5;}
+
+    #cal-design-root .cal-statusbar{
+      height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid var(--cal-border-soft);
+      background:var(--cal-surface);font-size:11.5px;min-width:0;
+    }
+    #cal-design-root .cal-status-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--cal-text-3);}
+    #cal-design-root .cal-status-dot.is-ok{background:var(--cal-success);}
+    #cal-design-root .cal-status-dot.is-warn{background:var(--cal-warning);}
+    #cal-design-root .cal-status-dot.is-err{background:var(--cal-danger);}
+    #cal-design-root .cal-status-msg{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--cal-text-2);}
+    #cal-design-root .cal-status-msg.is-ok{color:var(--cal-success-text);}
+    #cal-design-root .cal-status-msg.is-warn{color:var(--cal-warning-text);}
+    #cal-design-root .cal-status-msg.is-err{color:var(--cal-danger-text);}
+    #cal-design-root .cal-status-path{margin-left:auto;max-width:48%;flex:none;font-family:var(--cal-mono);font-size:10.5px;color:var(--cal-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+    /* ---- 底部 ---- */
+    #cal-design-root .cal-footer{height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid var(--cal-border-soft);background:var(--cal-surface-2);}
+    #cal-design-root .cal-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #cal-design-root .cal-status-chip{
+      display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;
+      background:var(--cal-surface);border:1px solid var(--cal-border);font-size:11.5px;color:var(--cal-text-2);white-space:nowrap;
+    }
+    #cal-design-root .cal-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--cal-text-3);}
+    #cal-design-root .cal-elapsed{font-family:var(--cal-mono);font-size:11px;color:var(--cal-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+    #cal-design-root .cal-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #cal-design-root .cal-footer .cal-btn{height:32px;padding:0 16px;font-size:12.5px;}
+    #cal-design-root .cal-footer .cal-btn-primary{padding:0 18px;}
+
+    /* ---- 改动说明 ---- */
+    #cal-design-root .cal-notes{max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;}
+    #cal-design-root .cal-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--cal-text-2);}
+    #cal-design-root .cal-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--cal-border);}
+    #cal-design-root .cal-note-num{
+      width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      background:var(--cal-primary-light);color:var(--cal-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;
+    }
+    #cal-design-root .cal-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--cal-text);}
+    #cal-design-root .cal-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--cal-text-2);}
+    #cal-design-root .cal-note code{font-family:var(--cal-mono);font-size:10.5px;color:var(--cal-primary-text);background:var(--cal-primary-soft);padding:1px 4px;border-radius:4px;}
+
+    @media (prefers-reduced-motion: reduce){#cal-design-root *{animation:none !important;transition:none !important;}}
+    @media (max-width:1024px){
+      #cal-design-root .cal-page{padding:18px 14px 32px;}
+      #cal-design-root .cal-window{height:auto;min-height:640px;}
+      #cal-design-root .cal-content{grid-template-columns:1fr;}
+      #cal-design-root .cal-rail{overflow:visible;}
+      #cal-design-root .cal-preview{min-height:420px;}
+    }
+  </style>
+
+  <div class="cal-page">
+    <header class="cal-page-head">
+      <div class="cal-page-title-row">
+        <h1>标定 · 配置窗口</h1>
+        <span class="cal-ver">v1</span>
+      </div>
+      <p class="cal-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、<b>LinkableValueEditor</b>、
+        <b>ImageEdit 画布与全部 ROI/标记绑定</b>、<b>Mode / Command / StatusLevel</b>；不新增功能、不改业务语义。
+        窗口 <b>960 × 680</b>，左侧配置轨 <b>420px</b>，右侧标定画布自适应；窄档 <b>640 × 680</b>。
+      </p>
+      <div class="cal-demo-bar">
+        <div class="cal-demo-group" role="group" aria-label="窗口宽度">
+          <span class="cal-demo-label">窗口宽度</span>
+          <div class="cal-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="cal-demo-group" role="group" aria-label="画布状态">
+          <span class="cal-demo-label">画布状态</span>
+          <div class="cal-seg">
+            <button type="button" data-state="normal" class="is-on" aria-pressed="true">正常</button>
+            <button type="button" data-state="empty" aria-pressed="false">空态</button>
+            <button type="button" data-state="error" aria-pressed="false">错误</button>
+          </div>
+        </div>
+        <div class="cal-demo-group" role="group" aria-label="锁定状态">
+          <span class="cal-demo-label">锁定</span>
+          <div class="cal-seg">
+            <button type="button" data-lock="off" class="is-on" aria-pressed="true">解锁</button>
+            <button type="button" data-lock="on" aria-pressed="false">已锁定</button>
+          </div>
+        </div>
+      </div>
+      <div class="cal-scope">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span><b>本稿未纳入（需新增功能或契约）：</b>加载骨架、文件大小、放大/缩小、打开所在文件夹、系统导航。
+        画布工具条只保留真实存在的「取点」与「取消取点」；不造死按钮。</span>
+      </div>
+    </header>
+
+    <div class="cal-window" id="cal-window">
+      <div class="cal-titlebar">
+        <div class="cal-app-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4"></path><path d="M12 18v4"></path><path d="M2 12h4"></path><path d="M18 12h4"></path><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="1.5"></circle></svg>
+        </div>
+        <div class="cal-title-text">
+          <div class="cal-title">标定</div>
+          <div class="cal-subtitle">像素当量 / 九点 / 透视 / 网格：产出「像素 ↔ 毫米 / 机械坐标」的变换</div>
+        </div>
+        <div class="cal-title-actions">
+          <button type="button" class="cal-icon-btn" data-tooltip="关闭" aria-label="关闭">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="cal-content">
+        <aside class="cal-rail" id="cal-rail" aria-label="标定配置">
+          <div class="cal-mode-grid" role="group" aria-label="标定模式">
+            <button type="button" class="cal-mode is-active" data-mode="pixel" aria-pressed="true">
+              <span class="cal-mode-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z"></path><path d="m14.5 12.5 2-2"></path><path d="m11.5 9.5 2-2"></path><path d="m8.5 6.5 2-2"></path><path d="m17.5 15.5 2-2"></path></svg></span>
+              <span class="cal-mode-text"><b>像素当量</b><small>已知长度 → mm/px</small></span>
+              <span class="cal-mode-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+            </button>
+            <button type="button" class="cal-mode" data-mode="nine" aria-pressed="false">
+              <span class="cal-mode-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M3 15h18"></path><path d="M9 3v18"></path><path d="M15 3v18"></path></svg></span>
+              <span class="cal-mode-text"><b>九点标定</b><small>N×N 仿射</small></span>
+              <span class="cal-mode-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+            </button>
+            <button type="button" class="cal-mode" data-mode="persp" aria-pressed="false">
+              <span class="cal-mode-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V8l9-5 9 5v13"></path><path d="M3 8h18"></path><path d="M12 3v18"></path></svg></span>
+              <span class="cal-mode-text"><b>透视标定</b><small>3×3 投影</small></span>
+              <span class="cal-mode-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+            </button>
+            <button type="button" class="cal-mode" data-mode="mesh" aria-pressed="false">
+              <span class="cal-mode-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h18v18H3z"></path><path d="M3 9h18"></path><path d="M9 3v18"></path><path d="M15 3v18"></path><path d="M3 15h18"></path></svg></span>
+              <span class="cal-mode-text"><b>网格标定</b><small>分段仿射</small></span>
+              <span class="cal-mode-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+            </button>
+          </div>
+
+          <section class="cal-card" aria-label="标定图">
+            <div class="cal-section-head"><span>标定图</span><span class="cal-section-hint">固定值 / 变量链接</span></div>
+            <div class="cal-field">
+              <div class="cal-input-row">
+                <input class="cal-input" id="cal-image-path" type="text" value="D:\Calib\calib-board-01.bmp" spellcheck="false">
+                <button type="button" class="cal-btn cal-btn-sm" style="height:36px;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></svg>浏览
+                </button>
+                <button type="button" class="cal-btn-square" data-tooltip="绑定变量" aria-label="绑定变量">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+                </button>
+              </div>
+              <p class="cal-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                标定图尺寸：2048×1536（载图时自动记录，下游据此判断标定是否失效）
+              </p>
+              <p class="cal-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                接了「实时图」输入端口 → 画布优先显示实时图并可直接在其上取点（引用借入，不占内存所有权）。
+              </p>
+            </div>
+          </section>
+
+          <section class="cal-card" data-panel="pixel" aria-label="像素当量参数">
+            <div class="cal-section-head"><span>像素当量</span><span class="cal-section-hint">A / B 两点定标</span></div>
+            <div class="cal-inline-row">
+              <span class="cal-inline-label">已知长度(mm)</span>
+              <input class="cal-num" type="number" value="100">
+              <button type="button" class="cal-btn cal-btn-sm" data-pick="A">取A点</button>
+              <button type="button" class="cal-btn cal-btn-sm" data-pick="B">取B点</button>
+            </div>
+            <div class="cal-span" id="cal-span">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+              <span>标定线 620.4px，占视野对角 35.1%（建议 ≥ 25%）</span>
+            </div>
+            <div class="cal-abc-grid">
+              <div class="cal-abc-cell"><span>A.Row</span><input type="text" value="412.5"></div>
+              <div class="cal-abc-cell"><span>A.Col</span><input type="text" value="388.0"></div>
+              <div class="cal-abc-cell"><span>B.Row</span><input type="text" value="1018.2"></div>
+              <div class="cal-abc-cell"><span>B.Col</span><input type="text" value="892.6"></div>
+            </div>
+            <p class="cal-help">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              点「取A点/取B点」→ 在图上各点一下；也可点「把点画到图上」拖动 A / B 标记，或手工填坐标。
+            </p>
+          </section>
+
+          <section class="cal-card" data-panel="points" aria-label="标定表" hidden>
+            <div class="cal-section-head"><span>标定表</span><span class="cal-section-hint">机械坐标 ↔ 图像点</span></div>
+            <div class="cal-inline-row" style="margin-bottom:8px;">
+              <span class="cal-inline-label">网格规模</span>
+              <div class="cal-select-wrap" style="max-width:88px;">
+                <select class="cal-select" aria-label="网格规模">
+                  <option>3</option><option>4</option><option>5</option><option>6</option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+              <button type="button" class="cal-btn cal-btn-sm">重建网格</button>
+              <span class="cal-section-hint">默认 3×3</span>
+            </div>
+            <div class="cal-table-wrap">
+              <table class="cal-table">
+                <thead>
+                  <tr><th style="width:34px;">点</th><th>机械X</th><th>机械Y</th><th>像Row</th><th>像Col</th><th style="width:44px;">取点</th><th style="width:44px;">预填</th><th style="width:52px;text-align:right;">残差px</th></tr>
+                </thead>
+                <tbody id="cal-point-rows">
+                  <tr><td class="name">P1</td><td><input value="0.000"></td><td><input value="0.000"></td><td><input value="412.5"></td><td><input value="388.0"></td><td><button class="mini" type="button">取点</button></td><td><button class="mini" type="button">预填</button></td><td class="cal-residual">0.21</td></tr>
+                  <tr><td class="name">P2</td><td><input value="100.000"></td><td><input value="0.000"></td><td><input value="408.9"></td><td><input value="892.6"></td><td><button class="mini" type="button">取点</button></td><td><button class="mini" type="button">预填</button></td><td class="cal-residual">0.18</td></tr>
+                  <tr><td class="name">P3</td><td><input value="200.000"></td><td><input value="0.000"></td><td><input value="405.2"></td><td><input value="1396.4"></td><td><button class="mini" type="button">取点</button></td><td><button class="mini" type="button">预填</button></td><td class="cal-residual">0.24</td></tr>
+                  <tr><td class="name">P4</td><td><input value="0.000"></td><td><input value="100.000"></td><td><input value="1018.2"></td><td><input value="388.0"></td><td><button class="mini" type="button">取点</button></td><td><button class="mini" type="button">预填</button></td><td class="cal-residual">0.19</td></tr>
+                  <tr><td class="name">P5</td><td><input value="100.000"></td><td><input value="100.000"></td><td><input value="1014.6"></td><td><input value="892.6"></td><td><button class="mini" type="button">取点</button></td><td><button class="mini" type="button">预填</button></td><td class="cal-residual">0.22</td></tr>
+                  <tr><td class="name">P6</td><td><input value="200.000"></td><td><input value="100.000"></td><td><input value="1010.8"></td><td><input value="1396.4"></td><td><button class="mini" type="button">取点</button></td><td><button class="mini" type="button">预填</button></td><td class="cal-residual">0.20</td></tr>
+                  <tr><td class="name is-partial">P7</td><td><input value="0.000"></td><td><input value="200.000"></td><td><input value="1624.0"></td><td><input value=""></td><td><button class="mini" type="button">取点</button></td><td><button class="mini" type="button">预填</button></td><td class="cal-residual">—</td></tr>
+                  <tr><td class="name is-empty">P8</td><td><input value=""></td><td><input value=""></td><td><input value=""></td><td><input value=""></td><td><button class="mini" type="button">取点</button></td><td><button class="mini" type="button">预填</button></td><td class="cal-residual">—</td></tr>
+                  <tr><td class="name is-empty">P9</td><td><input value=""></td><td><input value=""></td><td><input value=""></td><td><input value=""></td><td><button class="mini" type="button">取点</button></td><td><button class="mini" type="button">预填</button></td><td class="cal-residual">—</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="cal-table-actions">
+              <button type="button" class="cal-btn cal-btn-sm">粘贴 N 行</button>
+              <button type="button" class="cal-btn cal-btn-sm">清空表格</button>
+              <button type="button" class="cal-btn cal-btn-sm">把点画到图上</button>
+            </div>
+            <p class="cal-table-note">整行留空 = 空行（不参与计算）；0 是合法坐标值。半填行运行时报错并指到行。典型流程：机械走位 → 相机采图 → 行上「取点」→ 从示教器粘贴机械坐标。</p>
+          </section>
+
+          <details class="cal-details" id="cal-intrinsics">
+            <summary>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"></path><circle cx="12" cy="13" r="3"></circle></svg>
+              <span>内参标定（去畸变）</span>
+              <span class="cal-section-hint" style="margin-left:6px;">标定板 · 相机模型 · 自验证</span>
+              <svg class="chev" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+            </summary>
+            <div class="cal-details-body">
+              <div class="cal-details-sub">标定板与模型</div>
+              <div class="cal-grid-2" style="grid-template-columns:1fr 96px;">
+                <div class="cal-select-wrap">
+                  <select class="cal-select" aria-label="标定板">
+                    <option>calplate_160mm.cpd</option>
+                    <option>caltab_30mm.descr</option>
+                    <option>caltab_100mm.descr</option>
+                  </select>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                </div>
+                <input class="cal-num" type="number" value="5.2" title="像元(µm)">
+              </div>
+              <p class="cal-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                旧式板标记暗/板面亮；新式板标记亮/板面暗——极性配反会报 #8431 / #8397。落盘存文件名。
+              </p>
+              <div class="cal-radio-line" style="margin-top:10px;">
+                <span class="cal-inline-label">相机模型</span>
+                <label><input type="radio" name="cal-model" checked>单系数（division）</label>
+                <label><input type="radio" name="cal-model">多系数（polynomial）</label>
+                <span class="cal-inline-label">像元(µm)</span>
+                <input class="cal-num small" type="number" value="5.2">
+              </div>
+              <p class="cal-help">单系数：广角/低畸变常用，可解析求逆。多系数：强畸变或需切向项，建议 ≥12 张图。</p>
+
+              <div class="cal-details-sub" style="margin-top:12px;">标定图来源</div>
+              <div class="cal-input-row">
+                <input class="cal-input" type="text" value="D:\Calib\Intrinsics\2026-10-18">
+                <button type="button" class="cal-btn cal-btn-sm" style="height:36px;">浏览…</button>
+              </div>
+              <p class="cal-help">放十几张从不同角度拍到完整标定板的照片；扫描按文件名排序，结果可复现。</p>
+              <div class="cal-details-sub" style="margin-top:10px;">图列表（可选，优先于文件夹）</div>
+              <textarea class="cal-textarea" spellcheck="false"># 每行一个路径；填了就优先于上面的文件夹
+D:\Calib\Intrinsics\2026-10-18\img-001.bmp
+D:\Calib\Intrinsics\2026-10-18\img-002.bmp</textarea>
+              <div class="cal-table-actions">
+                <button type="button" class="cal-btn cal-btn-sm">开始内参标定</button>
+                <button type="button" class="cal-btn cal-btn-sm">合成自验证</button>
+                <button type="button" class="cal-btn cal-btn-sm">清除内参</button>
+              </div>
+              <div class="cal-result is-ok">内参质量：重投影 RMS 0.083px ｜ 焦距 16.42mm ｜ kappa -0.041</div>
+              <div class="cal-result">内参标定成功。12 张图有效，失败 0 张。</div>
+              <div class="cal-result is-warn">合成自验证：最大重投影误差 0.112px（阈值 0.25px）</div>
+              <label class="cal-check" style="margin-top:10px;">
+                <input type="checkbox" checked>
+                <span>取点前先去畸变（标定矩阵定义在去畸变域）</span>
+              </label>
+              <p class="cal-help">打开后：取到的图像点先经内参去畸变再求解；内参缺失/尺寸不符时运行期明确失败，绝不静默退回。</p>
+            </div>
+          </details>
+
+          <section class="cal-card" aria-label="质量与标定信息">
+            <div class="cal-section-head"><span>质量与标定信息</span><span class="cal-section-hint">护栏 · 归档</span></div>
+            <div class="cal-quality-line" id="cal-quality">九点：残差 RMS 0.214px ｜ 最大 0.382px ｜ 各向异性 0.8%</div>
+            <div class="cal-quality-hint" id="cal-quality-hint">质量良好：残差在阈值内，点位覆盖视野四角与中心。</div>
+            <div class="cal-divider"></div>
+            <div class="cal-inline-row">
+              <span class="cal-inline-label">相机序列号</span>
+              <input class="cal-num" style="width:140px;" type="text" value="40123456">
+              <label class="cal-check" style="margin-left:10px;">
+                <input type="checkbox" id="cal-lock-checkbox">
+                <span>锁定标定（防误改）</span>
+              </label>
+            </div>
+            <div class="cal-inline-row" style="margin-top:8px;">
+              <button type="button" class="cal-btn cal-btn-sm">导出标定…</button>
+              <button type="button" class="cal-btn cal-btn-sm">导入标定…</button>
+              <span class="cal-section-hint">多台设备共享同一份标定</span>
+            </div>
+            <div class="cal-three-col" style="margin-top:9px;">
+              <div><div class="cal-inline-label" style="margin-bottom:4px;">残差阈值(px)</div><input class="cal-num" style="width:100%;" type="number" value="1.0"></div>
+              <div><div class="cal-inline-label" style="margin-bottom:4px;">当量下限</div><input class="cal-num" style="width:100%;" type="number" value="0.001"></div>
+              <div><div class="cal-inline-label" style="margin-bottom:4px;">上限</div><input class="cal-num" style="width:100%;" type="number" value="10"></div>
+            </div>
+          </section>
+        </aside>
+
+        <section class="cal-preview" aria-label="标定画布">
+          <div class="cal-pick-banner" id="cal-pick-banner" hidden>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4"></path><path d="M12 18v4"></path><path d="M2 12h4"></path><path d="M18 12h4"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            <span id="cal-pick-text">取点中：请在图上点击目标位置（再点一次按钮取消）</span>
+            <button type="button" class="cal-btn" id="cal-pick-cancel">取消取点</button>
+          </div>
+          <div class="cal-preview-head">
+            <span class="cal-file-chip">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg>
+            </span>
+            <span class="cal-file-name" id="cal-file-name">calib-board-01.bmp</span>
+            <span class="cal-file-meta" id="cal-file-meta">标定图 · 2048×1536</span>
+            <span class="cal-preview-tools">
+              <span class="cal-chip">标定画布</span>
+              <span class="cal-chip cal-canvas-hint">滑轮缩放 · 右键适应图片</span>
+            </span>
+          </div>
+          <div class="cal-info-bar" id="cal-info-bar" hidden>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+            <span id="cal-info-text">请选择标定图或接入实时图</span>
+            <button type="button" class="cal-btn" id="cal-info-browse">选择标定图</button>
+          </div>
+          <div class="cal-canvas">
+            <div class="cal-canvas-view" data-view="image" id="cal-view-image">
+              <svg class="cal-scene" viewBox="0 0 800 560" preserveAspectRatio="xMidYMid slice" aria-label="标定画布示意">
+                <defs>
+                  <pattern id="cal-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                    <path d="M40 0H0V40" fill="none" stroke="#1E293B" stroke-width="1"></path>
+                  </pattern>
+                  <radialGradient id="cal-vignette" cx="50%" cy="45%" r="75%">
+                    <stop offset="60%" stop-color="#111C2E"></stop>
+                    <stop offset="100%" stop-color="#0B1220"></stop>
+                  </radialGradient>
+                </defs>
+                <rect width="800" height="560" fill="url(#cal-vignette)"></rect>
+                <rect width="800" height="560" fill="url(#cal-grid)" opacity=".55"></rect>
+                <g transform="translate(88 58)">
+                  <rect width="624" height="444" rx="4" fill="#E8EDF4" stroke="#CBD5E1" stroke-width="2"></rect>
+                  <g fill="#0F172A" opacity=".86">
+                    <rect x="24" y="24" width="70" height="70"></rect><rect x="118" y="24" width="70" height="70"></rect><rect x="212" y="24" width="70" height="70"></rect><rect x="306" y="24" width="70" height="70"></rect><rect x="400" y="24" width="70" height="70"></rect><rect x="494" y="24" width="70" height="70"></rect><rect x="588" y="24" width="70" height="70"></rect>
+                    <rect x="24" y="118" width="70" height="70"></rect><rect x="118" y="118" width="70" height="70"></rect><rect x="212" y="118" width="70" height="70"></rect><rect x="306" y="118" width="70" height="70"></rect><rect x="400" y="118" width="70" height="70"></rect><rect x="494" y="118" width="70" height="70"></rect><rect x="588" y="118" width="70" height="70"></rect>
+                    <rect x="24" y="212" width="70" height="70"></rect><rect x="118" y="212" width="70" height="70"></rect><rect x="212" y="212" width="70" height="70"></rect><rect x="306" y="212" width="70" height="70"></rect><rect x="400" y="212" width="70" height="70"></rect><rect x="494" y="212" width="70" height="70"></rect><rect x="588" y="212" width="70" height="70"></rect>
+                    <rect x="24" y="306" width="70" height="70"></rect><rect x="118" y="306" width="70" height="70"></rect><rect x="212" y="306" width="70" height="70"></rect><rect x="306" y="306" width="70" height="70"></rect><rect x="400" y="306" width="70" height="70"></rect><rect x="494" y="306" width="70" height="70"></rect><rect x="588" y="306" width="70" height="70"></rect>
+                  </g>
+                  <g fill="#E8EDF4" opacity=".98">
+                    <circle cx="94" cy="94" r="18"></circle><circle cx="188" cy="94" r="18"></circle><circle cx="282" cy="94" r="18"></circle><circle cx="376" cy="94" r="18"></circle><circle cx="470" cy="94" r="18"></circle><circle cx="564" cy="94" r="18"></circle>
+                    <circle cx="94" cy="188" r="18"></circle><circle cx="188" cy="188" r="18"></circle><circle cx="282" cy="188" r="18"></circle><circle cx="376" cy="188" r="18"></circle><circle cx="470" cy="188" r="18"></circle><circle cx="564" cy="188" r="18"></circle>
+                  </g>
+                </g>
+                <g id="cal-markers">
+                  <g fill="none" stroke="#22C55E" stroke-width="1.6">
+                    <circle cx="176" cy="170" r="13"></circle><circle cx="336" cy="166" r="13"></circle><circle cx="496" cy="162" r="13"></circle>
+                    <circle cx="176" cy="330" r="13"></circle><circle cx="336" cy="326" r="13"></circle><circle cx="496" cy="322" r="13"></circle>
+                    <circle cx="176" cy="490" r="13"></circle><circle cx="336" cy="486" r="13"></circle><circle cx="496" cy="482" r="13"></circle>
+                  </g>
+                  <g fill="#22C55E" font-family="Cascadia Mono, Consolas, monospace" font-size="11">
+                    <text x="190" y="166">P1</text><text x="350" y="162">P2</text><text x="510" y="158">P3</text>
+                    <text x="190" y="326">P4</text><text x="350" y="322">P5</text><text x="510" y="318">P6</text>
+                    <text x="190" y="486">P7</text><text x="350" y="482">P8</text><text x="510" y="478">P9</text>
+                  </g>
+                  <g stroke="#EF4444" stroke-width="1.4" opacity=".9">
+                    <path d="M176 170 L184 163"></path><path d="M336 166 L341 173"></path><path d="M496 162 L489 170"></path>
+                  </g>
+                </g>
+              </svg>
+            </div>
+          </div>
+          <div class="cal-statusbar">
+            <span class="cal-status-dot is-ok" id="cal-status-dot"></span>
+            <span class="cal-status-msg is-ok" id="cal-status-msg">已载入标定图，可直接取点</span>
+            <span class="cal-status-path" id="cal-status-path">D:\Calib\calib-board-01.bmp</span>
+          </div>
+        </section>
+      </div>
+
+      <div class="cal-footer">
+        <div class="cal-footer-left">
+          <span class="cal-status-chip"><span class="cal-footer-dot"></span>状态: 待执行</span>
+          <span class="cal-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="cal-footer-right">
+          <button type="button" class="cal-btn">执行</button>
+          <button type="button" class="cal-btn">取消</button>
+          <button type="button" class="cal-btn cal-btn-primary">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="cal-notes">
+      <div class="cal-notes-head">设计要点与契约保留</div>
+      <div class="cal-note"><div class="cal-note-num">1</div><div><b>模式是卡片，不是单选</b><span>2×2 卡片（像素当量 / 九点 / 透视 / 网格）；WPF 仍是 <code>RadioButton</code> + <code>EnumConverter</code> 写回 <code>Mode</code>，类型不变。</span></div></div>
+      <div class="cal-note"><div class="cal-note-num">2</div><div><b>标定图只包裹、不替换</b><span><code>LinkableValueEditor</code> 的 <code>Port</code>/<code>StepData</code>/<code>BrowseCommand</code> 原样保留；只把标签外置、浏览按钮外置。<b>路径已链接变量时外置浏览/空态选择按钮隐藏</b>（链接态写端口值不会触发 ValueChanged）。</span></div></div>
+      <div class="cal-note"><div class="cal-note-num">3</div><div><b>标定表是工作区</b><span>行状态（有效/半填/空）用点名颜色区分；「取点」「预填」逐行命令不变；表格仍是 <code>ItemsControl</code> 绑 <code>PointRows</code>。</span></div></div>
+      <div class="cal-note"><div class="cal-note-num">4</div><div><b>内参标定折叠</b><span>默认收起，避免长期占屏；展开后字段、命令、结果区与现状一一对应，不改变内参业务语义。</span></div></div>
+      <div class="cal-note"><div class="cal-note-num">5</div><div><b>画布常驻</b><span><code>ImageEdit</code> 不因无图而 <code>Collapsed</code>；空态/错误态是画布上方 Auto 行信息条（<code>HwndHost</code> 会盖住 WPF 覆盖层）。HImage / DrawObjectList / ActiveRoi / Annotations / IsPickMode 绑定逐字保留。</span></div></div>
+      <div class="cal-note"><div class="cal-note-num">6</div><div><b>取点态前置</b><span>橙色横幅盖在画布上方，一眼分清「点图是取点」还是「拖标记」；只接现有 <code>IsPickingPoint</code> / <code>PickHintText</code> / <code>CancelPickCommand</code>。</span></div></div>
+      <div class="cal-note"><div class="cal-note-num">7</div><div><b>状态只有三档</b><span><code>StatusLevel</code> = Info / Warning / Error；颜色走 <code>DialogSuccess/Warning/Danger</code> 令牌，不新增第四档。</span></div></div>
+      <div class="cal-note"><div class="cal-note-num">8</div><div><b>全令牌化</b><span>视图 XAML 零十六进制颜色；使用 <code>Dialog*</code> 与 <code>PluginPreview*</code> 既有公共令牌，不修改共享字典。</span></div></div>
+      <div class="cal-note"><div class="cal-note-num">C</div><div><b>契约保留</b><span>C1 DataContext=插件；C2 LinkableValueEditor；C3 ImageEdit 画布；C4 Mode/SelectedItem/Command；C5 StatusMessage/StatusLevel 三档；C6 导入导出/锁定/内参命令。</span></div></div>
+      <div class="cal-note"><div class="cal-note-num">D</div><div><b>明确延后</b><span>加载骨架、文件大小、放大/缩小、打开所在文件夹、系统导航；均需新增功能或契约，本版不做。</span></div></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('cal-design-root');
+      if (!root) return;
+      var win = root.querySelector('#cal-window');
+      var rail = root.querySelector('#cal-rail');
+      var modeButtons = Array.prototype.slice.call(root.querySelectorAll('.cal-mode'));
+      var pixelPanel = root.querySelector('[data-panel="pixel"]');
+      var pointsPanel = root.querySelector('[data-panel="points"]');
+      var stateButtons = Array.prototype.slice.call(root.querySelectorAll('[data-state]'));
+      var widthButtons = Array.prototype.slice.call(root.querySelectorAll('[data-width]'));
+      var lockButtons = Array.prototype.slice.call(root.querySelectorAll('[data-lock]'));
+      var views = Array.prototype.slice.call(root.querySelectorAll('.cal-canvas-view'));
+      var fileName = root.querySelector('#cal-file-name');
+      var fileMeta = root.querySelector('#cal-file-meta');
+      var statusDot = root.querySelector('#cal-status-dot');
+      var statusMsg = root.querySelector('#cal-status-msg');
+      var statusPath = root.querySelector('#cal-status-path');
+      var infoBar = root.querySelector('#cal-info-bar');
+      var infoText = root.querySelector('#cal-info-text');
+      var infoBrowse = root.querySelector('#cal-info-browse');
+      var pickBanner = root.querySelector('#cal-pick-banner');
+      var pickText = root.querySelector('#cal-pick-text');
+      var lockCheckbox = root.querySelector('#cal-lock-checkbox');
+      var quality = root.querySelector('#cal-quality');
+      var qualityHint = root.querySelector('#cal-quality-hint');
+
+      var mode = 'pixel';
+      var state = 'normal';
+      var locked = false;
+
+      var meta = {
+        pixel: {
+          normal: { name: 'calib-board-01.bmp', meta: '标定图 · 2048×1536', view: 'image', level: 'ok', msg: '已载入标定图，可直接取点', path: 'D:\\Calib\\calib-board-01.bmp' },
+          empty: { name: '未载入标定图', meta: '标定图 · —', view: 'empty', level: 'warn', msg: '请选择标定图或接入实时图', path: '尚未选择路径' },
+          error: { name: 'missing.bmp', meta: '标定图 · —', view: 'error', level: 'err', msg: '标定图不存在，无法加载预览', path: 'D:\\Calib\\missing.bmp' }
+        },
+        nine: {
+          normal: { name: 'calib-board-01.bmp', meta: '标定图 · 2048×1536', view: 'image', level: 'ok', msg: '九点：残差 RMS 0.214px ｜ 最大 0.382px', path: 'D:\\Calib\\calib-board-01.bmp' },
+          empty: { name: '未载入标定图', meta: '标定图 · —', view: 'empty', level: 'warn', msg: '请选择标定图后再取点', path: '尚未选择路径' },
+          error: { name: 'missing.bmp', meta: '标定图 · —', view: 'error', level: 'err', msg: '标定图不存在，无法加载预览', path: 'D:\\Calib\\missing.bmp' }
+        },
+        persp: {
+          normal: { name: 'calib-board-01.bmp', meta: '标定图 · 2048×1536', view: 'image', level: 'ok', msg: '透视：残差 RMS 0.287px ｜ 最大 0.511px', path: 'D:\\Calib\\calib-board-01.bmp' },
+          empty: { name: '未载入标定图', meta: '标定图 · —', view: 'empty', level: 'warn', msg: '透视标定至少需要 4 个点', path: '尚未选择路径' },
+          error: { name: 'missing.bmp', meta: '标定图 · —', view: 'error', level: 'err', msg: '标定图不存在，无法加载预览', path: 'D:\\Calib\\missing.bmp' }
+        },
+        mesh: {
+          normal: { name: 'calib-board-01.bmp', meta: '标定图 · 2048×1536', view: 'image', level: 'ok', msg: '网格：全局仿射基线残差 RMS 0.394px', path: 'D:\\Calib\\calib-board-01.bmp' },
+          empty: { name: '未载入标定图', meta: '标定图 · —', view: 'empty', level: 'warn', msg: '网格标定要求 N×N 全部取点', path: '尚未选择路径' },
+          error: { name: 'missing.bmp', meta: '标定图 · —', view: 'error', level: 'err', msg: '标定图不存在，无法加载预览', path: 'D:\\Calib\\missing.bmp' }
+        }
+      };
+
+      function setStatus(level, msg, path) {
+        statusDot.className = 'cal-status-dot is-' + level;
+        statusMsg.className = 'cal-status-msg is-' + level;
+        statusMsg.textContent = msg;
+        statusPath.textContent = path;
+      }
+
+      function render() {
+        var item = meta[mode][state];
+        fileName.textContent = item.name;
+        fileMeta.textContent = item.meta;
+        views.forEach(function (view) {
+          view.hidden = view.dataset.view !== item.view;
+        });
+
+        infoBar.hidden = state === 'normal';
+        infoBar.className = 'cal-info-bar' + (state === 'error' ? ' is-err' : '');
+        infoText.textContent = item.msg;
+        infoBrowse.hidden = false;
+
+        setStatus(item.level, item.msg, item.path);
+
+        pixelPanel.hidden = mode !== 'pixel';
+        pointsPanel.hidden = mode === 'pixel';
+
+        if (mode === 'pixel') {
+          quality.textContent = '像素当量：0.1613 mm/px（已知长度 100mm）';
+          qualityHint.textContent = '当量合理：在 0.001 ~ 10 mm/px 护栏内。';
+        } else if (mode === 'nine') {
+          quality.textContent = '九点：残差 RMS 0.214px ｜ 最大 0.382px ｜ 各向异性 0.8%';
+          qualityHint.textContent = '质量良好：残差在阈值内，点位覆盖视野四角与中心。';
+        } else if (mode === 'persp') {
+          quality.textContent = '透视：残差 RMS 0.287px ｜ 最大 0.511px ｜ 各向异性 1.4%';
+          qualityHint.textContent = '建议覆盖视野四角；若各向异性继续增大，检查相机倾角与标定点分布。';
+        } else {
+          quality.textContent = '网格：全局仿射基线残差 RMS 0.394px（节点残差恒 0）';
+          qualityHint.textContent = '网格节点处精确通过；质量区显示的是全局仿射基线残差，用于判读畸变大小。';
+        }
+      }
+
+      function applyLock(value) {
+        locked = value;
+        rail.classList.toggle('is-locked', locked);
+        lockCheckbox.checked = locked;
+        if (locked) {
+          rail.querySelectorAll('input, select, textarea, .cal-btn, .mini, .cal-mode').forEach(function (el) {
+            if (el === lockCheckbox) return;
+            el.setAttribute('data-was-disabled', el.disabled ? '1' : '0');
+            el.disabled = true;
+            el.style.pointerEvents = 'none';
+            el.style.opacity = '0.55';
+          });
+        } else {
+          rail.querySelectorAll('input, select, textarea, .cal-btn, .mini, .cal-mode').forEach(function (el) {
+            el.disabled = false;
+            el.style.pointerEvents = '';
+            el.style.opacity = '';
+          });
+        }
+        if (infoBrowse) {
+          infoBrowse.disabled = locked;
+          infoBrowse.style.opacity = locked ? '0.55' : '';
+        }
+      }
+
+      modeButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (locked) return;
+          mode = btn.dataset.mode;
+          modeButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-active', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          render();
+        });
+      });
+
+      stateButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          state = btn.dataset.state;
+          stateButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          render();
+        });
+      });
+
+      widthButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var narrow = btn.dataset.width === '640';
+          win.classList.toggle('is-narrow', narrow);
+          widthButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+        });
+      });
+
+      lockButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          lockButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          applyLock(btn.dataset.lock === 'on');
+        });
+      });
+
+      lockCheckbox.addEventListener('change', function () {
+        applyLock(lockCheckbox.checked);
+        lockButtons.forEach(function (b) {
+          var on = b.dataset.lock === (locked ? 'on' : 'off');
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+      });
+
+      root.querySelectorAll('[data-pick]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (locked) return;
+          pickBanner.hidden = false;
+          pickText.textContent = '取点中（' + btn.dataset.pick + '）：在图上点击目标位置，Row/Col 将自动填入';
+          setStatus('ok', '取点中：请在图上点击目标位置（再点一次按钮取消）', 'D:\\Calib\\calib-board-01.bmp');
+        });
+      });
+
+      root.querySelector('#cal-pick-cancel').addEventListener('click', function () {
+        pickBanner.hidden = true;
+        render();
+      });
+
+      if (infoBrowse) {
+        infoBrowse.addEventListener('click', function () {
+          var input = root.querySelector('#cal-image-path');
+          if (input) input.focus();
+        });
+      }
+
+      root.querySelector('#cal-view-image').addEventListener('click', function () {
+        if (!pickBanner.hidden) {
+          pickBanner.hidden = true;
+          setStatus('ok', '已取点：Row 612.4, Col 738.8', 'D:\\Calib\\calib-board-01.bmp');
+        }
+      });
+
+      render();
+    })();
+  </script>
+</div>
+</body>
+</html>

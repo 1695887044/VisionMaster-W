@@ -32,6 +32,12 @@ namespace UI.CustomControl.PropertyGrid
                 DecimalPlaces = IsIntegral(prop.PropertyType) ? 0 : -1,
             };
 
+            // v1 基线：统一 36px 高 / 8px 圆角 / 令牌配色。
+            // 原来 NumericBox 主题是 MinHeight=32 又叠 Padding=10,6 → 实得 44px，
+            // 与旁边 32px 的文本框并排时行高跳变（设计基线现状审查第 1 条）。
+            PropertyGridMetrics.ApplyInputLook(box);
+            if (isReadOnly) PropertyGridMetrics.ApplyReadOnlyLook(box);
+
             var range = prop.GetCustomAttribute<RangeValidationAttribute>();
             if (range != null)
             {

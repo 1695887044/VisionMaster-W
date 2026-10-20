@@ -43,6 +43,16 @@ namespace Core.Interfaces
         IGlobalVariableWriter GlobalVariables { get; }
 
         /// <summary>
+        /// 共享变量（全局 / 系统）的按 Id 读写入口：供"声明式共享变量"的插件
+        /// （如 C# 脚本的共享变量表）在运行期按稳定身份取值/写值。
+        ///
+        /// 与 <see cref="GlobalVariables"/> 同一范式，但寻址按 <c>VariableId</c>
+        /// （变量改名不断链），并且补上"读"这一方向。实现方必须保证非空
+        /// （没有工作区时返回 <see cref="NullSharedVariableAccess"/>）。
+        /// </summary>
+        ISharedVariableAccess SharedVariables { get; }
+
+        /// <summary>
         /// 相机仓库：方案级硬件资源（连接 / 帧队列 / 状态机都在宿主侧，插件只拿契约）。
         ///
         /// 与 <see cref="GlobalVariables"/> 同一范式——插件物理上够不到宿主的 CameraProvider，
@@ -70,10 +80,14 @@ namespace Core.Interfaces
         IFlowInvoker FlowInvoker { get; }
 
         /// <summary>
-        /// IO 设备仓库（方案级硬件资源）。默认值是 <see cref="NullIoProvider"/>，
-        /// 插件侧只判 TryGetDevice 的返回值，不必为“IO 能力可能不存在”再写一层判空。
+        /// 通讯变量立刻读写入口（「立刻读 / 立刻写」步骤的能力面）。
+        ///
+        /// 与 <see cref="Cameras"/> / <see cref="Motions"/> 同一范式：插件物理上够不到宿主的
+        /// 通讯管理器与变量管理，只能由上下文递送。默认实现是
+        /// <see cref="NullCommVariableAccess"/>（调用即失败并说明原因），
+        /// 因此既有实现者不必改动，插件也只判返回值即可。
         /// </summary>
-        IIoProvider Ios => NullIoProvider.Instance;
+        ICommVariableAccess Comms => NullCommVariableAccess.Instance;
 
         IDictionary<string, object> LocalVariables { get; }
     }

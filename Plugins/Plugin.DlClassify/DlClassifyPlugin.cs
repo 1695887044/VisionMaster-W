@@ -54,8 +54,8 @@ namespace Plugin.DlClassify
         [BrowsePath(FileFilter = "ONNX 模型|*.onnx|所有文件|*.*")]
         public partial string ModelPath { get; set; }
 
-        // 模型路径变了 → 刷新摘要（选错模型时这里是唯一线索）
-        partial void OnModelPathChanged(string value) => OnPropertyChanged(nameof(ModelSummary));
+        // 模型路径变了 → 重新解析会话并把 ModelState / ModelSummary 一次刷新到位。
+        partial void OnModelPathChanged(string value) => RefreshModelState();
 
         /// <summary>
         /// 缩放模式：Letterbox（等比补边，默认，不破坏长宽比）或 Stretch（直接拉伸）。
@@ -80,7 +80,7 @@ namespace Plugin.DlClassify
         // ==================================================================
 
         /// <summary>待分类的图像</summary>
-        public InputPort<HImage> Image { get; } = new("Image", null, "待分类的图像") { IsRequired = false };
+        public InputPort<HImage> Image { get; } = new("Image", null!, "待分类的图像") { IsRequired = false };
 
         /// <summary>概率最高的类别索引（0 基）。判 OK/NG 时更常用的是 PredictedClassName</summary>
         public OutputPort<int> PredictedClassId { get; } = new("PredictedClassId", "最可能的类别索引");
@@ -114,6 +114,18 @@ namespace Plugin.DlClassify
         private string _sessionModelPath = string.Empty;
 
         private string _sessionError = string.Empty;
+
+        private DlModelState _modelState = DlModelState.NotLoaded;
+
+        /// <summary>
+        /// 模型加载态（只读运行态，**不是 [StepConfig]**，不落盘）。
+        /// 视图的红卡/错误覆盖层只认它，不再匹配 ModelSummary 的中文文案。
+        /// </summary>
+        public DlModelState ModelState
+        {
+            get => _modelState;
+            private set => SetProperty(ref _modelState, value);
+        }
 
         public DlClassifyPlugin()
         {
@@ -188,7 +200,7 @@ namespace Plugin.DlClassify
         public override void Initialize(IStepConfigData stepData)
         {
             base.Initialize(stepData);
-            OnPropertyChanged(nameof(ModelSummary));
+            RefreshModelState();
         }
 
         public object GetConfigView(IStepConfigData stepData)
@@ -198,11 +210,27 @@ namespace Plugin.DlClassify
         }
 
         /// <summary>
-        /// 视图就绪回调：把上游图显示到预览，顺带刷新模型摘要（模型路径可能刚被「浏览」改过）。
+        /// 视图就绪回调：把上游图显示到预览，顺带刷新模型态与摘要（模型路径可能刚被「浏览」改过）。
         /// </summary>
         public void OnViewLoaded()
         {
             ShowUpstreamImage();
+            RefreshModelState();
+        }
+
+        /// <summary>
+        /// 解析会话并把 <see cref="ModelState"/> / <see cref="ModelSummary"/> 一次刷新到位。
+        /// 这是模型态的唯一写入口：OnModelPathChanged / Initialize / OnViewLoaded 都走这里。
+        /// 【为什么通知放在这里而不是 EnsureSession】ModelSummary 的 getter 自己会调 EnsureSession，
+        /// 在 EnsureSession 里发通知就是 getter 自我重入；明确入口驱动才安全。
+        /// </summary>
+        public void RefreshModelState()
+        {
+            var session = EnsureSession();
+            ModelState = session != null
+                ? DlModelState.Ready
+                : string.IsNullOrWhiteSpace(ModelPath) ? DlModelState.NotLoaded : DlModelState.Failed;
+
             OnPropertyChanged(nameof(ModelSummary));
         }
 
@@ -244,8 +272,15 @@ namespace Plugin.DlClassify
             if (!TryClassify(DisplayImage, out var result, out string error))
             {
                 ResultSummary = "试算失败：" + error;
+                // 只有"会话级失败"（路径不存在 / 模型打不开 / task 不对）才把模型态判死；
+                // 布局不认识、预处理失败这类是本次试算的问题，模型本身仍可用。
+                if (_sessionError.Length > 0)
+                    ModelState = DlModelState.Failed;
                 return;
             }
+
+            // 能成功跑完一次推理 = 模型确实可用（防"失败后换路径但状态没回来"的残留）
+            ModelState = DlModelState.Ready;
 
             var lines = new List<string>
             {

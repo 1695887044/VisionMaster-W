@@ -1,0 +1,331 @@
+=== ASSEMBLY: WatsonWebserver, Version=7.2.0.0, Culture=neutral, PublicKeyToken=null
+
+### WatsonWebserver.Core.WebserverBase
+   .ctor(WebserverSettings settings, Func<HttpContextBase, Task> defaultRoute)
+   .ctor(String hostname, Int32 port, Boolean ssl, Func<HttpContextBase, Task> defaultRoute)
+   prop WebserverPages DefaultPages { get; set; }
+   prop WebserverEvents Events { get; set; }
+   prop Boolean IsListening { get; }
+   prop MiddlewarePipeline Middleware { get; set; }
+   prop Int32 RequestCount { get; }
+   prop WebserverRoutes Routes { get; set; }
+   prop ISerializationHelper Serializer { get; set; }
+   prop WebserverSettings Settings { get; set; }
+   prop WebserverStatistics Statistics { get; set; }
+   prop WebserverTelemetry Telemetry { get; }
+   Void Delete(String path, Func<ApiRequest, Task<Object>> handler, Boolean auth = False)
+   Void Delete(String path, Func<ApiRequest, Task<Object>> handler, Action<OpenApiRouteMetadata> openApi, Boolean auth = False)
+   Void Delete(String path, Func<ApiRequest, Task<Object>> handler, Boolean auth = False)
+   Void Delete(String path, Func<ApiRequest, Task<Object>> handler, Action<OpenApiRouteMetadata> openApi, Boolean auth = False)
+   Task<Boolean> DisconnectWebSocketSessionAsync(Guid guid, WebSocketCloseStatus status, String reason)
+   Void Dispose()
+   Void Get(String path, Func<ApiRequest, Task<Object>> handler, Boolean auth = False)
+   Void Get(String path, Func<ApiRequest, Task<Object>> handler, Action<OpenApiRouteMetadata> openApi, Boolean auth = False)
+   Void Head(String path, Func<ApiRequest, Task<Object>> handler, Boolean auth = False)
+   Void Head(String path, Func<ApiRequest, Task<Object>> handler, Action<OpenApiRouteMetadata> openApi, Boolean auth = False)
+   Boolean IsWebSocketSessionConnected(Guid guid)
+   IEnumerable<WebSocketSession> ListWebSocketSessions()
+   Void Options(String path, Func<ApiRequest, Task<Object>> handler, Boolean auth = False)
+   Void Options(String path, Func<ApiRequest, Task<Object>> handler, Action<OpenApiRouteMetadata> openApi, Boolean auth = False)
+   Void Patch(String path, Func<ApiRequest, Task<Object>> handler, Boolean auth = False)
+   Void Patch(String path, Func<ApiRequest, Task<Object>> handler, Action<OpenApiRouteMetadata> openApi, Boolean auth = False)
+   Void Patch(String path, Func<ApiRequest, Task<Object>> handler, Boolean auth = False)
+   Void Patch(String path, Func<ApiRequest, Task<Object>> handler, Action<OpenApiRouteMetadata> openApi, Boolean auth = False)
+   Void Post(String path, Func<ApiRequest, Task<Object>> handler, Boolean auth = False)
+   Void Post(String path, Func<ApiRequest, Task<Object>> handler, Action<OpenApiRouteMetadata> openApi, Boolean auth = False)
+   Void Post(String path, Func<ApiRequest, Task<Object>> handler, Boolean auth = False)
+   Void Post(String path, Func<ApiRequest, Task<Object>> handler, Action<OpenApiRouteMetadata> openApi, Boolean auth = False)
+   Void Put(String path, Func<ApiRequest, Task<Object>> handler, Boolean auth = False)
+   Void Put(String path, Func<ApiRequest, Task<Object>> handler, Action<OpenApiRouteMetadata> openApi, Boolean auth = False)
+   Void Put(String path, Func<ApiRequest, Task<Object>> handler, Boolean auth = False)
+   Void Put(String path, Func<ApiRequest, Task<Object>> handler, Action<OpenApiRouteMetadata> openApi, Boolean auth = False)
+   Void Start(CancellationToken token = null)
+   Task StartAsync(CancellationToken token = null)
+   Void Stop()
+   Void WebSocket(String path, Func<HttpContextBase, WebSocketSession, Task> handler, Boolean auth = False)
+
+### WatsonWebserver.Core.AuthResult
+   .ctor()
+   prop AuthenticationResultEnum AuthenticationResult { get; set; }
+   prop AuthorizationResultEnum AuthorizationResult { get; set; }
+   prop Object Metadata { get; set; }
+   Boolean IsPermitted()
+
+### WatsonWebserver.Core.AuthenticationResultEnum  [enum]
+   values: Success, NotFound, Expired, PermissionDenied, Invalid
+
+### WatsonWebserver.Core.AuthorizationResultEnum  [enum]
+   values: Permitted, DeniedImplicit, DeniedExplicit
+
+### WatsonWebserver.Core.Routing.WebserverRoutes
+   .ctor()
+   .ctor(WebserverSettings settings, Func<HttpContextBase, Task> defaultRoute)
+   prop Func<HttpContextBase, Task<AuthResult>> AuthenticateApiRequest { get; set; }
+   prop Func<HttpContextBase, Task> AuthenticateRequest { get; set; }
+   prop Func<HttpContextBase, Task> Default { get; set; }
+   prop Func<HttpContextBase, Exception, Task> Exception { get; set; }
+   prop RoutingGroup PostAuthentication { get; set; }
+   prop Func<HttpContextBase, Task> PostRouting { get; set; }
+   prop RoutingGroup PreAuthentication { get; set; }
+   prop Func<HttpContextBase, Task> Preflight { get; set; }
+   prop Func<HttpContextBase, Task> PreRouting { get; set; }
+
+### WatsonWebserver.Core.WebSockets.WebSocketRoute
+   .ctor(String path, Func<HttpContextBase, WebSocketSession, Task> handler, Object metadata = null)
+   prop Guid GUID { get; set; }
+   prop Func<HttpContextBase, WebSocketSession, Task> Handler { get; }
+   prop Boolean IsParameterized { get; }
+   prop Object Metadata { get; set; }
+   prop String Path { get; set; }
+
+### WatsonWebserver.Core.WebSockets.WebSocketRouteManager
+   .ctor()
+   Void Add(String path, Func<HttpContextBase, WebSocketSession, Task> handler, Object metadata = null)
+   IReadOnlyList<WebSocketRoute> GetAll()
+   Func<HttpContextBase, WebSocketSession, Task> Match(String path, NameValueCollection& parameters, WebSocketRoute& route)
+
+### WatsonWebserver.Core.WebSockets.WebSocketSession
+   .ctor(WebSocket socket, WebSocketRequestDescriptor request, Guid guid = null, Int32 receiveBufferSize = 65536, Int32 maxMessageSize = 16777216, Int32 closeHandshakeTimeoutMs = 5000)
+   prop Nullable<WebSocketCloseStatus> CloseStatus { get; }
+   prop String CloseStatusDescription { get; }
+   prop Guid Id { get; }
+   prop Boolean IsConnected { get; }
+   prop Object Metadata { get; set; }
+   prop String RemoteIp { get; }
+   prop Int32 RemotePort { get; }
+   prop WebSocketRequestDescriptor Request { get; }
+   prop WebSocketState State { get; }
+   prop WebSocketSessionStatistics Statistics { get; }
+   prop String Subprotocol { get; }
+   Task CloseAsync(WebSocketCloseStatus closeStatus, String reason, CancellationToken token = null)
+   Void Dispose()
+   ValueTask DisposeAsync()
+   IAsyncEnumerable<WebSocketMessage> ReadMessagesAsync(CancellationToken token = null)
+   Task<WebSocketMessage> ReceiveAsync(CancellationToken token = null)
+   Task SendBinaryAsync(Byte[] data, CancellationToken token = null)
+   Task SendBinaryAsync(ArraySegment<Byte> data, CancellationToken token = null)
+   Task SendTextAsync(String data, CancellationToken token = null)
+
+### WatsonWebserver.Core.WebSockets.WebSocketMessage
+   .ctor(WebSocketMessageType messageType, Byte[] data)
+   prop Byte[] Data { get; }
+   prop Int32 Length { get; }
+   prop WebSocketMessageType MessageType { get; }
+   prop String Text { get; }
+   static WebSocketMessage FromBinary(Byte[] data)
+   static WebSocketMessage FromText(String data)
+
+### WatsonWebserver.Core.HttpResponseBase
+   prop Boolean ChunkedTransfer { get; set; }
+   prop String ContentType { get; set; }
+   prop MemoryStream Data { get; }
+   prop Byte[] DataAsBytes { get; }
+   prop String DataAsString { get; }
+   prop NameValueCollection Headers { get; set; }
+   prop HttpProtocol Protocol { get; set; }
+   prop String ProtocolVersion { get; set; }
+   prop Boolean ResponseCompleted { get; set; }
+   prop Boolean ResponseSent { get; set; }
+   prop Boolean ResponseStarted { get; set; }
+   prop Boolean ServerSentEvents { get; set; }
+   prop Int32 StatusCode { get; set; }
+   prop String StatusDescription { get; }
+   prop Timestamp Timestamp { get; set; }
+   prop NameValueCollection Trailers { get; set; }
+   Void Dispose()
+   Task<Boolean> Send(CancellationToken token = null)
+   Task<Boolean> Send(Int64 contentLength, CancellationToken token = null)
+   Task<Boolean> Send(String data, CancellationToken token = null)
+   Task<Boolean> Send(Byte[] data, CancellationToken token = null)
+   Task<Boolean> Send(Int64 contentLength, Stream stream, CancellationToken token = null)
+   Task<Boolean> SendChunk(Byte[] chunk, Boolean isFinal, CancellationToken token = null)
+   Task<Boolean> SendEvent(ServerSentEvent sse, Boolean isFinal, CancellationToken token = null)
+
+### WatsonWebserver.Core.HttpRequestBase
+   prop AuthorizationDetails Authorization { get; }
+   prop Boolean ChunkedTransfer { get; set; }
+   prop Int64 ContentLength { get; set; }
+   prop String ContentType { get; set; }
+   prop Stream Data { get; set; }
+   prop Byte[] DataAsBytes { get; }
+   prop String DataAsString { get; }
+   prop Boolean Deflate { get; set; }
+   prop DestinationDetails Destination { get; set; }
+   prop Guid Guid { get; set; }
+   prop Boolean Gzip { get; set; }
+   prop NameValueCollection Headers { get; set; }
+   prop Boolean Keepalive { get; set; }
+   prop HttpMethod Method { get; set; }
+   prop String MethodRaw { get; set; }
+   prop HttpProtocol Protocol { get; set; }
+   prop String ProtocolVersion { get; set; }
+   prop QueryDetails Query { get; set; }
+   prop SourceDetails Source { get; set; }
+   prop Int32 ThreadId { get; set; }
+   prop Timestamp Timestamp { get; set; }
+   prop NameValueCollection Trailers { get; set; }
+   prop UrlDetails Url { get; set; }
+   prop String Useragent { get; set; }
+   Void Dispose()
+   Boolean HeaderExists(String key)
+   Boolean QuerystringExists(String key)
+   Task<Byte[]> ReadBodyAsync(CancellationToken token = null)
+   Task<Chunk> ReadChunk(CancellationToken token = null)
+   String RetrieveHeaderValue(String key)
+   String RetrieveQueryValue(String key)
+
+### WatsonWebserver.Core.WebserverSettings
+   .ctor()
+   .ctor(String hostname, Int32 port, Boolean ssl = False)
+   prop AccessControlManager AccessControl { get; set; }
+   prop AltSvcSettings AltSvc { get; set; }
+   prop DebugSettings Debug { get; set; }
+   prop HeaderSettings Headers { get; set; }
+   prop String Hostname { get; set; }
+   prop IOSettings IO { get; set; }
+   prop Int32 Port { get; set; }
+   prop String Prefix { get; }
+   prop ProtocolSettings Protocols { get; set; }
+   prop SslSettings Ssl { get; set; }
+   prop TelemetrySettings Telemetry { get; set; }
+   prop TimeoutSettings Timeout { get; set; }
+   prop Boolean UseMachineHostname { get; set; }
+   prop WebSocketSettings WebSockets { get; set; }
+
+### WatsonWebserver.Webserver
+   .ctor(WebserverSettings settings, Func<HttpContextBase, Task> defaultRoute)
+   prop Boolean IsListening { get; }
+   prop Int32 RequestCount { get; }
+   Void Dispose()
+   Void Start(CancellationToken token = null)
+   Task StartAsync(CancellationToken token = null)
+   Void Stop()
+
+### WatsonWebserver.Core.Routing.RoutingGroup
+   .ctor()
+   prop ContentRouteManager Content { get; set; }
+   prop DynamicRouteManager Dynamic { get; set; }
+   prop ParameterRouteManager Parameter { get; set; }
+   prop StaticRouteManager Static { get; set; }
+   prop WebSocketRouteManager WebSockets { get; set; }
+
+### WatsonWebserver.Core.HttpContextBase
+   .ctor()
+   prop ConnectionMetadata Connection { get; set; }
+   prop Guid Guid { get; set; }
+   prop Object Metadata { get; set; }
+   prop HttpProtocol Protocol { get; set; }
+   prop HttpRequestBase Request { get; set; }
+   prop Boolean RequestAborted { get; set; }
+   prop HttpResponseBase Response { get; set; }
+   prop Object Route { get; set; }
+   prop RouteTypeEnum RouteType { get; set; }
+   prop StreamMetadata Stream { get; set; }
+   prop Timestamp Timestamp { get; set; }
+   prop CancellationToken Token { get; }
+   prop CancellationTokenSource TokenSource { get; set; }
+   Void Dispose()
+
+### WatsonWebserver.Core.ApiRequest
+   .ctor(HttpContextBase ctx, ISerializationHelper serializer, Object data, CancellationToken cancellationToken = null)
+   prop AuthResult AuthResult { get; set; }
+   prop CancellationToken CancellationToken { get; }
+   prop Object Data { get; set; }
+   prop RequestParameters Headers { get; }
+   prop HttpContextBase Http { get; }
+   prop Object Metadata { get; set; }
+   prop RequestParameters Parameters { get; }
+   prop RequestParameters Query { get; }
+   prop ISerializationHelper Serializer { get; }
+   T GetData()
+
+### WatsonWebserver.Core.ISerializationHelper
+   T DeserializeJson(String json)
+   String SerializeJson(Object obj, Boolean pretty = True)
+
+### WatsonWebserver.Core.SerializerHelper -> NOT FOUND
+
+### WatsonWebserver.Core.Settings.WebSocketSettings
+   .ctor()
+   prop Boolean AllowClientSuppliedGuid { get; set; }
+   prop String ClientGuidHeaderName { get; set; }
+   prop Int32 CloseHandshakeTimeoutMs { get; set; }
+   prop Boolean Enable { get; set; }
+   prop Boolean EnableHttp1 { get; set; }
+   prop Boolean EnableHttp2 { get; set; }
+   prop Boolean EnableHttp3 { get; set; }
+   prop Int32 MaxMessageSize { get; set; }
+   prop Int32 ReceiveBufferSize { get; set; }
+   prop List<String> SupportedVersions { get; set; }
+
+### WatsonWebserver.Core.Routing.StaticRouteManager
+   .ctor()
+   Void Add(HttpMethod method, String path, Func<HttpContextBase, Task> handler, Func<HttpContextBase, Exception, Task> exceptionHandler = null, Guid guid = null, Object metadata = null, OpenApiRouteMetadata openApiMetadata = null)
+   Boolean Exists(HttpMethod method, String path)
+   StaticRoute Get(HttpMethod method, String path)
+   IReadOnlyList<StaticRoute> GetAll()
+   Func<HttpContextBase, Task> Match(HttpMethod method, String path, StaticRoute& route)
+   Func<HttpContextBase, Task> MatchNormalized(HttpMethod method, String normalizedPath, StaticRoute& route)
+   Void Remove(HttpMethod method, String path)
+
+### WatsonWebserver.Core.Routing.ContentRouteManager
+   .ctor()
+   prop String BaseDirectory { get; set; }
+   prop FileAccess ContentFileAccess { get; set; }
+   prop FileMode ContentFileMode { get; set; }
+   prop FileShare ContentFileShare { get; set; }
+   prop List<String> DefaultFiles { get; set; }
+   prop Func<HttpContextBase, Task> Handler { get; set; }
+   Void Add(String path, Boolean isDirectory, Func<HttpContextBase, Exception, Task> exceptionHandler = null, Guid guid = null, Object metadata = null, OpenApiRouteMetadata openApiMetadata = null)
+   Boolean Exists(String path)
+   ContentRoute Get(String path)
+   IReadOnlyList<ContentRoute> GetAll()
+   Boolean Match(String path, ContentRoute& route)
+   Void Remove(String path)
+
+### WatsonWebserver.Core.Routing.DynamicRouteManager
+   .ctor()
+   prop Matcher Matcher { get; }
+   Void Add(HttpMethod method, Regex path, Func<HttpContextBase, Task> handler, Func<HttpContextBase, Exception, Task> exceptionHandler = null, Guid guid = null, Object metadata = null, OpenApiRouteMetadata openApiMetadata = null)
+   Boolean Exists(HttpMethod method, Regex path)
+   IReadOnlyList<DynamicRoute> GetAll()
+   Func<HttpContextBase, Task> Match(HttpMethod method, String rawUrl, DynamicRoute& dr)
+   Void Remove(HttpMethod method, Regex path)
+
+### WatsonWebserver.Core.Routing.ParameterRouteManager
+   .ctor()
+   Void Add(HttpMethod method, String path, Func<HttpContextBase, Task> handler, Func<HttpContextBase, Exception, Task> exceptionHandler = null, Guid guid = null, Object metadata = null, OpenApiRouteMetadata openApiMetadata = null)
+   Boolean Exists(HttpMethod method, String path)
+   ParameterRoute Get(HttpMethod method, String path)
+   IReadOnlyList<ParameterRoute> GetAll()
+   Func<HttpContextBase, Task> Match(HttpMethod method, String path, NameValueCollection& vals, ParameterRoute& pr)
+   Void Remove(HttpMethod method, String path)
+
+### WatsonWebserver.Core.RequestParameters
+   .ctor(NameValueCollection parameters)
+   prop String Item { get; }
+   Boolean Contains(String name)
+   String[] GetArray(String name, Char separator = ,)
+   Boolean GetBool(String name, Boolean defaultValue = False)
+   DateTime GetDateTime(String name, Nullable<DateTime> defaultValue = null)
+   Decimal GetDecimal(String name, Decimal defaultValue = 0)
+   Double GetDouble(String name, Double defaultValue = 0)
+   T GetEnum(String name, T defaultValue, Boolean ignoreCase = True)
+   Guid GetGuid(String name, Nullable<Guid> defaultValue = null)
+   Int32 GetInt(String name, Int32 defaultValue = 0)
+   String[] GetKeys()
+   Int64 GetLong(String name, Int64 defaultValue = 0)
+   TimeSpan GetTimeSpan(String name, Nullable<TimeSpan> defaultValue = null)
+   String GetValueOrDefault(String name, String defaultValue = null)
+   Boolean TryGetValue(String name, T& result)
+
+=== WebSockets namespace types
+   WatsonWebserver.Core.WebSockets.WebSocketConnectionRegistry
+   WatsonWebserver.Core.WebSockets.WebSocketHandshakeUtilities
+   WatsonWebserver.Core.WebSockets.WebSocketMessage
+   WatsonWebserver.Core.WebSockets.WebSocketProtocolDetector
+   WatsonWebserver.Core.WebSockets.WebSocketRequestDescriptor
+   WatsonWebserver.Core.WebSockets.WebSocketRoute
+   WatsonWebserver.Core.WebSockets.WebSocketRouteManager
+   WatsonWebserver.Core.WebSockets.WebSocketSession
+   WatsonWebserver.Core.WebSockets.WebSocketSessionStatistics

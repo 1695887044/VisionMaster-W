@@ -1,0 +1,1008 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YOLO 目标检测 · 配置窗口 · 设计基线 v1</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #yolo-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="yolo-design-root">
+  <style>
+    #yolo-design-root{
+      color-scheme: light;
+      --y-surface:#FFFFFF;
+      --y-surface-2:#F8FAFC;
+      --y-surface-3:#F1F5F9;
+      --y-border:#E2E8F0;
+      --y-border-soft:#EEF2F7;
+      --y-border-strong:#CBD5E1;
+      --y-text:#0F172A;
+      --y-text-2:#475569;
+      --y-text-3:#94A3B8;
+      --y-text-4:#64748B;
+      --y-primary:#0EA5E9;
+      --y-primary-strong:#0284C7;
+      --y-primary-text:#0369A1;
+      --y-primary-soft:#F0F9FF;
+      --y-primary-light:#E0F2FE;
+      --y-primary-border:#BAE6FD;
+      --y-success:#22C55E;
+      --y-success-text:#15803D;
+      --y-success-soft:#F0FDF4;
+      --y-success-border:#BBF7D0;
+      --y-danger:#EF4444;
+      --y-danger-text:#B91C1C;
+      --y-danger-soft:#FEF2F2;
+      --y-danger-border:#FECACA;
+      --y-warning:#F59E0B;
+      --y-warning-text:#B45309;
+      --y-warning-soft:#FFF4E5;
+      --y-warning-border:#FDE68A;
+      --y-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --y-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --y-radius-sm:6px;
+      --y-radius-md:8px;
+      --y-radius-lg:10px;
+      --y-radius-xl:12px;
+      --y-radius-window:16px;
+      --y-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--y-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #yolo-design-root *{box-sizing:border-box;}
+    #yolo-design-root button,
+    #yolo-design-root input,
+    #yolo-design-root select,
+    #yolo-design-root textarea{font-family:inherit;}
+    #yolo-design-root button{color:inherit;}
+    #yolo-design-root [hidden]{display:none !important;}
+    #yolo-design-root :focus-visible{outline:2px solid var(--y-primary);outline-offset:2px;}
+
+    #yolo-design-root .y-page{
+      max-width:1360px;margin:0 auto;padding:24px 24px 44px;background:transparent;
+    }
+    #yolo-design-root .y-page-head{max-width:1360px;margin:0 auto 16px;}
+    #yolo-design-root .y-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #yolo-design-root .y-page-title-row h1{
+      margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--y-text);
+    }
+    #yolo-design-root .y-ver{
+      display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+      background:var(--y-primary-light);color:var(--y-primary-text);
+      font-size:11px;font-weight:700;letter-spacing:.02em;
+    }
+    #yolo-design-root .y-page-sub{
+      margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--y-text-2);
+    }
+    #yolo-design-root .y-page-sub b{color:var(--y-text);font-weight:600;}
+    #yolo-design-root .y-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #yolo-design-root .y-demo-group{display:flex;align-items:center;gap:8px;}
+    #yolo-design-root .y-demo-label{font-size:11.5px;color:var(--y-text-4);}
+    #yolo-design-root .y-scope{
+      display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;
+      font-size:11.5px;line-height:1.55;color:var(--y-text-2);
+    }
+    #yolo-design-root .y-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--y-warning-text);}
+    #yolo-design-root .y-scope b{color:var(--y-text);font-weight:600;}
+    #yolo-design-root .y-seg{
+      display:inline-flex;gap:2px;padding:2px;border-radius:var(--y-radius-md);background:var(--y-surface-3);
+    }
+    #yolo-design-root .y-seg button{
+      height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;
+      color:var(--y-text-2);font-size:11.5px;line-height:1;cursor:pointer;
+      transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;
+    }
+    #yolo-design-root .y-seg button:hover{color:var(--y-text);}
+    #yolo-design-root .y-seg button.is-on{
+      background:#FFFFFF;color:var(--y-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);
+    }
+
+    /* ================= 产品窗口 ================= */
+    #yolo-design-root .y-window{
+      width:960px;max-width:100%;height:680px;margin:0 auto;
+      display:flex;flex-direction:column;overflow:hidden;
+      background:var(--y-surface);border-radius:var(--y-radius-window);
+      box-shadow:var(--y-shadow-window);transition:width 200ms ease;
+    }
+    #yolo-design-root .y-window.is-narrow{width:640px;}
+
+    #yolo-design-root .y-titlebar{
+      height:72px;flex:none;display:flex;align-items:center;padding:0 20px;
+      background:var(--y-surface);border-bottom:1px solid var(--y-border-soft);
+    }
+    #yolo-design-root .y-app-icon{
+      width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;
+      background:var(--y-primary-light);color:var(--y-primary-text);
+    }
+    #yolo-design-root .y-app-icon svg{width:19px;height:19px;}
+    #yolo-design-root .y-title-text{margin-left:12px;min-width:0;flex:1;}
+    #yolo-design-root .y-title-line{display:flex;align-items:center;gap:8px;min-width:0;}
+    #yolo-design-root .y-title{
+      font-size:16px;font-weight:600;line-height:1.3;color:var(--y-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #yolo-design-root .y-subtitle{
+      margin-top:2px;font-size:12px;line-height:1.4;color:var(--y-text-2);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #yolo-design-root .y-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+
+    #yolo-design-root .y-content{
+      flex:1;min-height:0;display:grid;grid-template-columns:356px minmax(0,1fr);
+      gap:16px;padding:16px 20px 20px;background:var(--y-surface);
+    }
+    #yolo-design-root .y-window.is-narrow .y-content{
+      grid-template-columns:300px minmax(0,1fr);gap:12px;padding:14px 16px 16px;
+    }
+
+    /* ---- 左栏 ---- */
+    #yolo-design-root .y-rail{
+      min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;
+      padding:14px;border:1px solid var(--y-border-soft);border-radius:var(--y-radius-xl);
+      background:var(--y-surface-2);
+      scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;
+    }
+    #yolo-design-root .y-rail::-webkit-scrollbar{width:8px;}
+    #yolo-design-root .y-rail::-webkit-scrollbar-thumb{
+      background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;
+    }
+    #yolo-design-root .y-rail::-webkit-scrollbar-track{background:transparent;}
+
+    #yolo-design-root .y-panel{margin-top:14px;}
+    #yolo-design-root .y-panel:first-child{margin-top:0;}
+    #yolo-design-root .y-section-head{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      margin-bottom:9px;font-size:12px;font-weight:600;color:var(--y-text-2);
+    }
+    #yolo-design-root .y-section-hint{font-size:10.5px;font-weight:400;color:var(--y-text-3);white-space:nowrap;}
+
+    #yolo-design-root .y-field{margin-bottom:12px;}
+    #yolo-design-root .y-field:last-child{margin-bottom:0;}
+    #yolo-design-root .y-label{
+      display:flex;align-items:center;gap:5px;margin-bottom:6px;
+      font-size:12px;font-weight:500;line-height:1.3;color:var(--y-text-2);
+    }
+    #yolo-design-root .y-label .y-link-hint{width:12px;height:12px;color:var(--y-text-3);margin-left:2px;}
+    #yolo-design-root .y-input-row{display:flex;align-items:center;gap:8px;}
+    #yolo-design-root .y-input{
+      width:100%;height:36px;padding:0 10px;border:1px solid var(--y-border);border-radius:var(--y-radius-md);
+      background:var(--y-surface);color:var(--y-text);font-size:12.5px;line-height:1;outline:none;
+      transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;
+    }
+    #yolo-design-root .y-input::placeholder{color:var(--y-text-3);}
+    #yolo-design-root .y-input:hover{border-color:var(--y-border-strong);}
+    #yolo-design-root .y-input:focus{border-color:var(--y-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #yolo-design-root .y-input:disabled{background:var(--y-surface-3);color:var(--y-text-3);cursor:not-allowed;}
+    #yolo-design-root .y-input.is-mono{font-family:var(--y-mono);font-size:11.5px;}
+    #yolo-design-root .y-num{
+      width:118px;flex:none;text-align:right;font-variant-numeric:tabular-nums;
+    }
+    #yolo-design-root .y-row-2{display:grid;grid-template-columns:minmax(0,1fr) 118px;gap:10px;align-items:center;}
+    #yolo-design-root .y-help{
+      display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;
+      font-size:11.5px;line-height:1.5;color:var(--y-text-4);
+    }
+    #yolo-design-root .y-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--y-text-3);}
+    #yolo-design-root .y-help code{
+      font-family:var(--y-mono);font-size:10.5px;color:var(--y-primary-text);
+      background:var(--y-primary-soft);padding:1px 4px;border-radius:4px;
+    }
+
+    /* 按钮 */
+    #yolo-design-root .y-btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:6px;
+      height:36px;padding:0 13px;border:1px solid var(--y-border);border-radius:var(--y-radius-md);
+      background:var(--y-surface);color:var(--y-text);font-size:12.5px;font-weight:500;
+      line-height:1;cursor:pointer;white-space:nowrap;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;
+    }
+    #yolo-design-root .y-btn svg{width:14px;height:14px;}
+    #yolo-design-root .y-btn:hover{background:var(--y-surface-2);border-color:var(--y-border-strong);}
+    #yolo-design-root .y-btn:active{background:var(--y-surface-3);}
+    #yolo-design-root .y-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #yolo-design-root .y-btn-primary{
+      background:var(--y-primary);border-color:var(--y-primary);color:#fff;font-weight:600;
+    }
+    #yolo-design-root .y-btn-primary:hover{background:var(--y-primary-strong);border-color:var(--y-primary-strong);}
+    #yolo-design-root .y-btn-sm{height:36px;padding:0 11px;font-size:12px;}
+    #yolo-design-root .y-btn-block{width:100%;}
+    #yolo-design-root .y-btn-square{
+      width:36px;height:36px;flex:none;padding:0;border:1px solid var(--y-border);border-radius:var(--y-radius-md);
+      background:var(--y-surface);color:var(--y-text-4);display:flex;align-items:center;justify-content:center;
+      cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;
+    }
+    #yolo-design-root .y-btn-square:hover{background:var(--y-primary-soft);border-color:var(--y-primary-border);color:var(--y-primary-text);}
+    #yolo-design-root .y-btn-square svg{width:14px;height:14px;}
+
+    /* 图标按钮 */
+    #yolo-design-root .y-icon-btn{
+      width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--y-radius-md);
+      display:inline-flex;align-items:center;justify-content:center;
+      background:transparent;color:var(--y-text-4);cursor:pointer;
+      transition:background 150ms ease,color 150ms ease;
+    }
+    #yolo-design-root .y-icon-btn svg{width:15px;height:15px;}
+    #yolo-design-root .y-icon-btn:hover{background:var(--y-surface-3);color:var(--y-text);}
+    #yolo-design-root .y-icon-btn:active{background:var(--y-border);}
+    #yolo-design-root .y-icon-btn:disabled{opacity:.4;cursor:not-allowed;}
+
+    /* 信息卡 / 结果卡 */
+    #yolo-design-root .y-info-card{
+      margin-top:10px;padding:10px 11px;border:1px solid var(--y-border);
+      border-radius:var(--y-radius-lg);background:var(--y-surface);
+    }
+    #yolo-design-root .y-info-head{
+      display:flex;align-items:center;gap:6px;margin-bottom:6px;
+      font-size:10.5px;font-weight:600;letter-spacing:.02em;color:var(--y-text-3);
+    }
+    #yolo-design-root .y-info-head svg{width:12px;height:12px;}
+    #yolo-design-root .y-mono{
+      margin:0;font-family:var(--y-mono);font-size:10.5px;line-height:1.62;
+      color:var(--y-text-2);white-space:pre-wrap;word-break:break-word;
+    }
+    #yolo-design-root .y-mono .k{color:var(--y-primary-text);}
+    #yolo-design-root .y-mono .m{color:var(--y-success-text);}
+    #yolo-design-root .y-result-card{
+      margin-top:9px;padding:10px 11px;border:1px solid var(--y-border);
+      border-radius:var(--y-radius-lg);background:var(--y-surface);
+      max-height:132px;overflow:auto;
+    }
+    #yolo-design-root .y-result-card.is-err{border-color:var(--y-danger-border);background:var(--y-danger-soft);}
+    #yolo-design-root .y-result-card.is-err .y-mono{color:var(--y-danger-text);}
+    #yolo-design-root .y-result-card.is-zero{border-color:var(--y-warning-border);background:var(--y-warning-soft);}
+    #yolo-design-root .y-result-card.is-zero .y-mono{color:var(--y-warning-text);}
+    #yolo-design-root .y-try{
+      margin-top:14px;padding-top:14px;border-top:1px solid var(--y-border);
+    }
+    #yolo-design-root .y-try .y-section-head{margin-bottom:9px;}
+
+    /* 折叠区 */
+    #yolo-design-root .y-details{
+      margin-top:14px;border:1px solid var(--y-border);border-radius:var(--y-radius-lg);
+      background:var(--y-surface);overflow:hidden;
+    }
+    #yolo-design-root .y-details summary{
+      display:flex;align-items:center;gap:8px;padding:10px 12px;
+      font-size:12px;font-weight:500;color:var(--y-text-2);cursor:pointer;list-style:none;
+    }
+    #yolo-design-root .y-details summary::-webkit-details-marker{display:none;}
+    #yolo-design-root .y-details summary:hover{background:var(--y-surface-2);}
+    #yolo-design-root .y-details summary svg{width:14px;height:14px;color:var(--y-text-3);}
+    #yolo-design-root .y-details summary .y-chev{margin-left:auto;transition:transform 150ms ease;}
+    #yolo-design-root .y-details[open] summary .y-chev{transform:rotate(180deg);}
+    #yolo-design-root .y-details-body{padding:0 12px 12px;border-top:1px solid var(--y-border-soft);}
+
+    /* ---- 预览区 ---- */
+    #yolo-design-root .y-preview{
+      min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+      border:1px solid var(--y-border);border-radius:var(--y-radius-xl);background:var(--y-surface);
+    }
+    #yolo-design-root .y-preview-head{
+      height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;
+      border-bottom:1px solid var(--y-border-soft);background:var(--y-surface);
+    }
+    #yolo-design-root .y-file-chip{
+      width:26px;height:26px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;
+      background:var(--y-surface-3);color:var(--y-text-2);
+    }
+    #yolo-design-root .y-file-chip svg{width:13px;height:13px;}
+    #yolo-design-root .y-file-name{
+      font-size:12.5px;font-weight:600;line-height:1.3;color:var(--y-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;
+    }
+    #yolo-design-root .y-file-meta{
+      flex:none;font-size:10.5px;line-height:1.3;color:var(--y-text-3);
+      font-variant-numeric:tabular-nums;white-space:nowrap;
+    }
+    #yolo-design-root .y-preview-tools{margin-left:auto;display:flex;align-items:center;gap:1px;flex:none;}
+    #yolo-design-root .y-tool-text{
+      height:26px;padding:0 7px;border:0;border-radius:6px;background:transparent;
+      color:var(--y-text-4);font-size:10.5px;font-weight:600;line-height:1;cursor:pointer;
+      font-variant-numeric:tabular-nums;transition:background 150ms ease,color 150ms ease;
+    }
+    #yolo-design-root .y-tool-text:hover{background:var(--y-surface-3);color:var(--y-text);}
+    #yolo-design-root .y-window.is-narrow .y-file-name{max-width:110px;}
+    #yolo-design-root .y-window.is-narrow .y-file-meta{display:none;}
+    #yolo-design-root .y-window.is-narrow .y-status-path{display:none;}
+
+    #yolo-design-root .y-canvas{position:relative;flex:1;min-height:0;overflow:hidden;background:#0B1220;}
+    #yolo-design-root .y-canvas-view{
+      position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    }
+    #yolo-design-root .y-canvas-view:not([data-view="image"]){padding:24px;}
+    #yolo-design-root .y-canvas-view[data-view="image"]{display:block;}
+    #yolo-design-root .y-scene{width:100%;height:100%;display:block;}
+    #yolo-design-root .y-overlay{
+      position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:6px;pointer-events:none;
+    }
+    #yolo-design-root .y-chip{
+      display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;
+      background:rgba(15,23,42,.58);border:1px solid rgba(148,163,184,.22);color:#E2E8F0;
+      font-size:10.5px;line-height:1;font-variant-numeric:tabular-nums;backdrop-filter:blur(6px);
+    }
+    #yolo-design-root .y-chip svg{width:11px;height:11px;color:#7DD3FC;}
+
+    #yolo-design-root .y-dropzone{
+      width:min(430px,84%);padding:26px 24px;border:1.5px dashed #334155;border-radius:14px;
+      background:rgba(30,41,59,.35);display:flex;flex-direction:column;align-items:center;text-align:center;
+      transition:border-color 150ms ease,background 150ms ease;
+    }
+    #yolo-design-root .y-dropzone:hover{border-color:var(--y-primary);background:rgba(14,165,233,.08);}
+    #yolo-design-root .y-state-icon{
+      width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+      background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.18);color:#94A3B8;margin-bottom:13px;
+    }
+    #yolo-design-root .y-state-icon svg{width:22px;height:22px;}
+    #yolo-design-root .y-state-title{font-size:14px;font-weight:600;line-height:1.4;color:#E2E8F0;margin-bottom:4px;}
+    #yolo-design-root .y-state-sub{max-width:340px;font-size:11.5px;line-height:1.6;color:#94A3B8;margin:0;}
+    #yolo-design-root .y-state-sub code{
+      font-family:var(--y-mono);font-size:10.5px;color:#BAE6FD;background:rgba(14,165,233,.12);
+      padding:1px 5px;border-radius:4px;
+    }
+    #yolo-design-root .y-error .y-state-icon{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.30);color:#F87171;}
+    #yolo-design-root .y-error .y-state-title{color:#FCA5A5;}
+
+    #yolo-design-root .y-statusbar{
+      height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;
+      border-top:1px solid var(--y-border-soft);background:var(--y-surface);font-size:11.5px;min-width:0;
+    }
+    #yolo-design-root .y-status-icon{
+      width:14px;height:14px;flex:none;color:var(--y-text-3);display:flex;align-items:center;justify-content:center;
+    }
+    #yolo-design-root .y-status-icon svg{width:13px;height:13px;}
+    #yolo-design-root .y-status-msg{
+      min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--y-text-2);
+    }
+    #yolo-design-root .y-status-msg.is-err{color:var(--y-danger-text);}
+    #yolo-design-root .y-status-msg.is-warn{color:var(--y-warning-text);}
+    #yolo-design-root .y-status-path{
+      margin-left:auto;max-width:46%;flex:none;font-family:var(--y-mono);font-size:10.5px;color:var(--y-text-3);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+
+    /* ---- 底部宿主栏 ---- */
+    #yolo-design-root .y-footer{
+      height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;
+      border-top:1px solid var(--y-border-soft);background:var(--y-surface-2);
+    }
+    #yolo-design-root .y-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #yolo-design-root .y-status-chip{
+      display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;
+      background:var(--y-surface);border:1px solid var(--y-border);font-size:11.5px;color:var(--y-text-2);white-space:nowrap;
+    }
+    #yolo-design-root .y-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--y-text-3);}
+    #yolo-design-root .y-elapsed{font-family:var(--y-mono);font-size:11px;color:var(--y-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+    #yolo-design-root .y-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #yolo-design-root .y-footer .y-btn{height:32px;padding:0 16px;font-size:12.5px;}
+    #yolo-design-root .y-footer .y-btn-primary{padding:0 18px;}
+
+    /* ---- 说明 ---- */
+    #yolo-design-root .y-notes{
+      max-width:1360px;margin:26px auto 0;display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;
+    }
+    #yolo-design-root .y-notes-head{
+      grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--y-text-2);
+    }
+    #yolo-design-root .y-note{
+      display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--y-border);
+    }
+    #yolo-design-root .y-note-num{
+      width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      background:var(--y-primary-light);color:var(--y-primary-text);font-size:11px;font-weight:700;
+      font-variant-numeric:tabular-nums;
+    }
+    #yolo-design-root .y-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--y-text);}
+    #yolo-design-root .y-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--y-text-2);}
+    #yolo-design-root .y-note code{
+      font-family:var(--y-mono);font-size:10.5px;color:var(--y-primary-text);
+      background:var(--y-primary-soft);padding:1px 4px;border-radius:4px;
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      #yolo-design-root *{animation:none !important;transition:none !important;}
+    }
+    @media (max-width:1024px){
+      #yolo-design-root .y-page{padding:18px 14px 32px;}
+      #yolo-design-root .y-window{height:auto;min-height:640px;}
+      #yolo-design-root .y-content{grid-template-columns:1fr;}
+      #yolo-design-root .y-rail{overflow:visible;}
+      #yolo-design-root .y-preview{min-height:420px;}
+    }
+  </style>
+
+  <div class="y-page">
+    <header class="y-page-head">
+      <div class="y-page-title-row">
+        <h1>YOLO 目标检测 · 配置窗口</h1>
+        <span class="y-ver">v1</span>
+      </div>
+      <p class="y-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、<b>Image</b> 端口的
+        <b>LinkableValueEditor</b>、<b>ImageReadOnly</b>、<b>ModelPath</b> 与全部检测参数绑定；
+        不新增功能、不改绑定类型。窗口 <b>960 × 680</b>，左侧配置轨 <b>356px</b>，右侧预览工作区自适应。
+      </p>
+      <div class="y-demo-bar">
+        <div class="y-demo-group" role="group" aria-label="窗口宽度">
+          <span class="y-demo-label">窗口宽度</span>
+          <div class="y-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="y-demo-group" role="group" aria-label="预览状态">
+          <span class="y-demo-label">预览状态</span>
+          <div class="y-seg">
+            <button type="button" data-state="normal" class="is-on" aria-pressed="true">正常</button>
+            <button type="button" data-state="empty" aria-pressed="false">空态</button>
+            <button type="button" data-state="error" aria-pressed="false">错误</button>
+          </div>
+        </div>
+        <div class="y-demo-group" role="group" aria-label="试算结果">
+          <span class="y-demo-label">试算结果</span>
+          <div class="y-seg">
+            <button type="button" data-result="normal" class="is-on" aria-pressed="true">有目标</button>
+            <button type="button" data-result="zero" aria-pressed="false">0 个目标</button>
+            <button type="button" data-result="error" aria-pressed="false">失败</button>
+          </div>
+        </div>
+      </div>
+      <div class="y-scope">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span><b>本版未纳入（需新增功能或契约）：</b>加载骨架、图像尺寸 / 文件大小、放大 / 缩小、打开所在文件夹、
+        系统导航、<b>检测框叠加</b>（需要把检测结果画进预览图，属业务/渲染改动）。本稿只覆盖 960×680 与 640×680；
+        宿主最小档 640×560 需真机复核左栏滚动与预览高度。</span>
+      </div>
+    </header>
+
+    <div class="y-window" id="y-window">
+      <div class="y-titlebar">
+        <div class="y-app-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="4"></circle><path d="M12 3v3"></path><path d="M12 18v3"></path><path d="M3 12h3"></path><path d="M18 12h3"></path></svg>
+        </div>
+        <div class="y-title-text">
+          <div class="y-title-line"><div class="y-title">YOLO 目标检测</div></div>
+          <div class="y-subtitle">用 ONNX 格式的 YOLO 检测模型找出目标（类别 + 置信度 + 位置）</div>
+        </div>
+        <div class="y-title-actions">
+          <button type="button" class="y-icon-btn" aria-label="关闭" title="关闭">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="y-content">
+        <aside class="y-rail" aria-label="检测配置">
+          <!-- 图像输入 -->
+          <section class="y-panel">
+            <div class="y-section-head"><span>图像输入</span><span class="y-section-hint">上游 / 变量链接</span></div>
+            <div class="y-field">
+              <label class="y-label" for="y-image-input">输入图像</label>
+              <div class="y-input-row">
+                <input class="y-input" id="y-image-input" type="text" value="上游：预处理.Output" readonly>
+                <button type="button" class="y-btn-square" aria-label="绑定变量" title="绑定变量">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+                </button>
+              </div>
+              <p class="y-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                在配置窗口内点 🔗 绑定上游端口或变量；也可点宿主「执行」把上游图带进来。本节点检测整幅图，不需要 ROI。
+              </p>
+            </div>
+          </section>
+
+          <!-- 检测模型 -->
+          <section class="y-panel">
+            <div class="y-section-head"><span>检测模型</span><span class="y-section-hint">.onnx · 外部文件</span></div>
+            <div class="y-field">
+              <label class="y-label" for="y-model-input">模型路径</label>
+              <div class="y-input-row">
+                <input class="y-input is-mono" id="y-model-input" type="text" value="D:\Models\defect-yolo11n.onnx" spellcheck="false">
+                <button type="button" class="y-btn y-btn-sm" id="y-browse" title="选择 ONNX 检测模型">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></svg>
+                  浏览
+                </button>
+              </div>
+              <p class="y-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                支持相对路径（相对宿主程序目录），换机器部署时不用改配置。
+              </p>
+            </div>
+            <div class="y-info-card">
+              <div class="y-info-head">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M9 9h6v6H9z"></path><path d="M9 2v2"></path><path d="M15 2v2"></path><path d="M9 20v2"></path><path d="M15 20v2"></path><path d="M2 9h2"></path><path d="M2 15h2"></path><path d="M20 9h2"></path><path d="M20 15h2"></path></svg>
+                模型信息（只读）
+              </div>
+              <pre class="y-mono" id="y-model-summary">defect-yolo11n.onnx
+input: [1,3,640,640]  output: [1,84,8400]
+task=detect　6 个类别名（scratch,dent,oil,…）</pre>
+            </div>
+            <p class="y-help">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              只支持「目标检测」模型。分割 / 姿态 / 分类模型的输出格式不同，会被明确拒绝（不会拿错格式硬算）。
+            </p>
+          </section>
+
+          <!-- 检测参数 -->
+          <section class="y-panel">
+            <div class="y-section-head"><span>检测参数</span><span class="y-section-hint">常用三项</span></div>
+            <div class="y-field">
+              <div class="y-row-2">
+                <label class="y-label" for="y-conf" style="margin-bottom:0;">置信度阈值（0~1）</label>
+                <input class="y-input y-num" id="y-conf" type="text" value="0.25">
+              </div>
+              <p class="y-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                低于它的候选直接丢弃。调高会减少误检、调低会减少漏检。默认 0.25。
+              </p>
+            </div>
+            <div class="y-field">
+              <div class="y-row-2">
+                <label class="y-label" for="y-nms" style="margin-bottom:0;">NMS 重叠阈值（0~1）</label>
+                <input class="y-input y-num" id="y-nms" type="text" value="0.45">
+              </div>
+              <p class="y-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                同类框重叠超过它就只留置信度高的那个。默认 0.45；按类别分别做，异类重叠不会被压制。
+              </p>
+            </div>
+            <div class="y-field">
+              <div class="y-row-2">
+                <label class="y-label" for="y-max" style="margin-bottom:0;">最多保留目标数</label>
+                <input class="y-input y-num" id="y-max" type="text" value="100">
+              </div>
+              <p class="y-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                按置信度排序后截断，避免异常图上刷出成千上万个框。<code>0 = 不限</code>。
+              </p>
+            </div>
+          </section>
+
+          <!-- 高级参数 -->
+          <details class="y-details" id="y-advanced">
+            <summary>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+              高级参数（多数场景不用动）
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="y-chev" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+            </summary>
+            <div class="y-details-body">
+              <div class="y-field" style="margin-top:10px;">
+                <div class="y-row-2">
+                  <label class="y-label" for="y-size" style="margin-bottom:0;">输入尺寸（0 = 模型自带）</label>
+                  <input class="y-input y-num" id="y-size" type="text" value="0">
+                </div>
+                <p class="y-help">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                  letterbox 的目标边长。模型元数据里有静态尺寸时留 0 即可；动态形状才需要手填（常见 640）。
+                </p>
+              </div>
+              <div class="y-field">
+                <label class="y-label" for="y-filter">类别过滤（如 0,2；留空 = 全部）</label>
+                <input class="y-input" id="y-filter" type="text" value="" placeholder="留空表示不过滤">
+                <p class="y-help">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                  只保留指定类别索引的目标。填错会明确报错，不会静默当成不过滤。
+                </p>
+              </div>
+              <div class="y-field">
+                <div class="y-row-2">
+                  <label class="y-label" for="y-margin" style="margin-bottom:0;">裁剪边距（像素）</label>
+                  <input class="y-input y-num" id="y-margin" type="text" value="0">
+                </div>
+                <p class="y-help">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                  「最佳目标裁剪图」向外扩张的边距。下游要做精细测量时给几像素余量，避免把目标边缘切掉。
+                </p>
+              </div>
+            </div>
+          </details>
+
+          <!-- 试算 -->
+          <section class="y-try">
+            <div class="y-section-head"><span>试算</span><span class="y-section-hint">配置态验证</span></div>
+            <p class="y-help" style="margin-top:0;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              图像来自上方「图像输入」：链接上游输出、或手动指定一张图；绑定后点「执行」跑一遍，图会自动显示进来。
+            </p>
+            <button type="button" class="y-btn y-btn-primary y-btn-block" id="y-try" style="margin-top:10px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></svg>
+              试算一下
+            </button>
+            <div class="y-result-card" id="y-result-card">
+              <pre class="y-mono" id="y-result">检测到 3 个目标（耗时 18 ms）
+letterbox: 缩放 0.500　补边 (0,80)
+  scratch  0.92  [412,188,596,402]
+  dent     0.81  [120,260,208,344]
+  scratch  0.67  [640,210,748,330]</pre>
+            </div>
+          </section>
+        </aside>
+
+        <section class="y-preview" aria-label="检测预览">
+          <div class="y-preview-head">
+            <div class="y-file-chip">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg>
+            </div>
+            <span class="y-file-name" id="y-file-name">defect-yolo11n.onnx</span>
+            <span class="y-file-meta" id="y-file-meta">上游图像 · 只读</span>
+            <div class="y-preview-tools" id="y-preview-tools">
+              <button type="button" class="y-icon-btn" title="适应窗口" aria-label="适应窗口">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
+              </button>
+              <button type="button" class="y-tool-text" title="实际像素 1:1" aria-label="实际像素">1:1</button>
+            </div>
+          </div>
+
+          <div class="y-canvas">
+            <div class="y-canvas-view" data-view="image">
+              <svg class="y-scene" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="y-scene-title y-scene-desc">
+                <title id="y-scene-title">工业零件上游图像预览</title>
+                <desc id="y-scene-desc">深色背景上有一个带六个螺栓孔的金属圆形法兰零件，带取景角标。检测结果以左侧试算文本为准，本版不叠加检测框。</desc>
+                <defs>
+                  <radialGradient id="y-metal" cx="42%" cy="38%" r="66%">
+                    <stop offset="0%" stop-color="#E8EDF3"></stop>
+                    <stop offset="45%" stop-color="#AEB9C6"></stop>
+                    <stop offset="75%" stop-color="#7B8794"></stop>
+                    <stop offset="100%" stop-color="#4B5563"></stop>
+                  </radialGradient>
+                  <linearGradient id="y-bg" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#0B1220"></stop>
+                    <stop offset="100%" stop-color="#151F31"></stop>
+                  </linearGradient>
+                  <pattern id="y-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293B" stroke-width="1"></path>
+                  </pattern>
+                  <filter id="y-soft" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="9"></feGaussianBlur>
+                  </filter>
+                </defs>
+                <rect width="800" height="520" fill="url(#y-bg)"></rect>
+                <rect width="800" height="520" fill="url(#y-grid)" opacity=".55"></rect>
+                <ellipse cx="400" cy="278" rx="232" ry="205" fill="#000000" opacity=".45" filter="url(#y-soft)"></ellipse>
+                <circle cx="400" cy="260" r="190" fill="url(#y-metal)" stroke="#D7DEE8" stroke-width="2"></circle>
+                <circle cx="400" cy="260" r="160" fill="none" stroke="#5B6675" stroke-width="2" opacity=".7"></circle>
+                <circle cx="400" cy="260" r="118" fill="#8C97A5" stroke="#D7DEE8" stroke-width="1.5"></circle>
+                <circle cx="400" cy="260" r="92" fill="#5F6B7A" stroke="#AEB9C6" stroke-width="1.5"></circle>
+                <circle cx="400" cy="260" r="52" fill="#2F3947" stroke="#7B8794" stroke-width="2"></circle>
+                <g fill="#1F2937" stroke="#C7D0DB" stroke-width="1.2">
+                  <circle cx="400" cy="118" r="15"></circle>
+                  <circle cx="523" cy="189" r="15"></circle>
+                  <circle cx="523" cy="331" r="15"></circle>
+                  <circle cx="400" cy="402" r="15"></circle>
+                  <circle cx="277" cy="331" r="15"></circle>
+                  <circle cx="277" cy="189" r="15"></circle>
+                </g>
+                <circle cx="400" cy="260" r="24" fill="#111827" stroke="#94A3B8" stroke-width="1"></circle>
+                <g fill="none" stroke="#FFFFFF" stroke-opacity=".18" stroke-width="1">
+                  <path d="M 245 260 A 155 155 0 0 1 400 105"></path>
+                  <path d="M 555 260 A 155 155 0 0 0 400 415"></path>
+                  <path d="M 300 260 A 100 100 0 0 1 400 160"></path>
+                </g>
+                <g stroke="#38BDF8" stroke-opacity=".55" stroke-width="2" fill="none">
+                  <path d="M 30 30 H 70 M 30 30 V 70"></path>
+                  <path d="M 770 30 H 730 M 770 30 V 70"></path>
+                  <path d="M 30 490 H 70 M 30 490 V 450"></path>
+                  <path d="M 770 490 H 730 M 770 490 V 450"></path>
+                </g>
+              </svg>
+              <div class="y-overlay">
+                <span class="y-chip">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path></svg>
+                  只读预览
+                </span>
+              </div>
+            </div>
+
+            <div class="y-canvas-view" data-view="empty" hidden="">
+              <div class="y-dropzone">
+                <div class="y-state-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg>
+                </div>
+                <div class="y-state-title">等待图像输入</div>
+                <p class="y-state-sub">在左侧「图像输入」点 🔗 绑定上游端口或变量；也可以点宿主底部的「执行」把上游图带进来。本节点检测整幅图，不需要 ROI。</p>
+              </div>
+            </div>
+
+            <div class="y-canvas-view y-error" data-view="error" hidden="" role="alert">
+              <div class="y-state-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+              </div>
+              <div class="y-state-title" id="y-error-title">无法加载预览</div>
+              <p class="y-state-sub" id="y-error-sub">模型文件不存在或无法加载。请检查左侧「检测模型」的路径与任务类型（只支持 detect）。</p>
+            </div>
+          </div>
+
+          <div class="y-statusbar" aria-live="polite">
+            <span class="y-status-icon" id="y-status-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+            </span>
+            <span class="y-status-msg" id="y-status-msg">已显示上游图像（点「执行」试运行带进来的）：可直接点「试算一下」看检测效果</span>
+            <span class="y-status-path" id="y-status-path">D:\Models\defect-yolo11n.onnx</span>
+          </div>
+        </section>
+      </div>
+
+      <div class="y-footer">
+        <div class="y-footer-left">
+          <span class="y-status-chip"><span class="y-footer-dot"></span><span>状态: 待执行</span></span>
+          <span class="y-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="y-footer-right">
+          <button type="button" class="y-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></svg>
+            执行
+          </button>
+          <button type="button" class="y-btn">取消</button>
+          <button type="button" class="y-btn y-btn-primary">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="y-notes">
+      <div class="y-notes-head">关键改动（v1）</div>
+      <div class="y-note">
+        <div class="y-note-num">01</div>
+        <div><b>两栏固定分工</b><span>左 356px 配置轨（图像输入 → 检测模型 → 检测参数 → 高级参数 → 试算），右侧预览工作区自适应；不再是一列卡片从头滚到尾。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">02</div>
+        <div><b>单页信息架构</b><span>取消隐式分组，按「输入 → 模型 → 参数 → 试算」排布；「高级参数」收进原生折叠区，默认收起，不占首屏。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">03</div>
+        <div><b>表单节奏统一</b><span>标签 12px、控件 36px、帮助 11.5px；数值字段右对齐并启用 tabular-nums；<code>ModelPath</code> 与七个 <code>[StepConfig]</code> 属性绑定原样保留。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">04</div>
+        <div><b>模型摘要升级为信息卡</b><span>仍是只读文本（绑 <code>ModelSummary</code>），但放进等宽信息卡：输入/输出形状、task、类别名一眼可见，选错模型时这里是第一线索。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">05</div>
+        <div><b>预览升级为工作区</b><span>保留 <code>ImageReadOnly</code>；用 <code>ContentControl</code> + <code>DataTemplate</code> 按需创建（有图才实例化），工具条只接现有 <code>FitToWindow()</code> / <code>FitToImage()</code>。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">06</div>
+        <div><b>试算结果独立结果面板</b><span>仍绑 <code>ResultSummary</code>；有目标 / 0 个目标 / 失败三态用语义色区分，失败文案由插件原样给出，视图不重写业务判断。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">07</div>
+        <div><b>颜色全部令牌化</b><span>映射 <code>PluginConfigColors.xaml</code> / <code>Colors.xaml</code>；只在本视图派生样式，不改共享字典与共享控件；视图 XAML <code>hex=0</code>。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">08</div>
+        <div><b>五态与键盘可达</b><span>hover / pressed / focus / disabled 全量；图标按钮 30×30 且 <code>Padding=0</code>（R68），焦点环走 <code>DialogFocusVisual</code>，ToolTip 走 <code>DialogToolTipStyle</code>（R135）。</span></div>
+      </div>
+
+      <div class="y-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="y-note">
+        <div class="y-note-num">C1</div>
+        <div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不能换成独立 VM，否则确认等于没保存。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">C2</div>
+        <div><b>Image 端口的 LinkableValueEditor</b><span>只此一个 <code>LinkableValueEditor</code>：<code>Port="{Binding Image}"</code>、<code>StepData="{Binding StepData}"</code>；端口持久化、变量链接、解除链接都在控件里。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">C3</div>
+        <div><b>ImageReadOnly.HImage = DisplayImage</b><span>保留 HALCON 显示 / 缩放 / 右键菜单；<code>ContentControl.Content</code> 绑 <code>DisplayImage</code>，模板内 <code>HImage="{Binding Mode=OneWay}"</code>（<code>HImage</code> 默认双向，裸 <code>{Binding}</code> 会抛）。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">C4</div>
+        <div><b>七个 [StepConfig] 属性</b><span><code>ModelPath</code> / <code>ConfidenceThreshold</code> / <code>NmsIoU</code> / <code>MaxDetections</code> / <code>InputSize</code> / <code>ClassFilterText</code> / <code>CropMargin</code>；类型与属性名不改，持久化键不变。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">C5</div>
+        <div><b>命令与生命周期</b><span><code>OnBrowseModelClick</code> / <code>OnTryDetectClick</code> / <code>OnViewLoaded</code> / <code>TryPreviewDetect</code> / <code>ShowUpstreamImage</code> 行为不变；<code>Hint</code> / <code>ResultSummary</code> / <code>ModelSummary</code> 原样消费。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">C6</div>
+        <div><b>本插件没有的契约不伪造</b><span>Yolo 没有 <code>Mode</code> / <code>SelectedCameraOption</code> / <code>DisplayViewIndex</code> / <code>StatusLevel</code>；本版不新增这些属性，也不把 <code>Hint</code> 包装成假的四档状态。</span></div>
+      </div>
+
+      <div class="y-notes-head" style="margin-top:20px;">明确延后（需新增功能或契约）</div>
+      <div class="y-note">
+        <div class="y-note-num">D1</div>
+        <div><b>加载骨架 / 蓝色加载态</b><span>需要 VM 新增 <code>IsPreviewLoading</code> 或 <code>PreviewState</code>；本版只做空态 / 错误态。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">D2</div>
+        <div><b>图像尺寸 / 文件大小</b><span>需要 VM 新增只读属性（<code>HImage.GetImageSize</code> / <code>FileInfo.Length</code>）；本版预览头只显示模型文件名与「上游图像 · 只读」。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">D3</div>
+        <div><b>放大 / 缩小按钮</b><span><code>HalconBase</code> 只有 <code>FitToWindow()</code> 与 <code>FitToImage()</code>，没有公开 zoom 方法；本版不做这两个按钮。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">D4</div>
+        <div><b>打开所在文件夹</b><span>需要新增 <code>Process.Start("explorer.exe", ...)</code> 行为；本版不做。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">D5</div>
+        <div><b>检测框叠加</b><span>需要把 <code>Detections</code> 的框画进预览图（或新增叠加层属性），属业务 / 渲染改动；本版预览只显示上游原图，结果以左侧试算文本为准。</span></div>
+      </div>
+      <div class="y-note">
+        <div class="y-note-num">D6</div>
+        <div><b>类别名列表 / 类别选择器</b><span>模型元数据里的类别名当前只做只读摘要；做可选列表需要新增 VM 只读集合与选择状态，本版不做。</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('yolo-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#y-window');
+      var stateButtons = Array.prototype.slice.call(root.querySelectorAll('[data-state]'));
+      var resultButtons = Array.prototype.slice.call(root.querySelectorAll('[data-result]'));
+      var sizeButtons = Array.prototype.slice.call(root.querySelectorAll('[data-width]'));
+      var views = Array.prototype.slice.call(root.querySelectorAll('.y-canvas-view'));
+
+      var fileName = root.querySelector('#y-file-name');
+      var fileMeta = root.querySelector('#y-file-meta');
+      var previewTools = root.querySelector('#y-preview-tools');
+      var statusMsg = root.querySelector('#y-status-msg');
+      var statusPath = root.querySelector('#y-status-path');
+      var errorTitle = root.querySelector('#y-error-title');
+      var errorSub = root.querySelector('#y-error-sub');
+      var resultCard = root.querySelector('#y-result-card');
+      var resultText = root.querySelector('#y-result');
+      var modelInput = root.querySelector('#y-model-input');
+      var modelSummary = root.querySelector('#y-model-summary');
+      var browseBtn = root.querySelector('#y-browse');
+      var tryBtn = root.querySelector('#y-try');
+
+      var state = 'normal';
+      var result = 'normal';
+      var modelIndex = 0;
+
+      var models = [
+        {
+          path: 'D:\\Models\\defect-yolo11n.onnx',
+          summary: 'defect-yolo11n.onnx\ninput: [1,3,640,640]  output: [1,84,8400]\ntask=detect　6 个类别名（scratch,dent,oil,…）'
+        },
+        {
+          path: 'D:\\Models\\bottle-yolo8s.onnx',
+          summary: 'bottle-yolo8s.onnx\ninput: [1,3,512,512]  output: [1,6,5376]\ntask=detect　2 个类别名（bottle,cap）'
+        }
+      ];
+
+      var stateMeta = {
+        normal: {
+          name: '检测预览', meta: '上游图像 · 只读', view: 'image',
+          msg: '已显示上游图像（点「执行」试运行带进来的）：可直接点「试算一下」看检测效果',
+          path: function () { return models[modelIndex].path; }
+        },
+        empty: {
+          name: '检测预览', meta: '上游图像 · 只读', view: 'empty',
+          msg: '先选模型（.onnx），再在「图像输入」里点 🔗 手动绑定图像来源（选上游端口或变量），然后「试算一下」看检测结果',
+          path: function () { return modelInput.value || '尚未选择模型'; }
+        },
+        error: {
+          name: '检测预览', meta: '上游图像 · 只读', view: 'error',
+          msg: '模型文件不存在：D:\\Models\\missing.onnx。请重新选择，或把模型放到该路径',
+          path: 'D:\\Models\\missing.onnx'
+        }
+      };
+
+      var resultMeta = {
+        normal: {
+          cls: '',
+          text: '检测到 3 个目标（耗时 18 ms）\nletterbox: 缩放 0.500　补边 (0,80)\n  scratch  0.92  [412,188,596,402]\n  dent     0.81  [120,260,208,344]\n  scratch  0.67  [640,210,748,330]'
+        },
+        zero: {
+          cls: 'is-zero',
+          text: '检测到 0 个目标（耗时 12 ms）\nletterbox: 缩放 0.500　补边 (0,80)\n\n若图上确有目标，请先确认：\n① 置信度阈值是否过高；② 模型是否与当前产品匹配；\n③ 图像是否需要做预处理（亮度/对比度）'
+        },
+        error: {
+          cls: 'is-err',
+          text: '试算失败：模型文件不存在：D:\\Models\\missing.onnx。请重新选择，或把模型放到该路径'
+        }
+      };
+
+      function render() {
+        var item = stateMeta[state];
+        if (state === 'error') {
+          modelInput.value = 'D:\\Models\\missing.onnx';
+          modelSummary.textContent = '模型加载失败，详见提示';
+        } else {
+          modelInput.value = models[modelIndex].path;
+          modelSummary.textContent = models[modelIndex].summary;
+        }
+        var modelName = modelInput.value ? modelInput.value.split('\\').pop() : '检测预览';
+        fileName.textContent = state === 'error' ? 'missing.onnx' : modelName;
+        fileMeta.textContent = item.meta;
+        statusMsg.textContent = item.msg;
+        statusPath.textContent = item.path();
+        statusMsg.className = 'y-status-msg' + (state === 'error' ? ' is-err' : state === 'empty' ? ' is-warn' : '');
+
+        views.forEach(function (view) {
+          view.hidden = view.dataset.view !== item.view;
+        });
+
+        if (state === 'error') {
+          errorTitle.textContent = '无法加载预览';
+          errorSub.textContent = '模型文件不存在或无法加载。请检查左侧「检测模型」的路径与任务类型（只支持 detect）。';
+        }
+
+        previewTools.hidden = state !== 'normal';
+
+        var r = resultMeta[result];
+        resultCard.className = 'y-result-card ' + r.cls;
+        resultText.textContent = r.text;
+      }
+
+      stateButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          state = btn.dataset.state;
+          stateButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          render();
+        });
+      });
+
+      resultButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          result = btn.dataset.result;
+          resultButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          render();
+        });
+      });
+
+      sizeButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var narrow = btn.dataset.width === '640';
+          win.classList.toggle('is-narrow', narrow);
+          sizeButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+        });
+      });
+
+      browseBtn.addEventListener('click', function () {
+        modelIndex = (modelIndex + 1) % models.length;
+        state = 'normal';
+        stateButtons.forEach(function (b) {
+          var on = b.dataset.state === 'normal';
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        render();
+      });
+
+      tryBtn.addEventListener('click', function () {
+        state = 'normal';
+        result = 'normal';
+        stateButtons.forEach(function (b) {
+          var on = b.dataset.state === 'normal';
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        resultButtons.forEach(function (b) {
+          var on = b.dataset.result === 'normal';
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        render();
+      });
+
+      render();
+    })();
+  </script>
+</div>
+</body>
+</html>

@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ROI 创建 · 配置窗口 · 设计基线 v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #cr-design-root { color-scheme: light; }
+</style>
+</head>
+<body>
+<div id="cr-design-root">
+<style>
+  #cr-design-root{
+    --cr-surface:#FFFFFF;
+    --cr-surface-2:#F8FAFC;
+    --cr-surface-3:#F1F5F9;
+    --cr-border:#E2E8F0;
+    --cr-border-soft:#EEF2F7;
+    --cr-border-strong:#CBD5E1;
+    --cr-text:#0F172A;
+    --cr-text-2:#475569;
+    --cr-text-3:#94A3B8;
+    --cr-text-4:#64748B;
+    --cr-primary:#0EA5E9;
+    --cr-primary-strong:#0284C7;
+    --cr-primary-text:#0369A1;
+    --cr-primary-soft:#F0F9FF;
+    --cr-primary-light:#E0F2FE;
+    --cr-primary-border:#BAE6FD;
+    --cr-success:#22C55E;
+    --cr-success-text:#15803D;
+    --cr-success-soft:#F0FDF4;
+    --cr-success-border:#BBF7D0;
+    --cr-danger:#EF4444;
+    --cr-danger-text:#B91C1C;
+    --cr-danger-soft:#FEF2F2;
+    --cr-danger-border:#FECACA;
+    --cr-warning:#F59E0B;
+    --cr-warning-text:#B45309;
+    --cr-warning-soft:#FFF4E5;
+    --cr-warning-border:#FDE68A;
+    --cr-canvas:#0B1220;
+    --cr-canvas-2:#1E293B;
+    --cr-canvas-border:#334155;
+    --cr-canvas-text:#E2E8F0;
+    --cr-canvas-muted:#94A3B8;
+    --cr-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --cr-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+    --cr-radius-sm:6px;
+    --cr-radius-md:8px;
+    --cr-radius-lg:10px;
+    --cr-radius-xl:12px;
+    --cr-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+    font-family:var(--cr-font);
+    -webkit-font-smoothing:antialiased;
+  }
+  #cr-design-root *{box-sizing:border-box;}
+  #cr-design-root button,
+  #cr-design-root input,
+  #cr-design-root select{font-family:inherit;}
+  #cr-design-root button{color:inherit;}
+  #cr-design-root [hidden]{display:none !important;}
+  #cr-design-root :focus-visible{outline:2px solid var(--cr-primary);outline-offset:2px;}
+
+  #cr-design-root .cr-page{max-width:1360px;margin:0 auto;padding:24px 24px 44px;}
+  #cr-design-root .cr-page-head{max-width:1360px;margin:0 auto 16px;}
+  #cr-design-root .cr-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  #cr-design-root .cr-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--cr-text);}
+  #cr-design-root .cr-ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--cr-primary-light);color:var(--cr-primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;}
+  #cr-design-root .cr-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--cr-text-2);}
+  #cr-design-root .cr-page-sub b{color:var(--cr-text);font-weight:600;}
+  #cr-design-root .cr-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+  #cr-design-root .cr-demo-group{display:flex;align-items:center;gap:8px;}
+  #cr-design-root .cr-demo-label{font-size:11.5px;color:var(--cr-text-4);}
+  #cr-design-root .cr-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--cr-radius-md);background:var(--cr-surface-3);}
+  #cr-design-root .cr-seg button{height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--cr-text-2);font-size:11.5px;line-height:1;white-space:nowrap;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;}
+  #cr-design-root .cr-seg button:hover{color:var(--cr-text);}
+  #cr-design-root .cr-seg button.is-on{background:#FFFFFF;color:var(--cr-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+  #cr-design-root .cr-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--cr-text-2);}
+  #cr-design-root .cr-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--cr-warning-text);}
+  #cr-design-root .cr-scope b{color:var(--cr-text);font-weight:600;}
+
+  /* ================= 产品窗口 ================= */
+  #cr-design-root .cr-window{width:960px;max-width:100%;height:680px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:var(--cr-surface);border-radius:16px;box-shadow:var(--cr-shadow-window);transition:width 200ms ease;}
+  #cr-design-root .cr-window.is-narrow{width:640px;}
+  #cr-design-root .cr-titlebar{height:72px;flex:none;display:flex;align-items:center;padding:0 20px;background:var(--cr-surface);border-bottom:1px solid var(--cr-border-soft);}
+  #cr-design-root .cr-app-icon{width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--cr-primary-light);color:var(--cr-primary-text);}
+  #cr-design-root .cr-app-icon svg{width:19px;height:19px;}
+  #cr-design-root .cr-title-text{margin-left:12px;min-width:0;flex:1;}
+  #cr-design-root .cr-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--cr-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #cr-design-root .cr-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--cr-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #cr-design-root .cr-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+  #cr-design-root .cr-icon-btn{width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--cr-radius-md);display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--cr-text-4);cursor:pointer;transition:background 150ms ease,color 150ms ease;}
+  #cr-design-root .cr-icon-btn svg{width:15px;height:15px;}
+  #cr-design-root .cr-icon-btn:hover{background:var(--cr-surface-3);color:var(--cr-text);}
+  #cr-design-root .cr-icon-btn:active{background:var(--cr-border);}
+
+  /* ---- 内容 ---- */
+  #cr-design-root .cr-content{flex:1;min-height:0;display:grid;grid-template-columns:340px minmax(0,1fr);gap:16px;padding:16px 20px 20px;background:var(--cr-surface);}
+  #cr-design-root .cr-window.is-narrow .cr-content{grid-template-columns:300px minmax(0,1fr);gap:12px;padding:14px 16px 16px;}
+
+  /* ---- 左栏 ---- */
+  #cr-design-root .cr-rail{min-height:0;display:flex;flex-direction:column;padding:14px;border:1px solid var(--cr-border-soft);border-radius:var(--cr-radius-xl);background:var(--cr-surface-2);overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;}
+  #cr-design-root .cr-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;font-size:12px;font-weight:600;color:var(--cr-text-2);}
+  #cr-design-root .cr-section-hint{font-size:10.5px;font-weight:400;color:var(--cr-text-3);white-space:nowrap;}
+  #cr-design-root .cr-label{display:flex;align-items:center;gap:5px;margin-bottom:6px;font-size:12px;font-weight:500;line-height:1.3;color:var(--cr-text-2);}
+  #cr-design-root .cr-input-row{display:flex;align-items:center;gap:8px;}
+  #cr-design-root .cr-input,#cr-design-root .cr-select{width:100%;height:36px;padding:0 10px;border:1px solid var(--cr-border);border-radius:var(--cr-radius-md);background:var(--cr-surface);color:var(--cr-text);font-size:12.5px;line-height:1;outline:none;transition:border-color 150ms ease,box-shadow 150ms ease;}
+  #cr-design-root .cr-input:focus,#cr-design-root .cr-select:focus{border-color:var(--cr-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+  #cr-design-root .cr-select{appearance:none;-webkit-appearance:none;padding-right:30px;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;}
+  #cr-design-root .cr-input[readonly]{background:var(--cr-surface-2);color:var(--cr-text-2);}
+  #cr-design-root .cr-square{width:36px;height:36px;flex:none;padding:0;border:1px solid var(--cr-border);border-radius:var(--cr-radius-md);background:var(--cr-surface);color:var(--cr-text-4);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;}
+  #cr-design-root .cr-square:hover{background:var(--cr-primary-soft);border-color:var(--cr-primary-border);color:var(--cr-primary-text);}
+  #cr-design-root .cr-square svg{width:14px;height:14px;}
+  #cr-design-root .cr-help{display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;font-size:11.5px;line-height:1.5;color:var(--cr-text-4);}
+  #cr-design-root .cr-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--cr-text-3);}
+
+  #cr-design-root .cr-list-card,#cr-design-root .cr-param-card{margin-top:12px;padding:10px;border:1px solid var(--cr-border);border-radius:var(--cr-radius-lg);background:var(--cr-surface);}
+  #cr-design-root .cr-list-card{flex:1;min-height:180px;display:flex;flex-direction:column;}
+  #cr-design-root .cr-badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 6px;border-radius:9px;background:var(--cr-surface-3);color:var(--cr-text-3);font-size:10.5px;font-weight:600;font-variant-numeric:tabular-nums;}
+  #cr-design-root .cr-list-hint{font-size:10.5px;line-height:1.4;color:var(--cr-text-3);margin-bottom:7px;}
+  #cr-design-root .cr-roi-list{flex:1;min-height:90px;overflow:auto;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin;}
+  #cr-design-root .cr-roi{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border:0;border-radius:6px;background:transparent;text-align:left;cursor:pointer;transition:background 150ms ease;}
+  #cr-design-root .cr-roi:hover{background:var(--cr-surface-3);}
+  #cr-design-root .cr-roi.is-active{background:var(--cr-primary-light);}
+  #cr-design-root .cr-roi-icon{width:22px;height:22px;flex:none;border-radius:6px;background:var(--cr-surface-3);color:var(--cr-text-4);display:flex;align-items:center;justify-content:center;}
+  #cr-design-root .cr-roi.is-active .cr-roi-icon{background:#FFFFFF;color:var(--cr-primary-text);}
+  #cr-design-root .cr-roi-icon svg{width:12px;height:12px;}
+  #cr-design-root .cr-roi-body{min-width:0;flex:1;}
+  #cr-design-root .cr-roi-name{display:block;font-size:12px;font-weight:600;color:var(--cr-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #cr-design-root .cr-roi-shape{display:block;margin-top:1px;font-size:10.5px;color:var(--cr-text-3);}
+  #cr-design-root .cr-list-actions{display:flex;gap:8px;margin-top:9px;}
+  #cr-design-root .cr-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 12px;border:1px solid var(--cr-border);border-radius:var(--cr-radius-md);background:var(--cr-surface);color:var(--cr-text);font-size:12px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;}
+  #cr-design-root .cr-btn svg{width:13px;height:13px;}
+  #cr-design-root .cr-btn:hover{background:var(--cr-surface-2);border-color:var(--cr-border-strong);}
+  #cr-design-root .cr-btn:active{background:var(--cr-surface-3);}
+  #cr-design-root .cr-btn:disabled{opacity:.45;cursor:not-allowed;}
+  #cr-design-root .cr-btn-sm{height:30px;padding:0 10px;font-size:11.5px;}
+  #cr-design-root .cr-param-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;}
+  #cr-design-root .cr-param{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:6px;}
+  #cr-design-root .cr-param label{font-size:10.5px;color:var(--cr-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #cr-design-root .cr-param input{width:100%;height:26px;padding:0 6px;border:1px solid var(--cr-border);border-radius:5px;background:var(--cr-surface);color:var(--cr-text);font-family:var(--cr-mono);font-size:11px;text-align:right;font-variant-numeric:tabular-nums;outline:none;}
+  #cr-design-root .cr-param input:focus{border-color:var(--cr-primary);}
+  #cr-design-root .cr-param-empty{margin-top:4px;font-size:11.5px;line-height:1.5;color:var(--cr-text-3);}
+  #cr-design-root .cr-output{margin-top:auto;padding-top:12px;border-top:1px solid var(--cr-border);}
+  #cr-design-root .cr-output .cr-section-head{margin-bottom:9px;}
+
+  /* ---- 预览区 ---- */
+  #cr-design-root .cr-preview{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--cr-border);border-radius:var(--cr-radius-xl);background:var(--cr-surface);}
+  #cr-design-root .cr-preview-head{height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid var(--cr-border-soft);background:var(--cr-surface);}
+  #cr-design-root .cr-file-chip{width:26px;height:26px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;background:var(--cr-surface-3);color:var(--cr-text-2);}
+  #cr-design-root .cr-file-chip svg{width:13px;height:13px;}
+  #cr-design-root .cr-preview-title{font-size:12.5px;font-weight:600;line-height:1.3;color:var(--cr-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #cr-design-root .cr-preview-meta{flex:none;font-size:10.5px;line-height:1.3;color:var(--cr-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  #cr-design-root .cr-preview-tools{margin-left:auto;display:flex;align-items:center;gap:2px;flex:none;}
+  #cr-design-root .cr-tool-text{height:30px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--cr-text-4);font-size:10.5px;font-weight:600;line-height:1;cursor:pointer;font-variant-numeric:tabular-nums;transition:background 150ms ease,color 150ms ease;}
+  #cr-design-root .cr-tool-text:hover{background:var(--cr-surface-3);color:var(--cr-text);}
+  #cr-design-root .cr-toolbar{flex:none;padding:8px 10px;border-bottom:1px solid var(--cr-border-soft);background:var(--cr-surface);}
+  #cr-design-root .cr-toolbar-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;row-gap:6px;}
+  #cr-design-root .cr-toolbar-row + .cr-toolbar-row{margin-top:7px;}
+  #cr-design-root .cr-check{display:inline-flex;align-items:center;gap:6px;margin-left:auto;font-size:11.5px;color:var(--cr-text-2);white-space:nowrap;cursor:pointer;}
+  #cr-design-root .cr-check input{width:14px;height:14px;accent-color:var(--cr-primary);}
+  #cr-design-root .cr-brush{display:inline-flex;align-items:center;gap:6px;margin-left:auto;font-size:11px;color:var(--cr-text-3);white-space:nowrap;}
+  #cr-design-root .cr-brush input{width:48px;height:28px;padding:0 6px;border:1px solid var(--cr-border);border-radius:6px;background:var(--cr-surface);color:var(--cr-text);font-family:var(--cr-mono);font-size:11px;text-align:right;outline:none;}
+  #cr-design-root .cr-brush input:focus{border-color:var(--cr-primary);}
+  #cr-design-root .cr-canvas{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--cr-canvas);}
+  #cr-design-root .cr-canvas-hint{position:absolute;top:0;left:0;right:0;z-index:3;display:flex;align-items:center;gap:6px;padding:7px 10px;background:var(--cr-warning-soft);border-bottom:1px solid var(--cr-warning-border);color:var(--cr-warning-text);font-size:11px;}
+  #cr-design-root .cr-canvas-hint svg{width:12px;height:12px;flex:none;}
+  #cr-design-root .cr-scene{position:absolute;inset:0;width:100%;height:100%;display:block;}
+  #cr-design-root .cr-mask{position:absolute;inset:0;z-index:1;pointer-events:none;}
+  #cr-design-root .cr-mask.is-invert{filter:invert(1);}
+  #cr-design-root .cr-chip{position:absolute;top:10px;left:10px;z-index:2;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;background:rgba(15,23,42,.62);border:1px solid rgba(148,163,184,.22);color:var(--cr-canvas-text);font-size:10.5px;line-height:1;font-variant-numeric:tabular-nums;pointer-events:none;}
+  #cr-design-root .cr-chip svg{width:11px;height:11px;color:#7DD3FC;}
+  #cr-design-root .cr-cursor{position:absolute;top:10px;right:10px;z-index:2;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:12px;background:rgba(14,165,233,.18);border:1px solid rgba(125,211,252,.45);color:#BAE6FD;font-size:10.5px;pointer-events:none;}
+  #cr-design-root .cr-empty{position:absolute;inset:0;z-index:4;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--cr-canvas);}
+  #cr-design-root .cr-empty-card{width:min(430px,86%);padding:24px;border:1.5px dashed var(--cr-canvas-border);border-radius:14px;background:rgba(30,41,59,.42);display:flex;flex-direction:column;align-items:center;text-align:center;}
+  #cr-design-root .cr-empty-icon{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.18);color:var(--cr-canvas-muted);margin-bottom:13px;}
+  #cr-design-root .cr-empty-icon svg{width:22px;height:22px;}
+  #cr-design-root .cr-empty-title{font-size:14px;font-weight:600;line-height:1.4;color:var(--cr-canvas-text);margin-bottom:4px;}
+  #cr-design-root .cr-empty-sub{max-width:330px;font-size:11.5px;line-height:1.6;color:var(--cr-canvas-muted);margin:0;}
+  #cr-design-root .cr-empty-sub code{font-family:var(--cr-mono);font-size:10.5px;color:#BAE6FD;background:rgba(14,165,233,.12);padding:1px 5px;border-radius:4px;}
+  #cr-design-root .cr-statusbar{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid var(--cr-border-soft);background:var(--cr-surface);font-size:11.5px;min-width:0;}
+  #cr-design-root .cr-status-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--cr-primary);}
+  #cr-design-root .cr-status-dot.is-muted{background:var(--cr-text-3);}
+  #cr-design-root .cr-status-dot.is-warn{background:var(--cr-warning);}
+  #cr-design-root .cr-status-msg{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--cr-text-2);}
+  #cr-design-root .cr-status-right{margin-left:auto;flex:none;font-family:var(--cr-mono);font-size:10.5px;color:var(--cr-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+
+  /* ---- 底部宿主 ---- */
+  #cr-design-root .cr-footer{height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid var(--cr-border-soft);background:var(--cr-surface-2);}
+  #cr-design-root .cr-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+  #cr-design-root .cr-status-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--cr-surface);border:1px solid var(--cr-border);font-size:11.5px;color:var(--cr-text-2);white-space:nowrap;}
+  #cr-design-root .cr-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--cr-text-3);}
+  #cr-design-root .cr-elapsed{font-family:var(--cr-mono);font-size:11px;color:var(--cr-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  #cr-design-root .cr-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+  #cr-design-root .cr-footer .cr-btn{height:32px;padding:0 16px;font-size:12.5px;}
+  #cr-design-root .cr-btn-primary{background:var(--cr-primary);border-color:var(--cr-primary);color:#FFFFFF;font-weight:600;}
+  #cr-design-root .cr-btn-primary:hover{background:var(--cr-primary-strong);border-color:var(--cr-primary-strong);}
+  #cr-design-root .cr-btn-ghost{border-color:transparent;background:transparent;color:var(--cr-text-2);}
+  #cr-design-root .cr-btn-ghost:hover{background:var(--cr-surface-3);border-color:transparent;color:var(--cr-text);}
+
+  /* ---- 说明 ---- */
+  #cr-design-root .cr-notes{max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;}
+  #cr-design-root .cr-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--cr-text-2);}
+  #cr-design-root .cr-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--cr-border);}
+  #cr-design-root .cr-note-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--cr-primary-light);color:var(--cr-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}
+  #cr-design-root .cr-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--cr-text);}
+  #cr-design-root .cr-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--cr-text-2);}
+  #cr-design-root .cr-note code{font-family:var(--cr-mono);font-size:10.5px;color:var(--cr-primary-text);background:var(--cr-primary-soft);padding:1px 4px;border-radius:4px;}
+
+  @media (prefers-reduced-motion: reduce){
+    #cr-design-root *{animation:none !important;transition:none !important;}
+  }
+  @media (max-width:1024px){
+    #cr-design-root .cr-page{padding:18px 14px 32px;}
+    #cr-design-root .cr-window{height:auto;min-height:640px;}
+    #cr-design-root .cr-content{grid-template-columns:1fr;}
+    #cr-design-root .cr-preview{min-height:420px;}
+  }
+</style>
+
+<div class="cr-page">
+  <header class="cr-page-head">
+    <div class="cr-page-title-row">
+      <h1>ROI 创建 · 配置窗口</h1>
+      <span class="cr-ver">v1</span>
+    </div>
+    <p class="cr-page-sub">
+      Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、
+      <b>LinkableValueEditor</b>（SrcImage）、<b>ImageEdit</b> 常驻画布与全部 ROI / 涂擦绑定；
+      不新增功能、不改绑定类型。窗口 <b>960 × 680</b>，左侧配置轨 <b>340px</b>，右侧 ROI 编辑工作区自适应。
+    </p>
+    <div class="cr-demo-bar">
+      <div class="cr-demo-group" role="group" aria-label="窗口宽度">
+        <span class="cr-demo-label">窗口宽度</span>
+        <div class="cr-seg">
+          <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+          <button type="button" data-width="640" aria-pressed="false">640</button>
+        </div>
+      </div>
+      <div class="cr-demo-group" role="group" aria-label="场景">
+        <span class="cr-demo-label">场景</span>
+        <div class="cr-seg">
+          <button type="button" data-scene="default" class="is-on" aria-pressed="true">默认</button>
+          <button type="button" data-scene="mask" aria-pressed="false">掩膜预览</button>
+          <button type="button" data-scene="smear" aria-pressed="false">涂抹中</button>
+          <button type="button" data-scene="empty" aria-pressed="false">空态</button>
+          <button type="button" data-scene="no-roi" aria-pressed="false">无 ROI</button>
+        </div>
+      </div>
+    </div>
+    <div class="cr-scope">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+      <span><b>未纳入（需新增功能或契约）：</b>加载骨架、图像尺寸/文件大小、放大/缩小、打开所在文件夹、系统导航。
+        本稿覆盖 960×680 与 640×680；宿主最小档 640×560 需真机复核左栏与画布高度。</span>
+    </div>
+  </header>
+
+  <div class="cr-window" id="cr-window">
+    <div class="cr-titlebar">
+      <div class="cr-app-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="8" y="8" width="8" height="8" rx="1"></rect></svg>
+      </div>
+      <div class="cr-title-text">
+        <div class="cr-title">ROI</div>
+        <div class="cr-subtitle">在图像上创建多个 ROI 区域，输出裁剪图像</div>
+      </div>
+      <div class="cr-title-actions">
+        <button type="button" class="cr-icon-btn" data-tooltip="关闭" aria-label="关闭">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="cr-content">
+      <aside class="cr-rail" aria-label="ROI 配置">
+        <section class="cr-section">
+          <div class="cr-section-head"><span>图像输入</span><span class="cr-section-hint">上游端口 / 变量链接</span></div>
+          <label class="cr-label" for="cr-source-input">源图像</label>
+          <div class="cr-input-row">
+            <input class="cr-input" id="cr-source-input" type="text" value="SrcImage · HImage" readonly spellcheck="false">
+            <button type="button" class="cr-square" data-tooltip="绑定变量" aria-label="绑定变量">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+            </button>
+          </div>
+          <p class="cr-help">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+            来自上游端口的 HImage；运行期以链接值为准。
+          </p>
+        </section>
+
+        <section class="cr-list-card" aria-label="ROI 列表">
+          <div class="cr-section-head">
+            <span>ROI 列表 <span class="cr-badge" id="cr-roi-count">2</span></span>
+            <span class="cr-section-hint">Del 删除选中</span>
+          </div>
+          <div class="cr-list-hint">右键图像 → 区域 → 新建矩形 / 圆形 / 椭圆</div>
+          <div class="cr-roi-list" id="cr-roi-list">
+            <button type="button" class="cr-roi is-active" data-roi="ROI_1" aria-pressed="true">
+              <span class="cr-roi-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="1"></rect></svg></span>
+              <span class="cr-roi-body"><span class="cr-roi-name">ROI_1</span><span class="cr-roi-shape">矩形</span></span>
+            </button>
+            <button type="button" class="cr-roi" data-roi="ROI_2" aria-pressed="false">
+              <span class="cr-roi-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle></svg></span>
+              <span class="cr-roi-body"><span class="cr-roi-name">ROI_2</span><span class="cr-roi-shape">圆形</span></span>
+            </button>
+          </div>
+          <div class="cr-list-actions">
+            <button type="button" class="cr-btn" id="cr-delete" style="flex:1;">删除</button>
+            <button type="button" class="cr-btn" id="cr-clear" style="flex:1;">清空</button>
+          </div>
+        </section>
+
+        <section class="cr-param-card" aria-label="参数微调">
+          <div class="cr-section-head"><span>参数微调</span><span class="cr-section-hint" id="cr-param-name">ROI_1</span></div>
+          <div class="cr-param-grid" id="cr-param-grid">
+            <div class="cr-param"><label>中心行(R)</label><input type="text" value="182.0" readonly></div>
+            <div class="cr-param"><label>中心列(C)</label><input type="text" value="318.0" readonly></div>
+            <div class="cr-param"><label>角度(Phi)</label><input type="text" value="-0.2094" readonly></div>
+            <div class="cr-param"><label>半长(L1)</label><input type="text" value="96.0" readonly></div>
+            <div class="cr-param"><label>半宽(L2)</label><input type="text" value="62.0" readonly></div>
+          </div>
+          <div class="cr-param-empty" id="cr-param-empty" hidden>在列表或画布中选择一个 ROI 后可微调参数。</div>
+        </section>
+
+        <div class="cr-output">
+          <div class="cr-section-head"><span>输出</span><span class="cr-section-hint">运行结果</span></div>
+          <label class="cr-label" for="cr-view-select">显示窗口</label>
+          <select class="cr-select" id="cr-view-select">
+            <option>不显示</option>
+            <option selected>窗口 1</option>
+            <option>窗口 2</option>
+            <option>窗口 3</option>
+            <option>窗口 4</option>
+            <option>窗口 5</option>
+            <option>窗口 6</option>
+            <option>窗口 7</option>
+            <option>窗口 8</option>
+            <option>窗口 9</option>
+          </select>
+          <p class="cr-help">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line></svg>
+            0 = 不显示；1~9 对应主界面视图窗口。
+          </p>
+        </div>
+      </aside>
+
+      <section class="cr-preview" aria-label="ROI 编辑画布">
+        <div class="cr-preview-head">
+          <div class="cr-file-chip">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="8" y="8" width="8" height="8" rx="1"></rect></svg>
+          </div>
+          <span class="cr-preview-title">ROI 编辑画布</span>
+          <span class="cr-preview-meta" id="cr-preview-meta">原图 · 2 个 ROI</span>
+          <div class="cr-preview-tools">
+            <button type="button" class="cr-icon-btn" data-tooltip="适应窗口" aria-label="适应窗口">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
+            </button>
+            <button type="button" class="cr-tool-text" data-tooltip="实际像素 1:1" aria-label="实际像素">1:1</button>
+          </div>
+        </div>
+
+        <div class="cr-toolbar">
+          <div class="cr-toolbar-row">
+            <div class="cr-seg" id="cr-preview-mode" role="group" aria-label="预览模式">
+              <button type="button" data-preview="source" class="is-on" aria-pressed="true">原图</button>
+              <button type="button" data-preview="mask" aria-pressed="false">掩膜预览</button>
+            </div>
+            <label class="cr-check"><input type="checkbox" id="cr-invert"> 排除模式（ROI 外有效）</label>
+          </div>
+          <div class="cr-toolbar-row">
+            <div class="cr-seg" id="cr-smear-mode" role="group" aria-label="涂抹模式">
+              <button type="button" data-smear="none" class="is-on" aria-pressed="true">正常</button>
+              <button type="button" data-smear="draw" aria-pressed="false">绘制涂抹</button>
+              <button type="button" data-smear="erase" aria-pressed="false">擦除涂抹</button>
+            </div>
+            <div class="cr-brush"><span>笔刷</span><input id="cr-brush" type="number" value="12" min="1" max="200"><span>px</span></div>
+            <button type="button" class="cr-btn cr-btn-sm" id="cr-clear-smear">清除涂抹</button>
+          </div>
+        </div>
+
+        <div class="cr-canvas" id="cr-canvas">
+          <div class="cr-canvas-hint" id="cr-canvas-hint" hidden>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+            尚未载入图像：在画布上右键 → 打开图片，或接入上游图像。
+          </div>
+
+          <svg class="cr-scene" id="cr-scene" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="cr-scene-title cr-scene-desc">
+            <title id="cr-scene-title">ROI 编辑画布示意</title>
+            <desc id="cr-scene-desc">深色画布上有一个工业法兰零件，叠加一个旋转矩形 ROI 与一个圆形 ROI，带拖拽手柄。</desc>
+            <defs>
+              <radialGradient id="cr-metal" cx="42%" cy="38%" r="66%">
+                <stop offset="0%" stop-color="#E8EDF3"></stop>
+                <stop offset="45%" stop-color="#AEB9C6"></stop>
+                <stop offset="75%" stop-color="#7B8794"></stop>
+                <stop offset="100%" stop-color="#4B5563"></stop>
+              </radialGradient>
+              <linearGradient id="cr-bg" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#0B1220"></stop>
+                <stop offset="100%" stop-color="#151F31"></stop>
+              </linearGradient>
+              <pattern id="cr-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293B" stroke-width="1"></path>
+              </pattern>
+              <filter id="cr-soft" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="9"></feGaussianBlur>
+              </filter>
+            </defs>
+            <rect width="800" height="520" fill="url(#cr-bg)"></rect>
+            <rect width="800" height="520" fill="url(#cr-grid)" opacity=".55"></rect>
+            <ellipse cx="400" cy="278" rx="232" ry="205" fill="#000000" opacity=".45" filter="url(#cr-soft)"></ellipse>
+            <circle cx="400" cy="260" r="190" fill="url(#cr-metal)" stroke="#D7DEE8" stroke-width="2"></circle>
+            <circle cx="400" cy="260" r="160" fill="none" stroke="#5B6675" stroke-width="2" opacity=".7"></circle>
+            <circle cx="400" cy="260" r="118" fill="#8C97A5" stroke="#D7DEE8" stroke-width="1.5"></circle>
+            <circle cx="400" cy="260" r="92" fill="#5F6B7A" stroke="#AEB9C6" stroke-width="1.5"></circle>
+            <circle cx="400" cy="260" r="52" fill="#2F3947" stroke="#7B8794" stroke-width="2"></circle>
+            <g fill="#1F2937" stroke="#C7D0DB" stroke-width="1.2">
+              <circle cx="400" cy="118" r="15"></circle>
+              <circle cx="523" cy="189" r="15"></circle>
+              <circle cx="523" cy="331" r="15"></circle>
+              <circle cx="400" cy="402" r="15"></circle>
+              <circle cx="277" cy="331" r="15"></circle>
+              <circle cx="277" cy="189" r="15"></circle>
+            </g>
+            <circle cx="400" cy="260" r="24" fill="#111827" stroke="#94A3B8" stroke-width="1"></circle>
+            <g fill="none" stroke="#FFFFFF" stroke-opacity=".18" stroke-width="1">
+              <path d="M 245 260 A 155 155 0 0 1 400 105"></path>
+              <path d="M 555 260 A 155 155 0 0 0 400 415"></path>
+              <path d="M 300 260 A 100 100 0 0 1 400 160"></path>
+            </g>
+
+            <!-- ROI_1：旋转矩形 -->
+            <g id="cr-roi-rect" class="cr-roi-shape-g">
+              <rect x="238" y="168" width="188" height="122" rx="2" transform="rotate(-12 332 229)" fill="rgba(14,165,233,.10)" stroke="#38BDF8" stroke-width="2"></rect>
+              <g fill="#0B1220" stroke="#7DD3FC" stroke-width="1.5">
+                <rect x="234" y="164" width="8" height="8"></rect>
+                <rect x="422" y="164" width="8" height="8"></rect>
+                <rect x="234" y="286" width="8" height="8"></rect>
+                <rect x="422" y="286" width="8" height="8"></rect>
+                <rect x="328" y="164" width="8" height="8"></rect>
+                <rect x="328" y="286" width="8" height="8"></rect>
+              </g>
+            </g>
+
+            <!-- ROI_2：圆形 -->
+            <g id="cr-roi-circle" class="cr-roi-shape-g">
+              <circle cx="523" cy="332" r="66" fill="rgba(14,165,233,.10)" stroke="#38BDF8" stroke-width="2"></circle>
+              <g fill="#0B1220" stroke="#7DD3FC" stroke-width="1.5">
+                <rect x="519" y="262" width="8" height="8"></rect>
+                <rect x="519" y="394" width="8" height="8"></rect>
+                <rect x="453" y="328" width="8" height="8"></rect>
+                <rect x="585" y="328" width="8" height="8"></rect>
+              </g>
+            </g>
+
+            <!-- 涂抹示意（仅在涂抹场景显示） -->
+            <g id="cr-smear-strokes" hidden>
+              <path d="M 282 178 C 320 140 360 132 398 148" fill="none" stroke="#34D399" stroke-width="10" stroke-linecap="round" opacity=".55"></path>
+              <path d="M 536 286 C 566 300 580 322 574 348" fill="none" stroke="#34D399" stroke-width="10" stroke-linecap="round" opacity=".55"></path>
+              <path d="M 268 300 C 286 322 310 336 338 342" fill="none" stroke="#F87171" stroke-width="9" stroke-linecap="round" opacity=".50"></path>
+            </g>
+
+            <g stroke="#38BDF8" stroke-opacity=".55" stroke-width="2" fill="none">
+              <path d="M 30 30 H 70 M 30 30 V 70"></path>
+              <path d="M 770 30 H 730 M 770 30 V 70"></path>
+              <path d="M 30 490 H 70 M 30 490 V 450"></path>
+              <path d="M 770 490 H 730 M 770 490 V 450"></path>
+            </g>
+          </svg>
+
+          <svg class="cr-mask" id="cr-mask" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid slice" hidden aria-hidden="true">
+            <rect width="800" height="520" fill="#0B1220" opacity=".62"></rect>
+            <g fill="#38BDF8" fill-opacity=".24" stroke="#7DD3FC" stroke-width="2">
+              <rect x="238" y="168" width="188" height="122" rx="2" transform="rotate(-12 332 229)"></rect>
+              <circle cx="523" cy="332" r="66"></circle>
+            </g>
+            <g fill="none" stroke="#E2E8F0" stroke-opacity=".18" stroke-width="1">
+              <path d="M 120 260 H 680"></path>
+              <path d="M 400 60 V 460"></path>
+            </g>
+          </svg>
+
+          <div class="cr-chip" id="cr-canvas-chip">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="8" y="8" width="8" height="8" rx="1"></rect></svg>
+            ROI 编辑
+          </div>
+          <div class="cr-cursor" id="cr-cursor" hidden>绘制涂抹 · 笔刷 <span id="cr-cursor-radius">12</span> px</div>
+
+          <div class="cr-empty" id="cr-empty" hidden>
+            <div class="cr-empty-card">
+              <div class="cr-empty-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="8" y="8" width="8" height="8" rx="1"></rect></svg>
+              </div>
+              <div class="cr-empty-title">载入图像后开始绘制 ROI</div>
+              <p class="cr-empty-sub">将上游图像接入左侧「图像输入」，或在画布上右键 → <code>打开图片</code>。然后右键 → <code>区域</code> → 新建矩形 / 圆形 / 椭圆。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="cr-statusbar" aria-live="polite">
+          <span class="cr-status-dot" id="cr-status-dot"></span>
+          <span class="cr-status-msg" id="cr-status-msg">选中：ROI_1 · 矩形</span>
+          <span class="cr-status-right" id="cr-status-right">共 2 个 ROI</span>
+        </div>
+      </section>
+    </div>
+
+    <div class="cr-footer">
+      <div class="cr-footer-left">
+        <span class="cr-status-chip"><span class="cr-footer-dot"></span><span>状态: 待执行</span></span>
+        <span class="cr-elapsed">耗时: 0 ms</span>
+      </div>
+      <div class="cr-footer-right">
+        <button type="button" class="cr-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></svg>
+          执行
+        </button>
+        <button type="button" class="cr-btn cr-btn-ghost">取消</button>
+        <button type="button" class="cr-btn cr-btn-primary">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cr-notes">
+    <div class="cr-notes-head">关键改动（v1）</div>
+    <div class="cr-note"><div class="cr-note-num">01</div><div><b>左栏配置轨 + 右侧 ROI 工作区</b><span>图像输入、ROI 列表、参数微调、显示窗口各就各位；画布占据剩余全部空间，不再让参数面板挤压列表。</span></div></div>
+    <div class="cr-note"><div class="cr-note-num">02</div><div><b>ROI 列表成为主区</b><span>列表占据左栏剩余高度；行内显示名称 + 形状中文名；保留 <code>SelectedItem = SelectedRoi</code>、<code>ListBoxAutoScroll</code> 与删除/清空命令。</span></div></div>
+    <div class="cr-note"><div class="cr-note-num">03</div><div><b>画布工具条分层</b><span>第一行：原图 / 掩膜预览 + 排除模式；第二行：正常 / 绘制涂抹 / 擦除涂抹 + 笔刷 + 清除涂抹。全部沿用既有绑定与 <code>SmearModeConverter</code>。</span></div></div>
+    <div class="cr-note"><div class="cr-note-num">04</div><div><b>参数微调双列排布</b><span>五个参数（中心行/中心列/角度/半长/半宽）两列排布，仍绑定 <code>SelectedRoi.ParamEntries</code>，<code>Text</code> 编辑走 <code>LostFocus</code>。</span></div></div>
+    <div class="cr-note"><div class="cr-note-num">05</div><div><b>空态用提示条</b><span>无图时在画布上方显示提示条（不折叠 <code>ImageEdit</code>）；画布始终常驻，<code>HImage</code> 绑定逐字保留。</span></div></div>
+    <div class="cr-note"><div class="cr-note-num">06</div><div><b>颜色全部令牌化</b><span>映射 <code>Colors.xaml</code> / <code>PluginConfigColors.xaml</code>；只在本视图派生样式，不改共享字典与共享控件。</span></div></div>
+    <div class="cr-note"><div class="cr-note-num">07</div><div><b>五态与键盘可达</b><span>hover / pressed / focus / disabled 全量；图标按钮 30×30 且 <code>Padding=0</code>（R68），焦点环走 <code>DialogFocusVisual</code>。</span></div></div>
+
+    <div class="cr-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+    <div class="cr-note"><div class="cr-note-num">C1</div><div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不引入独立 VM。</span></div></div>
+    <div class="cr-note"><div class="cr-note-num">C2</div><div><b>LinkableValueEditor：SrcImage</b><span><code>Port="{Binding SrcImage}"</code>、<code>StepData="{Binding StepData}"</code>；端口持久化、类型转换、变量链接、解除链接都在控件里。</span></div></div>
+    <div class="cr-note"><div class="cr-note-num">C3</div><div><b>ImageEdit 常驻 + 五个绑定</b><span><code>HImage="{Binding DisplayImage, Mode=OneWay}"</code>、<code>DrawObjectList="{Binding CanvasRois}"</code>、<code>ActiveRoi="{Binding CanvasActiveRoi, Mode=TwoWay}"</code>、<code>SmearDraw/SmearErase</code> 双向；不折叠、不替换控件。</span></div></div>
+    <div class="cr-note"><div class="cr-note-num">C4</div><div><b>MaskInvert / IsMaskPreview / SelectedRoi</b><span><code>MaskInvert</code> 是 <code>[StepConfig]</code> 布尔；<code>IsMaskPreview</code> 视图态；<code>SelectedRoi</code> 是 <code>RoiItem</code> 对象；类型不变。</span></div></div>
+    <div class="cr-note"><div class="cr-note-num">C5</div><div><b>命令族</b><span><code>DeleteSelectedCommand</code>、<code>ClearRoisCommand</code>、<code>ClearSmearCommand</code> 与 <code>Delete</code> 键绑定原样保留；不新增功能入口。</span></div></div>
+    <div class="cr-note"><div class="cr-note-num">C6</div><div><b>DisplayViewIndex 仍是 int</b><span>下拉 <code>SelectedItem</code> 绑定 0~9 的 int 数组；不改写 <code>[StepConfig] int DisplayViewIndex</code>。</span></div></div>
+    <div class="cr-note"><div class="cr-note-num">C7</div><div><b>无 StatusLevel</b><span>本插件没有 <code>StatusMessage</code>/<code>StatusLevel</code> 属性；状态栏只显示选中 ROI 与 ROI 数量，不新增第四档或假状态。</span></div></div>
+
+    <div class="cr-notes-head" style="margin-top:20px;">明确延后（需新增功能或契约）</div>
+    <div class="cr-note"><div class="cr-note-num">D1</div><div><b>加载骨架 / 蓝色加载态</b><span>需要 VM 新增 <code>IsPreviewLoading</code> 或 <code>PreviewState</code>；本稿不扩展。</span></div></div>
+    <div class="cr-note"><div class="cr-note-num">D2</div><div><b>图像尺寸 / 文件大小</b><span>需要 VM 新增只读属性（<code>HImage.GetImageSize</code> / <code>FileInfo.Length</code>）。</span></div></div>
+    <div class="cr-note"><div class="cr-note-num">D3</div><div><b>放大 / 缩小按钮</b><span><code>HalconBase</code> 只有 <code>FitToWindow()</code> / <code>FitToImage()</code>，没有公开 zoom 方法。</span></div></div>
+    <div class="cr-note"><div class="cr-note-num">D4</div><div><b>打开所在文件夹</b><span>需要新增 <code>Process.Start("explorer.exe", ...)</code> 行为。</span></div></div>
+    <div class="cr-note"><div class="cr-note-num">D5</div><div><b>系统导航 / 前往相机设置</b><span>需要新的宿主导航契约；本插件没有相机配置。</span></div></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var root = document.getElementById('cr-design-root');
+  if (!root) return;
+
+  var win = root.querySelector('#cr-window');
+  var sceneButtons = Array.prototype.slice.call(root.querySelectorAll('[data-scene]'));
+  var widthButtons = Array.prototype.slice.call(root.querySelectorAll('[data-width]'));
+  var previewButtons = Array.prototype.slice.call(root.querySelectorAll('[data-preview]'));
+  var smearButtons = Array.prototype.slice.call(root.querySelectorAll('[data-smear]'));
+  var roiList = root.querySelector('#cr-roi-list');
+  var roiCount = root.querySelector('#cr-roi-count');
+  var paramName = root.querySelector('#cr-param-name');
+  var paramGrid = root.querySelector('#cr-param-grid');
+  var paramEmpty = root.querySelector('#cr-param-empty');
+  var previewMeta = root.querySelector('#cr-preview-meta');
+  var statusDot = root.querySelector('#cr-status-dot');
+  var statusMsg = root.querySelector('#cr-status-msg');
+  var statusRight = root.querySelector('#cr-status-right');
+  var scene = root.querySelector('#cr-scene');
+  var mask = root.querySelector('#cr-mask');
+  var empty = root.querySelector('#cr-empty');
+  var canvasHint = root.querySelector('#cr-canvas-hint');
+  var canvasChip = root.querySelector('#cr-canvas-chip');
+  var cursor = root.querySelector('#cr-cursor');
+  var cursorRadius = root.querySelector('#cr-cursor-radius');
+  var brush = root.querySelector('#cr-brush');
+  var invert = root.querySelector('#cr-invert');
+  var smearStrokes = root.querySelector('#cr-smear-strokes');
+  var deleteBtn = root.querySelector('#cr-delete');
+  var clearBtn = root.querySelector('#cr-clear');
+  var clearSmearBtn = root.querySelector('#cr-clear-smear');
+
+  var shapes = {
+    ROI_1: { name: 'ROI_1', shape: '矩形', params: ['182.0', '318.0', '-0.2094', '96.0', '62.0'] },
+    ROI_2: { name: 'ROI_2', shape: '圆形', params: ['332.0', '523.0', '—', '66.0', '—'] }
+  };
+  var order = ['ROI_1', 'ROI_2'];
+  var active = 'ROI_1';
+  var currentScene = 'default';
+  var previewMode = 'source';
+  var smearMode = 'none';
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  function renderList() {
+    roiList.innerHTML = order.map(function (id) {
+      var r = shapes[id];
+      var cls = id === active ? 'cr-roi is-active' : 'cr-roi';
+      return '<button type="button" class="' + cls + '" data-roi="' + id + '" aria-pressed="' + (id === active) + '">' +
+        '<span class="cr-roi-icon">' + (r.shape === '圆形'
+          ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle></svg>'
+          : '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="1"></rect></svg>') + '</span>' +
+        '<span class="cr-roi-body"><span class="cr-roi-name">' + esc(r.name) + '</span><span class="cr-roi-shape">' + esc(r.shape) + '</span></span></button>';
+    }).join('');
+    roiCount.textContent = String(order.length);
+    Array.prototype.slice.call(roiList.querySelectorAll('[data-roi]')).forEach(function (b) {
+      b.addEventListener('click', function () { active = b.getAttribute('data-roi'); renderList(); renderParams(); renderStatus(); });
+    });
+  }
+
+  function renderParams() {
+    var r = active ? shapes[active] : null;
+    if (!r) {
+      paramName.textContent = '选中 ROI 后可编辑';
+      paramGrid.hidden = true;
+      paramEmpty.hidden = false;
+      return;
+    }
+    paramName.textContent = r.name;
+    paramGrid.hidden = false;
+    paramEmpty.hidden = true;
+    var labels = r.shape === '圆形'
+      ? ['圆心行(R)', '圆心列(C)', '—', '半径(Radius)', '—']
+      : ['中心行(R)', '中心列(C)', '角度(Phi)', '半长(L1)', '半宽(L2)'];
+    var cells = [];
+    for (var i = 0; i < 5; i++) {
+      if (r.shape === '圆形' && (i === 2 || i === 4)) continue;
+      cells.push('<div class="cr-param"><label>' + labels[i] + '</label><input type="text" value="' + r.params[i] + '" readonly></div>');
+    }
+    paramGrid.innerHTML = cells.join('');
+  }
+
+  function renderStatus() {
+    if (currentScene === 'empty') {
+      statusDot.className = 'cr-status-dot is-warn';
+      statusMsg.textContent = '未载入图像';
+      statusRight.textContent = '共 0 个 ROI';
+      return;
+    }
+    statusDot.className = active ? 'cr-status-dot' : 'cr-status-dot is-muted';
+    statusMsg.textContent = active ? ('选中：' + shapes[active].name + ' · ' + shapes[active].shape) : '未选中 ROI';
+    statusRight.textContent = '共 ' + order.length + ' 个 ROI';
+  }
+
+  function setScene(name) {
+    currentScene = name;
+    sceneButtons.forEach(function (b) { b.classList.toggle('is-on', b.getAttribute('data-scene') === name); b.setAttribute('aria-pressed', String(b.getAttribute('data-scene') === name)); });
+
+    var hasImage = name !== 'empty';
+    scene.hidden = !hasImage;
+    canvasChip.hidden = !hasImage;
+    canvasHint.hidden = hasImage;
+    empty.hidden = hasImage;
+
+    if (name === 'empty') {
+      order = [];
+      active = null;
+    } else if (name === 'no-roi') {
+      order = [];
+      active = null;
+    } else if (name === 'smear') {
+      order = ['ROI_1'];
+      active = 'ROI_1';
+      previewMode = 'source';
+      smearMode = 'draw';
+      smearStrokes.hidden = false;
+    } else {
+      order = ['ROI_1', 'ROI_2'];
+      active = 'ROI_1';
+      smearStrokes.hidden = true;
+      if (name === 'mask') previewMode = 'mask';
+      else previewMode = 'source';
+      smearMode = 'none';
+    }
+
+    if (name === 'mask') invert.checked = false;
+    renderPreviewButtons();
+    renderSmearButtons();
+    renderList();
+    renderParams();
+    renderStatus();
+    renderPreviewMeta();
+    renderCanvasState();
+  }
+
+  function renderPreviewButtons() {
+    previewButtons.forEach(function (b) {
+      var on = b.getAttribute('data-preview') === previewMode;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    var showMask = previewMode === 'mask' && currentScene !== 'empty';
+    mask.hidden = !showMask;
+    mask.classList.toggle('is-invert', invert.checked);
+  }
+
+  function renderSmearButtons() {
+    smearButtons.forEach(function (b) {
+      var on = b.getAttribute('data-smear') === smearMode;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    cursor.hidden = !(smearMode === 'draw' || smearMode === 'erase');
+    if (smearMode === 'draw') cursor.textContent = '绘制涂抹 · 笔刷 ' + brush.value + ' px';
+    else if (smearMode === 'erase') cursor.textContent = '擦除涂抹 · 笔刷 ' + brush.value + ' px';
+  }
+
+  function renderPreviewMeta() {
+    var mode = previewMode === 'mask' ? '掩膜预览' : '原图';
+    previewMeta.textContent = mode + ' · ' + order.length + ' 个 ROI';
+  }
+
+  function renderCanvasState() {
+    var showRoi = currentScene !== 'empty';
+    root.querySelector('#cr-roi-rect').style.display = showRoi && order.indexOf('ROI_1') >= 0 ? '' : 'none';
+    root.querySelector('#cr-roi-circle').style.display = showRoi && order.indexOf('ROI_2') >= 0 ? '' : 'none';
+  }
+
+  sceneButtons.forEach(function (b) {
+    b.addEventListener('click', function () { setScene(b.getAttribute('data-scene')); });
+  });
+  widthButtons.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var w = b.getAttribute('data-width');
+      win.classList.toggle('is-narrow', w === '640');
+      widthButtons.forEach(function (x) { x.classList.toggle('is-on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
+    });
+  });
+  previewButtons.forEach(function (b) {
+    b.addEventListener('click', function () {
+      previewMode = b.getAttribute('data-preview');
+      renderPreviewButtons();
+      renderPreviewMeta();
+      renderStatus();
+    });
+  });
+  smearButtons.forEach(function (b) {
+    b.addEventListener('click', function () {
+      smearMode = b.getAttribute('data-smear');
+      renderSmearButtons();
+    });
+  });
+  invert.addEventListener('change', renderPreviewButtons);
+  brush.addEventListener('input', renderSmearButtons);
+  deleteBtn.addEventListener('click', function () {
+    if (!active) return;
+    order = order.filter(function (id) { return id !== active; });
+    active = order[0] || null;
+    renderList(); renderParams(); renderStatus(); renderPreviewMeta(); renderCanvasState();
+  });
+  clearBtn.addEventListener('click', function () {
+    order = [];
+    active = null;
+    renderList(); renderParams(); renderStatus(); renderPreviewMeta(); renderCanvasState();
+  });
+  clearSmearBtn.addEventListener('click', function () {
+    smearStrokes.hidden = true;
+    smearMode = 'none';
+    renderSmearButtons();
+  });
+
+  setScene('default');
+})();
+</script>
+</div>
+</body>
+</html>

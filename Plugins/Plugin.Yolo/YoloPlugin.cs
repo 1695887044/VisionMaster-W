@@ -58,6 +58,10 @@ namespace Plugin.Yolo
         [BrowsePath(FileFilter = "ONNX 模型|*.onnx|所有文件|*.*")]
         public partial string ModelPath { get; set; }
 
+        // 模型路径变了 → 重新解析会话并把 ModelState / ModelSummary 一次刷新到位。
+        // 注意：这里不直接发 ModelSummary 通知，统一走 RefreshModelState（它先更新状态再通知）。
+        partial void OnModelPathChanged(string value) => RefreshModelState();
+
         /// <summary>
         /// letterbox 的目标边长（像素）。**0 = 用模型元数据里的静态输入尺寸**（推荐）。
         /// 只有当模型是动态形状、元数据里读不到边长时才需要手填（常见值 640）。
@@ -96,7 +100,7 @@ namespace Plugin.Yolo
         // ==================================================================
 
         /// <summary>待检测的图像</summary>
-        public InputPort<HImage> Image { get; } = new("Image", null, "待检测的图像") { IsRequired = false };
+        public InputPort<HImage> Image { get; } = new("Image", null!, "待检测的图像") { IsRequired = false };
 
         /// <summary>检测到的目标数量。0 = 本帧没检测到（属正常工况，良品也会是 0）</summary>
         public OutputPort<int> Count { get; } = new("Count", "目标数量（0 = 没检测到）");
@@ -137,6 +141,30 @@ namespace Plugin.Yolo
 
         /// <summary>当前会话对应的模型路径。用于判断"模型换了要换会话"</summary>
         private string _sessionModelPath = string.Empty;
+
+        private YoloModelState _modelState = YoloModelState.NotLoaded;
+
+        /// <summary>
+        /// 模型加载态（只读运行态，**不是 [StepConfig]**，不落盘）。
+        /// 视图的空态/错误态只认它，不再从 ModelSummary 的中文文案倒推。
+        /// </summary>
+        public YoloModelState ModelState
+        {
+            get => _modelState;
+            private set => SetProperty(ref _modelState, value);
+        }
+
+        private YoloPreviewState _previewState = YoloPreviewState.Idle;
+
+        /// <summary>
+        /// 最近一次试算的预览态（只读运行态，**不是 [StepConfig]**，不落盘）。
+        /// 结果卡配色与预览角标只认它，不再从 ResultSummary / Hint 的中文前缀倒推。
+        /// </summary>
+        public YoloPreviewState PreviewState
+        {
+            get => _previewState;
+            private set => SetProperty(ref _previewState, value);
+        }
 
         public YoloPlugin()
         {
@@ -210,7 +238,7 @@ namespace Plugin.Yolo
         public override void Initialize(IStepConfigData stepData)
         {
             base.Initialize(stepData);
-            OnPropertyChanged(nameof(ModelSummary));
+            RefreshModelState();
         }
 
         public object GetConfigView(IStepConfigData stepData)
@@ -221,11 +249,27 @@ namespace Plugin.Yolo
 
         /// <summary>
         /// 视图就绪回调：把上游图显示到预览（图只有一个来源 —— 上面的「图像输入」端口），
-        /// 顺带刷新模型摘要（模型路径可能刚被「浏览」改过）。
+        /// 顺带刷新模型态与摘要（模型路径可能刚被「浏览」改过）。
         /// </summary>
         public void OnViewLoaded()
         {
             ShowUpstreamImage();
+            RefreshModelState();
+        }
+
+        /// <summary>
+        /// 解析会话并把 <see cref="ModelState"/> / <see cref="ModelSummary"/> 一次刷新到位。
+        /// 这是模型态的唯一写入口：OnModelPathChanged / Initialize / OnViewLoaded 都走这里。
+        /// 【为什么先 EnsureSession 再通知摘要】ModelSummary 的 getter 自己会调 EnsureSession，
+        /// 若在 EnsureSession 内部发通知就是 getter 自我重入；把通知挪到本方法（明确入口）才安全。
+        /// </summary>
+        public void RefreshModelState()
+        {
+            var session = EnsureSession();
+            ModelState = session != null
+                ? YoloModelState.Ready
+                : string.IsNullOrWhiteSpace(ModelPath) ? YoloModelState.NotLoaded : YoloModelState.Failed;
+
             OnPropertyChanged(nameof(ModelSummary));
         }
 
@@ -236,17 +280,26 @@ namespace Plugin.Yolo
         public bool ShowUpstreamImage()
         {
             var upstream = Image.GetTypedValue();
-            if (upstream == null || !upstream.IsInitialized()) return false;
+            if (upstream == null || !upstream.IsInitialized())
+            {
+                // 没有图 = 回到待试算态（不是错误：可能只是还没点宿主「执行」）
+                PreviewState = YoloPreviewState.Idle;
+                return false;
+            }
 
             try
             {
                 DisplayImage?.Dispose();
                 DisplayImage = new HImage(upstream);
+                // 换了一张图 → 上一张图的试算结论作废，必须回到"尚未试算"
+                PreviewState = YoloPreviewState.Idle;
+                ResultSummary = "尚未试算";
                 Hint = "已显示上游图像（点「执行」试运行带进来的）：可直接点「试算一下」看检测效果";
                 return true;
             }
             catch (Exception ex)
             {
+                PreviewState = YoloPreviewState.Error;
                 Hint = "上游图像显示失败：" + ex.Message;
                 return false;
             }
@@ -260,15 +313,24 @@ namespace Plugin.Yolo
         {
             if (DisplayImage == null || !DisplayImage.IsInitialized())
             {
+                PreviewState = YoloPreviewState.Idle;
                 ResultSummary = "先点「载入」把示意图读进来再试算";
                 return;
             }
 
             if (!TryDetect(DisplayImage, out var result, out string error, out string cropNote))
             {
+                PreviewState = YoloPreviewState.Error;
+                // 只有"会话级失败"（路径不存在 / 模型打不开 / task 不对）才把模型态判死；
+                // 类别过滤填错、预处理失败这类是本次试算的问题，模型本身仍可用。
+                if (_sessionError.Length > 0)
+                    ModelState = YoloModelState.Failed;
+
                 ResultSummary = "试算失败：" + error + cropNote;
                 return;
             }
+
+            PreviewState = YoloPreviewStateRules.FromDetectionCount(result!.Count);
 
             var lines = new List<string>
             {
@@ -312,7 +374,9 @@ namespace Plugin.Yolo
                 $"{d.ClassName}:{d.Confidence:0.00}@[{d.X1:0.#},{d.Y1:0.#},{d.X2:0.#},{d.Y2:0.#}]"));
 
             // 最佳目标裁剪图（没有目标时给一张空的，避免下游拿到 null 无所适从）
-            BestCrop.Value = BuildBestCrop(image, detections, context);
+            // null-forgiving：OutputPort<T>.TypedValue 的声明是非空 T，而「没有目标」路径按契约允许空图；
+            // 这里只消除既有 nullable 警告，运行期语义不变（下游仍会收到 null 并由其自身契约处理）。
+            BestCrop.Value = BuildBestCrop(image, detections, context)!;
 
             if (detections.Count > 0)
             {
@@ -416,7 +480,8 @@ namespace Plugin.Yolo
             _session = session;
             _sessionModelPath = resolved;
             _sessionError = string.Empty;
-            OnPropertyChanged(nameof(ModelSummary));
+            // 刻意不在这里发 ModelSummary 通知：本方法会被 ModelSummary 的 getter 调到，
+            // 在 getter 里再发通知是自我重入。刷新统一由 RefreshModelState（明确入口）驱动。
             return _session;
         }
 

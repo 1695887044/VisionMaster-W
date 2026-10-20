@@ -37,8 +37,7 @@ using ScadaLayerItem = VisionMaster.ViewModels.ScadaLayerItem;
 using ScadaActionTypeOption = VisionMaster.ViewModels.ScadaActionTypeOption;
 using ScadaVariablePickerVM = VisionMaster.ViewModels.DialogViewModels.ScadaVariablePickerViewModel;
 using ScadaPagePickerVM = VisionMaster.ViewModels.DialogViewModels.ScadaPagePickerViewModel;
-using ScadaRunWindowSettingsVM = VisionMaster.ViewModels.DialogViewModels.ScadaRunWindowSettingsViewModel;
-using ScadaSystemParametersVM = VisionMaster.ViewModels.DialogViewModels.ScadaSystemParametersViewModel;
+using ScadaSystemSettingsVM = VisionMaster.ViewModels.DialogViewModels.ScadaSystemSettingsViewModel;
 using ScadaVariableEventRow = VisionMaster.ViewModels.DialogViewModels.ScadaVariableEventRow;
 using ScadaVariableEventDialogViewModel = VisionMaster.ViewModels.DialogViewModels.ScadaVariableEventDialogViewModel;
 using ScadaAlarmConfigRow = VisionMaster.ViewModels.DialogViewModels.ScadaAlarmConfigRow;
@@ -53,6 +52,7 @@ using ScadaPagePickerView = VisionMaster.Views.DialogViews.ScadaPagePickerView;
 using ScadaAlarmHistoryVM = VisionMaster.ViewModels.ScadaAlarmHistoryViewModel;
 using ScadaAlarmHistoryRow = VisionMaster.ViewModels.ScadaAlarmHistoryRow;
 using ScadaAlarmHistoryFilter = VisionMaster.ViewModels.ScadaAlarmHistoryFilter;
+using ToggleButton = System.Windows.Controls.Primitives.ToggleButton;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -112,6 +112,8 @@ namespace ScadaChecks
             ScadaEditorToolbarChecks();
             ElementControlChecks();
             AxisPanelChecks();
+            TankKpiChecks.Run();
+            ChoiceControlChecks.Run();
             DragDropChecks();
             PropertyPanelChecks();
             LayerAndPageChecks();
@@ -130,6 +132,10 @@ namespace ScadaChecks
             LayerPanelChecks();
             ElementLockChecks();
             ElementGroupChecks();
+            ScadaPropertyGroupChecks();
+            ToggleButtonAlignmentChecks();
+            RunningFlowIndicatorChecks();
+            DataGridChecks();
             ClipboardAndTemplateChecks();
             AlarmChecks();
             AlarmHistoryChecks();
@@ -138,6 +144,7 @@ namespace ScadaChecks
             UserStoreChecks();
             AuditWriterChecks();
             SystemParametersChecks();
+            SystemSettingsPanelChecks();
             SolutionListAuditChecks();
             PackagingChecks();
             VariableEventDialogChecks();
@@ -147,6 +154,10 @@ namespace ScadaChecks
             if (stress) StressScadaDocument();
             if (stress) PerformanceBaseline();
             if (stress) SoakRuntimeBinder();
+
+            Phase2UiChecks();
+
+            Phase1UiChecks();
 
             Finish();
             return Environment.ExitCode;
@@ -2405,8 +2416,11 @@ namespace ScadaChecks
                 "Hmi.ProgressBar", "Hmi.IOField", "Hmi.Lamp", "Hmi.Clock", "Hmi.Gauge",
                 "Hmi.Valve", "Hmi.Pump", "Hmi.Motor", "Hmi.Pipe", "Hmi.AlarmBanner", "Hmi.ImageView",
                 "Hmi.Panel", "Hmi.AxisConsole", "Hmi.AxisPanel", "Hmi.AxisPointTable",
+                "Hmi.Tank", "Hmi.KpiBoard",
+                "Hmi.SelectorSwitch", "Hmi.TextField", "Hmi.ComboBox", "Hmi.AckButton",
+                "Hmi.DataGrid",
             };
-            Check("21 个内置图元全部注册（含容器图元 Hmi.Panel、轴控台/轴面板/旧点位表）",
+            Check("28 个内置图元全部注册（含容器图元 Hmi.Panel、轴控台/轴面板/旧点位表、罐体/KPI 看板、Phase 2 输入四件套、数据表格）",
                 builtIns.All(ElementRegistry.IsRegistered),
                 string.Join("、", ElementRegistry.All.Select(d => d.TypeKey)));
 
@@ -2536,8 +2550,8 @@ namespace ScadaChecks
                     "Gain:增益=1;Offset:偏移量=0;HasMinimum:启用下限=False;Minimum:下限=0;" +
                     "UnderMinColor:下限以下颜色=#FFFB8C00;HasMaximum:启用上限=False;Maximum:上限=100;" +
                     "OverMaxColor:上限以上颜色=#FFE53935;" +
-                    "Text:说明字=;Foreground:文字颜色=#FF202020;FontSize:字号=14;FontWeight:字重=Normal;" +
-                    "TextAlignment:数值对齐=Right;Fill:填充色=#FFFFFFFF;Stroke:边框色=#FF7A7A7A;" +
+                    "Text:说明字=;Foreground:文字颜色=#FFE6EEF7;FontSize:字号=14;FontWeight:字重=Normal;" +
+                    "TextAlignment:数值对齐=Right;Fill:填充色=#00FFFFFF;Stroke:边框色=#FF7A7A7A;" +
                     "StrokeThickness:边框粗细=1;CornerRadius:圆角=2",
                 ["Hmi.Gauge"] =
                     "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
@@ -2575,8 +2589,8 @@ namespace ScadaChecks
                     "MaxRows:最多显示=5;EmptyText:无报警提示=系统正常;" +
                     "NormalColor:正常色=#FF34C759;InfoColor:提示色=#FF3B82F6;" +
                     "WarningColor:警告色=#FFFFB020;CriticalColor:严重色=#FFE03A2B;" +
-                    "Fill:底色=#FFFFFFFF;Stroke:边框色=#FF7A7A7A;StrokeThickness:边框粗细=1;CornerRadius:圆角=4;" +
-                    "Text:标题=实时报警;Foreground:文字色=#FF202020;FontSize:字号=12;FontWeight:字重=SemiBold",
+                    "Fill:底色=#FF151C23;Stroke:边框色=#FF2A3745;StrokeThickness:边框粗细=1;CornerRadius:圆角=8;" +
+                    "Text:标题=实时报警;Foreground:文字色=#FFE6EEF7;FontSize:字号=12;FontWeight:字重=SemiBold",
                 ["Hmi.Panel"] =
                     "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
                     "TitleText:标题=;TitleHeight:标题栏高度=24;" +
@@ -4088,17 +4102,17 @@ namespace ScadaChecks
             // ⑧ 描述符：新属性必须落在描述符里，属性面板才会出现它们
             var ioSpec = ElementRegistry.Find("Hmi.IOField")!;
             Check("数值域描述符：模式/格式类型/增益/偏移四条落「数据」组，上下限与超限色六条落新增的「限制」组",
-                ioSpec.Properties.Any(p => p.Key == "Mode" && p.Group == "数据" && p.Kind == ElementPropertyKind.Choice)
-                && ioSpec.Properties.Any(p => p.Key == "FormatType" && p.Group == "数据" && p.Kind == ElementPropertyKind.Choice)
-                && ioSpec.Properties.Any(p => p.Key == "Gain" && p.Group == "数据")
-                && ioSpec.Properties.Any(p => p.Key == "Offset" && p.Group == "数据")
-                && ioSpec.Properties.Any(p => p.Key == "HasMinimum" && p.Group == "限制")
-                && ioSpec.Properties.Any(p => p.Key == "Minimum" && p.Group == "限制")
-                && ioSpec.Properties.Any(p => p.Key == "UnderMinColor" && p.Group == "限制")
-                && ioSpec.Properties.Any(p => p.Key == "HasMaximum" && p.Group == "限制")
-                && ioSpec.Properties.Any(p => p.Key == "Maximum" && p.Group == "限制")
-                && ioSpec.Properties.Any(p => p.Key == "OverMaxColor" && p.Group == "限制"),
-                string.Join(" / ", ioSpec.Properties.Where(p => p.Group == "限制").Select(p => p.Key)));
+                ioSpec.Properties.Any(p => p.Key == "Mode" && p.Group == ScadaPropertyGroups.Data && p.Kind == ElementPropertyKind.Choice)
+                && ioSpec.Properties.Any(p => p.Key == "FormatType" && p.Group == ScadaPropertyGroups.Data && p.Kind == ElementPropertyKind.Choice)
+                && ioSpec.Properties.Any(p => p.Key == "Gain" && p.Group == ScadaPropertyGroups.Data)
+                && ioSpec.Properties.Any(p => p.Key == "Offset" && p.Group == ScadaPropertyGroups.Data)
+                && ioSpec.Properties.Any(p => p.Key == "HasMinimum" && p.Group == ScadaPropertyGroups.Limits)
+                && ioSpec.Properties.Any(p => p.Key == "Minimum" && p.Group == ScadaPropertyGroups.Limits)
+                && ioSpec.Properties.Any(p => p.Key == "UnderMinColor" && p.Group == ScadaPropertyGroups.Limits)
+                && ioSpec.Properties.Any(p => p.Key == "HasMaximum" && p.Group == ScadaPropertyGroups.Limits)
+                && ioSpec.Properties.Any(p => p.Key == "Maximum" && p.Group == ScadaPropertyGroups.Limits)
+                && ioSpec.Properties.Any(p => p.Key == "OverMaxColor" && p.Group == ScadaPropertyGroups.Limits),
+                string.Join(" / ", ioSpec.Properties.Where(p => p.Group == ScadaPropertyGroups.Limits).Select(p => p.Key)));
 
             Check("数值域描述符：模式只有「只读 / 读写」两档（撤掉的「只写」不再出现在候选里，常量也随之删掉）",
                 ioSpec.Properties.First(p => p.Key == "Mode").Choices.SequenceEqual(
@@ -4387,15 +4401,15 @@ namespace ScadaChecks
 
             Check("位按钮描述符：「状态」组八条，其中七条可绑 ƒx（两种文字、两种背景、两种文字色 + 读变量）；"
                 + "「输出反向」刻意不给 ƒx——它是设计期定死的极性，不是现场变量",
-                bitSpec.Properties.Count(p => p.Group == "状态") == 8
-                && bitSpec.Properties.Where(p => p.Group == "状态" && p.Key != "OutputInvert").All(p => p.IsBindable)
+                bitSpec.Properties.Count(p => p.Group == ScadaPropertyGroups.State) == 8
+                && bitSpec.Properties.Where(p => p.Group == ScadaPropertyGroups.State && p.Key != "OutputInvert").All(p => p.IsBindable)
                 && !bitSpec.Properties.First(p => p.Key == "OutputInvert").IsBindable,
-                string.Join(" / ", bitSpec.Properties.Where(p => p.Group == "状态").Select(p => p.Key)));
+                string.Join(" / ", bitSpec.Properties.Where(p => p.Group == ScadaPropertyGroups.State).Select(p => p.Key)));
 
             Check("位按钮描述符：外观组三条不声明可绑（画刷/边框是设计期定死的；描述符注册期会硬拦「不可绑组里声明 ƒx」）",
-                bitSpec.Properties.Where(p => p.Group == "外观").All(p => !p.IsBindable)
-                && bitSpec.Properties.Count(p => p.Group == "外观") == 3,
-                string.Join(" / ", bitSpec.Properties.Where(p => p.Group == "外观").Select(p => p.Key)));
+                bitSpec.Properties.Where(p => p.Group == ScadaPropertyGroups.Appearance).All(p => !p.IsBindable)
+                && bitSpec.Properties.Count(p => p.Group == ScadaPropertyGroups.Appearance) == 3,
+                string.Join(" / ", bitSpec.Properties.Where(p => p.Group == ScadaPropertyGroups.Appearance).Select(p => p.Key)));
 
             Check("位按钮描述符：模式是下拉（Choice）而不是让用户敲字符串，默认「按下ON」（最常用的瞬动）",
                 bitSpec.Properties.First(p => p.Key == "Mode").Kind == ElementPropertyKind.Choice
@@ -5181,8 +5195,9 @@ namespace ScadaChecks
                 operationHits.Contains("Hmi.Button") && operationHits.Contains("Hmi.BitButton"),
                 $"命中 {Shown(toolbox)}：{string.Join("、", operationHits)}");
 
-            toolbox.SearchText = "罐体";
-            Check("搜索命中说明文字（用户记得的是\"罐体\"而不是\"椭圆\"）", Shown(toolbox) == 1, $"命中 {Shown(toolbox)}");
+            // 说明文字里独有的词（"罐体"现在也是 Hmi.Tank 的显示名，不能再用来证明"搜的是说明"）
+            toolbox.SearchText = "风机";
+            Check("搜索命中说明文字（用户记得的是\"风机\"而不是\"椭圆\"）", Shown(toolbox) == 1, $"命中 {Shown(toolbox)}");
 
             toolbox.SearchText = "绝对没有这个东西";
             Check("无命中时列表为空（不硬塞一个默认项骗眼睛）", Shown(toolbox) == 0, $"命中 {Shown(toolbox)}");
@@ -5246,11 +5261,14 @@ namespace ScadaChecks
 
             // 面板行账本 = 描述符声明的属性行 + 事件行 + 动画行 + 通用关系行。
             //
-            // 通用关系行目前只有一条：S12 的「操作权限」。它不是属性袋里的键，描述符也声明不了
-            // （RequiredRole 是图元上的强类型字段，理由见该属性的注释），但每个图元都有它——
-            // "谁能操作我"对任何图元都成立。所以算"应有行数"时必须恒加这一条；
-            // 漏掉它，下面几条会集体报假红，而红的原因跟被测代码毫无关系。
-            const int UniversalRows = 1;
+            // 通用关系行有两条：
+            // ① S12 的「操作权限」——不是属性袋里的键，描述符也声明不了（RequiredRole 是图元上的
+            //    强类型字段），但每个图元都有它；
+            // ② 「类型」（批次 B，2026-10-20）——只读展示 TypeKey，同样不是描述符声明
+            //    （类型键是"这一行实例"的事实，不是"这一类图元"的声明）。
+            // 所以算"应有行数"时必须恒加这两条；漏掉任何一条，下面几条会集体报假红，
+            // 而红的原因跟被测代码毫无关系。
+            const int UniversalRows = 2;
 
             // 动画行（r4）：四种动画（外观变化 / 水平移动 / 垂直移动 / 可见性）各一行，恒加四行。
             //
@@ -5285,22 +5303,80 @@ namespace ScadaChecks
                 && rectDescriptor.Properties.Count == 13 && rectDescriptor.Events.Count == 0,
                 $"面板 {Total(panel)} 行 / 描述符 {rectDescriptor.Properties.Count}+{rectDescriptor.Events.Count} 条");
 
-            Check("组序取自描述符里的首现次序：常规→位置与尺寸→外观→文字→动画→权限（动画行恒在权限之前）",
-                string.Join("/", panel.Groups.Select(g => g.Name)) == "常规/位置与尺寸/外观/文字/动画/权限",
+            // 组序由 ScadaPropertyGroups.Order 决定（2026-10-20 起不再是描述符里的首现次序）：
+            // 同一个组在按钮、指示灯、矩形上必须落在同一个位置，用户换一个图元不用重新找。
+            Check("组序取自 ScadaPropertyGroups.Order：基本→外观→文本→布局→交互→动画（动画组恒在交互之后）",
+                string.Join("/", panel.Groups.Select(g => g.Name)) == "基本/外观/文本/布局/交互/动画",
                 string.Join("/", panel.Groups.Select(g => g.Name)));
 
-            Check("组内行数按声明落位：外观 4 条、文字 3 条",
-                panel.Groups.Single(g => g.Name == "外观").Rows.Count == 4
-                && panel.Groups.Single(g => g.Name == "文字").Rows.Count == 3
-                && panel.Groups.Single(g => g.Name == "位置与尺寸").Rows.Count == 5,
+            Check("组内行数按声明落位：基本 2 条（名称 + 只读类型）、外观 4 条、文本 3 条、布局 5 条",
+                panel.Groups.Single(g => g.Name == "基本").Rows.Count == 2
+                && panel.Groups.Single(g => g.Name == "外观").Rows.Count == 4
+                && panel.Groups.Single(g => g.Name == "文本").Rows.Count == 3
+                && panel.Groups.Single(g => g.Name == "布局").Rows.Count == 5,
                 string.Join("/", panel.Groups.Select(g => $"{g.Name}:{g.Rows.Count}")));
 
-            Check("标题条是「类型 · 名字」，一眼看得见在改谁",
-                panel.HasElement && panel.HeaderText == "矩形 · 料箱", panel.HeaderText);
+            // 「类型」行（批次 B）：只读展示类型键。判据钉三件事——值取的是 TypeKey
+            // （不是 CLR 类名、也不是显示名）、不给 ƒx、直接往行上赋值也写不进模型。
+            var typeRow = Row("ElementType");
+            Check("「类型」行只读展示类型键（不是 CLR 类名、也不是显示名），且不给 ƒx",
+                typeRow.Kind == ElementPropertyKind.ReadOnly
+                && typeRow.DisplayName == "类型"
+                && typeRow.Group == ScadaPropertyGroups.General
+                && typeRow.Value == "Hmi.Rectangle"
+                && !typeRow.IsBindable,
+                $"{typeRow.Kind} / {typeRow.Value} / ƒx={typeRow.IsBindable}");
+
+            typeRow.Value = "Hmi.Button";
+            Check("「类型」行写不进去：直接往行上赋值也不改模型，缓冲按模型回填（第二道闸）",
+                rect.TypeKey == "Hmi.Rectangle" && typeRow.Value == "Hmi.Rectangle",
+                $"模型={rect.TypeKey} / 行={typeRow.Value}");
+
+            // ---- 搜索（批次 C）：按属性名 / 键名 / 分组名过滤，且不重建行 ----
+            var fillRow = Row("Fill");
+
+            panel.SearchText = "宽";
+            Check("搜索按属性名过滤：只剩「布局」组的「宽」一行（其它组整组消失，不是留个空组头）",
+                panel.Groups.Count == 1
+                && panel.Groups[0].Name == ScadaPropertyGroups.Layout
+                && panel.Groups[0].Rows.Count == 1
+                && panel.Groups[0].Rows[0].Key == "$Width",
+                string.Join("/", panel.Groups.Select(g => $"{g.Name}:{g.Rows.Count}")));
+
+            panel.SearchText = "Fill";
+            Check("搜索按键名过滤：填「Fill」找得到「填充色」（键名是英文，大小写不敏感）",
+                panel.Groups.Count == 1
+                && panel.Groups[0].Name == ScadaPropertyGroups.Appearance
+                && panel.Groups[0].Rows.Any(r => r.Key == "Fill"),
+                string.Join("/", panel.Groups.Select(g => g.Name)));
+
+            Check("搜索不重建行：过滤前后还是同一个行实例（否则正在编辑的输入框会连焦点一起被换掉）",
+                ReferenceEquals(Row("Fill"), fillRow), "");
+
+            panel.SearchText = "布局";
+            Check("搜索按分组名过滤：填「布局」= 整组五行",
+                panel.Groups.Count == 1 && panel.Groups[0].Rows.Count == 5,
+                string.Join("/", panel.Groups.Select(g => $"{g.Name}:{g.Rows.Count}")));
+
+            panel.SearchText = "zzz-no-such";
+            Check("搜索无结果：0 组 + 空态标题说「没有匹配的属性」（不是「未选择对象」——对象明明选着）",
+                panel.Groups.Count == 0 && !panel.HasRows
+                && panel.EmptyTitle == "没有匹配的属性"
+                && panel.EmptyHint.Contains("换个关键词"),
+                $"{panel.Groups.Count} 组 / {panel.EmptyTitle}");
+
+            panel.SearchText = string.Empty;
+            Check("清空搜索即恢复全部行（搜索只是过滤器，模型与行都没被改过）",
+                panel.Groups.Count == 6 && panel.HasRows && !panel.HasSearchText,
+                string.Join("/", panel.Groups.Select(g => g.Name)));
+
+            Check("对象头两行：第一行名字、第二行类型键（不再是一行「类型 · 名字」，那会显示成「按钮 · 按钮」）",
+                panel.HasElement && panel.HeaderTitle == "料箱" && panel.HeaderSubtitle == "Hmi.Rectangle",
+                $"{panel.HeaderTitle} / {panel.HeaderSubtitle}");
 
             rect.Name = "1#料箱";
-            Check("图元改名（含从面板的名称行改）后标题跟着变，不是进面板时算死的一次性快照",
-                panel.HeaderText == "矩形 · 1#料箱", panel.HeaderText);
+            Check("图元改名（含从面板的名称行改）后对象头跟着变，不是进面板时算死的一次性快照",
+                panel.HeaderTitle == "1#料箱", panel.HeaderTitle);
 
             editor.SelectedElement = Named("Hmi.Ellipse", "罐体");
             Check("换选中即整份重建：椭圆 12 条属性 + 4 条动画 + 1 条通用关系 = 17 行 6 组，且写入目标已换成新图元",
@@ -5330,27 +5406,27 @@ namespace ScadaChecks
                 bindMismatch == 0, $"不匹配 {bindMismatch} 行");
 
             // 位按钮（N-3）在面板上的投影：15 条特有 + 6 条几何 = 21 条属性 + 2 条事件 + 4 条动画 + 1 条通用关系。
-            // 多出来的「状态」组夹在「位置与尺寸」与「文字」之间——组序就是描述符里属性的首现次序，
-            // 面板不排序、不猜（把状态那八条放到几何之后，操作员一打开面板就先看到状态，而不是先看到 X/Y）。
+            // 「状态」组落在「布局」之后、「交互」之前——这个位置来自 ScadaPropertyGroups.Order，
+            // 与位按钮自己怎么写声明无关（操作员一打开面板先看到几何，再看到状态，最后才是配置类）。
             //
             // 这一条必须排在下面 Hmi.Button 那一节<b>之前</b>：属性面板是"选中谁就重建谁"，
             // 把它插在按钮那一节中间会把面板切到另一个图元上，后面那些 Row("Event.x") 就会读到别人的行。
             editor.SelectedElement = Named("Hmi.BitButton", "启动");
             var bitButtonDescriptor = ElementRegistry.Find("Hmi.BitButton")!;
-            Check("位按钮：21 条属性 + 2 条事件 + 4 条动画 + 1 条通用关系 = 28 行 8 组（组序按声明首现，状态组排在几何之后、文字之前，动画组恒在权限之前）",
+            Check("位按钮：21 条属性 + 2 条事件 + 4 条动画 + 2 条通用关系 = 29 行 8 组（组序取自目录：状态组排在几何之后、交互之前，动画组恒在交互之后）",
                 Total(panel) == bitButtonDescriptor.Properties.Count + bitButtonDescriptor.Events.Count + AnimationRows + UniversalRows
                 && bitButtonDescriptor.Properties.Count == 21
                 && string.Join("/", panel.Groups.Select(g => g.Name))
-                   == "常规/位置与尺寸/状态/文字/外观/事件/动画/权限",
+                   == "基本/外观/文本/布局/状态/交互/事件/动画",
                 $"{Total(panel)} 行 / " + string.Join("/", panel.Groups.Select(g => g.Name)));
 
             var startBtn = Named("Hmi.Button", "启动");
             editor.SelectedElement = startBtn;
             var buttonDescriptor = ElementRegistry.Find("Hmi.Button")!;
-            Check("按钮：14 条属性 + 2 条事件 + 4 条动画 + 1 条通用关系 = 21 行 7 组（组序是声明出来的，不是按字典序凑的）",
+            Check("按钮：14 条属性 + 2 条事件 + 4 条动画 + 2 条通用关系 = 22 行 7 组（组序取自目录，不是按字典序凑的）",
                 Total(panel) == buttonDescriptor.Properties.Count + buttonDescriptor.Events.Count + AnimationRows + UniversalRows
                 && buttonDescriptor.Events.Count == 2
-                && string.Join("/", panel.Groups.Select(g => g.Name)) == "常规/位置与尺寸/文字/外观/事件/动画/权限",
+                && string.Join("/", panel.Groups.Select(g => g.Name)) == "基本/外观/文本/布局/交互/事件/动画",
                 $"{Total(panel)} 行 / " + string.Join("/", panel.Groups.Select(g => g.Name)));
 
             // ---------------- ①B 事件行：S5 组态事件在面板上的投影 ----------------
@@ -5619,9 +5695,9 @@ namespace ScadaChecks
 
             editor.SelectedElement = Named("Hmi.Indicator", "运行指示");
             var indicatorDescriptor = ElementRegistry.Find("Hmi.Indicator")!;
-            Check("指示灯：行数 = 描述符声明数 + 动画行 + 通用关系行，多出来的是一个状态组（点亮/点亮色/熄灭色）",
+            Check("指示灯：行数 = 描述符声明数 + 动画行 + 通用关系行，多出来的是一个状态组（点亮/点亮色/熄灭色），组序取自目录",
                 Total(panel) == indicatorDescriptor.Properties.Count + indicatorDescriptor.Events.Count + AnimationRows + UniversalRows
-                && string.Join("/", panel.Groups.Select(g => g.Name)) == "常规/位置与尺寸/状态/外观/文字/动画/权限"
+                && string.Join("/", panel.Groups.Select(g => g.Name)) == "基本/外观/文本/布局/状态/交互/动画"
                 && panel.Groups.Single(g => g.Name == "状态").Rows.Count == 3,
                 string.Join("/", panel.Groups.Select(g => $"{g.Name}:{g.Rows.Count}")));
 
@@ -6263,19 +6339,22 @@ namespace ScadaChecks
                 Row("$X").Value == "777" && Row("$X").IsValid, Row("$X").Value);
 
             Row("$Name").Value = "走面板改名";
-            Check("名称行写的是模型的 Name，标题条同步跟上",
-                box.Name == "走面板改名" && panel.HeaderText == "矩形 · 走面板改名", panel.HeaderText);
+            Check("名称行写的是模型的 Name，对象头同步跟上",
+                box.Name == "走面板改名" && panel.HeaderTitle == "走面板改名", panel.HeaderTitle);
 
             editor.SelectedElement = null;
-            Check("取消选中即转入画面模式：图元行一条不留，标题点名在编辑哪个画面（S3-e3 改的口径）",
-                !panel.HasElement && panel.Page != null && panel.HeaderText == "画面 · 画面_1"
+            Check("取消选中即转入画面模式：图元行一条不留，对象头点名在编辑哪个画面（S3-e3 改的口径）",
+                !panel.HasElement && panel.Page != null && panel.HeaderTitle == "画面_1"
+                && panel.HeaderSubtitle == "画面"
                 && Total(panel) > 0 && panel.Groups.SelectMany(g => g.Rows).All(r => r is not ScadaPropertyRow),
-                $"{Total(panel)} 行 / {panel.HeaderText}");
+                $"{Total(panel)} 行 / {panel.HeaderTitle} / {panel.HeaderSubtitle}");
 
             var foreign = new ScadaElement { TypeKey = "Hmi.NotOnThisMachine", Name = "插件图元" };
             editor.SelectedElement = foreign;
-            Check("类型没注册的图元：0 行 + 标题说明本机不认识它（不是属性丢了，是这台机器没装插件）",
-                panel.Groups.Count == 0 && panel.HeaderText.Contains("本机未注册该图元"), panel.HeaderText);
+            Check("类型没注册的图元：0 行 + 对象头说明本机不认识它 + 空态标题同口径",
+                panel.Groups.Count == 0 && panel.HeaderSubtitle.Contains("本机未注册该图元")
+                && panel.EmptyTitle == "这个图元本机不认识",
+                panel.HeaderSubtitle);
 
             // ---------------- ④ 通知口径：改值不重建、换选中重建一次 ----------------
 
@@ -6565,15 +6644,15 @@ namespace ScadaChecks
                 && ScadaPageProperties.All.All(s => !s.IsBindable), "");
 
             page.Name = "主画面";
-            Check("画面改名（含走面板的名称行）：标题点名的是画面，不是残留的图元名",
-                panel.HeaderText == "画面 · 主画面" && Row("Name").Value == "主画面",
-                $"{panel.HeaderText} / {Row("Name").Value}");
+            Check("画面改名（含走面板的名称行）：对象头点名的是画面，不是残留的图元名",
+                panel.HeaderTitle == "主画面" && panel.HeaderSubtitle == "画面" && Row("Name").Value == "主画面",
+                $"{panel.HeaderTitle} / {panel.HeaderSubtitle} / {Row("Name").Value}");
 
             var page2 = editor.Document.AddPage("辅画面");
             editor.SelectedPage = page2;
             Check("切页等于换编辑对象：行的写入目标跟着换成新画面，不会把属性改到看不见的画面上",
-                panel.HeaderText == "画面 · 辅画面" && Row("Background").Value == "#FF1E1E1E",
-                $"{panel.HeaderText} / {Row("Background").Value}");
+                panel.HeaderTitle == "辅画面" && Row("Background").Value == "#FF1E1E1E",
+                $"{panel.HeaderTitle} / {Row("Background").Value}");
 
             Row("GridSize").Value = "25";
             Check("面板改网格间距落在新画面上，旧画面不受牵连",
@@ -6612,7 +6691,7 @@ namespace ScadaChecks
             Check("画面事件清单长出的行落在「运行」组（与「启动画面」同处），图元事件另有「事件」组——分组是宿主清单给的，不是写死在行里",
                 panel.Groups.Single(g => g.Name == "运行").Rows.Count == 2 + ScadaPageEvents.All.Count
                 && pageLoadedRow.Group == ScadaPageEvents.Group
-                && ScadaEventRow.ElementGroup == "事件",
+                && ScadaEventRow.ElementGroup == ScadaPropertyGroups.Event,
                 string.Join("/", panel.Groups.Select(g => $"{g.Name}:{g.Rows.Count}")));
 
             Check("画面事件行的宿主是画面本身（不是图元）：同一份行实现靠的正是这个接口，面板这一层没有类型分支",
@@ -6698,7 +6777,7 @@ namespace ScadaChecks
             Check("选中图元立刻切回图元模式：画面退居其后，两种模式互斥不混排",
                 panel.HasElement && panel.Page == null && Total(panel) == 13 + AnimationRows + UniversalRows
                 && Row("$Width").Value == "120",
-                $"{Total(panel)} 行 / {panel.HeaderText}");
+                $"{Total(panel)} 行 / {panel.HeaderTitle}");
 
             // ---------------- ⑪ 绑定态的"长相"：真渲染一遍，像素与视觉树双复核 ----------------
             //
@@ -6827,6 +6906,58 @@ namespace ScadaChecks
             string shotDir = Path.Combine(AppContext.BaseDirectory, "artifacts");
             Directory.CreateDirectory(shotDir);
             SavePng(shot, Path.Combine(shotDir, "scada-property-panel.png"));
+
+            // ---- 应用级条件复现：App.xaml 最后合并 .NET 9 Fluent，本探针默认没有它 ----
+            //
+            // 2026-10-20 真机事故：Fluent 的隐式 ToggleButton 样式给「所有」ToggleButton 设了
+            // HorizontalAlignment=Left / VerticalAlignment=Center。自定义模板里的 ToggleButton
+            // 不挂 Style，于是外壳缩成内容宽度——Expander 组头的下划线只到标题那么宽、
+            // ComboBox 的框只剩箭头那么大（箭头还跑到文字左边）。
+            // 探针不合并 Fluent 就<b>永远看不到</b>这类问题（与 R19 的 ListView 同一族：
+            // 断言宿主与真机劈叉，绿灯是真的、只是验的是另一套外观）。
+            //
+            // 做法：另建一份视图，把 Fluent 塞进它自己的资源里（等价于 App 级合并后的查找结果）。
+            // 元素在 Measure 阶段才创建，所以隐式样式的解析是确定性的；不动全局 Application。
+            var fluentView = new ScadaPropertyView();
+            fluentView.Resources.MergedDictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri(
+                    "pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml",
+                    UriKind.Absolute),
+            });
+            fluentView.DataContext = panel;
+            fluentView.Measure(new Size(260, double.PositiveInfinity));
+            int fluentH = (int)Math.Ceiling(Math.Max(1, fluentView.DesiredSize.Height));
+            fluentView.Arrange(new Rect(0, 0, 260, fluentH));
+            fluentView.UpdateLayout();
+
+            // 组头：ToggleButton 必须和它所在的 Expander 一样宽（被压成 Left 时只有内容那么宽）
+            var fluentHeaders = CollectVisual<ToggleButton>(fluentView, tb => tb.Name == "HeaderSite");
+            Check("合并 Fluent 之后组头仍铺满整行（隐式 ToggleButton 样式把它压成 Left 的话这里会红）",
+                fluentHeaders.Count > 0 && fluentHeaders.All(tb =>
+                    tb.TemplatedParent is Expander host && host.ActualWidth > 0
+                    && Math.Abs(tb.ActualWidth - host.ActualWidth) < 1.5),
+                fluentHeaders.Count == 0
+                    ? "找不到 HeaderSite"
+                    : string.Join("/", fluentHeaders.Select(tb =>
+                        $"{tb.ActualWidth:0.#}×{((tb.TemplatedParent as Expander)?.ActualWidth ?? 0):0.#}")));
+
+            // 下拉框：外壳 ToggleButton 必须铺满整格
+            var fluentCombo = FindVisual<ComboBox>(fluentView, _ => true);
+            var comboChrome = fluentCombo == null
+                ? null
+                : FindVisual<ToggleButton>(fluentCombo, tb => ReferenceEquals(tb.TemplatedParent, fluentCombo));
+
+            Check("合并 Fluent 之后下拉框的外壳铺满整格（否则框看不见、箭头跑到文字左边）",
+                fluentCombo != null && comboChrome != null
+                && fluentCombo.ActualWidth > 80
+                && Math.Abs(comboChrome.ActualWidth - fluentCombo.ActualWidth) < 1.5,
+                fluentCombo == null
+                    ? "找不到 ComboBox"
+                    : $"下拉 {fluentCombo.ActualWidth:0.#} / 外壳 {(comboChrome?.ActualWidth ?? 0):0.#}");
+
+            SavePng(RenderToBitmap(fluentView, 260, fluentH),
+                Path.Combine(shotDir, "scada-property-panel-fluent.png"));
 
             // 同一张面板还有第二种形态：没选中图元时列的是"画面"属性（分组更多，而且
             // 「启动画面」这种 Bool 行与「加载完成/卸载」这种事件行混在同一组里）。
@@ -9080,8 +9211,8 @@ namespace ScadaChecks
             Check("画面右下角仍是画面底色（底色铺满整幅，没被布局槽裁成一小块）",
                 SameColor(Sample(frame, DesignToViewport(page.Width - 20, page.Height - 20)), page.Background),
                 ColorName(Sample(frame, DesignToViewport(page.Width - 20, page.Height - 20))));
-            Check("视口里画面外的灰边是画布底色 #FF141414（与画面底色差一档，边界一眼分得清）",
-                SameColor(Sample(frame, new Point(795, 595)), "#FF141414"),
+            Check("视口里画面外的灰边是画布底色 HmiCanvasBackgroundBrush（与画面底色差一档，边界一眼分得清）",
+                SameColor(Sample(frame, new Point(795, 595)), "#FF0E1318"),
                 ColorName(Sample(frame, new Point(795, 595))));
 
             Check("椭圆中心被真的画上（白填充压深底，差一个像素都不算过）",
@@ -9120,10 +9251,10 @@ namespace ScadaChecks
                 SameColor(Sample(frame, DesignToViewport(lamp.X + lamp.Width / 2, lamp.Y + lamp.Height / 2)), "#FFE03A2B"),
                 ColorName(Sample(frame, DesignToViewport(lamp.X + lamp.Width / 2, lamp.Y + lamp.Height / 2))));
 
-            // 数值域：默认白底 + 深灰边框。采样点取框内左侧——说明字为空时那一列塌掉、
-            // 数值又是右对齐，"左侧留白"正是底色最纯的地方。
-            Check("数值域：框内底色被真的画上（白底压深底，一列数值域在深色画面上才立得住）",
-                NearWhite(Sample(frame, DesignToViewport(field.X + 10, field.Y + field.Height / 2))),
+            // 数值域：只读态默认透明底（D9）。采样点取框内左侧——说明字为空时那一列塌掉、
+            // 数值又是右对齐，"左侧留白"正是底色最纯的地方；透明底应当露出画面底色。
+            Check("数值域：只读态透明底，露出画面底色（靠底边线立住，不再是一块白框）",
+                SameColor(Sample(frame, DesignToViewport(field.X + 10, field.Y + field.Height / 2)), page.Background),
                 ColorName(Sample(frame, DesignToViewport(field.X + 10, field.Y + field.Height / 2))));
 
             // 时钟模板里只有两行文字，没有可采样的"面"（前景深灰压在深底上，本来就该看不清）——
@@ -11850,35 +11981,33 @@ namespace ScadaChecks
                 new AppConfigModel().RunWindowMode == ScadaRunWindowMode.AttachedToMainWindow,
                 new AppConfigModel().RunWindowMode.ToString());
 
-            // ---------------- ② 设置弹窗：互斥 / 取消不写盘 / 确定写盘 ----------------
+            // ---------------- ② 合并弹窗：草稿 / 取消不写盘 / 确定写盘 ----------------
 
             var settings = new AppSettingsService();
             var original = settings.Current.RunWindowMode;
             var originalMonitor = settings.Current.RunWindowMonitor;
+            // 合并后本段也会改空闲超时（"一次确定同时改两个域"那条审计断言），必须一并还原——
+            // 否则下一次运行读到的就不是这台机器原来的值了。
+            var originalIdle = settings.Current.IdleTimeoutMinutes;
             try
             {
                 settings.Current.RunWindowMode = ScadaRunWindowMode.AttachedToMainWindow;
                 settings.Current.RunWindowMonitor = "";
                 settings.Save();
 
-                var vm = new ScadaRunWindowSettingsVM(settings);
+                var vm = new ScadaSystemSettingsVM(settings);
                 vm.OnDialogOpened(new DialogParameters());
                 Check("打开弹窗显示的是当前生效的形态，不是上次点过的那个",
-                    vm.IsAttached && !vm.IsIndependent,
-                    $"依附={vm.IsAttached} / 独立={vm.IsIndependent}");
+                    !vm.Draft.IndependentWindow,
+                    $"独立={vm.Draft.IndependentWindow}");
 
-                vm.IsIndependent = true;
-                Check("选独立后两个选项互斥（独立亮、依附灭）",
-                    vm.IsIndependent && !vm.IsAttached,
-                    $"依附={vm.IsAttached} / 独立={vm.IsIndependent}");
-
-                // RadioButton 失去选中时会往 IsChecked 写 false。那一写必须被忽略，
-                // 否则"选中新的"会紧接着被"旧的取消选中"覆盖回原值（两个 setter 抢同一个字段）。
-                vm.IsIndependent = false;
-                vm.IsAttached = false;
-                Check("RadioButton 取消选中写的 false 被忽略（否则新旧选项会互相覆盖）",
-                    vm.IsIndependent && !vm.IsAttached,
-                    $"依附={vm.IsAttached} / 独立={vm.IsIndependent}");
+                // 合并后草稿里只有一个布尔：旧实现是两个 RadioButton 各自绑一个 bool，
+                // 失选时写回的 false 必须被 setter 忽略，否则新旧选项互相覆盖
+                // （那条守卫与它对应的断言都随 RadioButton 一起消失了）。
+                vm.Draft.IndependentWindow = true;
+                Check("勾上「独立运行窗口」：草稿就是独立窗口，不存在两个字段抢同一个值",
+                    vm.Draft.IndependentWindow,
+                    $"独立={vm.Draft.IndependentWindow}");
 
                 ButtonResult? closed = null;
                 vm.RequestClose = MakeCloseListener(result => closed = result);
@@ -11897,34 +12026,41 @@ namespace ScadaChecks
 
                 // 重新读一份服务（构造函数会从磁盘 Load）：这一步才证明真写了盘，而不只是改了内存对象
                 var reread = new AppSettingsService();
-                Check("确定：枚举以整数落进 AppConfig.json，重新加载读回来仍是独立窗口",
+                Check("确定：草稿里的布尔写回枚举，以整数落进 AppConfig.json，重新加载读回来仍是独立窗口",
                     reread.Current.RunWindowMode == ScadaRunWindowMode.IndependentWindow,
                     reread.Current.RunWindowMode.ToString());
 
                 // 再次打开：编辑态必须从配置现读，不能带上一轮的残留
-                var reopen = new ScadaRunWindowSettingsVM(settings);
+                var reopen = new ScadaSystemSettingsVM(settings);
                 reopen.OnDialogOpened(new DialogParameters());
-                Check("再次打开：编辑态从配置现读（上一轮的编辑残留不会带进来）",
-                    reopen.IsIndependent && !reopen.IsAttached,
-                    $"依附={reopen.IsAttached} / 独立={reopen.IsIndependent}");
+                Check("再次打开：草稿从配置现读（上一轮的编辑残留不会带进来）",
+                    reopen.Draft.IndependentWindow,
+                    $"独立={reopen.Draft.IndependentWindow}");
 
                 // ---------------- ②b 目标屏：下拉清单 / 写盘 / 认不出的值 ----------------
 
                 Check("落屏下拉：第一项固定是「跟随主屏」且设备名为空串（空串就是配置里的默认值）",
-                    reopen.Monitors.Count >= 1
-                    && reopen.Monitors[0].DeviceName.Length == 0
-                    && reopen.Monitors[0].Label.Contains("跟随主屏"),
-                    reopen.Monitors.Count > 0 ? $"{reopen.Monitors[0].Label} / 「{reopen.Monitors[0].DeviceName}」" : "清单为空");
+                    reopen.Draft.Monitors.Count >= 1
+                    && reopen.Draft.Monitors[0].DeviceName.Length == 0
+                    && reopen.Draft.Monitors[0].Label.Contains("跟随主屏"),
+                    reopen.Draft.Monitors.Count > 0
+                        ? $"{reopen.Draft.Monitors[0].Label} / 「{reopen.Draft.Monitors[0].DeviceName}」"
+                        : "清单为空");
 
-                Check("落屏下拉：每项的设备名互不相同（重名会让 SelectedValue 永远选中第一项）",
-                    reopen.Monitors.Select(o => o.DeviceName).Distinct(StringComparer.OrdinalIgnoreCase).Count()
-                    == reopen.Monitors.Count,
-                    string.Join(" | ", reopen.Monitors.Select(o => $"「{o.DeviceName}」")));
+                Check("落屏下拉：每项的设备名互不相同（重名会让反查永远取到第一项）",
+                    reopen.Draft.Monitors.Select(o => o.DeviceName).Distinct(StringComparer.OrdinalIgnoreCase).Count()
+                    == reopen.Draft.Monitors.Count,
+                    string.Join(" | ", reopen.Draft.Monitors.Select(o => $"「{o.DeviceName}」")));
 
-                // 清单里可能有真显示器（单屏机器上就只有"跟随主屏"一项），
-                // 所以下面用一个不在清单里的设备名来钉"认不出就归空串"这条规则——
-                // 否则下拉会停在一个列表里根本没有的值上，界面看着像"没选"，确定时写下去的却是别的。
-                reopen.SelectedMonitorDeviceName = "";
+                // 草稿存的是**下拉文案**，确认时再反查回设备名 —— 所以文案也必须唯一，
+                // 否则"选中的是第二块屏、写下去的却是第一块"。
+                Check("落屏下拉：每项文案也互不相同（草稿存文案，反查设备名靠它唯一定位）",
+                    reopen.Draft.MonitorLabels.Distinct(StringComparer.Ordinal).Count()
+                    == reopen.Draft.Monitors.Count,
+                    string.Join(" | ", reopen.Draft.MonitorLabels));
+
+                // 选「跟随主屏」：空串落盘只能证明"写了"，证明不了"写对了"（下半段再钉非空设备名）。
+                reopen.Draft.MonitorLabel = reopen.Draft.Monitors[0].Label;
                 reopen.RequestClose = MakeCloseListener(_ => { });
                 reopen.ConfirmCommand.Execute();
                 var rereadMonitor = new AppSettingsService();
@@ -11932,41 +12068,41 @@ namespace ScadaChecks
                     rereadMonitor.Current.RunWindowMonitor == "",
                     $"「{rereadMonitor.Current.RunWindowMonitor}」");
 
-                // 有真显示器时再钉一遍"非空设备名原样落盘"：空串落盘只能证明"写了"，
-                // 证明不了"写对了"——现场要的恰恰是副屏那一串设备名能存下来、读回来还是它。
-                var realMonitor = reopen.Monitors.FirstOrDefault(o => o.DeviceName.Length > 0);
+                // 有真显示器时再钉一遍"非空设备名原样落盘"：现场要的恰恰是副屏那一串
+                // 设备名能存下来、读回来还是它（下拉文案与落盘值不是同一个字符串）。
+                var realMonitor = reopen.Draft.Monitors.FirstOrDefault(o => o.DeviceName.Length > 0);
                 if (realMonitor != null)
                 {
-                    var pick = new ScadaRunWindowSettingsVM(settings);
+                    var pick = new ScadaSystemSettingsVM(settings);
                     pick.OnDialogOpened(new DialogParameters());
-                    pick.SelectedMonitorDeviceName = realMonitor.DeviceName;
+                    pick.Draft.MonitorLabel = realMonitor.Label;
                     pick.RequestClose = MakeCloseListener(_ => { });
                     pick.ConfirmCommand.Execute();
 
                     var rereadPick = new AppSettingsService();
-                    Check("确定：选中的显示器设备名原样落进 AppConfig.json，重新加载读回来还是它",
+                    Check("确定：下拉文案反查回设备名落盘（界面存文案，写下去的是设备名）",
                         string.Equals(rereadPick.Current.RunWindowMonitor, realMonitor.DeviceName, StringComparison.OrdinalIgnoreCase),
-                        $"写入「{realMonitor.DeviceName}」→ 读回「{rereadPick.Current.RunWindowMonitor}」");
+                        $"文案「{realMonitor.Label}」→ 写入「{realMonitor.DeviceName}」→ 读回「{rereadPick.Current.RunWindowMonitor}」");
 
-                    var reopenPick = new ScadaRunWindowSettingsVM(settings);
+                    var reopenPick = new ScadaSystemSettingsVM(settings);
                     reopenPick.OnDialogOpened(new DialogParameters());
                     Check("再次打开：下拉选中的就是配置里那台显示器（现读，不是上一轮残留）",
-                        string.Equals(reopenPick.SelectedMonitorDeviceName, realMonitor.DeviceName, StringComparison.OrdinalIgnoreCase),
-                        $"选中「{reopenPick.SelectedMonitorDeviceName}」");
+                        string.Equals(reopenPick.Draft.MonitorLabel, realMonitor.Label, StringComparison.Ordinal),
+                        $"选中「{reopenPick.Draft.MonitorLabel}」");
                 }
 
                 // 配置里存着一个当前不在线的设备名：打开弹窗必须显示「跟随主屏」，
                 // 与运行时真正的回落结果一致，不会出现"看着选了副屏、实际跑在主屏"。
                 settings.Current.RunWindowMonitor = @"\\.\DISPLAY_NOT_ONLINE";
                 settings.Save();
-                var offline = new ScadaRunWindowSettingsVM(settings);
+                var offline = new ScadaSystemSettingsVM(settings);
                 offline.OnDialogOpened(new DialogParameters());
                 Check("落屏下拉：配置里那台显示器不在线时显示「跟随主屏」（与运行时的回落结果一致）",
-                    offline.SelectedMonitorDeviceName.Length == 0,
-                    $"「{offline.SelectedMonitorDeviceName}」");
+                    string.Equals(offline.Draft.MonitorLabel, offline.Draft.Monitors[0].Label, StringComparison.Ordinal),
+                    $"「{offline.Draft.MonitorLabel}」");
 
                 // 取消不写盘这条规则对目标屏同样成立
-                offline.SelectedMonitorDeviceName = offline.Monitors[offline.Monitors.Count - 1].DeviceName;
+                offline.Draft.MonitorLabel = offline.Draft.Monitors[offline.Draft.Monitors.Count - 1].Label;
                 offline.RequestClose = MakeCloseListener(_ => { });
                 offline.CancelCommand.Execute();
                 Check("取消：目标屏也不写盘，配置保持原值（改到一半放弃不该留痕）",
@@ -11998,14 +12134,23 @@ namespace ScadaChecks
                 }
 
                 string runActor = "王工";
-                var audited = new ScadaRunWindowSettingsVM(settings, runAudit, () => runActor);
+
+                // 注入一份固定的显示器清单：本段要钉的是"下拉文案 → 设备名"这条反查，
+                // 真机上单屏机器只有「跟随主屏」一项，钉不住（旧断言靠直接赋设备名绕过了下拉）。
+                var fakeMonitors = new List<ScadaMonitorOption>
+                {
+                    new ScadaMonitorOption("", "跟随主屏（默认）", "不指定显示器"),
+                    new ScadaMonitorOption(@"\\.\DISPLAY9", "显示器 9（右侧，1920 × 1080）", @"\\.\DISPLAY9"),
+                };
+
+                var audited = new ScadaSystemSettingsVM(settings, runAudit, () => runActor, () => fakeMonitors);
                 audited.OnDialogOpened(new DialogParameters());
                 audited.RequestClose = MakeCloseListener(_ => { });
 
                 audited.ConfirmCommand.Execute();
                 var runRows = RunAuditRows();
-                Check("改显示设置：一处没动就确定也落一条，说明写明「未写盘」（事后问「他到底改过没有」，答案是「点过，但没改」）",
-                    runRows.Length == 1 && runRows[0].Contains("运行窗口") && runRows[0].Contains("修改显示设置")
+                Check("合并弹窗：一处没动就确定也落一条，说明写明「未写盘」（事后问「他到底改过没有」，答案是「点过，但没改」）",
+                    runRows.Length == 1 && runRows[0].Contains("系统参数") && runRows[0].Contains("修改参数")
                     && runRows[0].Contains("成功") && runRows[0].Contains("未写盘"),
                     string.Join(" | ", runRows));
 
@@ -12013,30 +12158,44 @@ namespace ScadaChecks
                     runRows.Length == 1 && runRows[0].Contains("王工"), runRows[0]);
 
                 runActor = "李工";
-                audited.IsIndependent = true;
+                audited.Draft.IndependentWindow = true;
                 audited.ConfirmCommand.Execute();
                 runRows = RunAuditRows();
-                Check("改形态落一条，说明写「旧值 → 新值」且用中文档位：从依附切到独立，主界面就重新露出来了",
-                    runRows.Length == 2 && runRows[1].Contains("形态：依附主窗口 → 独立窗口")
+                Check("改形态落一条，事件列仍是「运行窗口」、说明写「旧值 → 新值」且用中文档位：从依附切到独立，主界面就重新露出来了",
+                    runRows.Length == 2 && runRows[1].Contains("运行窗口") && runRows[1].Contains("修改显示设置")
+                    && runRows[1].Contains("形态：依附主窗口 → 独立窗口")
                     && runRows[1].Contains("成功") && runRows[1].Contains("李工"),
                     runRows[1]);
 
-                // 目标屏那一半：用一个（几乎必然）不存在的设备名，断言就不依赖这台机器上恰好接着几块屏
-                audited.SelectedMonitorDeviceName = @"\\.\DISPLAY9";
+                audited.Draft.MonitorLabel = "显示器 9（右侧，1920 × 1080）";
                 audited.ConfirmCommand.Execute();
                 runRows = RunAuditRows();
                 Check("改目标屏落一条：设备名原样写进说明（它才是与系统「显示设置」对得上的那个值，换成「显示器 2」要多绕一层）",
                     runRows.Length == 3 && runRows[2].Contains(@"目标屏：跟随主屏 → \\.\DISPLAY9"),
                     runRows[2]);
 
+                // 一次确定同时改两个域：两条审计各带各的事件类别 —— 合并弹窗不改历史流水的检索口径。
+                // 空闲超时取"当前值 + 1"，断言就不依赖这台机器上恰好配的是多少。
+                var nextIdle = settings.Current.IdleTimeoutMinutes + 1;
+                audited.Draft.IndependentWindow = false;
+                audited.Draft.IdleTimeoutText = nextIdle.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                audited.ConfirmCommand.Execute();
+                runRows = RunAuditRows();
+                Check("一次确定同时改了两个域：落两条，各带自己的事件类别（运行窗口 / 系统参数）",
+                    runRows.Length == 5
+                    && runRows[3].Contains("运行窗口") && runRows[3].Contains("形态：独立窗口 → 依附主窗口")
+                    && runRows[4].Contains("系统参数") && runRows[4].Contains("空闲自动登出："),
+                    string.Join(" | ", runRows.Skip(3)));
+
                 audited.CancelCommand.Execute();
                 Check("取消不落审计（改到一半放弃不该留痕，与「不写盘」同一口径）",
-                    RunAuditRows().Length == 3, string.Join(" | ", RunAuditRows()));
+                    RunAuditRows().Length == 5, string.Join(" | ", RunAuditRows()));
             }
             finally
             {
                 settings.Current.RunWindowMode = original;
                 settings.Current.RunWindowMonitor = originalMonitor;
+                settings.Current.IdleTimeoutMinutes = originalIdle;
                 settings.Save();
             }
 
@@ -18003,32 +18162,33 @@ namespace ScadaChecks
                 settings.Current.AlarmHistoryRetentionDays = 365;
                 settings.Save();
 
-                var vm = new ScadaSystemParametersVM(settings);
+                var vm = new ScadaSystemSettingsVM(settings);
                 vm.OnDialogOpened(new DialogParameters());
                 Check("打开弹窗显示的是当前生效的三个值（不是默认常量、也不是上次点过的）",
-                    vm.IdleTimeoutText == "10" && vm.AuditRetentionText == "90" && vm.AlarmRetentionText == "365",
-                    $"{vm.IdleTimeoutText} / {vm.AuditRetentionText} / {vm.AlarmRetentionText}");
+                    vm.Draft.IdleTimeoutText == "10" && vm.Draft.AuditRetentionText == "90"
+                    && vm.Draft.AlarmRetentionText == "365",
+                    $"{vm.Draft.IdleTimeoutText} / {vm.Draft.AuditRetentionText} / {vm.Draft.AlarmRetentionText}");
 
                 ButtonResult? closed = null;
                 vm.RequestClose = MakeCloseListener(result => closed = result);
 
-                // 直接把 int 绑到 TextBox.Text 的话，这里 WPF 会静默把绑定置无效、属性保持旧值，
-                // 界面上什么都看不出来、点确定还写盘成功——保存的却是上一次的值。
-                // 所以弹窗收字符串、在点确定时统一解析并给出明确原因。
-                vm.IdleTimeoutText = "3O";   // 字母 O，不是零
+                // 草稿里这几个是**字符串**而不是 int：属性面板的 NumericBox 遇到清空会写 NaN、
+                // 绑定失败后属性保持旧值——界面上空着、存下去的却是上一次的数。
+                // 收字符串 + 确认时统一解析，才能"宁可不让他确定，也不能让他以为改成了"。
+                vm.Draft.IdleTimeoutText = "3O";   // 字母 O，不是零
                 vm.ConfirmCommand.Execute();
                 Check("填了非整数（3O，字母 O）：不关窗、内存配置不动，并说明是哪个字段、填的是什么",
                     closed == null && vm.HasError && settings.Current.IdleTimeoutMinutes == 10,
                     $"关闭={closed?.ToString() ?? "未关"} / 提示={vm.ErrorMessage}");
 
-                vm.IdleTimeoutText = "  ";   // 只有空白
+                vm.Draft.IdleTimeoutText = "  ";   // 只有空白
                 vm.ConfirmCommand.Execute();
                 Check("留空不当作 0（留空被猜成「永不清理 / 不自动登出」正好是最不该猜错的那个值）",
                     closed == null && vm.HasError, vm.ErrorMessage);
 
-                vm.IdleTimeoutText = "45";
-                vm.AuditRetentionText = "0";
-                vm.AlarmRetentionText = "730";
+                vm.Draft.IdleTimeoutText = "45";
+                vm.Draft.AuditRetentionText = "0";
+                vm.Draft.AlarmRetentionText = "730";
                 vm.ConfirmCommand.Execute();
                 Check("确定：关窗返回 OK，三项一起写进内存配置（0 是合法值：审计永不清理）",
                     closed == ButtonResult.OK
@@ -18046,13 +18206,34 @@ namespace ScadaChecks
                     $"{reread.Current.IdleTimeoutMinutes} / {reread.Current.AuditRetentionDays} / {reread.Current.AlarmHistoryRetentionDays}");
 
                 // 再次打开：编辑态必须从配置现读，不能带上一轮的编辑残留
-                var reopen = new ScadaSystemParametersVM(settings);
+                var reopen = new ScadaSystemSettingsVM(settings);
                 reopen.OnDialogOpened(new DialogParameters());
                 Check("再次打开：编辑态从配置现读，上一轮的编辑残留不会带进来",
-                    reopen.IdleTimeoutText == "45"
-                    && reopen.AuditRetentionText == "0"
-                    && reopen.AlarmRetentionText == "730",
-                    $"{reopen.IdleTimeoutText} / {reopen.AuditRetentionText} / {reopen.AlarmRetentionText}");
+                    reopen.Draft.IdleTimeoutText == "45"
+                    && reopen.Draft.AuditRetentionText == "0"
+                    && reopen.Draft.AlarmRetentionText == "730",
+                    $"{reopen.Draft.IdleTimeoutText} / {reopen.Draft.AuditRetentionText} / {reopen.Draft.AlarmRetentionText}");
+
+                // 画布那一组（从旧「系统参数设置」下半段搬来的）：草稿里同样有值，确认才写盘
+                var galleryBefore = (settings.Current.ImageGallery ?? new ImageGallerySettings()).Enabled;
+                var galleryVm = new ScadaSystemSettingsVM(settings);
+                galleryVm.OnDialogOpened(new DialogParameters());
+                Check("画布分组也进了同一份草稿（合并前它是「系统参数设置」下半段）",
+                    galleryVm.Draft.GalleryEnabled == galleryBefore
+                    && galleryVm.Draft.GalleryTotalLimitText
+                        == (settings.Current.ImageGallery ?? new ImageGallerySettings())
+                            .TotalLimit.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    $"启用={galleryVm.Draft.GalleryEnabled} / 上限={galleryVm.Draft.GalleryTotalLimitText}");
+
+                galleryVm.Draft.GalleryEnabled = !galleryBefore;
+                galleryVm.RequestClose = MakeCloseListener(_ => { });
+                galleryVm.ConfirmCommand.Execute();
+                Check("画布开关改了才写盘：重新加载读回来是翻转后的值",
+                    new AppSettingsService().Current.ImageGallery?.Enabled == !galleryBefore,
+                    $"期望 {!galleryBefore} / 读回 {new AppSettingsService().Current.ImageGallery?.Enabled}");
+
+                settings.Current.ImageGallery!.Enabled = galleryBefore;
+                settings.Save();
 
                 // ---------------- ⑤ 改参数落审计（S13-f） ----------------
                 // 这三个数字是"这台机器的安全策略"：把空闲登出改成 0 等于**关掉自动登出**，
@@ -18074,7 +18255,7 @@ namespace ScadaChecks
                 }
 
                 string paramActor = "王工";
-                var audited = new ScadaSystemParametersVM(settings, paramAudit, () => paramActor);
+                var audited = new ScadaSystemSettingsVM(settings, paramAudit, () => paramActor);
                 audited.OnDialogOpened(new DialogParameters());
                 audited.RequestClose = MakeCloseListener(_ => { });
 
@@ -18089,7 +18270,7 @@ namespace ScadaChecks
                     paramRows.Length == 1 && paramRows[0].Contains("王工"), paramRows[0]);
 
                 paramActor = "李工";
-                audited.IdleTimeoutText = "0";
+                audited.Draft.IdleTimeoutText = "0";
                 audited.ConfirmCommand.Execute();
                 paramRows = ParamAuditRows();
                 Check("改参数成功落一条，说明写「旧值 → 新值」：把空闲登出改成 0 等于关掉自动登出，事后要答得出是谁关的",
@@ -18102,13 +18283,79 @@ namespace ScadaChecks
                     ParamAuditRows().Length == 2, string.Join(" | ", ParamAuditRows()));
 
                 // 取不到「此刻登录着谁」时署名回落「未登录」——那本身是一条线索（有人没登录就改了参数）
-                var anonymous = new ScadaSystemParametersVM(settings, paramAudit, () => null);
+                var anonymous = new ScadaSystemSettingsVM(settings, paramAudit, () => null);
                 anonymous.OnDialogOpened(new DialogParameters());
                 anonymous.RequestClose = MakeCloseListener(_ => { });
                 anonymous.ConfirmCommand.Execute();
                 paramRows = ParamAuditRows();
                 Check("取不到「此刻登录着谁」时署名回落「未登录」，而不是留一格空白（有人没登录就改了参数，这本身是线索）",
                     paramRows.Length == 3 && paramRows[2].Contains("未登录"), paramRows[2]);
+
+                // ---------------- ⑥ 反射面板：字段清单只存在于草稿类 ----------------
+                // 合并的直接收益：新增一项 = 草稿类加一个属性，视图（ScadaSystemSettingsView.xaml）
+                // 一行都不用改。这一节钉的就是这条契约——用属性面板渲染时的**同一个入口**
+                // （PropertyGridDefaults.GetVisibleProperties）读出"界面上会出现哪些字段"，
+                // 而不是另写一份"期望字段表"（那样两处各写一遍，早晚对不上）。
+
+                var panel = new ScadaSystemSettingsVM(settings);
+                panel.OnDialogOpened(new DialogParameters());
+
+                var visibleProps = UI.CustomControl.PropertyGrid.PropertyGridDefaults
+                    .GetVisibleProperties(panel.Draft)
+                    .ToList();
+                var visibleNames = visibleProps.Select(p => p.Name).ToList();
+
+                Check("候选来源不占行：MonitorLabels / Monitors 没有 [SuperDisplay]，不会被渲染成只读文本行",
+                    !visibleNames.Contains(nameof(SystemSettingsDraft.MonitorLabels))
+                    && !visibleNames.Contains(nameof(SystemSettingsDraft.Monitors)),
+                    string.Join(" | ", visibleNames));
+
+                var byGroup = visibleProps
+                    .GroupBy(p => UI.CustomControl.PropertyGrid.PropertyGridDefaults.GroupSegment(p, 0))
+                    .ToDictionary(g => g.Key, g => g.Count());
+
+                Check("页签按草稿上的 Group 生成：运行窗口 2 项 / 安全与留档 3 项 / 画布 8 项",
+                    byGroup.TryGetValue(SystemSettingsDraft.GroupRunWindow, out var runCount) && runCount == 2
+                    && byGroup.TryGetValue(SystemSettingsDraft.GroupSafety, out var safetyCount) && safetyCount == 3
+                    && byGroup.TryGetValue(SystemSettingsDraft.GroupGallery, out var galleryCount) && galleryCount == 8,
+                    string.Join(" | ", byGroup.Select(kv => $"{kv.Key}={kv.Value}")));
+
+                // 旧入口靠 InitialGroup 落到对应页签：页签名改名而这里不同步的话，
+                // 旧入口会静默落回第一页（SelectedGroup 找不到就保持不动）。
+                Check("入口分页用的三个页签名都真实存在于草稿分组里（改名不同步 = 旧入口静默落回第一页）",
+                    byGroup.ContainsKey(SystemSettingsDraft.GroupRunWindow)
+                    && byGroup.ContainsKey(SystemSettingsDraft.GroupSafety)
+                    && byGroup.ContainsKey(SystemSettingsDraft.GroupGallery),
+                    string.Join(" | ", byGroup.Keys));
+
+                var safetySubGroups = visibleProps
+                    .Where(p => UI.CustomControl.PropertyGrid.PropertyGridDefaults.GroupSegment(p, 0)
+                                == SystemSettingsDraft.GroupSafety)
+                    .GroupBy(p => UI.CustomControl.PropertyGrid.PropertyGridDefaults.GroupSegment(p, 1))
+                    .Select(g => g.Key)
+                    .ToList();
+
+                Check("安全与留档页分成「会话」「历史留档」两个折叠块（混着不写会落进「默认分组」）",
+                    safetySubGroups.Contains("会话") && safetySubGroups.Contains("历史留档")
+                    && !safetySubGroups.Contains(UI.CustomControl.PropertyGrid.PropertyGridDefaults.DefaultGroupName),
+                    string.Join(" | ", safetySubGroups));
+
+                // 旧入口转发：带 group 参数打开时 InitialGroup 指向那一页（视图把它绑到面板的 SelectedGroup）
+                var paged = new ScadaSystemSettingsVM(settings);
+                var pageParameters = new DialogParameters();
+                pageParameters.Add(ScadaSystemSettingsVM.GroupParameterKey, SystemSettingsDraft.GroupSafety);
+                paged.OnDialogOpened(pageParameters);
+                Check("旧入口转发：带 group 参数打开时 InitialGroup 指向对应页签",
+                    paged.InitialGroup == SystemSettingsDraft.GroupSafety, paged.InitialGroup);
+
+                // 五个数值项都带整数校验：属性面板会在行内标红（它拦不住确定，
+                // 真正的闸是确认时的解析——上一段已经钉过「3O / 空白都关不了窗」）。
+                var numericTexts = visibleProps.Where(p => p.Name.EndsWith("Text", StringComparison.Ordinal)).ToList();
+                Check("五个数值项都标了整数校验（行内红字的第一道提示）",
+                    numericTexts.Count == 5
+                    && numericTexts.All(p => p.GetCustomAttributes(
+                        typeof(UI.Attributes.ValidationBaseAttribute), inherit: true).Any()),
+                    string.Join(" | ", numericTexts.Select(p => p.Name)));
             }
             finally
             {
@@ -18225,6 +18472,121 @@ namespace ScadaChecks
                 settings.Current.Solutions = originalSolutions;
                 settings.Save();
             }
+        }
+
+        /// <summary>
+        /// 属性面板的页签选择（<see cref="UI.CustomControl.PropertyGridBase.SelectedGroup"/>）：
+        /// 合并弹窗靠它让"旧的两个菜单入口各自落到对应页签"。
+        ///
+        /// 【为什么必须真造控件】页签是模板应用之后才建出来的，纯 VM 断言只证明得了
+        /// "页签名存在于草稿分组里"，证明不了"SelectedGroup 真的把选中项换过去了"——
+        /// 后者一旦坏了，旧入口会**静默**落回第一页（不报错、不抛异常）。
+        ///
+        /// 样板与其它 WPF 断言一致：单开 STA 线程，不把 Main 标成 STAThread。
+        /// 断言宿主没有 Application，所以把主题字典合到控件自己的 Resources 上
+        /// （与菜单那节给 ContextMenu 合字典的写法同源）。
+        /// </summary>
+        private static void SystemSettingsPanelChecks()
+        {
+            Exception? failure = null;
+
+            var thread = new Thread(() =>
+            {
+                try { SystemSettingsPanelChecksCore(); }
+                catch (Exception ex) { failure = ex; }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.IsBackground = true;
+            thread.Start();
+            thread.Join();
+
+            if (failure != null)
+                Check("系统设置面板断言全程未抛异常", false, failure.ToString());
+        }
+
+        private static void SystemSettingsPanelChecksCore()
+        {
+            Section("[SP] 系统设置：反射面板的页签（SelectedGroup 真选中，不只是名字对得上）");
+
+            var draft = new SystemSettingsDraft(new[]
+            {
+                new ScadaMonitorOption("", "跟随主屏（默认）", "不指定显示器"),
+            })
+            {
+                IdleTimeoutText = "10",
+                AuditRetentionText = "90",
+                AlarmRetentionText = "365",
+                GalleryTotalLimitText = "300",
+                GalleryPerFlowLimitText = "50",
+            };
+
+            var grid = new UI.CustomControl.CardPropertyGrid();
+            grid.Resources.MergedDictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri("/UI;component/Themes/Generic.xaml", UriKind.Relative),
+            });
+            grid.Style = (Style)grid.FindResource(typeof(UI.CustomControl.CardPropertyGrid));
+            grid.BindingObject = draft;
+
+            // 模板应用之前就设好：真实路径上 SelectedGroup 是绑定在 XAML 上的，
+            // 与 BindingObject 同一次布局里到达，所以这条顺序才是要钉的那一条。
+            grid.SelectedGroup = SystemSettingsDraft.GroupSafety;
+
+            grid.ApplyTemplate();
+            grid.Measure(new Size(720, 420));
+            grid.Arrange(new Rect(0, 0, 720, 420));
+            grid.UpdateLayout();
+
+            var tabControl = grid.Template?.FindName("PART_TabControl", grid) as TabControl;
+
+            // 反向钉住：模板没套上时下面几条都会变成"无选中项 == 期望值"的假绿
+            Check("面板模板真的套上了（拿不到 PART_TabControl 的话下面几条都没有意义）",
+                tabControl != null, tabControl == null ? "模板缺失" : "OK");
+
+            var headers = tabControl?.Items.OfType<TabItem>().Select(t => t.Header as string).ToList()
+                          ?? new List<string>();
+
+            Check("三个页签按 Group 生成，顺序是 运行窗口 → 安全与留档 → 画布",
+                headers.SequenceEqual(new[]
+                {
+                    SystemSettingsDraft.GroupRunWindow,
+                    SystemSettingsDraft.GroupSafety,
+                    SystemSettingsDraft.GroupGallery,
+                }),
+                string.Join(" | ", headers));
+
+            string? SelectedHeader() => (tabControl?.SelectedItem as TabItem)?.Header as string;
+
+            Check("SelectedGroup = 安全与留档：打开就落在那一页（旧入口转发靠这条）",
+                SelectedHeader() == SystemSettingsDraft.GroupSafety,
+                SelectedHeader() ?? "无选中项");
+
+            grid.SelectedGroup = SystemSettingsDraft.GroupGallery;
+            Check("SelectedGroup 变更后跟着换页（不是只在首次应用模板时生效一次）",
+                SelectedHeader() == SystemSettingsDraft.GroupGallery,
+                SelectedHeader() ?? "无选中项");
+
+            // 找不到的页签名必须保持不动：页签名是界面知识，改它不该把面板炸掉或跳到空页
+            grid.SelectedGroup = "不存在的页签";
+            Check("SelectedGroup 指向不存在的页签时保持当前页（不抛、不跳到空页）",
+                SelectedHeader() == SystemSettingsDraft.GroupGallery,
+                SelectedHeader() ?? "无选中项");
+
+            // 弹窗视图本身也真造一次：XAML 解析期的问题（资源键、xmlns、转换器）
+            // 只在"真造视图"时暴露，编译期全绿——与 R30 那一族同形。
+            var view = new VisionMaster.Views.DialogViews.ScadaSystemSettingsView();
+            view.Resources.MergedDictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri("/UI;component/Themes/Generic.xaml", UriKind.Relative),
+            });
+            view.DataContext = new ScadaSystemSettingsVM(new AppSettingsService());
+            view.Measure(new Size(760, 600));
+            view.Arrange(new Rect(0, 0, 760, 600));
+            view.UpdateLayout();
+
+            Check("弹窗视图能真造出来并完成一次布局（「弹窗打不开」只在真造视图时暴露）",
+                view.ActualWidth > 0 && view.ActualHeight > 0,
+                $"{view.ActualWidth:0}×{view.ActualHeight:0}");
         }
 
         /// <summary>
@@ -18481,6 +18843,592 @@ namespace ScadaChecks
             {
                 try { if (Directory.Exists(root)) Directory.Delete(root, true); }
                 catch { /* 临时目录删不掉不影响断言结论 */ }
+            }
+        }
+
+        // ==================================================================
+        //  [AH] 属性分组目录：组名唯一出处 + 注册期校验
+        // ==================================================================
+        /// <summary>
+        /// 守门人（2026-10-20，见 docs/code-changes/2026-10-20-SCADA属性分组目录与注册期校验.md）。
+        ///
+        /// 属性面板的分组名原先是一串散落在描述符、图元特性、面板视图模型里的字面量，
+        /// 而「哪些组不许绑变量」是按<b>字符串精确匹配</b>判的——改一个组名，编译期全绿，
+        /// 那条校验却静默失效（面板上凭空多出一个不该有的 ƒx）。本段钉住三件事：
+        /// ① 目录自身自洽（无重名、顺序表与查找一一对应、显示名与快照一致）；
+        /// ② 每个已注册图元的每个属性组、每条画面属性、画面事件组都在目录里；
+        /// ③ 注册期<b>真的</b>会拒绝"未知分组"与"不可绑组里声明可绑"——两条都要有反证，
+        ///    否则"校验通过了"可能只是"校验没跑"（R38 的老坑）。
+        /// </summary>
+        private static void ScadaPropertyGroupChecks()
+        {
+            Section("[AH] 属性分组目录：组名唯一出处、顺序表、注册期校验");
+
+            // ----------------------------------------------------------
+            // ① 目录自身
+            // ----------------------------------------------------------
+            var order = ScadaPropertyGroups.Order;
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var duplicates = new List<string>();
+            for (int i = 0; i < order.Count; i++)
+            {
+                if (!seen.Add(order[i])) duplicates.Add(order[i]);
+            }
+
+            Check("目录顺序表非空、没有重名",
+                order.Count > 0 && duplicates.Count == 0,
+                $"共 {order.Count} 组，重名：{string.Join("、", duplicates)}");
+
+            bool orderConsistent = true;
+            for (int i = 0; i < order.Count; i++)
+            {
+                if (!ScadaPropertyGroups.IsKnown(order[i]) || ScadaPropertyGroups.OrderOf(order[i]) != i)
+                    orderConsistent = false;
+            }
+
+            Check("OrderOf 与顺序表下标一一对应（IsKnown 认的是同一份表）",
+                orderConsistent, $"{order.Count} 组");
+
+            Check("未知组一律判「不在目录里」且排到最后（int.MaxValue）",
+                !ScadaPropertyGroups.IsKnown(null)
+                && !ScadaPropertyGroups.IsKnown("")
+                && !ScadaPropertyGroups.IsKnown("没有这一组")
+                && ScadaPropertyGroups.OrderOf("没有这一组") == int.MaxValue,
+                $"OrderOf={ScadaPropertyGroups.OrderOf("没有这一组")}");
+
+            Check("「布局」「外观」两组不许绑变量，其余组可绑",
+                !ScadaPropertyGroups.AllowsVariableBinding(ScadaPropertyGroups.Layout)
+                && !ScadaPropertyGroups.AllowsVariableBinding(ScadaPropertyGroups.Appearance)
+                && ScadaPropertyGroups.NonBindable.Count == 2
+                && ScadaPropertyGroups.AllowsVariableBinding(ScadaPropertyGroups.Data)
+                && ScadaPropertyGroups.AllowsVariableBinding(ScadaPropertyGroups.State)
+                && ScadaPropertyGroups.AllowsVariableBinding(ScadaPropertyGroups.Text),
+                string.Join("、", ScadaPropertyGroups.NonBindable));
+
+            // 显示名快照：改显示名必须是有意改这里，不能是手滑。
+            // 这一条与"别处都用常量"是配套的——常量让改名只改一处，快照让那一处改动必须被看见。
+            Check("目录显示名快照（改名必须同时改这条断言）",
+                ScadaPropertyGroups.General == "基本"
+                && ScadaPropertyGroups.Appearance == "外观"
+                && ScadaPropertyGroups.Text == "文本"
+                && ScadaPropertyGroups.Layout == "布局"
+                && ScadaPropertyGroups.State == "状态"
+                && ScadaPropertyGroups.Data == "数据"
+                && ScadaPropertyGroups.Image == "图像"
+                && ScadaPropertyGroups.Scale == "刻度"
+                && ScadaPropertyGroups.Points == "点位"
+                && ScadaPropertyGroups.Operation == "操作"
+                && ScadaPropertyGroups.Limits == "限制"
+                && ScadaPropertyGroups.Interaction == "交互"
+                && ScadaPropertyGroups.Event == "事件"
+                && ScadaPropertyGroups.Animation == "动画"
+                && ScadaPropertyGroups.PageBasic == "基本信息"
+                && ScadaPropertyGroups.PageCanvas == "画布尺寸"
+                && ScadaPropertyGroups.PageBackground == "背景"
+                && ScadaPropertyGroups.PageDesign == "设计辅助"
+                && ScadaPropertyGroups.PageRun == "运行",
+                "");
+
+            // ----------------------------------------------------------
+            // ② 全量覆盖：图元属性 / 画面属性 / 画面事件
+            // ----------------------------------------------------------
+            var unknown = new List<string>();
+            foreach (var descriptor in ElementRegistry.All)
+            {
+                foreach (var property in descriptor.Properties)
+                {
+                    if (!ScadaPropertyGroups.IsKnown(property.Group))
+                        unknown.Add($"{descriptor.TypeKey}.{property.Key}→{property.Group}");
+                }
+            }
+
+            Check("每个已注册图元的每个属性组都在目录里",
+                unknown.Count == 0,
+                unknown.Count == 0
+                    ? $"图元 {ElementRegistry.All.Count} 个"
+                    : string.Join("；", unknown));
+
+            var unknownPage = ScadaPageProperties.All
+                .Where(spec => !ScadaPropertyGroups.IsKnown(spec.Group))
+                .Select(spec => $"{spec.Key}→{spec.Group}")
+                .ToArray();
+
+            Check("每条画面属性的分组都在目录里",
+                unknownPage.Length == 0,
+                unknownPage.Length == 0
+                    ? $"{ScadaPageProperties.All.Count} 条"
+                    : string.Join("；", unknownPage));
+
+            Check("画面事件的分组在目录里（与「启动画面」同处「运行」组）",
+                ScadaPropertyGroups.IsKnown(ScadaPageEvents.Group),
+                ScadaPageEvents.Group);
+
+            // ----------------------------------------------------------
+            // ③ 反证：注册期真的会拒绝（这两条红了，说明"校验"变成了摆设）
+            // ----------------------------------------------------------
+            var badGroup = ElementRegistry.Register(new ElementDescriptor
+            {
+                TypeKey = "Test.GroupContract.BadGroup",
+                DisplayName = "坏分组探针",
+                ControlType = typeof(RectangleElement),
+                Properties = GeometryProperties.With(new ElementPropertyDescriptor
+                {
+                    Key = "BadKey", DisplayName = "坏属性",
+                    Kind = ElementPropertyKind.Text, Group = "没有这一组",
+                }),
+            });
+
+            Check("反证：属性声明了目录外的组 → 注册被拒（不是静默放行）",
+                badGroup != null && badGroup.Contains("没有这一组", StringComparison.Ordinal),
+                badGroup ?? "注册居然通过了");
+
+            var badBindable = ElementRegistry.Register(new ElementDescriptor
+            {
+                TypeKey = "Test.GroupContract.BadBindable",
+                DisplayName = "坏绑定探针",
+                ControlType = typeof(RectangleElement),
+                Properties = GeometryProperties.With(new ElementPropertyDescriptor
+                {
+                    Key = "Fill", DisplayName = "填充色",
+                    Kind = ElementPropertyKind.Color, Group = ScadaPropertyGroups.Appearance,
+                    IsBindable = true,
+                }),
+            });
+
+            Check("反证：「外观」组里声明 IsBindable=true → 注册被拒（改组名不会再让这条失效）",
+                badBindable != null && badBindable.Contains("不可绑变量", StringComparison.Ordinal),
+                badBindable ?? "注册居然通过了");
+        }
+
+        // ==================================================================
+        //  [AI] 自定义模板里的 ToggleButton 必须自己声明对齐
+        // ==================================================================
+        /// <summary>
+        /// 守门人（2026-10-20，见 docs/code-changes/2026-10-20-属性面板下拉与组头被Fluent隐式样式压扁.md）。
+        ///
+        /// `App.xaml` 最后合并的 .NET 9 Fluent 主题给「所有」ToggleButton 设了
+        /// <c>HorizontalAlignment = Left</c> / <c>VerticalAlignment = Center</c>（实测 setter 链）。
+        /// 自定义模板里的 ToggleButton 一般<b>不挂 Style</b>（模板本身就写在元素上），于是吃到那一份：
+        /// 外壳缩成内容宽度——Expander 组头的下划线只到标题那么宽、箭头贴着徽标；
+        /// ComboBox 的框只剩箭头那么大，箭头跑到文字左边。编译期全绿、断言宿主（不合并 Fluent）也全绿，
+        /// 只有真机看得出来。
+        ///
+        /// 三条豁免：① 显式 <c>Style=</c>（隐式样式整份不生效）；② 自己写了 <c>HorizontalAlignment=</c>；
+        /// ③ 同时写了 Width 与 Height（自定尺寸，对齐无所谓，与 R68"不定宽的不算违规"同一口径）。
+        /// </summary>
+        private static void ToggleButtonAlignmentChecks()
+        {
+            Section("[AI] Fluent 隐式样式：自定义模板的 ToggleButton 必须自己声明对齐");
+
+            var root = FindRepoRoot();
+            if (root == null)
+            {
+                Check("静态扫描：找得到仓库根目录", false, $"从 {AppContext.BaseDirectory} 向上没找到 AGENTS.md");
+                return;
+            }
+
+            var offenders = new List<string>();
+            int scanned = 0;
+
+            foreach (var dir in new[] { Path.Combine(root, "VisionMaster"), Path.Combine(root, "UI") })
+            {
+                if (!Directory.Exists(dir)) continue;
+
+                foreach (var file in Directory.EnumerateFiles(dir, "*.xaml", SearchOption.AllDirectories))
+                {
+                    if (file.Contains(@"\obj\") || file.Contains(@"\bin\")) continue;
+                    scanned++;
+
+                    var lines = File.ReadAllLines(file);
+                    for (int i = 0; i < lines.Length; i++)
+                    {
+                        var trimmed = lines[i].TrimStart();
+
+                        // 只认「元素本身」的开标签：<ToggleButton.Template> / <ToggleButton.ToolTip>
+                        // 这类属性元素也以 <ToggleButton 开头，但它们不是元素，误判过一次。
+                        if (!trimmed.StartsWith("<ToggleButton", StringComparison.Ordinal)) continue;
+                        if (trimmed.StartsWith("<ToggleButton.", StringComparison.Ordinal)) continue;
+                        if (trimmed.StartsWith("</ToggleButton", StringComparison.Ordinal)) continue;
+
+                        // 拼出开标签（可能跨行），再看紧随其后是否声明了自己的模板
+                        var tag = lines[i];
+                        int end = i;
+                        while (!tag.Contains(">") && end < lines.Length - 1)
+                            tag += " " + lines[++end].Trim();
+
+                        bool ownTemplate = false;
+                        for (int k = end + 1; k < Math.Min(end + 4, lines.Length); k++)
+                        {
+                            if (lines[k].Contains("<ToggleButton.Template")) { ownTemplate = true; break; }
+                        }
+
+                        if (!ownTemplate) continue;
+                        if (tag.Contains("Style=")) continue;
+                        if (tag.Contains("HorizontalAlignment=")) continue;
+                        if (tag.Contains("Width=") && tag.Contains("Height=")) continue;
+
+                        offenders.Add($"{Path.GetRelativePath(root, file)}:{i + 1}");
+                    }
+                }
+            }
+
+            Check("静态扫描：自定义模板的 ToggleButton 都自己声明了 HorizontalAlignment（或显式 Style / 自定宽高）",
+                offenders.Count == 0,
+                offenders.Count == 0
+                    ? $"{scanned} 个 XAML"
+                    : "缺对齐：" + string.Join("；", offenders));
+        }
+
+        /// <summary>从输出目录向上找带 AGENTS.md 的目录（静态扫描要读源码，不依赖工作目录）</summary>
+        private static string? FindRepoRoot()
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "AGENTS.md"))) return dir.FullName;
+                dir = dir.Parent;
+            }
+
+            return null;
+        }
+
+        // ==================================================================
+        //  [AJ] 运行态指示：运行条报"在跑的是谁" + 流程卡片高亮
+        // ==================================================================
+        /// <summary>
+        /// 守门人（2026-10-20，见 docs/code-changes/2026-10-20-运行条只报当前流程与流程卡不显示运行态.md）。
+        ///
+        /// 真机：MainTask 与 新建流程 同时循环运行，运行条只写 MainTask（那是<b>选中</b>的流程），
+        /// 流程栏四张卡也看不出谁在跑。两处根因不同：
+        /// ① 运行条绑的是 <c>Workspace.CurrentFlow.FlowName</c>——"选中"不等于"在跑"；
+        /// ② 流程卡的状态点只表达"启用 / 禁用"，<c>FlowModel.RunState</c>（ShellViewModel 早就按会话
+        ///    状态镜像好了）压根没上屏。
+        ///
+        /// 本段钉住：文案口径（0 / 1 / N 条在跑）与两处 XAML 的接线。文案是纯函数，直接调，不必凑一个 Shell。
+        /// </summary>
+        private static void RunningFlowIndicatorChecks()
+        {
+            Section("[AJ] 运行态指示：运行条文案 + 流程卡「运行中」标记");
+
+            var none = Array.Empty<string>();
+
+            Check("运行条：没有流程在跑 → 回落到当前流程（与改造前逐字一致）",
+                ShellViewModel.FormatRunBarFlowText(none, "MainTask") == "MainTask",
+                ShellViewModel.FormatRunBarFlowText(none, "MainTask"));
+
+            Check("运行条：没流程在跑且没选中流程 → 「未选择流程」",
+                ShellViewModel.FormatRunBarFlowText(none, null) == "未选择流程",
+                ShellViewModel.FormatRunBarFlowText(none, null));
+
+            Check("运行条：1 条在跑 → 报那一条（与当前选中无关，选中项没在跑也不会被写成在跑）",
+                ShellViewModel.FormatRunBarFlowText(new[] { "新建流程" }, "MainTask") == "新建流程",
+                ShellViewModel.FormatRunBarFlowText(new[] { "新建流程" }, "MainTask"));
+
+            Check("运行条：多条并跑 → 「A 等 N 个流程」（不再只显示当前那一条）",
+                ShellViewModel.FormatRunBarFlowText(new[] { "MainTask", "新建流程" }, "新建流程") == "MainTask 等 2 个流程",
+                ShellViewModel.FormatRunBarFlowText(new[] { "MainTask", "新建流程" }, "新建流程"));
+
+            Check("运行条悬停：多条时列全名单，单条时与正文一致",
+                ShellViewModel.FormatRunBarFlowToolTip(new[] { "MainTask", "新建流程" }, "MainTask") == "正在运行：MainTask、新建流程"
+                && ShellViewModel.FormatRunBarFlowToolTip(new[] { "MainTask" }, "新建流程") == "MainTask",
+                ShellViewModel.FormatRunBarFlowToolTip(new[] { "MainTask", "新建流程" }, "MainTask"));
+
+            // ---- XAML 接线：文案算得再对，绑错地方也白搭 ----
+            var root = FindRepoRoot();
+            if (root == null)
+            {
+                Check("运行态指示：找得到仓库根目录", false, $"从 {AppContext.BaseDirectory} 向上没找到 AGENTS.md");
+                return;
+            }
+
+            var flowList = File.ReadAllText(Path.Combine(root, "VisionMaster", "Views", "FlowListView.xaml"));
+            Check("流程卡片：按 FlowModel.RunState 出「运行中 / 已暂停」标记（不是只认 IsEnabled）",
+                flowList.Contains("Binding=\"{Binding RunState}\"", StringComparison.Ordinal)
+                && flowList.Contains("x:Name=\"RunningTag\"", StringComparison.Ordinal),
+                "FlowListView.xaml");
+
+            var shell = File.ReadAllText(Path.Combine(root, "VisionMaster", "Shell.xaml"));
+            var cockpit = File.ReadAllText(Path.Combine(root, "VisionMaster", "Views", "RunCockpitView.xaml"));
+
+            Check("两条运行条（调试 / 运行驾驶舱）：绑的都是 RunBarFlowText（在跑的那几条），不是 Workspace.CurrentFlow（选中的那条）",
+                shell.Contains("{Binding RunBarFlowText}", StringComparison.Ordinal)
+                && !shell.Contains("{Binding Workspace.CurrentFlow.FlowName", StringComparison.Ordinal)
+                && cockpit.Contains("{Binding RunBarFlowText}", StringComparison.Ordinal)
+                && !cockpit.Contains("{Binding Workspace.CurrentFlow.FlowName", StringComparison.Ordinal),
+                "Shell.xaml + RunCockpitView.xaml");
+        }
+
+        // ==================================================================
+        //  [AK] 数据表格图元（Hmi.DataGrid）
+        // ==================================================================
+        /// <summary>
+        /// 守门人（2026-10-21，设计基线 docs/UI设计基线/scada-datagrid/）。
+        ///
+        /// 这张表最容易错的两处都在"一拍"里：<b>边沿判定</b>（信号保持高不许重复采）与
+        /// <b>同一拍取值</b>（分两拍会攒出"SN 是上一个、角度是下一个"的脏行）。
+        /// 所以图元把"采一次"开放成 <c>Sample()</c>，断言直接推拍，不跑真定时器。
+        /// </summary>
+        private static void DataGridChecks()
+        {
+            Section("[AK] 数据表格：列定义 codec / 上升沿采行 / 缓存上限 / 收录确认");
+
+            // ---- ① 列定义 codec（纯函数，不需要 STA）----
+            string json = ScadaGridColumnsCodec.Format(new[]
+            {
+                new ScadaGridColumn("时间", "时间", 88, "left", "HH:mm:ss", true),
+                new ScadaGridColumn("SN", "产品SN", 160),
+                new ScadaGridColumn("角度", "角度值", 78, "right", "F2", true),
+                new ScadaGridColumn("MES", "MES_OrderNo"),
+            });
+
+            var parsed = ScadaGridColumnsCodec.Parse(json);
+
+            Check("列定义往返：表头/变量/宽度/对齐/格式/等宽逐字保留（宽度 0 = 余量列）",
+                parsed.Count == 4
+                && parsed[0].Header == "时间" && parsed[0].Width == 88 && parsed[0].Align == "left"
+                && parsed[0].Format == "HH:mm:ss" && parsed[0].Monospace
+                && parsed[2].Align == "right" && parsed[2].Width == 78
+                && parsed[3].Width == 0,
+                json);
+
+            Check("列定义：坏 JSON / 空串 / null 一律空表，不抛（一条坏配置不该让整张画面打不开）",
+                ScadaGridColumnsCodec.Parse("{oops").Count == 0
+                && ScadaGridColumnsCodec.Parse("").Count == 0
+                && ScadaGridColumnsCodec.Parse(null).Count == 0,
+                "");
+
+            Check("列定义：变量名为空的行被丢掉（还没配完的列不该占一格表头）",
+                ScadaGridColumnsCodec.Parse("[{\"Header\":\"空\",\"Variable\":\"\"}]").Count == 0, "");
+
+            var normalized = ScadaGridColumnsCodec.Parse("[{\"Variable\":\"A\",\"Align\":\"middle\",\"Width\":10}]");
+
+            Check("列定义：不认识的对齐按 left，过窄的宽度抬到下限",
+                normalized.Count == 1 && normalized[0].Align == "left"
+                && normalized[0].Width == ScadaGridColumnsCodec.MinWidth,
+                $"{normalized[0].Align} / {normalized[0].Width}");
+
+            // ---- ② 图元行为（DependencyObject，要 STA）----
+            Exception? failure = null;
+
+            var thread = new Thread(() =>
+            {
+                try { RunDataGridElementChecks(); }
+                catch (Exception ex) { failure = ex; }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.IsBackground = true;
+            thread.Start();
+            thread.Join();
+
+            if (failure != null)
+                Check("数据表格断言全程未抛异常", false, failure.ToString());
+        }
+
+        private static void RunDataGridElementChecks()
+        {
+            var source = new FakeScadaValueSource();
+            source.Set("采样", false);
+            source.Set("SN", "SN0001");
+            source.Set("角度", 12.84d);
+            source.Set("计数", 0);
+
+            var beat = new ScadaBeatSource(Dispatcher.CurrentDispatcher);
+            var context = new ScadaRuntimeContext(
+                new ScadaAlarmEngine(new ScadaDocument(), source), beat, values: source);
+
+            var grid = NewGrid(source, context,
+                ("SN", "SN", 120, "left", "", false),
+                ("角度", "角度", 60, "right", "F2", true));
+
+            Check("图元接上上下文：列定义解析出 2 列，采行信号 / 确认变量 / 缓存行数都读到了",
+                grid.Columns.Count == 2 && grid.SampleVariable == "采样"
+                && grid.AckVariable == "计数" && grid.MaxRows == 3,
+                $"{grid.Columns.Count} 列 / {grid.SampleVariable} / {grid.AckVariable} / {grid.MaxRows}");
+
+            grid.Sample();
+            Check("信号低电平：一拍过去不采行，空态说「等待第一条记录」",
+                grid.Buffer.Count == 0 && grid.EmptyTitle == "等待第一条记录",
+                $"{grid.Buffer.Count} 行 / {grid.EmptyTitle}");
+
+            source.Set("采样", true);
+            grid.Sample();
+            Check("上升沿采一行：按列格式化（角度 F2 → 12.84）",
+                grid.Buffer.Count == 1 && grid.Buffer[0].Cells[0] == "SN0001" && grid.Buffer[0].Cells[1] == "12.84",
+                string.Join(" | ", grid.Buffer[0].Cells));
+
+            grid.Sample();
+            Check("信号保持高：再拍也不重复采（边沿判定，不是电平判定）",
+                grid.Buffer.Count == 1, $"{grid.Buffer.Count} 行");
+
+            source.Set("采样", false);
+            grid.Sample();
+            source.Set("采样", true);
+            grid.Sample();
+            Check("第二个上升沿：采第二行，确认变量 +1（累加计数，不需要复位）",
+                grid.Buffer.Count == 2 && Convert.ToInt64(source.ValueOf("计数")) == 2,
+                $"{grid.Buffer.Count} 行 / 计数={source.ValueOf("计数")}");
+
+            Check("新行在上：最新一行排第一",
+                grid.NewestFirst && grid.Buffer[0].Timestamp >= grid.Buffer[1].Timestamp,
+                $"{grid.Buffer[0].Timestamp:HH:mm:ss.fff} ≥ {grid.Buffer[1].Timestamp:HH:mm:ss.fff}");
+
+            for (int i = 0; i < 2; i++)
+            {
+                source.Set("采样", false);
+                grid.Sample();
+                source.Set("采样", true);
+                grid.Sample();
+            }
+
+            Check("缓存上限 3 行：采到第 4 行时最旧的被挤掉（显示缓冲，不是记录系统）",
+                grid.Buffer.Count == 3 && grid.RecordedCount == 4,
+                $"{grid.Buffer.Count} 行 / 已收录 {grid.RecordedCount}");
+
+            // ---- ③ 坏列与未配置 ----
+            var broken = NewGrid(source, context, ("SN", "SN", 120, "left", "", false), ("坏列", "没有这个变量", 80, "left", "", false));
+            source.Set("采样", false);
+            broken.Sample();
+            source.Set("采样", true);
+            broken.Sample();
+
+            Check("列变量不存在：该格显示「—」并在脚注写明是哪一列（不显示空白冒充 0）",
+                broken.Buffer.Count == 1 && broken.Buffer[0].Cells[1] == "—"
+                && broken.Buffer[0].ErrorCell == 1
+                && broken.StatusText.Contains("没有这个变量", StringComparison.Ordinal),
+                broken.StatusText);
+
+            var unconfigured = NewGrid(source, context, ("SN", "SN", 120, "left", "", false));
+            unconfigured.SampleVariable = string.Empty;
+            unconfigured.Sample();
+
+            Check("没配采行信号：空态说「还没有配置采集」（与「等待第一条记录」分开，否则用户会去怀疑表格）",
+                unconfigured.Buffer.Count == 0 && unconfigured.EmptyTitle == "还没有配置采集",
+                unconfigured.EmptyTitle);
+
+            // ---- ④ 属性行与列编辑器（面板上的入口） ----
+            var gridDescriptor = ElementRegistry.Find("Hmi.DataGrid")!;
+            var columnsDescriptor = gridDescriptor.Properties.First(p => p.Key == ScadaGridColumnsCodec.Key);
+            var columnsModel = new ScadaElement { TypeKey = "Hmi.DataGrid" };
+
+            Check("列定义走 ColumnList（面板给「摘要 + 选择列…」，不是让人手写 JSON）",
+                columnsDescriptor.Kind == ElementPropertyKind.ColumnList,
+                columnsDescriptor.Kind.ToString());
+
+            var emptyRow = new VisionMaster.ViewModels.ScadaGridColumnsRow(columnsModel, columnsDescriptor, _ => { });
+            Check("未配置列时摘要说「未配置」", emptyRow.Summary == "未配置", emptyRow.Summary);
+
+            ElementValueAccess.Write(columnsModel, ScadaGridColumnsCodec.Key,
+                ScadaGridColumnsCodec.Format(new[]
+                {
+                    new ScadaGridColumn("SN", "产品SN", 160),
+                    new ScadaGridColumn("角度", "角度值", 0, "right", "F2"),
+                }));
+
+            var filledRow = new VisionMaster.ViewModels.ScadaGridColumnsRow(columnsModel, columnsDescriptor, _ => { });
+            Check("配了列时摘要报列数与表头（与轴候选行同一形态）",
+                filledRow.Summary.StartsWith("2 列", StringComparison.Ordinal) && filledRow.Summary.Contains("SN"),
+                filledRow.Summary);
+
+            // 编辑器往返：不改动直接确认，JSON 必须原样回来（打开一次弹窗不该丢字段）
+            var editor = new VisionMaster.Views.Controls.ScadaGridColumnsEditor(
+                ScadaGridColumnsCodec.Parse(filledRow.Value));
+
+            Check("列编辑器往返：不改动直接确认，规范 JSON 与原值逐字一致（含宽度 0 与格式串）",
+                ScadaGridColumnsCodec.Format(ScadaGridColumnsCodec.Parse(editor.ResultJson))
+                == ScadaGridColumnsCodec.Format(ScadaGridColumnsCodec.Parse(filledRow.Value)),
+                editor.ResultJson);
+
+            // ---- ⑤ 模板字典能解析（StaticResource 断链 / 前向引用会在解析期就抛） ----
+            //
+            // 不在这里做视觉树断言：本宿主刻意不 new Application、断言跑在子 STA 线程上，
+            // 自定义控件的 DefaultStyleKey 解析拿不到主题字典（实测连指示灯也是 Template=null）。
+            // 视觉验收留给带 Application 的探针（Phase2UiChecks / _ResProbe 那一档）。
+            var templateDictionary = (ResourceDictionary)Application.LoadComponent(
+                new Uri("/VM.Scada.Controls;component/Themes/DataGridElement.xaml", UriKind.Relative));
+
+            Check("模板字典能解析，且里面确实有 DataGridElement 的默认样式（断链会在这里抛）",
+                templateDictionary[typeof(DataGridElement)] is Style,
+                $"{templateDictionary.Keys.Count} 个键");
+        }
+
+        /// <summary>造一个配好列 / 采行信号 / 确认变量 / 缓存 3 行的表格图元（断言用）</summary>
+        private static DataGridElement NewGrid(FakeScadaValueSource source, ScadaRuntimeContext context,
+                                               params (string Header, string Variable, int Width, string Align, string Format, bool Mono)[] columns)
+        {
+            var model = new ScadaElement { TypeKey = "Hmi.DataGrid" };
+
+            var defs = new ScadaGridColumn[columns.Length];
+            for (int i = 0; i < columns.Length; i++)
+            {
+                var c = columns[i];
+                defs[i] = new ScadaGridColumn(c.Header, c.Variable, c.Width, c.Align, c.Format, c.Mono);
+            }
+
+            ElementValueAccess.Write(model, ScadaGridColumnsCodec.Key, ScadaGridColumnsCodec.Format(defs));
+            ElementValueAccess.Write(model, "SampleVariable", "采样");
+            ElementValueAccess.Write(model, "AckVariable", "计数");
+            ElementValueAccess.Write(model, "MaxRows", "3");
+
+            return new DataGridElement { Element = model, RuntimeContext = context };
+        }
+
+        /// <summary>断言用的值源：按名字给句柄，写回直接落到值上（与真实现的最小契约一致）</summary>
+        private sealed class FakeScadaValueSource : IScadaValueSource
+        {
+            private readonly Dictionary<string, FakeScadaValueHandle> _values = new(StringComparer.Ordinal);
+
+            public void Set(string name, object? value)
+            {
+                if (!_values.TryGetValue(name, out var handle))
+                {
+                    handle = new FakeScadaValueHandle(name);
+                    _values[name] = handle;
+                }
+
+                handle.Value = value;
+            }
+
+            public object? ValueOf(string name)
+                => _values.TryGetValue(name, out var handle) ? handle.Value : null;
+
+            public bool TryResolve(Guid variableId, string? fallbackName, out IScadaValueHandle? handle)
+            {
+                handle = null;
+
+                if (string.IsNullOrWhiteSpace(fallbackName))
+                    return false;
+
+                if (!_values.TryGetValue(fallbackName!.Trim(), out var found))
+                    return false;
+
+                handle = found;
+                return true;
+            }
+        }
+
+        private sealed class FakeScadaValueHandle : IScadaValueHandle
+        {
+            public FakeScadaValueHandle(string name) => Name = name;
+
+            public Guid VariableId => Guid.Empty;
+
+            public string Name { get; }
+
+            public Type DataType => typeof(object);
+
+            public object? Value { get; set; }
+
+            public event EventHandler? ValueChanged
+            {
+                add { }
+                remove { }
+            }
+
+            public bool TryWrite(object? value, out string? error)
+            {
+                Value = value;
+                error = null;
+                return true;
             }
         }
 

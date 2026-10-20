@@ -68,6 +68,11 @@
     <ProjectReference Include="..\Plugins\Plugin.Motion.ZMotion\Plugin.Motion.ZMotion.csproj" />
     <ProjectReference Include="..\Plugins\Plugin.Utility\Plugin.Util.csproj" />
     <!--
+      通讯立刻读/写：直接引用（不走 Modules\ 反射加载），断言插件面
+      （元数据 / 端口候选 / 成功失败路径 / 发起前短路）。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.Comm\Plugin.Comm.csproj" />
+    <!--
       图像采集：直接引用（不走 Modules\ 反射加载）。
       断言端口面（FrameId/ReceivedCount 新口 / 旧口不改名）、原始像素→HImage 的通道顺序与入口守卫、
       文件夹枚举的自然序——这三类都是"改坏了却很难被发现"的面；

@@ -78,7 +78,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition x:Name="ContentRow" Height="0" />
               </Grid.RowDefinitions>
-              <ToggleButton x:Name="HeaderSite" Grid.Row="0" MinHeight="48" IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+              <ToggleButton x:Name="HeaderSite" Grid.Row="0" MinHeight="48" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
                 <ToggleButton.Template>
                   <ControlTemplate TargetType="ToggleButton">
                     <Border x:Name="HeaderBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">

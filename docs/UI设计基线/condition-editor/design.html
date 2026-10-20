@@ -1,0 +1,1166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>条件逻辑 / 计次循环 配置中心 · 设计基线 v2</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+</style>
+</head>
+<body>
+<div id="ce-design-root">
+  <style>
+    /* ===== 令牌：全部映射到既有 Dialog* / Plugin* 公共键，无新增 ===== */
+    #ce-design-root{
+      --surface:#FFFFFF;          /* DialogSurfaceBrush */
+      --surface-2:#F8FAFC;        /* DialogRowAlternateBrush */
+      --surface-3:#F1F5F9;        /* DialogRowHoverBrush */
+      --border:#E2E8F0;           /* DialogBorderBrush */
+      --border-soft:#EEF2F7;      /* DialogBorderLightBrush */
+      --border-strong:#CBD5E1;    /* DialogBorderStrongBrush */
+      --text:#0F172A;             /* DialogTextPrimaryBrush */
+      --text-2:#475569;           /* DialogTextSecondaryBrush */
+      --text-3:#94A3B8;           /* DialogTextMutedBrush */
+      --primary:#0EA5E9;          /* DialogAccentBrush */
+      --primary-strong:#0284C7;   /* 近似：主按钮 hover 由 DialogPrimaryButton 提供 */
+      --primary-text:#0369A1;     /* 近似：变量胶囊文字 */
+      --primary-soft:#F0F9FF;     /* DialogAccentSoftBrush */
+      --success:#22C55E;          /* DialogSuccessBrush */
+      --success-text:#15803D;     /* DialogSuccessTextBrush */
+      --success-soft:#F0FDF4;     /* DialogSuccessSubtleBrush */
+      --success-border:#BBF7D0;   /* DialogSuccessBorderBrush */
+      --danger:#EF4444;           /* DialogDangerBrush */
+      --danger-text:#B91C1C;      /* DialogDangerTextBrush */
+      --danger-soft:#FEF2F2;      /* DialogDangerSubtleBrush */
+      --danger-border:#FECACA;    /* DialogDangerBorderBrush */
+      --warning:#F59E0B;          /* DialogWarningBrush */
+      --warning-text:#B45309;     /* DialogWarningTextBrush */
+      --warning-soft:#FFF4E5;     /* DialogWarningSubtleBrush */
+      --warning-border:#FDE68A;   /* DialogWarningBorderBrush */
+      --font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --r-sm:6px; --r-md:8px; --r-lg:10px; --r-xl:12px; --r-win:14px;
+      --shadow-window:0 28px 72px rgba(15,23,42,.18),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--font);
+      -webkit-font-smoothing:antialiased;
+      color:var(--text);
+    }
+    #ce-design-root *{box-sizing:border-box;}
+    #ce-design-root button,
+    #ce-design-root input,
+    #ce-design-root select,
+    #ce-design-root textarea{font-family:inherit;color:inherit;}
+    #ce-design-root [hidden]{display:none !important;}
+    #ce-design-root :focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
+    #ce-design-root svg{display:block;}
+
+    /* ===== 页面壳 ===== */
+    #ce-design-root .ce-page{max-width:1400px;margin:0 auto;padding:24px 24px 48px;}
+    #ce-design-root .ce-head{max-width:1400px;margin:0 auto 14px;}
+    #ce-design-root .ce-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #ce-design-root .ce-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;}
+    #ce-design-root .ce-ver{
+      display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+      background:var(--primary-soft);color:var(--primary-text);font-size:11px;font-weight:700;
+    }
+    #ce-design-root .ce-sub{margin:7px 0 12px;font-size:12.5px;line-height:1.65;color:var(--text-2);}
+    #ce-design-root .ce-sub b{color:var(--text);font-weight:600;}
+    #ce-design-root .ce-demo-bar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+    #ce-design-root .ce-demo-group{display:flex;align-items:center;gap:8px;}
+    #ce-design-root .ce-demo-label{font-size:11.5px;color:var(--text-2);}
+    #ce-design-root .ce-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--r-md);background:var(--surface-3);}
+    #ce-design-root .ce-seg button{
+      height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;
+      color:var(--text-2);font-size:11.5px;line-height:1;cursor:pointer;
+      transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;
+    }
+    #ce-design-root .ce-seg button:hover{color:var(--text);}
+    #ce-design-root .ce-seg button.is-on{background:#fff;color:var(--text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+    #ce-design-root .ce-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--text-2);}
+    #ce-design-root .ce-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--warning-text);}
+    #ce-design-root .ce-scope b{color:var(--text);font-weight:600;}
+    #ce-design-root .ce-scope code{font-family:var(--mono);font-size:11px;background:var(--surface-3);padding:1px 4px;border-radius:4px;}
+
+    /* ===== 窗口 ===== */
+    #ce-design-root .ce-window{
+      width:1120px;max-width:100%;height:760px;margin:0 auto;
+      display:flex;flex-direction:column;overflow:hidden;
+      background:var(--surface);border-radius:var(--r-win);box-shadow:var(--shadow-window);
+      transition:width 200ms ease;
+    }
+    #ce-design-root .ce-window.is-960{width:960px;}
+
+    /* 标题栏 72 */
+    #ce-design-root .ce-titlebar{
+      height:72px;flex:none;display:flex;align-items:center;padding:0 20px;
+      background:var(--surface);border-bottom:1px solid var(--border-soft);
+    }
+    #ce-design-root .ce-app-icon{
+      width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;
+      background:var(--primary-soft);color:var(--primary-text);
+    }
+    #ce-design-root .ce-app-icon svg{width:19px;height:19px;}
+    #ce-design-root .ce-title-text{margin-left:12px;min-width:0;flex:1;}
+    #ce-design-root .ce-title-line{display:flex;align-items:center;gap:8px;min-width:0;}
+    #ce-design-root .ce-title{font-size:16px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #ce-design-root .ce-mode-chip{
+      display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:5px;flex:none;
+      background:var(--surface-3);color:var(--text-2);font-size:10.5px;font-weight:600;
+    }
+    #ce-design-root .ce-mode-chip svg{width:11px;height:11px;}
+    #ce-design-root .ce-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #ce-design-root .ce-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+    #ce-design-root .ce-icon-btn{
+      width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--r-md);
+      display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--text-2);cursor:pointer;
+      transition:background 150ms ease,color 150ms ease;
+    }
+    #ce-design-root .ce-icon-btn svg{width:15px;height:15px;}
+    #ce-design-root .ce-icon-btn:hover{background:var(--surface-3);color:var(--text);}
+    #ce-design-root .ce-icon-btn.is-danger:hover{background:var(--danger-soft);color:var(--danger-text);}
+
+    /* 主体：左栏 240 + 右列 */
+    #ce-design-root .ce-body{
+      flex:1;min-height:0;display:grid;grid-template-columns:240px minmax(0,1fr);
+      gap:12px;padding:16px 20px 18px;background:var(--surface);
+    }
+    #ce-design-root .ce-window.is-single .ce-body{grid-template-columns:minmax(0,1fr);}
+
+    /* ===== 左栏分支 ===== */
+    #ce-design-root .ce-branches{
+      min-height:0;display:flex;flex-direction:column;overflow:hidden;
+      border:1px solid var(--border-soft);border-radius:var(--r-xl);background:var(--surface-2);
+    }
+    #ce-design-root .ce-branch-head{
+      display:flex;align-items:center;justify-content:space-between;gap:8px;height:42px;padding:0 12px;flex:none;
+      border-bottom:1px solid var(--border-soft);background:var(--surface);
+    }
+    #ce-design-root .ce-branch-head b{font-size:12px;font-weight:600;color:var(--text-2);}
+    #ce-design-root .ce-count{
+      display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:5px;
+      background:var(--surface-3);color:var(--text-2);font-size:10.5px;font-weight:600;
+    }
+    #ce-design-root .ce-branch-list{padding:6px;display:flex;flex-direction:column;gap:3px;overflow-y:auto;}
+    #ce-design-root .ce-branch{
+      position:relative;display:flex;align-items:flex-start;gap:8px;width:100%;
+      padding:8px 9px;border:1px solid transparent;border-radius:var(--r-lg);background:transparent;
+      text-align:left;cursor:pointer;transition:background 150ms ease,border-color 150ms ease;
+    }
+    #ce-design-root .ce-branch:hover{background:var(--surface-3);}
+    #ce-design-root .ce-branch.is-active{background:var(--surface);border-color:var(--border-strong);box-shadow:0 0 0 3px rgba(14,165,233,.08);}
+    #ce-design-root .ce-branch.is-active::before{
+      content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--primary);
+    }
+    #ce-design-root .ce-branch-idx{
+      width:20px;height:20px;flex:none;border-radius:6px;display:flex;align-items:center;justify-content:center;
+      background:var(--surface-3);color:var(--text-2);font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;
+    }
+    #ce-design-root .ce-branch.is-active .ce-branch-idx{background:var(--primary-soft);color:var(--primary-text);}
+    #ce-design-root .ce-branch.is-bad .ce-branch-idx{background:var(--danger-soft);color:var(--danger-text);}
+    #ce-design-root .ce-branch-main{min-width:0;flex:1;}
+    #ce-design-root .ce-branch-name{
+      display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;line-height:1.35;color:var(--text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ce-design-root .ce-branch-expr{
+      margin-top:3px;font-family:var(--mono);font-size:10.5px;line-height:1.4;color:var(--text-2);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ce-design-root .ce-branch-expr.is-empty{color:var(--text-3);font-family:var(--font);font-style:italic;}
+    #ce-design-root .ce-branch-expr.is-bad{color:var(--danger-text);font-family:var(--font);font-style:normal;font-weight:600;}
+    #ce-design-root .ce-badge{
+      display:inline-flex;align-items:center;height:17px;padding:0 5px;border-radius:4px;flex:none;
+      font-size:9.5px;font-weight:700;letter-spacing:.02em;
+    }
+    #ce-design-root .ce-badge.is-req{background:var(--surface-3);color:var(--text-2);}
+    #ce-design-root .ce-badge.is-default{background:var(--surface-3);color:var(--text-2);}
+    #ce-design-root .ce-badge.is-err{background:var(--danger-soft);color:var(--danger-text);}
+    #ce-design-root .ce-branch-foot{
+      margin-top:auto;padding:9px 12px;flex:none;border-top:1px solid var(--border-soft);
+      font-size:10.5px;line-height:1.5;color:var(--text-2);
+    }
+
+    /* ===== 右列 ===== */
+    #ce-design-root .ce-main{min-height:0;display:flex;flex-direction:column;gap:12px;}
+    #ce-design-root .ce-card{
+      display:flex;flex-direction:column;min-height:0;overflow:hidden;
+      border:1px solid var(--border-soft);border-radius:var(--r-xl);background:var(--surface);
+    }
+    #ce-design-root .ce-card.is-vars{flex:none;}
+    #ce-design-root .ce-card.is-expr{flex:1;min-height:0;}
+    #ce-design-root .ce-card-head{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      height:42px;padding:0 14px;flex:none;border-bottom:1px solid var(--border-soft);
+    }
+    #ce-design-root .ce-card-title{display:flex;align-items:center;gap:7px;min-width:0;}
+    #ce-design-root .ce-card-title svg{width:14px;height:14px;flex:none;color:var(--primary-text);}
+    #ce-design-root .ce-card-title b{font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #ce-design-root .ce-card-hint{font-size:10.5px;font-weight:400;color:var(--text-2);white-space:nowrap;}
+    #ce-design-root .ce-card-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+
+    /* 按钮 */
+    #ce-design-root .ce-btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:6px;
+      height:30px;padding:0 11px;border:1px solid var(--border);border-radius:var(--r-md);
+      background:var(--surface);color:var(--text);font-size:12px;font-weight:500;line-height:1;
+      cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease,opacity 150ms ease;
+    }
+    #ce-design-root .ce-btn svg{width:13px;height:13px;}
+    #ce-design-root .ce-btn:hover{background:var(--surface-2);border-color:var(--border-strong);}
+    #ce-design-root .ce-btn:active{background:var(--surface-3);}
+    #ce-design-root .ce-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #ce-design-root .ce-btn.is-primary{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600;}
+    #ce-design-root .ce-btn.is-primary:hover{background:var(--primary-strong);border-color:var(--primary-strong);}
+    #ce-design-root .ce-btn.is-sm{height:28px;padding:0 10px;font-size:11.5px;}
+    #ce-design-root .ce-btn.is-danger{background:var(--danger-soft);border-color:var(--danger-border);color:var(--danger-text);}
+
+    /* 变量表：别名 / 类型 / 数据源 / 操作 四列，类型独立窄列不再挤别名 */
+    #ce-design-root .ce-vars{display:flex;flex-direction:column;padding:0 12px 10px;max-height:200px;overflow-y:auto;}
+    #ce-design-root .ce-vhead,
+    #ce-design-root .ce-vrow{
+      display:grid;grid-template-columns:minmax(104px,1fr) 74px minmax(0,1.5fr) 62px;
+      gap:8px;align-items:center;
+    }
+    #ce-design-root .ce-vhead{
+      position:sticky;top:0;z-index:1;padding:8px 0 6px;background:var(--surface);
+      font-size:10.5px;font-weight:600;color:var(--text-2);border-bottom:1px solid var(--border-soft);
+    }
+    #ce-design-root .ce-vhead span:nth-child(4){text-align:right;}
+    #ce-design-root .ce-vrow{padding:6px 0;border-bottom:1px solid var(--border-soft);}
+    #ce-design-root .ce-vrow:last-child{border-bottom:0;}
+    #ce-design-root .ce-input{
+      width:100%;height:30px;padding:0 9px;border:1px solid var(--border);border-radius:var(--r-md);
+      background:var(--surface);color:var(--text);font-size:12px;line-height:1;outline:none;
+      transition:border-color 150ms ease,box-shadow 150ms ease;
+    }
+    #ce-design-root .ce-input::placeholder{color:var(--text-3);}
+    #ce-design-root .ce-input:hover{border-color:var(--border-strong);}
+    #ce-design-root .ce-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #ce-design-root .ce-input.is-mono{font-family:var(--mono);font-size:11.5px;}
+    #ce-design-root .ce-input.is-err{border-color:var(--danger);box-shadow:0 0 0 3px rgba(239,68,68,.10);}
+    #ce-design-root .ce-type{
+      display:flex;align-items:center;justify-content:center;height:22px;padding:0 6px;border-radius:5px;
+      background:var(--surface-3);color:var(--text-2);font-size:9.5px;font-weight:700;font-family:var(--mono);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ce-design-root .ce-src{
+      display:flex;align-items:center;gap:6px;min-width:0;height:30px;padding:0 9px;
+      border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);
+      color:var(--text-2);font-size:11.5px;
+    }
+    #ce-design-root .ce-src.is-empty{color:var(--text-3);font-style:italic;}
+    #ce-design-root .ce-src span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #ce-design-root .ce-vacts{display:flex;align-items:center;justify-content:flex-end;gap:2px;}
+
+    #ce-design-root .ce-empty{
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      margin:10px 12px 12px;padding:18px;border:1px dashed var(--border-strong);border-radius:var(--r-lg);
+      background:var(--surface-2);text-align:center;
+    }
+    #ce-design-root .ce-empty svg{width:20px;height:20px;color:var(--text-3);margin-bottom:8px;}
+    #ce-design-root .ce-empty b{font-size:12px;font-weight:600;color:var(--text-2);}
+    #ce-design-root .ce-empty p{margin:5px 0 0;max-width:420px;font-size:11px;line-height:1.6;color:var(--text-2);}
+
+    /* 快捷插入：固定高度 + 内部滚动，保证编辑器高度稳定 */
+    #ce-design-root .ce-insert-groups{
+      display:flex;flex-direction:column;gap:5px;padding:9px 12px 0;flex:none;
+      height:148px;overflow-y:auto;
+    }
+    #ce-design-root .ce-igroup{display:grid;grid-template-columns:58px minmax(0,1fr);gap:8px;align-items:start;}
+    #ce-design-root .ce-igroup-label{font-size:10.5px;color:var(--text-2);padding-top:5px;}
+    #ce-design-root .ce-chips{display:flex;flex-wrap:wrap;gap:5px;}
+    #ce-design-root .ce-chip{
+      height:24px;padding:0 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);
+      color:var(--text-2);font-size:11px;line-height:1;cursor:pointer;font-family:var(--mono);white-space:nowrap;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease;
+    }
+    #ce-design-root .ce-chip:hover{background:var(--primary-soft);border-color:var(--border-strong);color:var(--primary-text);}
+    #ce-design-root .ce-chip.is-var{background:var(--primary-soft);border-color:var(--border-strong);color:var(--primary-text);font-weight:600;}
+
+    /* 表达式编辑器 */
+    #ce-design-root .ce-editor{
+      flex:1;min-height:104px;display:flex;flex-direction:column;margin:9px 12px 0;
+      border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface-2);overflow:hidden;
+    }
+    #ce-design-root .ce-editor-head{
+      display:flex;align-items:center;justify-content:space-between;gap:8px;height:26px;padding:0 10px;flex:none;
+      border-bottom:1px solid var(--border-soft);background:var(--surface);
+    }
+    #ce-design-root .ce-editor-head span{font-size:10px;font-weight:600;letter-spacing:.04em;color:var(--text-2);text-transform:uppercase;}
+    #ce-design-root .ce-editor-body{flex:1;min-height:0;display:flex;overflow:auto;}
+    #ce-design-root .ce-gutter{
+      flex:none;padding:8px 6px 8px 10px;text-align:right;font-family:var(--mono);font-size:11px;line-height:1.7;
+      color:var(--text-3);user-select:none;border-right:1px solid var(--border-soft);background:var(--surface);
+    }
+    #ce-design-root .ce-code{
+      flex:1;padding:8px 10px;font-family:var(--mono);font-size:12px;line-height:1.7;white-space:pre;color:var(--text);min-width:0;
+    }
+    #ce-design-root .ce-code .tk-var{color:var(--primary-text);font-weight:600;}
+    #ce-design-root .ce-code .tk-num{color:var(--warning-text);}
+    #ce-design-root .ce-code .tk-op{color:var(--text-2);}
+    #ce-design-root .ce-code.is-placeholder{color:var(--text-3);font-style:italic;font-family:var(--font);font-size:11.5px;}
+    #ce-design-root .ce-caret{display:inline-block;width:1px;height:13px;margin-left:1px;background:var(--primary);vertical-align:-2px;}
+    @keyframes ce-blink{0%,49%{opacity:1;}50%,100%{opacity:0;}}
+    #ce-design-root .ce-caret{animation:ce-blink 1.1s steps(1) infinite;}
+
+    /* 卡内错误条：只在有错时出现（成功摘要归底栏，避免两处重复） */
+    #ce-design-root .ce-inline-err{
+      display:flex;align-items:flex-start;gap:7px;margin:9px 12px 11px;padding:8px 10px;flex:none;
+      border:1px solid var(--danger-border);border-radius:var(--r-md);background:var(--danger-soft);
+      color:var(--danger-text);font-size:11px;line-height:1.5;
+    }
+    #ce-design-root .ce-inline-err svg{width:13px;height:13px;flex:none;margin-top:1px;}
+
+    /* 兜底分支 / For 说明卡 */
+    #ce-design-root .ce-note{
+      flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:10px;
+      margin:12px;padding:18px 20px;border:1px solid var(--border-soft);border-radius:var(--r-lg);background:var(--surface-2);
+    }
+    #ce-design-root .ce-note-head{display:flex;align-items:center;gap:8px;}
+    #ce-design-root .ce-note-head svg{width:18px;height:18px;color:var(--text-2);}
+    #ce-design-root .ce-note-head b{font-size:13px;font-weight:600;color:var(--text);}
+    #ce-design-root .ce-note p{margin:0;max-width:560px;font-size:11.5px;line-height:1.7;color:var(--text-2);}
+    #ce-design-root .ce-note-meta{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text-2);}
+    #ce-design-root .ce-note-meta b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;}
+    #ce-design-root .ce-note-actions{display:flex;align-items:center;gap:8px;margin-top:2px;}
+
+    /* 表单行 */
+    #ce-design-root .ce-formrow{display:flex;align-items:center;gap:9px;padding:11px 12px 0;flex:none;flex-wrap:wrap;}
+    #ce-design-root .ce-formrow label{font-size:11.5px;font-weight:500;color:var(--text-2);flex:none;}
+    #ce-design-root .ce-formrow .ce-help{font-size:10.5px;color:var(--text-2);}
+    #ce-design-root .ce-combo{position:relative;display:flex;align-items:center;}
+    #ce-design-root .ce-combo .ce-input{padding-right:28px;}
+    #ce-design-root .ce-combo > svg{position:absolute;right:9px;width:13px;height:13px;color:var(--text-2);pointer-events:none;}
+
+    /* 参数网格 */
+    #ce-design-root .ce-param-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:12px 12px 0;flex:none;}
+    #ce-design-root .ce-param{display:flex;flex-direction:column;gap:5px;min-width:0;}
+    #ce-design-root .ce-param label{font-size:11px;font-weight:500;color:var(--text-2);}
+    #ce-design-root .ce-param small{font-size:10px;color:var(--text-2);line-height:1.45;}
+    #ce-design-root .ce-param-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:10px 12px 0;flex:none;}
+
+    /* 匹配值一览 */
+    #ce-design-root .ce-match-list{display:flex;flex-direction:column;gap:5px;padding:10px 12px 0;flex:none;}
+    #ce-design-root .ce-match-head{display:flex;align-items:center;justify-content:space-between;font-size:10.5px;font-weight:600;color:var(--text-2);}
+    #ce-design-root .ce-match-row{
+      display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 54px;gap:8px;align-items:center;
+      padding:5px 8px;border:1px solid var(--border-soft);border-radius:var(--r-sm);background:var(--surface-2);font-size:11px;
+    }
+    #ce-design-root .ce-match-row.is-cur{border-color:var(--border-strong);background:var(--surface);}
+    #ce-design-root .ce-match-row.is-dup{border-color:var(--danger-border);background:var(--danger-soft);color:var(--danger-text);}
+    #ce-design-root .ce-match-row span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #ce-design-root .ce-match-row .ce-mv{font-family:var(--mono);color:var(--text);}
+    #ce-design-root .ce-match-tag{justify-self:end;font-size:9.5px;font-weight:700;color:var(--text-2);}
+
+    /* For 卡 */
+    #ce-design-root .ce-for{display:flex;flex-direction:column;gap:14px;padding:16px 18px;flex:none;}
+    #ce-design-root .ce-for-head{display:flex;align-items:center;gap:8px;}
+    #ce-design-root .ce-for-head svg{width:16px;height:16px;color:var(--primary-text);}
+    #ce-design-root .ce-for-head b{font-size:14px;font-weight:600;}
+    #ce-design-root .ce-for-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:12px;}
+    #ce-design-root .ce-for-field{display:flex;flex-direction:column;gap:6px;min-width:0;}
+    #ce-design-root .ce-for-field label{font-size:11.5px;font-weight:500;color:var(--text-2);}
+    #ce-design-root .ce-for-field .ce-input{height:34px;font-family:var(--mono);font-variant-numeric:tabular-nums;}
+    #ce-design-root .ce-for-src{display:flex;align-items:center;gap:8px;}
+    #ce-design-root .ce-for-src .ce-src{height:34px;flex:1;}
+    #ce-design-root .ce-for-sum{
+      display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:10px 12px;flex:none;
+      border:1px solid var(--border-soft);border-radius:var(--r-md);background:var(--surface-2);font-size:11px;color:var(--text-2);
+    }
+    #ce-design-root .ce-for-sum b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;}
+    #ce-design-root .ce-for-hint{font-size:11px;line-height:1.65;color:var(--text-2);max-width:620px;}
+
+    /* 底栏 */
+    #ce-design-root .ce-footer{
+      height:56px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;
+      padding:0 20px;background:var(--surface);border-top:1px solid var(--border-soft);
+    }
+    #ce-design-root .ce-footer-left{display:flex;align-items:center;gap:7px;min-width:0;font-size:11.5px;color:var(--text-2);}
+    #ce-design-root .ce-footer-left svg{width:13px;height:13px;flex:none;}
+    #ce-design-root .ce-footer-left.is-ok{color:var(--success-text);}
+    #ce-design-root .ce-footer-left.is-err{color:var(--danger-text);}
+    #ce-design-root .ce-footer-right{display:flex;align-items:center;gap:10px;flex:none;}
+    #ce-design-root .ce-footer .ce-btn{height:34px;padding:0 16px;font-size:12.5px;}
+    #ce-design-root .ce-footer .ce-btn.is-primary{min-width:128px;}
+
+    /* 960 档：左栏仍 240（与 README 统一），压缩右侧内边距与快捷插入高度 */
+    #ce-design-root .ce-window.is-960 .ce-body{padding:14px 16px 16px;gap:10px;}
+    #ce-design-root .ce-window.is-960 .ce-vhead,
+    #ce-design-root .ce-window.is-960 .ce-vrow{grid-template-columns:minmax(92px,1fr) 66px minmax(0,1.4fr) 58px;gap:6px;}
+    #ce-design-root .ce-window.is-960 .ce-insert-groups{height:148px;}
+    #ce-design-root .ce-window.is-960 .ce-vars{max-height:176px;}
+    #ce-design-root .ce-window.is-960 .ce-param-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+    #ce-design-root .ce-window.is-960 .ce-param-2{grid-template-columns:minmax(0,1fr);}
+    #ce-design-root .ce-window.is-960 .ce-card-hint{display:none;}
+    #ce-design-root .ce-window.is-960 .ce-footer{padding:0 16px;}
+
+    @media (max-width:1180px){
+      #ce-design-root .ce-page{padding:18px 14px 32px;}
+      #ce-design-root .ce-window{height:auto;min-height:640px;}
+    }
+  </style>
+
+  <div class="ce-page">
+    <header class="ce-head">
+      <div class="ce-title-row">
+        <h1>条件逻辑 / 计次循环 配置中心</h1>
+        <span class="ce-ver">v2</span>
+      </div>
+      <p class="ce-sub">
+        双击逻辑算子（If / While / 分支匹配 / 等待 / For）弹出的同一个配置窗口。
+        <b>只换视觉结构</b>：保留「草稿 → 校验 → 写回」事务、AvalonEdit 表达式编辑器、变量表、全部命令与属性名。
+        窗口 <b>1120 × 760</b>，左栏分支 <b>240px</b>（960 档同样 240），右侧「变量 + 表达式」两卡。
+      </p>
+      <div class="ce-demo-bar">
+        <div class="ce-demo-group" role="group" aria-label="窗口宽度">
+          <span class="ce-demo-label">窗口宽度</span>
+          <div class="ce-seg">
+            <button type="button" data-width="1120" class="is-on" aria-pressed="true">1120</button>
+            <button type="button" data-width="960" aria-pressed="false">960（最小）</button>
+          </div>
+        </div>
+        <div class="ce-demo-group" role="group" aria-label="模式">
+          <span class="ce-demo-label">模式</span>
+          <div class="ce-seg">
+            <button type="button" data-mode="condition" class="is-on" aria-pressed="true">条件逻辑</button>
+            <button type="button" data-mode="case" aria-pressed="false">分支匹配</button>
+            <button type="button" data-mode="wait" aria-pressed="false">等待条件</button>
+            <button type="button" data-mode="for" aria-pressed="false">计次循环</button>
+          </div>
+        </div>
+        <div class="ce-demo-group" role="group" aria-label="状态">
+          <span class="ce-demo-label">状态</span>
+          <div class="ce-seg">
+            <button type="button" data-state="normal" class="is-on" aria-pressed="true">正常</button>
+            <button type="button" data-state="empty" aria-pressed="false">变量空</button>
+            <button type="button" data-state="invalid" aria-pressed="false">校验失败</button>
+            <button type="button" data-state="empty-expr" aria-pressed="false">空表达式</button>
+            <button type="button" data-state="fallback" aria-pressed="false">兜底分支</button>
+            <button type="button" data-state="for-linked" aria-pressed="false">For 已连线</button>
+          </div>
+        </div>
+      </div>
+      <div class="ce-scope">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span>
+          <b>深链：</b><code>?mode=case&amp;state=invalid&amp;width=960</code> 可直接定位到任意状态。
+          <b>校验失败</b> 会按模式切换内容（条件=别名重复 / 分支匹配=判据未声明+匹配值重复 / 等待=轮询间隔越界）。
+          <b>本稿不纳入：</b>AvalonEdit 逐 token 配色、代码补全弹窗、DPI 1px 线、滚动条占位差异。<b>640 宽不可用</b>（窗口与视图 MinWidth 均为 960）。
+        </span>
+      </div>
+    </header>
+
+    <div class="ce-window" id="ce-window">
+      <!-- 标题栏 -->
+      <div class="ce-titlebar">
+        <div class="ce-app-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4"></path><path d="M15 3h4a2 2 0 0 1 2 2v4"></path><path d="M21 15v4a2 2 0 0 1-2 2h-4"></path><path d="M9 21H5a2 2 0 0 1-2-2v-4"></path><path d="M8 12h8"></path></svg>
+        </div>
+        <div class="ce-title-text">
+          <div class="ce-title-line">
+            <div class="ce-title" id="ce-title">条件逻辑配置中心</div>
+            <span class="ce-mode-chip" id="ce-mode-chip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4"></path><path d="M15 3h4a2 2 0 0 1 2 2v4"></path><path d="M21 15v4a2 2 0 0 1-2 2h-4"></path><path d="M9 21H5a2 2 0 0 1-2-2v-4"></path></svg>
+              <span id="ce-mode-text">IF / WHILE</span>
+            </span>
+          </div>
+          <div class="ce-subtitle">编辑后点「保存并应用」才写回流程；取消或关闭即丢弃草稿</div>
+        </div>
+        <div class="ce-title-actions">
+          <button type="button" class="ce-icon-btn" aria-label="关闭">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- 主体 -->
+      <div class="ce-body">
+        <!-- 左栏 -->
+        <aside class="ce-branches" id="ce-branches">
+          <div class="ce-branch-head">
+            <b>逻辑分支</b>
+            <span class="ce-count" id="ce-branch-count">3 条</span>
+          </div>
+          <div class="ce-branch-list" id="ce-branch-list"></div>
+          <div class="ce-branch-foot">切换分支只切换编辑目标；分支增删在流程栏右键完成。</div>
+        </aside>
+
+        <div class="ce-main">
+          <!-- 变量卡 -->
+          <section class="ce-card is-vars" id="ce-vars-card">
+            <div class="ce-card-head">
+              <div class="ce-card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path><path d="M3 12h12"></path></svg>
+                <b>输入变量配置</b>
+                <span class="ce-card-hint">表达式中用别名引用上游数据</span>
+              </div>
+              <button type="button" class="ce-btn is-sm is-primary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+                新增变量
+              </button>
+            </div>
+            <div class="ce-card-body">
+              <div class="ce-vars" id="ce-vars">
+                <div class="ce-vhead"><span>别名</span><span>类型</span><span>绑定的上游数据源</span><span>操作</span></div>
+                <div class="ce-vrow">
+                  <input class="ce-input is-mono" value="score" spellcheck="false" aria-label="别名">
+                  <span class="ce-type" title="System.Double">DOUBLE</span>
+                  <div class="ce-src"><span>匹配.分数 · Out</span></div>
+                  <div class="ce-vacts">
+                    <button type="button" class="ce-icon-btn" aria-label="重新绑定" title="重新选择这个别名绑定的上游输出端口">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><path d="M8 12h8"></path></svg>
+                    </button>
+                    <button type="button" class="ce-icon-btn is-danger" aria-label="删除变量" title="删除后该别名不再可用，引用它的表达式需同步修改">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="ce-vrow">
+                  <input class="ce-input is-mono" value="ok" spellcheck="false" aria-label="别名">
+                  <span class="ce-type" title="System.Boolean">BOOL</span>
+                  <div class="ce-src"><span>检测.合格 · Out</span></div>
+                  <div class="ce-vacts">
+                    <button type="button" class="ce-icon-btn" aria-label="重新绑定" title="重新选择这个别名绑定的上游输出端口">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><path d="M8 12h8"></path></svg>
+                    </button>
+                    <button type="button" class="ce-icon-btn is-danger" aria-label="删除变量" title="删除后该别名不再可用，引用它的表达式需同步修改">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="ce-vrow">
+                  <input class="ce-input is-mono" id="ce-var3" value="Var_3" spellcheck="false" aria-label="别名">
+                  <span class="ce-type" title="System.Int32">INT32</span>
+                  <div class="ce-src is-empty"><span>尚未绑定上游端口</span></div>
+                  <div class="ce-vacts">
+                    <button type="button" class="ce-icon-btn" aria-label="重新绑定" title="重新选择这个别名绑定的上游输出端口">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><path d="M8 12h8"></path></svg>
+                    </button>
+                    <button type="button" class="ce-icon-btn is-danger" aria-label="删除变量" title="删除后该别名不再可用，引用它的表达式需同步修改">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="ce-empty" id="ce-vars-empty" hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+                <b>还没有变量</b>
+                <p>点「新增变量」，把上游节点的输出端口绑成别名，表达式里就能直接引用。</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- 条件逻辑 -->
+          <section class="ce-card is-expr" data-panel="condition" hidden>
+            <div class="ce-card-head">
+              <div class="ce-card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg>
+                <b id="ce-expr-title">为分支 [ 合格 ] 编写逻辑判断表达式</b>
+              </div>
+              <span class="ce-card-hint">返回 bool</span>
+            </div>
+            <div class="ce-card-body">
+              <div class="ce-insert-groups" id="ce-insert-condition">
+                <div class="ce-igroup">
+                  <span class="ce-igroup-label">引用变量</span>
+                  <div class="ce-chips" id="ce-var-chips">
+                    <button type="button" class="ce-chip is-var">score</button>
+                    <button type="button" class="ce-chip is-var">ok</button>
+                    <button type="button" class="ce-chip is-var">Var_3</button>
+                  </div>
+                </div>
+                <div class="ce-igroup">
+                  <span class="ce-igroup-label">逻辑比较</span>
+                  <div class="ce-chips">
+                    <button type="button" class="ce-chip">&gt;</button>
+                    <button type="button" class="ce-chip">&lt;</button>
+                    <button type="button" class="ce-chip">==</button>
+                    <button type="button" class="ce-chip">!=</button>
+                    <button type="button" class="ce-chip">&amp;&amp;</button>
+                    <button type="button" class="ce-chip">||</button>
+                    <button type="button" class="ce-chip">!</button>
+                  </div>
+                </div>
+                <div class="ce-igroup">
+                  <span class="ce-igroup-label">数字运算</span>
+                  <div class="ce-chips">
+                    <button type="button" class="ce-chip">( )</button>
+                    <button type="button" class="ce-chip">+</button>
+                    <button type="button" class="ce-chip">-</button>
+                    <button type="button" class="ce-chip">*</button>
+                    <button type="button" class="ce-chip">/</button>
+                  </div>
+                </div>
+                <div class="ce-igroup">
+                  <span class="ce-igroup-label">数学函数</span>
+                  <div class="ce-chips">
+                    <button type="button" class="ce-chip">Math.Abs()</button>
+                    <button type="button" class="ce-chip">Math.Round()</button>
+                    <button type="button" class="ce-chip">Math.Sqrt()</button>
+                  </div>
+                </div>
+                <div class="ce-igroup">
+                  <span class="ce-igroup-label">字符串</span>
+                  <div class="ce-chips">
+                    <button type="button" class="ce-chip">.Contains()</button>
+                    <button type="button" class="ce-chip">.StartsWith()</button>
+                    <button type="button" class="ce-chip">string.IsNullOrEmpty()</button>
+                    <button type="button" class="ce-chip">.Length</button>
+                    <button type="button" class="ce-chip">.Trim()</button>
+                    <button type="button" class="ce-chip">.ToUpper()</button>
+                    <button type="button" class="ce-chip">.ToLower()</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="ce-editor">
+                <div class="ce-editor-head"><span>C# 表达式</span><span style="font-size:10px;color:var(--text-2);">Ctrl+Space 补全</span></div>
+                <div class="ce-editor-body" id="ce-editor-body">
+                  <div class="ce-gutter" id="ce-gutter">1<br>2</div>
+                  <div class="ce-code" id="ce-code"><span class="tk-var">score</span> <span class="tk-op">&gt;=</span> <span class="tk-num">0.85</span> <span class="tk-op">&amp;&amp;</span>
+<span class="tk-var">ok</span> <span class="tk-op">&amp;&amp;</span> <span class="tk-var">Var_3</span> <span class="tk-op">&gt;</span> <span class="tk-num">0</span><span class="ce-caret"></span></div>
+                </div>
+              </div>
+
+              <div class="ce-inline-err" id="ce-cond-err" hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+                <span id="ce-cond-err-text"></span>
+              </div>
+            </div>
+          </section>
+
+          <!-- 兜底分支 -->
+          <section class="ce-card is-expr" data-panel="fallback" hidden>
+            <div class="ce-card-head">
+              <div class="ce-card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"></path><path d="M3 6h18"></path><path d="M3 18h12"></path></svg>
+                <b>逻辑判断表达式</b>
+              </div>
+              <span class="ce-card-hint">系统视为真</span>
+            </div>
+            <div class="ce-card-body">
+              <div class="ce-note">
+                <div class="ce-note-head">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+                  <b id="ce-fb-title">该分支无需编写条件</b>
+                </div>
+                <p id="ce-fb-text">系统自动将其视为「真」：只有其他分支的条件都不满足时，才会执行本分支的步骤。</p>
+                <div class="ce-note-meta">
+                  <span>本分支下已有 <b id="ce-fb-steps">3</b> 个步骤</span>
+                  <span>变量表与其它分支共用，仍可继续编辑</span>
+                </div>
+                <div class="ce-note-actions">
+                  <button type="button" class="ce-btn is-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>
+                    切到上一条分支继续编辑
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 分支匹配 -->
+          <section class="ce-card is-expr" data-panel="case" hidden>
+            <div class="ce-card-head">
+              <div class="ce-card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"></path><path d="M4 12h10"></path><path d="M4 17h6"></path></svg>
+                <b id="ce-case-title">为分支 [ A 类 ] 填写匹配值</b>
+              </div>
+              <span class="ce-card-hint">判据 == 匹配值</span>
+            </div>
+            <div class="ce-card-body">
+              <div class="ce-formrow">
+                <label for="ce-judge">判据</label>
+                <div class="ce-combo" style="width:220px;">
+                  <input class="ce-input is-mono" id="ce-judge" value="grade" spellcheck="false" list="ce-judge-list">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+                </div>
+                <span class="ce-help">变量表里的别名，或运行时变量名；可下拉选择</span>
+              </div>
+              <div class="ce-formrow" style="padding-top:7px;">
+                <span class="ce-help">按顺序比对：命中第一条匹配值即执行该分支；都不命中走默认分支。</span>
+              </div>
+
+              <div class="ce-formrow" style="padding-top:10px;">
+                <label for="ce-match">匹配值</label>
+                <input class="ce-input is-mono" id="ce-match" style="width:220px;" value="A" spellcheck="false">
+                <span class="ce-help">等值类型；字符串无需引号（例如 1 / 2.5 / true / OK）</span>
+              </div>
+
+              <div class="ce-match-list">
+                <div class="ce-match-head"><span>本容器已用匹配值</span><span>判据类型 String</span></div>
+                <div class="ce-match-row is-cur" id="ce-match-0"><span>A 类</span><span class="ce-mv">A</span><span class="ce-match-tag">当前</span></div>
+                <div class="ce-match-row" id="ce-match-1"><span>B 类</span><span class="ce-mv">B</span><span class="ce-match-tag">已占用</span></div>
+                <div class="ce-match-row" id="ce-match-2"><span>默认</span><span class="ce-mv" style="color:var(--text-3);font-style:italic;">无需匹配值</span><span class="ce-match-tag">兜底</span></div>
+              </div>
+
+              <div class="ce-inline-err" id="ce-case-err" hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+                <span id="ce-case-err-text"></span>
+              </div>
+            </div>
+          </section>
+
+          <!-- 等待条件 -->
+          <section class="ce-card is-expr" data-panel="wait" hidden>
+            <div class="ce-card-head">
+              <div class="ce-card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+                <b>为分支 [ 等待条件 ] 编写逻辑判断表达式</b>
+              </div>
+              <span class="ce-card-hint">轮询直到成立</span>
+            </div>
+            <div class="ce-card-body">
+              <div class="ce-param-grid">
+                <div class="ce-param">
+                  <label for="ce-poll">轮询间隔 (ms)</label>
+                  <input class="ce-input is-mono" id="ce-poll" value="50">
+                  <small>条件不成立时每隔多久重判一次，下限 10ms</small>
+                </div>
+                <div class="ce-param">
+                  <label for="ce-timeout">最大超时 (ms)</label>
+                  <input class="ce-input is-mono" id="ce-timeout" value="60000">
+                  <small>0 = 一直等，不超时</small>
+                </div>
+                <div class="ce-param">
+                  <label for="ce-action">超时处理</label>
+                  <div class="ce-combo">
+                    <select class="ce-input" id="ce-action">
+                      <option>终止流程</option>
+                      <option>继续执行（后续用 If 判断 TimedOut）</option>
+                    </select>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+                  </div>
+                  <small>超时后的处置方式</small>
+                </div>
+              </div>
+              <div class="ce-param-2">
+                <div class="ce-param">
+                  <label for="ce-tmsg">超时说明（可选）</label>
+                  <input class="ce-input" id="ce-tmsg" placeholder="追加到超时日志，便于现场定位">
+                </div>
+                <div class="ce-param">
+                  <label for="ce-alarm">报警变量名（可选）</label>
+                  <div class="ce-combo">
+                    <input class="ce-input is-mono" id="ce-alarm" placeholder="从候选里选，或手填已存在的名字" list="ce-alarm-list">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+                  </div>
+                  <small>候选只列「用户可写的全局 bool 变量」；超时时置为 true</small>
+                </div>
+              </div>
+
+              <div class="ce-insert-groups" style="height:88px;">
+                <div class="ce-igroup">
+                  <span class="ce-igroup-label">引用变量</span>
+                  <div class="ce-chips">
+                    <button type="button" class="ce-chip is-var">score</button>
+                    <button type="button" class="ce-chip is-var">ok</button>
+                  </div>
+                </div>
+                <div class="ce-igroup">
+                  <span class="ce-igroup-label">逻辑比较</span>
+                  <div class="ce-chips">
+                    <button type="button" class="ce-chip">&gt;</button>
+                    <button type="button" class="ce-chip">&lt;</button>
+                    <button type="button" class="ce-chip">==</button>
+                    <button type="button" class="ce-chip">!=</button>
+                    <button type="button" class="ce-chip">&amp;&amp;</button>
+                    <button type="button" class="ce-chip">||</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="ce-editor">
+                <div class="ce-editor-head"><span>C# 表达式</span><span style="font-size:10px;color:var(--text-2);">Ctrl+Space 补全</span></div>
+                <div class="ce-editor-body">
+                  <div class="ce-gutter">1</div>
+                  <div class="ce-code"><span class="tk-var">ok</span> <span class="tk-op">&amp;&amp;</span> <span class="tk-var">score</span> <span class="tk-op">&gt;</span> <span class="tk-num">0.9</span><span class="ce-caret"></span></div>
+                </div>
+              </div>
+
+              <div class="ce-inline-err" id="ce-wait-err" hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+                <span>轮询间隔不能小于 10ms（当前 5ms）</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- For -->
+          <section class="ce-card is-expr" data-panel="for" hidden>
+            <div class="ce-card-head">
+              <div class="ce-card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"></path><path d="M3 11v-1a4 4 0 0 1 4-4h14"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v1a4 4 0 0 1-4 4H3"></path></svg>
+                <b>计次循环设置 (For)</b>
+              </div>
+              <span class="ce-card-hint">取值范围 1 ~ 99999</span>
+            </div>
+            <div class="ce-card-body">
+              <div class="ce-for">
+                <div class="ce-for-grid">
+                  <div class="ce-for-field">
+                    <label for="ce-loop">循环次数</label>
+                    <input class="ce-input is-mono" id="ce-loop" value="10">
+                    <small style="font-size:10px;color:var(--text-2);">未连线时的默认次数；已连线时作为取不到值的回落</small>
+                  </div>
+                  <div class="ce-for-field">
+                    <label>数据源</label>
+                    <div class="ce-for-src">
+                      <div class="ce-src" id="ce-loop-src"><span id="ce-loop-src-text" style="font-style:italic;">未连线（用左侧默认次数）</span></div>
+                      <button type="button" class="ce-btn is-sm" id="ce-loop-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><path d="M8 12h8"></path></svg>
+                        选择数据源
+                      </button>
+                      <button type="button" class="ce-btn is-sm is-danger" id="ce-loop-unlink" hidden>解除</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="ce-for-sum">
+                  <span>循环体 <b>6</b> 个步骤</span>
+                  <span>默认次数 <b id="ce-for-sum-count">10</b></span>
+                  <span id="ce-for-sum-src">数据源 <b>未连线</b></span>
+                </div>
+                <p class="ce-for-hint">若该节点的循环次数输入端口连接了上游变量，运行时以连线值为准，此处仅作未连线时的默认次数。连线与默认次数都属于草稿，取消即丢弃。</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- 底栏 -->
+      <div class="ce-footer">
+        <div class="ce-footer-left is-ok" id="ce-footer-state">
+          <svg id="ce-footer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+          <span id="ce-footer-text">草稿已校验，可保存</span>
+        </div>
+        <div class="ce-footer-right">
+          <button type="button" class="ce-btn">取消</button>
+          <button type="button" class="ce-btn is-primary">保存并应用</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <datalist id="ce-judge-list">
+    <option value="grade"></option>
+    <option value="score"></option>
+    <option value="ok"></option>
+    <option value="Var_3"></option>
+  </datalist>
+  <datalist id="ce-alarm-list">
+    <option value="Alarm_WaitTimeout"></option>
+    <option value="Alarm_CellFull"></option>
+  </datalist>
+
+  <script>
+  (function(){
+    var root = document.getElementById('ce-design-root');
+    var win = document.getElementById('ce-window');
+    var title = document.getElementById('ce-title');
+    var modeText = document.getElementById('ce-mode-text');
+    var branchesEl = document.getElementById('ce-branches');
+    var branchList = document.getElementById('ce-branch-list');
+    var branchCount = document.getElementById('ce-branch-count');
+    var varsCard = document.getElementById('ce-vars-card');
+    var varsTable = document.getElementById('ce-vars');
+    var varsEmpty = document.getElementById('ce-vars-empty');
+    var var3Input = document.getElementById('ce-var3');
+    var varChips = document.getElementById('ce-var-chips');
+    var exprTitle = document.getElementById('ce-expr-title');
+    var caseTitle = document.getElementById('ce-case-title');
+    var condErr = document.getElementById('ce-cond-err');
+    var condErrText = document.getElementById('ce-cond-err-text');
+    var caseErr = document.getElementById('ce-case-err');
+    var caseErrText = document.getElementById('ce-case-err-text');
+    var waitErr = document.getElementById('ce-wait-err');
+    var codeEl = document.getElementById('ce-code');
+    var gutterEl = document.getElementById('ce-gutter');
+    var fbTitle = document.getElementById('ce-fb-title');
+    var fbText = document.getElementById('ce-fb-text');
+    var loopSrcText = document.getElementById('ce-loop-src-text');
+    var loopUnlink = document.getElementById('ce-loop-unlink');
+    var loopSumCount = document.getElementById('ce-for-sum-count');
+    var loopSumSrc = document.getElementById('ce-for-sum-src');
+    var footer = document.getElementById('ce-footer-state');
+    var footerText = document.getElementById('ce-footer-text');
+    var footerIcon = document.getElementById('ce-footer-icon');
+    var matchRows = [document.getElementById('ce-match-0'), document.getElementById('ce-match-1')];
+
+    var panels = root.querySelectorAll('[data-panel]');
+    var modeButtons = root.querySelectorAll('[data-mode]');
+    var stateButtons = root.querySelectorAll('[data-state]');
+    var widthButtons = root.querySelectorAll('[data-width]');
+
+    var ICON_OK = '<path d="M20 6 9 17l-5-5"></path>';
+    var ICON_ERR = '<circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path>';
+
+    var modeMeta = {
+      condition: { title:'条件逻辑配置中心', chip:'IF / WHILE', branches:true, vars:true },
+      case:      { title:'分支匹配配置',     chip:'CASE',      branches:true, vars:true },
+      wait:      { title:'等待条件配置',     chip:'WAIT',      branches:true, vars:true },
+      for:       { title:'For 循环配置',     chip:'FOR',       branches:false, vars:false }
+    };
+
+    var branchData = {
+      condition: [
+        { name:'合格', badge:'必需', expr:'score >= 0.85 && ok', req:true },
+        { name:'复检', badge:'必需', expr:'score >= 0.60 && score < 0.85', req:true },
+        { name:'Else', badge:'兜底', expr:'', req:false }
+      ],
+      case: [
+        { name:'A 类', badge:'必需', expr:'A', req:true },
+        { name:'B 类', badge:'必需', expr:'B', req:true },
+        { name:'默认', badge:'兜底', expr:'', req:false }
+      ],
+      wait: [ { name:'等待条件', badge:'必需', expr:'ok && score > 0.9', req:true } ],
+      for: []
+    };
+
+    var mode = 'condition';
+    var state = 'normal';
+    var branch = 0;
+
+    function setSeg(buttons, active){
+      buttons.forEach(function(b){
+        b.classList.toggle('is-on', b === active);
+        b.setAttribute('aria-pressed', b === active ? 'true' : 'false');
+      });
+    }
+    function pickMode(name){
+      modeButtons.forEach(function(b){ if (b.getAttribute('data-mode') === name) setSeg(modeButtons, b); });
+    }
+    function pickState(name){
+      stateButtons.forEach(function(b){ if (b.getAttribute('data-state') === name) setSeg(stateButtons, b); });
+    }
+
+    function isFallback(){
+      var list = branchData[mode] || [];
+      return (mode === 'condition' || mode === 'case') && list[branch] && !list[branch].req;
+    }
+
+    function renderBranches(){
+      var list = branchData[mode] || [];
+      branchCount.textContent = list.length + ' 条';
+      branchList.innerHTML = '';
+      list.forEach(function(item, i){
+        var bad = (state === 'empty-expr' && mode === 'condition' && item.req);
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'ce-branch' + (i === branch ? ' is-active' : '') + (bad ? ' is-bad' : '');
+        var exprClass = 'ce-branch-expr';
+        var exprText = item.expr;
+        if (bad) { exprClass += ' is-bad'; exprText = '条件表达式为空 · 编译会报错'; }
+        else if (!item.expr) { exprClass += ' is-empty'; exprText = '无需条件 · 系统视为真'; }
+        var badgeClass = bad ? 'is-err' : (item.req ? 'is-req' : 'is-default');
+        btn.innerHTML =
+          '<span class="ce-branch-idx">' + (i + 1) + '</span>' +
+          '<span class="ce-branch-main">' +
+            '<span class="ce-branch-name">' + item.name +
+              '<span class="ce-badge ' + badgeClass + '">' + (bad ? '缺少条件' : item.badge) + '</span>' +
+            '</span>' +
+            '<span class="' + exprClass + '">' + exprText + '</span>' +
+          '</span>';
+        btn.addEventListener('click', function(){
+          branch = i;
+          if (state === 'fallback' && !(list[i] && !list[i].req)) state = 'normal';
+          renderBranches();
+          renderPanels();
+        });
+        branchList.appendChild(btn);
+      });
+    }
+
+    function renderPanels(){
+      var meta = modeMeta[mode];
+      title.textContent = meta.title;
+      modeText.textContent = meta.chip;
+      branchesEl.hidden = !meta.branches;
+      win.classList.toggle('is-single', !meta.branches);
+      varsCard.hidden = !meta.vars;
+
+      var fb = isFallback();
+      panels.forEach(function(p){
+        var name = p.getAttribute('data-panel');
+        var visible = false;
+        if (mode === 'condition') visible = (name === 'condition' && !fb) || (name === 'fallback' && fb);
+        else if (mode === 'case') visible = (name === 'case' && !fb) || (name === 'fallback' && fb);
+        else visible = name === mode;
+        p.hidden = !visible;
+      });
+
+      if (mode === 'condition' && !fb) {
+        var item = branchData.condition[branch];
+        exprTitle.textContent = '为分支 [ ' + item.name + ' ] 编写逻辑判断表达式';
+      }
+      if (mode === 'case') {
+        caseTitle.textContent = fb ? '匹配值' : '为分支 [ ' + branchData.case[branch].name + ' ] 填写匹配值';
+      }
+      if (mode === 'condition' && fb) {
+        fbTitle.textContent = '该分支无需编写条件';
+        fbText.textContent = '系统自动将其视为「真」：只有其他分支的条件都不满足时，才会执行本分支的步骤。';
+      }
+      if (mode === 'case' && fb) {
+        fbTitle.textContent = '该分支是默认分支';
+        fbText.textContent = '系统自动将其视为「真」：只有其他 Case 的匹配值都不命中时，才会执行本分支的步骤。';
+      }
+
+      applyState();
+    }
+
+    function setCondEditor(empty){
+      if (empty) {
+        codeEl.className = 'ce-code is-placeholder';
+        codeEl.textContent = '在此输入布尔表达式，例如：score > 0.85 && ok';
+        gutterEl.innerHTML = '1';
+      } else {
+        codeEl.className = 'ce-code';
+        codeEl.innerHTML = '<span class="tk-var">score</span> <span class="tk-op">&gt;=</span> <span class="tk-num">0.85</span> <span class="tk-op">&amp;&amp;</span>\n' +
+          '<span class="tk-var">ok</span> <span class="tk-op">&amp;&amp;</span> <span class="tk-var">Var_3</span> <span class="tk-op">&gt;</span> <span class="tk-num">0</span><span class="ce-caret"></span>';
+        gutterEl.innerHTML = '1<br>2';
+      }
+    }
+
+    function applyState(){
+      var emptyVars = state === 'empty';
+      varsTable.hidden = emptyVars;
+      varsEmpty.hidden = !emptyVars;
+      if (varChips) {
+        varChips.innerHTML = emptyVars
+          ? '<span style="font-size:10.5px;color:var(--text-2);font-style:italic;">变量表为空时没有可插入的别名</span>'
+          : '<button type="button" class="ce-chip is-var">score</button>' +
+            '<button type="button" class="ce-chip is-var">ok</button>' +
+            '<button type="button" class="ce-chip is-var">Var_3</button>';
+      }
+
+      var aliasErr = state === 'invalid' && mode === 'condition';
+      if (var3Input) var3Input.classList.toggle('is-err', aliasErr);
+
+      // 卡内错误条：只在有错时出现；成功摘要归底栏
+      condErr.hidden = true;
+      caseErr.hidden = true;
+      waitErr.hidden = true;
+
+      var errorCount = 0;
+
+      if (state === 'empty-expr' && mode === 'condition') {
+        condErr.hidden = false;
+        condErrText.textContent = '分支「合格」的条件表达式为空（空条件在编译时是硬错误，流程将无法运行）';
+        errorCount = 1;
+        setCondEditor(true);
+      } else if (state === 'invalid' && mode === 'condition') {
+        condErr.hidden = false;
+        condErrText.textContent = '第 3 行：别名「Var_3」与上一行重复，表达式将无法区分引用哪个';
+        errorCount = 1;
+        setCondEditor(false);
+      } else if (state === 'invalid' && mode === 'case') {
+        caseErr.hidden = false;
+        caseErrText.textContent = '判据「grade」不是本容器已声明的变量；分支「B 类」的匹配值「A」与前面某条 Case 重复，永远不会被执行';
+        errorCount = 2;
+        if (matchRows[1]) matchRows[1].classList.add('is-dup');
+      } else if (state === 'invalid' && mode === 'wait') {
+        waitErr.hidden = false;
+        errorCount = 1;
+      } else {
+        setCondEditor(false);
+        if (matchRows[1]) matchRows[1].classList.remove('is-dup');
+      }
+
+      // For 已连线
+      var linked = state === 'for-linked' && mode === 'for';
+      if (loopSrcText) {
+        loopSrcText.textContent = linked ? '采集.帧号 · Out' : '未连线（用左侧默认次数）';
+        loopSrcText.style.fontStyle = linked ? 'normal' : 'italic';
+        loopSrcText.style.color = linked ? 'var(--text)' : 'var(--text-2)';
+        loopSrcText.style.fontFamily = linked ? 'var(--mono)' : 'inherit';
+      }
+      if (loopUnlink) loopUnlink.hidden = !linked;
+      if (loopSumSrc) loopSumSrc.innerHTML = linked ? '数据源 <b>采集.帧号</b>' : '数据源 <b>未连线</b>';
+
+      var fb = isFallback();
+      if (fb && state !== 'invalid' && state !== 'empty-expr') {
+        footer.className = 'ce-footer-left is-ok';
+        footerText.textContent = '兜底分支无需条件，可直接保存';
+        if (footerIcon) footerIcon.innerHTML = ICON_OK;
+        return;
+      }
+
+      if (errorCount > 0) {
+        footer.className = 'ce-footer-left is-err';
+        footerText.textContent = '校验未通过：' + errorCount + ' 处问题 · 点「保存并应用」会再次提示并停在弹窗';
+        if (footerIcon) footerIcon.innerHTML = ICON_ERR;
+      } else if (linked) {
+        footer.className = 'ce-footer-left is-ok';
+        footerText.textContent = '循环次数由数据源驱动 · 草稿已就绪';
+        if (footerIcon) footerIcon.innerHTML = ICON_OK;
+      } else {
+        footer.className = 'ce-footer-left is-ok';
+        footerText.textContent = '草稿已校验，可保存';
+        if (footerIcon) footerIcon.innerHTML = ICON_OK;
+      }
+    }
+
+    modeButtons.forEach(function(btn){
+      btn.addEventListener('click', function(){
+        mode = btn.getAttribute('data-mode');
+        branch = 0;
+        if (state === 'for-linked') state = 'normal';
+        if (state === 'fallback') state = 'normal';
+        if (state === 'empty-expr' && mode !== 'condition') state = 'normal';
+        setSeg(modeButtons, btn);
+        pickState(state);
+        renderBranches();
+        renderPanels();
+      });
+    });
+
+    stateButtons.forEach(function(btn){
+      btn.addEventListener('click', function(){
+        state = btn.getAttribute('data-state');
+        setSeg(stateButtons, btn);
+        if (state === 'for-linked') { mode = 'for'; pickMode('for'); }
+        if (state === 'empty-expr' && mode !== 'condition') { mode = 'condition'; pickMode('condition'); }
+        if (state === 'fallback') {
+          branch = Math.max(0, (branchData[mode] || []).length - 1);
+        } else if (state === 'normal' || state === 'empty' || state === 'invalid') {
+          branch = 0;
+        }
+        renderBranches();
+        renderPanels();
+      });
+    });
+
+    widthButtons.forEach(function(btn){
+      btn.addEventListener('click', function(){
+        win.classList.remove('is-960');
+        if (btn.getAttribute('data-width') === '960') win.classList.add('is-960');
+        setSeg(widthButtons, btn);
+      });
+    });
+
+    renderBranches();
+    renderPanels();
+
+    (function applyDeepLink(){
+      var q = new URLSearchParams(location.search);
+      var m = q.get('mode');
+      var s = q.get('state');
+      var w = q.get('width');
+      if (m && modeMeta[m]) { mode = m; branch = 0; pickMode(m); }
+      if (s) {
+        state = s;
+        if (s === 'for-linked') { mode = 'for'; pickMode('for'); }
+        if (s === 'empty-expr') { mode = 'condition'; pickMode('condition'); }
+        if (s === 'fallback') branch = Math.max(0, (branchData[mode] || []).length - 1);
+        pickState(s);
+      }
+      if (w === '960') { win.classList.add('is-960'); setSeg(widthButtons, null); widthButtons.forEach(function(b){ if (b.getAttribute('data-width') === '960') setSeg(widthButtons, b); }); }
+      renderBranches();
+      renderPanels();
+    })();
+  })();
+  </script>
+</div>
+</body>
+</html>

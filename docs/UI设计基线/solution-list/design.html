@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>方案列表 · 设计基线 v1</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #sl-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="sl-design-root">
+  <style>
+    #sl-design-root{
+      color-scheme: light;
+      --sl-bg:#EEF2F7;
+      --sl-surface:#FFFFFF;
+      --sl-surface-2:#F8FAFC;
+      --sl-surface-3:#F1F5F9;
+      --sl-border:#E2E8F0;
+      --sl-border-soft:#EEF2F7;
+      --sl-border-strong:#CBD5E1;
+      --sl-text:#0F172A;
+      --sl-text-2:#475569;
+      --sl-text-3:#94A3B8;
+      --sl-text-4:#64748B;
+      --sl-primary:#0EA5E9;
+      --sl-primary-strong:#0284C7;
+      --sl-primary-text:#0369A1;
+      --sl-primary-soft:#F0F9FF;
+      --sl-primary-light:#E0F2FE;
+      --sl-primary-border:#BAE6FD;
+      --sl-success:#22C55E;
+      --sl-success-text:#15803D;
+      --sl-success-soft:#F0FDF4;
+      --sl-success-border:#BBF7D0;
+      --sl-danger:#EF4444;
+      --sl-danger-text:#B91C1C;
+      --sl-danger-soft:#FEF2F2;
+      --sl-danger-border:#FECACA;
+      --sl-warning:#F59E0B;
+      --sl-warning-text:#B45309;
+      --sl-warning-soft:#FFF4E5;
+      --sl-warning-border:#FDE68A;
+      --sl-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --sl-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --sl-radius-sm:6px;
+      --sl-radius-md:8px;
+      --sl-radius-lg:10px;
+      --sl-radius-xl:12px;
+      --sl-radius-window:16px;
+      --sl-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--sl-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #sl-design-root *{box-sizing:border-box;}
+    #sl-design-root button,
+    #sl-design-root input{font-family:inherit;}
+    #sl-design-root button{color:inherit;}
+    #sl-design-root [hidden]{display:none !important;}
+    #sl-design-root :focus-visible{outline:2px solid var(--sl-primary);outline-offset:2px;}
+    #sl-design-root svg{display:block;}
+
+    /* ================= 页面骨架 ================= */
+    #sl-design-root .sl-page{max-width:1240px;margin:0 auto;padding:24px 24px 44px;}
+    #sl-design-root .sl-page-head{max-width:1180px;margin:0 auto 16px;}
+    #sl-design-root .sl-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #sl-design-root .sl-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--sl-text);}
+    #sl-design-root .sl-ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--sl-primary-light);color:var(--sl-primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;}
+    #sl-design-root .sl-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--sl-text-2);}
+    #sl-design-root .sl-page-sub b{color:var(--sl-text);font-weight:600;}
+    #sl-design-root .sl-demo-bar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+    #sl-design-root .sl-demo-group{display:flex;align-items:center;gap:8px;}
+    #sl-design-root .sl-demo-label{font-size:11.5px;color:var(--sl-text-4);}
+    #sl-design-root .sl-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--sl-radius-md);background:var(--sl-surface-3);}
+    #sl-design-root .sl-seg button{height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--sl-text-2);font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;}
+    #sl-design-root .sl-seg button:hover{color:var(--sl-text);}
+    #sl-design-root .sl-seg button.is-on{background:#FFFFFF;color:var(--sl-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+    #sl-design-root .sl-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--sl-text-2);}
+    #sl-design-root .sl-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--sl-warning-text);}
+    #sl-design-root .sl-scope b{color:var(--sl-text);font-weight:600;}
+
+    /* ================= 产品窗口 ================= */
+    #sl-design-root .sl-window{
+      width:960px;max-width:100%;height:640px;margin:0 auto;
+      display:flex;flex-direction:column;overflow:hidden;
+      background:var(--sl-bg);
+      border-radius:var(--sl-radius-window);
+      box-shadow:var(--sl-shadow-window);
+      transition:width 200ms ease;
+      position:relative;
+    }
+    #sl-design-root .sl-window.is-narrow{width:900px;}
+
+    /* ---- 宿主标题栏（示意：真实窗口由 Prism DialogWindow 提供） ---- */
+    #sl-design-root .sl-chrome{
+      height:44px;flex:none;display:flex;align-items:center;gap:10px;
+      padding:0 14px;background:var(--sl-surface);border-bottom:1px solid var(--sl-border);
+    }
+    #sl-design-root .sl-chrome-title{font-size:12.5px;font-weight:600;color:var(--sl-text);}
+    #sl-design-root .sl-chrome-note{font-size:10px;color:var(--sl-text-3);}
+    #sl-design-root .sl-chrome-close{
+      margin-left:auto;width:28px;height:28px;padding:0;border:1px solid transparent;border-radius:6px;
+      background:transparent;color:var(--sl-text-3);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease;
+    }
+    #sl-design-root .sl-chrome-close svg{width:13px;height:13px;}
+    #sl-design-root .sl-chrome-close:hover{background:var(--sl-danger-soft);border-color:var(--sl-danger-border);color:var(--sl-danger-text);}
+
+    /* ---- 内容：表格 + 右侧动作栏 ---- */
+    #sl-design-root .sl-body{
+      flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 152px;
+      gap:12px;padding:16px;
+    }
+
+    /* ---- 主卡片 ---- */
+    #sl-design-root .sl-card{
+      min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;position:relative;
+      background:var(--sl-surface);border:1px solid var(--sl-border);border-radius:var(--sl-radius-xl);
+    }
+    #sl-design-root .sl-card-head{
+      height:64px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;
+      border-bottom:1px solid var(--sl-border-soft);
+    }
+    #sl-design-root .sl-head-icon{
+      width:32px;height:32px;flex:none;border-radius:9px;display:flex;align-items:center;justify-content:center;
+      background:var(--sl-primary-light);color:var(--sl-primary-text);
+    }
+    #sl-design-root .sl-head-icon svg{width:16px;height:16px;}
+    #sl-design-root .sl-head-text{min-width:0;flex:1;}
+    #sl-design-root .sl-head-line{display:flex;align-items:center;gap:8px;min-width:0;}
+    #sl-design-root .sl-head-title{font-size:14px;font-weight:600;line-height:1.3;color:var(--sl-text);white-space:nowrap;}
+    #sl-design-root .sl-count{
+      display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 7px;
+      border-radius:999px;background:var(--sl-primary-light);color:var(--sl-primary-text);
+      font-size:10.5px;font-weight:600;font-variant-numeric:tabular-nums;
+    }
+    #sl-design-root .sl-default-chip{
+      display:inline-flex;align-items:center;gap:5px;height:22px;max-width:230px;padding:0 8px;
+      border-radius:6px;background:var(--sl-primary-soft);border:1px solid var(--sl-primary-border);
+      color:var(--sl-primary-text);font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #sl-design-root .sl-default-chip svg{width:10px;height:10px;flex:none;}
+    #sl-design-root .sl-default-chip.is-off{background:var(--sl-surface-3);border-color:var(--sl-border);color:var(--sl-text-3);font-weight:500;}
+    #sl-design-root .sl-head-sub{margin-top:3px;font-size:10.5px;line-height:1.3;color:var(--sl-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+    /* ---- 表格 ---- */
+    #sl-design-root .sl-table-wrap{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+    #sl-design-root .sl-table-scroll{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+    #sl-design-root .sl-table-scroll::-webkit-scrollbar{width:9px;height:9px;}
+    #sl-design-root .sl-table-scroll::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:9px;border:2px solid transparent;background-clip:padding-box;}
+    #sl-design-root .sl-table-scroll::-webkit-scrollbar-track{background:transparent;}
+    #sl-design-root .sl-thead,
+    #sl-design-root .sl-row{
+      display:grid;align-items:center;gap:0;
+      grid-template-columns:40px 152px 176px minmax(220px,1fr) 72px;
+    }
+    #sl-design-root .sl-thead{
+      position:sticky;top:0;z-index:2;height:40px;padding:0 12px;
+      background:var(--sl-surface-2);border-bottom:1px solid var(--sl-border-soft);
+      font-size:10.5px;font-weight:600;color:var(--sl-text-3);letter-spacing:.01em;
+    }
+    #sl-design-root .sl-row{
+      position:relative;min-height:52px;padding:0 12px;
+      border-bottom:1px solid var(--sl-border-soft);background:var(--sl-surface);
+      cursor:pointer;transition:background 150ms ease;
+    }
+    #sl-design-root .sl-row:last-child{border-bottom:0;}
+    #sl-design-root .sl-row:hover{background:#FBFDFF;}
+    #sl-design-root .sl-row.is-selected{background:var(--sl-primary-soft);}
+    #sl-design-root .sl-row.is-selected::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--sl-primary);}
+    #sl-design-root .sl-cell{min-width:0;display:flex;align-items:center;}
+    #sl-design-root .sl-cell.is-right{justify-content:flex-end;}
+
+    #sl-design-root .sl-index{font-family:var(--sl-mono);font-size:11px;color:var(--sl-text-3);font-variant-numeric:tabular-nums;}
+    #sl-design-root .sl-name{display:flex;align-items:center;gap:7px;min-width:0;width:100%;}
+    #sl-design-root .sl-file-icon{width:22px;height:22px;flex:none;border-radius:6px;display:flex;align-items:center;justify-content:center;background:var(--sl-surface-3);color:var(--sl-text-4);}
+    #sl-design-root .sl-file-icon svg{width:12px;height:12px;}
+    #sl-design-root .sl-row.is-selected .sl-file-icon{background:var(--sl-primary-light);color:var(--sl-primary-text);}
+    #sl-design-root .sl-name-text{min-width:0;flex:1;font-size:12.5px;font-weight:600;line-height:1.35;color:var(--sl-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+    /* 注释：安静输入框（可见的编辑 affordance） */
+    #sl-design-root .sl-comment{position:relative;width:100%;min-width:0;}
+    #sl-design-root .sl-comment input{
+      width:100%;height:30px;padding:0 26px 0 8px;border:1px solid transparent;border-radius:6px;
+      background:var(--sl-surface-2);color:var(--sl-text-2);font-size:11.5px;line-height:1;outline:none;
+      text-overflow:ellipsis;transition:background 150ms ease,border-color 150ms ease,box-shadow 150ms ease;
+    }
+    #sl-design-root .sl-comment input::placeholder{color:var(--sl-text-3);}
+    #sl-design-root .sl-comment input:hover{border-color:var(--sl-border);background:var(--sl-surface);}
+    #sl-design-root .sl-comment input:focus{border-color:var(--sl-primary);background:var(--sl-surface);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #sl-design-root .sl-comment svg{
+      position:absolute;right:8px;top:50%;transform:translateY(-50%);
+      width:11px;height:11px;color:var(--sl-text-4);pointer-events:none;
+      transition:color 150ms ease,opacity 150ms ease;
+    }
+    #sl-design-root .sl-comment:hover svg,
+    #sl-design-root .sl-comment input:focus + svg{color:var(--sl-primary-text);}
+
+    #sl-design-root .sl-path{font-family:var(--sl-mono);font-size:11px;line-height:1.3;color:var(--sl-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;}
+    #sl-design-root .sl-row.is-selected .sl-path{color:var(--sl-text);}
+    #sl-design-root .sl-default-badge{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;border-radius:6px;background:var(--sl-primary-light);color:var(--sl-primary-text);font-size:10px;font-weight:600;white-space:nowrap;}
+    #sl-design-root .sl-default-badge svg{width:9px;height:9px;}
+    #sl-design-root .sl-default-none{font-size:11px;color:var(--sl-text-3);}
+
+    /* ---- 空态 ---- */
+    #sl-design-root .sl-empty{
+      position:absolute;inset:40px 0 0 0;z-index:3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;
+      background:var(--sl-surface);color:var(--sl-text-3);font-size:11.5px;text-align:center;padding:24px;
+    }
+    #sl-design-root .sl-empty-icon{width:48px;height:48px;border-radius:14px;border:1px dashed var(--sl-border-strong);display:flex;align-items:center;justify-content:center;color:var(--sl-text-3);background:var(--sl-surface-2);}
+    #sl-design-root .sl-empty-icon svg{width:21px;height:21px;}
+    #sl-design-root .sl-empty b{font-size:13px;font-weight:600;color:var(--sl-text-2);}
+    #sl-design-root .sl-empty span{max-width:380px;line-height:1.6;}
+    #sl-design-root .sl-empty-actions{display:flex;align-items:center;gap:8px;margin-top:6px;}
+
+    /* ---- 底部状态条 ---- */
+    #sl-design-root .sl-footer{
+      height:56px;flex:none;display:flex;align-items:center;gap:12px;padding:0 16px;
+      border-top:1px solid var(--sl-border-soft);background:var(--sl-surface-2);
+    }
+    #sl-design-root .sl-footer-left{display:flex;align-items:center;gap:8px;min-width:0;flex:1;}
+    #sl-design-root .sl-footer-label{display:inline-flex;align-items:center;gap:5px;flex:none;font-size:10.5px;font-weight:600;color:var(--sl-text-3);white-space:nowrap;}
+    #sl-design-root .sl-footer-label svg{width:11px;height:11px;color:var(--sl-primary);}
+    #sl-design-root .sl-path-chip{
+      display:inline-flex;align-items:center;min-width:0;max-width:460px;height:26px;padding:0 8px;
+      border:1px solid var(--sl-border);border-radius:6px;background:var(--sl-surface);
+      font-family:var(--sl-mono);font-size:10.5px;color:var(--sl-text-2);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #sl-design-root .sl-path-chip.is-off{border-style:dashed;color:var(--sl-text-3);background:transparent;font-family:var(--sl-font);font-size:11px;}
+    #sl-design-root .sl-footer-right{display:flex;align-items:center;gap:12px;flex:none;}
+    #sl-design-root .sl-footer-btns{display:flex;align-items:center;gap:8px;}
+    #sl-design-root .sl-kbd-hint{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--sl-text-3);white-space:nowrap;}
+    #sl-design-root .sl-kbd{display:inline-flex;align-items:center;justify-content:center;height:18px;min-width:18px;padding:0 5px;border:1px solid var(--sl-border);border-bottom-width:2px;border-radius:4px;background:var(--sl-surface);font-family:var(--sl-mono);font-size:9.5px;color:var(--sl-text-4);}
+
+    /* ---- 右侧动作栏 ---- */
+    #sl-design-root .sl-rail{
+      min-height:0;display:flex;flex-direction:column;gap:8px;padding:12px;
+      border:1px solid var(--sl-border-soft);border-radius:var(--sl-radius-xl);
+      background:var(--sl-surface-2);overflow-y:auto;
+      scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;
+    }
+    #sl-design-root .sl-rail::-webkit-scrollbar{width:8px;}
+    #sl-design-root .sl-rail::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+    #sl-design-root .sl-rail-group{display:flex;align-items:center;gap:8px;margin:6px 2px 0;font-size:10.5px;font-weight:600;color:var(--sl-text-3);}
+    #sl-design-root .sl-rail-group::after{content:"";height:1px;flex:1;background:var(--sl-border);}
+    #sl-design-root .sl-rail-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+    #sl-design-root .sl-rail-hint{margin:4px 2px 0;font-size:10.5px;line-height:1.5;color:var(--sl-text-3);}
+    #sl-design-root .sl-rail-note{
+      margin-top:auto;padding:8px 9px;border:1px solid var(--sl-border-soft);border-radius:9px;
+      background:var(--sl-surface);font-size:10.5px;line-height:1.55;color:var(--sl-text-3);
+    }
+    #sl-design-root .sl-rail-note b{display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;color:var(--sl-text-2);}
+    #sl-design-root .sl-rail-note b svg{width:11px;height:11px;color:var(--sl-primary);}
+    #sl-design-root .sl-rail-note span{display:block;margin-top:3px;}
+
+    /* ---- 按钮 ---- */
+    #sl-design-root .sl-btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 12px;
+      border:1px solid var(--sl-border);border-radius:var(--sl-radius-md);background:var(--sl-surface);
+      color:var(--sl-text);font-size:12px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease,box-shadow 150ms ease;
+    }
+    #sl-design-root .sl-btn svg{width:13px;height:13px;flex:none;}
+    #sl-design-root .sl-btn:hover{background:var(--sl-surface-2);border-color:var(--sl-border-strong);}
+    #sl-design-root .sl-btn:active{background:var(--sl-surface-3);}
+    #sl-design-root .sl-btn:disabled{opacity:.42;cursor:not-allowed;box-shadow:none;}
+    #sl-design-root .sl-btn-lg{width:100%;height:38px;}
+    #sl-design-root .sl-btn-primary{background:var(--sl-primary);border-color:var(--sl-primary);color:#FFFFFF;font-weight:600;}
+    #sl-design-root .sl-btn-primary:hover{background:var(--sl-primary-strong);border-color:var(--sl-primary-strong);}
+    #sl-design-root .sl-btn-primary:active{background:#0369A1;border-color:#0369A1;}
+    #sl-design-root .sl-btn-secondary{background:var(--sl-surface);border-color:var(--sl-border);color:var(--sl-text);}
+    #sl-design-root .sl-btn-secondary:hover{background:var(--sl-surface-2);border-color:var(--sl-border-strong);}
+    #sl-design-root .sl-btn-ghost{background:transparent;border-color:transparent;color:var(--sl-text-2);font-size:11.5px;padding:0 8px;}
+    #sl-design-root .sl-btn-ghost:hover{background:var(--sl-surface-3);border-color:var(--sl-border);color:var(--sl-text);}
+    #sl-design-root .sl-btn-danger{background:var(--sl-danger-soft);border-color:var(--sl-danger-border);color:var(--sl-danger-text);font-weight:600;}
+    #sl-design-root .sl-btn-danger:hover{background:#FEE2E2;border-color:var(--sl-danger);}
+    #sl-design-root .sl-btn-soft{background:var(--sl-primary-soft);border-color:var(--sl-primary-border);color:var(--sl-primary-text);font-weight:600;}
+    #sl-design-root .sl-btn-soft:hover{background:var(--sl-primary-light);border-color:var(--sl-primary);}
+
+    /* ---- Toast ---- */
+    #sl-design-root .sl-toast{
+      position:absolute;left:50%;bottom:68px;transform:translateX(-50%) translateY(6px);
+      z-index:20;max-width:520px;padding:8px 12px;border-radius:8px;
+      background:rgba(15,23,42,.92);color:#F8FAFC;font-size:11.5px;line-height:1.45;
+      box-shadow:0 8px 24px rgba(15,23,42,.22);opacity:0;pointer-events:none;
+      transition:opacity 180ms ease,transform 180ms ease;
+    }
+    #sl-design-root .sl-toast.is-on{opacity:1;transform:translateX(-50%) translateY(0);}
+    #sl-design-root .sl-toast.is-danger{background:rgba(185,28,28,.95);}
+
+    /* ================= 说明区 ================= */
+    #sl-design-root .sl-notes{max-width:1180px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;}
+    #sl-design-root .sl-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--sl-text-2);}
+    #sl-design-root .sl-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--sl-border);}
+    #sl-design-root .sl-note-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--sl-primary-light);color:var(--sl-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}
+    #sl-design-root .sl-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--sl-text);}
+    #sl-design-root .sl-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--sl-text-2);}
+    #sl-design-root .sl-note code{font-family:var(--sl-mono);font-size:10.5px;color:var(--sl-primary-text);background:var(--sl-primary-soft);padding:1px 4px;border-radius:4px;}
+
+    @media (prefers-reduced-motion: reduce){#sl-design-root *{animation:none !important;transition:none !important;}}
+    @media (max-width:1100px){
+      #sl-design-root .sl-page{padding:18px 14px 32px;}
+      #sl-design-root .sl-window{height:auto;min-height:640px;}
+      #sl-design-root .sl-body{grid-template-columns:1fr;}
+      #sl-design-root .sl-rail{overflow:visible;}
+      #sl-design-root .sl-card{min-height:460px;}
+    }
+  </style>
+
+  <!-- 图标符号（Lucide 风格，2px 描边） -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"></path><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"></path><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"></path></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><path d="M14 2v6h6"></path></symbol>
+    <symbol id="i-folder-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01Z"></path></symbol>
+    <symbol id="i-file-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M9 15h6M12 12v6"></path></symbol>
+    <symbol id="i-folder-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10v6M9 13h6"></path><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path></symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></symbol>
+    <symbol id="i-arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="m19 12-7 7-7-7"></path></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M10 11v6M14 11v6"></path></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"></path></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><path d="M12 9v4M12 17h.01"></path></symbol>
+    <symbol id="i-empty" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path><path d="M12 11v6M9 14h6"></path></symbol>
+  </svg>
+
+  <div class="sl-page">
+    <header class="sl-page-head">
+      <div class="sl-page-title-row">
+        <h1>方案列表 · 方案清单</h1>
+        <span class="sl-ver">v1</span>
+      </div>
+      <p class="sl-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留“表格 + 右侧动作栏”的交互路径、全部绑定与 9 个命令；
+        不改变方案模型、清单持久化、审计与确认语义。窗口 <b>960 × 640</b>（最小 900 × 560），
+        表格区自适应，右侧动作栏 <b>152px</b>。
+      </p>
+      <div class="sl-demo-bar">
+        <div class="sl-demo-group" role="group" aria-label="界面状态">
+          <span class="sl-demo-label">状态</span>
+          <div class="sl-seg" id="sl-state-seg">
+            <button type="button" data-state="normal" class="is-on" aria-pressed="true">正常</button>
+            <button type="button" data-state="empty" aria-pressed="false">空清单</button>
+            <button type="button" data-state="noselect" aria-pressed="false">未选中</button>
+            <button type="button" data-state="save-error" aria-pressed="false">保存失败</button>
+          </div>
+        </div>
+        <div class="sl-demo-group" role="group" aria-label="窗口宽度">
+          <span class="sl-demo-label">窗口</span>
+          <div class="sl-seg" id="sl-width-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="900" aria-pressed="false">900</button>
+          </div>
+        </div>
+        <div class="sl-demo-group" role="group" aria-label="默认启动方案">
+          <span class="sl-demo-label">默认启动</span>
+          <div class="sl-seg" id="sl-default-seg">
+            <button type="button" data-default="on" class="is-on" aria-pressed="true">已设置</button>
+            <button type="button" data-default="off" aria-pressed="false">未设置</button>
+          </div>
+        </div>
+      </div>
+      <div class="sl-scope">
+        <svg aria-hidden="true"><use href="#i-info"></use></svg>
+        <span><b>v1 未纳入（需新增功能或契约）：</b>搜索/筛选、多选批量移除、拖拽排序、重命名方案名称、删除二次确认/撤销、未保存脏标记、打开文件所在文件夹、清单导入导出。主界面只保留现有入口，不造死按钮。</span>
+      </div>
+    </header>
+
+    <div class="sl-window" id="sl-window">
+      <!-- 宿主标题栏：真实窗口由 Prism DialogWindow 提供，这里只作上下文示意 -->
+      <div class="sl-chrome">
+        <div class="sl-chrome-title">方案列表</div>
+        <div class="sl-chrome-note">宿主标题栏（Prism DialogWindow）· 仅示意</div>
+        <button type="button" class="sl-chrome-close" title="关闭（宿主标题栏按钮）" aria-label="关闭"><svg><use href="#i-close"></use></svg></button>
+      </div>
+
+      <div class="sl-body">
+        <section class="sl-card" aria-label="方案清单">
+          <div class="sl-card-head">
+            <div class="sl-head-icon"><svg><use href="#i-list"></use></svg></div>
+            <div class="sl-head-text">
+              <div class="sl-head-line">
+                <span class="sl-head-title">方案清单</span>
+                <span class="sl-count" id="sl-count">5</span>
+                <span class="sl-default-chip" id="sl-default-chip"><svg><use href="#i-star"></use></svg>默认：主机型-双工位</span>
+              </div>
+              <div class="sl-head-sub">选中一行后可打开、设为默认、排序或移除；注释可直接编辑。</div>
+            </div>
+          </div>
+
+          <div class="sl-table-wrap">
+            <div class="sl-table-scroll">
+              <div class="sl-table">
+                <div class="sl-thead" aria-hidden="true">
+                  <div class="sl-cell">序号</div>
+                  <div class="sl-cell">方案名称</div>
+                  <div class="sl-cell">注释</div>
+                  <div class="sl-cell">路径</div>
+                  <div class="sl-cell">默认</div>
+                </div>
+                <div id="sl-rows" role="rowgroup"></div>
+              </div>
+            </div>
+            <div class="sl-empty" id="sl-empty" hidden>
+              <div class="sl-empty-icon"><svg><use href="#i-empty"></use></svg></div>
+              <b>还没有添加方案</b>
+              <span>把当前方案加入清单，或从磁盘选择一个 <code>.vms</code> 文件；清单只影响启动时可选方案，不会复制或移动文件。</span>
+              <div class="sl-empty-actions">
+                <button type="button" class="sl-btn sl-btn-soft" id="sl-empty-current"><svg><use href="#i-file-plus"></use></svg>添加当前方案</button>
+                <button type="button" class="sl-btn sl-btn-secondary" id="sl-empty-browse"><svg><use href="#i-folder-plus"></use></svg>浏览添加…</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="sl-footer">
+            <div class="sl-footer-left">
+              <span class="sl-footer-label"><svg><use href="#i-star"></use></svg>默认启动</span>
+              <span class="sl-path-chip" id="sl-startup-path" title="开机后自动加载的方案文件">D:\Projects\现场方案\主机型-双工位-2026Q4.vms</span>
+            </div>
+            <div class="sl-footer-right">
+              <div class="sl-footer-btns">
+                <button type="button" class="sl-btn sl-btn-secondary" id="sl-cancel">取消</button>
+                <button type="button" class="sl-btn sl-btn-primary" id="sl-confirm">确认</button>
+              </div>
+              <div class="sl-kbd-hint"><span class="sl-kbd">Enter</span> 确认 · <span class="sl-kbd">Esc</span> 取消</div>
+            </div>
+          </div>
+
+          <div class="sl-toast" id="sl-toast" role="status" aria-live="polite"></div>
+        </section>
+
+        <aside class="sl-rail" aria-label="方案操作">
+          <button type="button" class="sl-btn sl-btn-primary sl-btn-lg" id="sl-open"><svg><use href="#i-folder-open"></use></svg>打开方案</button>
+
+          <div class="sl-rail-group">清单</div>
+          <button type="button" class="sl-btn sl-btn-secondary" id="sl-set-default"><svg><use href="#i-star"></use></svg>设为默认启动</button>
+          <button type="button" class="sl-btn sl-btn-secondary" id="sl-add-current"><svg><use href="#i-file-plus"></use></svg>添加当前方案</button>
+          <button type="button" class="sl-btn sl-btn-secondary" id="sl-browse"><svg><use href="#i-folder-plus"></use></svg>浏览添加…</button>
+
+          <div class="sl-rail-group">排序</div>
+          <div class="sl-rail-row">
+            <button type="button" class="sl-btn sl-btn-ghost" id="sl-up"><svg><use href="#i-arrow-up"></use></svg>上移</button>
+            <button type="button" class="sl-btn sl-btn-ghost" id="sl-down"><svg><use href="#i-arrow-down"></use></svg>下移</button>
+          </div>
+
+          <div class="sl-rail-group">危险操作</div>
+          <button type="button" class="sl-btn sl-btn-danger" id="sl-remove"><svg><use href="#i-trash"></use></svg>从清单移除</button>
+          <div class="sl-rail-hint" id="sl-rail-hint">选中一行后可打开 / 设为默认 / 排序 / 移除。</div>
+
+          <div class="sl-rail-note">
+            <b><svg><use href="#i-info"></use></svg>说明</b>
+            <span>注释可直接编辑；“从清单移除”不删磁盘文件。</span>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div class="sl-notes">
+      <div class="sl-notes-head">关键改动（v1）</div>
+      <div class="sl-note"><div class="sl-note-num">01</div><div><b>保留“表格 + 右侧动作栏”的交互路径</b><span>不改成工具栏或行内菜单；动作按「打开 / 清单 / 排序 / 危险操作」分组，建立主次，但仍全部是现有命令入口。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">02</div><div><b>主次与危险语义归位</b><span>“打开方案”“确认”走主色（<code>DialogPrimaryButton</code>）；“取消”走次要；“从清单移除”走危险色（<code>DialogDangerButton</code>）。不再出现“确认是红色、取消是蓝色”的倒置。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">03</div><div><b>默认启动方案一眼可见</b><span>新增「默认」列与底部默认路径状态条；判据是 <code>Path == StartupSolutionPath</code>，纯显示派生，不改 VM、不新增持久化字段。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">04</div><div><b>注释单元格变成可见的编辑器</b><span>安静输入框：hover 出现边界、focus 出现主色环与铅笔图标；仍绑 <code>Comment</code>，<code>UpdateSourceTrigger=PropertyChanged</code> 语义不变。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">05</div><div><b>空清单有独立空态</b><span>不再是“一块空白 + 列头”；空态直接给「添加当前方案」「浏览添加…」两个现有入口，与“未选中”状态分开。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">06</div><div><b>列宽预算写死，消灭 28px 溢出</b><span>Web 稿固定 40 + 152 + 176 + 72，路径列 <code>minmax(220px, 1fr)</code>；WPF 实现按比例 <code>1.2* / 1.0* / 1.6*</code>（960 下约 199/162/265，900 下路径 220），不再出现默认横向滚动条。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">07</div><div><b>全部走公共令牌与共享样式</b><span>根背景 <code>DialogBackgroundBrush</code>、卡片 <code>DialogSurfaceBrush</code>、按钮 <code>DialogPrimaryButton</code> / <code>DialogDangerButton</code> / <code>DialogSecondaryButton</code>、输入 <code>DialogCellInputQuiet</code>、空态 <code>DialogEmptyState*</code>；视图零十六进制。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">08</div><div><b>键盘与可达性</b><span>Esc 取消；Enter 在非输入框时确认、在注释框内提交本行；行与按钮都有可见焦点环；长路径用 ToolTip（<code>DialogToolTipStyle</code>）补全。</span></div></div>
+
+      <div class="sl-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="sl-note"><div class="sl-note-num">C1</div><div><b>DataContext = SolutionListViewModel</b><span>Prism <code>RegisterDialog</code> + <code>ViewModelLocationProvider.Register</code> 的接线不变；不引入独立 VM，视图不自己 new。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">C2</div><div><b>三份核心状态</b><span><code>Solutions</code> / <code>SelectedSolution</code> / <code>StartupSolutionPath</code> 原样；清单仍是工作副本，取消不污染配置。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">C3</div><div><b>9 个命令全部保留</b><span><code>OpenCommand</code> / <code>SetStartupCommand</code> / <code>AddCurrentCommand</code> / <code>AddCommand</code> / <code>DeleteCommand</code> / <code>MoveUpCommand</code> / <code>MoveDownCommand</code> / <code>ConfirmCommand</code> / <code>CancelCommand</code>。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">C4</div><div><b>注释编辑语义</b><span><code>Comment</code> 的 TwoWay + <code>PropertyChanged</code> 不变；不改 <code>Name</code>（名称来自文件名，本批不做重命名）。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">C5</div><div><b>序号是显示值</b><span><code>Index</code> 不持久化，由 <code>RefreshIndexes()</code> 按顺序重排；设计稿不把它变成可编辑字段。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">C6</div><div><b>移除只动清单</b><span><code>OnDelete</code> 不删磁盘文件；若删的是默认方案，VM 会清空 <code>StartupSolutionPath</code>。这两条行为原样保留。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">C7</div><div><b>确认与保存失败</b><span><code>OnConfirm</code> 只写变了的项；保存失败不关窗、弹错误提示（toast）；审计 <code>ScadaAuditWriter</code> 与署名口径不变。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">C8</div><div><b>打开方案</b><span><code>OpenCommand</code> 校验文件存在、加载方案、切换工作区并关闭弹窗；不在本批改加载语义。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">C9</div><div><b>宿主窗口</b><span>标题栏、关闭按钮、窗口尺寸由 Prism <code>DialogWindow</code> 提供；视图只负责内容区，不新增自绘标题栏。</span></div></div>
+
+      <div class="sl-notes-head" style="margin-top:20px;">v1 明确延后（需新增功能或契约）</div>
+      <div class="sl-note"><div class="sl-note-num">D1</div><div><b>搜索 / 筛选</b><span>VM 没有 <code>SearchText</code> 或筛选集合；本批不新增。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">D2</div><div><b>多选批量移除</b><span>VM 只有单个 <code>SelectedSolution</code>；批量需要新的选中集合与命令。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">D3</div><div><b>拖拽排序</b><span>现有入口是 <code>MoveUpCommand</code> / <code>MoveDownCommand</code>；拖拽需要新的 Drop 契约。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">D4</div><div><b>重命名方案名称</b><span>名称来自文件名；重命名需要新命令与落盘规则。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">D5</div><div><b>删除二次确认 / 撤销</b><span>当前是立即从工作副本移除；确认框或撤销栈需要 VM 改动，本批只做危险色与文案澄清。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">D6</div><div><b>未保存脏标记</b><span>VM 没有 <code>IsDirty</code>；本批不新增“未保存”提示。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">D7</div><div><b>打开文件所在文件夹</b><span>需要新命令与 <code>Process.Start</code> 口径；本批不做。</span></div></div>
+      <div class="sl-note"><div class="sl-note-num">D8</div><div><b>清单导入 / 导出</b><span>需要新的文件契约与校验；本批不做。</span></div></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('sl-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#sl-window');
+      var rowsHost = root.querySelector('#sl-rows');
+      var empty = root.querySelector('#sl-empty');
+      var count = root.querySelector('#sl-count');
+      var defaultChip = root.querySelector('#sl-default-chip');
+      var startupPath = root.querySelector('#sl-startup-path');
+      var toast = root.querySelector('#sl-toast');
+      var railHint = root.querySelector('#sl-rail-hint');
+      var openBtn = root.querySelector('#sl-open');
+      var setDefaultBtn = root.querySelector('#sl-set-default');
+      var upBtn = root.querySelector('#sl-up');
+      var downBtn = root.querySelector('#sl-down');
+      var removeBtn = root.querySelector('#sl-remove');
+
+      var allRows = [
+        { id: 1, name: '主机型-双工位', comment: '量产主力方案', path: 'D:\\Projects\\现场方案\\主机型-双工位-2026Q4.vms' },
+        { id: 2, name: '副机型-单工位', comment: '', path: 'D:\\Projects\\现场方案\\副机型-单工位-2026Q4.vms' },
+        { id: 3, name: '调试用-离线仿真', comment: '无相机时使用', path: 'D:\\Projects\\现场方案\\调试用-离线仿真.vms' },
+        { id: 4, name: '旧版兼容-2025', comment: '客户 A 历史项目', path: 'D:\\Projects\\历史项目\\客户A\\旧版兼容-2025.vms' },
+        { id: 5, name: 'Demo', comment: '演示用', path: 'D:\\Projects\\Demo\\Demo.vms' }
+      ];
+
+      var state = {
+        mode: 'normal',
+        width: 960,
+        defaultOn: true,
+        startupPath: allRows[0].path,
+        selectedId: 2,
+        toastText: '',
+        toastDanger: false
+      };
+
+      function esc(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function icon(id, cls) {
+        return '<svg class="' + (cls || '') + '" aria-hidden="true"><use href="#' + id + '"></use></svg>';
+      }
+
+      function visibleRows() {
+        return state.mode === 'empty' ? [] : allRows;
+      }
+
+      function selectedRow() {
+        if (state.selectedId == null) return null;
+        return allRows.filter(function (r) { return r.id === state.selectedId; })[0] || null;
+      }
+
+      function rowHtml(row, index) {
+        var selected = row.id === state.selectedId;
+        var isDefault = state.defaultOn && row.path === state.startupPath;
+        return '<div class="sl-row' + (selected ? ' is-selected' : '') + '" role="row" tabindex="0" data-row-id="' + row.id + '" aria-selected="' + (selected ? 'true' : 'false') + '">' +
+          '<div class="sl-cell"><span class="sl-index">' + (index + 1) + '</span></div>' +
+          '<div class="sl-cell"><span class="sl-name"><span class="sl-file-icon">' + icon('i-file') + '</span><span class="sl-name-text" title="' + esc(row.name) + '">' + esc(row.name) + '</span></span></div>' +
+          '<div class="sl-cell"><span class="sl-comment"><input type="text" value="' + esc(row.comment) + '" placeholder="点击添加注释" aria-label="注释：' + esc(row.name) + '">' + icon('i-pencil') + '</span></div>' +
+          '<div class="sl-cell"><span class="sl-path" title="' + esc(row.path) + '">' + esc(row.path) + '</span></div>' +
+          '<div class="sl-cell">' + (isDefault
+            ? '<span class="sl-default-badge">' + icon('i-star') + '默认启动</span>'
+            : '<span class="sl-default-none">—</span>') + '</div>' +
+          '</div>';
+      }
+
+      function render() {
+        var rows = visibleRows();
+        win.classList.toggle('is-narrow', state.width === 900);
+        count.textContent = String(rows.length);
+        rowsHost.innerHTML = rows.map(rowHtml).join('');
+        empty.hidden = state.mode !== 'empty';
+
+        if (state.defaultOn && state.startupPath) {
+          var def = allRows.filter(function (r) { return r.path === state.startupPath; })[0];
+          defaultChip.classList.remove('is-off');
+          defaultChip.innerHTML = icon('i-star') + '默认：' + esc(def ? def.name : '未命名方案');
+          startupPath.classList.remove('is-off');
+          startupPath.textContent = state.startupPath;
+          startupPath.title = state.startupPath;
+        } else {
+          defaultChip.classList.add('is-off');
+          defaultChip.innerHTML = icon('i-star') + '未设置默认启动';
+          startupPath.classList.add('is-off');
+          startupPath.textContent = '未设置';
+          startupPath.title = '开机后不自动加载方案';
+        }
+
+        var selected = selectedRow();
+        var hasSelection = !!selected;
+        var index = selected ? allRows.indexOf(selected) : -1;
+        openBtn.disabled = !hasSelection;
+        setDefaultBtn.disabled = !hasSelection;
+        removeBtn.disabled = !hasSelection;
+        upBtn.disabled = !hasSelection || index <= 0;
+        downBtn.disabled = !hasSelection || index < 0 || index >= allRows.length - 1;
+        railHint.textContent = hasSelection
+          ? '已选中「' + selected.name + '」'
+          : '选中一行后可打开 / 设为默认 / 排序 / 移除。';
+
+        toast.textContent = state.toastText;
+        toast.classList.toggle('is-on', !!state.toastText);
+        toast.classList.toggle('is-danger', !!state.toastDanger);
+      }
+
+      function showToast(text, danger) {
+        state.toastText = text || '';
+        state.toastDanger = !!danger;
+        render();
+        if (text) {
+          clearTimeout(showToast._timer);
+          showToast._timer = setTimeout(function () {
+            state.toastText = '';
+            render();
+          }, 3200);
+        }
+      }
+
+      function selectRow(id) {
+        state.selectedId = id;
+        if (state.mode === 'noselect' || state.mode === 'empty') state.mode = 'normal';
+        render();
+      }
+
+      function setMode(mode) {
+        state.mode = mode;
+        state.toastText = '';
+        if (mode === 'empty') {
+          state.selectedId = null;
+          state.defaultOn = false;
+          state.startupPath = '';
+        } else if (mode === 'noselect') {
+          state.selectedId = null;
+        } else {
+          if (state.selectedId == null) state.selectedId = allRows[0] ? allRows[0].id : null;
+          if (mode === 'save-error') {
+            state.toastText = '保存失败，清单没有写入 AppConfig.json（重启后会回到原值）：拒绝访问。';
+            state.toastDanger = true;
+          }
+        }
+        render();
+      }
+
+      root.querySelector('#sl-state-seg').addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-state]');
+        if (!btn) return;
+        root.querySelectorAll('#sl-state-seg button').forEach(function (b) {
+          b.classList.toggle('is-on', b === btn);
+          b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+        });
+        setMode(btn.getAttribute('data-state'));
+      });
+
+      root.querySelector('#sl-width-seg').addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-width]');
+        if (!btn) return;
+        state.width = Number(btn.getAttribute('data-width'));
+        root.querySelectorAll('#sl-width-seg button').forEach(function (b) {
+          b.classList.toggle('is-on', b === btn);
+          b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+        });
+        render();
+      });
+
+      root.querySelector('#sl-default-seg').addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-default]');
+        if (!btn) return;
+        state.defaultOn = btn.getAttribute('data-default') === 'on';
+        state.startupPath = state.defaultOn && allRows[0] ? allRows[0].path : '';
+        root.querySelectorAll('#sl-default-seg button').forEach(function (b) {
+          b.classList.toggle('is-on', b === btn);
+          b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+        });
+        render();
+      });
+
+      rowsHost.addEventListener('click', function (e) {
+        if (e.target.closest('.sl-comment input')) return;
+        var row = e.target.closest('[data-row-id]');
+        if (!row) return;
+        selectRow(Number(row.getAttribute('data-row-id')));
+      });
+
+      rowsHost.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        if (e.target.closest('.sl-comment input')) return;
+        var row = e.target.closest('[data-row-id]');
+        if (!row) return;
+        e.preventDefault();
+        selectRow(Number(row.getAttribute('data-row-id')));
+      });
+
+      openBtn.addEventListener('click', function () {
+        var row = selectedRow();
+        if (!row) return;
+        showToast('打开「' + row.name + '」并关闭弹窗（OpenCommand）。');
+      });
+
+      setDefaultBtn.addEventListener('click', function () {
+        var row = selectedRow();
+        if (!row) return;
+        state.defaultOn = true;
+        state.startupPath = row.path;
+        showToast('已把「' + row.name + '」设为默认启动（SetStartupCommand）。');
+      });
+
+      function addRow(name, comment) {
+        var id = allRows.length ? Math.max.apply(null, allRows.map(function (r) { return r.id; })) + 1 : 1;
+        allRows.push({ id: id, name: name, comment: comment, path: 'D:\\Projects\\现场方案\\' + name + '.vms' });
+        state.mode = 'normal';
+        state.selectedId = id;
+        showToast('已加入清单（AddCommand / AddCurrentCommand）。');
+      }
+
+      root.querySelector('#sl-add-current').addEventListener('click', function () {
+        addRow('当前方案', '从当前工作区加入');
+      });
+      root.querySelector('#sl-browse').addEventListener('click', function () {
+        addRow('新添加方案', '从磁盘选择');
+      });
+      root.querySelector('#sl-empty-current').addEventListener('click', function () {
+        addRow('当前方案', '从当前工作区加入');
+      });
+      root.querySelector('#sl-empty-browse').addEventListener('click', function () {
+        addRow('新添加方案', '从磁盘选择');
+      });
+
+      upBtn.addEventListener('click', function () {
+        var row = selectedRow();
+        if (!row) return;
+        var i = allRows.indexOf(row);
+        if (i <= 0) return;
+        allRows.splice(i, 1);
+        allRows.splice(i - 1, 0, row);
+        render();
+      });
+
+      downBtn.addEventListener('click', function () {
+        var row = selectedRow();
+        if (!row) return;
+        var i = allRows.indexOf(row);
+        if (i < 0 || i >= allRows.length - 1) return;
+        allRows.splice(i, 1);
+        allRows.splice(i + 1, 0, row);
+        render();
+      });
+
+      removeBtn.addEventListener('click', function () {
+        var row = selectedRow();
+        if (!row) return;
+        var i = allRows.indexOf(row);
+        allRows.splice(i, 1);
+        if (state.defaultOn && state.startupPath === row.path) {
+          state.defaultOn = false;
+          state.startupPath = '';
+        }
+        state.selectedId = allRows.length ? allRows[Math.min(i, allRows.length - 1)].id : null;
+        if (!allRows.length) state.mode = 'empty';
+        showToast('已从清单移除「' + row.name + '」；磁盘文件未删除。');
+      });
+
+      root.querySelector('#sl-confirm').addEventListener('click', function () {
+        if (state.mode === 'save-error') {
+          showToast('保存失败，清单没有写入 AppConfig.json（重启后会回到原值）：拒绝访问。', true);
+          return;
+        }
+        showToast('确认：只写入变了的项，然后关闭弹窗（ConfirmCommand）。');
+      });
+
+      root.querySelector('#sl-cancel').addEventListener('click', function () {
+        showToast('取消：工作副本丢弃，不写盘（CancelCommand）。');
+      });
+
+      document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        if (e.target.closest('.sl-comment input')) {
+          e.target.blur();
+          return;
+        }
+        showToast('Esc：取消并关闭弹窗（CancelCommand）。');
+      });
+
+      render();
+    })();
+  </script>
+</div>
+</body>
+</html>

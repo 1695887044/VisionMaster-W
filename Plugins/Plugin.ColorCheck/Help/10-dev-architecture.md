@@ -21,6 +21,7 @@
 | --- | --- | --- | --- |
 | 采样区 | `RoiParams`（`double[5]`，落盘的就是它） | `CanvasRois` 里那一个 `DrawingObjectInfo`（画布句柄） | 打开配置：`RoiParams` → 播种画布；改框：画布 → `RoiParams` |
 | 显示图 | `Image` 端口的上游值 | `DisplayImage`（**自己 `new HImage(upstream)` 拷的一份**） | 端口变化 → 拷一份上屏；**从不反向** |
+| 试算图源 | 视图传入的 `ImageEdit.HImage`（**只读，不持有**） | 无 | 试算时按"传入图优先，否则 `DisplayImage`"取一次；不写回任何字段 |
 | 阈值 | 内核 `ColorThresholds` 的默认值 | 插件上 13 个 `[StepConfig]` 属性（各算子一份） | 构造时取默认 → 用户改 → 落盘 → 运行期 `BuildThresholds()` 现收成对象交给内核 |
 | 颜色词 | 内核 `ColorVocabulary.AllNames` | 无副本 | 只有一个来源 |
 | 配方 | `RecipeText` 文本 | `Recipe` 列表（**每次运行现解析，不缓存**） | 单向 |
@@ -33,6 +34,12 @@
 3. **上游图** → `Image.PropertyChanged`（只认 `IInputPort.Value`）→ `ShowUpstreamImage()` → 拷一份进 `DisplayImage`。
 
 回路 1 和 2 都必须被 `_seedingCanvas` 刹车罩住（见 12 页 B1）。
+
+**试算的图源与显示图不是同一份**：画布右键「打开图片」由共享控件 `HalconBase.OpenImage` 直接写
+`ImageEdit.HImage`，**不经过**插件的 `DisplayImage`。所以视图的「试算一下」把控件当前图
+（`ImageEditor?.HImage`）传给 `TryPreviewAnalyze(HImage)`，插件侧只读它、用完不 Dispose、也不赋给
+`DisplayImage`；不传图时才回退 `DisplayImage`（旧行为）。这条分叉是有意的：`DisplayImage` 的所有权
+仍归插件（见 12 页 B7），右键换图只影响这一次试算，不改上游语义与落盘内容。
 
 ## `RunAlgorithm` 从头到尾
 

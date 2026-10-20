@@ -188,12 +188,13 @@ namespace VisionMaster.Communications
 
             // ③ 每组各编译一次批量计划（组内照常合并段）；空组 / 无可轮询项 → 不建运行态，避免空转
             var transport = ResolveTransport(config);
+            bool isolate = config?.IsolateFaultedSegments ?? false;
             var groups = new List<PollGroup>(defs.Count);
             foreach (var def in defs)
             {
                 if (!buckets.TryGetValue(def.Name, out var vars) || vars.Count == 0) continue;
 
-                var planner = PollBatchPlanner.Build(vars, transport, log);
+                var planner = PollBatchPlanner.Build(vars, transport, log, isolate);
                 if (planner.PollItemCount == 0) continue;
 
                 groups.Add(new PollGroup(def.Name, def.IntervalMs, planner, vars.Count));
@@ -264,6 +265,17 @@ namespace VisionMaster.Communications
         /// </summary>
         /// <returns>true = 本拍执行的组全部成功（含"本拍无到期组"）；false = 通信级故障，交给 Worker 断线重连</returns>
         public bool Run(ICommunicationConnection connection)
+            => Run(connection, null) != PollCycleOutcome.LinkFault;
+
+        /// <summary>
+        /// 执行本拍到期的所有扫描组；<paramref name="yieldRequested"/> 会透传给每组规划器，
+        /// 在段与段之间询问"要不要给插队命令让路"。
+        /// <para>让路时返回 <see cref="PollCycleOutcome.Yielded"/> 且**不 MarkSuccess**：
+        /// 本组保持到期，下一拍重新跑整组（已读过的段会重读一次，这是让路的代价）。</para>
+        /// </summary>
+        public PollCycleOutcome Run(
+            ICommunicationConnection connection,
+            Func<bool>? yieldRequested)
         {
             for (int i = 0; i < _groups.Count; i++)
             {
@@ -271,20 +283,26 @@ namespace VisionMaster.Communications
                 if (!group.IsDue()) continue;
 
                 group.BeginRun();
-                bool ok = group.Planner.Poll(connection); // 契约不变：false = 本轮所有读都失败 = 通信级故障
+                var outcome = group.Planner.Poll(connection, yieldRequested);
 
-                if (!ok)
+                if (outcome == PollCycleOutcome.LinkFault)
                 {
                     // 链路已死：本拍剩余组不再空跑（省掉无谓等待与日志噪音）。
                     // 不 MarkSuccess → 本组保持"到期"，重连成功后立即补读
-                    return false;
+                    return outcome;
+                }
+
+                if (outcome == PollCycleOutcome.Yielded)
+                {
+                    // 没跑完就不刷新到期基准：下一拍从头再跑本组
+                    return outcome;
                 }
 
                 group.MarkSuccess();
             }
 
-            // 注意：Worker 只在 ShouldRun() == true 时才调用本方法，故返回 true 不会"假报链路活跃"
-            return true;
+            // 注意：Worker 只在 ShouldRun() == true 时才调用本方法，故返回 Completed 不会"假报链路活跃"
+            return PollCycleOutcome.Completed;
         }
 
         /// <summary>建连成功后调用：让所有组立刻到期（立即允许首轮轮询）</summary>

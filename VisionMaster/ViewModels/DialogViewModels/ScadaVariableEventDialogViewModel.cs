@@ -50,7 +50,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
     ///
     /// 为什么阈值用<b>字符串</b>属性接输入框
     /// ---------
-    /// 与 <see cref="ScadaSystemParametersViewModel"/> 同一个理由：直接把 <c>double?</c> 绑到
+    /// 与 <see cref="ScadaSystemSettingsViewModel"/> 同一个理由：直接把 <c>double?</c> 绑到
     /// <c>TextBox.Text</c>，用户敲进"8O"（字母 O）时绑定会静默失效、属性保持旧值，
     /// 界面上看不出任何异常。这里收字符串、在失焦时统一解析，解析不了就<b>回灌原值并给一句中文原因</b>，
     /// 是"宁可不改，也不能让他以为改成了"。

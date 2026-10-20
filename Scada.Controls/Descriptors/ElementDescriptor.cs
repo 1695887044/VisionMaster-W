@@ -48,17 +48,9 @@ namespace VisionMaster.Scada.Controls
         /// <summary>本图元支持的全部属性（几何 + 特有），顺序即属性面板里的显示顺序</summary>
         public IReadOnlyList<ElementPropertyDescriptor> Properties { get; init; } = GeometryProperties.Standard;
 
-        /// <summary>
-        /// <b>不允许绑变量的属性组</b>（产品口径，逐条理由见 <see cref="GeometryProperties"/> 的类注释）。
-        ///
-        /// 为什么用"组名清单 + 注册期校验"，而不是只在每条属性上写 <c>IsBindable = false</c>：
-        /// 这两组都是<b>设计期语言</b>——「位置与尺寸」是版面，「外观」是皮肤，都该由组态时一次定好，
-        /// 不该被运行数据驱动。但新增一类图元时，顺手把"填充色"写成 <c>IsBindable = true</c>
-        /// 是极容易犯的错，而它<b>不报任何错</b>：只是属性面板上多出一个不该有的 ƒx，
-        /// 要等有人真拿它绑了变量、画面开始自己变色，才会被发现。
-        /// 于是把口径固化成一条注册期校验——写错就注册失败，图元直接进不了工具箱。
-        /// </summary>
-        public static IReadOnlyList<string> NonBindableGroups { get; } = new[] { "位置与尺寸", "外观" };
+        // 「哪些组不许绑变量」原先是一份写在这里的静态清单（NonBindableGroups），按组名字符串精确匹配。
+        // 已迁到 ScadaPropertyGroups.NonBindable：组名与"能不能绑"同处一份目录，
+        // 改名不会再出现"清单还写着旧组名、校验静默失效"（理由见 ScadaPropertyGroups 的类注释）。
 
         /// <summary>
         /// 本类图元支持的<b>事件钩子</b>清单（"这个图元能配哪些事件"的唯一出处）。
@@ -169,9 +161,19 @@ namespace VisionMaster.Scada.Controls
                 if (property.IsGeometry && property.TargetProperty != null)
                     return $"{TypeKey}.{property.Key} 是几何键，由基类统一落到 FrameworkElement，不应声明 TargetProperty";
 
-                if (property.IsBindable && IsInNonBindableGroup(property.Group))
+                // 分组必须在目录里：写错一个组名不该等到用户看见面板上多出一段莫名其妙的分组才暴露。
+                // 这条同时是下面那条"不可绑"的前提——组名对不上，校验就永远不会命中。
+                if (!ScadaPropertyGroups.IsKnown(property.Group))
+                    return $"{TypeKey}.{property.Key} 的分组「{property.Group}」不在 {nameof(ScadaPropertyGroups)} 目录里" +
+                           "（新增分组要先登记到目录，否则面板排序与「不可绑定」口径都会漏）";
+
+                // 产品口径：位置与尺寸是版面、外观是皮肤，都该组态时一次定好，不该被运行数据驱动。
+                // 新增一类图元时顺手把"填充色"写成 IsBindable = true 是极容易犯的错，而且它不报任何错
+                // （只是面板上多出一个不该有的 ƒx，要等有人真拿它绑了变量、画面开始自己变色才发现）——
+                // 所以把口径固化成注册期校验：写错就注册失败，图元直接进不了工具箱。
+                if (property.IsBindable && !ScadaPropertyGroups.AllowsVariableBinding(property.Group))
                     return $"{TypeKey}.{property.Key} 位于「{property.Group}」组，该组属性一律不可绑变量" +
-                           $"（见 {nameof(NonBindableGroups)}）";
+                           $"（见 {nameof(ScadaPropertyGroups)}）";
 
                 if (property.TargetProperty is { } dp)
                 {
@@ -251,17 +253,6 @@ namespace VisionMaster.Scada.Controls
             {
                 return false;
             }
-        }
-
-        private static bool IsInNonBindableGroup(string group)
-        {
-            for (int i = 0; i < NonBindableGroups.Count; i++)
-            {
-                if (string.Equals(NonBindableGroups[i], group, StringComparison.Ordinal))
-                    return true;
-            }
-
-            return false;
         }
 
         private static bool Contains(IReadOnlyList<string> choices, string value)

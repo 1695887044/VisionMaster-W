@@ -111,7 +111,7 @@ namespace FlowCanvasChecks
             ["VariableAssignmentPlugin"] = ManualTier.M,
             ["YoloPlugin"] = ManualTier.M,
 
-            // —— S 档（薄工具 / 运动步骤）——
+            // —— S 档（薄工具 / 运动步骤 / 通讯步骤）——
             ["ComparisonPlugin"] = ManualTier.S,
             ["DataConversionPlugin"] = ManualTier.S,
             ["DelayPlugin"] = ManualTier.S,
@@ -121,6 +121,8 @@ namespace FlowCanvasChecks
             ["ImageAssignPlugin"] = ManualTier.S,
             ["NetworkCameraDevice"] = ManualTier.S,
             ["RunFlowPlugin"] = ManualTier.S,
+            ["CommReadNowPlugin"] = ManualTier.S,
+            ["CommWriteNowPlugin"] = ManualTier.S,
             ["MotionEnablePlugin"] = ManualTier.S,
             ["MotionHomePlugin"] = ManualTier.S,
             ["MotionIoPlugin"] = ManualTier.S,

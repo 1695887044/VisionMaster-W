@@ -91,7 +91,13 @@ namespace VisionMaster.Models
         )
             : base(icon, pluginName, pluginTypeName, stepName)
         {
-            _stepCountWatcher = new ContainerStepCountWatcher(() => RaisePropertyChanged(nameof(TotalStepCount)));
+            _stepCountWatcher = new ContainerStepCountWatcher(
+                () => RaisePropertyChanged(nameof(TotalStepCount)),
+                e =>
+                {
+                    if (e.PropertyName is nameof(StepCollection.Expression) or nameof(StepCollection.BranchType))
+                        RaiseContainerSummary();
+                });
 
             if (IsIfLike)
             {

@@ -37,10 +37,24 @@
 ExportNow()
   ├─ if (IsExporting) return;            // 重入保护：几万行确实在跑，第二次点击直接吞掉
   ├─ IsExporting = true; LastResult = "正在导出…";
-  ├─ Task.Run(() → RunExport(null))      // 后台线程，界面不卡
-  ├─ LastResult = "✔/✘ " + Message (+ "\n→ " + OutputPath)
-  └─ finally IsExporting = false;
+  ├─ try {                               // ← 外层 try：罩住 Task.Run 本身
+  │    Task.Run(() →
+  │      try   → RunExport(null)
+  │              LastResult = "✔/✘ " + Message (+ "\n→ " + OutputPath)
+  │      catch → LastResult = "✘ 导出异常：" + 类型名 + "：" + 说明
+  │      finally IsExporting = false;
+  │    )
+  │  }
+  └─ catch → LastResult = "✘ 导出异常：…"；IsExporting = false   // 调度失败也要落终态
 ```
+
+**为什么必须两层**（2026-10-20 补的外层，别删）：内层 `catch` 只在 lambda **已经开始执行**时才有效。
+线程池拒绝调度、或 lambda 还没进 try 就被拆掉时，异常会直接抛给按钮事件（UI 线程），
+`LastResult` 永远停在「正在导出…」、`IsExporting` 一直是 `true` → 按钮从此永久置灰，
+且下次点击被 `if (IsExporting) return` 静默吞掉，界面上看不出任何错误。
+守门：`FlowEngineFixChecks` 的 `[EE4]` 五条静态断言（Task.Run 在外层 try 内 / 外层 catch 写 LastResult /
+外层 catch 复位 IsExporting / 文案带类型名 / 内层 finally 仍在，`IsExporting = false` 恰好两处）。
+变异反证：删掉外层 catch → ②③④ 准确变红。
 
 两条纪律：
 

@@ -120,6 +120,22 @@ namespace VisionMaster.Scada.Controls.Charts
         /// <summary>模板部件名：承载 <see cref="ChartView"/> 的宿主</summary>
         public const string PartChartHost = "ChartHost";
 
+        private static readonly DependencyPropertyKey HasSamplesPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(HasSamples), typeof(bool), typeof(ChartTrendElement),
+            new PropertyMetadata(false));
+
+        /// <summary>
+        /// 缓冲里此刻有没有样本（只读）。
+        ///
+        /// 与 <see cref="SampleCount"/> 同源，但它是依赖属性：模板据此在“等待数据…”空态
+        /// 与曲线之间切换（本环境 ControlTemplate.Triggers 里的 DataTrigger 不触发，
+        /// 所以空态用一个独立的 Style.DataTrigger 绑这个属性，见 ChartTrendElement.xaml）。
+        /// </summary>
+        public static readonly DependencyProperty HasSamplesProperty = HasSamplesPropertyKey.DependencyProperty;
+
+        /// <summary>缓冲里此刻有没有样本（只读；见 <see cref="HasSamplesProperty"/>）</summary>
+        public bool HasSamples => (bool)GetValue(HasSamplesProperty);
+
         /// <summary>
         /// 缓冲里当前的样本点数（0 = 还没收到过值）。
         ///
@@ -145,27 +161,27 @@ namespace VisionMaster.Scada.Controls.Charts
         /// 而"两条曲线要对比"的现场诉求，先把两个曲线图元并排摆着也就够用了。
         /// </summary>
         [ScadaProperty(Key = "Value", DisplayName = "数值", Kind = ElementPropertyKind.Number,
-                       Group = "数据", DefaultValue = "0", IsBindable = true, AffectsRender = false,
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "0", IsBindable = true, AffectsRender = false,
                        Description = "运行态把工程变量绑到这里；曲线每个点的横坐标是「值到达的时刻」，"
                                    + "纵坐标是值本身。值没变时数据泵不会重复写入，所以不会画出虚假的等间隔点")]
         public partial double Value { get; set; }
 
         /// <summary>时间窗（秒）：横轴默认显示最近这么长的一段。</summary>
         [ScadaProperty(Key = "TimeWindow", DisplayName = "时间窗", Kind = ElementPropertyKind.Number,
-                       Group = "数据", DefaultValue = "60", Min = 2, Max = 3600, AffectsRender = false,
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "60", Min = 2, Max = 3600, AffectsRender = false,
                        Description = "横轴默认显示最近多少秒（2~3600）。拖动或缩放查看历史后，"
                                    + "1.5 秒无操作会自动恢复跟随最新数据")]
         public partial double TimeWindow { get; set; }
 
         /// <summary>纵轴量程下限（仅在「固定量程」打开时生效）</summary>
         [ScadaProperty(Key = "Minimum", DisplayName = "量程下限", Kind = ElementPropertyKind.Number,
-                       Group = "数据", DefaultValue = "0", AffectsRender = false,
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "0", AffectsRender = false,
                        Description = "「固定量程」打开时纵轴的下边界；关闭时纵轴随数据自动缩放，这一行不生效")]
         public partial double Minimum { get; set; }
 
         /// <summary>纵轴量程上限（仅在「固定量程」打开时生效）</summary>
         [ScadaProperty(Key = "Maximum", DisplayName = "量程上限", Kind = ElementPropertyKind.Number,
-                       Group = "数据", DefaultValue = "100", AffectsRender = false)]
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "100", AffectsRender = false)]
         public partial double Maximum { get; set; }
 
         /// <summary>
@@ -175,25 +191,25 @@ namespace VisionMaster.Scada.Controls.Charts
         /// （温度 0~150℃、压力 0~1.6MPa），拿任何"特定取值"当哨兵都会让这类量程配不出固定效果。
         /// </summary>
         [ScadaProperty(Key = "FixedRange", DisplayName = "固定量程", Kind = ElementPropertyKind.Bool,
-                       Group = "数据", DefaultValue = "False", AffectsRender = false,
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "False", AffectsRender = false,
                        Description = "打开后纵轴固定在下限~上限之间（超出部分被裁掉，数据仍在缓冲里）；"
                                    + "关闭则纵轴随数据自动缩放")]
         public partial bool FixedRange { get; set; }
 
         /// <summary>曲线颜色</summary>
         [ScadaProperty(Key = "CurveBrush", DisplayName = "曲线颜色", Kind = ElementPropertyKind.Color,
-                       Group = "外观", DefaultValue = "#FF2D7DD2", AffectsRender = false)]
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FF2D7DD2", AffectsRender = false)]
         public partial Brush? CurveBrush { get; set; }
 
         /// <summary>网格与坐标轴的颜色</summary>
         [ScadaProperty(Key = "AxisBrush", DisplayName = "网格色", Kind = ElementPropertyKind.Color,
-                       Group = "外观", DefaultValue = "#FF3A3A3A", AffectsRender = false,
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FF3A3A3A", AffectsRender = false,
                        Description = "坐标轴与网格线的颜色；深色底上要比底色亮一档，否则看不出刻度")]
         public partial Brush? AxisBrush { get; set; }
 
         /// <summary>标题（显示在图表左上角；留空则不放标题）</summary>
         [ScadaProperty(Key = "Title", DisplayName = "标题", Kind = ElementPropertyKind.Text,
-                       Group = "文字", DefaultValue = "", IsBindable = true, AffectsRender = false,
+                       Group = ScadaPropertyGroups.Text, DefaultValue = "", IsBindable = true, AffectsRender = false,
                        Description = "图表左上角的一行字（通常写变量名与单位）；留空则不放标题")]
         public partial string? Title { get; set; }
 
@@ -296,6 +312,10 @@ namespace VisionMaster.Scada.Controls.Charts
                 _xs[BufferCapacity - 1] = seconds;
                 _ys[BufferCapacity - 1] = value;
             }
+
+            // 空态显隐：第一笔样本进来就把“等待数据…”收掉。写在这里而不是散在各处，
+            // 保证“缓冲有数”与“模板知道有数”永远同一步发生。
+            SetValue(HasSamplesPropertyKey, true);
 
             // 通知控件"数据长到第几个了"（它据此同步 Scatter 的 MaxRenderIndex，并触发一次重绘）。
             // 数组是原址引用，所以这一步就是全部的通数据动作——没有拷贝、没有推送。
@@ -403,6 +423,7 @@ namespace VisionMaster.Scada.Controls.Charts
             _count = 0;
             _origin = default;
             _lastViewportSeconds = double.NegativeInfinity;
+            SetValue(HasSamplesPropertyKey, false);
 
             // MaxIndex = -1 告诉控件"一个点都没有"：ScottPlot 5 不允许渲染未写入区间，
             // 给 -1 它就不画这条线，正是我们要的空白态。
@@ -429,6 +450,14 @@ namespace VisionMaster.Scada.Controls.Charts
 
             if (AxisBrush is SolidColorBrush axis)
                 _chart.SetAxisColors(axis.Color, axis.Color, axis.Color);
+
+            // 深色运行画面：只覆盖本实例的画布/数据区/网格/刻度，不改全局 ChartTheme
+            // （独立图表窗口与探针仍跟随 Fluent 主题）。取值与 ScadaTokens.xaml 对齐。
+            _chart.SetSurfaceColors(
+                Color.FromRgb(0x15, 0x1C, 0x23),
+                Color.FromRgb(0x15, 0x1C, 0x23),
+                Color.FromRgb(0x2A, 0x37, 0x45),
+                Color.FromRgb(0xA9, 0xB7, 0xC6));
 
             _chart.Title = string.IsNullOrWhiteSpace(Title) ? null : Title;
             _chart.RefreshTheme();

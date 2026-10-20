@@ -83,24 +83,75 @@ namespace Core.Interfaces
     /// </summary>
     public static class StepConfigOptionSource
     {
-        private static Func<StepConfigOptionKind, IReadOnlyList<StepConfigOption>>? _provider;
+        // 多个来源：运动模块与通讯模块各注册一份，互不覆盖。
+        // 用"整数组替换"而不是可变 List：读侧（UI 打开下拉）无锁拿快照，注册只发生在启动期。
+        private static readonly object _gate = new();
+        private static volatile Func<StepConfigOptionKind, IReadOnlyList<StepConfigOption>>[] _providers
+            = Array.Empty<Func<StepConfigOptionKind, IReadOnlyList<StepConfigOption>>>();
 
-        /// <summary>由宿主在启动时注册一次</summary>
+        // 布尔二选一：契约层自带的封闭集合，不依赖宿主注册。
+        // 值必须是 "True"/"False"（与 bool.ToString() 一致），显示文本给人看。
+        private static readonly StepConfigOption[] BooleanChoices =
+        {
+            new("True", "是（True）"),
+            new("False", "否（False）"),
+        };
+
+        /// <summary>
+        /// 注册（**替换全部**）候选来源。保留这个语义给测试夹具用：
+        /// 夹具里 <c>Register(kind =&gt; …)</c> 后不应再看到宿主其它来源的候选。
+        /// 生产模块请用 <see cref="RegisterAdditional"/>，否则后注册的会顶掉先注册的
+        /// （运动卡/轴名与通讯变量名分属两个模块，谁也不该覆盖谁）。
+        /// </summary>
         public static void Register(Func<StepConfigOptionKind, IReadOnlyList<StepConfigOption>> provider)
-            => _provider = provider;
+        {
+            lock (_gate)
+                _providers = new[] { provider };
+        }
+
+        /// <summary>追加一个候选来源（生产模块用）。同一类别由多个来源提供时按注册顺序合并、按值去重。</summary>
+        public static void RegisterAdditional(Func<StepConfigOptionKind, IReadOnlyList<StepConfigOption>> provider)
+        {
+            lock (_gate)
+                _providers = _providers.Append(provider).ToArray();
+        }
 
         /// <summary>取某类别的候选（含显示文本）。未注册/取不到时返回空列表，调用方应容忍空</summary>
         public static IReadOnlyList<StepConfigOption> GetOptionItems(StepConfigOptionKind kind)
         {
-            try
-            {
-                return _provider?.Invoke(kind) ?? Array.Empty<StepConfigOption>();
-            }
-            catch
-            {
-                // 候选取不到不该让绑定界面/端口声明崩：退化成可手填
+            // 布尔二选一是封闭集合，不需要任何宿主来源；优先返回，避免被测试夹具的
+            // Register(kind => ...) 覆盖成空列表（否则 bool 端口又退回文本框 + 链接）。
+            if (kind == StepConfigOptionKind.BooleanChoice)
+                return BooleanChoices;
+
+            var providers = _providers;
+            if (providers.Length == 0)
                 return Array.Empty<StepConfigOption>();
+
+            var result = new List<StepConfigOption>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var provider in providers)
+            {
+                try
+                {
+                    var options = provider(kind);
+                    if (options == null) continue;
+
+                    foreach (var option in options)
+                    {
+                        if (option == null) continue;
+                        // 去重按 Value（写进流程的稳定键），先注册者优先
+                        if (seen.Add(option.Value)) result.Add(option);
+                    }
+                }
+                catch
+                {
+                    // 单个来源失败不该让绑定界面/端口声明崩：跳过它，其它来源照常
+                }
             }
+
+            return result;
         }
 
         /// <summary>

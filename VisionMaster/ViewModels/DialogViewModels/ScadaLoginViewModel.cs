@@ -68,6 +68,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             LoginCommand = new DelegateCommand(OnLogin);
             LogoutCommand = new DelegateCommand(OnLogout);
             ChangePasswordCommand = new DelegateCommand(OnChangePassword);
+            OpenChangePasswordCommand = new DelegateCommand(OnOpenChangePassword);
             OpenUserManagerCommand = new DelegateCommand(OnOpenUserManager);
             SubmitCommand = new DelegateCommand(OnSubmit);
             CloseCommand = new DelegateCommand(() => RequestClose.Invoke(ButtonResult.Cancel));
@@ -125,6 +126,29 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public string LoginStateText => _accessPolicy.LoginStateText;
 
         public bool IsLoggedIn => _accessPolicy.IsLoggedIn;
+
+        /// <summary>未登录态：视图据此显示"操作员权限"提示条，而不是账号卡。</summary>
+        public bool IsLoggedOut => !_accessPolicy.IsLoggedIn;
+
+        /// <summary>
+        /// 当前角色能做什么。文案与 <see cref="ScadaRole"/> 的注释逐字对齐：
+        /// 操作员=看画面/按普通按钮，工程师=改参数/维护，管理员=改配置/账号。
+        /// 这是说明文字，不是权限判定；判定仍走 ScadaAccessPolicy。
+        /// </summary>
+        public string RolePermissionText => _accessPolicy.CurrentRole switch
+        {
+            ScadaRole.Administrator => "可运行流程、修改参数、管理账号",
+            ScadaRole.Engineer => "可运行流程、修改参数",
+            _ => "可看画面、按未加权限的普通按钮",
+        };
+
+        /// <summary>
+        /// 空闲超时提示。取的是 ScadaAccessPolicy.IdleTimeout（宿主注入的配置读取口），
+        /// 不在视图里写死分钟数——系统参数改完这里会跟着变。
+        /// </summary>
+        public string IdleTimeoutText => _accessPolicy.IdleTimeout.TotalMinutes <= 0
+            ? "空闲自动退出已关闭"
+            : $"空闲 {_accessPolicy.IdleTimeout.TotalMinutes:0.#} 分钟自动退出登录";
 
         /// <summary>
         /// 「用户管理」入口是否可见。用 <c>Satisfies</c>（"至少管理员"）而不是 <c>==</c>：
@@ -196,6 +220,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public DelegateCommand LogoutCommand { get; }
 
         public DelegateCommand ChangePasswordCommand { get; }
+
+        /// <summary>
+        /// 跳到「修改密码」页并预填当前账号。出厂密码提示条的「立即修改」用它：
+        /// 用户看到提示时多半还没登录，直接把他送到改密页，省一次"先登录再找页签"。
+        /// </summary>
+        public DelegateCommand OpenChangePasswordCommand { get; }
 
         public DelegateCommand OpenUserManagerCommand { get; }
 
@@ -271,6 +301,19 @@ namespace VisionMaster.ViewModels.DialogViewModels
             UserName = name;
         }
 
+        /// <summary>
+        /// 「立即修改」：切到改密页并预填账号。只切页、不预填密码——旧密码仍要用户自己输。
+        /// </summary>
+        private void OnOpenChangePassword()
+        {
+            ChangeUserName = string.IsNullOrWhiteSpace(UserName)
+                ? ScadaUserStore.DefaultAdminName
+                : UserName.Trim();
+            ChangeMessage = null;
+            ChangeSucceeded = false;
+            SelectedTabIndex = 1;
+        }
+
         /// <summary>打开「用户管理」弹窗。注册名与 <c>App.xaml.cs</c> 里的注册串一致</summary>
         private void OnOpenUserManager() => _dialogService.ShowDialog("ScadaUserManagerView");
 
@@ -288,7 +331,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>
         /// 打开时现读会话与账号文件，<b>不依赖"容器每次都新建一个 VM"</b>
-        /// （与 <see cref="ScadaRunWindowSettingsViewModel"/> 同一条口径：
+        /// （与 <see cref="ScadaSystemSettingsViewModel"/> 同一条口径：
         /// 万一哪天注册方式变成复用实例，字段里留着的就是上一次的输入）。
         /// </summary>
         public void OnDialogOpened(IDialogParameters parameters)
@@ -332,6 +375,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             RaisePropertyChanged(nameof(LoginStateText));
             RaisePropertyChanged(nameof(IsLoggedIn));
+            RaisePropertyChanged(nameof(IsLoggedOut));
+            RaisePropertyChanged(nameof(RolePermissionText));
+            RaisePropertyChanged(nameof(IdleTimeoutText));
             RaisePropertyChanged(nameof(CanManageUsers));
         }
     }

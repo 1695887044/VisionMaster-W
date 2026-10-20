@@ -524,6 +524,8 @@
                                 <!--  标题行：ToggleButton 驱动 IsExpanded（DataContext 由 Expander 继承 = 分组 VM）  -->
                                 <ToggleButton
                                     Grid.Row="0"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch"
                                     Cursor="Hand"
                                     IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
                                     <ToggleButton.Template>

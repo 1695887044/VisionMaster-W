@@ -1,0 +1,2513 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SCADA 图元控件 · 设计基线 v1</title>
+<style>
+  /* =====================================================================
+     SCADA 图元控件 · 设计基线 v1
+     设计媒介，不是交付物（AGENTS.md R126）。
+     视觉语言沿用《插件自定义视图 Web 化改造 SOP》与 image-acquisition v2：
+     8px 圆角、12px 标签、11.5px 帮助文字、36px 控件、五态齐全、全令牌化。
+     本页所有控件均为 HTML/CSS/SVG 表达，仅使用 WPF 可还原的能力：
+     Border / Path / Ellipse / TextBlock / Grid / Canvas / DropShadowEffect。
+     ===================================================================== */
+  :root{
+    --bg:#E9EEF5;
+    --surface:#FFFFFF;
+    --surface-2:#F8FAFC;
+    --surface-3:#F1F5F9;
+    --border:#E2E8F0;
+    --border-soft:#EEF2F7;
+    --border-strong:#CBD5E1;
+    --text:#0F172A;
+    --text-2:#475569;
+    --text-3:#94A3B8;
+    --text-4:#64748B;
+    --primary:#0EA5E9;
+    --primary-strong:#0284C7;
+    --primary-text:#0369A1;
+    --primary-soft:#F0F9FF;
+    --primary-light:#E0F2FE;
+    --primary-border:#BAE6FD;
+    --success:#22C55E;
+    --success-text:#15803D;
+    --success-soft:#F0FDF4;
+    --success-border:#BBF7D0;
+    --danger:#EF4444;
+    --danger-text:#B91C1C;
+    --danger-soft:#FEF2F2;
+    --danger-border:#FECACA;
+    --warning:#F59E0B;
+    --warning-text:#B45309;
+    --warning-soft:#FFF4E5;
+    --warning-border:#FDE68A;
+    --font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+    --shadow-1:0 1px 2px rgba(15,23,42,.05);
+    --shadow-2:0 10px 28px rgba(15,23,42,.10),0 2px 6px rgba(15,23,42,.05);
+    --shadow-3:0 0 0 3px rgba(14,165,233,.14),0 8px 22px rgba(14,165,233,.10);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1100px 620px at 50% -12%, #F8FAFC 0%, rgba(248,250,252,0) 62%),
+      radial-gradient(circle at 1px 1px, rgba(148,163,184,.14) 1px, transparent 0) 0 0/24px 24px,
+      var(--bg);
+    color:var(--text);
+    font-family:var(--font);
+    font-size:13px;
+    line-height:1.5;
+    padding:28px 28px 96px;
+    -webkit-font-smoothing:antialiased;
+  }
+  button,input,select{font-family:inherit;}
+  svg{display:block;}
+  ::selection{background:#C7D2FE;color:#0F172A;}
+  a{color:inherit;}
+
+  /* ---------- 页面头 ---------- */
+  .page-head{max-width:1560px;margin:0 auto 18px;}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:6px;
+    font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--primary-text);margin-bottom:8px;
+  }
+  .eyebrow::before{content:"";width:18px;height:2px;border-radius:1px;background:var(--primary);}
+  .page-head h1{
+    margin:0;font-size:24px;font-weight:600;letter-spacing:-.02em;
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  }
+  .ver{
+    display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+    background:var(--primary-light);color:var(--primary-text);
+    font-size:11px;font-weight:700;letter-spacing:.02em;
+  }
+  .page-head .meta{margin:8px 0 0;color:var(--text-2);font-size:13px;max-width:1180px;line-height:1.65;}
+  .page-head .meta b{color:var(--text);font-weight:600;}
+  .page-head .meta code{
+    font-family:var(--mono);font-size:11.5px;padding:1px 5px;
+    border:1px solid var(--border);border-radius:4px;background:rgba(255,255,255,.72);
+    white-space:nowrap;
+  }
+  .meta-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;}
+  .meta-chip{
+    display:inline-flex;align-items:center;height:24px;padding:0 9px;
+    border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.72);
+    color:var(--text-2);font-size:11px;
+  }
+  .meta-chip strong{color:var(--text);font-weight:600;margin-right:3px;}
+
+  .page-nav{
+    max-width:1560px;margin:16px auto 0;padding:7px 8px;
+    display:flex;flex-wrap:wrap;gap:4px;align-items:center;
+    border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.78);
+    box-shadow:var(--shadow-1);
+    position:sticky;top:10px;z-index:20;backdrop-filter:blur(10px);
+  }
+  .page-nav a{
+    display:inline-flex;align-items:center;height:26px;padding:0 9px;border-radius:7px;
+    color:var(--text-2);font-size:11.5px;text-decoration:none;white-space:nowrap;
+    transition:background 150ms ease,color 150ms ease;
+  }
+  .page-nav a:hover{background:var(--surface-3);color:var(--text);}
+  .page-nav a.is-on{background:var(--primary-light);color:var(--primary-text);font-weight:600;}
+  .theme-toggle{
+    margin-left:auto;display:inline-flex;align-items:center;gap:2px;padding:2px;
+    border-radius:8px;background:var(--surface-3);
+  }
+  .theme-toggle button{
+    height:24px;padding:0 9px;border:0;border-radius:6px;background:transparent;
+    color:var(--text-2);font-size:11px;cursor:pointer;transition:background 150ms ease,color 150ms ease;
+  }
+  .theme-toggle button.is-on{background:#fff;color:var(--text);font-weight:600;box-shadow:var(--shadow-1);}
+
+  main{max-width:1560px;margin:26px auto 0;}
+  .section{margin:0 0 52px;scroll-margin-top:92px;}
+  .sec-head{display:flex;align-items:flex-end;gap:12px;margin:0 0 14px;flex-wrap:wrap;}
+  .sec-index{
+    width:28px;height:28px;flex:none;display:inline-flex;align-items:center;justify-content:center;
+    border-radius:8px;background:var(--primary-light);color:var(--primary-text);
+    font-family:var(--mono);font-size:11px;font-weight:700;
+  }
+  .sec-head h2{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em;}
+  .sec-head p{margin:0;color:var(--text-2);font-size:12.5px;max-width:980px;}
+  .note{color:var(--text-2);font-size:12.5px;margin:0 0 14px;line-height:1.65;}
+  .note b{color:var(--text);font-weight:600;}
+  .note code{font-family:var(--mono);font-size:11.5px;padding:0 4px;border:1px solid var(--border);border-radius:4px;background:#fff;}
+
+  /* ---------- 卡片 / 表格 ---------- */
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);}
+  .card-pad{padding:16px;}
+  .callout{
+    display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:10px;
+    background:var(--primary-soft);border:1px solid var(--primary-border);color:var(--text-2);
+    font-size:12.5px;line-height:1.65;
+  }
+  .callout svg{width:16px;height:16px;flex:none;margin-top:2px;color:var(--primary-text);}
+  .callout b{color:var(--text);font-weight:600;}
+  .callout.warning{background:var(--warning-soft);border-color:var(--warning-border);}
+  .callout.warning svg{color:var(--warning-text);}
+  .callout.danger{background:var(--danger-soft);border-color:var(--danger-border);}
+  .callout.danger svg{color:var(--danger-text);}
+
+  .table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:#fff;box-shadow:var(--shadow-1);}
+  table.data{width:100%;border-collapse:collapse;font-size:12px;min-width:760px;}
+  table.data th{
+    text-align:left;font-weight:600;color:var(--text-2);background:var(--surface-2);
+    padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap;
+  }
+  table.data td{padding:10px 12px;border-bottom:1px solid var(--border-soft);vertical-align:top;color:var(--text-2);line-height:1.55;}
+  table.data tr:last-child td{border-bottom:0;}
+  table.data td b{color:var(--text);font-weight:600;}
+  table.data td code{font-family:var(--mono);font-size:10.5px;padding:0 4px;border-radius:4px;background:var(--surface-3);color:var(--text);white-space:nowrap;}
+  table.data .num{font-family:var(--mono);font-size:11px;color:var(--text-3);white-space:nowrap;}
+
+  .sev{
+    display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:999px;
+    font-size:10.5px;font-weight:700;white-space:nowrap;
+  }
+  .sev.high{background:var(--danger-soft);color:var(--danger-text);border:1px solid var(--danger-border);}
+  .sev.mid{background:var(--warning-soft);color:var(--warning-text);border:1px solid var(--warning-border);}
+  .sev.low{background:var(--surface-3);color:var(--text-2);border:1px solid var(--border);}
+  .sev.contract{background:#EEF2FF;color:#4338CA;border:1px solid #C7D2FE;}
+
+  /* ---------- 审查 ---------- */
+  .audit-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,.45fr);gap:14px;align-items:start;}
+  .audit-side{display:flex;flex-direction:column;gap:12px;}
+  .side-card{padding:14px;border-radius:12px;background:#fff;border:1px solid var(--border);box-shadow:var(--shadow-1);}
+  .side-card h3{margin:0 0 7px;font-size:12.5px;font-weight:600;}
+  .side-card p{margin:0;color:var(--text-2);font-size:11.5px;line-height:1.65;}
+  .side-card ul{margin:6px 0 0;padding-left:16px;color:var(--text-2);font-size:11.5px;line-height:1.7;}
+  .side-card li b{color:var(--text);}
+  .issue-mini{display:flex;flex-direction:column;gap:8px;}
+  .issue-mini .hmi{height:92px;padding:10px;display:flex;align-items:center;justify-content:center;gap:12px;}
+  .mini-white{width:64px;height:30px;background:#fff;border:1px solid #7A7A7A;color:#202020;font-size:9px;display:flex;align-items:center;justify-content:center;}
+  .mini-white-field{width:86px;height:24px;background:#fff;border:1px solid #7A7A7A;color:#202020;font-size:8px;display:flex;align-items:center;justify-content:space-between;padding:0 5px;}
+  .mini-dark-text{font-size:9px;color:#202020;}
+  .mini-red-needle{width:74px;height:74px;}
+
+  /* ---------- 原则 ---------- */
+  .principle-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+  .principle{
+    padding:14px;border-radius:12px;background:#fff;border:1px solid var(--border);
+    box-shadow:var(--shadow-1);display:flex;gap:10px;align-items:flex-start;
+  }
+  .principle-icon{
+    width:30px;height:30px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    background:var(--primary-light);color:var(--primary-text);
+  }
+  .principle-icon svg{width:15px;height:15px;}
+  .principle h3{margin:0 0 4px;font-size:12.5px;font-weight:600;}
+  .principle p{margin:0;color:var(--text-2);font-size:11.5px;line-height:1.6;}
+
+  /* ---------- 令牌 ---------- */
+  .token-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;}
+  .token{
+    border:1px solid var(--border);border-radius:10px;background:#fff;overflow:hidden;
+    box-shadow:var(--shadow-1);
+  }
+  .token-swatch{height:44px;border-bottom:1px solid var(--border-soft);}
+  .token-body{padding:8px 10px;}
+  .token-body b{display:block;font-size:11.5px;font-weight:600;color:var(--text);}
+  .token-body span{display:block;font-family:var(--mono);font-size:10px;color:var(--text-3);margin-top:2px;}
+  .token-body em{display:block;font-style:normal;font-size:10.5px;color:var(--text-2);margin-top:3px;}
+  .type-scale{display:flex;flex-direction:column;gap:0;border:1px solid var(--border);border-radius:12px;background:#fff;overflow:hidden;box-shadow:var(--shadow-1);}
+  .type-row{display:grid;grid-template-columns:86px 1fr 120px;gap:12px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border-soft);}
+  .type-row:last-child{border-bottom:0;}
+  .type-row .ts-name{font-family:var(--mono);font-size:10.5px;color:var(--text-3);}
+  .type-row .ts-sample{color:var(--text);}
+  .type-row .ts-use{font-size:11px;color:var(--text-2);text-align:right;}
+  .spec-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;}
+  .spec-card{padding:12px;border:1px solid var(--border);border-radius:10px;background:#fff;box-shadow:var(--shadow-1);}
+  .spec-card b{display:block;font-size:11px;color:var(--text-3);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:5px;}
+  .spec-card strong{display:block;font-size:14px;color:var(--text);font-weight:600;}
+  .spec-card span{display:block;font-size:11px;color:var(--text-2);margin-top:3px;line-height:1.5;}
+
+  /* ---------- HMI 画布与令牌 ---------- */
+  .hmi{
+    --c-bg:#0E1318;--c-surface:#151C23;--c-surface-2:#1B242D;--c-surface-3:#222D38;
+    --c-border:#2A3745;--c-border-2:#3A4A5C;--c-outline:#526274;
+    --c-text:#E6EEF7;--c-text-2:#A9B7C6;--c-text-3:#7C8A99;
+    --c-accent:#38BDF8;--c-accent-2:#0EA5E9;--c-accent-strong:#0284C7;
+    --c-success:#22C55E;--c-success-fill:#15803D;--c-success-soft:rgba(34,197,94,.14);
+    --c-warning:#F59E0B;--c-warning-fill:#B45309;--c-warning-soft:rgba(245,158,11,.14);
+    --c-danger:#EF4444;--c-danger-fill:#B91C1C;--c-danger-soft:rgba(239,68,68,.14);
+    --c-info:#3B82F6;--c-off:#64748B;--c-track:#26313D;
+    position:relative;border-radius:10px;overflow:hidden;
+    background:var(--c-bg);color:var(--c-text);font-family:var(--font);
+  }
+  .hmi[data-theme="dark"]::before{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:radial-gradient(circle at 1px 1px, rgba(148,163,184,.11) 1px, transparent 0);
+    background-size:20px 20px;opacity:.75;
+  }
+  .hmi[data-theme="light"]{
+    --c-bg:#F4F7FB;--c-surface:#FFFFFF;--c-surface-2:#F8FAFC;--c-surface-3:#EEF3F8;
+    --c-border:#D8E0EA;--c-border-2:#B8C4D4;--c-outline:#94A3B8;
+    --c-text:#0F172A;--c-text-2:#475569;--c-text-3:#94A3B8;
+    --c-accent:#0284C7;--c-accent-2:#0EA5E9;--c-accent-strong:#0369A1;
+    --c-success:#16A34A;--c-success-fill:#15803D;--c-success-soft:rgba(22,163,74,.10);
+    --c-warning:#D97706;--c-warning-fill:#B45309;--c-warning-soft:rgba(217,119,6,.10);
+    --c-danger:#DC2626;--c-danger-fill:#B91C1C;--c-danger-soft:rgba(220,38,38,.08);
+    --c-info:#2563EB;--c-off:#94A3B8;--c-track:#E8EDF3;
+  }
+  .hmi[data-theme="light"]::before{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:radial-gradient(circle at 1px 1px, rgba(100,116,139,.10) 1px, transparent 0);
+    background-size:20px 20px;opacity:.6;
+  }
+  .hmi > *{position:relative;z-index:1;}
+  .hmi-label{font-size:11px;color:var(--c-text-3);letter-spacing:.02em;}
+
+  /* ---------- 控件：按钮 / 位按钮 / 数值域 ---------- */
+  .hmi-btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:7px;
+    height:36px;padding:0 16px;border-radius:6px;border:1px solid transparent;
+    font-size:12.5px;font-weight:600;letter-spacing:.01em;line-height:1;
+    cursor:pointer;user-select:none;white-space:nowrap;
+    transition:background 150ms ease,border-color 150ms ease,box-shadow 150ms ease,transform 120ms ease;
+  }
+  .hmi-btn svg{width:13px;height:13px;}
+  .hmi-btn.primary{background:var(--c-accent-2);border-color:var(--c-accent-2);color:#fff;}
+  .hmi-btn.primary:hover,.hmi-btn.primary.is-hover{background:var(--c-accent);border-color:var(--c-accent);}
+  .hmi-btn.primary.is-pressed{background:var(--c-accent-strong);border-color:var(--c-accent-strong);box-shadow:inset 0 1px 2px rgba(0,0,0,.22);}
+  .hmi-btn.secondary{background:var(--c-surface-2);border-color:var(--c-border-2);color:var(--c-text);}
+  .hmi-btn.secondary:hover,.hmi-btn.secondary.is-hover{background:var(--c-surface-3);border-color:var(--c-accent);}
+  .hmi-btn.secondary.is-pressed{background:var(--c-surface);box-shadow:inset 0 1px 2px rgba(0,0,0,.16);}
+  .hmi-btn.danger{background:var(--c-danger-fill);border-color:var(--c-danger-fill);color:#fff;}
+  .hmi-btn.danger:hover,.hmi-btn.danger.is-hover{background:var(--c-danger);border-color:var(--c-danger);}
+  .hmi-btn.danger.is-pressed{background:#991B1B;border-color:#991B1B;box-shadow:inset 0 1px 2px rgba(0,0,0,.24);}
+  .hmi-btn.is-focus{box-shadow:0 0 0 2px var(--c-bg),0 0 0 4px var(--c-accent);}
+  .hmi-btn.is-disabled{opacity:.42;cursor:not-allowed;filter:saturate(.55);}
+  .hmi-btn.sm{height:30px;padding:0 12px;font-size:11.5px;border-radius:5px;}
+  .hmi-btn.lg{height:44px;padding:0 20px;font-size:13.5px;border-radius:7px;}
+
+  .hmi-bit{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    height:36px;min-width:96px;padding:0 15px;border-radius:6px;border:1px solid var(--c-border);
+    background:var(--c-surface-2);color:var(--c-text-2);
+    font-size:12.5px;font-weight:600;line-height:1;cursor:pointer;user-select:none;
+    transition:background 150ms ease,border-color 150ms ease,box-shadow 150ms ease;
+  }
+  .hmi-bit .dot{width:7px;height:7px;border-radius:50%;background:var(--c-off);box-shadow:0 0 0 3px rgba(100,116,139,.14);}
+  .hmi-bit.on{background:var(--c-success-fill);border-color:var(--c-success-fill);color:#fff;}
+  .hmi-bit.on .dot{background:#86EFAC;box-shadow:0 0 0 3px rgba(134,239,172,.18);}
+  .hmi-bit.is-hover{filter:brightness(1.12);border-color:var(--c-accent);}
+  .hmi-bit.is-pressed{box-shadow:inset 0 1px 3px rgba(0,0,0,.28);filter:brightness(.92);}
+  .hmi-bit.is-focus{box-shadow:0 0 0 2px var(--c-bg),0 0 0 4px var(--c-accent);}
+  .hmi-bit.is-disabled{opacity:.42;cursor:not-allowed;}
+
+  .hmi-io{
+    width:196px;height:36px;display:flex;align-items:center;gap:8px;
+    padding:0 10px;border-radius:6px;border:1px solid var(--c-border);
+    background:var(--c-surface);color:var(--c-text);
+    font-size:12px;transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;
+  }
+  .hmi-io .lbl{font-size:11.5px;color:var(--c-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .hmi-io .val{margin-left:auto;font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums;color:var(--c-text);white-space:nowrap;}
+  .hmi-io .unit{font-family:var(--font);font-size:10.5px;color:var(--c-text-3);margin-left:2px;}
+  .hmi-io .pen{width:12px;height:12px;color:var(--c-text-3);flex:none;opacity:0;transition:opacity 150ms ease;}
+  .hmi-io.editable{cursor:text;border-color:var(--c-border-2);}
+  .hmi-io.editable:hover{border-color:var(--c-accent);background:var(--c-surface-2);}
+  .hmi-io.editable:hover .pen{opacity:1;}
+  .hmi-io.readonly{background:transparent;border-color:transparent;border-bottom-color:var(--c-border);border-radius:0;padding-left:0;padding-right:0;}
+  .hmi-io.readonly .val{color:var(--c-text);}
+  .hmi-io.editing{border-color:var(--c-accent);background:var(--c-surface-2);box-shadow:0 0 0 3px rgba(56,189,248,.16);}
+  .hmi-io.error{border-color:var(--c-danger);box-shadow:0 0 0 3px rgba(239,68,68,.14);}
+  .hmi-io.warn .val{color:var(--c-warning);}
+  .hmi-io.alarm .val{color:var(--c-danger);}
+  .hmi-io.is-disabled{opacity:.45;cursor:not-allowed;}
+
+  /* ---------- 控件：指示灯 / 多态灯 / 时钟 ---------- */
+  .hmi-lamp{display:flex;flex-direction:column;align-items:center;gap:6px;width:64px;}
+  .hmi-lamp .body{
+    width:36px;height:36px;border-radius:50%;background:var(--c-off);
+    border:2px solid var(--c-outline);position:relative;
+    transition:background 150ms ease,box-shadow 150ms ease,border-color 150ms ease;
+  }
+  .hmi-lamp .body.square{border-radius:7px;}
+  .hmi-lamp.on .body{background:var(--c-success);border-color:#86EFAC;box-shadow:0 0 18px rgba(34,197,94,.45);}
+  .hmi-lamp.warning .body{background:var(--c-warning);border-color:#FCD34D;box-shadow:0 0 18px rgba(245,158,11,.42);}
+  .hmi-lamp.alarm .body{background:var(--c-danger);border-color:#FCA5A5;box-shadow:0 0 20px rgba(239,68,68,.55);}
+  .hmi-lamp .cap{font-size:11.5px;color:var(--c-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70px;text-align:center;}
+  .hmi-lamp .sub{font-size:10px;color:var(--c-text-3);margin-top:-3px;}
+  .hmi-clock{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:150px;}
+  .hmi-clock .time{font-family:var(--mono);font-size:28px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.1;color:var(--c-text);}
+  .hmi-clock .date{font-family:var(--mono);font-size:10.5px;color:var(--c-text-3);letter-spacing:.02em;}
+  .hmi-clock .cap{font-size:11.5px;color:var(--c-text-2);margin-top:3px;}
+
+  /* ---------- 控件：表盘 / 棒图 ---------- */
+  .hmi-gauge{width:170px;display:flex;flex-direction:column;align-items:center;gap:2px;}
+  .hmi-gauge svg{width:170px;height:170px;}
+  .hmi-gauge .reading{font-family:var(--mono);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1;margin-top:-22px;color:var(--c-text);}
+  .hmi-gauge .reading small{font-family:var(--font);font-size:10.5px;font-weight:400;color:var(--c-text-3);margin-left:3px;}
+  .hmi-gauge .cap{font-size:11px;color:var(--c-text-3);margin-top:4px;}
+  .hmi-progress{width:230px;display:flex;flex-direction:column;gap:6px;}
+  .hmi-progress .top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;}
+  .hmi-progress .name{font-size:11.5px;color:var(--c-text-2);}
+  .hmi-progress .num{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums;color:var(--c-text);}
+  .hmi-progress .track{height:12px;border-radius:999px;background:var(--c-track);border:1px solid var(--c-border);overflow:hidden;}
+  .hmi-progress .fill{height:100%;border-radius:999px;background:var(--c-accent-2);}
+  .hmi-progress .fill.warning{background:var(--c-warning);}
+  .hmi-progress .fill.danger{background:var(--c-danger);}
+  .hmi-progress.vertical{width:auto;align-items:center;gap:7px;}
+  .hmi-progress.vertical .track{width:14px;height:120px;display:flex;align-items:flex-end;}
+  .hmi-progress.vertical .fill{width:100%;height:64%;}
+
+  /* ---------- 控件：阀门 / 泵 / 电机 / 管道 ---------- */
+  .hmi-symbol{display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .hmi-symbol .cap{font-size:11.5px;color:var(--c-text-2);font-weight:600;white-space:nowrap;}
+  .hmi-symbol .sub{font-size:10.5px;color:var(--c-text-3);font-variant-numeric:tabular-nums;}
+  .hmi-valve{width:96px;}
+  .hmi-valve svg{width:96px;height:82px;}
+  .hmi-pump{width:96px;}
+  .hmi-pump svg{width:96px;height:88px;}
+  .hmi-motor{width:96px;}
+  .hmi-motor svg{width:96px;height:96px;}
+  .hmi-pipe{width:240px;}
+  .hmi-pipe svg{width:240px;height:52px;}
+
+  /* ---------- 控件：底板 / 图像 / 文本 / 形状 ---------- */
+  .hmi-panel{
+    width:300px;border-radius:8px;border:1px solid var(--c-border);
+    background:var(--c-surface);overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.16);
+  }
+  .hmi-panel .head{
+    height:30px;display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:0 10px;background:var(--c-surface-2);border-bottom:1px solid var(--c-border);
+  }
+  .hmi-panel .head b{font-size:12px;font-weight:600;color:var(--c-text);}
+  .hmi-panel .head span{font-size:9.5px;font-weight:700;letter-spacing:.08em;color:var(--c-success);}
+  .hmi-panel .body{padding:12px;display:flex;align-items:center;gap:14px;}
+  .hmi-image{
+    width:230px;height:150px;border-radius:8px;border:1px solid var(--c-border);
+    background:var(--c-surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    color:var(--c-text-3);overflow:hidden;position:relative;
+  }
+  .hmi-image svg{width:26px;height:26px;opacity:.7;}
+  .hmi-image b{font-size:11.5px;color:var(--c-text-2);font-weight:500;}
+  .hmi-image small{font-size:10px;color:var(--c-text-3);}
+  .hmi-image .fake{
+    position:absolute;inset:0;
+    background:
+      radial-gradient(circle at 62% 45%, rgba(56,189,248,.22) 0 2px, transparent 3px),
+      radial-gradient(circle at 62% 45%, rgba(56,189,248,.08) 0 40px, transparent 41px),
+      repeating-linear-gradient(0deg, rgba(148,163,184,.09) 0 1px, transparent 1px 22px),
+      repeating-linear-gradient(90deg, rgba(148,163,184,.09) 0 1px, transparent 1px 22px),
+      linear-gradient(135deg,#1B242D,#111820);
+  }
+  .hmi-image .tag{position:absolute;left:8px;top:8px;font-size:9px;color:var(--c-text-2);background:rgba(14,19,24,.7);border:1px solid var(--c-border);border-radius:4px;padding:2px 5px;}
+  .hmi-text-demo{display:flex;flex-direction:column;gap:6px;min-width:220px;}
+  .hmi-text-demo .t1{font-size:16px;font-weight:600;color:var(--c-text);}
+  .hmi-text-demo .t2{font-size:12.5px;color:var(--c-text-2);}
+  .hmi-text-demo .t3{font-size:11.5px;color:var(--c-text-3);}
+  .hmi-shape-row{display:flex;align-items:center;gap:14px;}
+  .hmi-shape{width:92px;height:56px;border:1.5px solid var(--c-outline);background:var(--c-surface-2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--c-text-2);}
+  .hmi-shape.ellipse{border-radius:50%;width:76px;height:76px;}
+  .hmi-shape.selected{outline:2px solid var(--c-accent);outline-offset:2px;position:relative;}
+  .hmi-shape.selected::before,.hmi-shape.selected::after{
+    content:"";position:absolute;width:7px;height:7px;background:#fff;border:1px solid var(--c-accent);border-radius:1px;
+  }
+  .hmi-shape.selected::before{left:-5px;top:-5px;}
+  .hmi-shape.selected::after{right:-5px;bottom:-5px;}
+
+  /* ---------- 控件：报警条 ---------- */
+  .hmi-alarm{
+    width:340px;border-radius:8px;border:1px solid var(--c-border);
+    background:var(--c-surface);overflow:hidden;position:relative;
+  }
+  .hmi-alarm .accent{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c-success);}
+  .hmi-alarm.active .accent{background:var(--c-danger);}
+  .hmi-alarm.warn .accent{background:var(--c-warning);}
+  .hmi-alarm .head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px 7px 13px;border-bottom:1px solid var(--c-border);}
+  .hmi-alarm .head b{font-size:12px;font-weight:600;}
+  .hmi-alarm .count{font-family:var(--mono);font-size:10px;color:var(--c-text-2);background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:999px;padding:2px 7px;}
+  .hmi-alarm .rows{padding:4px 8px 7px 11px;display:flex;flex-direction:column;gap:1px;}
+  .hmi-alarm .row{display:grid;grid-template-columns:42px 58px minmax(0,1fr) auto;gap:7px;align-items:center;min-height:30px;padding:3px 2px;border-bottom:1px solid var(--c-border);}
+  .hmi-alarm .row:last-child{border-bottom:0;}
+  .hmi-alarm .chip{display:inline-flex;align-items:center;justify-content:center;height:17px;border-radius:3px;border:1px solid currentColor;font-size:9.5px;font-weight:600;}
+  .hmi-alarm .chip.critical{color:var(--c-danger);}
+  .hmi-alarm .chip.warning{color:var(--c-warning);}
+  .hmi-alarm .chip.info{color:var(--c-info);}
+  .hmi-alarm .time{font-family:var(--mono);font-size:9.5px;color:var(--c-text-3);font-variant-numeric:tabular-nums;}
+  .hmi-alarm .name{font-size:10.5px;color:var(--c-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .hmi-alarm .state{font-size:9.5px;color:var(--c-text-3);white-space:nowrap;}
+  .hmi-alarm .empty{display:flex;align-items:center;justify-content:center;gap:7px;padding:18px 10px 20px;color:var(--c-text-3);font-size:11px;}
+  .hmi-alarm .empty svg{width:15px;height:15px;color:var(--c-success);}
+
+  /* ---------- 控件：轴控台 ---------- */
+  .hmi-axis{
+    width:330px;border-radius:12px;border:1px solid var(--c-border);
+    background:var(--c-surface);overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.28);
+    padding:12px;display:flex;flex-direction:column;gap:9px;
+  }
+  .hmi-axis.compact{width:288px;}
+  .hmi-axis .axis-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .hmi-axis .axis-head b{font-size:12px;font-weight:600;}
+  .hmi-axis .axis-select{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 9px;border:1px solid var(--c-border);border-radius:6px;background:var(--c-surface-2);font-size:10.5px;color:var(--c-text-2);}
+  .hmi-axis .axis-select svg{width:10px;height:10px;}
+  .hmi-axis .pos-row{display:flex;align-items:flex-end;gap:7px;padding:2px 0 0;}
+  .hmi-axis .pos-dot{width:9px;height:9px;border-radius:50%;background:var(--c-success);box-shadow:0 0 0 3px var(--c-success-soft);margin-bottom:9px;}
+  .hmi-axis .pos{font-family:var(--mono);font-size:30px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:-.02em;}
+  .hmi-axis .unit{font-size:10.5px;color:var(--c-text-3);margin-bottom:3px;}
+  .hmi-axis .lamps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px 7px;padding:2px 0;}
+  .hmi-axis .lamp{display:flex;align-items:center;gap:5px;font-size:9.5px;color:var(--c-text-2);white-space:nowrap;}
+  .hmi-axis .lamp i{width:7px;height:7px;border-radius:50%;background:var(--c-off);flex:none;}
+  .hmi-axis .lamp.on i{background:var(--c-success);box-shadow:0 0 0 2px var(--c-success-soft);}
+  .hmi-axis .lamp.warn i{background:var(--c-warning);box-shadow:0 0 0 2px var(--c-warning-soft);}
+  .hmi-axis .lamp.bad i{background:var(--c-danger);box-shadow:0 0 0 2px var(--c-danger-soft);}
+  .hmi-axis .meta{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--c-text-2);border-top:1px solid var(--c-border);padding-top:7px;}
+  .hmi-axis .meta b{font-family:var(--mono);font-weight:600;color:var(--c-text);font-variant-numeric:tabular-nums;}
+  .hmi-axis .meta .muted{color:var(--c-text-3);}
+  .hmi-axis .btns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;}
+  .hmi-axis .abtn{
+    height:29px;display:flex;align-items:center;justify-content:center;border-radius:6px;
+    border:1px solid var(--c-border);background:var(--c-surface-2);color:var(--c-text-2);
+    font-size:10px;font-weight:500;white-space:nowrap;
+  }
+  .hmi-axis .abtn.danger{background:var(--c-danger-fill);border-color:var(--c-danger-fill);color:#fff;font-weight:600;}
+  .hmi-axis .points{border-top:1px solid var(--c-border);padding-top:7px;}
+  .hmi-axis .points-head{display:grid;grid-template-columns:minmax(0,1fr) 58px 46px 72px;gap:5px;font-size:8.5px;color:var(--c-text-3);padding:0 2px 4px;}
+  .hmi-axis .points-head span:nth-child(2),.hmi-axis .points-head span:nth-child(3){text-align:right;}
+  .hmi-axis .points-head span:last-child{text-align:center;}
+  .hmi-axis .point{display:grid;grid-template-columns:minmax(0,1fr) 58px 46px 72px;gap:5px;align-items:center;min-height:23px;padding:0 2px;border-bottom:1px solid var(--c-border);font-size:9.5px;}
+  .hmi-axis .point:last-child{border-bottom:0;}
+  .hmi-axis .point .pn{color:var(--c-text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .hmi-axis .point .pv{font-family:var(--mono);text-align:right;color:var(--c-text-2);font-variant-numeric:tabular-nums;}
+  .hmi-axis .point .ps{height:19px;border:1px solid var(--c-border);border-radius:4px;background:var(--c-surface-2);font-family:var(--mono);font-size:9px;color:var(--c-text);display:flex;align-items:center;justify-content:flex-end;padding:0 4px;}
+  .hmi-axis .point .pa{display:flex;gap:3px;justify-content:center;}
+  .hmi-axis .point .pa span{display:inline-flex;align-items:center;justify-content:center;height:19px;padding:0 5px;border-radius:4px;background:var(--c-surface-2);border:1px solid var(--c-border);font-size:8.5px;color:var(--c-text-2);}
+
+  /* ---------- 控件：趋势曲线 ---------- */
+  .hmi-chart{width:360px;border-radius:8px;border:1px solid var(--c-border);background:var(--c-surface);overflow:hidden;}
+  .hmi-chart .head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px 6px;}
+  .hmi-chart .head b{font-size:12px;font-weight:600;}
+  .hmi-chart .live{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--c-success);}
+  .hmi-chart .live i{width:6px;height:6px;border-radius:50%;background:var(--c-success);box-shadow:0 0 0 3px var(--c-success-soft);}
+  .hmi-chart svg{width:100%;height:150px;}
+  .hmi-chart .foot{display:flex;align-items:center;justify-content:space-between;padding:0 11px 9px;font-family:var(--mono);font-size:9.5px;color:var(--c-text-3);}
+  .hmi-chart .empty{position:absolute;inset:42px 0 26px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:var(--c-text-3);font-size:11px;background:linear-gradient(180deg,rgba(21,28,35,.1),rgba(21,28,35,.65));}
+  .hmi-chart{position:relative;}
+
+  /* ---------- 状态展示通用 ---------- */
+  .state-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;}
+  .state-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:12px 8px;border-radius:10px;border:1px dashed var(--c-border);background:rgba(255,255,255,.02);min-height:92px;}
+  .state-cell .sl{font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--c-text-3);text-transform:uppercase;}
+  .state-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+  .state-block{padding:12px;border-radius:10px;border:1px solid var(--c-border);background:rgba(255,255,255,.02);}
+  .state-block h4{margin:0 0 10px;font-size:10.5px;font-weight:600;color:var(--c-text-3);letter-spacing:.04em;text-transform:uppercase;}
+  .state-block .row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;font-size:10.5px;color:var(--c-text-3);}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .legend i{width:8px;height:8px;border-radius:50%;display:inline-block;}
+
+  /* ---------- 控件卡片 ---------- */
+  .family-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
+  .ctl-card{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);overflow:hidden;}
+  .ctl-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:13px 14px 10px;}
+  .ctl-head h3{margin:0;font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+  .ctl-head .typekey{font-family:var(--mono);font-size:9.5px;font-weight:400;color:var(--text-3);background:var(--surface-3);border:1px solid var(--border);border-radius:4px;padding:1px 5px;}
+  .ctl-head p{margin:4px 0 0;font-size:11.5px;color:var(--text-2);line-height:1.55;max-width:560px;}
+  .ctl-head .cat{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:999px;background:var(--primary-soft);border:1px solid var(--primary-border);color:var(--primary-text);font-size:10px;font-weight:600;white-space:nowrap;}
+  .ctl-preview{padding:14px;background:var(--surface-2);border-top:1px solid var(--border-soft);border-bottom:1px solid var(--border-soft);}
+  .ctl-preview .hmi{padding:16px;min-height:130px;display:flex;align-items:center;justify-content:center;}
+  .ctl-spec{display:flex;flex-wrap:wrap;gap:6px 14px;padding:10px 14px;font-size:10.5px;color:var(--text-2);}
+  .ctl-spec span{display:inline-flex;align-items:center;gap:4px;}
+  .ctl-spec b{font-weight:600;color:var(--text);}
+  .ctl-spec code{font-family:var(--mono);font-size:9.5px;color:var(--text-3);}
+  .span-2{grid-column:span 2;}
+
+  /* ---------- 控件目录页签 ---------- */
+  .catalog-tabs{
+    display:flex;flex-wrap:wrap;gap:4px;padding:5px;margin:0 0 12px;
+    border:1px solid var(--border);border-radius:10px;background:#fff;box-shadow:var(--shadow-1);
+  }
+  .catalog-tabs button{
+    display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;
+    border:0;border-radius:7px;background:transparent;color:var(--text-2);
+    font-size:11.5px;cursor:pointer;white-space:nowrap;
+    transition:background 150ms ease,color 150ms ease;
+  }
+  .catalog-tabs button:hover{background:var(--surface-3);color:var(--text);}
+  .catalog-tabs button.is-on{background:var(--primary-light);color:var(--primary-text);font-weight:600;}
+  .catalog-tabs button.tab-new{background:var(--warning-soft);color:var(--warning-text);border:1px solid var(--warning-border);}
+  .catalog-tabs button.tab-new.is-on{background:var(--warning);color:#fff;border-color:var(--warning);}
+  .catalog-tabs .tab-badge{
+    display:inline-flex;align-items:center;height:16px;padding:0 5px;border-radius:999px;
+    background:rgba(0,0,0,.08);font-size:9px;font-weight:700;letter-spacing:.04em;
+  }
+  .catalog-tabs button.is-on .tab-badge{background:rgba(255,255,255,.28);}
+  .sheet-grid[hidden]{display:none !important;}
+  .sheet-item[hidden]{display:none !important;}
+  .dev-panel[hidden]{display:none !important;}
+  .sheet-grid.is-filtered{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:16px 18px;padding:6px 0 10px;}
+  .sheet-grid.is-filtered .sheet-item{width:300px;min-height:160px;}
+  .dev-panel{position:relative;z-index:1;}
+  .dev-note{font-size:10.5px;line-height:1.7;color:#7C8A99;margin:0 0 12px;}
+  .dev-note b{color:#E6EEF7;font-weight:600;}
+  .dev-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+  .dev-card{
+    border:1px solid #26313D;border-radius:10px;background:#151C23;
+    padding:12px 14px;color:#E6EEF7;
+  }
+  .dev-card .dev-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+  .dev-card h4{margin:0;font-size:12.5px;font-weight:600;}
+  .dev-card .dev-type{
+    font-family:var(--mono);font-size:9.5px;color:#7C8A99;
+    background:#1B242D;border:1px solid #2A3745;border-radius:4px;padding:1px 5px;
+  }
+  .dev-card p{margin:0 0 8px;font-size:11px;line-height:1.6;color:#A9B7C6;}
+  .dev-card .dev-meta{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:10px;color:#7C8A99;}
+  .dev-card .dev-meta b{color:#E6EEF7;font-weight:600;}
+  .dev-visual{
+    height:96px;border-radius:8px;border:1px solid #26313D;background:#0E1318;
+    margin:0 0 9px;padding:8px;display:flex;align-items:center;justify-content:center;
+    gap:8px;overflow:hidden;position:relative;
+  }
+  .hmi-selector{display:inline-flex;padding:3px;border-radius:8px;background:var(--c-surface-2);border:1px solid var(--c-border);}
+  .hmi-selector .opt{display:flex;align-items:center;height:26px;padding:0 10px;border-radius:6px;font-size:10.5px;color:var(--c-text-2);white-space:nowrap;}
+  .hmi-selector .opt.on{background:var(--c-success-fill);color:#fff;font-weight:600;}
+  .hmi-combo{display:flex;align-items:center;justify-content:space-between;gap:12px;width:180px;height:32px;padding:0 10px;border:1px solid var(--c-border-2);border-radius:6px;background:var(--c-surface);font-size:11px;color:var(--c-text);}
+  .hmi-combo svg{width:10px;height:6px;color:var(--c-text-3);}
+  .dev-map{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;}
+  .dev-map span{font-size:8.5px;color:#7C8A99;border:1px solid #2A3745;border-radius:3px;padding:1px 5px;white-space:nowrap;}
+  .dev-map span.on{background:rgba(34,197,94,.16);border-color:rgba(34,197,94,.35);color:#86EFAC;font-weight:600;}
+  .dev-mini-table{width:100%;display:flex;flex-direction:column;gap:3px;}
+  .dev-mini-row{display:grid;grid-template-columns:34px 1fr auto;gap:6px;align-items:center;font-size:9px;color:var(--c-text-2);}
+  .dev-mini-chip{display:inline-flex;align-items:center;justify-content:center;height:15px;border-radius:3px;border:1px solid currentColor;font-size:8px;font-weight:600;}
+  .dev-mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;width:100%;}
+  .dev-mini-kpi{background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:5px;padding:5px 7px;}
+  .dev-mini-kpi b{display:block;font-family:var(--mono);font-size:13px;font-weight:600;color:var(--c-text);line-height:1.1;}
+  .dev-mini-kpi span{display:block;font-size:8px;color:var(--c-text-3);margin-top:2px;}
+  .dev-mini-steps{display:flex;flex-direction:column;gap:4px;width:100%;}
+  .dev-mini-step{display:flex;align-items:center;gap:6px;font-size:9px;color:var(--c-text-3);}
+  .dev-mini-step i{width:14px;height:14px;border-radius:50%;border:1px solid var(--c-border-2);display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-size:8px;color:var(--c-text-3);}
+  .dev-mini-step.on{color:var(--c-text);}
+  .dev-mini-step.on i{background:var(--c-accent);border-color:var(--c-accent);color:#04121b;font-weight:700;}
+  .dev-mini-stack{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 8px;border:1px solid var(--c-border);border-radius:6px;background:var(--c-surface);}
+  .dev-mini-stack i{width:16px;height:16px;border-radius:50%;display:block;}
+  .dev-mini-bars{width:100%;display:flex;flex-direction:column;gap:4px;}
+  .dev-mini-bar{display:grid;grid-template-columns:22px 1fr 34px;gap:6px;align-items:center;font-size:8px;color:var(--c-text-3);}
+  .dev-mini-bar .track{height:6px;border-radius:999px;background:var(--c-track);overflow:hidden;}
+  .dev-mini-bar .fill{height:100%;border-radius:999px;background:var(--c-accent);}
+  .dev-mini-video{width:100%;height:76px;border-radius:6px;background:linear-gradient(135deg,#1B242D,#0B1015);border:1px solid var(--c-border);display:flex;align-items:center;justify-content:center;position:relative;}
+  .dev-mini-video .play{width:26px;height:26px;border-radius:50%;border:1px solid var(--c-accent);display:flex;align-items:center;justify-content:center;color:var(--c-accent);font-size:10px;}
+  .dev-mini-video .cam{position:absolute;left:6px;top:5px;font-family:var(--mono);font-size:8px;color:var(--c-text-3);}
+  .dev-mini-matrix{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;width:100%;}
+  .dev-mini-matrix i{height:14px;border-radius:3px;background:var(--c-success-soft);border:1px solid rgba(34,197,94,.35);display:block;}
+  .dev-mini-matrix i.bad{background:var(--c-danger-soft);border-color:rgba(239,68,68,.4);}
+  .dev-mini-matrix i.off{background:var(--c-surface-2);border-color:var(--c-border);}
+  .dev-bind{
+    display:flex;flex-wrap:wrap;align-items:center;gap:5px 6px;
+    padding:7px 9px;margin:0 0 8px;border-radius:6px;
+    background:#0E1318;border:1px solid #26313D;
+    font-size:9.5px;color:#A9B7C6;line-height:1.5;
+  }
+  .dev-bind code{
+    font-family:var(--mono);font-size:9px;color:#E6EEF7;
+    background:#1B242D;border:1px solid #2A3745;border-radius:3px;padding:1px 4px;
+    white-space:nowrap;
+  }
+  .bind-dir{
+    display:inline-flex;align-items:center;justify-content:center;
+    height:16px;padding:0 5px;border-radius:3px;font-size:8.5px;font-weight:700;white-space:nowrap;
+  }
+  .bind-dir.read{background:rgba(34,197,94,.14);color:#86EFAC;border:1px solid rgba(34,197,94,.3);}
+  .bind-dir.write{background:rgba(245,158,11,.14);color:#FCD34D;border:1px solid rgba(245,158,11,.3);}
+  .bind-dir.rw{background:rgba(56,189,248,.14);color:#7DD3FC;border:1px solid rgba(56,189,248,.3);}
+  .bind-dir.event{background:rgba(139,92,246,.16);color:#C4B5FD;border:1px solid rgba(139,92,246,.35);}
+  .bind-dir.none{background:rgba(148,163,184,.12);color:#CBD5E1;border:1px solid rgba(148,163,184,.25);}
+  .bind-arrow{color:#7C8A99;}
+  .bind-note{color:#7C8A99;font-size:9px;}
+  .dev-legend{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 10px;font-size:9.5px;color:#7C8A99;}
+  .dev-legend span{display:inline-flex;align-items:center;gap:5px;}
+  .prio{
+    display:inline-flex;align-items:center;justify-content:center;height:20px;min-width:28px;padding:0 6px;
+    border-radius:5px;font-family:var(--mono);font-size:10px;font-weight:700;
+  }
+  .prio.p0{background:rgba(239,68,68,.16);color:#FCA5A5;border:1px solid rgba(239,68,68,.35);}
+  .prio.p1{background:rgba(245,158,11,.14);color:#FCD34D;border:1px solid rgba(245,158,11,.35);}
+  .prio.p2{background:rgba(59,130,246,.14);color:#93C5FD;border:1px solid rgba(59,130,246,.35);}
+  .dev-done{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:rgba(34,197,94,.16);color:#86EFAC;border:1px solid rgba(34,197,94,.35);font-size:9.5px;font-weight:700;}
+
+  /* ---------- 全家福 ---------- */
+  .sheet{
+    position:relative;border-radius:14px;overflow:hidden;background:#0B1015;border:1px solid #1E2A36;
+    box-shadow:var(--shadow-2);padding:18px;
+  }
+  .sheet::before{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:radial-gradient(circle at 1px 1px, rgba(148,163,184,.12) 1px, transparent 0);
+    background-size:22px 22px;opacity:.8;
+  }
+  .sheet-head{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;color:#E6EEF7;}
+  .sheet-head h3{margin:0;font-size:13px;font-weight:600;}
+  .sheet-head span{font-family:var(--mono);font-size:10px;color:#7C8A99;}
+  .sheet-grid{position:relative;z-index:1;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px 10px;align-items:center;grid-auto-flow:dense;grid-auto-rows:minmax(130px,auto);}
+  .sheet-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:8px 4px 4px;border-radius:8px;min-height:130px;}
+  .sheet-item:hover{background:rgba(255,255,255,.03);}
+  .sheet-item .name{font-size:9.5px;color:#7C8A99;letter-spacing:.02em;white-space:nowrap;}
+  .sheet-item .hmi{background:transparent;}
+  .sheet .hmi{--c-bg:transparent;}
+
+  /* ---------- 整屏 ---------- */
+  .screen-wrap{border-radius:14px;overflow:hidden;box-shadow:var(--shadow-2);border:1px solid #1E2A36;background:#0B1015;}
+  .screen{width:100%;min-width:1100px;background:#0B1015;color:#E6EEF7;font-family:var(--font);}
+  .screen-top{height:40px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 14px;background:#151C23;border-bottom:1px solid #26313D;}
+  .screen-top .left{display:flex;align-items:center;gap:8px;font-size:11px;color:#7C8A99;}
+  .screen-top .left b{font-size:12px;color:#E6EEF7;font-weight:600;}
+  .screen-top .right{display:flex;align-items:center;gap:8px;}
+  .screen-top .alarm-btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:5px;border:1px solid #2A3745;background:#1B242D;font-size:10.5px;color:#A9B7C6;}
+  .screen-top .alarm-btn i{width:14px;height:14px;border-radius:999px;background:#B91C1C;color:#fff;font-size:8px;font-style:normal;display:inline-flex;align-items:center;justify-content:center;}
+  .screen-top .stop-btn{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 11px;border-radius:5px;background:#B91C1C;color:#fff;font-size:10.5px;font-weight:600;}
+  .screen-body{display:grid;grid-template-columns:300px minmax(0,1fr) 370px;gap:12px;padding:12px;background:#0E1318;min-height:640px;}
+  .screen-col{display:flex;flex-direction:column;gap:12px;min-width:0;}
+  .screen-card{background:#151C23;border:1px solid #26313D;border-radius:10px;padding:12px;}
+  .screen-card h4{margin:0 0 10px;font-size:11px;font-weight:600;color:#A9B7C6;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .screen-card h4 span{font-family:var(--mono);font-size:9px;color:#7C8A99;font-weight:400;}
+  .screen-process{display:flex;align-items:center;justify-content:space-between;gap:4px;padding:22px 8px;min-height:190px;background:radial-gradient(600px 180px at 50% 50%, rgba(56,189,248,.06), transparent 70%);border:1px dashed #26313D;border-radius:10px;}
+  .screen-process .hmi-pipe{width:100px;}
+  .screen-process .hmi-pipe svg{width:100px;height:44px;}
+  .screen-process .hmi-valve,.screen-process .hmi-pump,.screen-process .hmi-motor{transform:scale(.78);transform-origin:center;}
+  .screen-kpi{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+  .screen-kpi .kpi{background:#1B242D;border:1px solid #26313D;border-radius:7px;padding:8px 9px;}
+  .screen-kpi .kpi b{display:block;font-family:var(--mono);font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;color:#E6EEF7;}
+  .screen-kpi .kpi span{display:block;font-size:9px;color:#7C8A99;margin-top:2px;}
+  .screen-bottom{height:28px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 14px;background:#151C23;border-top:1px solid #26313D;font-family:var(--mono);font-size:9.5px;color:#7C8A99;}
+
+  /* ---------- 状态矩阵 ---------- */
+  .matrix{font-size:11px;}
+  .matrix th,.matrix td{text-align:center;padding:8px 6px;}
+  .matrix th:first-child,.matrix td:first-child{text-align:left;padding-left:12px;white-space:nowrap;}
+  .matrix .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--success);}
+  .matrix .dot.opt{background:var(--border-strong);}
+  .matrix .dot.no{background:transparent;border:1px solid var(--border);}
+
+  /* ---------- 映射 / 遗留 ---------- */
+  .mapping-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
+  .mapping-card{padding:14px;border:1px solid var(--border);border-radius:12px;background:#fff;box-shadow:var(--shadow-1);}
+  .mapping-card h3{margin:0 0 9px;font-size:12.5px;font-weight:600;}
+  .mapping-card p{margin:0;font-size:11.5px;color:var(--text-2);line-height:1.65;}
+  .mapping-card code{font-family:var(--mono);font-size:10px;background:var(--surface-3);border-radius:4px;padding:1px 4px;color:var(--text);}
+  .open-list{display:flex;flex-direction:column;gap:8px;}
+  .open-item{display:grid;grid-template-columns:52px minmax(0,1fr) 130px;gap:10px;align-items:start;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:#fff;box-shadow:var(--shadow-1);}
+  .open-item .id{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--primary-text);background:var(--primary-light);border-radius:5px;padding:2px 0;text-align:center;}
+  .open-item b{display:block;font-size:11.5px;font-weight:600;color:var(--text);}
+  .open-item p{margin:2px 0 0;font-size:11px;color:var(--text-2);line-height:1.55;}
+  .open-item .need{font-size:10.5px;color:var(--text-2);text-align:right;line-height:1.5;}
+  .open-item .need em{display:block;font-style:normal;font-size:9.5px;color:var(--text-3);margin-top:2px;}
+
+  .footer{max-width:1560px;margin:54px auto 0;padding-top:18px;border-top:1px solid var(--border);color:var(--text-3);font-size:11px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .footer b{color:var(--text-2);font-weight:600;}
+
+  @media (max-width:1200px){
+    .audit-grid{grid-template-columns:1fr;}
+    .principle-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .token-grid{grid-template-columns:repeat(3,minmax(0,1fr));}
+    .spec-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .family-grid{grid-template-columns:1fr;}
+    .span-2{grid-column:span 1;}
+    .sheet-grid{grid-template-columns:repeat(4,minmax(0,1fr));}
+  }
+  @media (max-width:760px){
+    body{padding:18px 14px 64px;}
+    .principle-grid,.token-grid,.spec-grid,.mapping-grid{grid-template-columns:1fr;}
+    .state-row{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .state-grid{grid-template-columns:1fr;}
+    .sheet-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .open-item{grid-template-columns:44px 1fr;}
+    .open-item .need{grid-column:2;text-align:left;}
+    .screen-wrap{overflow-x:auto;}
+  }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <div class="eyebrow">VisionMaster · UI 设计基线</div>
+  <h1>SCADA 图元控件 <span class="ver">v1</span></h1>
+  <p class="meta">
+    按《插件自定义视图 Web 化改造 SOP》的视觉语言，审查 <code>Scada.Controls</code> 与 <code>Scada.Controls.Charts</code>
+    的运行时图元控件，输出可复刻的 Web 设计基线。本页是<b>设计媒介，不是交付物</b>（R126）；确认后按 R127
+    第 ③ 步复刻到 WPF，第 ④ 步以「同一屏、同一状态」截图对照验收。
+  </p>
+  <div class="meta-row">
+      <span class="meta-chip"><strong>覆盖</strong>28 个已实现 TypeKey / 8 个已实现分类 + 1 个推荐开发分类（16 项原候选 + 7 项补充候选，6 项已落地）</span>
+    <span class="meta-chip"><strong>上下文</strong>深色运行画面 + 浅色编辑上下文</span>
+    <span class="meta-chip"><strong>口径</strong>五态 / 状态矩阵 / 令牌映射</span>
+    <span class="meta-chip"><strong>日期</strong>2026-10-20</span>
+    <span class="meta-chip"><strong>状态</strong>待用户确认</span>
+  </div>
+</header>
+
+<nav class="page-nav" id="nav">
+  <a href="#audit">01 审查结论</a>
+  <a href="#principles">02 设计原则</a>
+  <a href="#tokens">03 令牌与刻度</a>
+  <a href="#sheet">04 控件目录</a>
+  <a href="#interactive">05 交互控件</a>
+  <a href="#indicators">06 指示与报警</a>
+  <a href="#numeric">07 数值与过程</a>
+  <a href="#containers">08 容器与内容</a>
+  <a href="#motion">09 运动与趋势</a>
+  <a href="#runtime">10 运行态整屏</a>
+  <a href="#matrix">11 状态矩阵</a>
+  <a href="#mapping">12 复刻映射</a>
+  <a href="#open">13 遗留与待确认</a>
+  <span class="theme-toggle" aria-label="切换预览画面主题">
+    <button type="button" class="is-on" data-theme-btn="dark">深色画面</button>
+    <button type="button" data-theme-btn="light">浅色画面</button>
+  </span>
+</nav>
+
+<main>
+  <!-- ============================================================ -->
+  <!-- 01 审查结论 -->
+  <!-- ============================================================ -->
+  <section class="section" id="audit">
+    <div class="sec-head">
+      <span class="sec-index">01</span>
+      <h2>审查结论：控件不缺，缺的是一套统一的“画面语言”</h2>
+      <p>按 UI-SOP 的五条硬口径逐项核对：配色令牌、字号刻度、圆角刻度、五态、可读性。共 14 项，按影响面排序。</p>
+    </div>
+
+    <div class="audit-grid">
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th style="width:34px;">#</th>
+              <th style="width:180px;">现状问题</th>
+              <th style="width:250px;">证据（文件:行）</th>
+              <th style="width:220px;">影响</th>
+              <th style="width:200px;">本版设计处置</th>
+              <th style="width:76px;">级别</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="num">01</td>
+              <td><b>默认调色板分裂</b>：一半图元是浅色皮肤，一半是深色皮肤</td>
+              <td><code>BuiltInElements.cs:61/214</code> 白底；<code>:416/469</code> 深底；默认页面 <code>ScadaPage.cs:25</code> = <code>#FF1E1E1E</code></td>
+              <td>默认深色画面上出现白块；同一画面像两套软件拼出来</td>
+              <td>统一“深色运行令牌”；浅色画面作为显式预设，不再混用默认值</td>
+              <td><span class="sev high">高</span></td>
+            </tr>
+            <tr>
+              <td class="num">02</td>
+              <td><b>默认文字在深色画面上不可读</b></td>
+              <td><code>PropertyPacks.cs:190-191</code> 文字默认 <code>#FF202020</code>；<code>BuiltInElements.cs:323/350</code> 泵/电机位号同色</td>
+              <td>文本、时钟、泵/电机位号在默认页面上几乎看不见</td>
+              <td>运行态默认文字改为 <code>#E6EEF7</code>；浅色预设再切回深字</td>
+              <td><span class="sev high">高</span></td>
+            </tr>
+            <tr>
+              <td class="num">03</td>
+              <td><b>表盘指针默认是“报警红”</b></td>
+              <td><code>BuiltInElements.cs:270</code> Gauge 指针默认 <code>#FFE03A2B</code></td>
+              <td>正常压力表看起来像在报警，红色语义被稀释</td>
+              <td>指针改 accent 青蓝；红色只留给越限/故障</td>
+              <td><span class="sev high">高</span></td>
+            </tr>
+            <tr>
+              <td class="num">04</td>
+              <td><b>数值域“只读 / 可写”没有视觉差别</b></td>
+              <td><code>IOFieldElement.xaml:118-122</code> 只换鼠标指针；<code>Mode</code> 默认 <code>Output</code></td>
+              <td>操作员不知道哪些框能点、哪些只是读数</td>
+              <td>只读 / 可写 / 编辑中 / 校验失败 四态，见 §05</td>
+              <td><span class="sev high">高</span></td>
+            </tr>
+            <tr>
+              <td class="num">05</td>
+              <td><b>五态不齐</b>：按钮缺按下/焦点，位按钮缺焦点，轴按钮缺焦点</td>
+              <td><code>ButtonElement.xaml:59-67</code> 只有 hover/disabled；<code>BitButtonElement.xaml:76-88</code> 无 focus</td>
+              <td>键盘焦点不可见；按下反馈不一致；不满足 R115</td>
+              <td>全部交互控件统一 Normal/Hover/Pressed/Focus/Disabled</td>
+              <td><span class="sev high">高</span></td>
+            </tr>
+            <tr>
+              <td class="num">06</td>
+              <td><b>圆角刻度不统一</b>：0 / 2 / 3 / 4 / 12 并存</td>
+              <td><code>BuiltInElements.cs:64/124/185/392/419/472</code>；<code>AxisPanelElement.xaml:72/143</code></td>
+              <td>同一画面里控件像来自不同组件库</td>
+              <td>4 / 6 / 8 / 12 四档刻度，按控件层级分配</td>
+              <td><span class="sev mid">中</span></td>
+            </tr>
+            <tr>
+              <td class="num">07</td>
+              <td><b>字号跨度过大</b>：8 / 9 / 10 / 11 / 12 / 13 / 14 / 16 / 30 同屏</td>
+              <td><code>AxisPanelElement.xaml:558/567/574</code> 8px；<code>:183</code> 9px；<code>:282</code> 30px</td>
+              <td>8~9px 在触摸屏/大屏上都读不清；数字不统一</td>
+              <td>10 / 11.5 / 12.5 / 14 / 16 / 20 / 28 七档；数字一律 tabular</td>
+              <td><span class="sev mid">中</span></td>
+            </tr>
+            <tr>
+              <td class="num">08</td>
+              <td><b>趋势曲线仍是浅色主题</b></td>
+              <td><code>ChartTheme.cs:14-19</code> 白底；<code>ChartTrendElement.cs:190</code> 网格 <code>#FF3A3A3A</code></td>
+              <td>深色画面上是一张白卡；曲线与网格对比失衡</td>
+              <td>深色图表令牌 + 空态“等待数据”，见 §09</td>
+              <td><span class="sev mid">中</span></td>
+            </tr>
+            <tr>
+              <td class="num">09</td>
+              <td><b>底板标题栏圆角写死 3</b></td>
+              <td><code>PanelElement.xaml:46</code> <code>CornerRadius="3,3,0,0"</code>，而底板圆角可配 0~200</td>
+              <td>用户把底板圆角调大后，标题栏方角露在圆角外</td>
+              <td>标题栏跟随底板圆角（模板绑定/裁剪）</td>
+              <td><span class="sev mid">中</span></td>
+            </tr>
+            <tr>
+              <td class="num">10</td>
+              <td><b>硬编码颜色存量</b></td>
+              <td><code>hardcoded-colors.baseline.txt</code>：AxisPanel 20、IOField 1、ScadaCanvas 1、ScadaEditorView 15、RuntimeWindow 14</td>
+              <td>换肤不彻底；同一语义色多处手抄</td>
+              <td>按 §12 令牌迁移清单逐项替换，只减不增</td>
+              <td><span class="sev mid">中</span></td>
+            </tr>
+            <tr>
+              <td class="num">11</td>
+              <td><b>缺“无数据 / 离线”状态</b></td>
+              <td><code>DeviceState.cs:15-25</code> 只有 Stopped / Running / Fault</td>
+              <td>通信断了仍显示“停机灰”，操作员会误判设备状态</td>
+              <td>设计预留 Unknown（虚线/灰蓝）；需契约扩展，见 D2</td>
+              <td><span class="sev high">高</span><span class="sev contract">契约</span></td>
+            </tr>
+            <tr>
+              <td class="num">12</td>
+              <td><b>按钮可聚焦但无键盘激活</b></td>
+              <td><code>ButtonElement.cs</code> 是 <code>ContentControl</code>，无 KeyDown/KeyUp；样式 <code>Focusable=True</code></td>
+              <td>Tab 到按钮后按空格/回车无反应，焦点态是“假”的</td>
+              <td>补键盘激活或先设 <code>Focusable=False</code>；见 D5</td>
+              <td><span class="sev mid">中</span><span class="sev contract">契约</span></td>
+            </tr>
+            <tr>
+              <td class="num">13</td>
+              <td><b>选中 / 锁定 / 诊断色未令牌化</b></td>
+              <td><code>ScadaCanvas.cs:83</code> <code>#007ACC</code>、<code>:92</code> <code>#E3A51B</code>、<code>:1382-1384</code></td>
+              <td>编辑器与运行态两套蓝/橙，换肤时漏改</td>
+              <td>收进 <code>HmiSelectionBrush</code> / <code>HmiLockedBrush</code> / 诊断色令牌</td>
+              <td><span class="sev low">低</span></td>
+            </tr>
+            <tr>
+              <td class="num">14</td>
+              <td><b>报警条默认白底、行距偏挤</b></td>
+              <td><code>AlarmBannerElement.xaml:58-66</code> 内衬 12/6/8/6；默认 Fill 白</td>
+              <td>深色画面上白卡抢视线；多行报警可读性下降</td>
+              <td>深色卡片 + 44px 两行行高 + 严重度胶囊，见 §06</td>
+              <td><span class="sev mid">中</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="audit-side">
+        <div class="side-card">
+          <h3>一句话结论</h3>
+          <p>不是“控件画得不好看”，而是<b>没有一套画面级令牌</b>：默认值各写各的，深色画布与浅色控件互相打架。先把“深色运行 / 浅色编辑”两个上下文定死，再谈每个图元的形状。</p>
+        </div>
+
+        <div class="side-card">
+          <h3>审查口径（来自 UI-SOP）</h3>
+          <ul>
+            <li><b>令牌化</b>：视图内 0 个十六进制色值（R117/R140）。</li>
+            <li><b>五态</b>：Normal / Hover / Pressed / Focus / Disabled（R115）。</li>
+            <li><b>刻度</b>：8px 圆角、12px 标签、11.5px 帮助、36px 控件（§5.2/§5.3）。</li>
+            <li><b>数字</b>：等宽 + tabular-nums（§5.3）。</li>
+            <li><b>不造死按钮</b>：只接现有属性/命令（§5.4）。</li>
+          </ul>
+        </div>
+
+        <div class="side-card">
+          <h3>现状还原（按默认值绘制）</h3>
+          <div class="issue-mini">
+            <div class="hmi" data-theme="dark">
+              <div class="mini-white">矩形</div>
+              <div class="mini-white-field"><span>温度</span><span>86.4</span></div>
+              <div class="mini-dark-text">P-101</div>
+            </div>
+            <div class="hmi" data-theme="dark">
+              <svg class="mini-red-needle" viewBox="0 0 80 80" aria-hidden="true">
+                <path d="M14 60 A34 34 0 1 1 66 60" fill="none" stroke="#3A3A3A" stroke-width="7"/>
+                <path d="M14 60 A34 34 0 1 1 66 60" fill="none" stroke="#9AA5B1" stroke-width="1.2" stroke-dasharray="2 4"/>
+                <line x1="40" y1="40" x2="58" y2="20" stroke="#E03A2B" stroke-width="2.4" stroke-linecap="round"/>
+                <circle cx="40" cy="40" r="3" fill="#E03A2B"/>
+                <text x="40" y="74" text-anchor="middle" fill="#fff" font-size="7" font-family="Consolas">0.62</text>
+              </svg>
+              <div class="mini-dark-text" style="color:#7C8A99;font-size:9px;">正常表盘 · 红针</div>
+            </div>
+            <div class="hmi" data-theme="dark" style="display:block;padding:10px 12px;">
+              <div style="font-size:8px;color:#7C8A99;">点位&nbsp;&nbsp;&nbsp;位置(mm)&nbsp;&nbsp;速度(mm/s)</div>
+              <div style="font-size:9px;color:#E6EEF7;margin-top:4px;">P1&nbsp;&nbsp;&nbsp;123.456&nbsp;&nbsp;&nbsp;120.0</div>
+              <div style="font-size:8px;color:#7C8A99;margin-top:2px;">8px 表头 · 9px 行</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 02 设计原则 -->
+  <!-- ============================================================ -->
+  <section class="section" id="principles">
+    <div class="sec-head">
+      <span class="sec-index">02</span>
+      <h2>设计原则：双上下文，一套控件</h2>
+      <p>运行态是深色工业画面，编辑态是浅色 Web 工作台。控件规格只有一份，颜色通过令牌切换，不复制两套模板。</p>
+    </div>
+
+    <div class="principle-grid">
+      <div class="principle">
+        <div class="principle-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+        <div><h3>状态先于装饰</h3><p>颜色只表达状态：灰=停、绿=运行、黄=警告、红=故障/报警。装饰色一律用中性面与 accent，不占用语义色。</p></div>
+      </div>
+      <div class="principle">
+        <div class="principle-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="8" height="16" rx="2"/><rect x="13" y="4" width="8" height="16" rx="2"/></svg></div>
+        <div><h3>双上下文</h3><p>运行画面深色（<code>#0E1318</code>），编辑工作台浅色（<code>#F7F8FA</code>）。控件只换令牌，不换结构、不换尺寸。</p></div>
+      </div>
+      <div class="principle">
+        <div class="principle-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15l3-4 3 2 4-6"/></svg></div>
+        <div><h3>一眼读懂</h3><p>标签 11.5~12px，正文 12.5px，关键读数 20~28px；数字一律等宽 tabular，避免跳动与错位。</p></div>
+      </div>
+      <div class="principle">
+        <div class="principle-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12h8"/><path d="M12 8v8"/></svg></div>
+        <div><h3>五态齐全</h3><p>交互控件必须有 Normal/Hover/Pressed/Focus/Disabled；过程图元额外有 Selected/Locked/NoData。缺一态视同未完成（R115）。</p></div>
+      </div>
+      <div class="principle">
+        <div class="principle-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7z"/></svg></div>
+        <div><h3>工业几何</h3><p>过程符号用 1.5px 线宽、清晰的轮廓与留白；容器 8px 圆角，数据控件 4~6px，过程符号不随意加圆角。</p></div>
+      </div>
+      <div class="principle">
+        <div class="principle-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M4 12h10"/><path d="M4 17h16"/><circle cx="18" cy="12" r="2"/></svg></div>
+        <div><h3>令牌化</h3><p>颜色、字号、圆角、间距只引用资源键；视图内 0 个十六进制值。新增键只追加，不改既有键语义（R140/R141）。</p></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;padding:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+        <div>
+          <div style="font-size:12.5px;font-weight:600;">同一控件，两种画面</div>
+          <div style="font-size:11px;color:var(--text-2);margin-top:2px;">左：运行画面（深色） · 右：编辑/浅色画面（浅色）。结构、尺寸、状态完全一致。</div>
+        </div>
+        <span class="sev low">令牌切换</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="hmi" data-theme="dark" style="padding:18px;display:flex;flex-direction:column;gap:12px;min-height:210px;">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <span class="hmi-btn primary">启动</span>
+            <span class="hmi-btn secondary">暂停</span>
+            <span class="hmi-bit on"><i class="dot"></i>运行中</span>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <div class="hmi-io readonly"><span class="lbl">温度</span><span class="val">86.4<span class="unit">°C</span></span></div>
+            <div class="hmi-io editable"><span class="lbl">设定</span><span class="val">120.0<span class="unit">°C</span></span><svg class="pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4l10-10-4-4L4 16z"/></svg></div>
+          </div>
+          <div class="hmi-panel" style="width:100%;">
+            <div class="head"><b>1# 灌装单元</b><span>RUN</span></div>
+            <div class="body"><div class="hmi-lamp on" style="transform:scale(.72);transform-origin:left center;"><span class="body"></span><span class="cap">运行</span></div><div class="hmi-text-demo" style="min-width:0;"><div class="t2">节拍 42.5 瓶/分</div><div class="t3">累计 12,840 瓶</div></div></div>
+          </div>
+        </div>
+        <div class="hmi" data-theme="light" style="padding:18px;display:flex;flex-direction:column;gap:12px;min-height:210px;">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <span class="hmi-btn primary">启动</span>
+            <span class="hmi-btn secondary">暂停</span>
+            <span class="hmi-bit on"><i class="dot"></i>运行中</span>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <div class="hmi-io readonly"><span class="lbl">温度</span><span class="val">86.4<span class="unit">°C</span></span></div>
+            <div class="hmi-io editable"><span class="lbl">设定</span><span class="val">120.0<span class="unit">°C</span></span><svg class="pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4l10-10-4-4L4 16z"/></svg></div>
+          </div>
+          <div class="hmi-panel" style="width:100%;">
+            <div class="head"><b>1# 灌装单元</b><span>RUN</span></div>
+            <div class="body"><div class="hmi-lamp on" style="transform:scale(.72);transform-origin:left center;"><span class="body"></span><span class="cap">运行</span></div><div class="hmi-text-demo" style="min-width:0;"><div class="t2">节拍 42.5 瓶/分</div><div class="t3">累计 12,840 瓶</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 03 令牌与刻度 -->
+  <!-- ============================================================ -->
+  <section class="section" id="tokens">
+    <div class="sec-head">
+      <span class="sec-index">03</span>
+      <h2>令牌与刻度：先把“底色”和“字”定死</h2>
+      <p>下表是运行画面令牌。编辑工作台继续复用既有 <code>Dialog*</code> / <code>Scada*</code> 令牌，不另造第二套灰阶。</p>
+    </div>
+
+    <div class="token-grid">
+      <div class="token"><div class="token-swatch" style="background:#0E1318;"></div><div class="token-body"><b>画面底</b><span>HmiCanvasBackground</span><em>#0E1318 · 深色运行</em></div></div>
+      <div class="token"><div class="token-swatch" style="background:#151C23;"></div><div class="token-body"><b>表面</b><span>HmiSurface</span><em>#151C23 · 卡片/面板</em></div></div>
+      <div class="token"><div class="token-swatch" style="background:#1B242D;"></div><div class="token-body"><b>浮起表面</b><span>HmiSurfaceRaised</span><em>#1B242D · 输入/按钮</em></div></div>
+      <div class="token"><div class="token-swatch" style="background:#2A3745;"></div><div class="token-body"><b>描边</b><span>HmiBorder</span><em>#2A3745 · 1px</em></div></div>
+      <div class="token"><div class="token-swatch" style="background:#3A4A5C;"></div><div class="token-body"><b>强描边</b><span>HmiBorderStrong</span><em>#3A4A5C · hover</em></div></div>
+      <div class="token"><div class="token-swatch" style="background:#E6EEF7;"></div><div class="token-body"><b>主文字</b><span>HmiText</span><em>#E6EEF7</em></div></div>
+      <div class="token"><div class="token-swatch" style="background:#A9B7C6;"></div><div class="token-body"><b>次要文字</b><span>HmiTextSecondary</span><em>#A9B7C6</em></div></div>
+      <div class="token"><div class="token-swatch" style="background:#7C8A99;"></div><div class="token-body"><b>弱文字</b><span>HmiTextMuted</span><em>#7C8A99</em></div></div>
+      <div class="token"><div class="token-swatch" style="background:#38BDF8;"></div><div class="token-body"><b>强调 / 焦点</b><span>HmiAccent</span><em>#38BDF8 · 指针/选中</em></div></div>
+      <div class="token"><div class="token-swatch" style="background:#0EA5E9;"></div><div class="token-body"><b>主按钮</b><span>HmiAccentStrong</span><em>#0EA5E9</em></div></div>
+      <div class="token"><div class="token-swatch" style="background:#22C55E;"></div><div class="token-body"><b>运行 / 正常</b><span>HmiSuccess</span><em>#22C55E</em></div></div>
+      <div class="token"><div class="token-swatch" style="background:#15803D;"></div><div class="token-body"><b>成功填充（深）</b><span>HmiSuccessFill</span><em>#15803D · 选中/确认实心</em></div></div>
+      <div class="token"><div class="token-swatch" style="background:#F59E0B;"></div><div class="token-body"><b>警告</b><span>HmiWarning</span><em>#F59E0B</em></div></div>
+      <div class="token"><div class="token-swatch" style="background:#EF4444;"></div><div class="token-body"><b>故障 / 报警</b><span>HmiDanger</span><em>#EF4444</em></div></div>
+      <div class="token"><div class="token-swatch" style="background:#3B82F6;"></div><div class="token-body"><b>提示 / 信息</b><span>HmiInfo</span><em>#3B82F6</em></div></div>
+      <div class="token"><div class="token-swatch" style="background:#64748B;"></div><div class="token-body"><b>停机 / 熄灭</b><span>HmiOff</span><em>#64748B</em></div></div>
+      <div class="token"><div class="token-swatch" style="background:#26313D;"></div><div class="token-body"><b>空槽 / 轨道</b><span>HmiTrack</span><em>#26313D</em></div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr);gap:14px;margin-top:14px;">
+      <div class="type-scale">
+        <div class="type-row"><span class="ts-name">10 / 10.5</span><span class="ts-sample" style="font-size:10.5px;">点位表头 · 时间戳 · 辅助标签</span><span class="ts-use">最小可读档，禁止再小</span></div>
+        <div class="type-row"><span class="ts-name">11.5</span><span class="ts-sample" style="font-size:11.5px;color:var(--text-2);">帮助文字 · 单位 · 次要说明</span><span class="ts-use">表单帮助 / 状态说明</span></div>
+        <div class="type-row"><span class="ts-name">12.5</span><span class="ts-sample" style="font-size:12.5px;">正文 · 按钮 · 报警名 · 字段标签</span><span class="ts-use">默认正文</span></div>
+        <div class="type-row"><span class="ts-name">14</span><span class="ts-sample" style="font-size:14px;font-weight:600;">面板标题 · 关键标签</span><span class="ts-use">层级强调</span></div>
+        <div class="type-row"><span class="ts-name">16</span><span class="ts-sample" style="font-size:16px;font-weight:600;">区块标题 · 文本图元默认</span><span class="ts-use">页面级标题</span></div>
+        <div class="type-row"><span class="ts-name">20 / 28</span><span class="ts-sample" style="font-family:var(--mono);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;">123.456</span><span class="ts-use">KPI / 轴位置 / 表盘读数</span></div>
+      </div>
+
+      <div class="spec-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));">
+        <div class="spec-card"><b>圆角</b><strong>4 / 6 / 8 / 12</strong><span>数据控件 4 · 按钮 6 · 卡片/底板 8 · 控制台 12</span></div>
+        <div class="spec-card"><b>控件高度</b><strong>30 / 36 / 44</strong><span>紧凑 30 · 标准 36 · 触摸 44</span></div>
+        <div class="spec-card"><b>线宽</b><strong>1 / 1.5 / 2</strong><span>描边 1 · 过程符号 1.5 · 选中 2</span></div>
+        <div class="spec-card"><b>间距</b><strong>4 / 8 / 12 / 16 / 20 / 24</strong><span>4 的倍数；卡片内衬 12~16</span></div>
+        <div class="spec-card"><b>焦点环</b><strong>2px + 2px offset</strong><span>accent 色，键盘可达（R135）</span></div>
+        <div class="spec-card"><b>数字</b><strong>tabular-nums</strong><span>表盘、棒图、IO 域、轴位置、报警时间</span></div>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:14px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01"/><path d="M11 12h1v4h1"/></svg>
+      <div><b>浅色画面怎么办？</b> 同一套控件规格，把 <code>Hmi*</code> 令牌换成浅色档（表面 #FFFFFF、文字 #0F172A、描边 #D8E0EA）。本页右上角「深色画面 / 浅色画面」可以实时对照。默认页面是深色，因此<b>默认值按深色给</b>；浅色作为显式预设，不再让每个图元自己猜。</div>
+    </div>
+  </section>
+  <!-- ============================================================ -->
+  <!-- 04 控件全家福 -->
+  <!-- ============================================================ -->
+  <section class="section" id="sheet">
+    <div class="sec-head">
+      <span class="sec-index">04</span>
+      <h2>控件目录：按分类页签浏览</h2>
+      <p>8 个已实现分类 + 1 个推荐开发分类（16 项原候选 + 7 项补充候选）。页签只筛选展示，不改变控件定义；完整清单见 <code>README.md</code>。</p>
+    </div>
+
+    <div class="catalog-tabs" id="catalogTabs" role="tablist" aria-label="控件分类">
+      <button type="button" class="is-on" data-cat-tab="all">全部</button>
+      <button type="button" data-cat-tab="basic">基础</button>
+      <button type="button" data-cat-tab="operation">操作</button>
+      <button type="button" data-cat-tab="indicator">指示</button>
+      <button type="button" data-cat-tab="numeric">数值</button>
+      <button type="button" data-cat-tab="process">工艺</button>
+      <button type="button" data-cat-tab="alarm">报警</button>
+      <button type="button" data-cat-tab="motion">运动</button>
+      <button type="button" data-cat-tab="data">数据</button>
+      <button type="button" class="tab-new" data-cat-tab="dev">推荐开发 <span class="tab-badge">NEW</span></button>
+    </div>
+
+    <div class="sheet">
+      <div class="sheet-head">
+        <h3>SCADA Control Sheet · v1</h3>
+        <span>DARK RUNTIME · 1.5px PROCESS LINE · 8px CONTAINER RADIUS</span>
+      </div>
+      <div class="sheet-grid" id="sheetGrid">
+
+        <div class="sheet-item">
+          <div class="hmi" style="padding:8px;"><span class="hmi-btn primary sm">启动</span></div>
+          <span class="name">按钮 · Hmi.Button</span>
+        </div>
+
+        <div class="sheet-item">
+          <div class="hmi" style="padding:8px;"><span class="hmi-bit on" style="min-width:82px;height:30px;font-size:11px;"><i class="dot"></i>运行</span></div>
+          <span class="name">位按钮 · Hmi.BitButton</span>
+        </div>
+
+        <div class="sheet-item">
+          <div class="hmi" style="padding:8px;"><div class="hmi-io editable" style="width:170px;height:30px;"><span class="lbl">设定</span><span class="val" style="font-size:11.5px;">120.0<span class="unit">°C</span></span></div></div>
+          <span class="name">数值域 · Hmi.IOField</span>
+        </div>
+
+        <div class="sheet-item">
+          <div class="hmi" style="padding:8px;"><div class="hmi-lamp on" style="transform:scale(.78);"><span class="body"></span><span class="cap">1# 电机</span></div></div>
+          <span class="name">指示灯 · Hmi.Indicator</span>
+        </div>
+
+        <div class="sheet-item">
+          <div class="hmi" style="padding:8px;"><div class="hmi-lamp warning" style="transform:scale(.78);"><span class="body square"></span><span class="cap">1# 主轴</span></div></div>
+          <span class="name">多态灯 · Hmi.Lamp</span>
+        </div>
+
+        <div class="sheet-item">
+          <div class="hmi" style="padding:8px;"><div class="hmi-clock" style="transform:scale(.7);transform-origin:center;"><span class="time">14:32:08</span><span class="date">2026-10-20 周二</span><span class="cap">系统时间</span></div></div>
+          <span class="name">时钟 · Hmi.Clock</span>
+        </div>
+
+        <div class="sheet-item">
+          <div class="hmi" style="padding:6px;"><div class="hmi-gauge" style="transform:scale(.62);margin:-20px 0;"><svg viewBox="0 0 170 170" aria-hidden="true"><path d="M28 128 A72 72 0 1 1 142 128" fill="none" stroke="var(--c-track)" stroke-width="10"/><path d="M28 128 A72 72 0 1 1 142 128" fill="none" stroke="var(--c-border-2)" stroke-width="1.4" stroke-dasharray="3 7"/><line x1="85" y1="85" x2="123" y2="44" stroke="var(--c-accent)" stroke-width="3" stroke-linecap="round"/><circle cx="85" cy="85" r="4.5" fill="var(--c-accent)"/><text x="85" y="112" text-anchor="middle" fill="var(--c-text)" font-size="17" font-family="Consolas">0.62</text></svg><span class="cap">压力 MPa</span></div></div>
+          <span class="name">表盘 · Hmi.Gauge</span>
+        </div>
+
+        <div class="sheet-item">
+          <div class="hmi" style="padding:8px;"><div class="hmi-progress" style="width:170px;"><div class="top"><span class="name">料仓余量</span><span class="num">68%</span></div><div class="track"><div class="fill" style="width:68%;"></div></div></div></div>
+          <span class="name">棒图 · Hmi.ProgressBar</span>
+        </div>
+
+        <div class="sheet-item">
+          <div class="hmi" style="padding:4px;"><div class="hmi-symbol hmi-valve" style="transform:scale(.78);"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M10 14 L40 32 L40 68 L10 86 Z M90 14 L60 32 L60 68 L90 86 Z" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M10 14 L40 32 L40 68 L10 86 Z M90 14 L60 32 L60 68 L90 86 Z" fill="var(--c-success-fill)" clip-path="url(#v100s)"/><defs><clipPath id="v100s"><rect x="0" y="0" width="100" height="100"/></clipPath></defs><path d="M10 14 L40 32 L40 68 L10 86 Z M90 14 L60 32 L60 68 L90 86 Z" fill="none" stroke="var(--c-outline)" stroke-width="2"/></svg><span class="cap">FV-101</span><span class="sub">100%</span></div></div>
+          <span class="name">阀门 · Hmi.Valve</span>
+        </div>
+
+        <div class="sheet-item">
+          <div class="hmi" style="padding:4px;"><div class="hmi-symbol hmi-pump" style="transform:scale(.78);"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="44" r="31" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M50 25 L69 55 L31 55 Z" fill="var(--c-success)"/><circle cx="50" cy="44" r="3.5" fill="var(--c-surface)"/></svg><span class="cap">P-101</span></div></div>
+          <span class="name">泵 · Hmi.Pump</span>
+        </div>
+
+        <div class="sheet-item">
+          <div class="hmi" style="padding:4px;"><div class="hmi-symbol hmi-motor" style="transform:scale(.78);"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="52" r="28" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><rect x="42" y="15" width="16" height="12" rx="2" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M38 64 L38 40 L50 54 L62 40 L62 64" fill="none" stroke="var(--c-success)" stroke-width="4" stroke-linejoin="round"/></svg><span class="cap">M-101</span></div></div>
+          <span class="name">电机 · Hmi.Motor</span>
+        </div>
+
+        <div class="sheet-item">
+          <div class="hmi" style="padding:4px;"><div class="hmi-symbol hmi-pipe" style="transform:scale(.72);"><svg viewBox="0 0 240 52" aria-hidden="true"><rect x="6" y="14" width="228" height="24" rx="12" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M40 20 L50 26 L40 32 M86 20 L96 26 L86 32 M132 20 L142 26 L132 32 M178 20 L188 26 L178 32" fill="none" stroke="var(--c-success)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
+          <span class="name">管道 · Hmi.Pipe</span>
+        </div>
+
+        <div class="sheet-item" style="grid-column:span 2;">
+          <div class="hmi" style="padding:4px;width:100%;"><div class="hmi-alarm active" style="transform:scale(.82);transform-origin:top left;width:340px;"><span class="accent"></span><div class="head"><b>实时报警</b><span class="count">3 条未确认</span></div><div class="rows"><div class="row"><span class="chip critical">严重</span><span class="time">14:32:08</span><span class="name">1# 主轴温度高</span><span class="state">激活</span></div><div class="row"><span class="chip warning">警告</span><span class="time">14:31:42</span><span class="name">2# 泵出口压力低</span><span class="state">激活</span></div><div class="row"><span class="chip info">提示</span><span class="time">14:30:17</span><span class="name">3# 线换型完成</span><span class="state">已确认</span></div></div></div></div>
+          <span class="name">报警条 · Hmi.AlarmBanner</span>
+        </div>
+
+        <div class="sheet-item" style="grid-column:span 2;">
+          <div class="hmi" style="padding:4px;width:100%;"><div class="hmi-axis compact" style="transform:scale(.76);transform-origin:top left;"><div class="axis-head"><b>轴控 · X 轴</b><span class="axis-select">X 轴 <svg viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span></div><div class="pos-row"><span class="pos-dot"></span><span class="pos">123.456</span><span class="unit">mm</span></div><div class="lamps"><span class="lamp on"><i></i>使能</span><span class="lamp on"><i></i>到位</span><span class="lamp on"><i></i>原点</span><span class="lamp"><i></i>报警</span><span class="lamp"><i></i>正限位</span><span class="lamp"><i></i>反限位</span><span class="lamp"><i></i>急停</span><span class="lamp on"><i></i>运动</span></div><div class="meta"><span class="muted">速度</span><b>120.0</b><span class="muted">mm/s</span><span style="margin-left:auto;color:var(--c-success);">运行中</span></div><div class="btns"><span class="abtn">使能</span><span class="abtn">◀ 点动</span><span class="abtn">点动 ▶</span><span class="abtn">回零</span><span class="abtn danger">停止</span><span class="abtn">清报警</span></div></div></div>
+          <span class="name">轴面板 · Hmi.AxisPanel</span>
+        </div>
+
+        <div class="sheet-item" style="grid-column:span 2;">
+          <div class="hmi" style="padding:4px;width:100%;"><div class="hmi-chart" style="transform:scale(.82);transform-origin:top left;"><div class="head"><b>压力趋势</b><span class="live"><i></i>LIVE</span></div><svg viewBox="0 0 360 150" aria-hidden="true"><g stroke="var(--c-border)" stroke-width="1"><line x1="34" y1="20" x2="34" y2="128"/><line x1="34" y1="128" x2="348" y2="128"/><line x1="34" y1="48" x2="348" y2="48"/><line x1="34" y1="76" x2="348" y2="76"/><line x1="34" y1="104" x2="348" y2="104"/></g><path d="M34 96 L64 92 L94 98 L124 70 L154 78 L184 58 L214 64 L244 44 L274 52 L304 38 L334 46 L348 42" fill="none" stroke="var(--c-accent)" stroke-width="2"/><path d="M34 96 L64 92 L94 98 L124 70 L154 78 L184 58 L214 64 L244 44 L274 52 L304 38 L334 46 L348 42 L348 128 L34 128 Z" fill="var(--c-accent)" opacity=".10"/></svg><div class="foot"><span>60 s</span><span>0.62 MPa</span></div></div></div>
+          <span class="name">趋势曲线 · Hmi.ChartTrend</span>
+        </div>
+
+        <div class="sheet-item" style="grid-column:span 2;">
+          <div class="hmi" style="padding:4px;width:100%;"><div class="hmi-panel" style="transform:scale(.82);transform-origin:top left;width:300px;"><div class="head"><b>1# 灌装单元</b><span>RUN</span></div><div class="body"><div class="hmi-progress" style="width:160px;"><div class="top"><span class="name">节拍</span><span class="num">42.5</span></div><div class="track"><div class="fill" style="width:72%;"></div></div></div><div class="hmi-lamp on" style="transform:scale(.68);"><span class="body"></span><span class="cap">运行</span></div></div></div></div>
+          <span class="name">底板 · Hmi.Panel</span>
+        </div>
+
+        <div class="sheet-item" style="grid-column:span 2;">
+          <div class="hmi" style="padding:4px;width:100%;"><div class="hmi-image" style="transform:scale(.82);transform-origin:top left;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg><b>无图像</b><small>绑定图像变量后显示</small></div></div>
+          <span class="name">图像显示 · Hmi.ImageView</span>
+        </div>
+
+        <div class="sheet-item" style="grid-column:span 2;">
+          <div class="hmi" style="padding:8px;width:100%;display:flex;align-items:center;justify-content:center;gap:16px;">
+            <div class="hmi-shape selected">矩形</div>
+            <div class="hmi-shape ellipse">椭圆</div>
+            <div class="hmi-text-demo"><div class="t1">标题 16</div><div class="t2">正文 12.5</div><div class="t3">说明 11.5</div></div>
+          </div>
+          <span class="name">基础：矩形 / 椭圆 / 文本</span>
+        </div>
+
+      </div>
+
+      <div class="dev-panel" id="devPanel" hidden>
+        <p class="dev-note"><b>推荐开发（16 项原候选 + 7 项补充候选）</b> · P0 中 Tank / KpiBoard（Phase 1）与 SelectorSwitch / TextField / ComboBox / AckButton（Phase 2）已落地（标 ✓）；原 16 项中 P0 剩余 AlarmList / MultiTrend 2 项建议下一批，P1 第二批，P2 视行业需求。下方另有 7 项 <b>补充候选</b>（直线/本地图片/管件/设定条/柱饼图/工艺符号包/数据表），是设计稿原 16 项之外、按现有图元库空白补的；直线/箭头建议按 P0 先做，其余按 P1/P2 排，落地前逐项评审。每项都给出“现有替代”，避免把“没有这个控件”误当成“做不了”；卡片下方的 <b>变量联动</b> 行说明核心绑定变量与读写方向。</p>
+        <div class="dev-legend">
+          <span><b class="bind-dir read">只读</b> 变量 → 图元</span>
+          <span><b class="bind-dir rw">读/写</b> 变量 ↔ 图元（双向）</span>
+          <span><b class="bind-dir event">事件</b> 图元事件 → 动作表 / 报警引擎</span>
+          <span><b class="bind-dir none">配置</b> 设计期配置，不绑变量</span>
+        </div>
+        <div class="dev-grid">
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p0">P0</span><h4>多档旋钮</h4><code class="dev-type">Hmi.SelectorSwitch</code><span class="dev-done">✓ 已实现</span></div>
+            <div class="dev-visual hmi" data-theme="dark"><div class="hmi-selector"><span class="opt">手动</span><span class="opt on">自动</span><span class="opt">检修</span></div></div>
+            <p>2~4 档保持 / 弹簧返回；手/自动、本地/远程、工位选择。比一排位按钮更像现场设备，也不会误触。</p>
+            <div class="dev-bind"><span class="bind-dir rw">读/写</span><code>Line3.Mode : int</code><span class="bind-arrow">↔</span><code>SelectorSwitch.Value</code><span class="bind-note">变量→档位；点击档位→写变量（Phase 2 动作表）</span></div>
+            <div class="dev-meta"><span>替代：<b>多个位按钮</b></span><span>工作量：<b>M</b></span><span>依赖：<b>事件/动作</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p0">P0</span><h4>文本输入域</h4><code class="dev-type">Hmi.TextField</code><span class="dev-done">✓ 已实现</span></div>
+            <div class="dev-visual hmi" data-theme="dark"><div class="hmi-io editable" style="width:100%;height:34px;"><span class="lbl">批号</span><span class="val" style="font-size:11px;">B20261020-01</span></div></div>
+            <p>字符串输入，带长度 / 格式 / 权限校验；批号、操作备注、配方名、工单号。</p>
+            <div class="dev-bind"><span class="bind-dir rw">读/写</span><code>Line3.BatchNo : string</code><span class="bind-arrow">↔</span><code>TextField.Value</code><span class="bind-note">变量→文本；编辑提交→写变量</span></div>
+            <div class="dev-meta"><span>替代：<b>无（数值域只收数字）</b></span><span>工作量：<b>M</b></span><span>依赖：<b>写变量 + 校验</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p0">P0</span><h4>下拉选择器（枚举型）</h4><code class="dev-type">Hmi.ComboBox</code><span class="dev-done">✓ 已实现</span></div>
+            <div class="dev-visual hmi" data-theme="dark" style="flex-direction:column;gap:6px;">
+              <div class="hmi-combo" style="width:200px;"><span>自动</span><span style="font-family:var(--mono);font-size:10px;color:var(--c-text-3);">1</span><svg viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+              <div class="dev-map"><span>0 手动</span><span class="on">1 自动</span><span>2 检修</span></div>
+            </div>
+            <p><b>枚举型下拉</b>：绑定 int / 枚举值，显示文本由映射表给出；PLC/Modbus 寄存器直接绑 int。文本模式仅用于字符串变量（配方名等）。</p>
+            <div class="dev-bind"><span class="bind-dir rw">读/写</span><code>Line3.Mode : int</code><span class="bind-arrow">↔</span><code>ComboBox.Value</code><span class="bind-note">0=手动 / 1=自动 / 2=检修；未知值显示 #n</span></div>
+            <div class="dev-meta"><span>替代：<b>按钮组</b></span><span>工作量：<b>M</b></span><span>依赖：<b>枚举映射 / 候选来源</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p0">P0</span><h4>报警确认按钮</h4><code class="dev-type">Hmi.AckButton</code><span class="dev-done">✓ 已实现</span></div>
+            <div class="dev-visual hmi" data-theme="dark" style="gap:10px;"><span class="hmi-btn danger" style="height:32px;font-size:11px;">✓ 确认报警</span><span class="hmi-bit" style="height:26px;min-width:58px;font-size:10px;"><i class="dot"></i>3 条</span></div>
+            <p>一键确认当前 / 最早 / 全部未确认报警；带权限判断与操作结果反馈。报警条目前只能看，不能确认。</p>
+            <div class="dev-bind"><span class="bind-dir event">事件</span><code>Pressed</code><span class="bind-arrow">→</span><code>报警引擎 Acknowledge(scope)</code><span class="bind-note">确认后报警条/列表刷新</span></div>
+            <div class="dev-meta"><span>替代：<b>打开报警历史抽屉</b></span><span>工作量：<b>S</b></span><span>依赖：<b>报警引擎 API</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p0">P0</span><h4>报警列表</h4><code class="dev-type">Hmi.AlarmList</code></div>
+            <div class="dev-visual hmi" data-theme="dark"><div class="dev-mini-table"><div class="dev-mini-row"><span class="dev-mini-chip" style="color:var(--c-danger)">严重</span><span>1# 主轴温度高</span><span style="font-size:8px;color:var(--c-text-3)">激活</span></div><div class="dev-mini-row"><span class="dev-mini-chip" style="color:var(--c-warning)">警告</span><span>2# 泵出口压力低</span><span style="font-size:8px;color:var(--c-text-3)">激活</span></div><div class="dev-mini-row"><span class="dev-mini-chip" style="color:var(--c-info)">提示</span><span>3# 线换型完成</span><span style="font-size:8px;color:var(--c-text-3)">已确认</span></div></div></div>
+            <p>页内报警表：按严重度 / 时间 / 状态筛选，逐条确认，导出 CSV。与报警条互补：一个“扫一眼”，一个“逐条处理”。</p>
+            <div class="dev-bind"><span class="bind-dir read">只读</span><code>ScadaAlarmEngine.ActiveAlarms</code><span class="bind-arrow">→</span><code>Rows</code><span class="bind-note">确认→报警引擎；导出 CSV</span></div>
+            <div class="dev-meta"><span>替代：<b>宿主报警历史抽屉</b></span><span>工作量：<b>L</b></span><span>依赖：<b>复用 ScadaAlarmHistoryView</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p0">P0</span><h4>多曲线趋势</h4><code class="dev-type">Hmi.MultiTrend</code></div>
+            <div class="dev-visual hmi" data-theme="dark"><svg viewBox="0 0 240 76" style="width:100%;height:76px"><g stroke="var(--c-border)" stroke-width="1"><line x1="20" y1="12" x2="20" y2="64"/><line x1="20" y1="64" x2="232" y2="64"/><line x1="20" y1="38" x2="232" y2="38"/></g><path d="M20 50 L52 44 L84 48 L116 30 L148 34 L180 22 L212 28 L232 20" fill="none" stroke="#38BDF8" stroke-width="2"/><path d="M20 56 L52 52 L84 54 L116 44 L148 48 L180 40 L212 42 L232 36" fill="none" stroke="#22C55E" stroke-width="2"/><path d="M20 60 L52 58 L84 60 L116 54 L148 56 L180 50 L212 52 L232 48" fill="none" stroke="#F59E0B" stroke-width="2"/></svg></div>
+            <p>2~8 条曲线同图，图例、游标、各自量程/颜色；PV/SP/OP 对比、多工位对比。当前一个图元只能画一条。</p>
+            <div class="dev-bind"><span class="bind-dir read">只读</span><code>Line3.Pressure / Setpoint / Output : double</code><span class="bind-arrow">→</span><code>Series[0..2]</code><span class="bind-note">每个系列一个变量；时间窗 60s</span></div>
+            <div class="dev-meta"><span>替代：<b>多个 ChartTrend 并排</b></span><span>工作量：<b>L</b></span><span>依赖：<b>VM.Charts 多系列</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p0">P0</span><h4>罐体 / 料仓</h4><code class="dev-type">Hmi.Tank</code><span class="dev-done">✓ 已实现</span></div>
+            <div class="dev-visual hmi" data-theme="dark"><div class="hmi-symbol" style="width:84px;"><svg viewBox="0 0 84 96" style="width:84px;height:88px"><rect x="12" y="8" width="60" height="72" rx="12" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M12 50 L72 50 L72 68 Q72 80 60 80 L24 80 Q12 80 12 68 Z" fill="var(--c-accent)"/><text x="42" y="72" text-anchor="middle" fill="#04121b" font-size="10" font-family="Consolas">500 L</text></svg><span class="cap">T-101</span></div></div>
+            <p>带液位填充的罐体 / 料仓符号，可叠加容量、温度、压力；流程行业最常用的工艺图元之一。</p>
+            <div class="dev-bind"><span class="bind-dir read">只读</span><code>Tank1.Level : double</code><span class="bind-arrow">→</span><code>Tank.Level</code><span class="bind-note">0~100；容量×液位→读数</span></div>
+            <div class="dev-meta"><span>替代：<b>矩形 + 棒图</b></span><span>工作量：<b>M</b></span><span>依赖：<b>几何绘制</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p0">P0</span><h4>KPI 看板</h4><code class="dev-type">Hmi.KpiBoard</code><span class="dev-done">✓ 已实现</span></div>
+            <div class="dev-visual hmi" data-theme="dark"><div class="dev-mini-grid"><div class="dev-mini-kpi"><b>92.4%</b><span>OEE</span></div><div class="dev-mini-kpi"><b>12,840</b><span>产量</span></div><div class="dev-mini-kpi"><b>99.1%</b><span>良率</span></div><div class="dev-mini-kpi"><b>12 min</b><span>停机</span></div></div></div>
+            <p>OEE、产量、良率、停机时长，2×2 或 4×1；把“文本 + 棒图 + 状态灯”手工拼的重复劳动收成一个复合图元。</p>
+            <div class="dev-bind"><span class="bind-dir read">只读</span><code>Line3.OEE / Output / Yield / Downtime</code><span class="bind-arrow">→</span><code>Value1..4</code><span class="bind-note">四个变量各自绑定；数字也按文本显示</span></div>
+            <div class="dev-meta"><span>替代：<b>文本 + 棒图手工拼</b></span><span>工作量：<b>S/M</b></span><span>依赖：<b>表达式/统计</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p1">P1</span><h4>日期时间域</h4><code class="dev-type">Hmi.DateTimeField</code></div>
+            <div class="dev-visual hmi" data-theme="dark"><div class="hmi-io editable" style="width:100%;height:34px;"><span class="lbl">批次时间</span><span class="val" style="font-size:11px;">2026-10-20 14:32</span></div></div>
+            <p>日期 / 时间输入，带格式与范围校验；班次、批次、追溯时间。</p>
+            <div class="dev-bind"><span class="bind-dir rw">读/写</span><code>Line3.BatchTime : DateTime</code><span class="bind-arrow">↔</span><code>DateTimeField.Value</code><span class="bind-note">变量→时间；选择→写变量</span></div>
+            <div class="dev-meta"><span>替代：<b>文本输入 + 手写格式</b></span><span>工作量：<b>M</b></span><span>依赖：<b>写变量 + 格式</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p1">P1</span><h4>三色灯柱</h4><code class="dev-type">Hmi.StackLight</code></div>
+            <div class="dev-visual hmi" data-theme="dark"><div class="dev-mini-stack"><i style="background:#EF4444;opacity:.35"></i><i style="background:#F59E0B;opacity:.35"></i><i style="background:#22C55E;box-shadow:0 0 8px rgba(34,197,94,.6)"></i></div><span class="hmi-label">P-101</span></div>
+            <p>红 / 黄 / 绿三色灯柱，可选蜂鸣；设备状态、安灯呼叫。比单个多态灯更符合现场设备形态。</p>
+            <div class="dev-bind"><span class="bind-dir read">只读</span><code>P101.State : int</code><span class="bind-arrow">→</span><code>StackLight.State</code><span class="bind-note">0=停 / 1=运行 / 2=故障；可选蜂鸣</span></div>
+            <div class="dev-meta"><span>替代：<b>多态灯 + 文字</b></span><span>工作量：<b>S/M</b></span><span>依赖：<b>声音/状态</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p1">P1</span><h4>运行计时器</h4><code class="dev-type">Hmi.RunHourMeter</code></div>
+            <div class="dev-visual hmi" data-theme="dark" style="flex-direction:column;gap:2px;"><span style="font-family:var(--mono);font-size:24px;font-weight:600;color:var(--c-text);">1,284.5<span style="font-size:10px;color:var(--c-text-3)"> h</span></span><span class="hmi-label">累计运行</span></div>
+            <p>累计运行小时 / 本次运行时长 / 循环节拍，可复位；维护提醒与 OEE 的基础数据。</p>
+            <div class="dev-bind"><span class="bind-dir read">读</span><code>P101.RunHours : double</code><span class="bind-arrow">→</span><code>RunHourMeter.Value</code><span class="bind-note">复位→写变量 0（需权限）</span></div>
+            <div class="dev-meta"><span>替代：<b>时钟 + 文本</b></span><span>工作量：<b>S</b></span><span>依赖：<b>节拍源/累计</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p1">P1</span><h4>顺控步骤指示</h4><code class="dev-type">Hmi.SequenceStep</code></div>
+            <div class="dev-visual hmi" data-theme="dark"><div class="dev-mini-steps"><div class="dev-mini-step"><i>1</i>上料</div><div class="dev-mini-step on"><i>2</i>定位</div><div class="dev-mini-step"><i>3</i>焊接</div><div class="dev-mini-step"><i>4</i>下料</div></div></div>
+            <p>当前步 / 下一步 / 自动手动 / 跳步；把流程引擎的步骤状态直接上屏，而不是让操作员猜。</p>
+            <div class="dev-bind"><span class="bind-dir read">只读</span><code>Line3.Sequence.CurrentStep : int</code><span class="bind-arrow">→</span><code>SequenceStep.CurrentStep</code><span class="bind-note">步骤名设计期配置；当前步高亮</span></div>
+            <div class="dev-meta"><span>替代：<b>文本 + 状态灯</b></span><span>工作量：<b>M/L</b></span><span>依赖：<b>流程引擎状态</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p1">P1</span><h4>配方 / 参数表</h4><code class="dev-type">Hmi.RecipeTable</code></div>
+            <div class="dev-visual hmi" data-theme="dark"><div class="dev-mini-table"><div class="dev-mini-row" style="grid-template-columns:1fr 44px 44px;color:var(--c-text-3);font-size:8px;"><span>参数</span><span>当前</span><span>配方</span></div><div class="dev-mini-row" style="grid-template-columns:1fr 44px 44px;"><span>温度</span><span>86.4</span><span>90.0</span></div><div class="dev-mini-row" style="grid-template-columns:1fr 44px 44px;"><span>压力</span><span>0.62</span><span>0.70</span></div><div class="dev-mini-row" style="grid-template-columns:1fr 44px 44px;"><span>速度</span><span>120</span><span>140</span></div></div></div>
+            <p>多行参数表：下载 / 上传 / 比对 / 审计；换型时一次改一批参数，比逐个数值域快得多。</p>
+            <div class="dev-bind"><span class="bind-dir rw">读/写</span><code>Recipe.Temp / Pressure / Speed</code><span class="bind-arrow">↔</span><code>Rows[].Value</code><span class="bind-note">下载→批量写变量；上传→读变量</span></div>
+            <div class="dev-meta"><span>替代：<b>多个数值域</b></span><span>工作量：<b>L</b></span><span>依赖：<b>配方存储/权限/审计</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p2">P2</span><h4>PID 回路面板</h4><code class="dev-type">Hmi.PidLoop</code></div>
+            <div class="dev-visual hmi" data-theme="dark"><div class="dev-mini-bars"><div class="dev-mini-bar"><span>PV</span><div class="track"><div class="fill" style="width:72%"></div></div><span>72.4</span></div><div class="dev-mini-bar"><span>SP</span><div class="track"><div class="fill" style="width:70%;background:var(--c-success)"></div></div><span>70.0</span></div><div class="dev-mini-bar"><span>OP</span><div class="track"><div class="fill" style="width:48%;background:var(--c-warning)"></div></div><span>48.2</span></div></div></div>
+            <p>PV / SP / OP 三值同屏，自动 / 手动切换，参数整定；流程行业的高频需求，但依赖控制层能力。</p>
+            <div class="dev-bind"><span class="bind-dir rw">读/写</span><code>Loop1.PV / SP / OP : double</code><span class="bind-arrow">↔</span><code>PV / SP / OP</code><span class="bind-note">SP 可写；Auto/Manual 绑 Mode</span></div>
+            <div class="dev-meta"><span>替代：<b>表盘 + 数值域组合</b></span><span>工作量：<b>L</b></span><span>依赖：<b>PID 控制/写变量</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p2">P2</span><h4>联锁 / 许可矩阵</h4><code class="dev-type">Hmi.InterlockMatrix</code></div>
+            <div class="dev-visual hmi" data-theme="dark"><div class="dev-mini-matrix"><i></i><i></i><i class="off"></i><i></i><i class="bad"></i><i></i><i class="off"></i><i></i><i></i></div></div>
+            <p>条件矩阵、旁路状态、复位；安全回路与复杂启停逻辑的“为什么不能启动”一屏说清。</p>
+            <div class="dev-bind"><span class="bind-dir read">只读</span><code>Line3.Interlocks.* : bool</code><span class="bind-arrow">→</span><code>Conditions</code><span class="bind-note">绿=满足 / 红=不满足 / 灰=旁路；复位→动作</span></div>
+            <div class="dev-meta"><span>替代：<b>多个指示灯 + 文本</b></span><span>工作量：<b>L</b></span><span>依赖：<b>联锁引擎</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p2">P2</span><h4>视频监控</h4><code class="dev-type">Hmi.VideoView</code></div>
+            <div class="dev-visual hmi" data-theme="dark"><div class="dev-mini-video"><span class="cam">CAM 01</span><div class="play">▶</div></div></div>
+            <p>RTSP / 相机流、快照、通道切换；与图像显示图元不同，它要持续解码，不能按“一张图”处理。</p>
+            <div class="dev-bind"><span class="bind-dir none">配置</span><code>StreamUrl : string</code><span class="bind-arrow">→</span><code>VideoView.StreamUrl</code><span class="bind-note">设计期配置；快照→保存/上报</span></div>
+            <div class="dev-meta"><span>替代：<b>图像显示 + 定时截图</b></span><span>工作量：<b>L</b></span><span>依赖：<b>视频解码/渲染</b></span></div>
+          </article>
+
+        </div>
+
+        <p class="dev-note" style="margin-top:16px;"><b>补充候选（7 项）</b> · 以下不在原 16 项候选内，按现有图元库的空白补：基础绘图缺直线/箭头、图片展示缺本地文件入口、工艺图缺管件、连续量缺设定条、统计缺柱/饼图、行业符号缺一批、数据展示缺通用表格。直线/箭头建议按 P0 先做，其余按 P1/P2 排；落地前逐项评审。</p>
+        <div class="dev-grid">
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p0">P0</span><h4>直线 / 折线 / 箭头</h4><code class="dev-type">Hmi.Line</code></div>
+            <div class="dev-visual hmi" data-theme="dark">
+              <svg viewBox="0 0 260 76" style="width:100%;height:76px" aria-hidden="true">
+                <text x="14" y="12" fill="var(--c-text-3)" font-size="8" font-family="Consolas">LINE</text>
+                <line x1="14" y1="24" x2="112" y2="24" stroke="var(--c-accent)" stroke-width="2" stroke-linecap="round"/>
+                <path d="M104 18 L114 24 L104 30" fill="none" stroke="var(--c-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <text x="14" y="72" fill="var(--c-text-3)" font-size="8" font-family="Consolas">POLYLINE</text>
+                <path d="M14 56 L52 56 L82 38 L118 38" fill="none" stroke="var(--c-success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M110 32 L120 38 L110 44" fill="none" stroke="var(--c-success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <text x="150" y="72" fill="var(--c-text-3)" font-size="8" font-family="Consolas">DASHED</text>
+                <line x1="150" y1="56" x2="246" y2="56" stroke="var(--c-warning)" stroke-width="2" stroke-dasharray="6 5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <p>基础类现在只有矩形、椭圆、文本；画连线、标注、流向只能拿管道或细矩形凑。直线用起止点 + 箭头 + 线型，折线作为同一图元的点集扩展；命中测试按线宽加容差，不按包围盒。</p>
+            <div class="dev-bind"><span class="bind-dir none">配置</span><code>Start / End / Arrow / Dash</code><span class="bind-arrow">→</span><code>Line</code><span class="bind-note">设计期几何；不绑变量</span></div>
+            <div class="dev-meta"><span>替代：<b>管道 / 细矩形</b></span><span>工作量：<b>S/M</b></span><span>依赖：<b>几何绘制 + 命中测试</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p1">P1</span><h4>本地图片</h4><code class="dev-type">Hmi.Picture</code></div>
+            <div class="dev-visual hmi" data-theme="dark">
+              <div style="width:100%;display:flex;align-items:center;gap:10px;">
+                <div style="width:96px;height:62px;border-radius:6px;border:1px solid var(--c-border-2);background:var(--c-surface-2);overflow:hidden;flex:none;">
+                  <svg viewBox="0 0 96 62" style="width:96px;height:62px" aria-hidden="true">
+                    <rect width="96" height="62" fill="var(--c-track)"/>
+                    <circle cx="70" cy="17" r="7" fill="var(--c-warning)" opacity=".85"/>
+                    <path d="M0 50 L26 22 L44 40 L58 28 L96 54 L96 62 L0 62 Z" fill="var(--c-success)" opacity=".75"/>
+                    <path d="M0 58 L18 42 L36 54 L52 44 L74 58 L96 52 L96 62 L0 62 Z" fill="var(--c-info)" opacity=".55"/>
+                  </svg>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+                  <span style="font-size:9px;color:var(--c-text-3);">已加载图片</span>
+                  <span style="font-size:9px;color:var(--c-success);">● 方案资产</span>
+                  <span style="display:inline-flex;align-items:center;justify-content:center;height:22px;padding:0 10px;border-radius:5px;border:1px solid var(--c-border-2);background:var(--c-surface);color:var(--c-text);font-size:9px;width:fit-content;">替换图片</span>
+                </div>
+              </div>
+            </div>
+            <p>现有 <code>Hmi.ImageView</code> 只认运行态图像变量（HImage），没有「选本地文件」入口。新增 <code>Hmi.Picture</code>：属性面板只给<b>缩略图 + 「加载图片」/「替换图片」/「清除」</b>，<b>不显示、不暴露文件路径</b>；选图后由宿主复制到方案根目录的 <code>Image\</code>（不存在则创建），<code>.vms</code> 内部只记相对路径，渲染时按方案文件所在目录解析。整个方案目录一起拷贝/迁移，图片不会断；缺文件显示无图占位；复制与解析由宿主完成（<code>Scada.Controls</code> 不碰方案目录）。建议复用 <code>ImageViewElement</code> 模板（同控件类、两个 TypeKey，像 <code>AxisConsole</code>/<code>AxisPanel</code> 那样只覆盖默认值）。</p>
+            <div class="dev-bind"><span class="bind-dir none">配置</span><code>加载图片 / 替换 / 清除</code><span class="bind-arrow">→</span><code>Picture</code><span class="bind-note">专用图片编辑器；面板不显示路径</span></div>
+            <div class="dev-meta"><span>替代：<b>无（ImageView 只认运行态变量）</b></span><span>工作量：<b>S/M</b></span><span>依赖：<b>属性面板图片编辑器（加载/替换/清除） + 方案资产复制/解析 + 图片加载/缓存</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p1">P1</span><h4>管道管件</h4><code class="dev-type">Hmi.Pipe · Shape</code></div>
+            <div class="dev-visual hmi" data-theme="dark">
+              <svg viewBox="0 0 260 76" style="width:100%;height:76px" aria-hidden="true">
+                <rect x="10" y="30" width="44" height="14" rx="7" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="1.5"/>
+                <path d="M76 44 L76 28 Q76 20 84 20 L102 20" fill="none" stroke="var(--c-outline)" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M76 44 L76 28 Q76 20 84 20 L102 20" fill="none" stroke="var(--c-track)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M118 26 L150 26 M134 26 L134 50" fill="none" stroke="var(--c-outline)" stroke-width="13" stroke-linecap="round"/>
+                <path d="M118 26 L150 26 M134 26 L134 50" fill="none" stroke="var(--c-track)" stroke-width="10" stroke-linecap="round"/>
+                <path d="M172 20 L196 26 L196 42 L172 48 Z" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="1.5" stroke-linejoin="round"/>
+                <line x1="204" y1="20" x2="204" y2="48" stroke="var(--c-outline)" stroke-width="3" stroke-linecap="round"/>
+                <line x1="212" y1="20" x2="212" y2="48" stroke="var(--c-outline)" stroke-width="3" stroke-linecap="round"/>
+                <text x="32" y="70" text-anchor="middle" fill="var(--c-text-3)" font-size="8">直管</text>
+                <text x="89" y="70" text-anchor="middle" fill="var(--c-text-3)" font-size="8">弯头</text>
+                <text x="134" y="70" text-anchor="middle" fill="var(--c-text-3)" font-size="8">三通</text>
+                <text x="192" y="70" text-anchor="middle" fill="var(--c-text-3)" font-size="8">异径 / 法兰</text>
+              </svg>
+            </div>
+            <p><code>Hmi.Pipe</code> 现在只有直管（圆角矩形 + 箭头），拐弯靠旋转拼接、接缝对不齐。建议做成 <code>Pipe.Shape</code> 属性（直管/弯头/三通/异径/法兰），不新增 TypeKey；选中框与裁剪按实际几何重算。</p>
+            <div class="dev-bind"><span class="bind-dir read">只读</span><code>P101.Flow : bool/int</code><span class="bind-arrow">→</span><code>Pipe.State</code><span class="bind-note">形状设计期配置；状态色沿用现有管道</span></div>
+            <div class="dev-meta"><span>替代：<b>旋转拼接直管</b></span><span>工作量：<b>M</b></span><span>依赖：<b>几何绘制 + 选中框/裁剪重算</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p1">P1</span><h4>模拟量设定条</h4><code class="dev-type">Hmi.Slider</code></div>
+            <div class="dev-visual hmi" data-theme="dark">
+              <div style="width:100%;display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="font-family:var(--mono);font-size:9px;color:var(--c-text-3);">0</span>
+                  <div style="position:relative;flex:1;height:6px;border-radius:999px;background:var(--c-track);">
+                    <div style="position:absolute;left:0;top:0;height:100%;width:68%;border-radius:999px;background:var(--c-accent);"></div>
+                    <div style="position:absolute;left:68%;top:50%;width:14px;height:14px;margin-left:-7px;margin-top:-7px;border-radius:50%;background:var(--c-surface);border:2px solid var(--c-accent);box-shadow:0 0 0 3px rgba(56,189,248,.18);"></div>
+                  </div>
+                  <span style="font-family:var(--mono);font-size:9px;color:var(--c-text-3);">100</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;">
+                  <span style="font-size:9px;color:var(--c-text-3);">设定温度</span>
+                  <span style="font-family:var(--mono);font-size:18px;font-weight:600;color:var(--c-text);">72.5<span style="font-size:9px;color:var(--c-text-3);"> °C</span></span>
+                </div>
+              </div>
+            </div>
+            <p>连续量现在只能 IOField 键盘输入或 SelectorSwitch 离散档；频繁调温/调速/调流量缺一个拖动即写的手柄。按下拖动、释放提交，支持范围/步长/权限；变量变化时手柄跟随。</p>
+            <div class="dev-bind"><span class="bind-dir rw">读/写</span><code>Loop1.SP : double</code><span class="bind-arrow">↔</span><code>Slider.Value</code><span class="bind-note">拖动→写变量；变量→手柄位置</span></div>
+            <div class="dev-meta"><span>替代：<b>IOField 键盘输入</b></span><span>工作量：<b>M</b></span><span>依赖：<b>写变量 + 权限 + 拖动交互</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p1">P1</span><h4>柱状图 / 饼图</h4><code class="dev-type">Hmi.ChartBar · Hmi.ChartPie</code></div>
+            <div class="dev-visual hmi" data-theme="dark">
+              <svg viewBox="0 0 260 76" style="width:100%;height:76px" aria-hidden="true">
+                <text x="14" y="12" fill="var(--c-text-3)" font-size="8" font-family="Consolas">BAR</text>
+                <rect x="14" y="30" width="18" height="36" rx="3" fill="var(--c-accent)"/>
+                <rect x="40" y="20" width="18" height="46" rx="3" fill="var(--c-success)"/>
+                <rect x="66" y="40" width="18" height="26" rx="3" fill="var(--c-warning)"/>
+                <rect x="92" y="14" width="18" height="52" rx="3" fill="var(--c-info)"/>
+                <line x1="10" y1="66" x2="114" y2="66" stroke="var(--c-border-2)" stroke-width="1"/>
+                <text x="162" y="12" fill="var(--c-text-3)" font-size="8" font-family="Consolas">PIE</text>
+                <g transform="translate(188,38)">
+                  <circle r="26" fill="var(--c-track)"/>
+                  <path d="M0 0 L0 -26 A26 26 0 0 1 22.5 13 Z" fill="var(--c-accent)"/>
+                  <path d="M0 0 L22.5 13 A26 26 0 0 1 -22.5 13 Z" fill="var(--c-success)"/>
+                  <path d="M0 0 L-22.5 13 A26 26 0 0 1 0 -26 Z" fill="var(--c-warning)"/>
+                  <circle r="10" fill="var(--c-surface)"/>
+                </g>
+              </svg>
+            </div>
+            <p><code>VM.Charts</code> 已有 <code>BarSeriesVm</code> / <code>PieSeriesVm</code> / <code>HistogramSeriesVm</code>，但图元库只有趋势曲线；产量/良率/停机分布缺统计图。先做只读柱图/饼图，数据源为多个绑定值；后续再扩到表格/分组数据。</p>
+            <div class="dev-bind"><span class="bind-dir read">只读</span><code>Line3.Output / Yield / Downtime : double</code><span class="bind-arrow">→</span><code>Series[0..2]</code><span class="bind-note">每项一个变量；只读</span></div>
+            <div class="dev-meta"><span>替代：<b>KPI 看板 + 文本</b></span><span>工作量：<b>M</b></span><span>依赖：<b>VM.Charts 柱/饼系列</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p2">P2</span><h4>工艺符号包</h4><code class="dev-type">Hmi.Fan · Compressor · HeatExchanger …</code></div>
+            <div class="dev-visual hmi" data-theme="dark">
+              <svg viewBox="0 0 260 76" style="width:100%;height:76px" aria-hidden="true">
+                <g transform="translate(36,34)">
+                  <circle r="20" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="1.5"/>
+                  <path d="M0 0 L0 -15 L10 -8 Z" fill="var(--c-success)"/>
+                  <path d="M0 0 L13 8 L4 15 Z" fill="var(--c-success)"/>
+                  <path d="M0 0 L-13 8 L-14 -4 Z" fill="var(--c-success)"/>
+                  <circle r="3" fill="var(--c-surface)"/>
+                </g>
+                <text x="36" y="70" text-anchor="middle" fill="var(--c-text-3)" font-size="8">风机</text>
+                <g transform="translate(100,20)">
+                  <rect width="52" height="34" rx="4" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="1.5"/>
+                  <path d="M6 8 L18 26 L30 8 L42 26" fill="none" stroke="var(--c-warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </g>
+                <text x="126" y="70" text-anchor="middle" fill="var(--c-text-3)" font-size="8">换热器</text>
+                <g transform="translate(176,20)">
+                  <rect width="36" height="34" rx="4" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="1.5"/>
+                  <path d="M6 6 L30 28 M30 6 L6 28 M6 17 L30 17" stroke="var(--c-info)" stroke-width="1.5" opacity=".8"/>
+                </g>
+                <text x="194" y="70" text-anchor="middle" fill="var(--c-text-3)" font-size="8">过滤器</text>
+                <g transform="translate(222,26)">
+                  <rect width="30" height="20" rx="3" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="1.5"/>
+                  <circle cx="6" cy="24" r="4" fill="none" stroke="var(--c-outline)" stroke-width="1.5"/>
+                  <circle cx="24" cy="24" r="4" fill="none" stroke="var(--c-outline)" stroke-width="1.5"/>
+                </g>
+                <text x="237" y="70" text-anchor="middle" fill="var(--c-text-3)" font-size="8">输送带</text>
+              </svg>
+            </div>
+            <p>工艺类只有阀、泵、电机、管道、罐体；P&amp;ID 常用符号缺一批。建议按行业需求分批，先做风机/压缩机/换热器/过滤器/搅拌器/输送带，状态色沿用泵/电机的 0/1/2 语汇。</p>
+            <div class="dev-bind"><span class="bind-dir read">只读</span><code>P101.State : int</code><span class="bind-arrow">→</span><code>State</code><span class="bind-note">0=停 / 1=运行 / 2=故障；与泵/电机同一套</span></div>
+            <div class="dev-meta"><span>替代：<b>椭圆/矩形 + 文本手拼</b></span><span>工作量：<b>每个 S/M</b></span><span>依赖：<b>几何绘制 + 状态色</b></span></div>
+          </article>
+
+          <article class="dev-card">
+            <div class="dev-head"><span class="prio p2">P2</span><h4>通用数据表</h4><code class="dev-type">Hmi.DataTable</code></div>
+            <div class="dev-visual hmi" data-theme="dark">
+              <div class="dev-mini-table">
+                <div class="dev-mini-row" style="grid-template-columns:1fr 52px 52px;color:var(--c-text-3);font-size:8px;"><span>时间</span><span>产量</span><span>良率</span></div>
+                <div class="dev-mini-row" style="grid-template-columns:1fr 52px 52px;font-family:var(--mono);font-size:8.5px;"><span>14:30</span><span>1,280</span><span>99.2%</span></div>
+                <div class="dev-mini-row" style="grid-template-columns:1fr 52px 52px;font-family:var(--mono);font-size:8.5px;"><span>14:00</span><span>1,264</span><span>98.8%</span></div>
+                <div class="dev-mini-row" style="grid-template-columns:1fr 52px 52px;font-family:var(--mono);font-size:8.5px;"><span>13:30</span><span>1,271</span><span>99.0%</span></div>
+              </div>
+            </div>
+            <p>AlarmList/RecipeTable 都是专用表；要显示生产记录/历史数据还缺一个只读表格。建议与 AlarmList 共用表格内核（行模型、列宽、滚动、CSV 导出），首版只读，后续再加编辑/下载。</p>
+            <div class="dev-bind"><span class="bind-dir read">只读</span><code>History.Rows</code><span class="bind-arrow">→</span><code>Rows</code><span class="bind-note">首版只读；导出 CSV</span></div>
+            <div class="dev-meta"><span>替代：<b>多个文本 + 手工排版</b></span><span>工作量：<b>M/L</b></span><span>依赖：<b>数据源契约 + 表格内核</b></span></div>
+          </article>
+
+        </div>
+        <p class="dev-note" style="margin-top:12px;"><b>方案资产约定</b> · 选图时复制到方案根目录 <code>Image\</code>，<code>.vms</code> 内部只存相对路径；复制/解析由宿主完成，控件只认相对路径；属性面板只给缩略图 + 加载/替换/清除，<b>不显示路径</b>；缺文件显示占位，同名不同内容确认或改名，同名同内容按哈希去重。</p>
+        <p class="dev-note" style="margin-top:12px;">另有 <b>条码/二维码</b>、<b>电子签名/审计</b>、<b>报表嵌入</b> 三项，视行业合规需求再评估（P3 观察）。</p>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:12px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/></svg>
+      <div><b>全家福不是“图标墙”。</b> 每个控件都按实际默认尺寸与状态色绘制；<code>Hmi.AxisPointTable</code> 为旧 TypeKey 兼容项，不在工具箱展示，故不占版面；轴控台见 §09。完整清单与默认尺寸见 <code>README.md</code>「已实现控件清单」。</div>
+    </div>
+  </section>
+  <!-- ============================================================ -->
+  <!-- 05 交互控件 -->
+  <!-- ============================================================ -->
+  <section class="section" id="interactive">
+    <div class="sec-head">
+      <span class="sec-index">05</span>
+      <h2>交互控件：五态是底线，不是加分项</h2>
+      <p>按钮、位按钮、数值域是操作员真正会“碰”的三类。它们必须有完整的五态，并且“能不能点”要一眼看得出来。</p>
+    </div>
+
+    <div class="family-grid">
+
+      <article class="ctl-card">
+        <div class="ctl-head">
+          <div>
+            <h3>按钮 <span class="typekey">Hmi.Button</span></h3>
+            <p>动作入口：启动、停止、复位、切换。三种语义色：主操作（accent）、次操作（surface）、危险（red）。</p>
+          </div>
+          <span class="cat">操作</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;flex-direction:column;gap:14px;">
+            <div class="state-row">
+              <div class="state-cell"><span class="sl">Normal</span><span class="hmi-btn primary">启动</span></div>
+              <div class="state-cell"><span class="sl">Hover</span><span class="hmi-btn primary is-hover">启动</span></div>
+              <div class="state-cell"><span class="sl">Pressed</span><span class="hmi-btn primary is-pressed">启动</span></div>
+              <div class="state-cell"><span class="sl">Focus</span><span class="hmi-btn primary is-focus">启动</span></div>
+              <div class="state-cell"><span class="sl">Disabled</span><span class="hmi-btn primary is-disabled">启动</span></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span class="hmi-btn secondary">暂停</span>
+              <span class="hmi-btn secondary is-hover">暂停</span>
+              <span class="hmi-btn danger">停止</span>
+              <span class="hmi-btn danger is-pressed">停止</span>
+              <span class="hmi-btn primary sm">紧凑 30</span>
+              <span class="hmi-btn primary lg">触摸 44</span>
+            </div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>高度</b> 30 / 36 / 44</span>
+          <span><b>圆角</b> 6</span>
+          <span><b>字号</b> 12.5 / 600</span>
+          <span><b>焦点</b> 2px accent + 2px offset</span>
+          <span><b>按压</b> 内阴影 + 背景加深</span>
+        </div>
+      </article>
+
+      <article class="ctl-card">
+        <div class="ctl-head">
+          <div>
+            <h3>位按钮 <span class="typekey">Hmi.BitButton</span></h3>
+            <p>一根开关量的“化身”：0/1 两态必须有明显色差；按下时压暗，不改变用户配置的底色。</p>
+          </div>
+          <span class="cat">操作</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;flex-direction:column;gap:14px;">
+            <div class="state-row">
+              <div class="state-cell"><span class="sl">Off</span><span class="hmi-bit"><i class="dot"></i>停止</span></div>
+              <div class="state-cell"><span class="sl">On</span><span class="hmi-bit on"><i class="dot"></i>运行</span></div>
+              <div class="state-cell"><span class="sl">Hover</span><span class="hmi-bit on is-hover"><i class="dot"></i>运行</span></div>
+              <div class="state-cell"><span class="sl">Pressed</span><span class="hmi-bit on is-pressed"><i class="dot"></i>运行</span></div>
+              <div class="state-cell"><span class="sl">Disabled</span><span class="hmi-bit is-disabled"><i class="dot"></i>停止</span></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span class="hmi-bit"><i class="dot"></i>手动</span>
+              <span class="hmi-bit on"><i class="dot"></i>自动</span>
+              <span class="hmi-bit is-focus"><i class="dot"></i>焦点</span>
+            </div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>高度</b> 36</span>
+          <span><b>圆角</b> 6</span>
+          <span><b>状态点</b> 7px + 3px 光晕</span>
+          <span><b>On</b> 绿色实底 / 白字</span>
+          <span><b>Off</b> 深灰底 / 次文字</span>
+        </div>
+      </article>
+
+      <article class="ctl-card span-2">
+        <div class="ctl-head">
+          <div>
+            <h3>数值域 <span class="typekey">Hmi.IOField</span></h3>
+            <p>只读是“表格里的读数”，可写是“带边框的输入框”。编辑中给 accent 焦点环，校验失败给红色描边 + 错误提示；越限只改数值颜色，不抢边框。</p>
+          </div>
+          <span class="cat">数值</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;flex-direction:column;gap:14px;">
+            <div class="state-grid">
+              <div class="state-block">
+                <h4>只读 / 可写 / 编辑中</h4>
+                <div style="display:flex;flex-direction:column;gap:9px;">
+                  <div class="hmi-io readonly"><span class="lbl">温度</span><span class="val">86.4<span class="unit">°C</span></span></div>
+                  <div class="hmi-io editable"><span class="lbl">设定值</span><span class="val">120.0<span class="unit">°C</span></span><svg class="pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4l10-10-4-4L4 16z"/></svg></div>
+                  <div class="hmi-io editing"><span class="lbl">设定值</span><span class="val">120.0<span class="unit">°C</span></span></div>
+                </div>
+              </div>
+              <div class="state-block">
+                <h4>越限 / 校验失败 / 禁用</h4>
+                <div style="display:flex;flex-direction:column;gap:9px;">
+                  <div class="hmi-io warn"><span class="lbl">回水温度</span><span class="val">92.6<span class="unit">°C</span></span></div>
+                  <div class="hmi-io error"><span class="lbl">设定值</span><span class="val">1,2O0<span class="unit">°C</span></span></div>
+                  <div class="hmi-io is-disabled"><span class="lbl">只读</span><span class="val">86.4<span class="unit">°C</span></span></div>
+                </div>
+              </div>
+              <div class="state-block">
+                <h4>说明</h4>
+                <p style="margin:0;font-size:10.5px;line-height:1.7;color:var(--c-text-3);">只读：无边框、底部 1px 细线，像表格读数。<br>可写：完整 1px 边框 + hover 时出现铅笔。<br>编辑中：accent 边框 + 3px 焦点环。<br>失败：红色边框 + ToolTip 说明原因。<br>越限：只改数值颜色（黄/红），边框留给校验态。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>高度</b> 36</span>
+          <span><b>圆角</b> 6（只读 0）</span>
+          <span><b>字号</b> 标签 11.5 / 数值 13 mono</span>
+          <span><b>只读</b> 透明底 + 底边线</span>
+          <span><b>可写</b> surface 底 + 1px 边框</span>
+          <span><b>数字</b> tabular-nums</span>
+        </div>
+      </article>
+
+    </div>
+  </section>
+  <!-- ============================================================ -->
+  <!-- 06 指示与报警 -->
+  <!-- ============================================================ -->
+  <section class="section" id="indicators">
+    <div class="sec-head">
+      <span class="sec-index">06</span>
+      <h2>指示与报警：颜色只表达状态</h2>
+      <p>指示灯、多态灯、时钟、报警条。多态灯四态与报警严重度必须使用同一套语义色，避免“黄=警告”和“黄=提示”两种读法。</p>
+    </div>
+
+    <div class="family-grid">
+
+      <article class="ctl-card">
+        <div class="ctl-head">
+          <div>
+            <h3>指示灯 <span class="typekey">Hmi.Indicator</span></h3>
+            <p>布尔量的可视化身：亮/灭两态，圆/方两种形状。灯体带 2px 描边，深色画面上不糊边。</p>
+          </div>
+          <span class="cat">指示</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;align-items:center;justify-content:center;gap:22px;min-height:150px;">
+            <div class="hmi-lamp on"><span class="body"></span><span class="cap">1# 电机</span><span class="sub">运行</span></div>
+            <div class="hmi-lamp"><span class="body"></span><span class="cap">2# 电机</span><span class="sub">停止</span></div>
+            <div class="hmi-lamp on"><span class="body square"></span><span class="cap">3# 电机</span><span class="sub">运行</span></div>
+            <div class="hmi-lamp"><span class="body square"></span><span class="cap">4# 电机</span><span class="sub">停止</span></div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>默认尺寸</b> 40×56</span>
+          <span><b>灯体</b> 36px</span>
+          <span><b>描边</b> 2px</span>
+          <span><b>标签</b> 11.5</span>
+        </div>
+      </article>
+
+      <article class="ctl-card">
+        <div class="ctl-head">
+          <div>
+            <h3>多态灯 <span class="typekey">Hmi.Lamp</span></h3>
+            <p>停机 / 运行 / 警告 / 报警四态。四色与报警严重度共用同一套令牌；方形用于密集排列。</p>
+          </div>
+          <span class="cat">指示</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;align-items:center;justify-content:center;gap:16px;min-height:150px;">
+            <div class="hmi-lamp"><span class="body"></span><span class="cap">熄灭</span><span class="sub">Off</span></div>
+            <div class="hmi-lamp on"><span class="body"></span><span class="cap">运行</span><span class="sub">On</span></div>
+            <div class="hmi-lamp warning"><span class="body"></span><span class="cap">警告</span><span class="sub">Warning</span></div>
+            <div class="hmi-lamp alarm"><span class="body"></span><span class="cap">报警</span><span class="sub">Alarm</span></div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>默认尺寸</b> 40×56</span>
+          <span><b>灯体</b> 36px</span>
+          <span><b>四色</b> off / success / warning / danger</span>
+          <span><b>方形</b> 7px 圆角</span>
+        </div>
+      </article>
+
+      <article class="ctl-card">
+        <div class="ctl-head">
+          <div>
+            <h3>时钟 <span class="typekey">Hmi.Clock</span></h3>
+            <p>时间用 28px 等宽数字，日期用 10.5px 弱文字；标签可选。大屏上优先保证“扫一眼能读”。</p>
+          </div>
+          <span class="cat">指示</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;align-items:center;justify-content:center;gap:30px;min-height:150px;">
+            <div class="hmi-clock"><span class="time">14:32:08</span><span class="date">2026-10-20 周二</span><span class="cap">系统时间</span></div>
+            <div class="hmi-clock"><span class="time" style="font-size:20px;">14:32:08</span><span class="date">SHIFT A</span><span class="cap">1# 线</span></div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>默认尺寸</b> 180×28</span>
+          <span><b>时间</b> 28 / 600 mono</span>
+          <span><b>日期</b> 10.5 mono</span>
+          <span><b>标签</b> 11.5</span>
+        </div>
+      </article>
+
+      <article class="ctl-card">
+        <div class="ctl-head">
+          <div>
+            <h3>报警条 <span class="typekey">Hmi.AlarmBanner</span></h3>
+            <p>实时报警列表：左侧 3px 严重度色条 + 表头计数 + 两行式报警行。严重且未确认时色条闪烁；已确认行淡化。</p>
+          </div>
+          <span class="cat">报警</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:12px;min-height:380px;padding-top:18px;">
+            <div class="hmi-alarm active" style="width:340px;">
+              <span class="accent"></span>
+              <div class="head"><b>实时报警</b><span class="count">3 条未确认</span></div>
+              <div class="rows">
+                <div class="row"><span class="chip critical">严重</span><span class="time">14:32:08</span><span class="name">1# 主轴温度高</span><span class="state">激活</span></div>
+                <div class="row"><span class="chip warning">警告</span><span class="time">14:31:42</span><span class="name">2# 泵出口压力低</span><span class="state">激活</span></div>
+                <div class="row"><span class="chip info">提示</span><span class="time">14:30:17</span><span class="name">3# 线换型完成</span><span class="state">已确认</span></div>
+              </div>
+            </div>
+            <div class="hmi-alarm" style="width:340px;">
+              <span class="accent"></span>
+              <div class="head"><b>实时报警</b><span class="count">0 条</span></div>
+              <div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>系统正常</div>
+            </div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>默认尺寸</b> 320×140</span>
+          <span><b>圆角</b> 8</span>
+          <span><b>行高</b> 44（两行）</span>
+          <span><b>色条</b> 3px</span>
+          <span><b>严重度</b> info / warning / critical</span>
+        </div>
+      </article>
+
+    </div>
+  </section>
+  <!-- ============================================================ -->
+  <!-- 07 数值与过程 -->
+  <!-- ============================================================ -->
+  <section class="section" id="numeric">
+    <div class="sec-head">
+      <span class="sec-index">07</span>
+      <h2>数值与过程：读数和设备符号说同一种话</h2>
+      <p>棒图、表盘、阀门、泵、电机、管道。数值控件用 accent 青蓝，过程状态用绿/黄/红；红色不再兼职“装饰”。</p>
+    </div>
+
+    <div class="family-grid">
+
+      <article class="ctl-card">
+        <div class="ctl-head">
+          <div>
+            <h3>棒图 <span class="typekey">Hmi.ProgressBar</span></h3>
+            <p>横向/纵向两种走向。填充色由业务配置，设计基线给出“正常 / 警告 / 越限”三档示例。</p>
+          </div>
+          <span class="cat">数值</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;align-items:center;justify-content:center;gap:26px;min-height:180px;">
+            <div style="display:flex;flex-direction:column;gap:16px;">
+              <div class="hmi-progress"><div class="top"><span class="name">料仓余量</span><span class="num">68%</span></div><div class="track"><div class="fill" style="width:68%;"></div></div></div>
+              <div class="hmi-progress"><div class="top"><span class="name">冷却水</span><span class="num">18%</span></div><div class="track"><div class="fill warning" style="width:18%;"></div></div></div>
+              <div class="hmi-progress"><div class="top"><span class="name">出口压力</span><span class="num">92%</span></div><div class="track"><div class="fill danger" style="width:92%;"></div></div></div>
+            </div>
+            <div class="hmi-progress vertical"><div class="track"><div class="fill" style="height:64%;"></div></div><span class="name">64%</span></div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>默认尺寸</b> 160×20</span>
+          <span><b>轨道</b> 12px / 圆角 999</span>
+          <span><b>数值</b> 11 / 600 mono</span>
+          <span><b>走向</b> 横 / 纵</span>
+        </div>
+      </article>
+
+      <article class="ctl-card">
+        <div class="ctl-head">
+          <div>
+            <h3>表盘 <span class="typekey">Hmi.Gauge</span></h3>
+            <p>270° 量程、内接圆盘面、指针 + 中心轴环。指针默认 accent；警告/报警只改指针与读数颜色，盘面保持中性。</p>
+          </div>
+          <span class="cat">数值</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;align-items:center;justify-content:center;gap:4px;min-height:220px;">
+            <div class="hmi-gauge" style="transform:scale(.82);">
+              <svg viewBox="0 0 170 170" aria-hidden="true">
+                <path d="M28 128 A72 72 0 1 1 142 128" fill="none" stroke="var(--c-track)" stroke-width="10"/>
+                <path d="M28 128 A72 72 0 1 1 142 128" fill="none" stroke="var(--c-border-2)" stroke-width="1.4" stroke-dasharray="3 7"/>
+                <g stroke="var(--c-text-3)" stroke-width="1.2">
+                  <line x1="44.6" y1="115.4" x2="39.0" y2="121.0"/><line x1="32.4" y1="95.5" x2="24.8" y2="97.9"/><line x1="30.6" y1="72.2" x2="22.7" y2="70.9"/><line x1="39.6" y1="50.6" x2="33.1" y2="45.9"/><line x1="57.3" y1="35.5" x2="53.7" y2="28.3"/><line x1="85" y1="30" x2="85" y2="22"/><line x1="112.7" y1="35.5" x2="116.3" y2="28.3"/><line x1="130.4" y1="50.6" x2="136.9" y2="45.9"/><line x1="139.4" y1="72.2" x2="147.3" y2="70.9"/><line x1="137.6" y1="95.5" x2="145.2" y2="97.9"/><line x1="125.4" y1="115.4" x2="131.0" y2="121.0"/>
+                </g>
+                <line x1="85" y1="85" x2="114.5" y2="38.6" stroke="var(--c-accent)" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="85" cy="85" r="4.5" fill="var(--c-accent)"/>
+                <text x="85" y="112" text-anchor="middle" fill="var(--c-text)" font-size="17" font-family="Consolas">0.62</text>
+              </svg>
+              <span class="cap">压力 MPa</span>
+            </div>
+            <div class="hmi-gauge" style="transform:scale(.82);">
+              <svg viewBox="0 0 170 170" aria-hidden="true">
+                <path d="M28 128 A72 72 0 1 1 142 128" fill="none" stroke="var(--c-track)" stroke-width="10"/>
+                <path d="M28 128 A72 72 0 1 1 142 128" fill="none" stroke="var(--c-warning)" stroke-width="3" stroke-dasharray="2 6" opacity=".65"/>
+                <line x1="85" y1="85" x2="139.6" y2="91.9" stroke="var(--c-warning)" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="85" cy="85" r="4.5" fill="var(--c-warning)"/>
+                <text x="85" y="112" text-anchor="middle" fill="var(--c-warning)" font-size="17" font-family="Consolas">0.86</text>
+              </svg>
+              <span class="cap">警告</span>
+            </div>
+            <div class="hmi-gauge" style="transform:scale(.82);">
+              <svg viewBox="0 0 170 170" aria-hidden="true">
+                <path d="M28 128 A72 72 0 1 1 142 128" fill="none" stroke="var(--c-track)" stroke-width="10"/>
+                <path d="M28 128 A72 72 0 1 1 142 128" fill="none" stroke="var(--c-danger)" stroke-width="3" stroke-dasharray="2 6" opacity=".65"/>
+                <line x1="85" y1="85" x2="130.5" y2="115.9" stroke="var(--c-danger)" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="85" cy="85" r="4.5" fill="var(--c-danger)"/>
+                <text x="85" y="112" text-anchor="middle" fill="var(--c-danger)" font-size="17" font-family="Consolas">0.96</text>
+              </svg>
+              <span class="cap">报警</span>
+            </div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>默认尺寸</b> 140×140</span>
+          <span><b>量程</b> 270° / 5 格</span>
+          <span><b>指针</b> 3px accent</span>
+          <span><b>读数</b> 13 / 600 mono</span>
+        </div>
+      </article>
+
+      <article class="ctl-card">
+        <div class="ctl-head">
+          <div>
+            <h3>阀门 <span class="typekey">Hmi.Valve</span></h3>
+            <p>蝴蝶结阀体，开度按比例填充：全关灰、中间位蓝、全开绿。位号在上方凹口，开度在下方凹口。</p>
+          </div>
+          <span class="cat">工艺</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;align-items:center;justify-content:center;gap:18px;min-height:170px;">
+            <div class="hmi-symbol hmi-valve">
+              <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M10 14 L40 32 L40 68 L10 86 Z M90 14 L60 32 L60 68 L90 86 Z" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M10 14 L40 32 L40 68 L10 86 Z M90 14 L60 32 L60 68 L90 86 Z" fill="none" stroke="var(--c-outline)" stroke-width="2"/></svg>
+              <span class="cap">FV-101</span><span class="sub">0%</span>
+            </div>
+            <div class="hmi-symbol hmi-valve">
+              <svg viewBox="0 0 100 100" aria-hidden="true"><defs><clipPath id="v50a"><rect x="0" y="0" width="50" height="100"/></clipPath></defs><path d="M10 14 L40 32 L40 68 L10 86 Z M90 14 L60 32 L60 68 L90 86 Z" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M10 14 L40 32 L40 68 L10 86 Z M90 14 L60 32 L60 68 L90 86 Z" fill="var(--c-accent-2)" clip-path="url(#v50a)"/><path d="M10 14 L40 32 L40 68 L10 86 Z M90 14 L60 32 L60 68 L90 86 Z" fill="none" stroke="var(--c-outline)" stroke-width="2"/></svg>
+              <span class="cap">FV-102</span><span class="sub">50%</span>
+            </div>
+            <div class="hmi-symbol hmi-valve">
+              <svg viewBox="0 0 100 100" aria-hidden="true"><defs><clipPath id="v100a"><rect x="0" y="0" width="100" height="100"/></clipPath></defs><path d="M10 14 L40 32 L40 68 L10 86 Z M90 14 L60 32 L60 68 L90 86 Z" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M10 14 L40 32 L40 68 L10 86 Z M90 14 L60 32 L60 68 L90 86 Z" fill="var(--c-success-fill)" clip-path="url(#v100a)"/><path d="M10 14 L40 32 L40 68 L10 86 Z M90 14 L60 32 L60 68 L90 86 Z" fill="none" stroke="var(--c-outline)" stroke-width="2"/></svg>
+              <span class="cap">FV-103</span><span class="sub">100%</span>
+            </div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>默认尺寸</b> 72×64</span>
+          <span><b>线宽</b> 1.5~2</span>
+          <span><b>开度</b> 0 / 50 / 100</span>
+          <span><b>文字</b> 位号 11.5 / 开度 10.5</span>
+        </div>
+      </article>
+
+      <article class="ctl-card">
+        <div class="ctl-head">
+          <div>
+            <h3>泵 / 电机 <span class="typekey">Hmi.Pump · Hmi.Motor</span></h3>
+            <p>停 / 转 / 故障三态共用 StateVisualElement 的语义色。泵叶轮与电机 M 是状态色的唯一载体，壳体保持中性。</p>
+          </div>
+          <span class="cat">工艺</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;align-items:center;justify-content:center;gap:14px;min-height:180px;flex-wrap:wrap;">
+            <div class="hmi-symbol hmi-pump"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="44" r="31" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M50 25 L69 55 L31 55 Z" fill="var(--c-off)"/><circle cx="50" cy="44" r="3.5" fill="var(--c-surface)"/></svg><span class="cap">P-101</span><span class="sub">停止</span></div>
+            <div class="hmi-symbol hmi-pump"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="44" r="31" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M50 25 L69 55 L31 55 Z" fill="var(--c-success)"/><circle cx="50" cy="44" r="3.5" fill="var(--c-surface)"/></svg><span class="cap">P-102</span><span class="sub">运行</span></div>
+            <div class="hmi-symbol hmi-pump"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="44" r="31" fill="var(--c-track)" stroke="var(--c-danger)" stroke-width="2"/><path d="M50 25 L69 55 L31 55 Z" fill="var(--c-danger)"/><circle cx="50" cy="44" r="3.5" fill="var(--c-surface)"/></svg><span class="cap">P-103</span><span class="sub">故障</span></div>
+            <div class="hmi-symbol hmi-motor"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="52" r="28" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><rect x="42" y="15" width="16" height="12" rx="2" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M38 64 L38 40 L50 54 L62 40 L62 64" fill="none" stroke="var(--c-off)" stroke-width="4" stroke-linejoin="round"/></svg><span class="cap">M-101</span><span class="sub">停止</span></div>
+            <div class="hmi-symbol hmi-motor"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="52" r="28" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><rect x="42" y="15" width="16" height="12" rx="2" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M38 64 L38 40 L50 54 L62 40 L62 64" fill="none" stroke="var(--c-success)" stroke-width="4" stroke-linejoin="round"/></svg><span class="cap">M-102</span><span class="sub">运行</span></div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>默认尺寸</b> 泵 72×72 / 电机 72×80</span>
+          <span><b>状态</b> 停 / 转 / 故障</span>
+          <span><b>壳体</b> track + outline</span>
+          <span><b>状态色</b> 叶轮 / M</span>
+        </div>
+      </article>
+
+      <article class="ctl-card span-2">
+        <div class="ctl-head">
+          <div>
+            <h3>管道 <span class="typekey">Hmi.Pipe</span></h3>
+            <p>管身 + 一组流向箭头。箭头颜色表达停流 / 流动 / 异常；流向可选正向、反向、无。管壁保持中性。</p>
+          </div>
+          <span class="cat">工艺</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;flex-direction:column;gap:12px;min-height:190px;justify-content:center;">
+            <div class="hmi-symbol hmi-pipe" style="width:100%;"><svg viewBox="0 0 240 52" style="width:100%;height:46px;" aria-hidden="true"><rect x="6" y="14" width="228" height="24" rx="12" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M40 20 L50 26 L40 32 M86 20 L96 26 L86 32 M132 20 L142 26 L132 32 M178 20 L188 26 L178 32" fill="none" stroke="var(--c-off)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="sub">停流 · 箭头灰</span></div>
+            <div class="hmi-symbol hmi-pipe" style="width:100%;"><svg viewBox="0 0 240 52" style="width:100%;height:46px;" aria-hidden="true"><rect x="6" y="14" width="228" height="24" rx="12" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M40 20 L50 26 L40 32 M86 20 L96 26 L86 32 M132 20 L142 26 L132 32 M178 20 L188 26 L178 32" fill="none" stroke="var(--c-success)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="sub">流动 · 箭头绿</span></div>
+            <div class="hmi-symbol hmi-pipe" style="width:100%;"><svg viewBox="0 0 240 52" style="width:100%;height:46px;" aria-hidden="true"><rect x="6" y="14" width="228" height="24" rx="12" fill="var(--c-track)" stroke="var(--c-danger)" stroke-width="2"/><path d="M40 20 L50 26 L40 32 M86 20 L96 26 L86 32 M132 20 L142 26 L132 32 M178 20 L188 26 L178 32" fill="none" stroke="var(--c-danger)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="sub">异常 · 箭头红</span></div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>默认尺寸</b> 160×32</span>
+          <span><b>管壁</b> 1.5~2</span>
+          <span><b>箭头</b> 3px 圆头</span>
+          <span><b>状态</b> 停流 / 流动 / 异常</span>
+          <span><b>流向</b> 正 / 反 / 无</span>
+        </div>
+      </article>
+
+    </div>
+  </section>
+  <!-- ============================================================ -->
+  <!-- 08 容器与内容 -->
+  <!-- ============================================================ -->
+  <section class="section" id="containers">
+    <div class="sec-head">
+      <span class="sec-index">08</span>
+      <h2>容器与内容：底板是“区域”，不是另一张卡</h2>
+      <p>底板、图像显示、文本、矩形、椭圆。容器负责分区与裁切，内容负责信息；两者的圆角、描边、内衬必须能对上。</p>
+    </div>
+
+    <div class="family-grid">
+
+      <article class="ctl-card">
+        <div class="ctl-head">
+          <div>
+            <h3>底板 <span class="typekey">Hmi.Panel</span></h3>
+            <p>带标题栏的区域容器：子图元绝对坐标、超出裁切、拖动整块走。标题栏圆角必须跟随底板圆角，不能写死 3。</p>
+          </div>
+          <span class="cat">基础</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;align-items:center;justify-content:center;min-height:220px;">
+            <div class="hmi-panel">
+              <div class="head"><b>1# 灌装单元</b><span>RUN</span></div>
+              <div class="body">
+                <div class="hmi-gauge" style="transform:scale(.62);margin:-28px -18px;">
+                  <svg viewBox="0 0 170 170" aria-hidden="true"><path d="M28 128 A72 72 0 1 1 142 128" fill="none" stroke="var(--c-track)" stroke-width="10"/><line x1="85" y1="85" x2="114.5" y2="38.6" stroke="var(--c-accent)" stroke-width="3" stroke-linecap="round"/><circle cx="85" cy="85" r="4.5" fill="var(--c-accent)"/></svg>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:7px;flex:1;">
+                  <div class="hmi-io readonly" style="width:100%;height:28px;"><span class="lbl">节拍</span><span class="val" style="font-size:11.5px;">42.5<span class="unit">瓶/分</span></span></div>
+                  <div class="hmi-io readonly" style="width:100%;height:28px;"><span class="lbl">累计</span><span class="val" style="font-size:11.5px;">12,840<span class="unit">瓶</span></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>默认尺寸</b> 360×240</span>
+          <span><b>圆角</b> 8（可配）</span>
+          <span><b>标题栏</b> 30 / 12.5 600</span>
+          <span><b>子图元</b> 绝对坐标 + 裁切</span>
+        </div>
+      </article>
+
+      <article class="ctl-card">
+        <div class="ctl-head">
+          <div>
+            <h3>图像显示 <span class="typekey">Hmi.ImageView</span></h3>
+            <p>有图时按 Stretch 缩放；无图时给“无图像 + 下一步”的空态，而不是一块空白框。</p>
+          </div>
+          <span class="cat">基础</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;align-items:center;justify-content:center;gap:14px;min-height:200px;flex-wrap:wrap;">
+            <div class="hmi-image">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>
+              <b>无图像</b><small>绑定图像变量后显示</small>
+            </div>
+            <div class="hmi-image">
+              <div class="fake"></div>
+              <span class="tag">只读预览</span>
+              <div style="position:absolute;left:50%;top:50%;width:54px;height:54px;border:1px solid rgba(56,189,248,.75);border-radius:50%;transform:translate(-50%,-50%);"></div>
+              <div style="position:absolute;left:50%;top:50%;width:1px;height:70px;background:rgba(56,189,248,.55);transform:translate(-50%,-50%);"></div>
+              <div style="position:absolute;left:50%;top:50%;width:70px;height:1px;background:rgba(56,189,248,.55);transform:translate(-50%,-50%);"></div>
+            </div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>默认尺寸</b> 200×160</span>
+          <span><b>圆角</b> 0（可配）</span>
+          <span><b>缩放</b> Uniform / Fill / None</span>
+          <span><b>空态</b> 图标 + 说明</span>
+        </div>
+      </article>
+
+      <article class="ctl-card span-2">
+        <div class="ctl-head">
+          <div>
+            <h3>文本 / 矩形 / 椭圆 <span class="typekey">Hmi.Text · Hmi.Rectangle · Hmi.Ellipse</span></h3>
+            <p>基础图元只做“版面语言”：三级文字、带描边的形状、选中框与手柄。默认文字必须与画布底色同侧，不能默认深字压深底。</p>
+          </div>
+          <span class="cat">基础</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;align-items:center;justify-content:space-around;gap:20px;min-height:200px;flex-wrap:wrap;">
+            <div class="hmi-text-demo">
+              <div class="t1">1# 灌装线</div>
+              <div class="t2">本节拍 42.5 瓶/分 · 累计 12,840 瓶</div>
+              <div class="t3">数据更新于 14:32:08</div>
+            </div>
+            <div class="hmi-shape selected">设备区域</div>
+            <div class="hmi-shape ellipse">罐体</div>
+            <div style="display:flex;flex-direction:column;gap:7px;align-items:center;">
+              <div class="hmi-shape" style="width:64px;height:64px;border-radius:50%;">状态点</div>
+              <span class="hmi-label">未选中 / 选中</span>
+            </div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>文本</b> 16 / 12.5 / 11.5</span>
+          <span><b>形状</b> 1.5px 描边</span>
+          <span><b>选中</b> 2px accent + 7px 手柄</span>
+          <span><b>默认文字</b> #E6EEF7（深色）</span>
+        </div>
+      </article>
+
+    </div>
+  </section>
+  <!-- ============================================================ -->
+  <!-- 09 运动与趋势 -->
+  <!-- ============================================================ -->
+  <section class="section" id="motion">
+    <div class="sec-head">
+      <span class="sec-index">09</span>
+      <h2>运动与趋势：高密度控件更要有字号底线</h2>
+      <p>轴控台/轴面板是唯一允许 10px 辅助文字的控件；趋势曲线补上深色主题与“等待数据”空态。</p>
+    </div>
+
+    <div class="family-grid">
+
+      <article class="ctl-card">
+        <div class="ctl-head">
+          <div>
+            <h3>轴控台 / 轴面板 <span class="typekey">Hmi.AxisConsole · Hmi.AxisPanel</span></h3>
+            <p>同一个控件类的两个预设：轴控台含点位表，轴面板只保留状态与手动操作。位置大字 30px 等宽，状态灯 8 个，命令按钮三列两行。</p>
+          </div>
+          <span class="cat">运动</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;align-items:flex-start;justify-content:center;gap:16px;min-height:520px;flex-wrap:wrap;">
+            <div class="hmi-axis">
+              <div class="axis-head"><b>轴控 · X 轴</b><span class="axis-select">X 轴 <svg viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span></div>
+              <div class="pos-row"><span class="pos-dot"></span><span class="pos">123.456</span><span class="unit">mm</span></div>
+              <div class="lamps">
+                <span class="lamp on"><i></i>使能</span><span class="lamp on"><i></i>到位</span><span class="lamp on"><i></i>原点</span><span class="lamp"><i></i>报警</span>
+                <span class="lamp"><i></i>正限位</span><span class="lamp"><i></i>反限位</span><span class="lamp"><i></i>急停</span><span class="lamp on"><i></i>运动</span>
+              </div>
+              <div class="meta"><span class="muted">速度</span><b>120.0</b><span class="muted">mm/s</span><span style="margin-left:auto;color:var(--c-success);">运行中</span></div>
+              <div class="btns"><span class="abtn">使能</span><span class="abtn">◀ 点动</span><span class="abtn">点动 ▶</span><span class="abtn">回零</span><span class="abtn danger">停止</span><span class="abtn">清报警</span></div>
+              <div class="points">
+                <div class="points-head"><span>点位</span><span>位置(mm)</span><span>速度(mm/s)</span><span>操作</span></div>
+                <div class="point"><span class="pn">P1 取料</span><span class="pv">120.000</span><span class="ps">80.0</span><span class="pa"><span>示教</span><span>定位</span></span></div>
+                <div class="point"><span class="pn">P2 放料</span><span class="pv">340.500</span><span class="ps">120.0</span><span class="pa"><span>示教</span><span>定位</span></span></div>
+                <div class="point"><span class="pn">P3 等待位</span><span class="pv">0.000</span><span class="ps">60.0</span><span class="pa"><span>示教</span><span>定位</span></span></div>
+              </div>
+            </div>
+            <div class="hmi-axis compact">
+              <div class="axis-head"><b>轴控 · Y 轴</b><span class="axis-select">Y 轴 <svg viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span></div>
+              <div class="pos-row"><span class="pos-dot" style="background:var(--c-warning);box-shadow:0 0 0 3px var(--c-warning-soft);"></span><span class="pos">45.800</span><span class="unit">mm</span></div>
+              <div class="lamps">
+                <span class="lamp on"><i></i>使能</span><span class="lamp"><i></i>到位</span><span class="lamp on"><i></i>原点</span><span class="lamp warn"><i></i>报警</span>
+                <span class="lamp"><i></i>正限位</span><span class="lamp"><i></i>反限位</span><span class="lamp"><i></i>急停</span><span class="lamp"><i></i>运动</span>
+              </div>
+              <div class="meta"><span class="muted">速度</span><b>0.0</b><span class="muted">mm/s</span><span style="margin-left:auto;color:var(--c-warning);">待机</span></div>
+              <div class="btns"><span class="abtn">使能</span><span class="abtn">◀ 点动</span><span class="abtn">点动 ▶</span><span class="abtn">回零</span><span class="abtn danger">停止</span><span class="abtn">清报警</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>默认尺寸</b> 320×470 / 280×280</span>
+          <span><b>圆角</b> 12</span>
+          <span><b>位置</b> 30 / 700 mono</span>
+          <span><b>辅助文字</b> ≥10</span>
+          <span><b>按钮</b> 29 / 10</span>
+          <span><b>点位行</b> 23 / 9.5 mono</span>
+        </div>
+      </article>
+
+      <article class="ctl-card">
+        <div class="ctl-head">
+          <div>
+            <h3>趋势曲线 <span class="typekey">Hmi.ChartTrend</span></h3>
+            <p>单变量历史曲线：X 是值到达时刻，Y 是值。深色图表令牌：表面与卡片同色、网格弱化、曲线 accent；无数据时给空态。</p>
+          </div>
+          <span class="cat">数据</span>
+        </div>
+        <div class="ctl-preview">
+          <div class="hmi" data-theme="dark" style="display:flex;align-items:center;justify-content:center;min-height:260px;">
+            <div class="hmi-chart">
+              <div class="head"><b>压力趋势</b><span class="live"><i></i>LIVE</span></div>
+              <svg viewBox="0 0 360 150" aria-hidden="true">
+                <g stroke="var(--c-border)" stroke-width="1"><line x1="34" y1="20" x2="34" y2="128"/><line x1="34" y1="128" x2="348" y2="128"/><line x1="34" y1="48" x2="348" y2="48"/><line x1="34" y1="76" x2="348" y2="76"/><line x1="34" y1="104" x2="348" y2="104"/></g>
+                <g fill="var(--c-text-3)" font-family="Consolas" font-size="8"><text x="4" y="131">0</text><text x="4" y="79">50</text><text x="0" y="23">100</text><text x="330" y="142">60s</text></g>
+                <path d="M34 96 L64 92 L94 98 L124 70 L154 78 L184 58 L214 64 L244 44 L274 52 L304 38 L334 46 L348 42" fill="none" stroke="var(--c-accent)" stroke-width="2"/>
+                <path d="M34 96 L64 92 L94 98 L124 70 L154 78 L184 58 L214 64 L244 44 L274 52 L304 38 L334 46 L348 42 L348 128 L34 128 Z" fill="var(--c-accent)" opacity=".10"/>
+              </svg>
+              <div class="foot"><span>60 s</span><span>0.62 MPa</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="ctl-spec">
+          <span><b>默认尺寸</b> 360×200</span>
+          <span><b>圆角</b> 8</span>
+          <span><b>曲线</b> 2px accent</span>
+          <span><b>网格</b> 1px border</span>
+          <span><b>空态</b> 等待数据</span>
+        </div>
+      </article>
+
+    </div>
+  </section>
+  <!-- ============================================================ -->
+  <!-- 10 运行态整屏 -->
+  <!-- ============================================================ -->
+  <section class="section" id="runtime">
+    <div class="sec-head">
+      <span class="sec-index">10</span>
+      <h2>运行态整屏：控件放在一起，才看得出“像不像一套”</h2>
+      <p>1280×800 运行窗口的内容区。深色画布、顶部运行条、底部状态条；报警条与趋势在右侧，轴面板在左侧，中间是工艺线。</p>
+    </div>
+
+    <div class="screen-wrap">
+      <div class="screen hmi" data-theme="dark">
+        <div class="screen-top">
+          <div class="left"><span>运行画面</span><b>3# 灌装线 · 实时监控</b></div>
+          <div class="right">
+            <span class="alarm-btn">报警历史 <i>3</i></span>
+            <span class="stop-btn">■ 停止运行</span>
+          </div>
+        </div>
+
+        <div class="screen-body">
+          <div class="screen-col">
+            <div class="screen-card">
+              <h4>1# 储罐 <span>T-101</span></h4>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div class="hmi-gauge" style="transform:scale(.74);margin:-20px -14px;">
+                  <svg viewBox="0 0 170 170" aria-hidden="true">
+                    <path d="M28 128 A72 72 0 1 1 142 128" fill="none" stroke="var(--c-track)" stroke-width="10"/>
+                    <path d="M28 128 A72 72 0 1 1 142 128" fill="none" stroke="var(--c-border-2)" stroke-width="1.4" stroke-dasharray="3 7"/>
+                    <line x1="85" y1="85" x2="114.5" y2="38.6" stroke="var(--c-accent)" stroke-width="3" stroke-linecap="round"/>
+                    <circle cx="85" cy="85" r="4.5" fill="var(--c-accent)"/>
+                    <text x="85" y="112" text-anchor="middle" fill="var(--c-text)" font-size="17" font-family="Consolas">0.62</text>
+                  </svg>
+                  <span class="cap">压力 MPa</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:7px;flex:1;">
+                  <div class="hmi-io readonly" style="width:100%;height:28px;"><span class="lbl">液位</span><span class="val" style="font-size:11.5px;">68.4<span class="unit">%</span></span></div>
+                  <div class="hmi-io readonly" style="width:100%;height:28px;"><span class="lbl">温度</span><span class="val" style="font-size:11.5px;">86.4<span class="unit">°C</span></span></div>
+                  <div class="hmi-io readonly" style="width:100%;height:28px;"><span class="lbl">出口</span><span class="val" style="font-size:11.5px;">12.8<span class="unit">m³/h</span></span></div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--c-border);">
+                <div class="hmi-lamp on" style="transform:scale(.62);transform-origin:left center;"><span class="body"></span><span class="cap">运行</span></div>
+                <div class="hmi-bit on" style="height:28px;min-width:74px;font-size:10px;"><i class="dot"></i>自动</div>
+                <div class="hmi-bit" style="height:28px;min-width:74px;font-size:10px;"><i class="dot"></i>手动</div>
+              </div>
+            </div>
+
+            <div class="screen-card" style="padding:10px;">
+              <h4>轴控 · 灌装头 <span>X / Y</span></h4>
+              <div class="hmi-axis compact" style="width:100%;padding:0;border:0;background:transparent;box-shadow:none;transform:scale(.86);transform-origin:top left;">
+                <div class="axis-head"><b>X 轴</b><span class="axis-select">X 轴 <svg viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span></div>
+                <div class="pos-row"><span class="pos-dot"></span><span class="pos" style="font-size:24px;">123.456</span><span class="unit">mm</span></div>
+                <div class="lamps"><span class="lamp on"><i></i>使能</span><span class="lamp on"><i></i>到位</span><span class="lamp on"><i></i>原点</span><span class="lamp"><i></i>报警</span></div>
+                <div class="btns" style="margin-top:6px;"><span class="abtn">使能</span><span class="abtn">◀ 点动</span><span class="abtn">点动 ▶</span><span class="abtn">回零</span><span class="abtn danger">停止</span><span class="abtn">清报警</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="screen-col">
+            <div class="screen-card" style="flex:1;display:flex;flex-direction:column;">
+              <h4>工艺流程 <span>LINE 3 · AUTO</span></h4>
+              <div class="screen-process" style="flex:1;">
+                <div class="hmi-symbol hmi-pump" style="transform:scale(.72);"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="44" r="31" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M50 25 L69 55 L31 55 Z" fill="var(--c-success)"/><circle cx="50" cy="44" r="3.5" fill="var(--c-surface)"/></svg><span class="cap">P-101</span></div>
+                <div class="hmi-pipe"><svg viewBox="0 0 240 52" aria-hidden="true"><rect x="6" y="14" width="228" height="24" rx="12" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M40 20 L50 26 L40 32 M86 20 L96 26 L86 32 M132 20 L142 26 L132 32 M178 20 L188 26 L178 32" fill="none" stroke="var(--c-success)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <div class="hmi-symbol hmi-valve" style="transform:scale(.72);"><svg viewBox="0 0 100 100" aria-hidden="true"><defs><clipPath id="vrun"><rect x="0" y="0" width="100" height="100"/></clipPath></defs><path d="M10 14 L40 32 L40 68 L10 86 Z M90 14 L60 32 L60 68 L90 86 Z" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M10 14 L40 32 L40 68 L10 86 Z M90 14 L60 32 L60 68 L90 86 Z" fill="var(--c-success-fill)" clip-path="url(#vrun)"/><path d="M10 14 L40 32 L40 68 L10 86 Z M90 14 L60 32 L60 68 L90 86 Z" fill="none" stroke="var(--c-outline)" stroke-width="2"/></svg><span class="cap">FV-101</span></div>
+                <div class="hmi-pipe"><svg viewBox="0 0 240 52" aria-hidden="true"><rect x="6" y="14" width="228" height="24" rx="12" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M40 20 L50 26 L40 32 M86 20 L96 26 L86 32 M132 20 L142 26 L132 32 M178 20 L188 26 L178 32" fill="none" stroke="var(--c-success)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <div class="hmi-symbol hmi-motor" style="transform:scale(.72);"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="52" r="28" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><rect x="42" y="15" width="16" height="12" rx="2" fill="var(--c-track)" stroke="var(--c-outline)" stroke-width="2"/><path d="M38 64 L38 40 L50 54 L62 40 L62 64" fill="none" stroke="var(--c-success)" stroke-width="4" stroke-linejoin="round"/></svg><span class="cap">M-101</span></div>
+              </div>
+
+              <div class="screen-kpi" style="margin-top:10px;">
+                <div class="kpi"><b>42.5</b><span>节拍 · 瓶/分</span></div>
+                <div class="kpi"><b>12,840</b><span>累计 · 瓶</span></div>
+                <div class="kpi"><b>98.6%</b><span>OEE · 本班</span></div>
+                <div class="kpi"><b>0.62</b><span>压力 · MPa</span></div>
+              </div>
+            </div>
+
+            <div class="screen-card">
+              <h4>2# 灌装单元 <span>RUN</span></h4>
+              <div style="display:flex;align-items:center;gap:18px;">
+                <div class="hmi-progress" style="flex:1;"><div class="top"><span class="name">本班完成率</span><span class="num">72%</span></div><div class="track"><div class="fill" style="width:72%;"></div></div></div>
+                <div class="hmi-progress" style="flex:1;"><div class="top"><span class="name">料仓余量</span><span class="num">18%</span></div><div class="track"><div class="fill warning" style="width:18%;"></div></div></div>
+                <div class="hmi-clock"><span class="time" style="font-size:20px;">14:32:08</span><span class="cap">系统时间</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="screen-col">
+            <div class="hmi-alarm active" style="width:100%;">
+              <span class="accent"></span>
+              <div class="head"><b>实时报警</b><span class="count">3 条未确认</span></div>
+              <div class="rows">
+                <div class="row"><span class="chip critical">严重</span><span class="time">14:32:08</span><span class="name">1# 主轴温度高</span><span class="state">激活</span></div>
+                <div class="row"><span class="chip warning">警告</span><span class="time">14:31:42</span><span class="name">2# 泵出口压力低</span><span class="state">激活</span></div>
+                <div class="row"><span class="chip info">提示</span><span class="time">14:30:17</span><span class="name">3# 线换型完成</span><span class="state">已确认</span></div>
+              </div>
+            </div>
+
+            <div class="hmi-chart" style="width:100%;">
+              <div class="head"><b>压力趋势 · 60s</b><span class="live"><i></i>LIVE</span></div>
+              <svg viewBox="0 0 360 150" aria-hidden="true">
+                <g stroke="var(--c-border)" stroke-width="1"><line x1="34" y1="20" x2="34" y2="128"/><line x1="34" y1="128" x2="348" y2="128"/><line x1="34" y1="48" x2="348" y2="48"/><line x1="34" y1="76" x2="348" y2="76"/><line x1="34" y1="104" x2="348" y2="104"/></g>
+                <path d="M34 96 L64 92 L94 98 L124 70 L154 78 L184 58 L214 64 L244 44 L274 52 L304 38 L334 46 L348 42" fill="none" stroke="var(--c-accent)" stroke-width="2"/>
+                <path d="M34 96 L64 92 L94 98 L124 70 L154 78 L184 58 L214 64 L244 44 L274 52 L304 38 L334 46 L348 42 L348 128 L34 128 Z" fill="var(--c-accent)" opacity=".10"/>
+              </svg>
+              <div class="foot"><span>60 s</span><span>0.62 MPa</span></div>
+            </div>
+
+            <div class="screen-card" style="flex:1;">
+              <h4>设备状态 <span>6 / 8 在线</span></h4>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <div style="display:flex;align-items:center;gap:7px;font-size:10px;color:var(--c-text-2);"><span class="hmi-lamp on" style="transform:scale(.5);transform-origin:left center;"><span class="body"></span></span>P-101 运行</div>
+                <div style="display:flex;align-items:center;gap:7px;font-size:10px;color:var(--c-text-2);"><span class="hmi-lamp on" style="transform:scale(.5);transform-origin:left center;"><span class="body"></span></span>M-101 运行</div>
+                <div style="display:flex;align-items:center;gap:7px;font-size:10px;color:var(--c-text-2);"><span class="hmi-lamp warning" style="transform:scale(.5);transform-origin:left center;"><span class="body"></span></span>P-102 警告</div>
+                <div style="display:flex;align-items:center;gap:7px;font-size:10px;color:var(--c-text-2);"><span class="hmi-lamp" style="transform:scale(.5);transform-origin:left center;"><span class="body"></span></span>M-102 停止</div>
+                <div style="display:flex;align-items:center;gap:7px;font-size:10px;color:var(--c-text-2);"><span class="hmi-lamp alarm" style="transform:scale(.5);transform-origin:left center;"><span class="body"></span></span>P-103 故障</div>
+                <div style="display:flex;align-items:center;gap:7px;font-size:10px;color:var(--c-text-2);"><span class="hmi-lamp on" style="transform:scale(.5);transform-origin:left center;"><span class="body"></span></span>FV-101 全开</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="screen-bottom">
+          <span>设计 1920×1080</span>
+          <span>视口 1280×720 · 适配 66%</span>
+          <span>操作者 张三 · 工程师</span>
+          <span>加载耗时 1.24 s</span>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- ============================================================ -->
+  <!-- 11 状态矩阵 -->
+  <!-- ============================================================ -->
+  <section class="section" id="matrix">
+    <div class="sec-head">
+      <span class="sec-index">11</span>
+      <h2>状态矩阵：哪些态是必须的，哪些要等契约</h2>
+      <p>● 必做 · ○ 建议或需契约扩展 · — 不适用。过程图元的 Selected / Locked 属于编辑态，运行态不出现。</p>
+    </div>
+
+    <div class="table-wrap">
+      <table class="data matrix">
+        <thead>
+          <tr>
+            <th>控件</th>
+            <th>Normal</th>
+            <th>Hover</th>
+            <th>Pressed</th>
+            <th>Focus</th>
+            <th>Disabled</th>
+            <th>Selected</th>
+            <th>ReadOnly</th>
+            <th>状态 / 报警</th>
+            <th>无数据</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><b>按钮</b> Hmi.Button</td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td></tr>
+          <tr><td><b>位按钮</b> Hmi.BitButton</td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td><td><i class="dot no"></i></td></tr>
+          <tr><td><b>数值域</b> Hmi.IOField</td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot no"></i></td></tr>
+          <tr><td><b>指示灯</b> Hmi.Indicator</td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td><td><i class="dot opt"></i></td></tr>
+          <tr><td><b>多态灯</b> Hmi.Lamp</td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td><td><i class="dot opt"></i></td></tr>
+          <tr><td><b>棒图</b> Hmi.ProgressBar</td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot opt"></i></td></tr>
+          <tr><td><b>表盘</b> Hmi.Gauge</td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot opt"></i></td></tr>
+          <tr><td><b>阀门</b> Hmi.Valve</td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot opt"></i></td></tr>
+          <tr><td><b>泵 / 电机 / 管道</b></td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td><td><i class="dot opt"></i></td></tr>
+          <tr><td><b>底板</b> Hmi.Panel</td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td></tr>
+          <tr><td><b>图像显示</b> Hmi.ImageView</td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td></tr>
+          <tr><td><b>报警条</b> Hmi.AlarmBanner</td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td></tr>
+          <tr><td><b>轴控台 / 轴面板</b></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td><td><i class="dot opt"></i></td></tr>
+          <tr><td><b>趋势曲线</b> Hmi.ChartTrend</td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td><td><i class="dot no"></i></td><td><i class="dot no"></i></td><td><i class="dot"></i></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="legend" style="margin-top:10px;">
+      <span><i style="background:var(--success);"></i>● 必做</span>
+      <span><i style="background:var(--border-strong);"></i>○ 建议 / 契约扩展</span>
+      <span><i style="background:transparent;border:1px solid var(--border);"></i>— 不适用</span>
+      <span style="margin-left:auto;">推荐开发项未实现，不在本矩阵；其状态需求见 §04 推荐开发页签。</span>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 12 复刻映射 -->
+  <!-- ============================================================ -->
+  <section class="section" id="mapping">
+    <div class="sec-head">
+      <span class="sec-index">12</span>
+      <h2>复刻映射：设计令牌 ↔ WPF 资源键</h2>
+      <p>新增令牌只追加到 <code>UI\Controls\Themes\Colors.xaml</code>，不改既有键语义；视图内 0 个十六进制色值（R140/R141/R146）。</p>
+    </div>
+
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th>设计令牌</th><th>深色运行</th><th>浅色画面</th><th>WPF 资源键</th><th>状态</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b>画面底</b></td><td><code>#0E1318</code></td><td><code>#F4F7FB</code></td><td><code>HmiCanvasBackgroundBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>表面</b></td><td><code>#151C23</code></td><td><code>#FFFFFF</code></td><td><code>HmiSurfaceBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>浮起表面</b></td><td><code>#1B242D</code></td><td><code>#F8FAFC</code></td><td><code>HmiSurfaceRaisedBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>描边</b></td><td><code>#2A3745</code></td><td><code>#D8E0EA</code></td><td><code>HmiBorderBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>强描边</b></td><td><code>#3A4A5C</code></td><td><code>#B8C4D4</code></td><td><code>HmiBorderStrongBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>主文字</b></td><td><code>#E6EEF7</code></td><td><code>#0F172A</code></td><td><code>HmiTextBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>次要文字</b></td><td><code>#A9B7C6</code></td><td><code>#475569</code></td><td><code>HmiTextSecondaryBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>弱文字</b></td><td><code>#7C8A99</code></td><td><code>#94A3B8</code></td><td><code>HmiTextMutedBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>强调 / 焦点</b></td><td><code>#38BDF8</code></td><td><code>#0284C7</code></td><td><code>HmiAccentBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>主按钮</b></td><td><code>#0EA5E9</code></td><td><code>#0EA5E9</code></td><td><code>HmiAccentStrongBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>运行 / 正常</b></td><td><code>#22C55E</code></td><td><code>#16A34A</code></td><td><code>HmiSuccessBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>成功填充（深）</b></td><td><code>#15803D</code></td><td><code>#15803D</code></td><td><code>HmiSuccessFillBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>警告</b></td><td><code>#F59E0B</code></td><td><code>#D97706</code></td><td><code>HmiWarningBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>故障 / 报警</b></td><td><code>#EF4444</code></td><td><code>#DC2626</code></td><td><code>HmiDangerBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>提示 / 信息</b></td><td><code>#3B82F6</code></td><td><code>#2563EB</code></td><td><code>HmiInfoBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>停机 / 熄灭</b></td><td><code>#64748B</code></td><td><code>#94A3B8</code></td><td><code>HmiOffBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>空槽 / 轨道</b></td><td><code>#26313D</code></td><td><code>#E8EDF3</code></td><td><code>HmiTrackBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>选中</b></td><td><code>#38BDF8</code></td><td><code>#0284C7</code></td><td><code>HmiSelectionBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>锁定</b></td><td><code>#E3A51B</code></td><td><code>#B45309</code></td><td><code>HmiLockedBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>诊断警告</b></td><td><code>#E88B1A</code></td><td><code>#B45309</code></td><td><code>HmiDiagnosticWarningBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>诊断错误</b></td><td><code>#E03A2B</code></td><td><code>#B91C1C</code></td><td><code>HmiDiagnosticErrorBrush</code></td><td><span class="sev low">新增</span></td></tr>
+          <tr><td><b>编辑工作台</b></td><td>—</td><td><code>#F7F8FA / #FFFFFF</code></td><td><code>ScadaPanelBackgroundBrush</code> / <code>ScadaSurfaceBrush</code></td><td><span class="sev low">复用</span></td></tr>
+          <tr><td><b>编辑主色</b></td><td>—</td><td><code>#0EA5E9</code></td><td><code>DialogAccentBrush</code></td><td><span class="sev low">复用</span></td></tr>
+          <tr><td><b>编辑文字</b></td><td>—</td><td><code>#0F172A / #475569</code></td><td><code>DialogTextPrimaryBrush</code> / <code>DialogTextSecondaryBrush</code></td><td><span class="sev low">复用</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warning" style="margin-top:14px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 16H3z"/><path d="M12 9v4"/><path d="M12 16h.01"/></svg>
+      <div><b>落点修正：</b><code>VM.Scada.Controls</code> 不引用 <code>UI</code> 工程（csproj 只引用 <code>VM.Scada</code> 与生成器）。运行时 <code>Hmi*</code> 令牌必须落在 <code>Scada.Controls\Themes\ScadaTokens.xaml</code>（由 <code>Generic.xaml</code> 合并）；<code>UI\Controls\Themes\Colors.xaml</code> 只服务宿主编辑器/弹窗。两处同名同值，禁止跨工程 <code>StaticResource</code>。</div>
+    </div>
+
+    <div class="mapping-grid" style="margin-top:14px;">
+      <div class="mapping-card">
+        <h3>组件映射</h3>
+        <p>
+          <b>ButtonElement</b>：矩形 + 文字 + hover/按下覆盖层；补 focus 环与键盘激活。<br>
+          <b>BitButtonElement</b>：DisplayFill/DisplayText/DisplayForeground 不变；补 focus。<br>
+          <b>IOFieldElement</b>：显示态/编辑态两块叠放不变；只改只读/可写/编辑/失败的视觉。<br>
+          <b>LampElement / IndicatorElement</b>：两块灯体叠放 + 代码翻显隐不变；只改灯体尺寸与描边。<br>
+          <b>GaugeElement</b>：Face/Scale/Needle 三条 Path 不变；改默认色与刻度对比。<br>
+          <b>ValveElement / PumpElement / MotorElement / PipeElement</b>：几何全在代码里，模板只改线宽/文字。<br>
+          <b>AlarmBannerElement</b>：行模板改为两行式，严重度胶囊沿用描边样式。<br>
+          <b>AxisPanelElement</b>：只改字号底线、圆角、按钮样式；不改命名件与命令。<br>
+          <b>ChartTrendElement</b>：ChartTheme 深色令牌 + 空态覆盖层；不改数据通道。<br>
+          <b>PanelElement</b>：标题栏圆角跟随 <code>CornerRadius</code>；子画布坐标语义不变。
+        </p>
+      </div>
+      <div class="mapping-card">
+        <h3>复刻约束（必须遵守）</h3>
+        <p>
+          ① 不改任何 <b>TypeKey</b>、默认尺寸、属性名与绑定类型；<br>
+          ② 不改 <code>DataContext</code>、<code>Element</code>、运行时绑定通道；<br>
+          ③ 不新增功能属性（主题、阈值、Unknown 态另立 D 项）；<br>
+          ④ 只用 WPF 可还原能力：Border/Path/Ellipse/TextBlock/Grid/Canvas/DropShadowEffect；<br>
+          ⑤ 动效 150~200ms，缓动与 Web 基线同档；<br>
+          ⑥ 图标按钮 30×30 + <code>Padding="0"</code>（R68）；焦点走显式样式 <code>HmiFocusVisual</code>（2px accent + 2px offset，R135）；<br>
+          ⑦ 视图 XAML <code>hex=0</code>；新增键先全仓查重（R146）；<br>
+          ⑧ 改过 <code>Scada.Controls</code> 必须重建 <code>Modules</code> 产物（红线③/R71 同族）。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 13 遗留与待确认 -->
+  <!-- ============================================================ -->
+  <section class="section" id="open">
+    <div class="sec-head">
+      <span class="sec-index">13</span>
+      <h2>遗留与待确认：哪些是纯 UI，哪些要动契约</h2>
+      <p>本版只做设计基线，不改 WPF 代码。下列 D 项按“是否需要新契约”分组，复刻时逐项确认。</p>
+    </div>
+
+    <div class="open-list">
+      <div class="open-item"><span class="id">D1</span><div><b>画面级主题（深色 / 浅色）</b><p>控件默认值目前是“每属性一个固定值”，无法随页面主题切换。需要 <code>ScadaPage.Theme</code> + 控件默认值解析，或页面级令牌注入。</p></div><div class="need">契约扩展<em>影响全部图元</em></div></div>
+      <div class="open-item"><span class="id">D2</span><div><b>无数据 / 通信断线状态</b><p><code>DeviceState</code> 只有 Stopped/Running/Fault。建议加 <code>Unknown</code>（灰蓝 + 虚线轮廓），由运行态在变量断线/超时时写入。</p></div><div class="need">契约扩展<em>StateVisualElement / 绑定器</em></div></div>
+      <div class="open-item"><span class="id">D3</span><div><b>表盘警告 / 报警阈值区</b><p>设计稿里的黄/红弧段目前没有属性承载。需要 <code>WarningMin/Max</code>、<code>AlarmMin/Max</code> 或复用报警定义。</p></div><div class="need">契约扩展<em>GaugeElement</em></div></div>
+      <div class="open-item"><span class="id">D4</span><div><b>过程动画（泵叶轮旋转 / 管道流动）</b><p>属于视觉增强，需统一节拍源与性能预算；本版先静态，避免每图元一个定时器。</p></div><div class="need">视觉增强<em>可延后</em></div></div>
+      <div class="open-item"><span class="id">D5</span><div><b>按钮键盘激活</b><p><code>ButtonElement</code> 是 ContentControl，当前只有鼠标事件。要么补 Space/Enter，要么先设 <code>Focusable=False</code>，不要让焦点态成为假象。</p></div><div class="need">行为契约<em>ButtonElement</em></div></div>
+      <div class="open-item"><span class="id">D6</span><div><b>趋势曲线空态 / LIVE 徽标</b><p><code>SampleCount</code> 已是公开属性，模板可加空态覆盖层；不需要新契约。</p></div><div class="need">纯 UI<em>ChartTrendElement</em></div></div>
+      <div class="open-item"><span class="id">D7</span><div><b>轴控台字号底线</b><p>8px/9px 表头与行内按钮统一抬到 10px；点位行高 23→26。只改模板，不改数据。</p></div><div class="need">纯 UI<em>AxisPanelElement</em></div></div>
+      <div class="open-item"><span class="id">D8</span><div><b>底板标题栏圆角</b><p>把写死的 <code>3,3,0,0</code> 改成跟随 <code>CornerRadius</code> 的绑定/裁剪；不改坐标语义。</p></div><div class="need">纯 UI<em>PanelElement</em></div></div>
+      <div class="open-item"><span class="id">D9</span><div><b>数值域只读 / 可写视觉</b><p>只改模板与样式，<code>IsEditable</code>、<code>Mode</code>、编辑/提交/校验逻辑全部不动。</p></div><div class="need">纯 UI<em>IOFieldElement</em></div></div>
+      <div class="open-item"><span class="id">D10</span><div><b>报警条密度与两行行高</b><p>行模板改为“名称 + 条件/值”两行，时间与状态靠右；严重度胶囊保持描边样式。只改模板。</p></div><div class="need">纯 UI<em>AlarmBannerElement</em></div></div>
+      <div class="open-item"><span class="id">D11</span><div><b>硬编码颜色迁移</b><p>AxisPanel 20 处、IOField 1 处、ScadaCanvas 1 处、ScadaEditorView 15 处、RuntimeWindow 14 处，按令牌清单逐项替换；基线只减不增。</p></div><div class="need">纯 UI / 令牌<em>R140 基线</em></div></div>
+      <div class="open-item"><span class="id">D12</span><div><b>选中 / 锁定 / 诊断色令牌化</b><p>把 <code>ScadaCanvas</code> 的蓝/橙/红收进 <code>HmiSelectionBrush</code> / <code>HmiLockedBrush</code> / 诊断色；行为不变。</p></div><div class="need">纯 UI<em>ScadaCanvas</em></div></div>
+    </div>
+
+    <div class="callout warning" style="margin-top:14px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 16H3z"/><path d="M12 9v4"/><path d="M12 16h.01"/></svg>
+      <div><b>复刻顺序建议：</b>先做 D8/D9/D7/D10/D6（纯模板，风险最低）→ 再做 D11/D12（令牌迁移）→ 最后做 D1/D2/D3/D5（契约扩展）。每批都按 SOP §5.7 补 UI 冒烟与渲染证据，按 R132 交用户验收。</div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div><b>SCADA 图元控件 · 设计基线 v1</b> · 2026-10-20 · 设计媒介，不参与构建、不部署（R126）</div>
+  <div>确认后冻结；变更升 v2，并同步令牌映射与已复刻页面（R128）</div>
+</footer>
+
+<script>
+(function(){
+  var nav=document.getElementById('nav');
+  var links=Array.prototype.slice.call(nav.querySelectorAll('a[href^="#"]'));
+  var sections=links.map(function(a){return document.querySelector(a.getAttribute('href'));}).filter(Boolean);
+  function onScroll(){
+    var current=sections[0];
+    sections.forEach(function(s){ if(s.getBoundingClientRect().top<=130) current=s; });
+    links.forEach(function(a){ a.classList.toggle('is-on', a.getAttribute('href')==='#'+current.id); });
+  }
+  window.addEventListener('scroll',onScroll,{passive:true});
+  onScroll();
+
+  var catTabs=Array.prototype.slice.call(document.querySelectorAll('[data-cat-tab]'));
+  var sheetGrid=document.getElementById('sheetGrid');
+  var devPanel=document.getElementById('devPanel');
+  var sheetItems=sheetGrid?Array.prototype.slice.call(sheetGrid.querySelectorAll('.sheet-item')):[];
+  // 顺序与 §04 的 sheet 条目一致；新增条目时同步这里。
+  var catMap=['operation','operation','numeric','indicator','indicator','indicator','numeric','numeric','process','process','process','process','alarm','motion','data','basic','basic','basic'];
+  sheetItems.forEach(function(el,i){ el.setAttribute('data-cat',catMap[i]||'basic'); });
+  catTabs.forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var cat=btn.getAttribute('data-cat-tab');
+      catTabs.forEach(function(b){ b.classList.toggle('is-on',b===btn); });
+      if(!sheetGrid||!devPanel) return;
+      if(cat==='dev'){
+        sheetGrid.hidden=true;
+        devPanel.hidden=false;
+        return;
+      }
+      sheetGrid.hidden=false;
+      devPanel.hidden=true;
+      var filtered=cat!=='all';
+      sheetGrid.classList.toggle('is-filtered',filtered);
+      sheetItems.forEach(function(el){
+        el.hidden=filtered&&el.getAttribute('data-cat')!==cat;
+      });
+    });
+  });
+
+  var btns=Array.prototype.slice.call(document.querySelectorAll('[data-theme-btn]'));
+  btns.forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var theme=btn.getAttribute('data-theme-btn');
+      btns.forEach(function(b){b.classList.toggle('is-on',b===btn);});
+      document.querySelectorAll('.hmi').forEach(function(el){
+        if (el.closest('.sheet') || el.closest('.screen')) return;
+        el.setAttribute('data-theme',theme);
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

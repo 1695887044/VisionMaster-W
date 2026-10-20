@@ -25,19 +25,14 @@ namespace UI.CustomControl.PropertyGrid
             var textBox = new TextBox
             {
                 IsReadOnly = isReadOnly,
-                // 🌟 问题排查与修复：告别裸奔，赋予 Web 级输入框质感
-                Padding = new Thickness(10, 6, 10, 6),
+                Padding = new Thickness(10, 0, 10, 0),
                 VerticalContentAlignment = VerticalAlignment.Center,
-                BorderBrush = new SolidColorBrush(Color.FromRgb(220, 223, 230)),
-                Background = isReadOnly ? new SolidColorBrush(Color.FromRgb(245, 247, 250)) : Brushes.White,
-                Foreground = isReadOnly ? new SolidColorBrush(Color.FromRgb(144, 147, 153)) : new SolidColorBrush(Color.FromRgb(96, 98, 102))
             };
 
-            // 纯代码设置微圆角 (如果是卡片风格，这里尤为重要)
-            textBox.Resources.Add(typeof(Border), new Style(typeof(Border))
-            {
-                Setters = { new Setter(Border.CornerRadiusProperty, new CornerRadius(4)) }
-            });
+            // v1 基线：统一 36px 高 / 8px 圆角 / 令牌配色。
+            // 原来这里写死 #DCDFE6 / #606266 / #F5F7FA / #909399 —— 换主题时这几格不跟着变。
+            PropertyGridMetrics.ApplyInputLook(textBox);
+            if (isReadOnly) PropertyGridMetrics.ApplyReadOnlyLook(textBox);
 
             // 绑定：失去焦点或回车时触发验证
             var binding = new Binding(prop.Name)

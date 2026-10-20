@@ -70,7 +70,21 @@ namespace VisionMaster.Communications
             /// <summary>是否 Modbus 位区（线圈/离散输入，按位打包返回）</summary>
             public bool IsBitArea;
 
+            /// <summary>
+            /// 本段是否允许"多读空洞"把邻居一起读回来。
+            /// <para>false = 该段由某个关了 <see cref="CommunicationVariable.MergeAdjacentRead"/> 的变量独占，
+            /// 跨度严格等于它自己的区间，不与任何邻居合并。</para>
+            /// </summary>
+            public bool MergeAdjacent = true;
+
             public readonly List<SegmentItem> Items = new();
+
+            /// <summary>
+            /// 编译期归属：本段由哪些变量组成（合并时钉死，不再事后按区间反推）。
+            /// <para>反推的问题：关了合并的变量其地址可能落在邻居段的跨度内，那时"第一个包含它的段"
+            /// 是邻居那段 → 本变量挂错、自己这段一个 Item 都没有（每轮白发一次请求）。</para>
+            /// </summary>
+            public readonly List<(PollAddress Address, CommunicationVariable Variable)> Owned = new();
 
             /// <summary>本段可用的 HSL 地址（如 "x=3;100" / "MB100" / "DB7.DBB100"）</summary>
             public string Address => SegmentPrefix + Start;
@@ -90,6 +104,17 @@ namespace VisionMaster.Communications
 
             /// <summary>最近一次失败原因（成功时清空）；与 <see cref="ConsecutiveFailures"/> 一起构成坏段摘要</summary>
             public string? LastError;
+
+            /// <summary>
+            /// 坏段隔离：连续失败达阈值后，本段被移出正常轮询，改为每 <see cref="IsolationProbeIntervalMs"/> 低频探测一次。
+            /// <para>为什么需要它：一个恒坏地址（配置错/越界/从站掉线）在 100ms 周期下会每秒刷 10 次超时，
+            /// 每次都烧满读超时并拖慢同拍的其它段。隔离后它只按 5s 探测，链路与其它段恢复正常节奏。</para>
+            /// <para>恢复判据是"探测成功一次"，不需要人工复位——地址修好后自然回到正常轮询。</para>
+            /// </summary>
+            public long NextProbeTicks;
+
+            /// <summary>隔离期间是否已经发过"已隔离"日志（每段只发一次，避免刷屏）</summary>
+            public bool IsolationLogged;
         }
 
         /// <summary>兜底单读项：仍走 <see cref="ICommunicationConnection.Read{T}"/> 反射调用</summary>
@@ -120,6 +145,13 @@ namespace VisionMaster.Communications
         /// </summary>
         public const int FaultedSegmentThreshold = 3;
 
+        /// <summary>
+        /// 隔离段的低频探测间隔（毫秒）。
+        /// <para>取 5s：既让恒坏段不再按 100ms 周期烧超时，又不至于让"现场刚把线接上"要等太久才恢复。
+        /// 与 IO 层旧实现的 <c>IsolatedProbeIntervalMs</c> 取同一口径。</para>
+        /// </summary>
+        public const int IsolationProbeIntervalMs = 5000;
+
         private static readonly ConcurrentDictionary<string, long> _logTicks = new();
 
         private static readonly ConcurrentDictionary<Type, MethodInfo> _readMethodCache = new();
@@ -130,11 +162,20 @@ namespace VisionMaster.Communications
         private readonly List<SingleRead> _fallbacks;
         private readonly Action<string>? _log;
 
-        private PollBatchPlanner(List<ReadSegment> segments, List<SingleRead> fallbacks, Action<string>? log)
+        /// <summary>
+        /// 是否启用坏段隔离（编译期从连接配置抄进来的快照）。
+        /// <para>默认 false = 每轮都试，与改造前一字不差——诊断面板的"连续失败 N 轮"
+        /// 正是靠每轮真读才累加得出来的。</para>
+        /// </summary>
+        private readonly bool _isolateFaultedSegments;
+
+        private PollBatchPlanner(List<ReadSegment> segments, List<SingleRead> fallbacks,
+                                 Action<string>? log, bool isolateFaultedSegments)
         {
             _segments = segments;
             _fallbacks = fallbacks;
             _log = log;
+            _isolateFaultedSegments = isolateFaultedSegments;
         }
 
         #region 公共属性
@@ -190,7 +231,8 @@ namespace VisionMaster.Communications
         public static PollBatchPlanner Build(
             IEnumerable<CommunicationVariable> variables,
             PollTransportKind transport,
-            Action<string>? log = null)
+            Action<string>? log = null,
+            bool isolateFaultedSegments = false)
         {
             var batchable = new List<(PollAddress Address, CommunicationVariable Variable)>();
             var fallbacks = new List<SingleRead>();
@@ -272,7 +314,7 @@ namespace VisionMaster.Communications
 
             var segments = MergeSegments(batchable, transport);
             CompileItems(segments, batchable);
-            return new PollBatchPlanner(segments, fallbacks, log);
+            return new PollBatchPlanner(segments, fallbacks, log, isolateFaultedSegments);
         }
 
         /// <summary>按 协议+存储区 分组、起始地址排序后贪心合并成段</summary>
@@ -288,6 +330,35 @@ namespace VisionMaster.Communications
 
                 foreach (var (poll, variable) in group.OrderBy(x => x.Address.Start).ThenBy(x => x.Address.EndUnit))
                 {
+                    // 该变量关了「区域合并读」：自成一段，跨度严格等于它自己，且不与任何邻居合并。
+                    // 仍然走段读（一次读回自己的跨度、按结构化解码），只是不把邻居一起读回来。
+                    if (!variable.MergeAdjacentRead)
+                    {
+                        if (current != null)
+                        {
+                            result.Add(current);
+                            current = null;
+                        }
+
+                        var solo = new ReadSegment
+                        {
+                            Protocol = poll.Protocol,
+                            GroupKey = poll.GroupKey,
+                            ConnectionName = variable.ConnectionName,
+                            SegmentPrefix = poll.SegmentPrefix,
+                            Start = poll.Start,
+                            EndUnit = poll.EndUnit,
+                            IsBitArea = poll.IsBitArea,
+                            MergeAdjacent = false
+                        };
+                        // 归属在合并时就钉死：不能事后按"区间包含"回落——
+                        // 该变量的地址可能落在上一个合并段的跨度内（邻居是跨多个寄存器的变量），
+                        // 那时"第一个包含它的段"是邻居那段，本变量会被挂错、自己这段空转成一次白发的请求。
+                        solo.Owned.Add((poll, variable));
+                        result.Add(solo);
+                        continue;
+                    }
+
                     if (current != null)
                     {
                         int newEnd = Math.Max(current.EndUnit, poll.EndUnit);
@@ -315,6 +386,7 @@ namespace VisionMaster.Communications
                         };
                     }
 
+                    current.Owned.Add((poll, variable));
                     current.EndUnit = Math.Max(current.EndUnit, poll.EndUnit);
                 }
 
@@ -330,29 +402,24 @@ namespace VisionMaster.Communications
             List<ReadSegment> segments,
             List<(PollAddress Address, CommunicationVariable Variable)> batchable)
         {
-            // 段划分是按 (Protocol, GroupKey) 顺序生成的，这里用同样的键+区间包含关系回落
-            foreach (var (poll, variable) in batchable)
+            // 归属由 MergeSegments 在合并时钉死（段自己持有 Owned），这里不再按区间反推：
+            // 反推在"不合并的变量落在邻居跨度内"时会挂错段，留下一个空段（每轮白发一次请求）。
+            foreach (var seg in segments)
             {
-                var seg = segments.FirstOrDefault(s =>
-                    s.Protocol == poll.Protocol
-                    && s.GroupKey == poll.GroupKey
-                    && poll.Start >= s.Start
-                    && poll.EndUnit <= s.EndUnit);
-
-                if (seg == null)
-                    continue; // 理论上不会发生；万一漏挂，该变量本轮不更新（安全侧）
-
-                var clrType = ResolveClrType(variable.ValueType)!;
-                seg.Items.Add(new SegmentItem
+                foreach (var (poll, variable) in seg.Owned)
                 {
-                    Variable = variable,
-                    UnitOffset = poll.Start - seg.Start,
-                    SpanUnits = poll.SpanUnits,
-                    BitOffset = poll.BitOffset,
-                    ValueType = clrType,
-                    IsString = clrType == typeof(string),
-                    IsByteArray = clrType == typeof(byte[])
-                });
+                    var clrType = ResolveClrType(variable.ValueType)!;
+                    seg.Items.Add(new SegmentItem
+                    {
+                        Variable = variable,
+                        UnitOffset = poll.Start - seg.Start,
+                        SpanUnits = poll.SpanUnits,
+                        BitOffset = poll.BitOffset,
+                        ValueType = clrType,
+                        IsString = clrType == typeof(string),
+                        IsByteArray = clrType == typeof(byte[])
+                    });
+                }
             }
         }
 
@@ -401,19 +468,42 @@ namespace VisionMaster.Communications
 
         /// <summary>执行一轮轮询（仅由所属连接的 Worker 线程调用）</summary>
         public bool Poll(ICommunicationConnection connection)
+            => Poll(connection, null) != PollCycleOutcome.LinkFault;
+
+        /// <summary>
+        /// 执行一轮轮询；<paramref name="yieldRequested"/> 在每段之前被询问一次，
+        /// 返回 true 时立即以 <see cref="PollCycleOutcome.Yielded"/> 收尾（不 MarkSuccess、不判故障）。
+        /// <para>只在"段与段之间"让路：段内不能中断，否则半包读会导致协议解析错位。</para>
+        /// </summary>
+        public PollCycleOutcome Poll(
+            ICommunicationConnection connection,
+            Func<bool>? yieldRequested)
         {
             int attempted = 0;
             int failed = 0;
 
             // 链路级故障短路标志：段读失败且连接自证"链路已死"时置位，
-            // 跳过剩余段与全部单读，本轮回 false 让 Worker 立刻断开重连。
+            // 跳过剩余段与全部单读，本轮返回 LinkFault 让 Worker 立刻断开重连。
             bool linkFault = false;
 
             // 字序取自连接本身（ModbusTcp 跟随配置，S7/串口恒 ABCD），保证与单点读同源
             var byteOrder = connection.ByteOrder;
 
+            long now = Environment.TickCount64;
+
             foreach (var seg in _segments)
             {
+                // 插队命令优先：段与段之间让路。这里不能放到 try 里面——
+                // 让路不是故障，不能走 MarkUncertain / 失败计数。
+                if (yieldRequested?.Invoke() == true)
+                    return PollCycleOutcome.Yielded;
+
+                // 坏段隔离（仅当连接显式开启）：连续失败达阈值的段被移出正常轮询，
+                // 改为每 IsolationProbeIntervalMs 低频探测一次。
+                // 跳过时**不顺延** NextProbeTicks——顺延会让探测时刻一直往后推、永远不到期。
+                if (_isolateFaultedSegments && IsIsolated(seg, now))
+                    continue;
+
                 attempted++;
                 try
                 {
@@ -425,6 +515,8 @@ namespace VisionMaster.Communications
                     // 读成功即归零：地址修好后诊断面板的"异常段"自然消失，不需要人工复位
                     Volatile.Write(ref seg.ConsecutiveFailures, 0);
                     seg.LastError = null;
+                    seg.IsolationLogged = false;   // 恢复后允许下次再报一次"已隔离"
+                    seg.NextProbeTicks = 0;
                 }
                 catch (Exception ex)
                 {
@@ -441,6 +533,19 @@ namespace VisionMaster.Communications
                     // 只在这一刻发（failures == 阈值），之后回落限流——否则恒坏段会每轮刷一条日志。
                     if (failures == FaultedSegmentThreshold)
                         _log?.Invoke($"[轮询] 段连续 {failures} 轮读失败，已计为异常段：{seg.Address}（{seg.SpanUnits} 单元）: {ex.Message}");
+
+                    // 进入隔离那一刻单独报一次（含"多久探测一次"），让现场知道它不再按周期读了。
+                    // 顺延探测时刻也只在这里做：跳过的轮次不改它，否则每轮都往后推、永远到不了期。
+                    if (_isolateFaultedSegments && failures >= FaultedSegmentThreshold)
+                    {
+                        seg.NextProbeTicks = Environment.TickCount64 + IsolationProbeIntervalMs;
+
+                        if (!seg.IsolationLogged)
+                        {
+                            seg.IsolationLogged = true;
+                            _log?.Invoke($"[轮询] 段已隔离（移出正常轮询，每 {IsolationProbeIntervalMs}ms 探测一次）：{seg.Address}: {ex.Message}");
+                        }
+                    }
 
                     // C5：key 必须带连接名——_logTicks 是 static 的，不含连接名时两条连接读同一地址会互相吞日志
                     LogThrottled($"seg:{seg.ConnectionName}.{seg.Address}", $"段读失败 {seg.Address}（{seg.SpanUnits} 单元）: {ex.Message}");
@@ -465,6 +570,10 @@ namespace VisionMaster.Communications
             {
                 foreach (var single in _fallbacks)
                 {
+                    // 兜底单读之间同样让路：一条单读就是一次设备往返，插队命令没必要排在它后面
+                    if (yieldRequested?.Invoke() == true)
+                        return PollCycleOutcome.Yielded;
+
                     attempted++;
                     object? value;
                     try
@@ -486,9 +595,107 @@ namespace VisionMaster.Communications
                 }
             }
 
-            if (attempted == 0) return true;   // 无读项：不算故障（连接活性由其它读写刷新）
-            if (linkFault) return false;       // ★ 必须显式判：前几段成功、后段链路断时 failed < attempted 会误判为正常
-            return failed < attempted;         // 全失败 ⇒ 通信级故障，交给 Worker 断线重连
+            if (attempted == 0) return PollCycleOutcome.Completed;   // 无读项：不算故障（连接活性由其它读写刷新）
+            if (linkFault) return PollCycleOutcome.LinkFault;        // ★ 必须显式判：前几段成功、后段链路断时 failed < attempted 会误判为正常
+            return failed < attempted
+                ? PollCycleOutcome.Completed
+                : PollCycleOutcome.LinkFault;                        // 全失败 ⇒ 通信级故障，交给 Worker 断线重连
+        }
+
+        /// <summary>
+        /// 单变量读取（供「立刻读」的插队车道使用）。
+        ///
+        /// 【为什么不能用 <see cref="Poll(ICommunicationConnection, Func{bool}?)"/> 代替】
+        /// Poll 的判定是"全失败 = 通信级故障"：单变量计划里唯一一段读失败时
+        /// <c>failed == attempted</c>，会被判成 LinkFault——一个坏地址被误报成链路断开。
+        /// 立刻读需要的是"这个变量读没读到"的精确结果，所以单独走一条只解码、不发布、
+        /// 不改质量戳的路径。
+        ///
+        /// 【前置条件】计划里恰好一个可读项（一个段或一个兜底单读）。
+        /// 【线程】仅由所属连接的 Worker 线程调用。
+        /// </summary>
+        public bool TryReadOne(
+            ICommunicationConnection connection,
+            out object? value,
+            out string? error)
+        {
+            value = null;
+            error = null;
+
+            if (PollItemCount != 1)
+            {
+                error = $"单变量读取计划不成立（可读项 {PollItemCount} 个）";
+                return false;
+            }
+
+            var byteOrder = connection.ByteOrder;
+
+            foreach (var seg in _segments)
+            {
+                try
+                {
+                    if (seg.IsBitArea)
+                    {
+                        var bits = connection.ReadBits(seg.Address, (ushort)seg.SpanUnits);
+                        value = DecodeBitItem(bits, seg.Items[0]);
+                    }
+                    else
+                    {
+                        var data = connection.ReadBytes(seg.Address, (ushort)seg.SpanUnits);
+                        value = DecodeItem(data, seg, seg.Items[0], byteOrder);
+                    }
+
+                    if (value == null)
+                    {
+                        error = "解码结果为空";
+                        return false;
+                    }
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            foreach (var single in _fallbacks)
+            {
+                try
+                {
+                    value = single.ReadMethod.Invoke(connection, new object[] { single.Variable.Address });
+                    if (value == null)
+                    {
+                        error = "读取结果为空";
+                        return false;
+                    }
+                    return true;
+                }
+                catch (TargetInvocationException ex)
+                {
+                    error = (ex.InnerException ?? ex).Message;
+                    return false;
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            error = "没有可读项（变量类型或地址不受支持）";
+            return false;
+        }
+
+        /// <summary>
+        /// 该段本轮是否跳过（隔离中且还没到探测时刻）。
+        /// <para>隔离判据是"连续失败达阈值 + 未到下次探测时刻"，两个条件缺一不可：
+        /// 只看失败数会让坏段永远不再尝试（地址修好也恢复不了）。</para>
+        /// </summary>
+        private static bool IsIsolated(ReadSegment seg, long now)
+        {
+            if (Volatile.Read(ref seg.ConsecutiveFailures) < FaultedSegmentThreshold) return false;
+            return now < seg.NextProbeTicks;
         }
 
         /// <summary>
@@ -503,40 +710,30 @@ namespace VisionMaster.Communications
         {
             try
             {
-                variable.UpdateValue(value);
+                // 工程量换算（Scale/Offset/小数位）：管道一直存在（DeviceAddressBase.ConvertToEngineering），
+                // 但改造前只有<b>写</b>路径调了 ConvertToRaw、<b>读</b>路径从没调过——
+                // 于是"配了缩放系数的变量写进去是工程值、读回来却是原始值"，读写不对称。
+                // 默认 EnableConversion=false，故不配换算的方案行为零变化。
+                variable.UpdateValue(variable.ToEngineering(value));
             }
             catch (Exception ex)
             {
                 LogThrottled($"publish:{variable.ConnectionName}.{variable.VariableName}",
                     $"值已更新但下游处理异常 {variable.VariableName}（{variable.Address}）: {ex.Message}");
             }
-        }
-
-        /// <summary>解码非位区段的字节流（S7 字节段 / Modbus 寄存器段）</summary>
+        }        /// <summary>解码非位区段的字节流（S7 字节段 / Modbus 寄存器段）</summary>
         private void ApplyBytes(ReadSegment seg, byte[] data, ByteOrderFormat order)
         {
             if (data == null) return;
-            int bytesPerUnit = seg.BytesPerUnit;
 
             foreach (var item in seg.Items)
             {
                 object? value;
                 try
                 {
-                    int byteOffset = item.UnitOffset * bytesPerUnit;
-                    int byteLength = item.SpanUnits * bytesPerUnit;
-
-                    if (byteOffset < 0 || byteOffset + byteLength > data.Length)
-                    {
-                        item.Variable.MarkUncertain(); // 设备返回字节不足：解不出本变量的新值
-                        LogThrottled($"short:{item.Variable.ConnectionName}.{seg.Address}#{item.Variable.VariableName}",
-                            $"段 {seg.Address} 实际返回 {data.Length} 字节，不足解码 {item.Variable.VariableName}（需 {byteOffset + byteLength} 字节）");
-                        continue;
-                    }
-
-                    value = item.BitOffset >= 0
-                        ? DecodeBit(data, byteOffset, item.BitOffset, item.ValueType)
-                        : DecodeValue(data, byteOffset, byteLength, item, order);
+                    // 解码只保留一份实现（DecodeItem）：轮询与立刻读共用，
+                    // 两处各写一遍迟早出现"轮询读得对、立刻读读错"的漂移。
+                    value = DecodeItem(data, seg, item, order);
                 }
                 catch (Exception ex)
                 {
@@ -561,15 +758,7 @@ namespace VisionMaster.Communications
                 object? value;
                 try
                 {
-                    if (item.UnitOffset < 0 || item.UnitOffset >= bits.Length)
-                    {
-                        item.Variable.MarkUncertain(); // 设备返回点数不足：解不出本变量的新值
-                        LogThrottled($"short:{item.Variable.ConnectionName}.{seg.Address}#{item.Variable.VariableName}",
-                            $"位区段 {seg.Address} 实际返回 {bits.Length} 点，不足解码 {item.Variable.VariableName}（需第 {item.UnitOffset + 1} 点）");
-                        continue;
-                    }
-
-                    value = FromBit(bits[item.UnitOffset], item.ValueType);
+                    value = DecodeBitItem(bits, item);
                 }
                 catch (Exception ex)
                 {
@@ -581,6 +770,35 @@ namespace VisionMaster.Communications
 
                 PublishValue(item.Variable, value);
             }
+        }
+
+        /// <summary>
+        /// 按段内偏移解码一个变量（数值按连接字序；string/byte[] 原样取用长度）。
+        /// <para>轮询（<see cref="ApplyBytes"/>）与立刻读（<see cref="TryReadOne"/>）共用这一份，
+        /// 保证两条路径的字节序、类型解码、长度校验完全一致。</para>
+        /// </summary>
+        private static object? DecodeItem(byte[] data, ReadSegment seg, SegmentItem item, ByteOrderFormat order)
+        {
+            int byteOffset = item.UnitOffset * seg.BytesPerUnit;
+            int byteLength = item.SpanUnits * seg.BytesPerUnit;
+
+            if (byteOffset < 0 || byteOffset + byteLength > data.Length)
+                throw new InvalidOperationException(
+                    $"段 {seg.Address} 实际返回 {data.Length} 字节，不足解码 {item.Variable.VariableName}（需 {byteOffset + byteLength} 字节）");
+
+            return item.BitOffset >= 0
+                ? DecodeBit(data, byteOffset, item.BitOffset, item.ValueType)
+                : DecodeValue(data, byteOffset, byteLength, item, order);
+        }
+
+        /// <summary>从位区点数组里取一个变量的值（轮询与立刻读共用）</summary>
+        private static object DecodeBitItem(bool[] bits, SegmentItem item)
+        {
+            if (item.UnitOffset < 0 || item.UnitOffset >= bits.Length)
+                throw new InvalidOperationException(
+                    $"位区段实际返回 {bits.Length} 点，不足解码 {item.Variable.VariableName}（需第 {item.UnitOffset + 1} 点）");
+
+            return FromBit(bits[item.UnitOffset], item.ValueType);
         }
 
         /// <summary>

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Core.Interfaces;
 using HalconDotNet;
@@ -40,6 +41,9 @@ namespace FlowCanvasChecks
             Section("[YOLO] 最佳目标裁剪（跨接线断层的关键）与插件壳");
             RunCropChecks();
             RunPluginShellChecks();
+
+            Section("[YOLO] 预览/模型状态契约（YO3）");
+            RunStateContractChecks();
         }
 
         // ==================================================================
@@ -568,6 +572,161 @@ namespace FlowCanvasChecks
             }
 
             return null;
+        }
+
+        // ==================================================================
+        //  YO3：预览/模型状态契约
+        // ==================================================================
+
+        /// <summary>
+        /// 状态矩阵与静态扫描。核心口径：视图的判据只能是枚举状态，
+        /// **不许再从 ModelSummary / ResultSummary / Hint 的中文文案倒推**。
+        /// </summary>
+        private static void RunStateContractChecks()
+        {
+            // ---- 纯映射：0 目标 = Empty（正常工况），>0 = Ready ----
+            Check("状态契约：FromDetectionCount(0/-1) → Empty，1/5 → Ready",
+                YoloPreviewStateRules.FromDetectionCount(0) == YoloPreviewState.Empty
+                && YoloPreviewStateRules.FromDetectionCount(-1) == YoloPreviewState.Empty
+                && YoloPreviewStateRules.FromDetectionCount(1) == YoloPreviewState.Ready
+                && YoloPreviewStateRules.FromDetectionCount(5) == YoloPreviewState.Ready,
+                $"0→{YoloPreviewStateRules.FromDetectionCount(0)} -1→{YoloPreviewStateRules.FromDetectionCount(-1)} "
+                + $"1→{YoloPreviewStateRules.FromDetectionCount(1)} 5→{YoloPreviewStateRules.FromDetectionCount(5)}");
+
+            // ---- 新建：还没选模型、还没试算 ----
+            var plugin = new YoloPlugin { InstanceName = "STATE_0" };
+            Check("状态契约：新建 → ModelState=NotLoaded / PreviewState=Idle",
+                plugin.ModelState == YoloModelState.NotLoaded && plugin.PreviewState == YoloPreviewState.Idle,
+                $"ModelState={plugin.ModelState} PreviewState={plugin.PreviewState}");
+
+            // ---- 无图 / 空路径：NotLoaded，不是 Failed ----
+            plugin.RefreshModelState();
+            Check("状态契约：ModelPath 为空 → RefreshModelState 后 ModelState=NotLoaded（不判失败）",
+                plugin.ModelState == YoloModelState.NotLoaded,
+                $"ModelState={plugin.ModelState} ModelSummary='{plugin.ModelSummary}'");
+
+            // ---- 模型失败：路径不存在 → Failed ----
+            plugin.ModelPath = @"C:\不存在的模型.onnx";
+            plugin.RefreshModelState();
+            Check("状态契约：模型路径不存在 → ModelState=Failed",
+                plugin.ModelState == YoloModelState.Failed,
+                $"ModelState={plugin.ModelState} ModelSummary='{plugin.ModelSummary}'");
+
+            // ---- 有图：ShowUpstreamImage 成功 → Idle + 结果回到「尚未试算」 ----
+            var image = MakeCropTestImage();
+            plugin.Image.Value = image;
+            bool shown = plugin.ShowUpstreamImage();
+            Check("状态契约：有图 → DisplayImage 就绪 / PreviewState=Idle / ResultSummary 回到「尚未试算」",
+                shown && plugin.DisplayImage != null && plugin.PreviewState == YoloPreviewState.Idle
+                && plugin.ResultSummary == "尚未试算",
+                $"shown={shown} hasImage={plugin.DisplayImage != null} PreviewState={plugin.PreviewState} Result='{plugin.ResultSummary}'");
+
+            // ---- 无图试算：Idle，不是 Error ----
+            var noImage = new YoloPlugin { InstanceName = "STATE_1" };
+            noImage.TryPreviewDetect();
+            Check("状态契约：无图试算 → PreviewState=Idle（不是 Error）",
+                noImage.PreviewState == YoloPreviewState.Idle,
+                $"PreviewState={noImage.PreviewState} Result='{noImage.ResultSummary}'");
+            noImage.Dispose();
+
+            // ---- 模型失败 + 有图试算：Error + Failed ----
+            plugin.TryPreviewDetect();
+            Check("状态契约：模型失败时试算 → PreviewState=Error 且 ModelState=Failed",
+                plugin.PreviewState == YoloPreviewState.Error && plugin.ModelState == YoloModelState.Failed,
+                $"PreviewState={plugin.PreviewState} ModelState={plugin.ModelState} Result='{plugin.ResultSummary}'");
+
+            // ---- 运行态不是配置键：OnConfirm 不许写 ModelState / PreviewState ----
+            var step = new FakeStepData();
+            plugin.OnConfirm(step);
+            Check("状态契约：OnConfirm 不写 ModelState/PreviewState（运行态不落盘）",
+                !step.InputValues.ContainsKey(nameof(YoloPlugin.ModelState))
+                && !step.InputValues.ContainsKey(nameof(YoloPlugin.PreviewState)),
+                "keys=" + string.Join(",", step.InputValues.Keys.OrderBy(k => k)));
+
+            var stateProps = typeof(YoloPlugin).GetProperties()
+                .Where(p => p.Name == nameof(YoloPlugin.ModelState) || p.Name == nameof(YoloPlugin.PreviewState))
+                .ToArray();
+            Check("状态契约：ModelState/PreviewState 不带 [StepConfig]（源生成器不会收它们）",
+                stateProps.Length == 2
+                && stateProps.All(p => p.GetCustomAttributes(typeof(StepConfigAttribute), true).Length == 0),
+                $"命中属性={stateProps.Length}");
+
+            // ---- 真实模型可用时：加载 → Ready；非会话级失败不许把模型判死 ----
+            string? model = ResolveTestModel();
+            if (model == null)
+            {
+                Check("状态契约：真实模型加载 → ModelState=Ready", true, "跳过：未找到测试模型");
+                Check("状态契约：非会话级失败（类别过滤非法）→ PreviewState=Error 且 ModelState 保持 Ready", true,
+                    "跳过：未找到测试模型");
+            }
+            else
+            {
+                var readyPlugin = new YoloPlugin { InstanceName = "STATE_2", ModelPath = model };
+                readyPlugin.RefreshModelState();
+                Check("状态契约：真实模型加载 → ModelState=Ready",
+                    readyPlugin.ModelState == YoloModelState.Ready,
+                    $"ModelState={readyPlugin.ModelState} Summary='{readyPlugin.ModelSummary}'");
+
+                var readyImage = MakeCropTestImage();
+                readyPlugin.Image.Value = readyImage;
+                readyPlugin.ClassFilterText = "0,abc"; // 会话能建、参数非法 → 非会话级失败
+                readyPlugin.TryPreviewDetect();
+                Check("状态契约：非会话级失败（类别过滤非法）→ PreviewState=Error 且 ModelState 保持 Ready",
+                    readyPlugin.PreviewState == YoloPreviewState.Error
+                    && readyPlugin.ModelState == YoloModelState.Ready,
+                    $"PreviewState={readyPlugin.PreviewState} ModelState={readyPlugin.ModelState} Result='{readyPlugin.ResultSummary}'");
+
+                readyPlugin.Dispose();
+                readyImage.Dispose();
+            }
+
+            plugin.Dispose();
+            image.Dispose();
+
+            RunStateStaticScanChecks();
+        }
+
+        /// <summary>
+        /// 静态扫描：视图层不许再出现"按中文文案判状态"的写法。
+        /// 这条闸的价值在变异反证——把 `Contains("失败")` 写回视图，它必须准确变红。
+        /// </summary>
+        private static void RunStateStaticScanChecks()
+        {
+            string root = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..\"));
+            string xamlPath = Path.Combine(root, @"Plugins\Plugin.Yolo\YoloView.xaml");
+            string csPath = Path.Combine(root, @"Plugins\Plugin.Yolo\YoloView.xaml.cs");
+
+            if (!File.Exists(xamlPath) || !File.Exists(csPath))
+            {
+                Check("状态契约：视图静态扫描（文件存在）", false,
+                    $"找不到 {xamlPath} 或 {csPath}");
+                return;
+            }
+
+            string xaml = File.ReadAllText(xamlPath);
+            string cs = File.ReadAllText(csPath);
+
+            // 1) 两个旧转换器必须彻底消失；状态触发必须落到枚举上
+            int stateTriggers = Regex.Matches(xaml, @"x:Static\s+local:Yolo(?:Preview|Model)State\.").Count;
+            Check("状态契约：视图不再引用 ResultState/YoloState 转换器，且状态触发走枚举（≥4 处）",
+                !xaml.Contains("ResultStateConverter", StringComparison.Ordinal)
+                && !xaml.Contains("YoloStateConverter", StringComparison.Ordinal)
+                && !cs.Contains("ResultStateConverter", StringComparison.Ordinal)
+                && !cs.Contains("YoloStateConverter", StringComparison.Ordinal)
+                && stateTriggers >= 4,
+                $"XAML 枚举触发={stateTriggers}，转换器引用={(xaml.Contains("ResultStateConverter") || xaml.Contains("YoloStateConverter") || cs.Contains("ResultStateConverter") || cs.Contains("YoloStateConverter"))}");
+
+            // 2) 禁止中文前缀判据：Contains("失败") / StartsWith("试算失败") 这类写法一律红
+            var chinesePredicate = new Regex(
+                @"(?:Contains|StartsWith|EndsWith)\s*\(\s*""[^""]*[\u4e00-\u9fff]",
+                RegexOptions.Compiled);
+            var hits = chinesePredicate.Matches(cs).Cast<Match>()
+                .Concat(chinesePredicate.Matches(xaml).Cast<Match>())
+                .Select(m => m.Value)
+                .ToArray();
+            Check("状态契约：视图源码禁止用中文文案前缀判状态（Contains/StartsWith + 中文）",
+                hits.Length == 0,
+                hits.Length == 0 ? "0 处" : $"命中 {hits.Length} 处：{string.Join(" | ", hits)}");
         }
     }
 }

@@ -126,7 +126,7 @@ namespace Plugin.CodeReader
         // ==================================================================
 
         /// <summary>待读码的图像。应由上级定位后裁剪好，并把码完整包住</summary>
-        public InputPort<HImage> Image { get; } = new("Image", null, "待读码的图像（上级定位后裁好）")
+        public InputPort<HImage> Image { get; } = new("Image", null!, "待读码的图像（上级定位后裁好）")
         {
             IsRequired = false,
         };
@@ -256,7 +256,7 @@ namespace Plugin.CodeReader
         {
             if (DisplayImage == null || !DisplayImage.IsInitialized())
             {
-                ResultSummary = "先点「载入」把示意图读进来再试算";
+                ResultSummary = "先在「图像输入」绑定上游图像，或点宿主「执行」带图进来再试算；本节点没有「载入」按钮，图像只来自上游";
                 return;
             }
 

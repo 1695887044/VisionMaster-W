@@ -99,20 +99,20 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>当前数值（绑到工程变量上）</summary>
         [ScadaProperty(Key = "Value", DisplayName = "数值", Kind = ElementPropertyKind.Number,
-                       Group = "数据", DefaultValue = "0", IsBindable = true,
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "0", IsBindable = true,
                        Description = "运行态把工程变量绑到这里；框里显示的是它按「数值格式」格式化后的样子")]
         public partial double Value { get; set; }
 
         /// <summary>数值的显示格式（标准 .NET 数字格式串，如 <c>0.0</c> / <c>F2</c> / <c>#,##0</c>）</summary>
         [ScadaProperty(Key = "ValueFormat", DisplayName = "数值格式", Kind = ElementPropertyKind.Text,
-                       Group = "数据", DefaultValue = "0.##",
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "0.##",
                        Description = "标准 .NET 数字格式串：0.0 定一位小数、F2 补零到两位、#,##0 加千分位；" +
                                      "写错了退回通用格式，不会让画面出错")]
         public partial string? ValueFormat { get; set; }
 
         /// <summary>单位（跟在数值后面的一小段字，如 ℃ / mm / pcs；留空则只显数值）</summary>
         [ScadaProperty(Key = "Unit", DisplayName = "单位", Kind = ElementPropertyKind.Text,
-                       Group = "数据", DefaultValue = "",
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "",
                        Description = "跟在数值后面的一小段字（℃ / mm / pcs）；留空则只显数值")]
         public partial string? Unit { get; set; }
 
@@ -126,11 +126,11 @@ namespace VisionMaster.Scada.Controls
         /// 而按后一种判法它们会变成只读，"存盘时能改、打开后改不动"才是真的坑。
         /// </summary>
         [ScadaProperty(Key = "Mode", DisplayName = "模式", Kind = ElementPropertyKind.Choice,
-                       Group = "数据", DefaultValue = "Output",
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "Output",
                        Choices = new[] { "Output", "InputOutput" }, AffectsRender = false,
                        Description = "Output = 只读显示（老行为，运行态点不动）；" +
                                      "InputOutput = 读写。读写档要运行态能点进输入，还必须把「数值」绑到变量上、" +
-                                     "且当前角色的权限够（见属性面板「权限」那一行）")]
+                                     "且当前角色的权限够（见属性面板「交互」那一行）")]
         public partial string? Mode { get; set; }
 
         /// <summary>
@@ -140,7 +140,7 @@ namespace VisionMaster.Scada.Controls
         /// 十六进制/二进制按整数处理（工业画面里的位状态、字状态、设备地址都当整数看）。
         /// </summary>
         [ScadaProperty(Key = "FormatType", DisplayName = "格式类型", Kind = ElementPropertyKind.Choice,
-                       Group = "数据", DefaultValue = "Decimal",
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "Decimal",
                        Choices = new[] { "Decimal", "Hex", "Binary" },
                        Description = "Decimal 走「数值格式」串；Hex / Binary 按整数显示（位状态、字状态、设备地址用得上）。" +
                                      "只改显示与就地输入的进制，写回变量的一律是十进制数值")]
@@ -153,50 +153,50 @@ namespace VisionMaster.Scada.Controls
         /// 默认 1（不换算）。为 0 时无法反算，输入会被拒绝而不是算出无穷大。
         /// </summary>
         [ScadaProperty(Key = "Gain", DisplayName = "增益", Kind = ElementPropertyKind.Number,
-                       Group = "数据", DefaultValue = "1",
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "1",
                        Description = "现场量纲与画面量纲的换算系数：显示值 = 变量值 × 增益 + 偏移量；" +
                                      "写回时反过来算。默认 1（不换算）；填 0 会让输入被拒（算不出该写多少）")]
         public partial double Gain { get; set; }
 
         /// <summary>显示换算偏移量（见 <see cref="Offset"/>）</summary>
         [ScadaProperty(Key = "Offset", DisplayName = "偏移量", Kind = ElementPropertyKind.Number,
-                       Group = "数据", DefaultValue = "0",
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "0",
                        Description = "换算公式里的加数（公式见「增益」）。典型用法：PLC 存 0.1℃ 整数，增益 0.1、偏移量 0 即得 ℃")]
         public partial double Offset { get; set; }
 
         /// <summary>是否启用下限（见 <see cref="HasMinimum"/>）</summary>
         [ScadaProperty(Key = "HasMinimum", DisplayName = "启用下限", Kind = ElementPropertyKind.Bool,
-                       Group = "限制", DefaultValue = "False",
+                       Group = ScadaPropertyGroups.Limits, DefaultValue = "False",
                        Description = "打开后，低于下限的输入不写下去（不是夹到下限——静默改掉操作员敲的数比拒绝更危险）")]
         public partial bool HasMinimum { get; set; }
 
         /// <summary>下限（见 <see cref="Minimum"/>）</summary>
         [ScadaProperty(Key = "Minimum", DisplayName = "下限", Kind = ElementPropertyKind.Number,
-                       Group = "限制", DefaultValue = "0",
+                       Group = ScadaPropertyGroups.Limits, DefaultValue = "0",
                        Description = "按显示量纲填（换算后的值）；低于它则输入被拒，且数值文字显示成「下限以下颜色」")]
         public partial double Minimum { get; set; }
 
         /// <summary>低于下限时数值文字的颜色（见 <see cref="UnderMinColor"/>）</summary>
         [ScadaProperty(Key = "UnderMinColor", DisplayName = "下限以下颜色", Kind = ElementPropertyKind.Color,
-                       Group = "限制", DefaultValue = "#FFFB8C00",
+                       Group = ScadaPropertyGroups.Limits, DefaultValue = "#FFFB8C00",
                        Description = "数值低于下限时文字换成这个颜色（默认橙）；只在下限启用时生效")]
         public partial Brush? UnderMinColor { get; set; }
 
         /// <summary>是否启用上限（见 <see cref="HasMaximum"/>）</summary>
         [ScadaProperty(Key = "HasMaximum", DisplayName = "启用上限", Kind = ElementPropertyKind.Bool,
-                       Group = "限制", DefaultValue = "False",
+                       Group = ScadaPropertyGroups.Limits, DefaultValue = "False",
                        Description = "打开后，高于上限的输入不写下去")]
         public partial bool HasMaximum { get; set; }
 
         /// <summary>上限（见 <see cref="Maximum"/>）</summary>
         [ScadaProperty(Key = "Maximum", DisplayName = "上限", Kind = ElementPropertyKind.Number,
-                       Group = "限制", DefaultValue = "100",
+                       Group = ScadaPropertyGroups.Limits, DefaultValue = "100",
                        Description = "按显示量纲填（换算后的值）；高于它则输入被拒，且数值文字显示成「上限以上颜色」")]
         public partial double Maximum { get; set; }
 
         /// <summary>超过上限时数值文字的颜色（见 <see cref="OverMaxColor"/>）</summary>
         [ScadaProperty(Key = "OverMaxColor", DisplayName = "上限以上颜色", Kind = ElementPropertyKind.Color,
-                       Group = "限制", DefaultValue = "#FFE53935",
+                       Group = ScadaPropertyGroups.Limits, DefaultValue = "#FFE53935",
                        Description = "数值高于上限时文字换成这个颜色（默认红）；只在上限启用时生效")]
         public partial Brush? OverMaxColor { get; set; }
 

@@ -113,6 +113,7 @@ namespace Plugin.ResultUpload
                 OnPropertyChanged();
                 RebuildDynamicInputs();
                 OnPropertyChanged(nameof(JudgeFieldNames));
+                OnPropertyChanged(nameof(PayloadPreview));
             }
         }
 
@@ -325,7 +326,7 @@ namespace Plugin.ResultUpload
             if (f != null) f.PropertyChanged -= OnFieldDefPropertyChanged;
         }
 
-        // 字段名/来源/启用 都会改变动态端口集合 → 重建
+        // 字段名/来源/启用 都会改变动态端口集合 → 重建；字段定义变化同时刷新报文预览
         private void OnFieldDefPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(UploadFieldDef.Name) ||
@@ -334,6 +335,16 @@ namespace Plugin.ResultUpload
             {
                 RebuildDynamicInputs();
                 OnPropertyChanged(nameof(JudgeFieldNames));
+            }
+
+            // 只加通知，不改预览计算：字段名/来源/启用/变量名/内置类型都会影响 PayloadPreview
+            if (e.PropertyName == nameof(UploadFieldDef.Name) ||
+                e.PropertyName == nameof(UploadFieldDef.Source) ||
+                e.PropertyName == nameof(UploadFieldDef.Enabled) ||
+                e.PropertyName == nameof(UploadFieldDef.VariableName) ||
+                e.PropertyName == nameof(UploadFieldDef.BuiltIn))
+            {
+                OnPropertyChanged(nameof(PayloadPreview));
             }
         }
 
@@ -345,6 +356,7 @@ namespace Plugin.ResultUpload
                 foreach (UploadFieldDef f in e.NewItems) HookField(f);
             RebuildDynamicInputs();
             OnPropertyChanged(nameof(JudgeFieldNames));
+            OnPropertyChanged(nameof(PayloadPreview));
         }
 
         #endregion

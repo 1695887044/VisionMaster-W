@@ -3,6 +3,10 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
 
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
     <!--
         棒图图元的外观：一条空槽（Track）+ 一条填充块（FillBar）+ 可选的数值文字。
 
@@ -34,14 +38,14 @@
                         Background="{TemplateBinding TrackColor}"
                         BorderBrush="{TemplateBinding Stroke}"
                         BorderThickness="{TemplateBinding StrokeThickness}"
-                        CornerRadius="{TemplateBinding CornerRadius}">
+                        CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}">
 
                         <Grid>
                             <!-- 填充块：长度与对齐由控件代码按走向摆（见 UpdateBarLayout） -->
                             <Border
                                 x:Name="FillBar"
                                 Background="{TemplateBinding Fill}"
-                                CornerRadius="{TemplateBinding CornerRadius}" />
+                                CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}" />
 
                             <TextBlock
                                 x:Name="ValueLabel"

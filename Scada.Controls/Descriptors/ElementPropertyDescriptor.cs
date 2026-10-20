@@ -54,6 +54,25 @@ namespace VisionMaster.Scada.Controls
         /// 所以这类行一律 <c>IsBindable=false</c>，不要给它挂 ƒx。
         /// </summary>
         AxisList,
+
+        /// <summary>
+        /// 只读事实（图元类型键）。
+        ///
+        /// 与 <see cref="Text"/> 的区别是<b>改不了</b>：面板给的是一块只读底色，而不是输入框。
+        /// 为什么不做成"只读的 Text 框"：那仍然能聚焦、能选中、能打字，而打进去的字会被静默丢掉
+        /// ——"看起来能改"比"看起来不能改"更伤信任（与 <see cref="Image"/> 不给输入框同一条理由）。
+        ///
+        /// 目前只有「类型」一行用它（<c>ScadaTypeRow</c>），值来自 <c>ScadaElement.TypeKey</c>。
+        /// </summary>
+        ReadOnly,
+
+        /// <summary>
+        /// 列定义（数据表格图元）：值是规范 JSON，面板给"摘要 + 选择列…"。
+        ///
+        /// 与 <see cref="AxisList"/> 同一形态——都是"一条 JSON 摊成多个视觉元素"：
+        /// 让人手写 JSON 不现实，必须配弹窗（设计基线 docs/UI设计基线/scada-datagrid/ §03）。
+        /// </summary>
+        ColumnList,
     }
 
     /// <summary>
@@ -90,7 +109,7 @@ namespace VisionMaster.Scada.Controls
         public string DefaultValue { get; init; } = string.Empty;
 
         /// <summary>属性面板里的分组标题</summary>
-        public string Group { get; init; } = "外观";
+        public string Group { get; init; } = ScadaPropertyGroups.Appearance;
 
         /// <summary>补充说明（属性面板的悬停提示；可为空）</summary>
         public string? Description { get; init; }
@@ -99,12 +118,12 @@ namespace VisionMaster.Scada.Controls
         /// 能否绑定工程变量（属性面板据此决定这一行显不显示「ƒx」）。
         ///
         /// <b>这不是随手填的默认值，是一条产品口径</b>：<b>设计期语言不可绑，运行期语言可绑。</b>
-        /// 具体地——<b>「位置与尺寸」与「外观」两组一律不可绑</b>：前者是版面（画在哪儿、多大、
+        /// 具体地——<b>「布局」与「外观」两组一律不可绑</b>：前者是版面（画在哪儿、多大、
         /// 什么角度），后者是皮肤（填充、边框、配色），都属组态时一次定好的事实，
         /// 交给变量驱动只会让画面自己乱变。可绑的是"运行期语言"：数值、状态、文字这类
         /// 随时间涨落的量。
         ///
-        /// 口径由 <see cref="ElementDescriptor.NonBindableGroups"/> 在注册期兜底校验，
+        /// 口径由 <see cref="ScadaPropertyGroups.NonBindable"/> 在注册期兜底校验，
         /// 新增图元时写错会直接注册失败。逐条理由见 <see cref="GeometryProperties"/> 的类注释。
         /// </summary>
         public bool IsBindable { get; init; }

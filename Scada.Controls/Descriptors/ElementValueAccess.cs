@@ -146,7 +146,7 @@ namespace VisionMaster.Scada.Controls
     /// 抽出来是为了让描述符只写"自己特有的属性"：<c>Properties = GeometryProperties.With(…)</c>。
     /// 若哪天要给所有图元统一加一条（比如"可见性"），改这里一处即可。
     ///
-    /// <b>「位置与尺寸」整组都不绑变量，是一条产品口径，不是随手填的默认值</b>
+    /// <b>「布局」整组都不绑变量，是一条产品口径，不是随手填的默认值</b>
     /// ---------
     /// 位置（X / Y）、尺寸（宽 / 高）、角度（旋转）同属<b>设计期版面语言</b>：
     /// 它们回答"这个图元画在画面哪儿、多大、什么角度"，是组态时一次定好的事实，
@@ -162,7 +162,7 @@ namespace VisionMaster.Scada.Controls
     /// 版面一动不动。这才是可预测、可维护的做法。
     ///
     /// 口径只写在这一处，注册期由 <see cref="ElementDescriptor.Validate"/> 兜底：
-    /// 凡 <c>Group</c> 属于 <see cref="ElementDescriptor.NonBindableGroups"/> 的属性
+    /// 凡 <c>Group</c> 属于 <see cref="ScadaPropertyGroups.NonBindable"/> 的属性
     /// 声明了 <c>IsBindable = true</c>，注册直接失败。
     /// </summary>
     public static class GeometryProperties
@@ -173,37 +173,37 @@ namespace VisionMaster.Scada.Controls
             new()
             {
                 Key = ElementValueAccess.NameKey, DisplayName = "名称",
-                Kind = ElementPropertyKind.Text, Group = "常规",
+                Kind = ElementPropertyKind.Text, Group = ScadaPropertyGroups.General,
                 Description = "图层列表里显示的名字（不参与寻址，改它不会断开绑定）",
             },
             new()
             {
                 Key = ElementValueAccess.XKey, DisplayName = "X",
-                Kind = ElementPropertyKind.Number, Group = "位置与尺寸",
+                Kind = ElementPropertyKind.Number, Group = ScadaPropertyGroups.Layout,
                 Description = "左上角 X（画面像素，原点在画面左上角）；位置属设计期版面，不参与变量绑定",
             },
             new()
             {
                 Key = ElementValueAccess.YKey, DisplayName = "Y",
-                Kind = ElementPropertyKind.Number, Group = "位置与尺寸",
+                Kind = ElementPropertyKind.Number, Group = ScadaPropertyGroups.Layout,
                 Description = "左上角 Y（画面像素）；位置属设计期版面，不参与变量绑定",
             },
             new()
             {
                 Key = ElementValueAccess.WidthKey, DisplayName = "宽",
-                Kind = ElementPropertyKind.Number, Group = "位置与尺寸", Min = 1,
+                Kind = ElementPropertyKind.Number, Group = ScadaPropertyGroups.Layout, Min = 1,
                 Description = "宽度（像素）；版面尺寸，不参与变量绑定。要长度随值涨落请用棒图 / 表盘 / 阀门",
             },
             new()
             {
                 Key = ElementValueAccess.HeightKey, DisplayName = "高",
-                Kind = ElementPropertyKind.Number, Group = "位置与尺寸", Min = 1,
+                Kind = ElementPropertyKind.Number, Group = ScadaPropertyGroups.Layout, Min = 1,
                 Description = "高度（像素）；版面尺寸，不参与变量绑定。要长度随值涨落请用棒图 / 表盘 / 阀门",
             },
             new()
             {
                 Key = ElementValueAccess.RotationKey, DisplayName = "旋转",
-                Kind = ElementPropertyKind.Number, Group = "位置与尺寸", Min = -360, Max = 360,
+                Kind = ElementPropertyKind.Number, Group = ScadaPropertyGroups.Layout, Min = -360, Max = 360,
                 Description = "顺时针角度，绕图元中心；0 表示不旋转。版面角度，不参与变量绑定",
             },
         };

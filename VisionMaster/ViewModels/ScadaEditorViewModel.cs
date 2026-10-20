@@ -197,6 +197,12 @@ namespace VisionMaster.ViewModels
         /// <summary>当前方案的组态文档（无方案时为空的兜底文档）</summary>
         public ScadaDocument Document => _workspace.CurrentSolution?.Scada ?? _fallback;
 
+        /// <summary>是否已经打开了方案（用于属性面板区分“无方案”与“有方案但没有画面”）</summary>
+        public bool HasSolution => _workspace.CurrentSolution != null;
+
+        /// <summary>当前是否选中了画面</summary>
+        public bool HasPage => SelectedPage != null;
+
         /// <summary>画面集合（模型本体，供画面下拉/标签绑定）</summary>
         public ObservableCollection<ScadaPage> Pages => Document.Pages;
 
@@ -290,6 +296,7 @@ namespace VisionMaster.ViewModels
                 PasteCommand.RaiseCanExecuteChanged();
 
                 // 基座下拉框跟着当前页走：换页时它要显示"这一页引用的是哪只基座"
+                RaisePropertyChanged(nameof(HasPage));
                 RaisePropertyChanged(nameof(SelectedBasePage));
                 RaisePropertyChanged(nameof(CanSelectBasePage));
             }
@@ -1999,6 +2006,8 @@ namespace VisionMaster.ViewModels
             }
 
             RaisePropertyChanged(nameof(Document));
+            RaisePropertyChanged(nameof(HasSolution));
+            RaisePropertyChanged(nameof(HasPage));
             RaisePropertyChanged(nameof(Pages));
             RebuildBasePageOptions();
             AddPageCommand.RaiseCanExecuteChanged();

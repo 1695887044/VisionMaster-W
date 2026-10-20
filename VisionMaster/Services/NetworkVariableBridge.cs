@@ -20,6 +20,7 @@ namespace VisionMaster.Services
         private readonly IWorkspaceManager _workspace;
         private readonly AdvancedCommunicationManager _manager;
         private readonly global::Core.Interfaces.ILogService _logger;
+        private readonly WriteLeaseRegistry? _leases;
 
         /// <summary>
         /// B2：本桥接器实际注册过的网络变量清单。
@@ -28,11 +29,16 @@ namespace VisionMaster.Services
         /// </summary>
         private readonly HashSet<NetworkVariableModel> _registered = new();
 
-        public NetworkVariableBridge(IWorkspaceManager workspace, AdvancedCommunicationManager manager, global::Core.Interfaces.ILogService logger)
+        public NetworkVariableBridge(
+            IWorkspaceManager workspace,
+            AdvancedCommunicationManager manager,
+            global::Core.Interfaces.ILogService logger,
+            WriteLeaseRegistry? leases = null)
         {
             _workspace = workspace;
             _manager = manager;
             _logger = logger;
+            _leases = leases;
 
             // 变量增删 → 自动注册/注销
             _workspace.GlobalVariables.CollectionChanged += OnGlobalVariablesChanged;
@@ -98,6 +104,7 @@ namespace VisionMaster.Services
             }
 
             nv.Bind(_manager); // 打通写通道
+            nv.LeaseRegistry = _leases; // 写租约（并行分支抢同一输出时明确拒绝）
             _registered.Add(nv);
 
             var commVar = new CommunicationVariable
@@ -111,6 +118,8 @@ namespace VisionMaster.Services
                 AccessMode = VariableAccessMode.ReadWrite,
                 // 扫描组：决定该变量由哪个扫描周期驱动（空 = 默认组，周期取连接 ReadCycleMs）
                 ScanGroup = nv.ScanGroup,
+                // 区域合并读开关：false = 只读本变量自己的跨度，不把邻居一起读回来
+                MergeAdjacentRead = nv.MergeAdjacentRead,
                 // 轮询新值 → 推回网络变量镜像（UI 订阅 ValueChanged 自动刷新）
                 MirrorCallback = v => nv.UpdateMirrorValue(v),
                 // 质量变化 → 推回网络变量（UI 色点显示采集健康度）

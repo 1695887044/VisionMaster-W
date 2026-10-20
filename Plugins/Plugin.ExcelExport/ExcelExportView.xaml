@@ -7,14 +7,13 @@
     xmlns:local="clr-namespace:Plugin.ExcelExport"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     d:DesignHeight="700"
-    d:DesignWidth="520"
+    d:DesignWidth="960"
     MinWidth="{DynamicResource PluginViewMinWidth}"
     MinHeight="{DynamicResource PluginViewMinHeight}"
     mc:Ignorable="d">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
@@ -23,243 +22,543 @@
             <local:InverseBoolConverter x:Key="NotBool" />
 
             <!--
-                本视图不再定义卡片/标题/提示/预览/字段标签/输入框/按钮/下拉样式，
-                一律取自 UI 库 Plugin* 公共键（PluginConfigStyles.xaml）。
-
-                唯一保留的本地派生：Card。公共 PluginCard 的内边距是 14（Blob/Caliper/CreateRoi 一派），
-                本视图（连同 ResultUpload/DataRecord/CSharpScript/ImageScript 五家）抄写源是 12 ——
-                按"零视觉变化"铁律收编时用 BasedOn 挂靠公共结构、只覆盖 Padding=12；
-                待确认五家是否归一到 14 后，删掉这个样式、引用改回 PluginCard 即可（一行的事）。
-            -->
-            <Style x:Key="Card" BasedOn="{StaticResource PluginCard}" TargetType="Border">
-                <Setter Property="Padding" Value="12" />
-            </Style>
-
-            <!--
-                枚举下拉：结构与条目容器走公共 PluginModernComboBase/PluginModernComboItem，
-                只有"条目显示中文标签"的转换器（ExportPolicyLabelConverter）是本视图专属，留本地。
+                本视图只派生"外观"样式，不复制共享控件的模板：
+                输入框 / 下拉 / 复选 / 焦点环 / 工具提示全部来自 UI 库公共键。
             -->
             <Style
-                x:Key="EnumCombo"
-                BasedOn="{StaticResource PluginModernComboBase}"
+                x:Key="LocalCard"
+                TargetType="Border">
+                <Setter Property="Padding" Value="16" />
+                <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="{StaticResource PluginCardCornerRadius}" />
+            </Style>
+
+            <Style
+                x:Key="CardIndexChip"
+                TargetType="Border">
+                <Setter Property="Width" Value="22" />
+                <Setter Property="Height" Value="22" />
+                <Setter Property="Margin" Value="0,0,8,0" />
+                <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                <Setter Property="CornerRadius" Value="7" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <Style
+                x:Key="CardIndexText"
+                TargetType="TextBlock">
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="FontWeight" Value="Bold" />
+                <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+            </Style>
+
+            <Style
+                x:Key="LocalCardTitle"
+                TargetType="TextBlock">
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="13.5" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+            </Style>
+
+            <Style
+                x:Key="CardHintStyle"
+                TargetType="TextBlock">
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="10.5" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+
+            <Style
+                x:Key="SectionSubStyle"
+                TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,3,0,12" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style
+                x:Key="LocalFieldLabel"
+                TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,0,0,6" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            </Style>
+
+            <Style
+                x:Key="LocalHelp"
+                TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,6,0,0" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style
+                x:Key="LocalInput"
+                BasedOn="{StaticResource DialogInput}"
+                TargetType="TextBox">
+                <Setter Property="Height" Value="36" />
+                <Setter Property="Padding" Value="10,0" />
+                <Setter Property="FontSize" Value="12.5" />
+            </Style>
+
+            <Style
+                x:Key="LocalCombo"
+                BasedOn="{StaticResource DialogCombo}"
                 TargetType="ComboBox">
-                <Setter Property="ItemContainerStyle" Value="{StaticResource PluginModernComboItem}" />
-                <Setter Property="ItemTemplate">
+                <Setter Property="Height" Value="36" />
+                <Setter Property="Padding" Value="10,0,30,0" />
+                <Setter Property="FontSize" Value="12.5" />
+            </Style>
+
+            <Style
+                x:Key="LocalCheckBox"
+                BasedOn="{StaticResource DialogCheckBox}"
+                TargetType="CheckBox">
+                <Setter Property="Margin" Value="0,0,18,10" />
+                <Setter Property="FontSize" Value="12.5" />
+            </Style>
+
+            <Style
+                x:Key="LocalPrimaryButton"
+                TargetType="Button">
+                <Setter Property="Height" Value="36" />
+                <Setter Property="Padding" Value="16,0" />
+                <Setter Property="FontSize" Value="12.5" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource DialogSurfaceBrush}" />
+                <Setter Property="Background" Value="{StaticResource DialogAccentBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+                <Setter Property="Template">
                     <Setter.Value>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding Converter={StaticResource PolicyLabel}}" />
-                        </DataTemplate>
+                        <ControlTemplate TargetType="Button">
+                            <Border
+                                x:Name="Bd"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{StaticResource PluginCardCornerRadius}">
+                                <ContentPresenter
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogAccentDarkBrush}" />
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogAccentDarkBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.88" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
                     </Setter.Value>
                 </Setter>
             </Style>
+
+            <Style
+                x:Key="PreviewPanelStyle"
+                TargetType="Border">
+                <Setter Property="Margin" Value="0,2,0,0" />
+                <Setter Property="Padding" Value="10" />
+                <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+            </Style>
+
+            <Style
+                x:Key="PreviewLabelStyle"
+                TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10.5" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+            </Style>
+
+            <Style
+                x:Key="PreviewPathStyle"
+                TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,3,0,0" />
+                <Setter Property="FontFamily" Value="{StaticResource PluginMonoFontFamily}" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="{StaticResource PluginMonoTextBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style
+                x:Key="SourceExistsStyle"
+                TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,4,0,0" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="Visibility" Value="Collapsed" />
+            </Style>
+
+            <!--
+                导出方式提示：默认文案 = 仅手动；OnTrigger / EachRun 用 DataTrigger 覆盖。
+                只换文案与颜色，不参与任何业务判断。
+            -->
+            <Style
+                x:Key="PolicyHintStyle"
+                BasedOn="{StaticResource DialogHintText}"
+                TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,6,0,0" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                <Setter Property="Text" Value="仅手动：流程执行时不导出，只在面板点『立即导出』。" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding ExportPolicy}" Value="{x:Static local:ExportPolicy.OnTrigger}">
+                        <Setter Property="Text" Value="触发端口：『导出触发』为 true 的那次执行才导出。" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding ExportPolicy}" Value="{x:Static local:ExportPolicy.EachRun}">
+                        <Setter Property="Text" Value="每次执行都导：高频流程慎用——每次都会重写整本报表。" />
+                        <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style
+                x:Key="ResultPanelStyle"
+                TargetType="Border">
+                <Setter Property="Margin" Value="0,10,0,0" />
+                <Setter Property="Padding" Value="10" />
+                <Setter Property="MinHeight" Value="58" />
+                <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+            </Style>
+
+            <Style
+                x:Key="ResultIconStyle"
+                TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,1,7,0" />
+                <Setter Property="VerticalAlignment" Value="Top" />
+                <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+            </Style>
+
+            <Style
+                x:Key="ResultTitleStyle"
+                TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            </Style>
+
+            <Style
+                x:Key="ResultTextStyle"
+                TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,2,0,0" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style TargetType="ToolTip" BasedOn="{StaticResource DialogToolTipStyle}" />
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="10">
+    <ScrollViewer
+        HorizontalScrollBarVisibility="Disabled"
+        VerticalScrollBarVisibility="Auto">
+        <Grid Margin="0,0,2,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.45*" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="1*" />
+            </Grid.ColumnDefinitions>
 
-            <!--  卡片1：报表来源（CSV 账本）  -->
-            <Border Style="{StaticResource Card}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource PluginCardTitle}" Text="① 报表来源（CSV 账本）" />
-                    <TextBlock
-                        Margin="0,2,0,6"
-                        Style="{StaticResource PluginHintText}"
-                        Text="指向上游『CSV 记录』步骤写出的账本。占位符：{源步骤} {StepName} {yyyy} {yyyy-MM} {yyyy-MM-dd}" />
-                    <Grid Margin="0,2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Style="{StaticResource PluginFieldLabelFixed}" Text="源步骤名" />
-                        <TextBox
-                            Grid.Column="1"
-                            Style="{StaticResource PluginFieldBox}"
-                            Text="{Binding SourceStepName, UpdateSourceTrigger=PropertyChanged}"
-                            ToolTip="上游 CSV 记录步骤的名字（要和它写账本的目录名一致）。留空 = 用本步骤名" />
-                    </Grid>
-                    <Grid Margin="0,2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Style="{StaticResource PluginFieldLabelFixed}" Text="账本路径" />
-                        <TextBox
-                            Grid.Column="1"
-                            Style="{StaticResource PluginFieldBox}"
-                            Text="{Binding SourcePathTemplate, UpdateSourceTrigger=PropertyChanged}"
-                            ToolTip="例：D:\Records\{源步骤}\{yyyy-MM}\{yyyy-MM-dd}.csv" />
-                    </Grid>
-                    <Border
-                        Margin="{StaticResource PluginFieldRowMargin}"
-                        Padding="8,5"
-                        Background="#F5F9FE"
-                        CornerRadius="4">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource PluginHintText}" Text="实际读取 →" />
-                            <TextBlock Style="{StaticResource PluginPreviewText}" Text="{Binding SourcePathPreview}" />
+            <!--  ==================== 左栏：导什么 ====================  -->
+            <StackPanel Grid.Column="0">
+                <!--  ① 报表来源  -->
+                <Border Style="{StaticResource LocalCard}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{StaticResource CardIndexChip}">
+                                    <TextBlock Style="{StaticResource CardIndexText}" Text="01" />
+                                </Border>
+                                <TextBlock Style="{StaticResource LocalCardTitle}" Text="报表来源（CSV 账本）" />
+                            </StackPanel>
                             <TextBlock
-                                x:Name="SourceExistsText"
-                                Margin="0,3,0,0"
-                                FontSize="11"
-                                Foreground="#2E7D32"
-                                Visibility="Collapsed" />
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-            </Border>
+                                Grid.Column="1"
+                                Style="{StaticResource CardHintStyle}"
+                                Text="上游 CSV 记录" />
+                        </Grid>
+                        <TextBlock Style="{StaticResource SectionSubStyle}" Text="指向上游『CSV 记录』步骤写出的账本。占位符：{源步骤} {StepName} {yyyy} {yyyy-MM} {yyyy-MM-dd}。" />
 
-            <!--  卡片2：报表输出  -->
-            <Border
-                Margin="{StaticResource PluginSectionMargin}"
-                Style="{StaticResource Card}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource PluginCardTitle}" Text="② 报表输出" />
-                    <Grid Margin="0,2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Style="{StaticResource PluginFieldLabelFixed}" Text="输出目录" />
-                        <TextBox
-                            Grid.Column="1"
-                            Style="{StaticResource PluginFieldBox}"
-                            Text="{Binding OutputDirectoryTemplate, UpdateSourceTrigger=PropertyChanged}"
-                            ToolTip="例：D:\Records\{StepName}\{yyyy-MM}\报表\" />
-                    </Grid>
-                    <Grid Margin="0,2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Style="{StaticResource PluginFieldLabelFixed}" Text="报表文件名" />
-                        <TextBox
-                            Grid.Column="1"
-                            Style="{StaticResource PluginFieldBox}"
-                            Text="{Binding ReportFileNamePattern, UpdateSourceTrigger=PropertyChanged}"
-                            ToolTip="例：{yyyy-MM-dd}_报表.xlsx" />
-                    </Grid>
-                    <Grid Margin="0,2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Style="{StaticResource PluginFieldLabelFixed}" Text="图片走这里" />
-                        <TextBox
-                            Grid.Column="1"
-                            Style="{StaticResource PluginFieldBox}"
-                            Text="{Binding LinkColumn, UpdateSourceTrigger=PropertyChanged}"
-                            ToolTip="哪一列做成可点击的图片链接，默认『图片路径』（与 CSV 记录的图片列同名）" />
-                    </Grid>
-                    <Border
-                        Margin="{StaticResource PluginFieldRowMargin}"
-                        Padding="8,5"
-                        Background="#F5F9FE"
-                        CornerRadius="4">
+                        <StackPanel Margin="0,0,0,12">
+                            <TextBlock Style="{StaticResource LocalFieldLabel}" Text="源步骤名" />
+                            <TextBox
+                                Style="{StaticResource LocalInput}"
+                                Tag="留空 = 使用本步骤名"
+                                Text="{Binding SourceStepName, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}"
+                                ToolTip="上游 CSV 记录步骤的名字（要和它写账本的目录名一致）。留空 = 用本步骤名" />
+                            <TextBlock Style="{StaticResource LocalHelp}" Text="留空 = 使用本步骤名；要与 CSV 记录步骤写账本的目录名一致。" />
+                        </StackPanel>
+
                         <StackPanel>
-                            <TextBlock Style="{StaticResource PluginHintText}" Text="实际写出 →" />
-                            <TextBlock Style="{StaticResource PluginPreviewText}" Text="{Binding OutputPathPreview}" />
+                            <TextBlock Style="{StaticResource LocalFieldLabel}" Text="账本路径" />
+                            <TextBox
+                                Style="{StaticResource LocalInput}"
+                                Tag="D:\Records\{源步骤}\{yyyy-MM}\{yyyy-MM-dd}.csv"
+                                Text="{Binding SourcePathTemplate, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="例：D:\Records\{源步骤}\{yyyy-MM}\{yyyy-MM-dd}.csv" />
                         </StackPanel>
-                    </Border>
-                </StackPanel>
-            </Border>
 
-            <!--  卡片3：报表选项  -->
-            <Border
-                Margin="{StaticResource PluginSectionMargin}"
-                Style="{StaticResource Card}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource PluginCardTitle}" Text="③ 报表选项" />
-                    <Grid Margin="0,4,0,2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Style="{StaticResource PluginFieldLabelFixed}" Text="导出方式" />
-                        <ComboBox
-                            Grid.Column="1"
-                            Style="{StaticResource EnumCombo}"
-                            ItemsSource="{Binding ExportPolicies}"
-                            SelectedItem="{Binding ExportPolicy}"
-                            ToolTip="手动=只点按钮导；触发端口=收工信号来了才导；每次执行=每跑一次都导（高频流程慎用）" />
-                    </Grid>
-
-                    <!--  导出方式=触发端口 时出现：直接在面板里把上游信号连给"导出触发"端口  -->
-                    <Grid
-                        Margin="0,2"
-                        Visibility="{Binding ExportPolicy, Converter={StaticResource EnumEqualsVis}, ConverterParameter=OnTrigger}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Style="{StaticResource PluginFieldLabelFixed}" Text="触发信号" />
-                        <cv:LinkableValueEditor
-                            Grid.Column="1"
-                            VerticalAlignment="Center"
-                            StepData="{Binding StepData}"
-                            Port="{Binding TriggerPort}" />
-                    </Grid>
-
-                    <TextBlock
-                        Margin="{StaticResource PluginFieldRowMargin}"
-                        Style="{StaticResource PluginHintText}"
-                        Text="表头冻结 / 自动筛选：打开 Excel 就能按结果列筛 NG、滚动时表头不跑" />
-                    <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
-                        <CheckBox
-                            Margin="0,0,14,0"
-                            Content="冻结首行"
-                            IsChecked="{Binding FreezeHeader}" />
-                        <CheckBox
-                            Margin="0,0,14,0"
-                            Content="自动筛选"
-                            IsChecked="{Binding AutoFilter}" />
-                        <CheckBox
-                            Content="只导有图的行"
-                            IsChecked="{Binding OnlyRowsWithImage}"
-                            ToolTip="抽检看 NG 图时用：图片列没有有效路径的行不写进报表" />
+                        <Border Style="{StaticResource PreviewPanelStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource PreviewLabelStyle}" Text="实际读取 →" />
+                                <TextBlock Style="{StaticResource PreviewPathStyle}" Text="{Binding SourcePathPreview}" />
+                                <TextBlock x:Name="SourceExistsText" Style="{StaticResource SourceExistsStyle}" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
-                    <StackPanel Margin="{StaticResource PluginFieldRowMargin}" Orientation="Horizontal">
-                        <CheckBox
-                            Margin="0,0,14,0"
-                            Content="导出后打开报表"
-                            IsChecked="{Binding OpenAfterExport}" />
-                        <CheckBox
-                            Content="导出失败阻断流程"
-                            IsChecked="{Binding BlockOnFailure}"
-                            ToolTip="默认不勾：报表是给人看的附属产物，导不出来也别停线" />
-                    </StackPanel>
-                </StackPanel>
-            </Border>
+                </Border>
 
-            <!--  卡片4：立即导出  -->
-            <Border
-                Margin="{StaticResource PluginSectionMargin}"
-                Style="{StaticResource Card}">
-                <StackPanel>
-                    <Grid>
-                        <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
-                            <TextBlock Style="{StaticResource PluginCardTitle}" Text="④ 立即导出" />
+                <!--  ② 报表输出  -->
+                <Border
+                    Margin="0,12,0,0"
+                    Style="{StaticResource LocalCard}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{StaticResource CardIndexChip}">
+                                    <TextBlock Style="{StaticResource CardIndexText}" Text="02" />
+                                </Border>
+                                <TextBlock Style="{StaticResource LocalCardTitle}" Text="报表输出" />
+                            </StackPanel>
                             <TextBlock
-                                Margin="8,0,0,0"
-                                Style="{StaticResource PluginHintText}"
-                                Text="按上面的配置马上导一份，不用跑流程" />
+                                Grid.Column="1"
+                                Style="{StaticResource CardHintStyle}"
+                                Text="xlsx · 可筛选" />
+                        </Grid>
+                        <TextBlock Style="{StaticResource SectionSubStyle}" Text="输出目录与文件名都支持占位符；文件名不以 .xlsx 结尾时自动补。" />
+
+                        <StackPanel Margin="0,0,0,12">
+                            <TextBlock Style="{StaticResource LocalFieldLabel}" Text="输出目录" />
+                            <TextBox
+                                Style="{StaticResource LocalInput}"
+                                Tag="D:\Records\{StepName}\{yyyy-MM}\报表\"
+                                Text="{Binding OutputDirectoryTemplate, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="例：D:\Records\{StepName}\{yyyy-MM}\报表\" />
                         </StackPanel>
+
+                        <StackPanel Margin="0,0,0,12">
+                            <TextBlock Style="{StaticResource LocalFieldLabel}" Text="报表文件名" />
+                            <TextBox
+                                Style="{StaticResource LocalInput}"
+                                Tag="{}{yyyy-MM-dd}_报表.xlsx"
+                                Text="{Binding ReportFileNamePattern, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="例：{yyyy-MM-dd}_报表.xlsx" />
+                        </StackPanel>
+
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource LocalFieldLabel}" Text="图片走这里" />
+                            <TextBox
+                                Style="{StaticResource LocalInput}"
+                                Tag="图片路径"
+                                Text="{Binding LinkColumn, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="哪一列做成可点击的图片链接，默认『图片路径』（与 CSV 记录的图片列同名）" />
+                            <TextBlock Style="{StaticResource LocalHelp}" Text="哪一列做成可点击的图片链接；默认『图片路径』与 CSV 记录插件的图片列同名。" />
+                        </StackPanel>
+
+                        <Border Style="{StaticResource PreviewPanelStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource PreviewLabelStyle}" Text="实际写出 →" />
+                                <TextBlock Style="{StaticResource PreviewPathStyle}" Text="{Binding OutputPathPreview}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!--  ==================== 右栏：怎么导 + 现在导 ====================  -->
+            <StackPanel Grid.Column="2">
+                <!--  ③ 报表选项  -->
+                <Border Style="{StaticResource LocalCard}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{StaticResource CardIndexChip}">
+                                    <TextBlock Style="{StaticResource CardIndexText}" Text="03" />
+                                </Border>
+                                <TextBlock Style="{StaticResource LocalCardTitle}" Text="报表选项" />
+                            </StackPanel>
+                            <TextBlock
+                                Grid.Column="1"
+                                Style="{StaticResource CardHintStyle}"
+                                Text="何时导 · 导哪些行" />
+                        </Grid>
+                        <TextBlock Style="{StaticResource SectionSubStyle}" Text="导出方式决定何时自动导出；勾选项决定报表内容。" />
+
+                        <StackPanel Margin="0,0,0,10">
+                            <TextBlock Style="{StaticResource LocalFieldLabel}" Text="导出方式" />
+                            <ComboBox
+                                Style="{StaticResource LocalCombo}"
+                                ItemsSource="{Binding ExportPolicies}"
+                                SelectedItem="{Binding ExportPolicy}"
+                                ToolTip="手动=只点按钮导；触发端口=收工信号来了才导；每次执行=每跑一次都导（高频流程慎用）">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Converter={StaticResource PolicyLabel}}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Style="{StaticResource PolicyHintStyle}" />
+                        </StackPanel>
+
+                        <Grid
+                            Margin="0,0,0,10"
+                            Visibility="{Binding ExportPolicy, Converter={StaticResource EnumEqualsVis}, ConverterParameter=OnTrigger}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource LocalFieldLabel}"
+                                Text="触发信号" />
+                            <cv:LinkableValueEditor
+                                Grid.Column="1"
+                                VerticalAlignment="Center"
+                                Port="{Binding TriggerPort}"
+                                StepData="{Binding StepData}" />
+                        </Grid>
+
+                        <StackPanel Margin="0,2,0,0">
+                            <TextBlock Style="{StaticResource LocalFieldLabel}" Text="报表内容" />
+                            <WrapPanel>
+                                <CheckBox
+                                    Content="冻结首行"
+                                    IsChecked="{Binding FreezeHeader}"
+                                    Style="{StaticResource LocalCheckBox}"
+                                    ToolTip="滚动时表头不跑" />
+                                <CheckBox
+                                    Content="自动筛选"
+                                    IsChecked="{Binding AutoFilter}"
+                                    Style="{StaticResource LocalCheckBox}"
+                                    ToolTip="打开 Excel 就能按结果列筛 NG" />
+                                <CheckBox
+                                    Content="只导有图的行"
+                                    IsChecked="{Binding OnlyRowsWithImage}"
+                                    Style="{StaticResource LocalCheckBox}"
+                                    ToolTip="抽检看 NG 图时用：图片列没有有效路径的行不写进报表" />
+                                <CheckBox
+                                    Content="导出后打开报表"
+                                    IsChecked="{Binding OpenAfterExport}"
+                                    Style="{StaticResource LocalCheckBox}" />
+                                <CheckBox
+                                    Content="导出失败阻断流程"
+                                    IsChecked="{Binding BlockOnFailure}"
+                                    Style="{StaticResource LocalCheckBox}"
+                                    ToolTip="默认不勾：报表是给人看的附属产物，导不出来也别停线" />
+                            </WrapPanel>
+                            <TextBlock Style="{StaticResource LocalHelp}" Text="表头冻结 / 自动筛选：打开 Excel 就能筛 NG。" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!--  ④ 立即导出  -->
+                <Border
+                    Margin="0,12,0,0"
+                    Style="{StaticResource LocalCard}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{StaticResource CardIndexChip}">
+                                    <TextBlock Style="{StaticResource CardIndexText}" Text="04" />
+                                </Border>
+                                <TextBlock Style="{StaticResource LocalCardTitle}" Text="立即导出" />
+                            </StackPanel>
+                            <TextBlock
+                                Grid.Column="1"
+                                Style="{StaticResource CardHintStyle}"
+                                Text="后台线程" />
+                        </Grid>
+                        <TextBlock
+                            Margin="0,3,0,10"
+                            Style="{StaticResource SectionSubStyle}"
+                            Text="按当前配置马上导一份，不跑流程。" />
+
                         <Button
-                            HorizontalAlignment="Right"
-                            Content="立即导出"
+                            x:Name="ExportNowButton"
+                            HorizontalAlignment="Stretch"
+                            Command="{Binding ExportNowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             IsEnabled="{Binding IsExporting, Converter={StaticResource NotBool}}"
-                            Click="ExportNow_Click"
-                            Style="{StaticResource PluginPrimaryButton}"
-                            ToolTip="后台线程导出，几万行也不会卡界面" />
-                    </Grid>
-                    <TextBlock
-                        x:Name="ResultText"
-                        Margin="{StaticResource PluginFieldRowMargin}"
-                        FontSize="12"
-                        Text="{Binding LastResult}"
-                        TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
-        </StackPanel>
+                            Style="{StaticResource LocalPrimaryButton}"
+                            ToolTip="后台线程导出，几万行也不会卡界面">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="13"
+                                    Text="&#xf1c3;" />
+                                <TextBlock VerticalAlignment="Center" Text="立即导出" />
+                            </StackPanel>
+                        </Button>
+
+                        <Border x:Name="ResultPanel" Style="{StaticResource ResultPanelStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    x:Name="ResultIcon"
+                                    Style="{StaticResource ResultIconStyle}"
+                                    Text="&#xf05a;" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock x:Name="ResultTitle" Style="{StaticResource ResultTitleStyle}" Text="尚未导出" />
+                                    <TextBlock
+                                        x:Name="ResultText"
+                                        Style="{StaticResource ResultTextStyle}"
+                                        Text="{Binding LastResult}" />
+                                    <TextBlock
+                                        x:Name="ResultHint"
+                                        Style="{StaticResource ResultTextStyle}"
+                                        Text="点『立即导出』按当前配置生成报表。" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Style="{StaticResource LocalHelp}" Text="结果只显示在本面板；报表默认不阻断生产。" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
     </ScrollViewer>
 </UserControl>

@@ -14,8 +14,11 @@ namespace Plugin.CSharpScript
     /// 相比 AvalonEdit 内置 "C#" 定义的增强：
     /// 1) Context API 方法名棕黄着色（与 ImageScript 算子色一致，凸显"脚本可调用 API"）；
     /// 2) 常见类型名青色（VS Light 风格，内置定义无类型着色）；
-    /// 3) 接口变量（输入/输出变量表）动态并入紫色高亮；
-    /// 4) 控制流关键字紫色，层次感强于纯蓝。
+    /// 3) 控制流关键字紫色，层次感强于纯蓝。
+    ///
+    /// 刻意**不**给"接口变量名"着色：它们只是端口名/字典键，不是 C# 局部变量。
+    /// 旧实现把裸名染成变量色，等于告诉用户 `index` 能直接写——而那必然 CS0103，
+    /// 正是"怎么写都不对"的视觉暗示。脚本里请走 Context.GetInput&lt;T&gt;("名")。
     /// </summary>
     public static class CSharpHighlighting
     {
@@ -23,21 +26,18 @@ namespace Plugin.CSharpScript
         private static bool _registered;
         private static readonly object Lock = new object();
 
-        // 动态接口变量定义缓存（变量集合不变则复用）
-        private static string _varsKey;
-        private static IHighlightingDefinition _defWithVars;
-
         // ScriptContext 门面 API（与 ScriptContext.cs 同步维护）：棕黄
         private static readonly string[] ContextApi =
         {
-            "Context", "GetInput", "SetOutput", "GetVar", "SetVar", "Vars",
+            "Context", "GetInput", "SetOutput", "GetGlobal", "SetGlobal", "TrySetGlobal",
+            "GetVar", "SetVar", "Vars",
             "Info", "Warn", "Error", "Success", "ShowImage", "Fail",
         };
 
         // 脚本中常见的类型/静态类：青色（小写内置类型走关键字规则）
         private static readonly string[] KnownTypes =
         {
-            "HImage", "HObject", "HRegion", "HXld", "HTuple", "HalconDotNet",
+            "HImage", "HObject", "HRegion", "HXld", "HXLDCont", "HTuple", "HalconDotNet",
             "String", "Int32", "Int64", "Double", "Single", "Boolean", "Decimal", "Object",
             "Exception", "Console", "Math", "Convert", "DateTime", "TimeSpan",
             "List", "Dictionary", "HashSet", "Queue", "Stack",
@@ -61,33 +61,13 @@ namespace Plugin.CSharpScript
             "unchecked unsafe ushort using value var virtual void volatile where";
 
         /// <summary>
-        /// 获取高亮定义。传入 variableNames 时返回"API+接口变量"增强版
-        /// （接口变量用紫色 Variable 色高亮）。
+        /// 获取高亮定义（API / 类型 / 关键字着色）。
+        /// 接口变量名不参与着色——见类注释。
         /// </summary>
-        public static IHighlightingDefinition GetDefinition(IEnumerable<string> variableNames = null)
+        public static IHighlightingDefinition GetDefinition()
         {
             EnsureRegistered();
-            var baseDef = HighlightingManager.Instance.GetDefinition(DefinitionName);
-
-            var vars = (variableNames ?? Enumerable.Empty<string>())
-                .Where(v => !string.IsNullOrWhiteSpace(v))
-                .Distinct(StringComparer.Ordinal)
-                .OrderBy(v => v, StringComparer.Ordinal)
-                .ToList();
-            if (vars.Count == 0)
-                return baseDef;
-
-            string key = string.Join("|", vars);
-            if (key == _varsKey && _defWithVars != null)
-                return _defWithVars;
-
-            string xshd = BuildXshd(vars);
-            using var sr = new StringReader(xshd);
-            using var reader = new XmlTextReader(sr);
-            // 不注册到全局管理器，仅作为对象赋给编辑器（避免同名注册冲突）
-            _defWithVars = HighlightingLoader.Load(reader, HighlightingManager.Instance);
-            _varsKey = key;
-            return _defWithVars;
+            return HighlightingManager.Instance.GetDefinition(DefinitionName);
         }
 
         private static void EnsureRegistered()
@@ -97,7 +77,7 @@ namespace Plugin.CSharpScript
             {
                 if (_registered) return;
 
-                string xshd = BuildXshd(null);
+                string xshd = BuildXshd();
                 using var sr = new StringReader(xshd);
                 using var reader = new XmlTextReader(sr);
                 var definition = HighlightingLoader.Load(reader, HighlightingManager.Instance);
@@ -108,8 +88,8 @@ namespace Plugin.CSharpScript
             }
         }
 
-        // 拼装 xshd 文本（vars=接口变量名列表，可空）
-        private static string BuildXshd(List<string> vars)
+        // 拼装 xshd 文本
+        private static string BuildXshd()
         {
             var sb = new StringBuilder();
             sb.Append("<SyntaxDefinition name=\"").Append(DefinitionName)
@@ -123,7 +103,6 @@ namespace Plugin.CSharpScript
             sb.Append("<Color name=\"Api\" foreground=\"#795E26\" />");
             sb.Append("<Color name=\"String\" foreground=\"#A31515\" />");
             sb.Append("<Color name=\"Number\" foreground=\"#098658\" />");
-            sb.Append("<Color name=\"Variable\" foreground=\"#7E0080\" />");
             sb.Append("<Color name=\"Preprocessor\" foreground=\"#808080\" />");
 
             // C# 大小写敏感
@@ -164,10 +143,7 @@ namespace Plugin.CSharpScript
             sb.Append("<Rule color=\"Number\">\\b0[xX][0-9a-fA-F]+[uUlL]*\\b</Rule>");
             sb.Append("<Rule color=\"Number\">\\b[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?[fFdDmMuUlL]*\\b</Rule>");
 
-            // 接口变量优先（防止与 API/类型同名时被吞掉）
-            if (vars != null && vars.Count > 0)
-                AppendKeywords(sb, "Variable", vars);
-
+            // 接口变量不参与关键字着色：它们不是 C# 标识符（见类注释）
             AppendKeywords(sb, "Api", ContextApi);
             AppendKeywords(sb, "Type", KnownTypes);
             AppendKeywords(sb, "Control", Split(ControlKeywords));

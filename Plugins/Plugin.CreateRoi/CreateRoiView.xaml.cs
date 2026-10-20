@@ -1,4 +1,5 @@
 using Core.Halcon.Controls;
+using Plugin.CreateRoi.Models;
 using System;
 using System.Globalization;
 using System.Linq;
@@ -74,6 +75,43 @@ namespace Plugin.CreateRoi
     }
 
     /// <summary>
+    /// 预览模式文案：原图 / 掩膜预览（纯展示，不参与任何配置/执行逻辑）
+    /// </summary>
+    public sealed class PreviewModeLabelConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is true ? "掩膜预览" : "原图";
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => Binding.DoNothing;
+    }
+
+    /// <summary>
+    /// ROI 选中项文案：有选中返回名称，无选中返回 ConverterParameter 指定的引导文案。
+    /// 纯展示转换；不用 SelectedRoi.Name + TargetNullValue（嵌套路径为 null 时 TargetNullValue 不生效）。
+    /// </summary>
+    public sealed class RoiLabelConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is RoiItem roi ? roi.Name : (parameter as string ?? "未选中 ROI");
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => Binding.DoNothing;
+    }
+
+    /// <summary>
+    /// 状态栏文案：有选中显示「选中：名称 · 形状」，无选中显示「未选中 ROI」。
+    /// </summary>
+    public sealed class RoiStatusConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is RoiItem roi ? $"选中：{roi.Name} · {roi.ShapeTypeCN}" : "未选中 ROI";
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => Binding.DoNothing;
+    }
+
+    /// <summary>
     /// ROI 配置视图——纯绑定层（MVVM）：功能全部由 ImageEdit 控件 DP 提供，
     /// 业务逻辑全在 CreateRoiPlugin（ViewModel），本文件仅剩生命周期桥接与值转换器
     /// </summary>
@@ -85,5 +123,11 @@ namespace Plugin.CreateRoi
             // 唯一保留的 code-behind：视图就绪信号 → VM 回填输入图像
             Loaded += (_, _) => (DataContext as CreateRoiPlugin)?.OnViewLoaded();
         }
+
+        /// <summary>适应窗口：走 HalconBase 的既有入口，不另造缩放逻辑。</summary>
+        private void FitWindow_Click(object sender, RoutedEventArgs e) => ImageEditor.FitToWindow();
+
+        /// <summary>实际像素 1:1：与右键菜单「按 1:1 显示」同一实现。</summary>
+        private void FitImage_Click(object sender, RoutedEventArgs e) => ImageEditor.FitToImage();
     }
 }

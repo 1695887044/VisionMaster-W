@@ -1,6 +1,9 @@
+using System;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
 
 namespace VisionMaster.Plugins.Util
@@ -8,9 +11,8 @@ namespace VisionMaster.Plugins.Util
     /// <summary>
     /// 「变量赋值」的配置视图（见 VariableAssignmentView.xaml 顶部的设计说明）。
     ///
-    /// 视图本身不写任何业务逻辑：数据来自 DataContext（即 VariableAssignmentPlugin）暴露的三个端口，
+    /// 视图本身不写任何业务逻辑：数据来自 DataContext（即 VariableAssignmentPlugin）暴露的端口，
     /// 值的读写在 LinkableValueEditor 内部完成，点「确定」时由主程序调插件的 OnConfirm 回写 InputValues。
-    /// 这样与其它插件的自定义视图是同一套约定。
     ///
     /// 唯一的例外是「变量名」这一行：它要上报"用户动了这一行"这一个**界面事实**
     /// （用于解除老方案里残留的旧连线，见 NotifyNameEditedByUser 的注释）。
@@ -60,5 +62,86 @@ namespace VisionMaster.Plugins.Util
 
         private void NotifyNameEdited()
             => (DataContext as VariableAssignmentPlugin)?.NotifyNameEditedByUser();
+    }
+
+    /// <summary>
+    /// 作用域卡片（RadioButton.IsChecked，bool?）↔ Scope.Value（string）。
+    ///
+    /// 只做 UI 转换：选中卡片时写回 Runtime / Global；取消选中时返回 Binding.DoNothing，
+    /// 让同组另一张卡片负责写入新值。业务侧仍然只认 Scope.Value 的字符串白名单。
+    /// </summary>
+    public sealed class ScopeEqualsConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => string.Equals(value as string, parameter as string, StringComparison.OrdinalIgnoreCase);
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is true ? (parameter as string ?? Binding.DoNothing) : Binding.DoNothing;
+    }
+
+    /// <summary>
+    /// Scope.Value → 中文显示名（运行时变量 / 全局变量）。
+    /// 非空且不在白名单里的值显示「未知作用域（值）」——不静默显示成"运行时变量"，
+    /// 与插件侧 CurrentScope 不再回退 Runtime 的口径一致。只读展示，不回写。
+    /// </summary>
+    public sealed class ScopeLabelConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            string scope = value as string ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(scope))
+                return "未选择作用域";
+            if (string.Equals(scope, VariableAssignmentPlugin.ScopeGlobal, StringComparison.OrdinalIgnoreCase))
+                return "全局变量";
+            if (string.Equals(scope, VariableAssignmentPlugin.ScopeRuntime, StringComparison.OrdinalIgnoreCase))
+                return "运行时变量";
+            return $"未知作用域（{scope}）";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => Binding.DoNothing;
+    }
+
+    /// <summary>
+    /// 变量名候选行的显示文本：名字 + 声明类型。
+    ///
+    /// 输入是 [候选名字（string，来自 NameCandidates）, 插件的 NameCandidateItems]，
+    /// 按名字找回同源展示项。找不到时原样回退名字 —— 候选行绝不会变成空白。
+    /// 选择落下的值仍是名字字符串（ItemsSource 仍是 NameCandidates），不改变任何业务契约。
+    /// </summary>
+    public sealed class NameCandidateDisplayConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            string name = values.Length > 0 ? values[0] as string ?? string.Empty : string.Empty;
+            if (values.Length < 2
+                || values[1] is not System.Collections.Generic.IEnumerable<VariableAssignmentPlugin.NameCandidateItem> items)
+                return name;
+
+            foreach (var item in items)
+            {
+                if (!string.Equals(item.Name, name, StringComparison.Ordinal))
+                    continue;
+
+                return string.IsNullOrWhiteSpace(item.TypeName)
+                    ? item.Name
+                    : $"{item.Name}    {item.TypeName}";
+            }
+
+            return name;
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>变量名为空时显示占位文案；只读展示，不回写端口。</summary>
+    public sealed class NameDisplayConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => string.IsNullOrWhiteSpace(value as string) ? "未命名变量" : value;
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => Binding.DoNothing;
     }
 }

@@ -1,0 +1,211 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        报警确认按钮图元的外观（Hmi.AckButton）。
+
+        结构：一颗 danger 风格的确认按钮（确认图标 + 文字 + 未确认条数 chip），
+        下方一行 10.5px 的 CommandMessage（「已确认 N 条 / 没有待确认报警 / 没有权限」）。
+
+        两条硬约束：
+        ① PART_AckButton 必须是 Button，且 IsEnabled 直接绑 CanOperate ——
+           没有报警引擎 / 没有权限时按钮置灰，点击不碰引擎（与控件代码的门禁同一个口径）。
+        ② 计数 chip 的文本绑 UnacknowledgedCount；为 0 时收起（Style.Triggers 的 DataTrigger，
+           本环境可用；ControlTemplate.Triggers 里的 DataTrigger 不触发，别搬过去）。
+
+        样式二选一：默认 danger（报警语义红，与报警条严重色同族）；
+        需要更中性的场合把下面 Style 的 BasedOn 换成 AckButtonAccentStyle 即可（accent 青蓝）。
+        五态：Normal / Hover（白色覆盖 0.10）/ Pressed（黑色覆盖 0.18）/ Focus（HmiFocusVisual）/
+        Disabled（整体 0.45 + 箭头光标）。
+
+        颜色一律走 ScadaTokens.xaml（本文件 hex=0，R140）；本分册就地合并令牌（R30）。
+    -->
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--  消息行：空串时收起，不给按钮下面留一条空白  -->
+    <Style x:Key="AckMessageStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="2,3,2,0" />
+        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextSecondaryBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="">
+                <Setter Property="Visibility" Value="Collapsed" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  计数 chip：待确认条数为 0 时整块收起  -->
+    <Style x:Key="AckCountChipStyle" TargetType="Border">
+        <Setter Property="Margin" Value="8,0,0,0" />
+        <Setter Property="Padding" Value="6,1" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="{StaticResource HmiSurfaceRaisedBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HmiBorderStrongBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="9" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding UnacknowledgedCount, RelativeSource={RelativeSource AncestorType={x:Type local:AckButtonElement}}}" Value="0">
+                <Setter Property="Visibility" Value="Collapsed" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  确认按钮的基础模板：两层明暗覆盖 + 内容；圆角跟随图元的 CornerRadius  -->
+    <Style x:Key="AckButtonBaseStyle" TargetType="Button">
+        <Setter Property="MinHeight" Value="30" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource HmiFocusVisual}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border
+                            x:Name="Chrome"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource AncestorType={x:Type local:AckButtonElement}}, Converter={StaticResource DoubleToCornerRadius}}"
+                            SnapsToDevicePixels="True" />
+
+                        <Border
+                            x:Name="HoverLayer"
+                            Background="White"
+                            CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource AncestorType={x:Type local:AckButtonElement}}, Converter={StaticResource DoubleToCornerRadius}}"
+                            IsHitTestVisible="False"
+                            Opacity="0" />
+
+                        <Border
+                            x:Name="PressLayer"
+                            Background="Black"
+                            CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource AncestorType={x:Type local:AckButtonElement}}, Converter={StaticResource DoubleToCornerRadius}}"
+                            IsHitTestVisible="False"
+                            Opacity="0" />
+
+                        <ContentPresenter
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="HoverLayer" Property="Opacity" Value="0.10" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="PressLayer" Property="Opacity" Value="0.18" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  danger（默认）：报警语义红  -->
+    <Style
+        x:Key="AckButtonDangerStyle"
+        BasedOn="{StaticResource AckButtonBaseStyle}"
+        TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource HmiDangerBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HmiDangerBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!--  accent（二选一）：交互青蓝，用于不强调报警语义的场合  -->
+    <Style
+        x:Key="AckButtonAccentStyle"
+        BasedOn="{StaticResource AckButtonBaseStyle}"
+        TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource HmiAccentStrongBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HmiAccentBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style TargetType="{x:Type local:AckButtonElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="FontFamily" Value="Microsoft YaHei" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+        <Setter Property="Fill" Value="{StaticResource HmiDangerBrush}" />
+        <Setter Property="Stroke" Value="{StaticResource HmiDangerBrush}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:AckButtonElement}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Button
+                            x:Name="PART_AckButton"
+                            Grid.Row="0"
+                            IsEnabled="{TemplateBinding CanOperate}"
+                            Style="{StaticResource AckButtonDangerStyle}">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <!--  确认图标：圆头折线勾（纯矢量，不赌字体）  -->
+                                <Path
+                                    Width="13"
+                                    Height="13"
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    Data="M1.5,7 L5,10.5 L11.5,2.5"
+                                    Stretch="Uniform"
+                                    Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                    StrokeEndLineCap="Round"
+                                    StrokeLineJoin="Round"
+                                    StrokeStartLineCap="Round"
+                                    StrokeThickness="1.8" />
+
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontFamily="{TemplateBinding FontFamily}"
+                                    FontSize="{TemplateBinding FontSize}"
+                                    FontWeight="{TemplateBinding FontWeight}"
+                                    Foreground="{TemplateBinding Foreground}"
+                                    Text="{TemplateBinding Text}"
+                                    TextTrimming="CharacterEllipsis" />
+
+                                <!--  未确认计数 chip：0 条时由 Style 触发器收起  -->
+                                <Border x:Name="PART_CountChip" Style="{StaticResource AckCountChipStyle}">
+                                    <TextBlock
+                                        x:Name="PART_CountText"
+                                        VerticalAlignment="Center"
+                                        FontFamily="Cascadia Mono, Consolas"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource HmiTextBrush}"
+                                        Text="{Binding UnacknowledgedCount, RelativeSource={RelativeSource AncestorType={x:Type local:AckButtonElement}}, StringFormat={}{0} 条}"
+                                        Typography.NumeralAlignment="Tabular" />
+                                </Border>
+                            </StackPanel>
+                        </Button>
+
+                        <!--  操作结果 / 权限原因：10.5px 小字，空串时收起  -->
+                        <TextBlock
+                            x:Name="PART_Message"
+                            Grid.Row="1"
+                            Style="{StaticResource AckMessageStyle}"
+                            Text="{TemplateBinding CommandMessage}" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

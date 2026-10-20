@@ -12,6 +12,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UI.Attributes;
 using VisionMaster;
+using Core.Interfaces.Io;
 using VisionMaster.Communications;
 using VisionMaster.Models;
 using VisionMaster.Services;
@@ -74,8 +75,16 @@ namespace CommChecks
             ValueTimestampPublication();
             SpanDecodeEquivalence();
             WritePriorityAndBackpressure();
+            UrgentLanesAndPollYield();
             WaitSchedulingAndLogThrottleKey();
             GapToleranceByTransport();
+            ModbusStationInAddressAndGroupKey();
+            MergeAdjacentReadSwitch();
+            EngineeringConversionOnReadPath();
+            FaultedSegmentIsolation();
+            CommunicationDriverRegistryContract();
+            ModbusStationFrameContract();
+            IoMigrationContract();
             CommunicationProtocolsAndAddRollback();
             KeepAliveConfigPropagation();
             ConfigJsonPerItemIsolation();
@@ -531,7 +540,8 @@ namespace CommChecks
         /// </summary>
         private static CommunicationVariable MakeVar(
             string name, string scanGroup, int offset,
-            VariableAccessMode mode = VariableAccessMode.ReadOnly)
+            VariableAccessMode mode = VariableAccessMode.ReadOnly,
+            bool mergeAdjacent = true)
         {
             var addr = new ModbusAddress
             {
@@ -547,7 +557,8 @@ namespace CommChecks
                 AddressConfig = addr,
                 ValueType = typeof(short).AssemblyQualifiedName!,
                 ScanGroup = scanGroup,
-                AccessMode = mode
+                AccessMode = mode,
+                MergeAdjacentRead = mergeAdjacent
             };
         }
 
@@ -1344,6 +1355,247 @@ namespace CommChecks
             }
         }
 
+        /// <summary>
+        /// C29：插队读/写车道（L0/L1）与轮询段间让路。
+        /// <para>桩记录"谁被执行了、按什么顺序"，闸门把 Worker 钉死让排队顺序可复现；
+        /// 轮询让路用"第一段读完后置插队标志"的桩，验证第二段之前主动返回 Yielded。</para>
+        /// </summary>
+        private static void UrgentLanesAndPollYield()
+        {
+            Section("C29 插队读/写车道与轮询段间让路（L0/L1）");
+
+            int urgentCapacity = UrgentQueueCapacity();
+            int urgentTimeout = UrgentEnqueueTimeoutMs();
+            Check("C29-0 插队队列容量与入队等待按设计取值（256 / 200ms）",
+                urgentCapacity == 256 && urgentTimeout == 200,
+                $"容量 {urgentCapacity} / 等待 {urgentTimeout}ms");
+
+            using var conn = new OrderRecordingConnection();
+            using var worker = new ConnectionWorker(conn);
+            worker.Start();
+
+            // ---- C29-1/2/3：四车道顺序（插队写 → 插队读 → 常规写 → 常规读） ----
+            using (var gate = new ManualResetEventSlim(false))
+            {
+                var blocker = worker.Invoke(_ => { gate.Wait(10000); return true; });
+                Thread.Sleep(300); // 让 blocker 被取走：四条命令必然都还在各自队列里
+
+                var normalRead = worker.Invoke(c => { c.Read<short>("D0"); return true; });
+                var normalWrite = worker.EnqueueWrite("D100", (short)1);
+                var urgentRead = worker.InvokeUrgentRead(c => { c.Read<short>("D1"); return true; });
+                var urgentWrite = worker.InvokeUrgentWrite(c => { c.Write("D200", (short)2); return true; });
+
+                gate.Set();
+                Task.WaitAll(blocker, normalRead, normalWrite, urgentRead, urgentWrite);
+
+                string seq = string.Join(" → ", conn.Log);
+                Check("C29-1 四车道顺序：插队写 → 插队读 → 常规写 → 常规读",
+                    seq == "写:D200 → 读:D1 → 写:D100 → 读:D0", $"实际顺序 {seq}");
+                Check("C29-2 插队读优先于常规写（不是只优先于读）",
+                    seq.IndexOf("读:D1", StringComparison.Ordinal) < seq.IndexOf("写:D100", StringComparison.Ordinal),
+                    $"实际顺序 {seq}");
+                Check("C29-3 插队写优先于插队读",
+                    seq.IndexOf("写:D200", StringComparison.Ordinal) < seq.IndexOf("读:D1", StringComparison.Ordinal),
+                    $"实际顺序 {seq}");
+            }
+
+            // ---- C29-5：空闲时插队命令立刻唤醒 ----
+            Thread.Sleep(300);
+            var swIdle = System.Diagnostics.Stopwatch.StartNew();
+            worker.InvokeUrgentRead(_ => true).GetAwaiter().GetResult();
+            long idle = swIdle.ElapsedMilliseconds;
+            Check("C29-5 空闲时插队命令被立刻唤醒执行（<150ms，不等满 200ms 空闲等待）",
+                idle < 150, $"耗时 {idle}ms");
+
+            // ---- C29-4：插队队列满 → 约 200ms 后失败，不回退常规队列 ----
+            using (var gate = new ManualResetEventSlim(false))
+            {
+                var blocker = worker.Invoke(_ => { gate.Wait(20000); return true; });
+                Thread.Sleep(300);
+
+                var pending = new List<Task>(urgentCapacity);
+                for (int i = 0; i < urgentCapacity; i++)
+                    pending.Add(worker.InvokeUrgentRead(_ => true));
+
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                bool threw = false;
+                string message = "";
+                try { worker.InvokeUrgentRead(_ => true).GetAwaiter().GetResult(); }
+                catch (InvalidOperationException ex) { threw = true; message = ex.Message; }
+                long waited = sw.ElapsedMilliseconds;
+
+                Check("C29-4 插队队列满 → 约 200ms 后失败（不是 2000ms），且不回退常规队列",
+                    threw && waited >= urgentTimeout - 300 && message.Contains("插队命令队列已满"),
+                    $"等待 {waited}ms，抛异常={threw}，消息「{message}」");
+
+                gate.Set();
+                Task.WaitAll(blocker);
+                Task.WaitAll(pending.ToArray(), 10000);
+            }
+
+            // ---- C29-8/9：轮询段间让路 ----
+            var vars = new[]
+            {
+                MakeVar("V0", "", 0, mergeAdjacent: false),
+                MakeVar("V1", "", 100, mergeAdjacent: false),
+                MakeVar("V2", "", 200, mergeAdjacent: false),
+            };
+            var sched = PollScheduler.Create(vars, MakeConfig(1000), null)!;
+
+            int reads = 0;
+            bool urgent = false;
+            var segConn = new PollSegmentConnection(() =>
+            {
+                reads++;
+                if (reads == 1) urgent = true; // 第一段读完后置"有插队"，下一段前应让路
+            });
+
+            var first = sched.Run(segConn, () => urgent);
+            Check("C29-8 轮询在段间让路：第一段后检测到插队 → Yielded，第二段未执行",
+                first == PollCycleOutcome.Yielded && reads == 1,
+                $"结局 {first}，段读 {reads} 次");
+
+            urgent = false;
+            var second = sched.Run(segConn, () => urgent);
+            Check("C29-9 让路后本组保持到期：下一拍重跑并完成（含重读第一段）",
+                second == PollCycleOutcome.Completed && reads >= 4,
+                $"结局 {second}，累计段读 {reads} 次");
+
+            // ---- C29-10：立刻读的单变量路径不做坏段隔离判断 ----
+            var single = PollBatchPlanner.Build(
+                new[] { MakeVar("S0", "", 0, mergeAdjacent: false) },
+                PollTransportKind.Ethernet,
+                log: null,
+                isolateFaultedSegments: true);
+            var singleConn = new PollSegmentConnection(null);
+            bool oneOk = single.TryReadOne(singleConn, out var oneValue, out var oneError);
+            Check("C29-10 单变量读取（立刻读路径）不做坏段隔离判断，仍然真读",
+                oneOk && oneValue is short && singleConn.ReadCalls == 1,
+                $"成功={oneOk}，值={oneValue}，错误「{oneError}」，段读 {singleConn.ReadCalls} 次");
+
+            // ---- C29-6/7/11/12：Manager 两个插队 API ----
+            VerifyManagerUrgentApis();
+        }
+
+        /// <summary>
+        /// C29-6/7/11/12：直接验 <see cref="AdvancedCommunicationManager.ReadVariableNow"/> /
+        /// <see cref="AdvancedCommunicationManager.WriteVariableNow"/>。
+        /// <para>Manager 的连接表/变量表是私有字段，这里用反射注入一个桩 Worker——
+        /// 与 C13 的"私有常量用反射读"同一思路：断言按实现自己的结构验，不另造一套管理器。</para>
+        /// </summary>
+        private static void VerifyManagerUrgentApis()
+        {
+            var mgr = new AdvancedCommunicationManager();
+            try
+            {
+                var workerField = typeof(AdvancedCommunicationManager)
+                    .GetField("_workers", BindingFlags.NonPublic | BindingFlags.Instance)!;
+                var varField = typeof(AdvancedCommunicationManager)
+                    .GetField("_registeredVariables", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+                var workers = (ConcurrentDictionary<string, ConnectionWorker>)workerField.GetValue(mgr)!;
+                var registered = (ConcurrentDictionary<string, ConcurrentDictionary<string, CommunicationVariable>>)
+                    varField.GetValue(mgr)!;
+
+                var conn = new OrderRecordingConnection();
+                var worker = new ConnectionWorker(conn);
+                worker.Start();
+                workers["PLC1"] = worker;
+
+                var variable = MakeVar("V1", "", 0);
+                registered["PLC1"] = new ConcurrentDictionary<string, CommunicationVariable>();
+                registered["PLC1"]["V1"] = variable;
+
+                bool connected = worker.Connect(3000).GetAwaiter().GetResult();
+                Check("C29-6 前提：桩连接已进入 Connected", connected, $"状态 {worker.State}");
+
+                var value = mgr.ReadVariableNow("PLC1", "V1");
+                Check("C29-6 ReadVariableNow 返回解码值并更新变量镜像",
+                    value is short s && s == 0 && variable.CurrentValue is short cv && cv == 0,
+                    $"返回 {value}，镜像 {variable.CurrentValue}");
+
+                mgr.WriteVariableNow("PLC1", "V1", (short)123);
+                Check("C29-7 WriteVariableNow 把原始值写到变量地址",
+                    conn.Log.Any(x => x == $"写:{variable.Address}"),
+                    string.Join(" → ", conn.Log));
+
+                // C29-13：只入队不等待。日志里已有 C29-7 的那次写，必须按"新增一次"判。
+                int writesBefore = conn.Log.Count(x => x == $"写:{variable.Address}");
+                bool queued = mgr.TryTriggerWriteNow("PLC1", "V1", (short)77, out var queueError);
+                bool executed = SpinWait.SpinUntil(
+                    () => conn.Log.Count(x => x == $"写:{variable.Address}") > writesBefore,
+                    TimeSpan.FromSeconds(2));
+                Check("C29-13 TryTriggerWriteNow 只入队：返回 true 后 Worker 异步执行，且不改镜像",
+                    queued && executed && variable.CurrentValue is short cv0 && cv0 == 0,
+                    $"入队={queued}，执行={executed}，镜像={variable.CurrentValue}，错误「{queueError}」");
+
+                bool missingThrew = false;
+                try { mgr.ReadVariableNow("PLC1", "NOPE"); }
+                catch (InvalidOperationException ex) { missingThrew = ex.Message.Contains("未接入轮询"); }
+                Check("C29-11 变量未注册 → 明确错误，不发起 I/O", missingThrew, "");
+
+                bool offlineThrew = false;
+                try { mgr.ReadVariableNow("NOPE", "V1"); }
+                catch (InvalidOperationException ex) { offlineThrew = ex.Message.Contains("连接不存在"); }
+                Check("C29-12 连接不存在 → 立即失败，不入队", offlineThrew, "");
+            }
+            finally
+            {
+                mgr.Dispose();
+            }
+        }
+
+        private static int UrgentQueueCapacity()
+            => (int)typeof(ConnectionWorker)
+                .GetField("UrgentQueueCapacity", BindingFlags.NonPublic | BindingFlags.Static)!
+                .GetRawConstantValue()!;
+
+        private static int UrgentEnqueueTimeoutMs()
+            => (int)typeof(ConnectionWorker)
+                .GetField("UrgentEnqueueTimeoutMs", BindingFlags.NonPublic | BindingFlags.Static)!
+                .GetRawConstantValue()!;
+
+        /// <summary>轮询让路桩：只记录段读次数，第一段读完可回调（用来置"有插队命令"）。</summary>
+        private sealed class PollSegmentConnection : ICommunicationConnection
+        {
+            private readonly Action? _onRead;
+
+            public PollSegmentConnection(Action? onRead) => _onRead = onRead;
+
+            public int ReadCalls { get; private set; }
+
+            public string ConnectionName => "STUB_SEG";
+
+            public CommunicationType Type => CommunicationType.ModbusTcp;
+
+            public bool IsConnected { get; private set; } = true;
+
+            public ByteOrderFormat ByteOrder => ByteOrderFormat.ABCD;
+
+            public bool Connect() { IsConnected = true; return true; }
+
+            public void Disconnect() => IsConnected = false;
+
+            public bool TestConnection() => IsConnected;
+
+            public void Dispose() => Disconnect();
+
+            public T Read<T>(string address) where T : struct => default;
+
+            public void Write(string address, object value) { }
+
+            public byte[] ReadBytes(string address, ushort length)
+            {
+                ReadCalls++;
+                _onRead?.Invoke();
+                return new byte[length * 2];
+            }
+
+            public void WriteBytes(string address, byte[] data) { }
+
+            public bool[] ReadBits(string address, ushort count) => new bool[count];
+        }
+
         /// <summary>读私有常量：断言按"实现自己的口径"验，而不是在测试里再抄一份数字</summary>
         private static int CommandQueueCapacity()
             => (int)typeof(ConnectionWorker)
@@ -1595,7 +1847,785 @@ namespace CommChecks
 
         #endregion
 
-        #region B3 协议清单合一 / B4 添加连接失败回滚
+        #region 站号 / 合并开关 / 换算 / 隔离 / 驱动注册表
+
+        /// <summary>
+        /// <para><b>站号必须逐帧生效</b>：一条串口上挂多个 Modbus 从站时，"读哪个从站"是每帧的事。</para>
+        /// <para>HSL 支持富地址 <c>s=N;x=3;100</c>：组帧时把站号写进帧头、应答按<b>本次发出的站号</b>校验
+        /// （<c>ModbusInfo</c> / <c>ModbusHelper.ExtraRtuResponseContent</c>）。本组钉住三件事：</para>
+        /// <para>① 地址真的带上了 <c>s=</c> 前缀；② 站号进了 <see cref="PollAddress.GroupKey"/>
+        /// （否则不同从站的同地址变量会被合并成一段，一次 FC3 只发给一个站，另一站静默读到错值）；
+        /// ③ 站号进了段前缀（否则段地址丢了 <c>s=</c>，读的还是连接默认站）。</para>
+        /// </summary>
+        private static void ModbusStationInAddressAndGroupKey()
+        {
+            Section("C16 Modbus 站号逐帧生效（一条串口多从站）");
+
+            var station2 = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                DataType = DataValueType.Int16,
+                Offset = "100",
+                Station = 2
+            };
+            Check("C22-1 站号 > 0 时地址带 s= 前缀（HSL 富地址，逐帧写帧头）",
+                station2.Address == "s=2;x=3;100", station2.Address);
+
+            var station0 = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                DataType = DataValueType.Int16,
+                Offset = "100"
+            };
+            Check("C22-2 站号 = 0（默认）时不写 s= 前缀——历史行为一字不差",
+                station0.Address == "x=3;100", station0.Address);
+
+            // 两个从站、同一地址、同一存储区：必须分成两段（不能合并）
+            var vars = new[]
+            {
+                MakeVarWithStation("A", 1, 100),
+                MakeVarWithStation("B", 2, 100)
+            };
+            var cfg = MakeConfig(1000);
+            var scheduler = PollScheduler.Create(vars, cfg, null)!;
+
+            Check("C22-3 不同站号 + 同地址 → 不合并（2 段），否则另一站静默读到错值",
+                scheduler.TotalSegments == 2, scheduler.Describe());
+            Check("C22-4 两个变量都还在轮询里（分组只改变往返次数，一个点都不丢）",
+                scheduler.GetStats()[0].VariableCount == 2,
+                $"{scheduler.GetStats()[0].VariableCount} 变量");
+
+            // 同站号 + 相邻地址 → 照常合并（站号不该破坏批量化）
+            var sameStation = new[]
+            {
+                MakeVarWithStation("C", 1, 100),
+                MakeVarWithStation("D", 1, 101)
+            };
+            var merged = PollScheduler.Create(sameStation, cfg, null)!;
+            Check("C22-5 同站号 + 相邻地址 → 照常合并成 1 段（站号不破坏批量化）",
+                merged.TotalSegments == 1, merged.Describe());
+
+            // 结构化解码路径
+            Check("C22-6 TryCreatePollAddress 把站号写进 GroupKey 与段前缀",
+                station2.TryCreatePollAddress(out var poll)
+                && poll!.GroupKey.Contains("s=2;")
+                && poll.SegmentPrefix == "s=2;x=3;",
+                poll == null ? "(null)" : $"{poll.GroupKey} / {poll.SegmentPrefix}");
+
+            // 旧字符串地址路径（手填 "s=2;x=3;100"）
+            var legacy = PollAddressResolver.ParseLegacy("s=2;x=3;100", typeof(short).AssemblyQualifiedName);
+            Check("C22-7 旧字符串地址 s=2;x=3;100 也保留站号（手填地址不被合并掉）",
+                legacy != null && legacy.GroupKey.Contains("s=2;") && legacy.SegmentPrefix == "s=2;x=3;",
+                legacy == null ? "(解析失败)" : $"{legacy.GroupKey} / {legacy.SegmentPrefix}");
+
+            var legacyNoStation = PollAddressResolver.ParseLegacy("x=3;100", typeof(short).AssemblyQualifiedName);
+            Check("C22-8 旧字符串地址无站号 → GroupKey 与改动前一致（FC3，零回归）",
+                legacyNoStation != null && legacyNoStation.GroupKey == "FC3",
+                legacyNoStation?.GroupKey ?? "(解析失败)");
+
+            // ReadBits 的 FC1/FC2 判定不能靠前缀（带站号后前缀不在开头）
+            Check("C22-9 离散输入判定按 x= 段解析：s=2;x=2;100 认作 FC2（不是线圈）",
+                ModbusRichAddress.IsDiscreteInput("s=2;x=2;100")
+                && !ModbusRichAddress.IsDiscreteInput("s=2;x=1;100")
+                && !ModbusRichAddress.IsDiscreteInput("x=3;100"),
+                "前缀判断会把 s=2;x=2;100 误判成线圈");
+        }
+
+        /// <summary>
+        /// <para><b>区域合并读开关</b>：默认开启（行为与改造前一致）；关掉只影响"跟邻居合并"，
+        /// 不退回单点反射读——仍走段读（自己的跨度一次读完、按结构化解码）。</para>
+        /// <para>关掉之后段数上升是用户显式选择的结果，不是缺陷。</para>
+        /// </summary>
+        private static void MergeAdjacentReadSwitch()
+        {
+            Section("C17 逐变量「区域合并读」开关");
+
+            var cfg = MakeConfig(1000);
+
+            // 基线：三个相邻变量默认合并成 1 段
+            var allOn = new[]
+            {
+                MakeVar("V0", "", 100),
+                MakeVar("V1", "", 101),
+                MakeVar("V2", "", 102)
+            };
+            Check("C23-1 默认（开关开）三个相邻变量合并成 1 段",
+                PollScheduler.Create(allOn, cfg, null)!.TotalSegments == 1,
+                PollScheduler.Create(allOn, cfg, null)!.Describe());
+
+            // 中间那个关掉：它自成一段，左右两个**不能跨过它**再合并（跨过去就等于读了它的寄存器，
+            // 与"只读自己的跨度"自相矛盾）→ 3 段。
+            var middleOff = new[]
+            {
+                MakeVar("V0", "", 100),
+                MakeVar("V1", "", 101, mergeAdjacent: false),
+                MakeVar("V2", "", 102)
+            };
+            var middleScheduler = PollScheduler.Create(middleOff, cfg, null)!;
+            Check("C23-2 中间变量关掉合并 → 3 段（关掉的自成一段，左右不跨过它合并）",
+                middleScheduler.TotalSegments == 3, middleScheduler.Describe());
+            Check("C23-3 关掉合并的变量仍在轮询里（不是退回单点反射读、更不是丢弃）",
+                middleScheduler.GetStats()[0].VariableCount == 3,
+                $"{middleScheduler.GetStats()[0].VariableCount} 变量");
+
+            // 全部关掉：3 段
+            var allOff = new[]
+            {
+                MakeVar("V0", "", 100, mergeAdjacent: false),
+                MakeVar("V1", "", 101, mergeAdjacent: false),
+                MakeVar("V2", "", 102, mergeAdjacent: false)
+            };
+            var allOffScheduler = PollScheduler.Create(allOff, cfg, null)!;
+            Check("C23-4 全部关掉 → 3 段（每个变量读自己的跨度）",
+                allOffScheduler.TotalSegments == 3, allOffScheduler.Describe());
+
+            // 关键：关掉合并的变量落在"跨多寄存器的邻居"跨度内时，不能被挂错段
+            // （旧实现按区间包含反推归属，会把这个变量挂到邻居那段，自己那段空转成白发请求）
+            var overlap = new[]
+            {
+                MakeVarOfType("Wide", "", 100, DataValueType.Int32),   // 跨 100..101
+                MakeVar("Inner", "", 101, mergeAdjacent: false)         // 落在 Wide 的跨度内
+            };
+            var overlapScheduler = PollScheduler.Create(overlap, cfg, null)!;
+            Check("C23-5 关合并的变量落在邻居跨度内 → 仍分成 2 段且各自有归属（不挂错段）",
+                overlapScheduler.TotalSegments == 2
+                && overlapScheduler.GetStats()[0].VariableCount == 2,
+                overlapScheduler.Describe());
+        }
+
+        /// <summary>
+        /// <para><b>工程量换算必须读写对称</b>：<c>DeviceAddressBase</c> 里的换算管道
+        /// （<see cref="DeviceAddressBase.ConvertToEngineering"/> / <see cref="DeviceAddressBase.ConvertToRaw"/>）
+        /// 早就存在，但改造前只有<b>写</b>路径调了 <c>ConvertToRaw</c>，<b>读</b>路径从没调过——</para>
+        /// <para>于是"配了缩放系数的变量写进去是工程值、读回来却是原始值"。本组钉住读路径也换算，
+        /// 且默认（未启用换算）行为零变化。</para>
+        /// </summary>
+        private static void EngineeringConversionOnReadPath()
+        {
+            Section("C18 工程量换算（读路径与写路径对称）");
+
+            var plain = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                DataType = DataValueType.Int16,
+                Offset = "0"
+            };
+            var plainVar = new CommunicationVariable
+            {
+                ConnectionName = "PLC1",
+                VariableName = "P",
+                Address = plain.Address,
+                AddressConfig = plain,
+                ValueType = typeof(short).AssemblyQualifiedName!
+            };
+            Check("C24-1 未启用换算 → 原值返回（默认行为零变化）",
+                Equals(plainVar.ToEngineering((short)1234), (short)1234),
+                plainVar.ToEngineering((short)1234)?.ToString() ?? "(null)");
+
+            var scaled = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                DataType = DataValueType.Int16,
+                Offset = "0",
+                EnableConversion = true,
+                Scale = 0.1,
+                EngineeringOffset = 5,
+                DecimalPlaces = 2
+            };
+            var scaledVar = new CommunicationVariable
+            {
+                ConnectionName = "PLC1",
+                VariableName = "S",
+                Address = scaled.Address,
+                AddressConfig = scaled,
+                ValueType = typeof(short).AssemblyQualifiedName!
+            };
+
+            // 1000 * 0.1 + 5 = 105
+            Check("C24-2 启用换算：原始值 1000 → 工程值 105（×0.1 + 5）",
+                Convert.ToDouble(scaledVar.ToEngineering((short)1000)) == 105.0,
+                scaledVar.ToEngineering((short)1000)?.ToString() ?? "(null)");
+
+            // 读写互逆：工程值 105 → 原始值 1000
+            Check("C24-3 读写互逆：工程值 105 经 ConvertToRaw 回到原始值 1000",
+                Convert.ToInt16(scaled.ConvertToRaw(105.0)) == 1000,
+                scaled.ConvertToRaw(105.0)?.ToString() ?? "(null)");
+
+            Check("C24-4 bool/string/byte[] 不参与换算（只换算数值）",
+                Equals(scaledVar.ToEngineering(true), true)
+                && Equals(scaledVar.ToEngineering("abc"), "abc"),
+                "非数值类型原样返回");
+
+            // 端到端：换算必须真的接在**轮询发布路径**上（只测 ToEngineering 辅助方法测不出这个）。
+            // 假连接返回原始字节 0x03 0xE8 = 1000 → 经 ×0.1 + 5 应发布 105。
+            var e2eAddr = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                DataType = DataValueType.Int16,
+                Offset = "0",
+                EnableConversion = true,
+                Scale = 0.1,
+                EngineeringOffset = 5,
+                DecimalPlaces = 2
+            };
+            var e2eVar = new CommunicationVariable
+            {
+                ConnectionName = "PLC1",
+                VariableName = "E2E",
+                Address = e2eAddr.Address,
+                AddressConfig = e2eAddr,
+                ValueType = typeof(short).AssemblyQualifiedName!
+            };
+            var e2eScheduler = PollScheduler.Create(new[] { e2eVar }, MakeConfig(1000), null)!;
+            using (var e2eConn = new RawBytesConnection(1000))
+            {
+                e2eScheduler.ResetAllDue();
+                e2eScheduler.Run(e2eConn);
+            }
+            Check("C24-5 端到端：轮询读到的原始值 1000 → 变量上发布的是工程值 105",
+                Convert.ToDouble(e2eVar.CurrentValue) == 105.0,
+                e2eVar.CurrentValue?.ToString() ?? "(null)");
+        }
+
+        /// <summary>
+        /// <para><b>坏段隔离</b>：一个恒坏地址（配置错/越界/从站掉线）在 100ms 周期下会每秒烧 10 次超时，
+        /// 每次都拖慢同拍的其它段。隔离后它只按 <see cref="PollBatchPlanner.IsolationProbeIntervalMs"/> 探测一次。</para>
+        /// <para>关键约束：<b>隔离不能变成"永久放弃"</b>——地址修好后必须能自己回来（探测成功即恢复）。</para>
+        /// <para>本组用假连接驱动真实 <see cref="PollBatchPlanner"/>：让指定地址读失败、其余成功。</para>
+        /// </summary>
+        private static void FaultedSegmentIsolation()
+        {
+            Section("C25 坏段隔离（显式开启；连续失败移出正常轮询，可自愈）");
+
+            // 隔离是**可选**能力（默认关闭，见 CommunicationConfig.IsolateFaultedSegments）：
+            // 默认"每轮都试"是既有契约，诊断面板的"连续失败 N 轮"靠每轮真读才累加得出来（见 C12）。
+            var cfg = MakeConfig(1000);
+            cfg.IsolateFaultedSegments = true;
+
+            // 两段必须真的分开：用不相邻地址（以太网档的空档容忍是 120 个寄存器，
+            // 相邻地址会被合并成一段，那样"坏地址"根本不会单独命中，本组就变成假绿）。
+            var good = MakeVar("Good", "", 200);
+            var bad = MakeVar("Bad", "", 900);
+            var scheduler = PollScheduler.Create(new[] { good, bad }, cfg, null)!;
+
+            Check("C25-0 前提：两个不相邻地址分成 2 段（否则隔离无从验证）",
+                scheduler.TotalSegments == 2, scheduler.Describe());
+
+            // 先让坏段连续失败到阈值。
+            // 每轮必须 ResetAllDue()：组周期是 1000ms，而这里连调 Run 只隔几毫秒，
+            // 不重置到期基准的话第 2 轮起会被 IsDue() 直接跳过（累计读次数停在第一轮，断言变假绿/假红）。
+            var conn = new ScriptedConnection(failAddress: "x=3;900");
+            for (int i = 0; i < PollBatchPlanner.FaultedSegmentThreshold; i++)
+            {
+                scheduler.ResetAllDue();
+                scheduler.Run(conn);
+            }
+
+            int readsBefore = conn.ReadCount;
+            Check("C25-1 未达阈值前，坏段每轮都被读（隔离还没生效）",
+                readsBefore >= PollBatchPlanner.FaultedSegmentThreshold * 2,
+                $"累计 {readsBefore} 次读（2 段 × {PollBatchPlanner.FaultedSegmentThreshold} 轮）");
+
+            // 达阈值之后紧接着的一轮：坏段应被跳过（只读好段）
+            scheduler.ResetAllDue();
+            int beforeSkip = conn.ReadCount;
+            scheduler.Run(conn);
+            int delta = conn.ReadCount - beforeSkip;
+
+            Check("C25-2 达阈值后坏段被跳过：本轮只读好段（读次数 = 1，不是 2）",
+                delta == 1, $"本轮读 {delta} 次");
+
+            // 好段必须不受影响（这是隔离的真正目的：别拖慢同拍其它段）
+            Check("C25-3 好段不受隔离影响（隔离只针对坏段，不牵连整条连接）",
+                good.Quality == VariableQuality.Good, good.Quality.ToString());
+
+            // 自愈：地址修好后，探测成功即恢复
+            conn.FailAddress = null;
+            Thread.Sleep(PollBatchPlanner.IsolationProbeIntervalMs + 200);
+            scheduler.ResetAllDue();
+            int beforeRecover = conn.ReadCount;
+            scheduler.Run(conn);
+            Check("C25-4 探测间隔过后重新尝试（不是永久放弃）",
+                conn.ReadCount > beforeRecover, $"探测读 {conn.ReadCount - beforeRecover} 次");
+
+            // 探测成功后应回到正常轮询：再跑两轮，坏段要重新每轮都被读
+            int beforeNormal = conn.ReadCount;
+            scheduler.ResetAllDue();
+            scheduler.Run(conn);
+            scheduler.ResetAllDue();
+            scheduler.Run(conn);
+            Check("C25-5 探测成功后恢复为每轮都读（自愈，不需要人工复位）",
+                conn.ReadCount - beforeNormal >= 4,
+                $"恢复后两轮共读 {conn.ReadCount - beforeNormal} 次（期望 4）");
+
+            // 反向：默认（未开启隔离）必须每轮都试——这是 C12 依赖的既有契约，
+            // "一律隔离"这种过度实现必须被这条钉住。
+            var plainCfg = MakeConfig(1000);
+            var plainScheduler = PollScheduler.Create(new[] { MakeVar("G2", "", 200), MakeVar("B2", "", 900) }, plainCfg, null)!;
+            var plainConn = new ScriptedConnection("x=3;900");
+            for (int i = 0; i < PollBatchPlanner.FaultedSegmentThreshold + 1; i++)
+            {
+                plainScheduler.ResetAllDue();
+                plainScheduler.Run(plainConn);
+            }
+            plainScheduler.ResetAllDue();
+            int beforePlain = plainConn.ReadCount;
+            plainScheduler.Run(plainConn);
+            Check("C25-6 反向：未开启隔离时坏段仍每轮都试（默认契约不许被改掉）",
+                plainConn.ReadCount - beforePlain == 2,
+                $"本轮读 {plainConn.ReadCount - beforePlain} 次（期望 2）");
+        }
+
+        /// <summary>
+        /// <para><b>驱动注册表</b>：让"新增一个协议 = 写一个类 + 注册一次"成立。</para>
+        /// <para>改造前要同时改 6 处（枚举 / TryCreateConfig switch / Implemented 数组 / 配置类 /
+        /// 连接实现 / RegisterDefaults），且一致性只靠一条断言手工钉着。</para>
+        /// </summary>
+        private static void CommunicationDriverRegistryContract()
+        {
+            Section("C20 通讯驱动注册表（自定义协议只实现接口即可接入）");
+
+            var registry = new CommunicationDriverRegistry();
+
+            var fake = new FakeDriverFactory("fake.protocol", typeof(FakeConfig));
+            registry.Register(fake);
+            Check("C26-1 注册后可按 DriverId 取到",
+                registry.TryGet("fake.protocol", out var found) && ReferenceEquals(found, fake), "fake.protocol");
+
+            Check("C26-2 DriverId 大小写不敏感（落盘字符串不因大小写分裂）",
+                registry.TryGet("FAKE.PROTOCOL", out _), "FAKE.PROTOCOL");
+
+            Check("C26-3 可按配置类型反推驱动（反序列化后不用 DriverId 也能找回）",
+                registry.TryGetByConfigType(typeof(FakeConfig), out var byType) && ReferenceEquals(byType, fake),
+                nameof(FakeConfig));
+
+            bool threw = false;
+            try { registry.Register(new FakeDriverFactory("fake.protocol", typeof(FakeConfig))); }
+            catch (InvalidOperationException) { threw = true; }
+            Check("C26-4 同 Id 重复注册抛异常（不静默覆盖——否则跑的是哪个实现全看运气）",
+                threw, threw ? "已抛出 InvalidOperationException" : "未抛异常");
+
+            Check("C26-5 空 Id / 空显示名被拒绝",
+                Throws<ArgumentException>(() => registry.Register(new FakeDriverFactory("", typeof(FakeConfig))))
+                && Throws<ArgumentException>(() => registry.Register(new FakeDriverFactory("x", typeof(FakeConfig), ""))),
+                "空 Id 与空显示名都必须抛 ArgumentException");
+
+            Check("C26-6 未注册的驱动造连接 → NotSupportedException 且列出可用清单",
+                ThrowsWithMessage<NotSupportedException>(() => registry.Create("nope", new FakeConfig()), "fake.protocol"),
+                "错误信息里带可用驱动清单");
+
+            var made = registry.Create("fake.protocol", new FakeConfig());
+            Check("C26-7 注册的驱动能真的造出连接实例（自定义协议只需实现接口）",
+                made != null && ReferenceEquals(made.GetType(), typeof(ScriptedConnection)),
+                made?.GetType().Name ?? "(null)");
+
+            Check("C26-8 注销后取不到（测试夹具可替换实现）",
+                registry.Unregister("fake.protocol") && !registry.TryGet("fake.protocol", out _),
+                "注销后 TryGet 返回 false");
+
+            // 生产注册表：内建三种协议必须都在（否则界面里选了协议却造不出连接）
+            var prod = ConnectionFactoryManager.Instance.Drivers;
+            Check("C26-9 生产注册表含内建三协议（modbus.tcp / modbus.rtu / siemens.s7）",
+                prod.TryGet("modbus.tcp", out _) && prod.TryGet("modbus.rtu", out _) && prod.TryGet("siemens.s7", out _),
+                prod.ImplementedText);
+
+            Check("C26-10 生产注册表的驱动数与已实现协议数一致（两套清单不许分裂）",
+                prod.Count == CommunicationProtocols.Implemented.Length,
+                $"驱动 {prod.Count} 个 / 已实现协议 {CommunicationProtocols.Implemented.Length} 个");
+        }
+
+        /// <summary>
+        /// <para><b>帧级站号契约</b>：我们依赖 HSL 的富地址 <c>s=N;</c> 逐帧生效——组帧时把 N 写进帧头、
+        /// 应答按本次发出的站号校验。这条是"一条 COM 挂多从站"的地基，且它在<b>第三方库里</b>，
+        /// 升级 HSL 时不会有人提醒我们。</para>
+        /// <para>本组直接对 <c>ModbusInfo.BuildReadModbusCommand</c> 断言首字节，把这条依赖钉死：
+        /// 库一旦改成"只认实例站号"，这里当场变红，而不是等到现场"所有从站都读成 1 号站"。</para>
+        /// <para>（IO 接入层下线前，这类覆盖在 <c>IoChecks</c> 的 RTM 组里；随 IO 层删除后迁到这里。）</para>
+        /// </summary>
+        private static void ModbusStationFrameContract()
+        {
+            Section("C28 帧级站号契约（HSL 富地址 s= 逐帧生效，第三方依赖钉子）");
+
+            var readWithStation = HslCommunication.ModBus.ModbusInfo.BuildReadModbusCommand(
+                "s=2;x=3;100", 1, 1, true, 3);
+            Check("C28-1 读帧：地址 s=2 覆盖连接默认站号 1（帧头第 1 字节 = 2）",
+                readWithStation.IsSuccess && readWithStation.Content[0][0] == 2,
+                readWithStation.IsSuccess ? $"帧头={readWithStation.Content[0][0]}" : readWithStation.Message);
+
+            var readDefault = HslCommunication.ModBus.ModbusInfo.BuildReadModbusCommand(
+                "x=3;100", 1, 1, true, 3);
+            Check("C28-2 读帧：地址无 s= → 用连接默认站号（帧头 = 1，历史行为不变）",
+                readDefault.IsSuccess && readDefault.Content[0][0] == 1,
+                readDefault.IsSuccess ? $"帧头={readDefault.Content[0][0]}" : readDefault.Message);
+
+            var writeWithStation = HslCommunication.ModBus.ModbusInfo.BuildWriteWordModbusCommand(
+                "s=7;x=3;100", new byte[] { 0, 1 }, 1, true, 16);
+            Check("C28-3 写帧：地址 s=7 覆盖默认站号（帧头 = 7）",
+                writeWithStation.IsSuccess && writeWithStation.Content[0] == 7,
+                writeWithStation.IsSuccess ? $"帧头={writeWithStation.Content[0]}" : writeWithStation.Message);
+
+            Check("C28-4 带站号时功能码仍正确（s=2;x=3 的读帧功能码 = 3）",
+                readWithStation.IsSuccess && readWithStation.Content[0][1] == 3,
+                readWithStation.IsSuccess ? $"功能码={readWithStation.Content[0][1]}" : readWithStation.Message);
+
+            var fc2 = HslCommunication.ModBus.ModbusInfo.BuildReadModbusCommand("s=2;x=2;100", 1, 1, true, 2);
+            Check("C28-5 带站号时离散输入功能码仍正确（s=2;x=2 → FC2）",
+                fc2.IsSuccess && fc2.Content[0][1] == 2,
+                fc2.IsSuccess ? $"功能码={fc2.Content[0][1]}" : fc2.Message);
+        }
+
+        /// <summary>
+        /// <para><b>IO → 通讯折算</b>：旧 IO 配置（总线/设备/点位）必须能折成"通讯连接 + 网络变量"。</para>
+        /// <para>这是整个合并里最容易出错的一块——站号丢了就是"多从站全读同一站"、
+        /// 换算丢了就是"读回来是原始值"、幂等丢了就是"每开一次方案变量翻一倍"。
+        /// 所以三条都单独钉住，另加一条"旧字段保留"（回退旧版本仍能读到配置）。</para>
+        /// </summary>
+        private static void IoMigrationContract()
+        {
+            Section("C27 IO → 通讯折算（总线/设备/点位 → 连接 + 网络变量）");
+
+            // ---------- 串口总线 + 两个从站（站号 1 / 2） ----------
+            var bus = new IoBusDescriptor
+            {
+                BusId = "COM3",
+                DisplayName = "RTU 总线",
+                TransportKind = IoTransportKind.Serial,
+                Serial = new SerialTransportConfig
+                {
+                    PortName = "COM3",
+                    BaudRate = 19200,
+                    DataBits = 8,
+                    Parity = IoParity.Even,
+                    StopBits = IoStopBits.One,
+                    ReadTimeoutMs = 800
+                }
+            };
+
+            var device1 = MakeIoDevice("Meter1", "COM3", 1, new IoPointDescriptor
+            {
+                PointId = "Temp",
+                Kind = IoPointKind.AnalogInput,
+                Address = "100",
+                DataType = IoDataType.Int16,
+                Scale = 0.1,
+                Offset = 5,
+                Unit = "℃"
+            });
+
+            var device2 = MakeIoDevice("Meter2", "COM3", 2, new IoPointDescriptor
+            {
+                PointId = "Run",
+                Kind = IoPointKind.DigitalInput,
+                Address = "0",
+                DataType = IoDataType.Bool
+            });
+
+            var solution = new SolutionModel();
+            solution.IoBuses.Add(bus);
+            solution.IoDevices.Add(device1);
+            solution.IoDevices.Add(device2);
+
+            var (connections, variables) = IoMigrationApplier.Apply(solution);
+
+            Check("C27-1 一条总线 → 一条连接，两个点位 → 两个变量",
+                connections == 1 && variables == 2,
+                $"连接 {connections} / 变量 {variables}");
+
+            var conn = solution.CommunicationConfigs.FirstOrDefault();
+            Check("C27-2 连接类型与串口参数照搬（COM3 / 19200 / Even / 读超时 800）",
+                conn != null && conn.Protocol == CommunicationType.ModbusRtu
+                && conn.Config is SerialConfig s
+                && s.PortName == "COM3" && s.BaudRate == 19200
+                && s.Parity == ParityMode.Even && s.ReadTimeoutMs == 800,
+                conn?.Config is SerialConfig sc
+                    ? $"{sc.PortName}/{sc.BaudRate}/{sc.Parity}/{sc.ReadTimeoutMs}"
+                    : "(不是串口配置)");
+
+            // 站号是"一条 COM 多从站"的全部依据
+            var tempVar = solution.GlobalVariables.OfType<NetworkVariableModel>()
+                .FirstOrDefault(v => v.Name == "Meter1.Temp");
+            var runVar = solution.GlobalVariables.OfType<NetworkVariableModel>()
+                .FirstOrDefault(v => v.Name == "Meter2.Run");
+
+            Check("C27-3 站号逐帧落地：Meter1 → s=1，Meter2 → s=2（丢了就是多从站全读同一站）",
+                tempVar?.AddressConfig is ModbusAddress a1 && a1.Station == 1
+                && runVar?.AddressConfig is ModbusAddress a2 && a2.Station == 2,
+                $"Meter1={(tempVar?.AddressConfig as ModbusAddress)?.Station} / " +
+                $"Meter2={(runVar?.AddressConfig as ModbusAddress)?.Station}");
+
+            Check("C27-4 地址带 s= 前缀（HSL 富地址，逐帧写帧头）",
+                tempVar?.AddressConfig?.Address == "s=1;x=3;100"
+                && runVar?.AddressConfig?.Address == "s=2;x=2;0",
+                $"{tempVar?.AddressConfig?.Address} / {runVar?.AddressConfig?.Address}");
+
+            // 换算：Scale 0.1 + Offset 5 → EnableConversion + 参数照搬
+            Check("C27-5 工程量换算随点位迁过来（Scale 0.1 / Offset 5 / 单位 ℃）",
+                tempVar?.AddressConfig is ModbusAddress a3
+                && a3.EnableConversion && a3.Scale == 0.1
+                && a3.EngineeringOffset == 5 && a3.Unit == "℃",
+                tempVar?.AddressConfig is ModbusAddress a4
+                    ? $"Enabled={a4.EnableConversion} Scale={a4.Scale} Offset={a4.EngineeringOffset} Unit={a4.Unit}"
+                    : "(无地址)");
+
+            Check("C27-6 恒等换算不开启（避免给所有变量加一层无谓的乘法）",
+                runVar?.AddressConfig is ModbusAddress a5 && !a5.EnableConversion,
+                runVar?.AddressConfig is ModbusAddress a6 ? $"Enabled={a6.EnableConversion}" : "(无地址)");
+
+            Check("C27-7 变量类型跟随点位（模拟量 double / 数字量 bool）",
+                tempVar?.DataType == typeof(double) && runVar?.DataType == typeof(bool),
+                $"{tempVar?.DataType.Name} / {runVar?.DataType.Name}");
+
+            // ---------- 幂等：再折一次不新增 ----------
+            int beforeConnections = solution.CommunicationConfigs.Count;
+            int beforeVariables = solution.GlobalVariables.Count;
+            var (c2, v2) = IoMigrationApplier.Apply(solution);
+            Check("C27-8 幂等：重复折算不新增连接与变量（否则每开一次方案翻一倍）",
+                c2 == 0 && v2 == 0
+                && solution.CommunicationConfigs.Count == beforeConnections
+                && solution.GlobalVariables.Count == beforeVariables,
+                $"第二次折算 连接 {c2} / 变量 {v2}");
+
+            // ---------- 旧字段保留（回退旧版本仍能读到配置） ----------
+            Check("C27-9 旧 IO 字段保留不删（回退到旧版本软件仍能读到配置）",
+                solution.IoBuses.Count == 1 && solution.IoDevices.Count == 2,
+                $"IoBuses={solution.IoBuses.Count} / IoDevices={solution.IoDevices.Count}");
+
+            // ---------- TCP 总线 ----------
+            var tcpSolution = new SolutionModel();
+            tcpSolution.IoBuses.Add(new IoBusDescriptor
+            {
+                BusId = "PLC_TCP",
+                TransportKind = IoTransportKind.Tcp,
+                Tcp = new TcpTransportConfig { Host = "192.168.1.10", Port = 502, ReadTimeoutMs = 1200 }
+            });
+            tcpSolution.IoDevices.Add(MakeIoDevice("IO1", "PLC_TCP", 7, new IoPointDescriptor
+            {
+                PointId = "Y0",
+                Kind = IoPointKind.DigitalOutput,
+                Address = "16",
+                DataType = IoDataType.Bool,
+                AllowSharedWrite = true,
+                LeaseTimeoutMs = 15000
+            }));
+
+            var (tcpConn, tcpVars) = IoMigrationApplier.Apply(tcpSolution);
+            var tcpConfig = tcpSolution.CommunicationConfigs.FirstOrDefault();
+            Check("C27-10 TCP 总线 → ModbusTcp 连接（Host/Port/读超时照搬）",
+                tcpConn == 1 && tcpVars == 1
+                && tcpConfig?.Protocol == CommunicationType.ModbusTcp
+                && tcpConfig.Config is ModbusTcpConfig mc
+                && mc.IpAddress == "192.168.1.10" && mc.Port == 502 && mc.ReadTimeoutMs == 1200,
+                tcpConfig?.Config is ModbusTcpConfig mc2
+                    ? $"{mc2.IpAddress}:{mc2.Port}/{mc2.ReadTimeoutMs}"
+                    : "(不是 TCP 配置)");
+
+            var y0 = tcpSolution.GlobalVariables.OfType<NetworkVariableModel>()
+                .FirstOrDefault(v => v.Name == "IO1.Y0");
+            Check("C27-11 写共享与租约超时随点位迁过来",
+                y0 != null && y0.AllowSharedWrite && y0.LeaseTimeoutMs == 15000,
+                y0 == null ? "(无变量)" : $"Shared={y0.AllowSharedWrite} Timeout={y0.LeaseTimeoutMs}");
+
+            // ---------- 已存在同名连接 → 跳过该总线 ----------
+            var conflictSolution = new SolutionModel();
+            conflictSolution.IoBuses.Add(new IoBusDescriptor
+            {
+                BusId = "DUP",
+                TransportKind = IoTransportKind.Tcp,
+                Tcp = new TcpTransportConfig { Host = "10.0.0.1", Port = 502 }
+            });
+            conflictSolution.IoDevices.Add(MakeIoDevice("D1", "DUP", 1, new IoPointDescriptor
+            {
+                PointId = "P", Kind = IoPointKind.DigitalInput, Address = "0", DataType = IoDataType.Bool
+            }));
+            conflictSolution.CommunicationConfigs.Add(new CommunicationConfig(CommunicationType.ModbusTcp)
+            {
+                ConnectionName = IoMigrationPlanner.ConnectionNamePrefix + "DUP"
+            });
+
+            var (dupConn, dupVars) = IoMigrationApplier.Apply(conflictSolution);
+            Check("C27-12 同名连接已存在 → 跳过该总线（不覆盖用户手配的连接）",
+                dupConn == 0 && dupVars == 0,
+                $"连接 {dupConn} / 变量 {dupVars}");
+        }
+
+        /// <summary>造一台 IO 设备（含一个点位）。</summary>
+        private static IoDeviceDescriptor MakeIoDevice(
+            string deviceId, string busId, byte unitId, IoPointDescriptor point)
+        {
+            var device = new IoDeviceDescriptor
+            {
+                DeviceId = deviceId,
+                BusId = busId,
+                DriverId = "modbus.rtu",
+                Enabled = true,
+                DriverConfigJson = $"{{\"UnitId\":{unitId},\"ByteOrder\":\"CDAB\"}}"
+            };
+            device.Points.Add(point);
+            return device;
+        }
+
+        #region C22-C26 夹具
+        private static CommunicationVariable MakeVarWithStation(string name, int station, int offset)
+        {
+            var addr = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                DataType = DataValueType.Int16,
+                Offset = offset.ToString(),
+                Station = station
+            };
+            return new CommunicationVariable
+            {
+                ConnectionName = "PLC1",
+                VariableName = name,
+                Address = addr.Address,
+                AddressConfig = addr,
+                ValueType = typeof(short).AssemblyQualifiedName!,
+                AccessMode = VariableAccessMode.ReadOnly
+            };
+        }
+
+        private static CommunicationVariable MakeVarOfType(
+            string name, string scanGroup, int offset, DataValueType dataType)
+        {
+            var addr = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                DataType = dataType,
+                Offset = offset.ToString()
+            };
+            Type clrType = dataType == DataValueType.Int32 ? typeof(int) : typeof(short);
+            return new CommunicationVariable
+            {
+                ConnectionName = "PLC1",
+                VariableName = name,
+                Address = addr.Address,
+                AddressConfig = addr,
+                ValueType = clrType.AssemblyQualifiedName!,
+                ScanGroup = scanGroup,
+                AccessMode = VariableAccessMode.ReadOnly
+            };
+        }
+
+        private static bool Throws<TException>(Action action) where TException : Exception
+        {
+            try { action(); return false; }
+            catch (TException) { return true; }
+            catch { return false; }
+        }
+
+        private static bool ThrowsWithMessage<TException>(Action action, string expectedFragment)
+            where TException : Exception
+        {
+            try { action(); return false; }
+            catch (TException ex) { return ex.Message.Contains(expectedFragment, StringComparison.Ordinal); }
+            catch { return false; }
+        }
+
+        /// <summary>
+        /// 脚本化假连接：让指定地址读失败（模拟坏地址），其余返回固定值。
+        /// <para>只实现轮询真正用到的那几个成员——<see cref="ReadBytes"/> / <see cref="ReadBits"/> /
+        /// <see cref="ByteOrder"/>；其余抛 NotSupported（用到就说明规划器越界了）。</para>
+        /// </summary>
+        private sealed class ScriptedConnection : ICommunicationConnection
+        {
+            public ScriptedConnection(string? failAddress) => FailAddress = failAddress;
+
+            /// <summary>命中该地址就抛（null = 全部成功）。可运行期改，用于验自愈。</summary>
+            public string? FailAddress { get; set; }
+
+            public int ReadCount { get; private set; }
+
+            public string ConnectionName => "SCRIPT";
+            public CommunicationType Type => CommunicationType.ModbusTcp;
+            public bool IsConnected => true;
+            public ByteOrderFormat ByteOrder => ByteOrderFormat.ABCD;
+
+            public bool Connect() => true;
+            public void Disconnect() { }
+            public bool TestConnection() => true;
+
+            public byte[] ReadBytes(string address, ushort length)
+            {
+                ReadCount++;
+                if (FailAddress != null && string.Equals(address, FailAddress, StringComparison.Ordinal))
+                    throw new InvalidOperationException($"模拟坏地址：{address}");
+                return new byte[Math.Max(1, (int)length * 2)];
+            }
+
+            public bool[] ReadBits(string address, ushort count)
+            {
+                ReadCount++;
+                if (FailAddress != null && string.Equals(address, FailAddress, StringComparison.Ordinal))
+                    throw new InvalidOperationException($"模拟坏地址：{address}");
+                return new bool[Math.Max(1, (int)count)];
+            }
+
+            public T Read<T>(string address) where T : struct => throw new NotSupportedException();
+            public void Write(string address, object value) => throw new NotSupportedException();
+            public void WriteBytes(string address, byte[] data) => throw new NotSupportedException();
+            public void Dispose() { }
+        }
+
+        private sealed class FakeConfig : ConnectionConfigBase
+        {
+            public override ConnectionConfigBase Clone() => new FakeConfig();
+        }
+
+        /// <summary>
+        /// 返回固定原始字节的假连接（验证"读路径真的做了换算"这类端到端行为）。
+        /// <para>value 按大端 Int16 编成 2 字节——与 Modbus 寄存器区 1 单元 = 2 字节一致。</para>
+        /// </summary>
+        private sealed class RawBytesConnection : ICommunicationConnection
+        {
+            private readonly short _value;
+
+            public RawBytesConnection(short value) => _value = value;
+
+            public string ConnectionName => "RAW";
+            public CommunicationType Type => CommunicationType.ModbusTcp;
+            public bool IsConnected => true;
+            public ByteOrderFormat ByteOrder => ByteOrderFormat.ABCD;
+
+            public bool Connect() => true;
+            public void Disconnect() { }
+            public bool TestConnection() => true;
+
+            public byte[] ReadBytes(string address, ushort length)
+            {
+                var data = new byte[Math.Max(1, (int)length * 2)];
+                data[0] = (byte)((_value >> 8) & 0xFF);
+                data[1] = (byte)(_value & 0xFF);
+                return data;
+            }
+
+            public bool[] ReadBits(string address, ushort count) => new bool[Math.Max(1, (int)count)];
+            public T Read<T>(string address) where T : struct => throw new NotSupportedException();
+            public void Write(string address, object value) => throw new NotSupportedException();
+            public void WriteBytes(string address, byte[] data) => throw new NotSupportedException();
+            public void Dispose() { }
+        }
+
+        private sealed class FakeDriverFactory : ICommunicationDriverFactory
+        {
+            public FakeDriverFactory(string id, Type configType, string? displayName = null)
+            {
+                DriverId = id;
+                ConfigType = configType;
+                DisplayName = displayName ?? "假协议";
+            }
+
+            public string DriverId { get; }
+            public string DisplayName { get; }
+            public string Description => "断言用假驱动";
+            public Type? ConfigType { get; }
+
+            public ICommunicationConnection Create(ConnectionConfigBase config)
+                => new ScriptedConnection(null);
+        }
+
+        #endregion
+
 
         /// <summary>
         /// B3 + B4 的回归钉子。

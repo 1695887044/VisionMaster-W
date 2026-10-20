@@ -10,12 +10,16 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Windows.Threading;
 using System.Xml.Linq;
+using Core.Controls;
 using Core.Halcon.Controls;
 using Core.Halcon.Extensions;
 using Core.Halcon.Helpers;
 using Core.Halcon.Models;
+using Core.Interfaces;
 using HalconDotNet;
+using VisionMaster.Views.DialogViews;
 
 namespace UIThemeSmokeTest
 {
@@ -175,6 +179,33 @@ namespace UIThemeSmokeTest
 
                 if (args.Contains("--image-acquisition-render"))
                     return RunImageAcquisitionViewRender();
+
+                if (args.Contains("--auto-port-config"))
+                    return RunAutoPortConfigViewSmoke();
+
+                if (args.Contains("--global-variables"))
+                    return GlobalVariableViewSmoke.RunSmoke();
+
+                if (args.Contains("--global-variables-render"))
+                    return GlobalVariableViewSmoke.RunRender();
+
+                if (args.Contains("--variable-binding"))
+                    return VariableBindingViewSmoke.RunSmoke();
+
+                if (args.Contains("--variable-binding-render"))
+                    return VariableBindingViewSmoke.RunRender();
+
+                if (args.Contains("--solution-list"))
+                    return SolutionListViewSmoke.RunSmoke();
+
+                if (args.Contains("--solution-list-render"))
+                    return SolutionListViewSmoke.RunRender();
+
+                if (args.Contains("--message-dialog"))
+                    return MessageDialogSmoke.RunSmoke();
+
+                if (args.Contains("--message-dialog-render"))
+                    return MessageDialogSmoke.RunRender();
 
                 if (args.Contains("--plugin-views"))
                     return PluginViewSmoke.Run(args);
@@ -444,6 +475,32 @@ namespace UIThemeSmokeTest
                         && themeAll.Contains("FluentTextPrimaryBrush"),
                         $"常规版引用令牌={switchBlock.Contains("FluentToggleTrackOnColor")}");
 
+                    // ---- 按钮规格：悬停叠加层必须铺满整颗按钮（2026-10-20 真机反馈） ----
+                    // 旧模板把 Padding 放在根 Border 上，叠加层作为 Border 的子级被 Padding 一起缩进：
+                    // 96x32 的「取消」悬停时只亮中间 70x19 的小胶囊，看着像"悬浮区域错位"。
+                    // 现在 Padding 挪到 ContentPresenter.Margin，叠加层与内容同级铺满 Border 内容区。
+                    var btnStyle = app.TryFindResource("DialogSecondaryButton") as Style;
+                    var btn = new Button { Content = "Cancel", MinWidth = 96, Style = btnStyle };
+                    var btnHost = new Border { Width = 200, Height = 60, Child = btn };
+                    btnHost.Measure(new Size(200, 60));
+                    btnHost.Arrange(new Rect(0, 0, 200, 60));
+                    btnHost.UpdateLayout();
+                    btn.ApplyTemplate();
+                    var btnRoot = btn.Template?.FindName("Root", btn) as FrameworkElement;
+                    var btnHover = btn.Template?.FindName("HoverOverlay", btn) as FrameworkElement;
+                    var btnContent = btn.Template?.FindName("ContentHost", btn) as ContentPresenter;
+                    Check("按钮悬停层铺满整颗按钮（不再缩在 Padding 内容区里）",
+                        btnRoot != null && btnHover != null
+                        && Math.Abs(btnHover.ActualWidth - (btnRoot.ActualWidth - 2)) < 0.5
+                        && Math.Abs(btnHover.ActualHeight - (btnRoot.ActualHeight - 2)) < 0.5,
+                        $"按钮 {btnRoot?.ActualWidth:F1}x{btnRoot?.ActualHeight:F1}，叠加层 {btnHover?.ActualWidth:F1}x{btnHover?.ActualHeight:F1}");
+                    Check("按钮焦点环走 FluentButtonFocusVisual（2px 强调色圆角，不再用系统虚线）",
+                        btn.FocusVisualStyle == app.TryFindResource("FluentButtonFocusVisual"),
+                        $"FocusVisualStyle={(btn.FocusVisualStyle == null ? "null" : "set")}");
+                    Check("按钮内容位置不变（Padding 挪到 ContentPresenter.Margin）",
+                        btnContent != null && btnContent.Margin == btn.Padding,
+                        $"ContentHost.Margin={btnContent?.Margin} Padding={btn.Padding}");
+
                     Console.WriteLine(failures == 0
                         ? "=== Fluent 控件冒烟：全部通过 ==="
                         : $"### Fluent 控件冒烟：{failures} 项失败");
@@ -518,11 +575,12 @@ namespace UIThemeSmokeTest
                 RunPaneLayoutChecks();
                 int shellLayoutFailures = RunShellLayoutChecks();
                 int panelModeFailures = RunPanelModeChecks();
+                int shellModeFailures = RunShellModeChecks();
                 int gridFailures = RunGridViewChecks();
                 int colorTokenFailures = RunHardcodedColorChecks();
                 int flowCanvasFailures = RunFlowCanvasChecks();
                 int logConsoleFailures = RunLogConsoleChecks();
-                return shellLayoutFailures + panelModeFailures + gridFailures + colorTokenFailures
+                return shellLayoutFailures + panelModeFailures + shellModeFailures + gridFailures + colorTokenFailures
                      + flowCanvasFailures + logConsoleFailures == 0 ? 0 : 1;
             }
             catch (Exception ex)
@@ -1295,13 +1353,14 @@ namespace UIThemeSmokeTest
                 var image = ByContentId(doc, "Panel_ImageView");
                 var process = ByContentId(doc, "Panel_ProcessView");
                 var flowList = ByContentId(doc, "Panel_FlowListView");
+                var property = ByContentId(doc, "Panel_ScadaPropertyView");
+                var layer = ByContentId(doc, "Panel_ScadaLayerView");
+                var tool = ByContentId(doc, "Panel_ToolView");
+                var scadaToolbox = ByContentId(doc, "Panel_ScadaToolboxView");
 
                 var canvasParent = canvas == null ? null : canvas.Parent;
                 var imageParent = image == null ? null : image.Parent;
                 var processParent = process == null ? null : process.Parent;
-                var flowListParent = flowList == null ? null : flowList.Parent;
-                var processColumn = processParent == null ? null : processParent.Parent;
-                var flowListColumn = flowListParent == null ? null : flowListParent.Parent;
 
                 Check("流程画布是中央文档区的文档标签（不是左侧栏的标签页）",
                     canvas != null
@@ -1323,18 +1382,29 @@ namespace UIThemeSmokeTest
                     canvas != null && canvas.Attribute("IsSelected") == null,
                     $"画布 IsSelected={((string)canvas?.Attribute("IsSelected") ?? "(无)")}");
 
-                Check("程序与流程栏是两个独立窗格（上下同时可见，不是二选一标签页）",
-                    processParent != null && flowListParent != null
-                        && !ReferenceEquals(processParent, flowListParent)
+                Check("左侧只有一个流程导航窗格（程序面板已并入流程导航）",
+                    flowList == null
+                        && processParent != null
                         && processParent.Name.LocalName == "LayoutAnchorablePane"
-                        && flowListParent.Name.LocalName == "LayoutAnchorablePane",
-                    $"程序父={KindOf(flowListParent)}，流程栏父={KindOf(processParent)}");
+                        && (string)processParent.Attribute("DockWidth") == "340",
+                    flowList == null ? $"流程导航父={KindOf(processParent)}" : "仍存在独立 Panel_FlowListView");
 
-                Check("程序与流程栏同处左侧一列（竖向 LayoutPanel 上下堆叠）",
-                    processColumn != null && ReferenceEquals(processColumn, flowListColumn)
-                        && processColumn.Name.LocalName == "LayoutPanel"
-                        && (string)processColumn.Attribute("Orientation") == "Vertical",
-                    $"共同祖先={KindOf(processColumn)}，Orientation={(processColumn == null ? "(缺)" : ((string)processColumn.Attribute("Orientation") ?? "(缺)"))}");
+                var processViewPath = Path.Combine(@"d:\C#\VM", "VisionMaster", "Views", "ProcessView.xaml");
+                var processViewDoc = File.Exists(processViewPath) ? XDocument.Load(processViewPath) : null;
+                Check("流程胶囊已嵌到流程树上方（ProcessView 内 FlowListView 在 Grid.Row=0）",
+                    processViewDoc != null
+                        && processViewDoc.Descendants().Any(e => e.Name.LocalName == "FlowListView"
+                            && (string)e.Attribute("Grid.Row") == "0"),
+                    processViewDoc == null ? "找不到 ProcessView.xaml" : "FlowListView 已嵌入");
+
+                Check("右侧检查器只有一列（属性/图层/工具箱/图元工具箱同 pane，宽 320）",
+                    property != null && layer != null && tool != null && scadaToolbox != null
+                        && property.Parent != null
+                        && ReferenceEquals(property.Parent, layer.Parent)
+                        && ReferenceEquals(property.Parent, tool.Parent)
+                        && ReferenceEquals(property.Parent, scadaToolbox.Parent)
+                        && (string)property.Parent.Attribute("DockWidth") == "320",
+                    $"父={KindOf(property?.Parent)}，宽={(string)property?.Parent?.Attribute("DockWidth") ?? "(缺)"}");
 
                 // ---- 活动栏闸（2026-10-15 三度改版后的现状：整条下线）----
                 // 沿革：先"一条竖条塞 5 个开关"（其中 3 个管的面板在最右边 = 落点指示失效）→
@@ -1347,11 +1417,22 @@ namespace UIThemeSmokeTest
                     e.Name.LocalName == "Button"
                     && ((string)e.Attribute("CommandParameter") ?? "").Contains("SystemAction." + action, StringComparison.Ordinal));
 
-                var gridCols = all.FirstOrDefault(e => e.Name.LocalName == "Grid" && (string)e.Attribute("Grid.Row") == "1")
+                var gridCols = all.FirstOrDefault(e => e.Name.LocalName == "Grid" && (string)e.Attribute("Grid.Row") == "2")
                     ?.Elements().FirstOrDefault(c => c.Name.LocalName == "Grid.ColumnDefinitions")?.Elements().Count() ?? -1;
 
                 Check("活动栏已整条下线：主体 Grid 只有一列（没有竖条占宽）",
-                    gridCols == 1, $"Grid.Row=1 的列数={gridCols}");
+                    gridCols == 1, $"Grid.Row=2 的列数={gridCols}");
+
+                var runBar = all.FirstOrDefault(e => e.Name.LocalName == "Border"
+                    && (string)e.Attributes().FirstOrDefault(a => a.Name.LocalName == "Name") == "RunBar");
+                var runBarIndex = runBar == null ? -1 : all.IndexOf(runBar);
+                var executionButtons = all.Where(e => e.Name.LocalName == "Button"
+                    && ((string)e.Attribute("Command") ?? "").Contains("ExecutionCommand", StringComparison.Ordinal)).ToList();
+                Check("运行条存在（48px）且运行控制只在运行条里",
+                    runBar != null && (string)runBar.Attribute("Height") == "48"
+                    && executionButtons.Count > 0
+                    && executionButtons.All(e => all.IndexOf(e) > runBarIndex),
+                    $"运行条={runBar != null}，运行按钮数={executionButtons.Count}");
 
                 var panelToggles = all.Where(e => e.Name.LocalName == "ToggleButton"
                         && (string)e.Attribute("CommandParameter") is string cp && cp.StartsWith("Panel_", StringComparison.Ordinal))
@@ -1365,6 +1446,38 @@ namespace UIThemeSmokeTest
                         && IndexOfTopCommand("GlobalVariables") is int g && g >= 0 && g < dockIndex
                         && IndexOfTopCommand("CommSettings") is int c && c >= 0 && c < dockIndex,
                     $"停靠区位置={dockIndex}；全局变量={IndexOfTopCommand("GlobalVariables")}，通讯设置={IndexOfTopCommand("CommSettings")}");
+
+                // ---- 命令面板 / 状态栏 KPI / 控制台开关（2026-10-20 主界面收口）----
+                // 这些入口都只在 XAML 里接线，绑错/漏绑编译期全绿，必须在结构闸里点名。
+                var shellCodePath = Path.Combine(@"d:\C#\VM", "VisionMaster", "Shell.xaml.cs");
+                var shellCode = File.Exists(shellCodePath) ? File.ReadAllText(shellCodePath) : string.Empty;
+                string NameOf(XElement e) => (string)e.Attributes().FirstOrDefault(a => a.Name.LocalName == "Name") ?? string.Empty;
+                var palette = doc.Descendants().FirstOrDefault(e => NameOf(e) == "CommandPaletteOverlay");
+                Check("命令面板入口存在（遮罩 + 搜索框 + 结果列表 + Ctrl+K 处理）",
+                    palette != null
+                        && palette.Descendants().Any(e => e.Name.LocalName == "TextBox" && NameOf(e) == "CommandPaletteBox")
+                        && palette.Descendants().Any(e => e.Name.LocalName == "ListBox" && NameOf(e) == "CommandPaletteList")
+                        && shellCode.Contains("Key.K", StringComparison.Ordinal)
+                        && shellCode.Contains("OpenCommandPaletteCommand", StringComparison.Ordinal),
+                    palette == null ? "找不到 CommandPaletteOverlay" : "面板与 Ctrl+K 接线齐全");
+
+                var statusTexts = doc.Descendants()
+                    .Where(e => e.Name.LocalName == "TextBlock")
+                    .Select(e => (string)e.Attribute("Text") ?? string.Empty)
+                    .ToList();
+                Check("状态栏生产 KPI 占位齐全（节拍 / OK / NG / 告警）",
+                    new[] { "节拍", "OK", "NG", "告警" }.All(t => statusTexts.Contains(t)),
+                    string.Join("，", statusTexts.Where(t => t is "节拍" or "OK" or "NG" or "告警")));
+                Check("状态栏有控制台展开/收起入口（ToggleConsoleCommand）",
+                    doc.Descendants().Any(e => ((string)e.Attribute("Command") ?? string.Empty).Contains("ToggleConsoleCommand", StringComparison.Ordinal)),
+                    "已接线");
+                Check("主界面术语已收口（流程导航 / 流程画布 / 控制台 / 检查器）",
+                    statusTexts.Concat(doc.Descendants().Select(e => (string)e.Attribute("Header") ?? string.Empty))
+                        .Any(t => t == "流程导航")
+                    && doc.Descendants().Any(e => (string)e.Attribute("Header") == "流程画布")
+                    && doc.Descendants().Any(e => (string)e.Attribute("Header") == "控制台")
+                    && doc.Descendants().Any(e => (string)e.Attribute("Header") == "检查器"),
+                    "四项术语均在菜单里出现");
 
                 // ---- 窗口控制按钮的几何闸（2026-10-16 真机："关闭显示不全"）----
                 // 症状看着像被裁切，其实那三个按钮的 Content 是**几何字符串**（Path.Data 直接吃它），
@@ -1384,6 +1497,53 @@ namespace UIThemeSmokeTest
                 Check("同一道几何闸也过 ShellCopy.xaml（结构副本不许照抄原件的错）",
                     copyBad.Count == 0,
                     copyBad.Count == 0 ? "（无）" : string.Join("；", copyBad));
+
+                // ---- 系统菜单接线闸（2026-10-20）----
+                // 2026-10-20 普查发现「硬件设置 / 报表查询 / 回零 / UI 设计」四项在 Shell.xaml 有菜单项，
+                // 但 OnSystemAction 没有 case：点下去毫无反应，编译期与资源闸全绿。
+                // 判据只认「Shell.xaml 里出现过的 SystemAction」必须有 case；ShellCopy 必须同集合（R44）。
+                List<string> SystemActions(XDocument d) => d.Descendants()
+                    .Where(e => e.Name.LocalName == "MenuItem")
+                    .Select(e => (string)e.Attribute("CommandParameter") ?? string.Empty)
+                    .Where(s => s.StartsWith("{x:Static local:SystemAction.", StringComparison.Ordinal)
+                                && s.EndsWith("}", StringComparison.Ordinal))
+                    .Select(s => s.Substring("{x:Static local:SystemAction.".Length).TrimEnd('}'))
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(s => s, StringComparer.Ordinal)
+                    .ToList();
+
+                var shellActions = SystemActions(doc);
+                var shellVmPath = Path.Combine(@"d:\C#\VM", "VisionMaster", "ShellViewModel.cs");
+                var shellVm = File.Exists(shellVmPath) ? File.ReadAllText(shellVmPath) : string.Empty;
+                var missingCases = shellActions
+                    .Where(a => !shellVm.Contains("case SystemAction." + a + ":", StringComparison.Ordinal))
+                    .ToList();
+                Check("系统菜单每个 SystemAction 都有 OnSystemAction 处理分支",
+                    missingCases.Count == 0,
+                    missingCases.Count == 0
+                        ? $"{shellActions.Count} 个动作全部接线"
+                        : "缺 case: " + string.Join("，", missingCases));
+
+                var copyActions = File.Exists(copyPath) ? SystemActions(XDocument.Load(copyPath)) : new List<string>();
+                Check("ShellCopy 与 Shell.xaml 的 SystemAction 集合一致",
+                    string.Equals(string.Join(",", shellActions), string.Join(",", copyActions), StringComparison.Ordinal),
+                    $"Shell.xaml=[{string.Join(",", shellActions)}]；ShellCopy=[{string.Join(",", copyActions)}]");
+
+                // 新视图的 XAML 解析闸：静态资源键缺失/模板写错只会在实例化时抛，编译期全绿。
+                try
+                {
+                    var hardwareView = new HardwareManagerView();
+                    hardwareView.Measure(new Size(1100, 720));
+                    hardwareView.Arrange(new Rect(0, 0, 1100, 720));
+                    hardwareView.UpdateLayout();
+                    Check("硬件管理视图能实例化并完成布局（资源键 / XAML 解析）",
+                        hardwareView.ActualWidth > 0 && hardwareView.ActualHeight > 0,
+                        $"{hardwareView.ActualWidth:0}x{hardwareView.ActualHeight:0}");
+                }
+                catch (Exception ex)
+                {
+                    Check("硬件管理视图能实例化并完成布局（资源键 / XAML 解析）", false, ex.Message);
+                }
             }
             catch (Exception ex)
             {
@@ -1510,8 +1670,7 @@ namespace UIThemeSmokeTest
                 var logPaneScada = FindAncestorPane(dock, "Panel_LogView");
                 var propScada = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ScadaPropertyView");
                 var layerScada = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ScadaLayerView");
-                bool leftHiddenInScada = !VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_FlowListView")
-                                         && !VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_ProcessView");
+                bool leftHiddenInScada = !VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_ProcessView");
                 bool logCollapsed = logPaneScada != null && logPaneScada.DockHeight.IsAbsolute && logPaneScada.DockHeight.Value < 2;
                 string logCollapsedHeight = logPaneScada?.DockHeight.ToString() ?? "null";
                 bool samePane = propScada?.Parent != null && ReferenceEquals(propScada.Parent, layerScada?.Parent);
@@ -1519,8 +1678,7 @@ namespace UIThemeSmokeTest
 
                 VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, false);
                 var logPaneNormal = FindAncestorPane(dock, "Panel_LogView");
-                bool leftRestored = VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_FlowListView")
-                                    && VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_ProcessView");
+                bool leftRestored = VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_ProcessView");
                 bool logRestored = logPaneNormal != null && logPaneNormal.DockHeight.IsAbsolute
                                    && System.Math.Abs(logPaneNormal.DockHeight.Value - 200) < 0.1;
                 string logRestoredHeight = logPaneNormal?.DockHeight.ToString() ?? "null";
@@ -1553,38 +1711,38 @@ namespace UIThemeSmokeTest
                 // ---- ⑨ 流程栏列宽兜底（用户把这一列拖到 230 → v2 组头右侧统计会把实例名挤没） ----
                 // 反证：把 ShellCopy 里流程栏那一列改成 230，再调一次校正，必须回到 340 / 最小 320。
                 var processContent = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ProcessView");
-                AvalonDock.Layout.LayoutPanel processPanel = null;
+                AvalonDock.Layout.LayoutAnchorablePane processPane = null;
                 AvalonDock.Layout.ILayoutElement cursor = processContent;
                 while (cursor?.Parent is AvalonDock.Layout.ILayoutContainer parent)
                 {
-                    if (parent is AvalonDock.Layout.LayoutPanel layoutPanel)
+                    if (parent is AvalonDock.Layout.LayoutAnchorablePane anchorablePane)
                     {
-                        processPanel = layoutPanel;
+                        processPane = anchorablePane;
                         break;
                     }
 
                     cursor = parent as AvalonDock.Layout.ILayoutElement;
                 }
 
-                if (processPanel == null)
+                if (processPane == null)
                 {
-                    Check("流程栏列宽兜底（过窄 → 拉回 340）", false, "没找到流程栏所在的 LayoutPanel");
+                    Check("流程导航列宽兜底（过窄 → 拉回 340）", false, "没找到流程导航所在的 LayoutAnchorablePane");
                 }
                 else
                 {
-                    processPanel.DockWidth = new System.Windows.GridLength(230);
-                    processPanel.DockMinWidth = 0;
+                    processPane.DockWidth = new System.Windows.GridLength(230);
+                    processPane.DockMinWidth = 0;
                     VisionMaster.Services.LayoutHelper.EnsureProcessColumnWidth(dock);
-                    Check("流程栏列宽兜底：230 → 340、最小宽度 320（旧 Layout.xml 拖窄后恢复不再溢出）",
-                        processPanel.DockWidth.IsAbsolute
-                        && System.Math.Abs(processPanel.DockWidth.Value - 340) < 0.1
-                        && System.Math.Abs(processPanel.DockMinWidth - 320) < 0.1,
-                        $"宽度={processPanel.DockWidth}（期望 340） 最小={processPanel.DockMinWidth}（期望 320）");
+                    Check("流程导航列宽兜底：230 → 340、最小宽度 320（旧 Layout.xml 拖窄后恢复不再溢出）",
+                        processPane.DockWidth.IsAbsolute
+                        && System.Math.Abs(processPane.DockWidth.Value - 340) < 0.1
+                        && System.Math.Abs(processPane.DockMinWidth - 320) < 0.1,
+                        $"宽度={processPane.DockWidth}（期望 340） 最小={processPane.DockMinWidth}（期望 320）");
                 }
 
                 // ---- ⑩ 出厂快照尺寸基线（"恢复默认布局"的数据源） ----
                 // 序列化出来的就是启动时 CaptureDefaultLayoutSnapshot 写进 DefaultLayout.xml 的内容。
-                // 反证：把 ShellCopy 的流程栏列改成 230、或去掉程序栏 DockHeight=180 → 这条红。
+                // 反证：把 ShellCopy 的流程栏列改成 230，或把右侧检查器列改成 260 → 这条红。
                 string defaultXml;
                 using (var writer = new System.IO.StringWriter())
                 {
@@ -1592,9 +1750,9 @@ namespace UIThemeSmokeTest
                     defaultXml = writer.ToString();
                 }
 
-                Check("出厂快照尺寸基线：流程栏列宽 340、程序栏高 180（否则\"恢复默认布局\"会恢复出错误尺寸）",
-                    defaultXml.Contains("DockWidth=\"340\"") && defaultXml.Contains("DockHeight=\"180\""),
-                    $"宽度340={defaultXml.Contains("DockWidth=\"340\"")} 高度180={defaultXml.Contains("DockHeight=\"180\"")}");
+                Check("出厂快照尺寸基线：流程导航 340、右侧检查器 320（否则\"恢复默认布局\"会恢复出错误尺寸）",
+                    defaultXml.Contains("DockWidth=\"340\"") && defaultXml.Contains("DockWidth=\"320\""),
+                    $"宽度340={defaultXml.Contains("DockWidth=\"340\"")} 宽度320={defaultXml.Contains("DockWidth=\"320\"")}");
 
                 // ---- ⑥⑦⑧ AvalonDock 4.74.1 的 Show() 只判上界不判下界（2026-10-16 真机闪退） ----
                 // 现场：LayoutAnchorable.Show() 把 Hide 时记下的"回哪一列、第几个位置"原样喂给
@@ -1718,6 +1876,199 @@ namespace UIThemeSmokeTest
             Console.WriteLine(failures == 0
                 ? "=== Panel 模式：全部通过 ==="
                 : $"### Panel 模式：{failures} 项失败");
+            return failures;
+        }
+
+        /// <summary>
+        /// 四种工作模式的上下文隔离（调试 / 运行 / 组态 / 自由）：
+        /// 文档标签、左右面板、底部日志必须一起收敛，不能只藏左右栏。
+        /// </summary>
+        private static int RunShellModeChecks()
+        {
+            var failures = 0;
+            void Check(string name, bool ok, string detail)
+            {
+                Console.WriteLine($"[{(ok ? "PASS" : "FAIL")}] {name}  {detail}");
+                if (!ok) failures++;
+            }
+
+            try
+            {
+                var dock = _shellDock;
+                if (dock == null)
+                {
+                    Check("Shell 模式隔离", false, "没抓到 DockingManager");
+                    return failures;
+                }
+
+                bool DocInLayout(string id)
+                    => VisionMaster.Services.LayoutHelper.FindPanel(dock, id) is AvalonDock.Layout.LayoutDocument;
+
+                bool PanelVisible(string id)
+                    => VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, id);
+
+                static AvalonDock.Layout.LayoutAnchorablePane FindAncestorPane(AvalonDock.DockingManager manager, string contentId)
+                {
+                    AvalonDock.Layout.ILayoutElement cursor = VisionMaster.Services.LayoutHelper.FindPanel(manager, contentId);
+                    while (cursor?.Parent is AvalonDock.Layout.ILayoutContainer parent)
+                    {
+                        if (parent is AvalonDock.Layout.LayoutAnchorablePane pane) return pane;
+                        cursor = parent as AvalonDock.Layout.ILayoutElement;
+                    }
+
+                    return null;
+                }
+
+                VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Debug);
+                Check("调试模式：文档仅视觉图像 + 流程画布",
+                    DocInLayout("Panel_ImageView") && DocInLayout("Panel_FlowCanvasView")
+                    && !DocInLayout("Panel_ScadaEditorView") && !DocInLayout("Panel_RunCockpitView"),
+                    $"图像={DocInLayout("Panel_ImageView")}，流程={DocInLayout("Panel_FlowCanvasView")}，组态={DocInLayout("Panel_ScadaEditorView")}，驾驶舱={DocInLayout("Panel_RunCockpitView")}");
+                Check("调试模式：流程导航 + 算子工具箱可见，组态三面板隐藏",
+                    PanelVisible("Panel_ProcessView")
+                    && PanelVisible("Panel_ToolView")
+                    && !PanelVisible("Panel_ScadaPropertyView")
+                    && !PanelVisible("Panel_ScadaLayerView")
+                    && !PanelVisible("Panel_ScadaToolboxView"),
+                    $"流程导航={PanelVisible("Panel_ProcessView")}，工具箱={PanelVisible("Panel_ToolView")}");
+
+                VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Config);
+                Check("组态模式：文档仅组态画面",
+                    DocInLayout("Panel_ScadaEditorView")
+                    && !DocInLayout("Panel_ImageView") && !DocInLayout("Panel_FlowCanvasView")
+                    && !DocInLayout("Panel_RunCockpitView"),
+                    $"组态={DocInLayout("Panel_ScadaEditorView")}，图像={DocInLayout("Panel_ImageView")}，流程={DocInLayout("Panel_FlowCanvasView")}，驾驶舱={DocInLayout("Panel_RunCockpitView")}");
+                Check("组态模式：流程导航隐藏、组态三面板可见、算子工具箱隐藏",
+                    !PanelVisible("Panel_ProcessView")
+                    && PanelVisible("Panel_ScadaPropertyView")
+                    && PanelVisible("Panel_ScadaLayerView")
+                    && PanelVisible("Panel_ScadaToolboxView")
+                    && !PanelVisible("Panel_ToolView"),
+                    $"属性/图层/图元={PanelVisible("Panel_ScadaPropertyView")}/{PanelVisible("Panel_ScadaLayerView")}/{PanelVisible("Panel_ScadaToolboxView")}，算子工具箱={PanelVisible("Panel_ToolView")}");
+                var propInConfig = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ScadaPropertyView");
+                var layerInConfig = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ScadaLayerView");
+                Check("组态模式：属性面板是当前标签（不是图层）",
+                    (propInConfig as AvalonDock.Layout.LayoutAnchorable)?.IsSelected == true
+                    && (layerInConfig as AvalonDock.Layout.LayoutAnchorable)?.IsSelected != true,
+                    $"属性选中={(propInConfig as AvalonDock.Layout.LayoutAnchorable)?.IsSelected}，图层选中={(layerInConfig as AvalonDock.Layout.LayoutAnchorable)?.IsSelected}");
+                var logPane = FindAncestorPane(dock, "Panel_LogView");
+                Check("组态模式：底部日志收成 1px（无流程日志占位）",
+                    logPane != null && logPane.DockHeight.IsAbsolute && logPane.DockHeight.Value < 2,
+                    logPane?.DockHeight.ToString() ?? "null");
+
+                VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Run);
+                Check("运行模式：文档仅运行驾驶舱，左右栏隐藏",
+                    DocInLayout("Panel_RunCockpitView")
+                    && !DocInLayout("Panel_ImageView") && !DocInLayout("Panel_FlowCanvasView") && !DocInLayout("Panel_ScadaEditorView")
+                    && !PanelVisible("Panel_ProcessView")
+                    && !PanelVisible("Panel_ToolView"),
+                    $"驾驶舱={DocInLayout("Panel_RunCockpitView")}，图像={DocInLayout("Panel_ImageView")}，流程={DocInLayout("Panel_FlowCanvasView")}，组态={DocInLayout("Panel_ScadaEditorView")}");
+
+                VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Free);
+                Check("自由模式：四个文档全部恢复，左右面板全部可见（含属性/图层）",
+                    DocInLayout("Panel_ImageView") && DocInLayout("Panel_FlowCanvasView")
+                    && DocInLayout("Panel_ScadaEditorView") && DocInLayout("Panel_RunCockpitView")
+                    && PanelVisible("Panel_ProcessView")
+                    && PanelVisible("Panel_ToolView") && PanelVisible("Panel_ScadaToolboxView")
+                    && PanelVisible("Panel_ScadaPropertyView") && PanelVisible("Panel_ScadaLayerView"),
+                    $"文档={DocInLayout("Panel_ImageView")}/{DocInLayout("Panel_FlowCanvasView")}/{DocInLayout("Panel_ScadaEditorView")}/{DocInLayout("Panel_RunCockpitView")}，属性/图层={PanelVisible("Panel_ScadaPropertyView")}/{PanelVisible("Panel_ScadaLayerView")}");
+
+                // ---- 旧布局拒绝路径：不许丢文档（P0 回归闸） ----
+                // 顺序很关键：必须先在 Debug 模式下让组态/驾驶舱处于“已摘出缓存”的状态，
+                // 再用过期版本 XML 调 LoadFromString。若先切 Free，文档会被全部恢复、缓存已空，
+                // 这条断言就变成恒真（空转）。
+                VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Debug);
+                var staleXml = "<LayoutRoot LayoutSchemaVersion=\"4\"><RootPanel Orientation=\"Horizontal\" /></LayoutRoot>";
+                bool rejected = !VisionMaster.Services.LayoutHelper.LoadFromString(dock, staleXml);
+                VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Config);
+                bool scadaRestored = DocInLayout("Panel_ScadaEditorView");
+                VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Run);
+                bool cockpitRestored = DocInLayout("Panel_RunCockpitView");
+                Check("旧布局被拒后不丢文档（组态画面 / 运行驾驶舱仍可恢复）",
+                    rejected && scadaRestored && cockpitRestored,
+                    $"拒绝={rejected}，组态恢复={scadaRestored}，驾驶舱恢复={cockpitRestored}");
+
+                // 保存出的布局必须覆盖全部面板，否则下次启动会被覆盖度闸门拒绝
+                var coverageXml = VisionMaster.Services.LayoutHelper.SaveToString(dock);
+                bool coversAll = coverageXml != null
+                    && coverageXml.Contains("Panel_ImageView")
+                    && coverageXml.Contains("Panel_FlowCanvasView")
+                    && coverageXml.Contains("Panel_ScadaEditorView")
+                    && coverageXml.Contains("Panel_RunCockpitView")
+                    && coverageXml.Contains("Panel_ProcessView")
+                    && coverageXml.Contains("Panel_ToolView");
+                Check("保存布局覆盖全部文档与关键面板（不被覆盖度闸门拒绝）",
+                    coversAll,
+                    coversAll ? "四个文档 + 流程栏/工具箱齐全" : "缺少面板或序列化失败");
+
+                // ---- 保存布局不许把日志 1px 写进文件（P0 回归闸） ----
+                VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Config);
+                var savedXml = VisionMaster.Services.LayoutHelper.SaveToString(dock);
+                bool logHeightSafe = savedXml != null
+                    && !savedXml.Contains("DockHeight=\"1\"")
+                    && !savedXml.Contains("DockHeight=\"25\"");
+                Check("组态模式保存布局：日志高度不写 1px/25px（下次启动日志不消失）",
+                    logHeightSafe,
+                    logHeightSafe ? "未写伪高度" : "写入了伪高度或序列化失败");
+
+                // ---- 保存布局不许翻用户当前标签（P1 回归闸） ----
+                VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Debug);
+                var imageDoc = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ImageView") as AvalonDock.Layout.LayoutDocument;
+                if (imageDoc != null)
+                {
+                    imageDoc.IsSelected = true;
+                    VisionMaster.Services.LayoutHelper.SaveToString(dock);
+                    Check("保存布局不改变当前选中的文档标签",
+                        imageDoc.IsSelected,
+                        $"保存后图像标签选中={imageDoc.IsSelected}");
+                }
+
+                // ---- 控制台 32 / 240 两档（状态栏按钮与命令面板共用同一条命令） ----
+                VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Debug);
+                VisionMaster.Services.LayoutHelper.ToggleConsole(dock);
+                var consolePaneCollapsed = FindAncestorPane(dock, "Panel_LogView");
+                var collapsedHeight = consolePaneCollapsed?.DockHeight.ToString() ?? "null";
+                var collapsedValue = consolePaneCollapsed != null && consolePaneCollapsed.DockHeight.IsAbsolute
+                    ? consolePaneCollapsed.DockHeight.Value
+                    : double.NaN;
+                VisionMaster.Services.LayoutHelper.ToggleConsole(dock);
+                var consolePaneExpanded = FindAncestorPane(dock, "Panel_LogView");
+                var expandedHeight = consolePaneExpanded?.DockHeight.ToString() ?? "null";
+                var expandedValue = consolePaneExpanded != null && consolePaneExpanded.DockHeight.IsAbsolute
+                    ? consolePaneExpanded.DockHeight.Value
+                    : double.NaN;
+                Check("控制台 32 / 240 两档可切换（状态栏与命令面板共用）",
+                    Math.Abs(collapsedValue - 32) < 0.1 && Math.Abs(expandedValue - 240) < 0.1,
+                    $"收起={collapsedHeight}，展开={expandedHeight}");
+
+                // ---- 布局文件缺核心文档的兜底：模拟历史 Layout.xml 只存了图像/画布 ----
+                // 真实事故：Layout.xml 缺少 Panel_ScadaEditorView，组态模式只剩空文档窗格，
+                // 属性面板显示“未打开方案”。EnsureCoreDocuments 必须按清单补回。
+                var missingScada = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ScadaEditorView")
+                    as AvalonDock.Layout.LayoutDocument;
+                var missingPane = missingScada?.Parent as AvalonDock.Layout.LayoutDocumentPane;
+                missingPane?.Children.Remove(missingScada);
+                var hiddenDocsField = typeof(VisionMaster.Services.LayoutHelper)
+                    .GetField("HiddenDocuments", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+                if (hiddenDocsField?.GetValue(null) is System.Collections.IDictionary hiddenDocs)
+                    hiddenDocs.Remove("Panel_ScadaEditorView");
+                var ensureCore = typeof(VisionMaster.Services.LayoutHelper)
+                    .GetMethod("EnsureCoreDocuments", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+                ensureCore?.Invoke(null, new object[] { dock });
+                var repairedScada = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ScadaEditorView")
+                    as AvalonDock.Layout.LayoutDocument;
+                Check("布局缺组态文档时能按核心清单补回（不再出现空文档窗格）",
+                    repairedScada != null && repairedScada.Content != null,
+                    repairedScada == null ? "没有补回 Panel_ScadaEditorView" : "已补回且有内容");
+            }
+            catch (Exception ex)
+            {
+                Check("Shell 模式隔离", false, ex.Message);
+            }
+
+            Console.WriteLine(failures == 0
+                ? "=== Shell 模式隔离：全部通过 ==="
+                : $"### Shell 模式隔离：{failures} 项失败");
             return failures;
         }
 
@@ -2320,6 +2671,8 @@ namespace UIThemeSmokeTest
                 @"UI\Controls\Themes\Colors.xaml",
                 @"UI\Controls\Themes\Fluent\FluentTokens.xaml",
                 @"UI\Controls\Themes\PluginConfigColors.xaml",
+                // SCADA 运行画面令牌：与上面三份一样，写 hex 是它的职责（R140 的例外）。
+                @"Scada.Controls\Themes\ScadaTokens.xaml",
             };
 
             var baseline = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -2512,6 +2865,208 @@ namespace UIThemeSmokeTest
                 ? "=== 标定配置视图冒烟：全部通过 ==="
                 : $"### 标定配置视图冒烟：{failures} 项失败");
             return failures == 0 ? 0 : 1;
+        }
+
+        /// <summary>
+        /// 自动参数面板冒烟（--auto-port-config）：真实实例化 <see cref="AutoPortConfigView"/>，
+        /// 用 8 个不同类型端口验证：行数/排序、步骤卡统计、链接态配色、枚举锁、类型徽章、
+        /// Initialize 幂等、空态与插件未注入文案，并输出默认/空态两张 WPF 证据 PNG。
+        /// </summary>
+        private static int RunAutoPortConfigViewSmoke()
+        {
+            int failures = 0;
+            void Check(string name, bool ok, string detail = "")
+            {
+                Console.WriteLine((ok ? "  [PASS] " : "  [FAIL] ") + name + (detail.Length > 0 ? $"  ({detail})" : ""));
+                if (!ok) failures++;
+            }
+
+            Window window = null;
+            Border host = null;
+            try
+            {
+                var plugin = new AutoPortProbePlugin();
+                var stepData = new AutoPortProbeStepData();
+                stepData.SetLink("SrcImage", new LinkReference(LinkKind.StepPort, Guid.NewGuid(), "Image", "图像采集_0.Image"));
+                stepData.SetLink("Sigma", new LinkReference(LinkKind.GlobalVariable, Guid.Empty, "Sigma", "Global.Sigma"));
+
+                var view = new AutoPortConfigView(plugin);
+                view.Initialize(stepData);
+
+                host = new Border
+                {
+                    Padding = new Thickness(20, 16, 20, 16),
+                    Background = Brushes.White,
+                    Child = view,
+                };
+                window = new Window
+                {
+                    Width = 560,
+                    MinWidth = 640, // 模拟 PluginConfigShellView 的保底宽度，验证本视图能改回 560
+                    Height = 760,
+                    WindowStyle = WindowStyle.None,
+                    ShowInTaskbar = false,
+                    Left = -4000,
+                    Top = -4000,
+                    Background = Brushes.White,
+                    Content = host,
+                };
+                window.Show();
+                window.UpdateLayout();
+                window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+
+                Check("外壳 MinWidth=640 被本视图改回 560（设计基线宽度落地）",
+                    Math.Abs(window.ActualWidth - 560) < 1.0, $"actual={window.ActualWidth:0.##}");
+
+                var rows = Descendants<AutoPortRow>(view).ToList();
+                Check("行数 = 8 个输入端口", rows.Count == 8, $"rows={rows.Count}");
+                Check("行按端口名排序",
+                    rows.Select(r => r.Port?.Name).SequenceEqual(new[]
+                    {
+                        "Any", "Count", "Flag", "Kind", "MaskRegion", "Name", "Sigma", "SrcImage"
+                    }),
+                    string.Join(",", rows.Select(r => r.Port?.Name)));
+
+                Check("步骤名 = StepName", TextRoot(view, "StepNameText") == "几何查找_0", TextRoot(view, "StepNameText"));
+                Check("输入统计 = 8", TextRoot(view, "InputMetricText") == "8", TextRoot(view, "InputMetricText"));
+                Check("必填统计 = 1", TextRoot(view, "RequiredMetricText") == "1", TextRoot(view, "RequiredMetricText"));
+                Check("已链接统计 = 2", TextRoot(view, "LinkedMetricText") == "2", TextRoot(view, "LinkedMetricText"));
+                Check("区块数量 = 8", TextRoot(view, "SectionCountText") == "8", TextRoot(view, "SectionCountText"));
+
+                var srcRow = rows.Single(r => r.Port?.Name == "SrcImage");
+                var maskRow = rows.Single(r => r.Port?.Name == "MaskRegion");
+                var kindRow = rows.Single(r => r.Port?.Name == "Kind");
+                var intRow = rows.Single(r => r.Port?.Name == "Count");
+
+                Check("已链接行 IsLinked=true", srcRow.IsLinked, $"linked={srcRow.IsLinked}");
+                Check("已链接编辑区底色 = DialogAccentSoftBrush",
+                    BrushColor(srcRow, "EditorShell") == ColorOf("DialogAccentSoftBrush"),
+                    $"{BrushColor(srcRow, "EditorShell")} vs {ColorOf("DialogAccentSoftBrush")}");
+                Check("已链接编辑区描边 = DialogAccentBorderBrush",
+                    BorderColor(srcRow, "EditorShell") == ColorOf("DialogAccentBorderBrush"),
+                    $"{BorderColor(srcRow, "EditorShell")} vs {ColorOf("DialogAccentBorderBrush")}");
+
+                Check("不可文本且未链接行 IsTextEditable=false", !maskRow.IsTextEditable, $"editable={maskRow.IsTextEditable}");
+                Check("不可文本且未链接编辑区底色 = DialogRowAlternateBrush",
+                    BrushColor(maskRow, "EditorShell") == ColorOf("DialogRowAlternateBrush"),
+                    $"{BrushColor(maskRow, "EditorShell")} vs {ColorOf("DialogRowAlternateBrush")}");
+                Check("不可文本且未链接编辑区描边 = DialogBorderStrongBrush",
+                    BorderColor(maskRow, "EditorShell") == ColorOf("DialogBorderStrongBrush"),
+                    $"{BorderColor(maskRow, "EditorShell")} vs {ColorOf("DialogBorderStrongBrush")}");
+
+                Check("枚举行显示锁图标", VisRow(kindRow, "LockIcon") == Visibility.Visible, VisRow(kindRow, "LockIcon").ToString());
+                Check("整数行不显示锁图标", VisRow(intRow, "LockIcon") == Visibility.Collapsed, VisRow(intRow, "LockIcon").ToString());
+
+                var srcEditor = Editor(srcRow);
+                Check("LinkableValueEditor.Label 为空（标签外置）", string.IsNullOrEmpty(srcEditor?.Label), srcEditor?.Label ?? "(null)");
+                Check("LinkableValueEditor.Port 已注入", srcEditor?.Port?.Name == "SrcImage", srcEditor?.Port?.Name ?? "(null)");
+                Check("LinkableValueEditor 占满 240px 编辑列（内容 238，EditorShell 边框占 2）",
+                    srcEditor != null && Math.Abs(srcEditor.ActualWidth - 238) < 1.0,
+                    srcEditor?.ActualWidth.ToString("0.##") ?? "(null)");
+
+                var typeTexts = rows.ToDictionary(r => r.Port?.Name ?? "", r => TextRow(r, "TypeText"));
+                Check("类型徽章：HImage→图像", typeTexts["SrcImage"] == "图像", typeTexts["SrcImage"]);
+                Check("类型徽章：HRegion→区域", typeTexts["MaskRegion"] == "区域", typeTexts["MaskRegion"]);
+                Check("类型徽章：enum→枚举", typeTexts["Kind"] == "枚举", typeTexts["Kind"]);
+                Check("类型徽章：double→数值", typeTexts["Sigma"] == "数值", typeTexts["Sigma"]);
+                Check("类型徽章：bool→布尔", typeTexts["Flag"] == "布尔", typeTexts["Flag"]);
+                Check("类型徽章：int→整数", typeTexts["Count"] == "整数", typeTexts["Count"]);
+                Check("类型徽章：string→文本", typeTexts["Name"] == "文本", typeTexts["Name"]);
+                Check("类型徽章：object→参数", typeTexts["Any"] == "参数", typeTexts["Any"]);
+
+                var rowsBeforeSecondInit = Descendants<AutoPortRow>(view).ToList();
+                view.Initialize(stepData);
+                host.UpdateLayout();
+                var rowsAfterSecondInit = Descendants<AutoPortRow>(view).ToList();
+                Check("Initialize 幂等（二次调用行数仍为 8）", rowsAfterSecondInit.Count == 8,
+                    $"rows={rowsAfterSecondInit.Count}");
+                Check("Initialize 二次调用复用现有行（不重建，避免端口 ValueChanged 订阅累积）",
+                    rowsBeforeSecondInit.SequenceEqual(rowsAfterSecondInit),
+                    "行对象引用应保持不变");
+
+                const string repoRoot = @"d:\C#\VM";
+                var outDir = Path.Combine(repoRoot, "docs", "UI设计基线", "auto-port-config", "evidence");
+                Directory.CreateDirectory(outDir);
+                RenderElement(host, Path.Combine(outDir, "wpf-after-render-v1-default.png"));
+
+                var emptyPlugin = new AutoPortEmptyPlugin();
+                var emptyView = new AutoPortConfigView(emptyPlugin);
+                emptyView.Initialize(stepData);
+                var emptyHost = new Border
+                {
+                    Padding = new Thickness(20, 16, 20, 16),
+                    Background = Brushes.White,
+                    Child = emptyView,
+                };
+                var emptyWindow = new Window
+                {
+                    Width = 560,
+                    Height = 600,
+                    WindowStyle = WindowStyle.None,
+                    ShowInTaskbar = false,
+                    Left = -4000,
+                    Top = -4000,
+                    Background = Brushes.White,
+                    Content = emptyHost,
+                };
+                emptyWindow.Show();
+                emptyWindow.UpdateLayout();
+                emptyWindow.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                Check("无端口 → 空态可见", VisRoot(emptyView, "EmptyState") == Visibility.Visible,
+                    VisRoot(emptyView, "EmptyState").ToString());
+                Check("空态标题 = 该步骤没有输入参数", TextRoot(emptyView, "EmptyTitleText") == "该步骤没有输入参数",
+                    TextRoot(emptyView, "EmptyTitleText"));
+                Check("无端口 → 列表收起", VisRoot(emptyView, "PortListBorder") == Visibility.Collapsed,
+                    VisRoot(emptyView, "PortListBorder").ToString());
+                RenderElement(emptyHost, Path.Combine(outDir, "wpf-after-render-v1-empty.png"));
+                emptyWindow.Close();
+
+                var nullView = new AutoPortConfigView(null);
+                nullView.Initialize(stepData);
+                Measure(nullView);
+                Check("插件未注入 → 空态标题 = 无法读取插件参数", TextRoot(nullView, "EmptyTitleText") == "无法读取插件参数",
+                    TextRoot(nullView, "EmptyTitleText"));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("### 自动参数面板冒烟抛出异常:");
+                Print(ex);
+                failures++;
+            }
+            finally
+            {
+                window?.Close();
+            }
+
+            Console.WriteLine(failures == 0
+                ? "=== 自动参数面板冒烟：全部通过 ==="
+                : $"### 自动参数面板冒烟：{failures} 项失败");
+            return failures == 0 ? 0 : 1;
+
+            static string TextRoot(FrameworkElement root, string name) =>
+                (root.FindName(name) as TextBlock)?.Text ?? "(null)";
+            static string TextRow(AutoPortRow row, string name) =>
+                (row.FindName(name) as TextBlock)?.Text ?? "(null)";
+            static Visibility VisRoot(FrameworkElement root, string name) =>
+                (root.FindName(name) as UIElement)?.Visibility ?? Visibility.Collapsed;
+            static Visibility VisRow(AutoPortRow row, string name) =>
+                (row.FindName(name) as UIElement)?.Visibility ?? Visibility.Collapsed;
+            static LinkableValueEditor Editor(AutoPortRow row) =>
+                (row.FindName("EditorHost") as ContentControl)?.Content as LinkableValueEditor;
+            static Color ColorOf(string key) =>
+                ((SolidColorBrush)Application.Current.TryFindResource(key)).Color;
+            static Color BrushColor(FrameworkElement root, string name) =>
+                ((SolidColorBrush)((Border)root.FindName(name)).Background).Color;
+            static Color BorderColor(FrameworkElement root, string name) =>
+                ((SolidColorBrush)((Border)root.FindName(name)).BorderBrush).Color;
+            static void Measure(FrameworkElement view)
+            {
+                var host = new Border { Width = 520, Background = Brushes.White, Child = view };
+                host.Measure(new Size(520, 600));
+                host.Arrange(new Rect(0, 0, 520, Math.Max(600, host.DesiredSize.Height)));
+                host.UpdateLayout();
+                host.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            }
         }
 
         /// <summary>
@@ -2971,6 +3526,46 @@ namespace UIThemeSmokeTest
             encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
             using var stream = File.Create(path);
             encoder.Save(stream);
+        }
+
+        /// <summary>自动参数面板探针：8 个端口覆盖图像/区域/枚举/数值/布尔/整数/文本/object。</summary>
+        private sealed class AutoPortProbePlugin : VisionPluginBase
+        {
+            public InputPort<HImage> SrcImage { get; } = new("SrcImage", null, "待查找图像") { IsRequired = true };
+            public InputPort<HRegion> MaskRegion { get; } = new("MaskRegion", null, "查找区域（可选）：只在区域内找；未接=整图") { IsRequired = false };
+            public InputPort<StringComparison> Kind { get; } = new("Kind", StringComparison.Ordinal, "查找类型（直线/圆/椭圆）") { IsRequired = false };
+            public InputPort<double> Sigma { get; } = new("Sigma", 1.0, "边缘提取平滑 Sigma（越大越平滑）") { IsRequired = false };
+            public InputPort<bool> Flag { get; } = new("Flag", true, "找不到是否判失败（默认是）") { IsRequired = false };
+            public InputPort<int> Count { get; } = new("Count", 1, "显示窗口(0=不显示,1~9=窗口号)") { IsRequired = false };
+            public InputPort<string> Name { get; } = new("Name", "x", "名称") { IsRequired = false };
+            public InputPort<object> Any { get; } = new("Any", null, "任意值") { IsRequired = false };
+
+            public override void RunAlgorithm(IExecutionContext context) { }
+        }
+
+        private sealed class AutoPortEmptyPlugin : VisionPluginBase
+        {
+            public override void RunAlgorithm(IExecutionContext context) { }
+        }
+
+        /// <summary>自动参数面板探针的步骤数据：带两条链接，验证统计与行底色。</summary>
+        private sealed class AutoPortProbeStepData : IStepConfigData
+        {
+            public Guid StepId { get; } = Guid.NewGuid();
+            public string Icon { get; set; } = "\uf1b2";
+            public string StepName { get; set; } = "几何查找_0";
+            public string Description { get; set; } = "在 ROI 内亚像素找边并拟合";
+            public Dictionary<string, object> InputValues { get; } = new();
+            public Dictionary<string, string> Links { get; } = new();
+            public List<DynamicPortInfo> OutputPortDefinitions { get; set; } = new();
+
+            public void SetInputValue(string key, object value) => InputValues[key] = value;
+            public void RemoveInputValue(string key) => InputValues.Remove(key);
+            public bool IsLinked(string inputPortName) => Links.ContainsKey(inputPortName);
+            public string GetLinkedAddress(string inputPortName) => Links.TryGetValue(inputPortName, out var v) ? v : null;
+            public LinkReference GetLink(string inputPortName) => null;
+            public void SetLink(string inputPortName, LinkReference link) => Links[inputPortName] = link.DisplayAddress;
+            public void RemoveLink(string inputPortName) => Links.Remove(inputPortName);
         }
 
         /// <summary>最小步骤配置桩：标定视图初始化只需空 InputValues + 无链接。</summary>

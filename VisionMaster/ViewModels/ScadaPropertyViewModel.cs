@@ -269,6 +269,14 @@ namespace VisionMaster.ViewModels
 
                 if (!Commit(text))
                 {
+                    // 只读行没有"让用户就地改"这回事：它连输入框都没有，缓冲区里多出一个
+                    // 模型里并不存在的值，只会让面板显示一个假事实。直接按模型回填。
+                    if (Kind == ElementPropertyKind.ReadOnly)
+                    {
+                        RefreshValue();
+                        return;
+                    }
+
                     // 模型压根没接这个值（数字框里打了字母）。留着用户的文本并标红，
                     // 让他就地改完；把输入框抹回旧值等于当着他的面擦掉他打的东西。
                     _value = text;
@@ -709,6 +717,51 @@ namespace VisionMaster.ViewModels
     }
 
     /// <summary>
+    /// 数据表格图元的「列定义」行（Kind = <see cref="ElementPropertyKind.ColumnList"/>）。
+    ///
+    /// 与 <see cref="ScadaAxisListRow"/> 逐字同构：行上只放摘要，点「选择列…」进弹窗。
+    /// 为什么不做成多行文本框：一条 JSON 里每列 6 个字段，手写必然写错；
+    /// 而错了的表现是"运行期整列显示 —"，离配置现场很远。
+    /// </summary>
+    public sealed class ScadaGridColumnsRow : ScadaPropertyRow
+    {
+        private readonly Action<ScadaGridColumnsRow> _pick;
+
+        public ScadaGridColumnsRow(ScadaElement element, ElementPropertyDescriptor descriptor,
+                                   Action<ScadaGridColumnsRow> pick)
+            : base(element, descriptor)
+        {
+            _pick = pick ?? throw new ArgumentNullException(nameof(pick));
+            PickColumnsCommand = new DelegateCommand(() => _pick(this));
+        }
+
+        /// <summary>「选择列…」：打开列配置弹窗，确认后由面板写回</summary>
+        public DelegateCommand PickColumnsCommand { get; }
+
+        /// <summary>行上显示的摘要（未配置 / N 列 · 表头…）</summary>
+        public string Summary
+        {
+            get
+            {
+                var columns = ScadaGridColumnsCodec.Parse(Value);
+                if (columns.Count == 0)
+                    return "未配置";
+
+                var names = string.Join(" / ", columns.Select(c => c.Header));
+                return columns.Count <= 3
+                    ? $"{columns.Count} 列 · {names}"
+                    : $"{columns.Count} 列 · {names}…";
+            }
+        }
+
+        public override void RefreshValue()
+        {
+            base.RefreshValue();
+            RaisePropertyChanged(nameof(Summary));
+        }
+    }
+
+    /// <summary>
     /// 属性面板的一行<b>画面</b>属性（S3-e3）：没选中图元时，面板编辑的是画面自己。
     ///
     /// 与图元行唯一的差别就是读写落在哪儿——图元有属性袋（键值对，需要
@@ -858,7 +911,7 @@ namespace VisionMaster.ViewModels
         /// 图元事件行的分组名。画面事件另有归属（<see cref="ScadaPageEvents.Group"/> =「运行」），
         /// 所以分组是构造参数而不是常量——理由见 <see cref="ScadaEventSpec"/> 的类注释。
         /// </summary>
-        public const string ElementGroup = "事件";
+        public const string ElementGroup = ScadaPropertyGroups.Event;
 
         /// <param name="host">本行勾选的目标宿主：图元或画面，见 <see cref="IScadaEventHost"/></param>
         /// <param name="group">本行落在哪一组（图元事件用 <see cref="ElementGroup"/>，画面事件用 <see cref="ScadaPageEvents.Group"/>）</param>
@@ -954,7 +1007,7 @@ namespace VisionMaster.ViewModels
     internal sealed class ScadaAnimationSpec : IPropertySpec
     {
         /// <summary>图元动画行的分组名（画面没有这一组，所以不必像事件那样由调用方给）</summary>
-        public const string GroupName = "动画";
+        public const string GroupName = ScadaPropertyGroups.Animation;
 
         public ScadaAnimationSpec(ScadaAnimationType animationType)
         {
@@ -1680,6 +1733,70 @@ namespace VisionMaster.ViewModels
     }
 
     /// <summary>
+    /// 「类型」行的声明：图元类型键是<b>只读事实</b>——它写进 .vms、是注册表的键，
+    /// 也是"本机未注册该图元"那条提示里出现的东西；用户要能看见它，但不该能改。
+    ///
+    /// 为什么不放进描述符：描述符是<b>按类型共享</b>的，而类型键是"这一行实例"的事实；
+    /// 更要紧的是它不在属性袋里、也没有 <c>TargetProperty</c>，塞进描述符只会让
+    /// <see cref="ElementValueAccess"/> 多一条"这个键没有落点"的特例。
+    /// 与权限行同一安排：自带一份声明，顺着 <see cref="ScadaPropertyRowBase"/> 的既有通道进面板。
+    /// </summary>
+    internal sealed class ScadaTypeSpec : IPropertySpec
+    {
+        /// <summary>无状态共享实例（读哪个图元由行实例钉住，与 <see cref="ScadaRoleSpec"/> 同一手法）</summary>
+        public static readonly ScadaTypeSpec Instance = new ScadaTypeSpec();
+
+        private ScadaTypeSpec() { }
+
+        /// <summary>不落属性袋，只是一个标识（与权限行的 <c>RequiredRole</c> 同源）</summary>
+        public string Key => "ElementType";
+
+        public string DisplayName => "类型";
+
+        public ElementPropertyKind Kind => ElementPropertyKind.ReadOnly;
+
+        public string Group => ScadaPropertyGroups.General;
+
+        public string? Description =>
+            "图元类型键（.vms 里存的就是它，注册表按它找控件）。类型在创建时定下，面板里不能改；要换类型请删掉后重新拖一个";
+
+        /// <summary>类型键不是运行期数据，没有"绑一个变量进来"这回事</summary>
+        public bool IsBindable => false;
+
+        public double Min => double.NegativeInfinity;
+
+        public double Max => double.PositiveInfinity;
+
+        public IReadOnlyList<string> Choices => Array.Empty<string>();
+    }
+
+    /// <summary>
+    /// 属性面板的一行<b>类型</b>：只读展示 <see cref="ScadaElement.TypeKey"/>。
+    ///
+    /// 与 <see cref="ScadaPropertyRow"/> 的差别只在"写"：那一行有落点，这一行没有——
+    /// <see cref="Commit"/> 恒返回 false，而面板按 <see cref="ElementPropertyKind.ReadOnly"/>
+    /// 给它的是只读块（<c>EditReadOnly</c> 模板），根本长不出输入框。
+    /// 两道闸都留着：模板管"不给入口"，<see cref="Commit"/> 管"绕过模板也写不进去"。
+    /// </summary>
+    public sealed class ScadaTypeRow : ScadaPropertyRowBase
+    {
+        public ScadaTypeRow(ScadaElement element)
+            : base(ScadaTypeSpec.Instance,
+                   (element ?? throw new ArgumentNullException(nameof(element))).TypeKey)
+        {
+            Element = element;
+        }
+
+        /// <summary>本行展示的是哪个图元的类型</summary>
+        public ScadaElement Element { get; }
+
+        protected override string Read() => Element.TypeKey;
+
+        /// <summary>类型不可改：这里是"绕过模板也写不进去"的第二道闸</summary>
+        protected override bool Commit(string text) => false;
+    }
+
+    /// <summary>
     /// 权限行的声明（S12）：<see cref="ScadaElement.RequiredRole"/> <b>不是</b>属性袋里的键，
     /// 描述符也声明不了它（那是强类型字段，理由见该属性的注释），所以它像事件行一样自带一份声明，
     /// 存在的唯一目的是顺着 <see cref="ScadaPropertyRowBase"/> 的既有通道
@@ -1703,7 +1820,7 @@ namespace VisionMaster.ViewModels
 
         public ElementPropertyKind Kind => ElementPropertyKind.Choice;
 
-        public string Group => "权限";
+        public string Group => ScadaPropertyGroups.Interaction;
 
         public string? Description =>
             "运行态操作这个图元所需的最低角色。选「不限制」= 谁都能操作；高角色自动包含低角色（管理员可以按工程师的按钮）。未登录时按「操作员」计";
@@ -1924,6 +2041,9 @@ namespace VisionMaster.ViewModels
         private ScadaElement? _element;
         private ScadaPage? _page;
 
+        /// <summary>搜索词（空串 = 不过滤）。只影响"显示哪些行"，不影响行本身，见 <see cref="SearchText"/></summary>
+        private string _searchText = string.Empty;
+
         public ScadaPropertyViewModel(ScadaEditorViewModel editor, IUserNotifier notifier, IScadaVariablePicker picker, IScadaPagePicker pagePicker, IScadaFlowPicker flowPicker, IScadaAxisPicker axisPicker, MotionAxisRegistry axisRegistry)
         {
             _editor = editor ?? throw new ArgumentNullException(nameof(editor));
@@ -1947,6 +2067,8 @@ namespace VisionMaster.ViewModels
             // RaiseCanExecuteChanged——见 OnElementPropertyChanged，那里是唯一的刷新点。
             ClearBindingCommand = new DelegateCommand<ScadaPropertyRowBase>(OnClearBinding, row => row != null && row.HasBinding);
 
+            ClearSearchCommand = new DelegateCommand(() => SearchText = string.Empty, () => HasSearchText);
+
             Activate();
         }
 
@@ -1959,21 +2081,82 @@ namespace VisionMaster.ViewModels
         /// <summary>有选中图元（驱动"锁定"勾选的可见性——锁定是图元才有的概念）</summary>
         public bool HasElement => _element != null;
 
-        /// <summary>有没有行可显示（决定空态水印；两种模式都空才算空）</summary>
-        public bool HasRows => _rows.Count > 0;
+        /// <summary>
+        /// 面板上现在有没有行可显示（决定空态水印）。<b>按当前搜索词过滤后</b>算——
+        /// 搜索无结果时也要出水印，否则列表空着、一句提示都没有，用户会以为面板卡住了。
+        /// </summary>
+        public bool HasRows => Groups.Count > 0;
 
-        /// <summary>空态文案：三种成因要分开说，否则用户会以为是面板坏了</summary>
+        /// <summary>搜索框里有没有内容（决定清空按钮显不显示）</summary>
+        public bool HasSearchText => _searchText.Length > 0;
+
+        /// <summary>
+        /// 搜索词：按<b>属性名 / 键名 / 分组名</b>过滤，大小写不敏感。
+        ///
+        /// 为什么不重建行、只重算分组：重建会把用户正在编辑的那一行连输入框一起换掉
+        /// （焦点丢、未提交的文本丢）。行是模型的视图，搜索只是"显示哪些行"的过滤器，
+        /// 改它不该动行本身——所以走 <see cref="RebuildGroups"/>，而不是 <see cref="Rebuild"/>。
+        /// </summary>
+        public string SearchText
+        {
+            get => _searchText;
+            set
+            {
+                string text = value ?? string.Empty;
+                if (string.Equals(text, _searchText, StringComparison.Ordinal)) return;
+
+                _searchText = text;
+                RaisePropertyChanged(nameof(SearchText));
+                RebuildGroups();
+
+                // 谓词读 HasSearchText，值一变可用性就得重算（命令不会自己去问）
+                ClearSearchCommand.RaiseCanExecuteChanged();
+            }
+        }
+
+        /// <summary>「清空搜索」：把搜索词抹掉（与用户手动删空走同一条路径）</summary>
+        public DelegateCommand ClearSearchCommand { get; }
+
+        /// <summary>
+        /// 空态标题（水印第一行）。与 <see cref="EmptyHint"/> 分工：标题说"现在是什么状态"，
+        /// 正文说"该怎么办"——旧版只有一段长句，四行字挤在一起，扫一眼分不清是"没选"还是"不认识"。
+        /// </summary>
+        public string EmptyTitle
+        {
+            get
+            {
+                // 搜索无结果：与"这个对象本来就没属性"是两件事，混一句会让人去怀疑对象
+                if (_rows.Count > 0 && Groups.Count == 0)
+                    return "没有匹配的属性";
+
+                if (_element != null)
+                    return "这个图元本机不认识";
+
+                if (_page != null)
+                    return "没有可编辑的属性";
+
+                return _editor.HasSolution ? "还没有组态画面" : "未选择对象";
+            }
+        }
+
+        /// <summary>空态正文：四种成因要分开说，否则用户会以为是面板坏了</summary>
         public string EmptyHint
         {
             get
             {
+                if (_rows.Count > 0 && Groups.Count == 0)
+                    return "换个关键词试试。搜索匹配属性名、键名与分组名（如「宽」「Fill」「布局」）。";
+
                 if (_element != null)
-                    return "这个图元的类型在本机没有注册，面板拿不到它的属性声明，所以列不出任何东西。\n\n换台机器打开这个方案时，它仍会正常显示。";
+                    return "这个图元的类型在本机没有注册，面板拿不到它的属性声明，所以列不出任何东西。换台机器打开这个方案时，它仍会正常显示。";
 
                 if (_page != null)
                     return "当前画面没有可编辑的属性。";
 
-                return "打开方案后，这里会显示画面自己的属性；在画布上点选一个图元，则切换到该图元的属性。";
+                if (_editor.HasSolution)
+                    return "当前方案还没有组态画面。点组态画布上方的「新建画面」开始。";
+
+                return "在画布上点选一个图元开始编辑；没选中时这里显示画面自己的属性。";
             }
         }
 
@@ -2006,31 +2189,57 @@ namespace VisionMaster.ViewModels
         }
 
         /// <summary>
-        /// 标题："图元类型 · 图元名"或"画面 · 画面名"；没选中或类型没注册时给人话说明。
+        /// 对象头的第一行：图元名 / 画面名 / 状态说明。
         ///
-        /// 两种模式都要在标题里点名"编辑的是谁"——面板内容变了而标题没变，
-        /// 用户会以为改图元名字改到了画面上（画面名和图元名都叫"名称"，光看标签分不出来）。
+        /// 与 <see cref="HeaderSubtitle"/> 分工：这一行回答"编辑的是谁"，第二行回答"它是什么类型"。
+        /// 旧版是一行「类型显示名 · 名字」，而新建图元时 Name 默认就等于 DisplayName，
+        /// 于是面板顶上长期显示成「按钮 · 按钮」——两段一样的信息各占一半宽度。
         /// </summary>
-        public string HeaderText
+        public string HeaderTitle
         {
             get
             {
                 if (_element is { } element)
-                {
-                    // 类型没注册是真实场景：.vms 带着插件图元跑到没装该插件的机器上。
-                    // 这里必须说清楚"不是面板坏了，是这台机器不认识它"，
-                    // 否则用户会以为属性丢了。
-                    return ElementRegistry.Find(element.TypeKey) is { } descriptor
-                        ? $"{descriptor.DisplayName} · {element.Name}"
-                        : $"{element.TypeKey}（本机未注册该图元，无法编辑）";
-                }
+                    return element.Name;
 
                 if (_page is { } page)
-                    return $"画面 · {page.Name}";
+                    return page.Name;
 
-                return "未打开方案";
+                return _editor.HasSolution ? "当前方案没有组态画面" : "未打开方案";
             }
         }
+
+        /// <summary>
+        /// 对象头的第二行：图元的类型键（<c>Hmi.Button</c>）或"画面"。
+        ///
+        /// 用类型键而不是 CLR 类名：前者写进 .vms，也是"本机未注册"提示与注册表用的键；
+        /// CLR 类名会随重构变，摆在面板上只会误导。类型没注册时在这里明说一句，
+        /// 否则用户会以为属性丢了（与空态同一口径）。
+        /// </summary>
+        public string HeaderSubtitle
+        {
+            get
+            {
+                if (_element is { } element)
+                    return ElementRegistry.Find(element.TypeKey) != null
+                        ? element.TypeKey
+                        : $"{element.TypeKey}（本机未注册该图元）";
+
+                if (_page != null)
+                    return "画面";
+
+                return string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// 对象头左侧那颗图标（Font Awesome 6 Solid 码点）：图元用「形状」，画面用「文件」。
+        ///
+        /// 为什么不分图元类型给不同图标：图元库没有图标资产（工具箱那边也只是名字 + 类型键），
+        /// 在这里现造一张"类型 → 码点"的映射表，加一类图元就要多记一处，不值当。
+        /// 图标在这里的作用是给对象头一个视觉锚点，不是"一眼认出是泵还是电机"。
+        /// </summary>
+        public string HeaderGlyph => _element != null ? "\uF5CB" : "\uF15B";
 
         /// <summary>分组后的属性行（声明次序权威：组按首现次序，组内按声明次序）</summary>
         public IReadOnlyList<ScadaPropertyGroup> Groups { get; private set; } = Array.Empty<ScadaPropertyGroup>();
@@ -2142,7 +2351,7 @@ namespace VisionMaster.ViewModels
             RaisePropertyChanged(nameof(IsElementLocked));
 
             if (e.PropertyName is null || e.PropertyName == nameof(ScadaElement.Name))
-                RaisePropertyChanged(nameof(HeaderText));
+                RaisePropertyChanged(nameof(HeaderTitle));
         }
 
         /// <summary>
@@ -2158,7 +2367,7 @@ namespace VisionMaster.ViewModels
 
             if (e.PropertyName is null || e.PropertyName == nameof(ScadaPage.Name))
             {
-                RaisePropertyChanged(nameof(HeaderText));
+                RaisePropertyChanged(nameof(HeaderTitle));
                 RaisePropertyChanged(nameof(EmptyHint));
             }
         }
@@ -2192,12 +2401,21 @@ namespace VisionMaster.ViewModels
                     // 判据是行的 Kind 自述，而不是图元类型——与编辑器按 Kind 分流同一手法。
                     // 摘要显示的名字按 Id 从注册表现取（落盘 JSON 里那份是"选的时候"的名字，
                     // 轴改名后它必然过期；Id 才是权威）。
-                    _rows.Add(property.Kind == ElementPropertyKind.AxisList
-                        ? new ScadaAxisListRow(element, property, OnPickAxes, ResolveAxisName)
-                        : new ScadaPropertyRow(element, property));
+                    // AxisList / ColumnList 都要一个"进弹窗"的入口，普通行没有这个动作。
+                    // 判据是行的 Kind 自述，而不是图元类型——与编辑器按 Kind 分流同一手法。
+                    _rows.Add(property.Kind switch
+                    {
+                        ElementPropertyKind.AxisList => new ScadaAxisListRow(element, property, OnPickAxes, ResolveAxisName),
+                        ElementPropertyKind.ColumnList => new ScadaGridColumnsRow(element, property, OnPickColumns),
+                        _ => new ScadaPropertyRow(element, property),
+                    });
                 }
 
-                // S5 事件行：描述符声明了哪些事件就出哪几行（Group="事件" 自动成组）。
+                // 「类型」只读行：与「名称」同属「基本」组，组内次序取源次序，所以加在这里
+                // 就落在名称下面。它不在描述符里——类型键是"这一行实例"的事实，不是"这一类图元"的声明。
+                _rows.Add(new ScadaTypeRow(element));
+
+                // S5 事件行：描述符声明了哪些事件就出哪几行（落在 ScadaPropertyGroups.Event 组）。
                 // 没声明任何事件的图元连这个组都不会有——"这个图元配不了事件"是描述符的表态，
                 // 不是面板漏列；反过来，面板绝不自行罗列全部事件，那会把
                 // "勾上了却永远不响的钩子"（Unloaded/ValueChanged 还没接触发源）漏给用户。
@@ -2242,19 +2460,55 @@ namespace VisionMaster.ViewModels
             RaisePropertyChanged(nameof(Element));
             RaisePropertyChanged(nameof(Page));
             RaisePropertyChanged(nameof(HasElement));
-            RaisePropertyChanged(nameof(HasRows));
-            RaisePropertyChanged(nameof(EmptyHint));
-            RaisePropertyChanged(nameof(HeaderText));
+            RaisePropertyChanged(nameof(HeaderTitle));
+            RaisePropertyChanged(nameof(HeaderSubtitle));
+            RaisePropertyChanged(nameof(HeaderGlyph));
 
-            // GroupBy 的分组次序 = 键的首现次序，组内次序 = 源次序（LINQ to Objects 保证），
-            // 正好就是声明里写的次序。与工具箱同一手法，不再二次排序。
-            Groups = _rows
+            // 换选中之后按当前搜索词重算分组。搜索词<b>不清空</b>：用户正按「温度」找属性时切了个图元，
+            // 期望的是"在新图元里继续找温度"，而不是搜索框自己空掉。
+            RebuildGroups();
+        }
+
+        /// <summary>
+        /// 按当前搜索词把 <see cref="_rows"/> 分组（组序取自 <see cref="ScadaPropertyGroups.Order"/>）。
+        ///
+        /// <b>只重算分组，不重建行</b>：行上挂着正在编辑的文本与输入框焦点，搜一次就重建
+        /// 等于把用户手里的活抹掉。所以搜索走这里，换选中才走 <see cref="Rebuild"/>。
+        ///
+        /// 组序的来由见 <see cref="ScadaPropertyGroups.Order"/>：目录里没有的组排到最后
+        /// （<c>OrderOf</c> 返回 <see cref="int.MaxValue"/>），<c>OrderBy</c> 是稳定排序，
+        /// 它们之间因此保持各自的首次出现次序，不会整组消失；组内次序仍是源次序。
+        /// </summary>
+        private void RebuildGroups()
+        {
+            IEnumerable<ScadaPropertyRowBase> rows = _rows;
+
+            if (_searchText.Length > 0)
+                rows = _rows.Where(row => MatchesSearch(row, _searchText));
+
+            Groups = rows
                 .GroupBy(row => row.Group, StringComparer.Ordinal)
+                .OrderBy(g => ScadaPropertyGroups.OrderOf(g.Key))
                 .Select(g => new ScadaPropertyGroup(g.Key, g.ToArray()))
                 .ToArray();
 
             RaisePropertyChanged(nameof(Groups));
+            RaisePropertyChanged(nameof(HasRows));
+            RaisePropertyChanged(nameof(EmptyTitle));
+            RaisePropertyChanged(nameof(EmptyHint));
         }
+
+        /// <summary>
+        /// 搜索匹配：属性名 / 键名 / 分组名，大小写不敏感。
+        ///
+        /// 键名也参与匹配是因为它是英文（<c>Fill</c> / <c>FontSize</c>），有人习惯按它找；
+        /// 分组名参与匹配是因为"我想看布局那一组"是个很自然的诉求。
+        /// 用 <c>Contains</c> 而不是前缀：中文属性名多是"填充色"这种复合词，前缀匹配反而找不到。
+        /// </summary>
+        private static bool MatchesSearch(ScadaPropertyRowBase row, string query)
+            => row.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)
+               || row.Key.Contains(query, StringComparison.OrdinalIgnoreCase)
+               || row.Group.Contains(query, StringComparison.OrdinalIgnoreCase);
 
         /// <summary>换图元订阅（幂等：还是同一个就不动，避免反复摘挂漏一层）</summary>
         private void BindElement(ScadaElement? element)
@@ -2322,6 +2576,23 @@ namespace VisionMaster.ViewModels
         /// <see cref="ScadaAxisOptionsCodec.Key"/>（规范 JSON），运行期由面板自己的下拉框切换。
         /// 写模型仍走 <see cref="ScadaPage.TrySetAxisOptions"/> 这个统一入口（撤销/归属校验只有一处）。
         /// </summary>
+        /// <summary>
+        /// 「选择列…」：开弹窗编辑列定义，确认后写回。
+        ///
+        /// 写回走 <see cref="ScadaPropertyRowBase.Value"/>（→ Commit → 一条撤销记录），
+        /// 与其它行同一条路——绕过它就得自己管撤销作用域、标红与回填。
+        /// </summary>
+        private void OnPickColumns(ScadaGridColumnsRow row)
+        {
+            var editor = new VisionMaster.Views.Controls.ScadaGridColumnsEditor(
+                ScadaGridColumnsCodec.Parse(row.Value));
+
+            if (!UI.CustomControl.EasyDialog.ShowSync("配置列", editor))
+                return;
+
+            row.Value = editor.ResultJson;
+        }
+
         private void OnPickAxes(ScadaAxisListRow row)
         {
             var page = _editor.SelectedPage;

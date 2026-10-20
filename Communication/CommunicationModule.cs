@@ -1,7 +1,11 @@
 using System;
+using System.Linq;
 using Core.Interfaces;
 using Prism.Ioc;
+using VisionMaster.Binding;
 using VisionMaster.Lifetime;
+using VisionMaster.Models;
+using VisionMaster.Services;
 
 namespace VisionMaster.Communications
 {
@@ -15,11 +19,18 @@ namespace VisionMaster.Communications
             // 接口与具体类型都注册为单例，保证两种解析拿到同一实例
             registry.RegisterSingleton<AdvancedCommunicationManager>();
             registry.RegisterSingleton<ICommunicationManager, AdvancedCommunicationManager>();
+
+            // 「立刻读 / 立刻写」的运行期能力：按变量名解析 + 委托给 NetworkVariableModel
+            registry.RegisterSingleton<ICommVariableAccess, CommVariableAccess>();
         }
 
         public void Initialize(IContainerProvider container, AppLifetimeService lifetime)
         {
             var manager = container.Resolve<AdvancedCommunicationManager>();
+
+            // 「立刻读 / 立刻写」的变量名候选：与运动模块的来源**并存**（RegisterAdditional），
+            // 顺序无关、互不覆盖。必须在 UI 打开配置窗口之前注册好。
+            RegisterStepConfigOptions(container);
 
             // ===== 启动装配：必须在"自检链执行"与"Shell 构造"之前完成 =====
             // 1) 恢复上次保存的连接配置（communications.json）：通讯自检要按配置逐条测连通，
@@ -48,6 +59,44 @@ namespace VisionMaster.Communications
                 manager.StopAll();
                 manager.DisconnectAll();
             }));
+        }
+
+        /// <summary>
+        /// 通讯变量候选来源：给「立刻读 / 立刻写」的变量名下拉供数。
+        ///
+        /// 只列**能真正读写**的变量：缺连接名/地址的变量不列（选了必然失败）；
+        /// 「立刻写」再额外排除只读区（Modbus 离散输入 / S7 输入映像 I）。
+        /// 值 = 变量名本体（流程与 .vms 存的就是它），显示文本带类型与连接名，
+        /// 与 <see cref="StepConfigOption"/> 的"值/显示分离"口径一致。
+        /// </summary>
+        private static void RegisterStepConfigOptions(IContainerProvider container)
+        {
+            var workspace = container.Resolve<IWorkspaceManager>();
+
+            StepConfigOptionSource.RegisterAdditional(kind =>
+            {
+                if (kind is not (StepConfigOptionKind.CommunicationVariableName
+                    or StepConfigOptionKind.CommunicationWritableVariableName))
+                {
+                    return Array.Empty<StepConfigOption>();
+                }
+
+                bool writableOnly = kind == StepConfigOptionKind.CommunicationWritableVariableName;
+
+                return workspace.GlobalVariables
+                    .OfType<NetworkVariableModel>()
+                    .Where(v => !string.IsNullOrWhiteSpace(v.Name)
+                                && !string.IsNullOrWhiteSpace(v.ConnectionName)
+                                && v.AddressConfig != null
+                                && (!writableOnly || !v.IsReadOnlyArea))
+                    .GroupBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .OrderBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
+                    .Select(v => new StepConfigOption(
+                        v.Name,
+                        $"{v.Name}（{v.DataType.Name} · {v.ConnectionName}）"))
+                    .ToList();
+            });
         }
     }
 }

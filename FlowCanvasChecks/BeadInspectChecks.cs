@@ -106,6 +106,7 @@ namespace FlowCanvasChecks
             CheckUI_BindingCard();
             Check16_FindRangeConfigurable();
             Check17_LearnFeedback();
+            Check18_NewParamEntries();
         }
 
         // ==================================================================
@@ -573,6 +574,221 @@ namespace FlowCanvasChecks
                 return 0;
             double cos = Math.Clamp((a1r * a2r + a1c * a2c) / (l1 * l2), -1.0, 1.0);
             return Math.Acos(cos) * 180.0 / Math.PI;
+        }
+
+        // ==================================================================
+        //  断言 18：v2 新增的 5 个无 UI 入口属性（PixelSizeMm / OutputAlignedImage /
+        //  MinScore / PlanarNumLevels / ExtractTargetPoints）
+        //  背景（2026-10-20 UI 基线 v2）：这 5 个属性早就存在于插件上（4 个是 [StepConfig]，
+        //  ExtractTargetPoints 是配置态会话属性），但视图没有入口 → 现场改不了。
+        //  本断言锁三件事：
+        //    ① 结构面：5 个绑定路径在 XAML 里；4 个数值框各自带 NumberValidationRule（区间/整数）
+        //       —— 规则漏了 = 非法值会直接写进插件（NumberValidationRule 是唯一的写回闸门）；
+        //    ② 写回面（STA 真实例化视图）：控件 → UpdateSource → 插件属性；
+        //    ③ 落盘面：OnConfirm 后 4 个 [StepConfig] 键都在 InputValues 且值一致，
+        //       ExtractTargetPoints **不写键**（它不落盘），InputValues 仍是 25 个键。
+        // ==================================================================
+        private static void Check18_NewParamEntries()
+        {
+            string? xamlPath = ResolveRepoFile(@"Plugins\Plugin.BeadInspect\BeadInspectView.xaml");
+            if (xamlPath == null)
+            {
+                Check("18a v2 新入口（跳过：定位不到视图）", true, "");
+                return;
+            }
+            string xaml = File.ReadAllText(xamlPath);
+
+            // ① 5 个绑定路径在位（OutputAlignedImage 走 IsChecked 的短写法，其余走 Binding Path）
+            var binds = new[]
+            {
+                "PixelSizeMm", "OutputAlignedImage", "MinScore", "PlanarNumLevels", "ExtractTargetPoints",
+            };
+            var missingBinds = binds
+                .Where(b => !xaml.Contains($"Binding Path=\"{b}\"") && !xaml.Contains($"Binding {b},"))
+                .ToArray();
+            Check("18a v2 的 5 个入口在视图里都有绑定（PixelSizeMm/OutputAlignedImage/MinScore/PlanarNumLevels/ExtractTargetPoints）",
+                missingBinds.Length == 0,
+                missingBinds.Length == 0 ? string.Join(",", binds) : "缺失：" + string.Join(",", missingBinds));
+
+            // ② 4 个数值框各带校验规则（区间与整数口径逐条对齐设计基线 v2）
+            var rules = new (string Path, string Min, string Max, bool IntegerOnly)[]
+            {
+                ("PixelSizeMm", "0", "1000", false),
+                ("MinScore", "0", "1", false),
+                ("PlanarNumLevels", "1", "10", true),
+                ("ExtractTargetPoints", "10", "500", true),
+            };
+            var ruleProblems = rules.Where(r => !HasNumberRuleNear(xaml, r.Path, r.Min, r.Max, r.IntegerOnly))
+                .Select(r => $"{r.Path}(Min={r.Min},Max={r.Max},Int={r.IntegerOnly})")
+                .ToArray();
+            Check("18b 4 个数值入口都带 NumberValidationRule（区间与整数口径对齐设计基线 v2）",
+                ruleProblems.Length == 0,
+                ruleProblems.Length == 0 ? "4/4" : "不合格：" + string.Join("; ", ruleProblems));
+
+            // ③ 落盘/写回（STA 真实例化视图）
+            var results = new List<(string Name, bool Ok, string Detail)>();
+            var sta = new Thread(() =>
+            {
+                try { RunNewParamRuntimeProbe(results); }
+                catch (Exception ex)
+                {
+                    lock (results) results.Add(("STA 运行", false, ex.GetType().Name + ": " + ex.Message));
+                }
+            });
+            sta.SetApartmentState(ApartmentState.STA);
+            sta.Start();
+            sta.Join();
+
+            foreach (var r in results)
+                Check("[BeadInspect·v2] " + r.Name, r.Ok, r.Detail);
+        }
+
+        /// <summary>
+        /// 在 XAML 里找 <c>Binding Path="{path}"</c> 之后的一段文本，看有没有指定的 NumberValidationRule。
+        /// 只看 600 字符窗口：4 个新数值框都是"Binding → ValidationRules → 一条规则"紧邻结构。
+        /// </summary>
+        private static bool HasNumberRuleNear(string xaml, string path, string min, string max, bool integerOnly)
+        {
+            int at = xaml.IndexOf($"Binding Path=\"{path}\"", StringComparison.Ordinal);
+            if (at < 0)
+                return false;
+            int end = Math.Min(xaml.Length, at + 600);
+            string window = xaml.Substring(at, end - at);
+            if (!window.Contains("NumberValidationRule"))
+                return false;
+            if (!window.Contains($"Min=\"{min}\"") || !window.Contains($"Max=\"{max}\""))
+                return false;
+            // IntegerOnly="True" 必须在同一窗口里；非整数框不许误写 True（"必须是整数"会拒掉合法小数）
+            bool hasInteger = window.Contains("IntegerOnly=\"True\"");
+            return integerOnly == hasInteger;
+        }
+
+        /// <summary>STA 线程侧：真例化视图 → 改 5 个控件 → UpdateSource → OnConfirm → 查 InputValues</summary>
+        private static void RunNewParamRuntimeProbe(List<(string Name, bool Ok, string Detail)> results)
+        {
+            void R(string name, bool ok, string detail)
+            {
+                lock (results) results.Add((name, ok, detail));
+            }
+
+            var plugin = new BeadInspectPlugin { InstanceName = "胶路_v2入口" };
+            var stepData = new LinkableFakeStepData();
+            var view = new BeadInspectView { DataContext = plugin };
+            plugin.Initialize(stepData);
+
+            var host = new Window
+            {
+                Content = view,
+                Width = 1100,
+                Height = 640,
+                WindowStyle = System.Windows.WindowStyle.None,
+                ShowActivated = false,
+                Opacity = 0,
+            };
+            host.Show();
+            host.Hide();
+            view.Measure(new System.Windows.Size(1100, 640));
+            view.UpdateLayout();
+
+            // 「自动提取输入（可选）」是折叠区：内容要先展开才进可视树（命名域里本来就有，展开只为稳妥）
+            var autoExtract = CollectVisual<Expander>(view)
+                .FirstOrDefault(e => (e.Header as string) == "自动提取输入（可选）");
+            if (autoExtract != null)
+                autoExtract.IsExpanded = true;
+            view.UpdateLayout();
+
+            var pixelBox = view.FindName("PixelSizeMmBox") as TextBox;
+            var minScoreBox = view.FindName("MinScoreBox") as TextBox;
+            var numLevelsBox = view.FindName("PlanarNumLevelsBox") as TextBox;
+            var targetPointsBox = view.FindName("ExtractTargetPointsBox") as TextBox;
+            var outputAlignedBox = view.FindName("OutputAlignedImageBox") as CheckBox;
+
+            bool allFound = pixelBox != null && minScoreBox != null && numLevelsBox != null
+                            && targetPointsBox != null && outputAlignedBox != null;
+            R("5 个新入口控件都在视图里（3 个数值框 + 提取点数 + 输出对齐图勾选）", allFound,
+                $"pixel={pixelBox != null} minScore={minScoreBox != null} levels={numLevelsBox != null} "
+                + $"targetPoints={targetPointsBox != null} outputAligned={outputAlignedBox != null}");
+            if (!allFound)
+            {
+                host.Close();
+                plugin.Dispose();
+                return;
+            }
+
+            // 控件 → 绑定源（模拟用户输入：数值框是 LostFocus 提交，这里显式 UpdateSource）
+            pixelBox!.Text = "0.05";
+            pixelBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            minScoreBox!.Text = "0.72";
+            minScoreBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            numLevelsBox!.Text = "7";
+            numLevelsBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            targetPointsBox!.Text = "55";
+            targetPointsBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            outputAlignedBox!.IsChecked = false;
+            outputAlignedBox.GetBindingExpression(CheckBox.IsCheckedProperty)?.UpdateSource();
+
+            R("控件写回插件属性（PixelSizeMm=0.05 / MinScore=0.72 / PlanarNumLevels=7 / ExtractTargetPoints=55 / OutputAlignedImage=false）",
+                Math.Abs(plugin.PixelSizeMm - 0.05) < 1e-9
+                && Math.Abs(plugin.MinScore - 0.72) < 1e-9
+                && plugin.PlanarNumLevels == 7
+                && plugin.ExtractTargetPoints == 55
+                && plugin.OutputAlignedImage is false,
+                $"PixelSizeMm={plugin.PixelSizeMm} MinScore={plugin.MinScore} Levels={plugin.PlanarNumLevels} "
+                + $"TargetPoints={plugin.ExtractTargetPoints} OutputAligned={plugin.OutputAlignedImage}");
+
+            // 非法值被校验规则挡在写回之前（源属性保持最近一次合法值）
+            minScoreBox.Text = "1.5";
+            minScoreBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            numLevelsBox.Text = "3.5"; // IntegerOnly
+            numLevelsBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            R("越界 / 非整数被 NumberValidationRule 挡下（MinScore 仍 0.72、PlanarNumLevels 仍 7）",
+                Math.Abs(plugin.MinScore - 0.72) < 1e-9 && plugin.PlanarNumLevels == 7,
+                $"MinScore={plugin.MinScore} Levels={plugin.PlanarNumLevels}");
+            // 复原成合法值，后面的落盘断言用
+            minScoreBox.Text = "0.72";
+            minScoreBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            numLevelsBox.Text = "7";
+            numLevelsBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+
+            plugin.OnConfirm(stepData);
+
+            object? V(string key) => stepData.InputValues.TryGetValue(key, out var v) ? v : null;
+            double D(string key) => V(key) is { } raw ? Convert.ToDouble(raw) : double.NaN;
+
+            R("OnConfirm：PixelSizeMm=0.05 / MinScore=0.72 / PlanarNumLevels=7 / OutputAlignedImage=false 全部落盘",
+                Math.Abs(D("PixelSizeMm") - 0.05) < 1e-9
+                && Math.Abs(D("MinScore") - 0.72) < 1e-9
+                && Convert.ToInt32(V("PlanarNumLevels")) == 7
+                && V("OutputAlignedImage") is false,
+                $"PixelSizeMm={V("PixelSizeMm")} MinScore={V("MinScore")} "
+                + $"PlanarNumLevels={V("PlanarNumLevels")} OutputAlignedImage={V("OutputAlignedImage")}");
+
+            R("ExtractTargetPoints 不落盘（InputValues 里没有这个键——它是配置会话属性，不是 [StepConfig]）",
+                !stepData.InputValues.ContainsKey("ExtractTargetPoints"),
+                stepData.InputValues.ContainsKey("ExtractTargetPoints")
+                    ? "误写：ExtractTargetPoints=" + V("ExtractTargetPoints")
+                    : "未写键（正确）");
+
+            R("InputValues 仍是 25 个键（5 个输入端口 + 20 个 [StepConfig]，未因新入口增减）",
+                stepData.InputValues.Count == 25,
+                $"count={stepData.InputValues.Count}：{string.Join(",", stepData.InputValues.Keys.OrderBy(k => k))}");
+
+            // 配置实例的重新打开口径：ExtractTargetPoints 回到默认 40（会话态，不随方案回来）
+            var reopened = new BeadInspectPlugin { InstanceName = "胶路_v2重开" };
+            reopened.Initialize(stepData);
+            R("重新打开配置界面：ExtractTargetPoints 回到默认 40（会话态不随方案回来）",
+                reopened.ExtractTargetPoints == 40, $"ExtractTargetPoints={reopened.ExtractTargetPoints}");
+            R("重新打开配置界面：4 个 [StepConfig] 从 InputValues 回灌（0.05 / 0.72 / 7 / false）",
+                Math.Abs(reopened.PixelSizeMm - 0.05) < 1e-9
+                && Math.Abs(reopened.MinScore - 0.72) < 1e-9
+                && reopened.PlanarNumLevels == 7
+                && reopened.OutputAlignedImage is false,
+                $"PixelSizeMm={reopened.PixelSizeMm} MinScore={reopened.MinScore} "
+                + $"PlanarNumLevels={reopened.PlanarNumLevels} OutputAlignedImage={reopened.OutputAlignedImage}");
+            reopened.Dispose();
+
+            host.Close();
+            plugin.Dispose();
         }
 
         // ==================================================================

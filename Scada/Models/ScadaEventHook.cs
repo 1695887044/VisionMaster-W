@@ -26,6 +26,8 @@ namespace VisionMaster.Scada
     public class ScadaEventHook : ScadaModelBase
     {
         private ScadaEventType _event;
+        private bool _requireConfirmation;
+        private string? _confirmationMessage;
         private ObservableCollection<ScadaAction> _actions = new();
 
         /// <summary>
@@ -47,6 +49,27 @@ namespace VisionMaster.Scada
         {
             get => _event;
             set => SetProperty(ref _event, value);
+        }
+
+        /// <summary>
+        /// 命中该事件时是否先弹二次确认（P0）。
+        /// 默认 <c>false</c>：老 .vms 没有这个字段，行为与改造前完全一致。
+        /// 确认覆盖整串动作，不是逐条动作确认；取消时一条动作都不执行。
+        /// </summary>
+        public bool RequireConfirmation
+        {
+            get => _requireConfirmation;
+            set => SetProperty(ref _requireConfirmation, value);
+        }
+
+        /// <summary>
+        /// 确认框里的后果提示（P0）；空 = 执行侧用默认的“将执行：动作摘要”。
+        /// 它落在 <c>MessageDialogOptions.Hint</c>，不是正文；正文由执行侧拼“对象 · 事件”。
+        /// </summary>
+        public string? ConfirmationMessage
+        {
+            get => _confirmationMessage;
+            set => SetProperty(ref _confirmationMessage, value);
         }
 
         /// <summary>

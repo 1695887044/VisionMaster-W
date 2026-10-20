@@ -34,16 +34,12 @@
     </UserControl.InputBindings>
 
     <Grid Margin="15">
-        <Border Background="White" CornerRadius="8">
-            <Border.Effect>
-                <DropShadowEffect
-                    BlurRadius="15"
-                    Direction="270"
-                    Opacity="0.15"
-                    ShadowDepth="3"
-                    Color="Black" />
-            </Border.Effect>
-
+        <Border Style="{StaticResource DialogCardShadow}" />
+        <Border
+            Background="{StaticResource DialogSurfaceBrush}"
+            BorderBrush="{StaticResource DialogBorderLightBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="45" />
@@ -51,80 +47,143 @@
                     <RowDefinition Height="52" />
                 </Grid.RowDefinitions>
 
-                <!--  标题栏（无系统边框的弹窗靠它拖动）  -->
+                <!--  标题栏（无系统边框的弹窗靠它拖动；关闭键与相机/通讯弹窗同位置）  -->
                 <Border
                     Grid.Row="0"
                     ui:WindowDragBehavior.IsWindowDraggable="True"
-                    Background="#F8F9FA"
-                    BorderBrush="#EBEEF5"
+                    Background="{StaticResource DialogRowAlternateBrush}"
+                    BorderBrush="{StaticResource DialogBorderLightBrush}"
                     BorderThickness="0,0,0,1"
                     CornerRadius="8,8,0,0">
-                    <TextBlock
-                        Margin="20,0"
-                        VerticalAlignment="Center"
-                        FontSize="15"
-                        FontWeight="Bold"
-                        Foreground="#303133"
-                        Text="{Binding Title}" />
+                    <Grid>
+                        <TextBlock
+                            Margin="20,0"
+                            VerticalAlignment="Center"
+                            FontSize="15"
+                            FontWeight="Bold"
+                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                            Text="{Binding Title}" />
+                        <Button
+                            Margin="0,0,10,0"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            AutomationProperties.Name="关闭"
+                            Command="{Binding CloseCommand}"
+                            FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                            Style="{StaticResource DialogIconButton}"
+                            ToolTip="关闭">
+                            <TextBlock
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="13"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="&#xf00d;" />
+                        </Button>
+                    </Grid>
                 </Border>
 
                 <!--  内容区  -->
                 <StackPanel Grid.Row="1" Margin="20,14,20,0">
 
-                    <!--  状态行：此刻是谁在操作。已登录时右侧多一个「退出登录」。
-                          未登录也把"（操作员）"写出来，是为了让操作员明白不是软件坏了、是权限就这么多。  -->
+                    <!--  未登录：一行身份 + 当前角色能做什么（不是"没权限"，是"这档就这么多"）  -->
                     <Border
                         Padding="12,8"
-                        Background="#F5F7FA"
-                        CornerRadius="6">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock
-                                Grid.Column="0"
-                                VerticalAlignment="Center"
-                                FontSize="12"
-                                Foreground="#606266">
+                        Background="{StaticResource DialogRowAlternateBrush}"
+                        BorderBrush="{StaticResource DialogBorderLightBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Visibility="{Binding IsLoggedOut, Converter={ui:BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <TextBlock FontSize="12" Foreground="{StaticResource DialogTextSecondaryBrush}">
                                 <Run Text="当前身份：" />
-                                <!-- Run.Text 默认 BindsTwoWayByDefault，绑定只读表达式属性必须显式 Mode=OneWay，
-                                     否则 XAML 解析期即抛 InvalidOperationException（对照 ScadaUserManagerView 的写法） -->
                                 <Run
                                     FontWeight="SemiBold"
-                                    Foreground="#303133"
+                                    Foreground="{StaticResource DialogTextPrimaryBrush}"
                                     Text="{Binding LoginStateText, Mode=OneWay}" />
                             </TextBlock>
-                            <Button
-                                Grid.Column="1"
-                                Padding="10,3"
-                                Background="#FFFFFF"
-                                BorderBrush="#DCDFE6"
-                                BorderThickness="1"
-                                Command="{Binding LogoutCommand}"
-                                Content="退出登录"
-                                Cursor="Hand"
-                                FontSize="11"
-                                Foreground="#409EFF"
-                                Visibility="{Binding IsLoggedIn, Converter={ui:BooleanToVisibilityConverter}}" />
+                            <TextBlock
+                                Margin="0,3,0,0"
+                                FontSize="10.5"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                Text="{Binding RolePermissionText}"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <!--  已登录：账号卡。身份、能做什么、空闲多久退出，一眼看完。  -->
+                    <Border
+                        Padding="12,10"
+                        Background="{StaticResource DialogAccentSoftBrush}"
+                        BorderBrush="{StaticResource DialogAccentBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Visibility="{Binding IsLoggedIn, Converter={ui:BooleanToVisibilityConverter}}">
+                        <Grid>
+                            <StackPanel>
+                                <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource DialogTextPrimaryBrush}">
+                                    <Run Text="当前身份：" />
+                                    <Run Text="{Binding LoginStateText, Mode=OneWay}" />
+                                </TextBlock>
+                                <TextBlock
+                                    Margin="0,3,0,0"
+                                    FontSize="10.5"
+                                    Foreground="{StaticResource DialogAccentTextBrush}"
+                                    Text="{Binding RolePermissionText}"
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Margin="0,2,0,0"
+                                    FontSize="10"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text="{Binding IdleTimeoutText}" />
+                            </StackPanel>
+                            <StackPanel
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal">
+                                <Button
+                                    Height="26"
+                                    Margin="0,0,6,0"
+                                    Padding="9,0"
+                                    Command="{Binding OpenChangePasswordCommand}"
+                                    Content="修改密码"
+                                    FontSize="10.5"
+                                    Style="{StaticResource DialogSecondaryButton}" />
+                                <Button
+                                    Height="26"
+                                    Padding="9,0"
+                                    Command="{Binding LogoutCommand}"
+                                    Content="退出登录"
+                                    FontSize="10.5"
+                                    Style="{StaticResource DialogSecondaryButton}" />
+                            </StackPanel>
                         </Grid>
                     </Border>
 
-                    <!--  出厂密码提示：只在真用得上时出现，不占常态界面的位置。
-                          等登录成功再说就晚了 —— 那时候弹窗已经关了。  -->
+                    <!--  出厂密码提示：只在真用得上时出现；「立即修改」直接送到改密页。  -->
                     <Border
                         Margin="0,10,0,0"
                         Padding="10,7"
-                        Background="#FDF6EC"
-                        BorderBrush="#F5DAB1"
+                        Background="{StaticResource DialogWarningSubtleBrush}"
+                        BorderBrush="{StaticResource DialogWarningBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="4"
                         Visibility="{Binding ShowDefaultPasswordHint, Converter={ui:BooleanToVisibilityConverter}}">
-                        <TextBlock
-                            FontSize="11"
-                            Foreground="#E6A23C"
-                            Text="出厂管理员 admin 仍在使用默认密码，登录后请立即在「修改密码」页改掉。"
-                            TextWrapping="Wrap" />
+                        <Grid>
+                            <TextBlock
+                                Margin="0,0,58,0"
+                                FontSize="11"
+                                Foreground="{StaticResource DialogWarningTextBrush}"
+                                Text="出厂管理员 admin 仍在使用默认密码，登录后请立即改掉。"
+                                TextWrapping="Wrap" />
+                            <Button
+                                Height="24"
+                                Padding="8,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Command="{Binding OpenChangePasswordCommand}"
+                                Content="立即修改"
+                                FontSize="10"
+                                Style="{StaticResource DialogSecondaryButton}" />
+                        </Grid>
                     </Border>
 
                     <TabControl Margin="0,12,0,0" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
@@ -143,7 +202,7 @@
                                 <StackPanel Grid.Row="0">
                                     <TextBlock
                                         FontSize="12"
-                                        Foreground="#606266"
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
                                         Text="用户名" />
                                     <TextBox
                                         x:Name="UserNameBox"
@@ -153,7 +212,7 @@
                                     <TextBlock
                                         Margin="0,6,0,0"
                                         FontSize="12"
-                                        Foreground="#606266"
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
                                         Text="密码" />
                                     <!--  密码框的观感（圆角 / 聚焦下划线 / 眼睛图标切明文）全部来自
                                           DefaultStyle 里的 PasswordBox 默认样式，这里只负责把值绑给 VM。  -->
@@ -167,24 +226,21 @@
                                         MinHeight="18"
                                         Margin="0,8,0,0"
                                         FontSize="11"
-                                        Foreground="#F56C6C"
+                                        Foreground="{StaticResource DialogDangerTextBrush}"
                                         Text="{Binding LoginMessage}"
                                         TextWrapping="Wrap" />
                                 </StackPanel>
 
                                 <Button
                                     Grid.Row="1"
+                                    Height="38"
                                     Margin="0,6,0,0"
-                                    Padding="0,9"
-                                    Background="#409EFF"
-                                    BorderThickness="0"
+                                    HorizontalAlignment="Stretch"
                                     Command="{Binding LoginCommand}"
                                     Content="登 录"
-                                    Cursor="Hand"
                                     FontSize="13"
                                     FontWeight="SemiBold"
-                                    Foreground="White"
-                                    HorizontalAlignment="Stretch" />
+                                    Style="{StaticResource DialogPrimaryButton}" />
                             </Grid>
                         </TabItem>
 
@@ -199,7 +255,7 @@
                                 <StackPanel Grid.Row="0">
                                     <TextBlock
                                         FontSize="12"
-                                        Foreground="#606266"
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
                                         Text="用户名" />
                                     <TextBox
                                         Margin="0,4,0,0"
@@ -208,7 +264,7 @@
                                     <TextBlock
                                         Margin="0,6,0,0"
                                         FontSize="12"
-                                        Foreground="#606266"
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
                                         Text="当前密码" />
                                     <PasswordBox
                                         Margin="0,4,0,0"
@@ -226,7 +282,7 @@
                                         <StackPanel Grid.Column="0">
                                             <TextBlock
                                                 FontSize="12"
-                                                Foreground="#606266"
+                                                Foreground="{StaticResource DialogTextSecondaryBrush}"
                                                 Text="新密码" />
                                             <PasswordBox
                                                 Margin="0,4,0,0"
@@ -236,7 +292,7 @@
                                         <StackPanel Grid.Column="2">
                                             <TextBlock
                                                 FontSize="12"
-                                                Foreground="#606266"
+                                                Foreground="{StaticResource DialogTextSecondaryBrush}"
                                                 Text="确认新密码" />
                                             <PasswordBox
                                                 Margin="0,4,0,0"
@@ -253,10 +309,10 @@
                                         TextWrapping="Wrap">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="#F56C6C" />
+                                                <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding ChangeSucceeded}" Value="True">
-                                                        <Setter Property="Foreground" Value="#67C23A" />
+                                                        <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -266,17 +322,14 @@
 
                                 <Button
                                     Grid.Row="1"
+                                    Height="38"
                                     Margin="0,6,0,0"
-                                    Padding="0,9"
-                                    Background="#409EFF"
-                                    BorderThickness="0"
+                                    HorizontalAlignment="Stretch"
                                     Command="{Binding ChangePasswordCommand}"
                                     Content="修改密码"
-                                    Cursor="Hand"
                                     FontSize="13"
                                     FontWeight="SemiBold"
-                                    Foreground="White"
-                                    HorizontalAlignment="Stretch" />
+                                    Style="{StaticResource DialogPrimaryButton}" />
                             </Grid>
                         </TabItem>
                     </TabControl>
@@ -288,24 +341,18 @@
                     <Button
                         Padding="14,6"
                         HorizontalAlignment="Left"
-                        Background="#FFFFFF"
-                        BorderBrush="#DCDFE6"
-                        BorderThickness="1"
                         Command="{Binding OpenUserManagerCommand}"
                         Content="用户管理"
-                        Cursor="Hand"
                         FontSize="12"
+                        Style="{StaticResource DialogSecondaryButton}"
                         Visibility="{Binding CanManageUsers, Converter={ui:BooleanToVisibilityConverter}}" />
                     <Button
                         Padding="14,6"
                         HorizontalAlignment="Right"
-                        Background="#FFFFFF"
-                        BorderBrush="#DCDFE6"
-                        BorderThickness="1"
                         Command="{Binding CloseCommand}"
                         Content="关闭"
-                        Cursor="Hand"
-                        FontSize="12" />
+                        FontSize="12"
+                        Style="{StaticResource DialogSecondaryButton}" />
                 </Grid>
             </Grid>
         </Border>

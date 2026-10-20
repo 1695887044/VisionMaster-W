@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:prism="http://prismlibrary.com/"
     xmlns:ui="http://schemas.UI.com/ui"
+    xmlns:local="clr-namespace:VisionMaster.Views.DialogViews"
     prism:ViewModelLocator.AutoWireViewModel="True"
     Background="{StaticResource DialogBackgroundBrush}">
 
@@ -45,7 +46,7 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="52" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -60,6 +61,16 @@
             Background="{StaticResource DialogRowAlternateBrush}"
             BorderBrush="{StaticResource DialogBorderLightBrush}"
             BorderThickness="0,0,0,1">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding (local:EmbeddedMode.IsEmbedded), RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <Grid Margin="20,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -141,6 +152,7 @@
                             <Button
                                 HorizontalAlignment="Right"
                                 Command="{Binding AddCommand}"
+                                IsEnabled="{Binding IsConfigEditable}"
                                 Style="{StaticResource DialogGhostButton}"
                                 ToolTip="选择驱动类型并填写序列号，新建一台相机">
                                 <StackPanel Orientation="Horizontal">
@@ -167,6 +179,7 @@
                             Padding="12"
                             Background="{StaticResource DialogAccentSoftBrush}"
                             CornerRadius="10"
+                            IsEnabled="{Binding IsConfigEditable}"
                             Visibility="{Binding IsAdding, Converter={ui:BooleanToVisibilityConverter}}">
                             <StackPanel>
                                 <TextBlock Style="{StaticResource DialogFormLabel}" Text="驱动类型" />
@@ -358,7 +371,10 @@
                                         Text="{Binding SelectedCamera.DriverDisplayName}" />
                                 </StackPanel>
 
-                                <StackPanel Margin="0,14,0,0" Orientation="Horizontal">
+                                <StackPanel
+                                    Margin="0,14,0,0"
+                                    IsEnabled="{Binding IsRuntimeOperable}"
+                                    Orientation="Horizontal">
                                     <!--  连接 / 断开：文案随状态切换  -->
                                     <Button
                                         Height="36"
@@ -420,6 +436,7 @@
                                         CommandParameter="{Binding SelectedCamera}"
                                         Content="删除相机"
                                         Foreground="{StaticResource DialogDangerBrush}"
+                                        IsEnabled="{Binding IsConfigEditable}"
                                         Style="{StaticResource DialogSecondaryButton}" />
                                 </StackPanel>
                             </StackPanel>
@@ -626,6 +643,7 @@
                         <Border
                             Margin="0,12,0,0"
                             Padding="16"
+                            IsEnabled="{Binding IsConfigEditable}"
                             Style="{StaticResource DialogCardBorder}">
                             <StackPanel>
                                 <TextBlock Style="{StaticResource DialogCardTitle}" Text="采集参数" />
@@ -803,13 +821,22 @@
                     Foreground="{StaticResource DialogTextMutedBrush}"
                     Text="相机配置属于当前方案，增删改后请保存方案（文件 → 保存）以长期生效。" />
 
-                <Button
-                    Grid.Column="1"
-                    Width="96"
-                    VerticalAlignment="Center"
-                    Command="{Binding CloseCommand}"
-                    Content="关 闭"
-                    Style="{StaticResource DialogPrimaryButton}" />
+                <Border Grid.Column="1" Width="96" VerticalAlignment="Center">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding (local:EmbeddedMode.IsEmbedded), RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Button
+                        Command="{Binding CloseCommand}"
+                        Content="关 闭"
+                        Style="{StaticResource DialogPrimaryButton}" />
+                </Border>
             </Grid>
         </Border>
         </Grid>

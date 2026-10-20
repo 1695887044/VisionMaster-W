@@ -250,7 +250,16 @@ namespace VisionMaster
         /// <para><b>只能追加在末尾</b>：这些枚举值会落进 <c>Layout.xml</c> 与旧配置，
         /// 中间插项会把后面所有成员的整数值整体挪位（旧文件读回来就指向别的动作）。</para>
         /// </summary>
-        SystemHealth
+        SystemHealth,
+
+        /// <summary>
+        /// 系统设置（合并窗口）：运行窗口形态 / 落屏 + 安全与会话 + 历史留档 + 画布（图集）。
+        /// <para>「运行窗口设置」与「系统参数设置」两个旧入口写的都是程序目录 AppConfig.json，
+        /// 口径也逐条相同，现已合并成一个弹窗；两个旧枚举值保留（可能已落盘），
+        /// 由 ShellViewModel 转发到本弹窗的对应页签。</para>
+        /// <para>追加在末尾——理由见 <see cref="RuntimeWindowSettings"/>。</para>
+        /// </summary>
+        SystemSettings
     }
 
     /// <summary>

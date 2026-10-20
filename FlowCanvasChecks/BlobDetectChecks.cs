@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Core.Interfaces;
 using HalconDotNet;
@@ -42,6 +43,7 @@ namespace FlowCanvasChecks
             RunResetAndBitDepth();
             RunMultiChannelAndNumbering();
             RunViewAndThemeContract();
+            RunLifecycleGuards();
         }
 
         // ==================================================================
@@ -614,6 +616,206 @@ namespace FlowCanvasChecks
                 finally { r.Dispose(); g.Dispose(); b.Dispose(); }
             }
             finally { crop.Dispose(); }
+        }
+
+        // ==================================================================
+        //  ⑦ 生命周期守卫（BD6：Dispose 后入口早退）
+        // ==================================================================
+
+        /// <summary>
+        /// BD6：配置窗口关闭（Dispose）后，输入端口 ValueChanged / 防抖 Tick 仍可能把
+        /// SchedulePreview / RefreshPreview 再叫进来。入口守卫只阻止"新任务"；
+        /// 在途预览的竞态仍由轮次号 + _disposed 回填守卫兜底（本断言不覆盖在途部分）。
+        /// 静态扫描钉住"守卫还在、顺序没被挪"，运行时探针钉住"Dispose 后调用不复活状态"。
+        /// </summary>
+        private static void RunLifecycleGuards()
+        {
+            Section("[Blob] 生命周期守卫（BD6：Dispose 后入口早退）");
+
+            string? sourcePath = ResolveRepoFile(@"Plugins\Plugin.BlobDetect\BlobDetectPlugin.cs");
+            if (sourcePath == null)
+            {
+                Check("【BD6】定位 BlobDetectPlugin.cs", false, "找不到源文件，守卫扫描无法执行");
+            }
+            else
+            {
+                string source = File.ReadAllText(sourcePath);
+
+                string? scheduleBody = ExtractMethodBody(source, @"private\s+void\s+SchedulePreview\s*\(\s*\)");
+                string? refreshBody = ExtractMethodBody(source, @"public\s+void\s+RefreshPreview\s*\(\s*\)");
+                string? disposeBody = ExtractMethodBody(source, @"public\s+override\s+void\s+Dispose\s*\(\s*\)");
+
+                Check("【BD6】SchedulePreview 首条语句是 if (_disposed) return;",
+                    FirstStatement(scheduleBody) == "if(_disposed)return;",
+                    scheduleBody == null ? "未找到方法体" : $"首条={FirstStatement(scheduleBody)}");
+                Check("【BD6】RefreshPreview 首条语句是 if (_disposed) return;",
+                    FirstStatement(refreshBody) == "if(_disposed)return;",
+                    refreshBody == null ? "未找到方法体" : $"首条={FirstStatement(refreshBody)}");
+
+                string dispose = StripComments(disposeBody ?? string.Empty);
+                int disposedAt = IndexOfPattern(dispose, @"_disposed\s*=\s*true\s*;");
+                int debounceAt = dispose.IndexOf("_previewDebounce", StringComparison.Ordinal);
+                int cacheAt = dispose.IndexOf("DisposeDetectCache()", StringComparison.Ordinal);
+                Check("【BD6】Dispose 先置 _disposed，再停防抖/清缓存（顺序反了会在释放过程中排新任务）",
+                    disposeBody != null && disposedAt >= 0 && debounceAt > disposedAt && cacheAt > disposedAt,
+                    disposeBody == null
+                        ? "未找到 Dispose 方法体"
+                        : $"disposed={disposedAt} debounce={debounceAt} cache={cacheAt}");
+
+                int unsubAt = dispose.IndexOf("SrcImage.ValueChanged -= OnSrcImageValueChanged", StringComparison.Ordinal);
+                int baseAt = dispose.IndexOf("base.Dispose()", StringComparison.Ordinal);
+                Check("【BD6】Dispose 在 base.Dispose() 之前退订三个输入端口（防 base 清链接时触发 ValueChanged）",
+                    disposeBody != null && unsubAt > disposedAt && baseAt > unsubAt
+                    && dispose.Contains("MaskRegion.ValueChanged -= OnSrcImageValueChanged")
+                    && dispose.Contains("ExcludeRegion.ValueChanged -= OnSrcImageValueChanged"),
+                    disposeBody == null
+                        ? "未找到 Dispose 方法体"
+                        : $"disposed={disposedAt} unsubscribe={unsubAt} base={baseAt}");
+            }
+
+            RunDisposedEntryProbe(useSchedulePreview: true);
+            RunDisposedEntryProbe(useSchedulePreview: false);
+        }
+
+        /// <summary>
+        /// 运行时探针：OnViewLoaded 产出真实预览 → Dispose → 再调入口。
+        /// 判据只看"状态有没有复活"：PreviewImage / StatusMessage / DefectRows 保持 Dispose 后的快照，
+        /// 且反射确认 _previewDebounce 为 null、_previewInFlight 为 false。
+        /// 无 Application 的环境走同步预览分支（UiDispatcher == null），不会留下后台任务。
+        /// </summary>
+        private static void RunDisposedEntryProbe(bool useSchedulePreview)
+        {
+            string entry = useSchedulePreview ? "SchedulePreview" : "RefreshPreview";
+            using var image = BuildScene();
+            var plugin = new BlobDetectPlugin { InstanceName = "Blob_生命周期断言" };
+            plugin.ThresholdMode = ThresholdMode.Fixed;
+            plugin.MinGray = 0;
+            plugin.MaxGray = 128;
+            plugin.MinArea = 30;
+            plugin.SrcImage.Value = image;
+
+            Exception? loadBoom = null;
+            try { plugin.OnViewLoaded(); }
+            catch (Exception ex) { loadBoom = ex; }
+
+            if (loadBoom != null || plugin.PreviewImage == null || plugin.DefectRows.Count == 0)
+            {
+                Check($"【BD6·运行时】{entry} 探针前置（OnViewLoaded 产出预览）", false,
+                    loadBoom != null
+                        ? $"{loadBoom.GetType().Name}: {loadBoom.Message}"
+                        : $"PreviewImage={(plugin.PreviewImage == null ? "null" : "有")} rows={plugin.DefectRows.Count}");
+                plugin.Dispose();
+                return;
+            }
+
+            plugin.Dispose();
+
+            object? previewBefore = plugin.PreviewImage;
+            string statusBefore = plugin.StatusMessage;
+            int rowsBefore = plugin.DefectRows.Count;
+            bool hasRoundBefore = TryGetPrivateField(plugin, "_previewRound", out object? roundBefore);
+            bool hasPackBefore = TryGetPrivateField(plugin, "_detectPack", out object? packBefore);
+
+            Exception? callBoom = null;
+            try
+            {
+                if (useSchedulePreview) InvokePrivate(plugin, "SchedulePreview");
+                else plugin.RefreshPreview();
+            }
+            catch (Exception ex)
+            {
+                callBoom = ex is TargetInvocationException { InnerException: not null } tie
+                    ? tie.InnerException!
+                    : ex;
+            }
+
+            bool hasDebounce = TryGetPrivateField(plugin, "_previewDebounce", out object? debounce);
+            bool hasInFlight = TryGetPrivateField(plugin, "_previewInFlight", out object? inFlight);
+            bool hasRoundAfter = TryGetPrivateField(plugin, "_previewRound", out object? roundAfter);
+            bool hasPackAfter = TryGetPrivateField(plugin, "_detectPack", out object? packAfter);
+
+            bool stateSame = ReferenceEquals(plugin.PreviewImage, previewBefore)
+                             && plugin.StatusMessage == statusBefore
+                             && plugin.DefectRows.Count == rowsBefore;
+            bool noNewTask = hasRoundBefore && hasRoundAfter
+                             && roundBefore is int rb && roundAfter is int ra && rb == ra
+                             && hasPackBefore && hasPackAfter && packBefore == null && packAfter == null;
+            bool noTimer = hasDebounce && debounce == null;
+            bool notInFlight = hasInFlight && inFlight is bool b && !b;
+
+            Check($"【BD6·运行时】Dispose 后 {entry} 不抛异常", callBoom == null,
+                callBoom == null ? "" : $"{callBoom.GetType().Name}: {callBoom.Message}");
+            Check($"【BD6·运行时】Dispose 后 {entry} 不复活预览状态（PreviewImage/StatusMessage/DefectRows）",
+                stateSame,
+                $"preview={(ReferenceEquals(plugin.PreviewImage, previewBefore) ? "不变" : "变了")} "
+                + $"status={(plugin.StatusMessage == statusBefore ? "不变" : "变了")} "
+                + $"rows={rowsBefore}→{plugin.DefectRows.Count}");
+            Check($"【BD6·运行时】Dispose 后 {entry} 不启动新任务（轮次号不推进、检测缓存不重建）",
+                noNewTask,
+                $"round={(hasRoundBefore && hasRoundAfter ? $"{roundBefore}→{roundAfter}" : "字段缺失")} "
+                + $"pack={(hasPackBefore && hasPackAfter ? (packBefore == null && packAfter == null ? "null" : "非null") : "字段缺失")}");
+            Check($"【BD6·运行时】Dispose 后 {entry} 未留下防抖定时器/在跑标志",
+                noTimer && notInFlight,
+                $"debounce={(hasDebounce ? (debounce == null ? "null" : "非null") : "字段缺失")} "
+                + $"inFlight={(hasInFlight ? (inFlight is bool x ? x.ToString() : "非bool") : "字段缺失")}");
+        }
+
+        /// <summary>按方法声明正则找到方法体（花括号配对；调用点/注释里的同名不算）</summary>
+        private static string? ExtractMethodBody(string source, string signaturePattern)
+        {
+            var match = Regex.Match(source, signaturePattern);
+            if (!match.Success) return null;
+
+            int open = source.IndexOf('{', match.Index + match.Length);
+            if (open < 0) return null;
+
+            int depth = 0;
+            for (int i = open; i < source.Length; i++)
+            {
+                if (source[i] == '{') depth++;
+                else if (source[i] == '}')
+                {
+                    depth--;
+                    if (depth == 0) return source.Substring(open + 1, i - open - 1);
+                }
+            }
+            return null;
+        }
+
+        private static string StripComments(string body)
+        {
+            string noBlock = Regex.Replace(body, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
+            return Regex.Replace(noBlock, @"//[^\r\n]*", string.Empty);
+        }
+
+        /// <summary>取方法体第一条语句（去掉注释/空白后按分号截断，再压掉所有空白）</summary>
+        private static string FirstStatement(string? body)
+        {
+            if (string.IsNullOrWhiteSpace(body)) return string.Empty;
+            string text = StripComments(body).TrimStart();
+            int semi = text.IndexOf(';');
+            if (semi < 0) return text;
+            return Regex.Replace(text.Substring(0, semi + 1), @"\s+", string.Empty);
+        }
+
+        private static int IndexOfPattern(string text, string pattern)
+        {
+            var match = Regex.Match(text, pattern);
+            return match.Success ? match.Index : -1;
+        }
+
+        private static void InvokePrivate(object target, string methodName)
+        {
+            var method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic)
+                         ?? throw new InvalidOperationException($"找不到私有方法 {methodName}");
+            method.Invoke(target, null);
+        }
+
+        private static bool TryGetPrivateField(object target, string name, out object? value)
+        {
+            var field = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
+            value = field?.GetValue(target);
+            return field != null;
         }
 
         // ==================================================================

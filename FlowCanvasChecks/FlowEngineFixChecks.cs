@@ -37,6 +37,7 @@ namespace FlowCanvasChecks
             BindingWritesGoThroughNotifyingApi();
             CSharpScriptRefusesNativeDlls();
             RunGuardsAreInPlace();
+            ExcelExportManualDispatchIsGuarded();
         }
 
         private static HubImageItem NewHubItem(string requestId, string flowName) => new()
@@ -330,6 +331,97 @@ namespace FlowCanvasChecks
                 noBlock, @"//[^\r\n]*", string.Empty,
                 System.Text.RegularExpressions.RegexOptions.Multiline);
         }
+
+        // ==================================================================
+        //  [EE4] Excel报表手动导出：Task.Run 调度本身失败也要落到终态
+        // ==================================================================
+        /// <summary>
+        /// 2026-10-20：`ExportNow()` 原先只有 Task.Run **内部**的 try/catch/finally。
+        /// 线程池拒单、或 lambda 还没进去就被拆掉时，那层 catch 根本没机会执行 ——
+        /// `LastResult` 永远停在「正在导出…」、`IsExporting` 一直是 true、按钮从此永久置灰
+        /// （比"导出失败"更难查：界面上看不出任何错误）。
+        ///
+        /// 判据落在**结构**上而不是行号/空白（改缩进、加注释不误伤），四条各自对应一个真实故障形状：
+        ///  ① Task.Run 必须落在外层 try 里（否则调度异常直接抛给按钮事件 → UI 线程崩）；
+        ///  ② 外层 catch 必须写 LastResult（否则界面停在「正在导出…」）；
+        ///  ③ 外层 catch 必须复位 IsExporting（否则按钮永久置灰，且下次连点都被 `if (IsExporting) return` 吞掉）；
+        ///  ④ 内层 finally 仍在（正常路径的复位不许被"搬去外层"顺手删掉）。
+        /// 变异反证：删掉外层 catch → ② ③ ④ 准确变红（`IsExporting = false` 只剩 1 处）。
+        /// </summary>
+        private static void ExcelExportManualDispatchIsGuarded()
+        {
+            Section("[EE4] Excel报表：手动导出的调度失败兜底");
+
+            var file = ResolveRepoFile(@"Plugins\Plugin.ExcelExport\ExcelExportPlugin.cs");
+            string source = file != null ? File.ReadAllText(file) : "";
+            if (source.Length == 0)
+            {
+                Check("ExcelExportPlugin.cs 定位（EE4 判据前提）", false, "定位失败");
+                return;
+            }
+
+            string code = StripComments(source);
+            string body = MethodBody(code, "public void ExportNow()");
+            Check("ExportNow 方法体可取（判据前提）", body.Length > 0, $"体长={body.Length}");
+            if (body.Length == 0) return;
+
+            int taskAt = body.IndexOf("Task.Run(", StringComparison.Ordinal);
+            int outerTryAt = body.IndexOf("try", StringComparison.Ordinal);
+            Check("★① Task.Run 落在外层 try 内（调度异常不许抛给按钮事件）",
+                taskAt > 0 && outerTryAt >= 0 && outerTryAt < taskAt,
+                $"try@{outerTryAt} Task.Run@{taskAt}");
+
+            // 外层 catch：从外层 try 的 { 起配对找到块尾，紧随其后的 catch 就是外层那一支
+            string outerCatch = "";
+            if (outerTryAt >= 0)
+            {
+                int open = body.IndexOf('{', outerTryAt);
+                int close = open < 0 ? -1 : FindMatchingBrace(body, open);
+                if (close > 0)
+                {
+                    int catchAt = body.IndexOf("catch", close, StringComparison.Ordinal);
+                    if (catchAt >= 0)
+                    {
+                        int catchOpen = body.IndexOf('{', catchAt);
+                        int catchClose = catchOpen < 0 ? -1 : FindMatchingBrace(body, catchOpen);
+                        if (catchClose > catchOpen)
+                            outerCatch = body.Substring(catchAt, catchClose - catchAt + 1);
+                    }
+                }
+            }
+
+            Check("★② 外层 catch 写 LastResult（界面不会停在「正在导出…」）",
+                outerCatch.Contains("LastResult") && outerCatch.Contains("导出异常"),
+                outerCatch.Length == 0 ? "外层 catch 未找到" : $"体长={outerCatch.Length}");
+
+            Check("★③ 外层 catch 复位 IsExporting（按钮不会永久置灰）",
+                outerCatch.Contains("IsExporting = false"),
+                outerCatch.Length == 0 ? "外层 catch 未找到" : outerCatch);
+
+            Check("异常文案带类型名（现场能分清是哪种异常）",
+                outerCatch.Contains("ex.GetType().Name"),
+                outerCatch.Length == 0 ? "外层 catch 未找到" : "");
+
+            int resetCount = CountOccurrences(body, "IsExporting = false");
+            Check("★④ 内层 finally 仍在（复位点必须两处：内层 finally + 外层 catch）",
+                body.Contains("finally") && resetCount == 2,
+                $"IsExporting = false 出现 {resetCount} 次（应为 2）");
+        }
+
+        /// <summary>从 openIndex 处的 '{' 起按花括号配对找块尾，返回 '}' 的下标；找不到返回 -1</summary>
+        private static int FindMatchingBrace(string source, int openIndex)
+        {
+            int depth = 0;
+            for (int i = openIndex; i < source.Length; i++)
+            {
+                if (source[i] == '{') depth++;
+                else if (source[i] == '}' && --depth == 0) return i;
+            }
+            return -1;
+        }
+
+        private static int CountOccurrences(string source, string needle)
+            => needle.Length == 0 ? 0 : source.Split(new[] { needle }, StringSplitOptions.None).Length - 1;
 
         /// <summary>超时按 Warning 放行的慢自检项（模拟插件扫描）</summary>
         private sealed class SlowWarningCheck : IStartupCheck

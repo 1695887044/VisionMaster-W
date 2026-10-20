@@ -1,0 +1,209 @@
+<UserControl
+    x:Class="UI.CustomControl.MessageDialogView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:UI.CustomControl"
+    KeyboardNavigation.TabNavigation="Cycle"
+    IsTabStop="False"
+    Loaded="OnLoaded"
+    SnapsToDevicePixels="True"
+    UseLayoutRounding="True">
+
+    <!--
+        公共消息弹窗卡片（设计基线 docs/UI设计基线/message-dialog/design.html v1）。
+
+        视觉树分三段：
+          Header  36 图标块 + 16/600 标题 + 30×30 关闭
+          Body    正文 + 结构化详情 + 提示 + 问题
+          Footer  11px 快捷键提示 + 右对齐按钮组（主操作永远最右）
+
+        资源纪律（R30）：
+          · 卡片 / 图标 / 文字 / 详情 / 底栏样式来自 Dialog.Message.xaml；
+          · 按钮族来自 FluentAliases.xaml；
+          · chip 的 DialogMessageChip* / DialogMessageChipText* 由本视图的转换器在运行期取
+            （唯一键，避开 FluentAliases 对 DialogChip* 的覆盖；此时全部分册已合并）；
+          · 焦点环 / ToolTip 来自 Dialog.Misc.xaml。
+          视图层引用兄弟分册是允许的（视图加载时 App 级资源已就绪），样式分册之间才禁止。
+    -->
+    <UserControl.Resources>
+        <local:MessageChipStyleConverter x:Key="ChipStyleConverter" />
+        <local:MessageChipTextStyleConverter x:Key="ChipTextStyleConverter" />
+    </UserControl.Resources>
+
+    <Border
+        x:Name="Card"
+        Width="480"
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        Style="{StaticResource DialogMessageCard}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!--  ==================== Header ====================  -->
+            <Grid Grid.Row="0" Margin="20,20,20,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Border
+                    x:Name="IconBlock"
+                    Grid.Column="0"
+                    Margin="0,0,12,0"
+                    VerticalAlignment="Top"
+                    Style="{StaticResource DialogMessageIconInfo}">
+                    <TextBlock
+                        x:Name="IconGlyph"
+                        Style="{StaticResource DialogMessageIconGlyph}"
+                        Text="&#xF05A;" />
+                </Border>
+
+                <TextBlock
+                    x:Name="TitleText"
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource DialogMessageTitle}" />
+
+                <!--
+                    关闭按钮：DialogIconButton 的 MinWidth/MinHeight 是 30，
+                    这里显式写 30×30 + Padding=0（R68：固定格子的图标按钮必须挂样式或显式 Padding）。
+                    不要改成 28——会被 MinWidth/MinHeight 夹回 30，反而多一处不一致。
+                -->
+                <Button
+                    x:Name="CloseButton"
+                    Grid.Column="2"
+                    VerticalAlignment="Top"
+                    AutomationProperties.Name="关闭"
+                    Click="CloseButton_Click"
+                    Content="&#xF00D;"
+                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                    KeyboardNavigation.TabIndex="3"
+                    Style="{StaticResource DialogMessageCloseButton}">
+                    <Button.ToolTip>
+                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="关闭（Esc）" />
+                    </Button.ToolTip>
+                </Button>
+            </Grid>
+
+            <!--  ==================== Body ====================  -->
+            <StackPanel Grid.Row="1" Margin="20,12,20,0">
+                <TextBlock x:Name="LeadText" Style="{StaticResource DialogMessageLead}" />
+
+                <Border x:Name="DetailsPanel" Style="{StaticResource DialogMessageDetails}">
+                    <ItemsControl x:Name="DetailsList" AlternationCount="1000">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border
+                                    x:Name="RowRoot"
+                                    Style="{StaticResource DialogMessageDetailRow}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="56" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="24" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock
+                                            Grid.Column="0"
+                                            Style="{StaticResource DialogMessageDetailLabel}"
+                                            Text="{Binding Label}" />
+
+                                        <!--  chip 样式在视图层解析（DialogChip* 在兄弟分册，R30）  -->
+                                        <Border
+                                            x:Name="ChipBorder"
+                                            Grid.Column="1"
+                                            Margin="0,0,8,0"
+                                            Style="{Binding Tone, Converter={StaticResource ChipStyleConverter}}">
+                                            <TextBlock
+                                                Style="{Binding Tone, Converter={StaticResource ChipTextStyleConverter}}"
+                                                Text="{Binding Chip}" />
+                                        </Border>
+
+                                        <Border
+                                            Grid.Column="2"
+                                            Margin="0,0,8,0"
+                                            Style="{StaticResource DialogMessagePath}">
+                                            <Border.ToolTip>
+                                                <ToolTip
+                                                    Content="{Binding PlacementTarget.DataContext.Path, RelativeSource={RelativeSource Self}}"
+                                                    Style="{StaticResource DialogToolTipStyle}" />
+                                            </Border.ToolTip>
+                                            <TextBlock Style="{StaticResource DialogMessagePathText}" Text="{Binding Path}" />
+                                        </Border>
+
+                                        <Button
+                                            Grid.Column="3"
+                                            AutomationProperties.Name="复制路径"
+                                            Click="CopyButton_Click"
+                                            Content="&#xF0C5;"
+                                            FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                            KeyboardNavigation.TabIndex="2"
+                                            Style="{StaticResource DialogMessageCopyButton}">
+                                            <Button.ToolTip>
+                                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="复制路径" />
+                                            </Button.ToolTip>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
+                                <DataTemplate.Triggers>
+                                    <!--  第一行不画分隔线；后续行 1px 顶部细线 + 2px 间隔  -->
+                                    <DataTrigger Binding="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ContentPresenter}}" Value="0">
+                                        <Setter TargetName="RowRoot" Property="BorderThickness" Value="0" />
+                                    </DataTrigger>
+                                    <!--  chip 文案为空时整颗隐藏，路径自动左移  -->
+                                    <DataTrigger Binding="{Binding Chip}" Value="">
+                                        <Setter TargetName="ChipBorder" Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Chip}" Value="{x:Null}">
+                                        <Setter TargetName="ChipBorder" Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+
+                <TextBlock x:Name="HintText" Style="{StaticResource DialogMessageHint}" />
+                <TextBlock x:Name="QuestionText" Style="{StaticResource DialogMessageQuestion}" />
+            </StackPanel>
+
+            <!--  ==================== Footer ====================  -->
+            <Border Grid.Row="2" Style="{StaticResource DialogMessageFooter}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock x:Name="FootHint" Style="{StaticResource DialogMessageFootHint}" />
+
+                    <StackPanel
+                        Grid.Column="1"
+                        HorizontalAlignment="Right"
+                        Orientation="Horizontal">
+                        <Button
+                            x:Name="SecondaryButton"
+                            Margin="0,0,8,0"
+                            Click="SecondaryButton_Click"
+                            FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                            KeyboardNavigation.TabIndex="1"
+                            Style="{StaticResource DialogMessageSecondaryButton}" />
+                        <Button
+                            x:Name="PrimaryButton"
+                            Click="PrimaryButton_Click"
+                            FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                            KeyboardNavigation.TabIndex="0"
+                            Style="{StaticResource DialogMessagePrimaryButton}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

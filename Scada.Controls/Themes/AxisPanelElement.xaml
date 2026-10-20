@@ -14,8 +14,12 @@
            所以这里自带 ComboBox 的最小模板，不去合并主程序的主题字典。
     -->
 
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
     <Style x:Key="AxisPanelComboItem" TargetType="ComboBoxItem">
-        <Setter Property="Foreground" Value="#FFFAFAFA" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Padding" Value="8,6" />
         <Setter Property="Template">
@@ -30,10 +34,10 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="#33FF6161" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HmiBorderBrush}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="#55FF6161" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HmiBorderStrongBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -45,9 +49,9 @@
     <Style x:Key="AxisPanelCombo" TargetType="ComboBox">
         <Setter Property="Height" Value="28" />
         <Setter Property="MinWidth" Value="120" />
-        <Setter Property="Foreground" Value="#FFFAFAFA" />
-        <Setter Property="Background" Value="#FF15171A" />
-        <Setter Property="BorderBrush" Value="#FF2A2D31" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+        <Setter Property="Background" Value="{StaticResource HmiSurfaceRaisedBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HmiBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="ItemContainerStyle" Value="{StaticResource AxisPanelComboItem}" />
         <Setter Property="Template">
@@ -107,8 +111,8 @@
                             <Border
                                 MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                 MaxHeight="220"
-                                Background="#FF15171A"
-                                BorderBrush="#FF2A2D31"
+                                Background="{StaticResource HmiSurfaceRaisedBrush}"
+                                BorderBrush="{StaticResource HmiBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="6">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -124,14 +128,16 @@
 
     <!--  操作按钮：自带模板，避开应用级 Fluent 的隐式 Button 样式（浅色底 + 大内边距）  -->
     <Style x:Key="AxisCommandButton" TargetType="Button">
-        <Setter Property="Foreground" Value="#FFFAFAFA" />
-        <Setter Property="Background" Value="#FF1B1E22" />
-        <Setter Property="BorderBrush" Value="#FF2A2D31" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+        <Setter Property="Background" Value="{StaticResource HmiSurfaceRaisedBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HmiBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="MinHeight" Value="29" />
+        <Setter Property="Padding" Value="8,3" />
         <Setter Property="Margin" Value="0,0,5,0" />
-        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontSize" Value="10" />
         <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource HmiFocusVisual}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -147,10 +153,10 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Background" Value="#33FF6161" />
+                            <Setter Property="Background" Value="{StaticResource HmiBorderBrush}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter Property="Background" Value="#55FF6161" />
+                            <Setter Property="Background" Value="{StaticResource HmiBorderStrongBrush}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.4" />
@@ -165,9 +171,9 @@
         x:Key="AxisCommandDangerButton"
         BasedOn="{StaticResource AxisCommandButton}"
         TargetType="Button">
-        <Setter Property="Background" Value="#FFE03A2B" />
-        <Setter Property="BorderBrush" Value="#FFE03A2B" />
-        <Setter Property="Foreground" Value="#FFFFFFFF" />
+        <Setter Property="Background" Value="{StaticResource HmiDangerBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HmiDangerBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
@@ -178,9 +184,10 @@
         x:Key="PointRowButton"
         BasedOn="{StaticResource AxisCommandButton}"
         TargetType="Button">
+        <Setter Property="MinHeight" Value="22" />
         <Setter Property="Padding" Value="4,1" />
         <Setter Property="Margin" Value="0,0,2,0" />
-        <Setter Property="FontSize" Value="9" />
+        <Setter Property="FontSize" Value="10" />
     </Style>
 
     <Style x:Key="PointCellText" TargetType="TextBlock">
@@ -193,16 +200,17 @@
         <Setter Property="Focusable" Value="False" />
         <Setter Property="FontFamily" Value="Microsoft YaHei" />
         <Setter Property="FontSize" Value="12" />
-        <Setter Property="Foreground" Value="#FFFAFAFA" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type local:AxisPanelElement}">
                     <Border
+                        x:Name="AxisFrame"
                         Background="{TemplateBinding Fill}"
                         BorderBrush="{TemplateBinding Stroke}"
                         BorderThickness="{TemplateBinding StrokeThickness}"
                         ClipToBounds="True"
-                        CornerRadius="{TemplateBinding CornerRadius}">
+                        CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}">
                         <Grid x:Name="RootGrid" Margin="{TemplateBinding Padding}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -540,7 +548,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="58" />
-                                        <ColumnDefinition Width="46" />
+                                        <ColumnDefinition Width="58" />
                                         <ColumnDefinition Width="Auto" MinWidth="50" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock
@@ -555,7 +563,7 @@
                                         Margin="0,0,4,0"
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Center"
-                                        FontSize="8"
+                                        FontSize="10"
                                         Foreground="{TemplateBinding MutedColor}"
                                         Text="位置(mm)" />
                                     <TextBlock
@@ -563,21 +571,21 @@
                                         Margin="0,0,2,0"
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Center"
-                                        FontSize="8"
+                                        FontSize="10"
                                         Foreground="{TemplateBinding MutedColor}"
                                         Text="速度(mm/s)" />
                                     <TextBlock
                                         Grid.Column="3"
                                         HorizontalAlignment="Center"
                                         VerticalAlignment="Center"
-                                        FontSize="8"
+                                        FontSize="10"
                                         Foreground="{TemplateBinding MutedColor}"
                                         Text="操作" />
                                 </Grid>
 
                                 <Border
                                     MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=StackPanel}}"
-                                    Background="#0AFFFFFF"
+                                    Background="{StaticResource HmiSurfaceBrush}"
                                     BorderBrush="{TemplateBinding Stroke}"
                                     BorderThickness="1"
                                     ClipToBounds="True"
@@ -594,11 +602,11 @@
                                             ItemsSource="{TemplateBinding Rows}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Grid MinHeight="20" Margin="4,1">
+                                                    <Grid MinHeight="26" Margin="4,1">
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
                                                             <ColumnDefinition Width="58" />
-                                                            <ColumnDefinition Width="46" />
+                                                            <ColumnDefinition Width="58" />
                                                             <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
 
@@ -622,11 +630,11 @@
                                                             Margin="2,0,0,0"
                                                             Padding="2,0"
                                                             HorizontalContentAlignment="Right"
-                                                            Background="#FF15171A"
-                                                            BorderBrush="#FF2A2D31"
+                                                            Background="{StaticResource HmiSurfaceBrush}"
+                                                            BorderBrush="{StaticResource HmiBorderBrush}"
                                                             BorderThickness="1"
                                                             FontFamily="Cascadia Mono, Consolas"
-                                                            FontSize="9"
+                                                            FontSize="10"
                                                             Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:AxisPanelElement}}"
                                                             IsEnabled="{Binding CanEdit, RelativeSource={RelativeSource AncestorType=local:AxisPanelElement}}"
                                                             Text="{Binding SpeedText, UpdateSourceTrigger=LostFocus}" />

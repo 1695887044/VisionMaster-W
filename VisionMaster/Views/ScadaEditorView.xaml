@@ -536,5 +536,49 @@
                 <ContextMenu FontFamily="{StaticResource DialogIconFont}" />
             </controls:ScadaCanvas.ContextMenu>
         </controls:ScadaCanvas>
+
+        <!--  空态：方案已打开但还没有组态画面。没有这块，用户看到的就是一张纯白画布，
+              会误判成“方案没打开/软件坏了”。  -->
+        <Border
+            Grid.Row="2"
+            Panel.ZIndex="10"
+            Background="{StaticResource ScadaPanelBackgroundBrush}">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Null}">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <StackPanel
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontSize="18"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource ScadaTextBrush}"
+                    Text="当前方案还没有组态画面" />
+                <TextBlock
+                    Margin="0,8,0,0"
+                    HorizontalAlignment="Center"
+                    FontSize="12"
+                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                    Text="新建一张画面后，就可以拖入图元开始组态。" />
+                <Button
+                    MinWidth="112"
+                    Margin="0,18,0,0"
+                    Padding="16,7"
+                    HorizontalAlignment="Center"
+                    Background="{StaticResource DialogAccentBrush}"
+                    BorderThickness="0"
+                    Command="{Binding AddPageCommand}"
+                    Content="新建画面"
+                    Foreground="{StaticResource ScadaOnAccentTextBrush}" />
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>

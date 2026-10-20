@@ -23,9 +23,9 @@ namespace VisionMaster.Scada.Controls
     /// （<see cref="ElementRegistry"/> 的静态构造里，17 个图元各一次），
     /// 结果进缓存，运行期零反射。
     ///
-    /// 顺序：<b>基类在前、子类在后</b>，各自保持源码次序。属性面板按"分组首次出现的次序"
-    /// 排列（见 <c>ScadaPropertyViewModel.Rebuild</c>），所以这条次序决定了面板上谁在上面，
-    /// 与原先手写描述符时的排版口径一致。
+    /// 顺序：<b>基类在前、子类在后</b>，各自保持源码次序。面板上<b>组与组</b>的先后由
+    /// <see cref="ScadaPropertyGroups.Order"/> 决定（不再按"分组首次出现的次序"），
+    /// <b>组内</b>各行仍按这条收集次序排（见 <c>ScadaPropertyViewModel.Rebuild</c>）。
     ///
     /// <c>public</c> 而不是 <c>internal</c>：图元库拆成了多个程序集（内置图元在 VM.Scada.Controls，
     /// 曲线图元在 VM.Scada.Controls.Charts），后者的清单要调本方法来收集属性，internal 跨不过去。

@@ -31,11 +31,27 @@ namespace UI.CustomControl.PropertyGrid
                 {
                     context.Control.IsEnabled = false;
                     context.Control.Opacity = 0.4;
+
                     var textBlock = FindLabelTextBlock(context);
                     if (textBlock != null)
                     {
-                        textBlock.Inlines.Add(new Run { Text = " 🔒", Foreground = Brushes.Red });
+                        // v1 基线：锁图标 + 原因说明文字，不再只往标签里塞一个红 emoji。
+                        // 锁跟着标签走（用户一眼知道哪一行受限），原因写在值下方
+                        // （说明"为什么改不了、需要什么角色"，而不是让人去猜）。
+                        textBlock.Inlines.Add(new Run { Text = " 🔒", Foreground = PropertyGridMetrics.Brush("DialogDangerBrush", 239, 68, 68) });
                         textBlock.ToolTip = $"权限不足！需要：{attr.RequiredRole}";
+                    }
+
+                    if (context.WrapPanel is Panel wrap)
+                    {
+                        wrap.Children.Add(new TextBlock
+                        {
+                            Text = $"当前角色 {CurrentMockRole} 无此权限，需 {attr.RequiredRole}",
+                            FontSize = 11.5,
+                            Foreground = PropertyGridMetrics.Brush("DialogTextMutedBrush", 148, 163, 184),
+                            TextWrapping = TextWrapping.Wrap,
+                            Margin = new Thickness(0, 4, 0, 0),
+                        });
                     }
                 }
             }

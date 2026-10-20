@@ -215,15 +215,105 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
         }
 
+        private int _station;
+        private bool _mergeAdjacentRead = true;
+        private bool _enableConversion;
+        private double _scale = 1.0;
+        private double _engineeringOffset;
+        private string _unit = string.Empty;
+
+        /// <summary>
+        /// <para>Modbus 从站号（0 = 跟随连接；1~255 = 显式指定）。</para>
+        /// <para><b>一条串口挂多个从站时必填</b>：站号逐帧写进帧头，是"读哪个站"的唯一依据。
+        /// 留 0 就是该连接配置里的默认站号——多从站场景下所有点会全读同一站（静默读错值）。</para>
+        /// <para>只对 Modbus 协议有意义；S7 一个连接对应一个 PLC，不需要站号。</para>
+        /// </summary>
+        [SuperDisplay(
+            Name = "站号（0=跟随连接）",
+            Group = new[] { "网络参数" },
+            Order = 5,
+            GroupOrder = "1",
+            Description = "一条串口挂多个从站时必填（逐帧写进帧头）。S7 不需要")]
+        [RangeValidation(0, 255, "站号必须在 0 ~ 255 之间")]
+        public int Station
+        {
+            get => _station;
+            set
+            {
+                if (SetProperty(ref _station, value))
+                    RaisePropertyChanged(nameof(AddressPreview));
+            }
+        }
+
+        /// <summary>
+        /// <para>区域合并读（默认开）：允许本变量与相邻地址合并成一次块读。</para>
+        /// <para>关掉 = 只读本变量自己的跨度，不把邻居一起读回来。适用于"相邻地址属于别的系统、
+        /// 读它会触发副作用"的场合。关掉后往返次数会上升（每个变量一次），这是显式选择。</para>
+        /// </summary>
+        [SuperDisplay(
+            Name = "区域合并读",
+            Group = new[] { "网络参数" },
+            Order = 6,
+            GroupOrder = "1",
+            Description = "关掉 = 只读本变量自己的跨度，不把相邻地址一起读回来")]
+        public bool MergeAdjacentRead
+        {
+            get => _mergeAdjacentRead;
+            set => SetProperty(ref _mergeAdjacentRead, value);
+        }
+
+        /// <summary>
+        /// 启用工程量换算：读回值 = 原始值 × 缩放系数 + 工程偏移（保留指定小数位），
+        /// 写入时按同一公式反算。默认关——不配换算的方案行为与改造前一致。
+        /// </summary>
+        [SuperDisplay(
+            Name = "启用工程量换算",
+            Group = new[] { "工程量换算" },
+            Order = 0,
+            GroupOrder = "2",
+            Description = "读回值 = 原始值 × 缩放系数 + 工程偏移；写入按同一公式反算")]
+        public bool EnableConversion
+        {
+            get => _enableConversion;
+            set => SetProperty(ref _enableConversion, value);
+        }
+
+        /// <summary>缩放系数（如 4-20mA 转 0-100℃ 时取 6.25）</summary>
+        [SuperDisplay(Name = "缩放系数", Group = new[] { "工程量换算" }, Order = 1, GroupOrder = "2",
+            Description = "原始值 × 本系数；不缩放填 1")]
+        public double Scale
+        {
+            get => _scale;
+            set => SetProperty(ref _scale, value);
+        }
+
+        /// <summary>工程偏移（在缩放之后相加）</summary>
+        [SuperDisplay(Name = "工程偏移", Group = new[] { "工程量换算" }, Order = 2, GroupOrder = "2",
+            Description = "缩放之后再相加的偏移量；不需要填 0")]
+        public double EngineeringOffset
+        {
+            get => _engineeringOffset;
+            set => SetProperty(ref _engineeringOffset, value);
+        }
+
+        /// <summary>工程单位（仅显示用，如 ℃ / MPa）</summary>
+        [SuperDisplay(Name = "工程单位", Group = new[] { "工程量换算" }, Order = 3, GroupOrder = "2",
+            Description = "仅用于界面显示，如 ℃ / MPa")]
+        public string Unit
+        {
+            get => _unit;
+            set => SetProperty(ref _unit, value);
+        }
+
         /// <summary>
         /// 地址预览（只读）：边填边看最终落点，避免"填完确认了才发现地址不对"。
         /// 每次依赖字段变更都重算（VM 注入的委托走与创建路径同一份地址构造逻辑）。
         /// </summary>
-        [SuperDisplay(Name = "地址预览", Group = new[] { "说明" }, Order = 0, GroupOrder = "2", IsReadOnly = true)]
+        [SuperDisplay(Name = "地址预览", Group = new[] { "说明" }, Order = 0, GroupOrder = "3", IsReadOnly = true)]
         public string AddressPreview => _addressPreview(this);
 
         /// <summary>线圈/离散输入区的硬规则（只读提示）：这两个区是位粒度，且 Modbus 协议里只能读布尔</summary>
-        [SuperDisplay(Name = "线圈 / 离散输入区", Group = new[] { "说明" }, Order = 1, GroupOrder = "2", IsReadOnly = true)]
+        [SuperDisplay(Name = "线圈 / 离散输入区", Group = new[] { "说明" }, Order = 1, GroupOrder = "3", IsReadOnly = true)]
         public string CoilAreaHint => "线圈/离散输入区仅支持布尔类型，且不使用位偏移";
     }
 }

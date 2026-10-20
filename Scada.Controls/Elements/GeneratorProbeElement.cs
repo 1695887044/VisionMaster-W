@@ -17,18 +17,18 @@ namespace VisionMaster.Scada.Controls
     {
         /// <summary>颜色型：验证字符串默认值 → Brush，且 Freezable 被冻结</summary>
         [ScadaProperty(Key = "ProbeColor", DisplayName = "探针颜色", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FF2D7DD2", IsBindable = true,
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FF2D7DD2", IsBindable = true,
                        Description = "生成器探针：证明 Color 型属性三件套齐备")]
         public partial Brush? ProbeColor { get; set; }
 
         /// <summary>数值型：验证 Min/Max 与默认值</summary>
         [ScadaProperty(Key = "ProbeSize", DisplayName = "探针尺寸", Kind = ElementPropertyKind.Number,
-                       Group = "状态", DefaultValue = "3", Min = 0, Max = 20)]
+                       Group = ScadaPropertyGroups.State, DefaultValue = "3", Min = 0, Max = 20)]
         public partial double ProbeSize { get; set; }
 
         /// <summary>枚举型：验证非内建类型的默认值解析</summary>
         [ScadaProperty(Key = "ProbeShape", DisplayName = "探针形状", Kind = ElementPropertyKind.Choice,
-                       Group = "状态", DefaultValue = "Square",
+                       Group = ScadaPropertyGroups.State, DefaultValue = "Square",
                        Choices = new[] { "Circle", "Square" })]
         public partial IndicatorShape ProbeShape { get; set; }
 

@@ -1,0 +1,912 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blob 缺陷检测 · 配置窗口 · 设计基线 v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+</style>
+</head>
+<body>
+<div id="bd-root">
+<style>
+  #bd-root{
+    color-scheme: light;
+    --bd-surface:#FFFFFF;
+    --bd-surface-2:#F8FAFC;
+    --bd-surface-3:#F1F5F9;
+    --bd-border:#E2E8F0;
+    --bd-border-soft:#EEF2F7;
+    --bd-border-strong:#CBD5E1;
+    --bd-text:#0F172A;
+    --bd-text-2:#475569;
+    --bd-text-3:#94A3B8;
+    --bd-text-4:#64748B;
+    --bd-primary:#0EA5E9;
+    --bd-primary-strong:#0284C7;
+    --bd-primary-text:#0369A1;
+    --bd-primary-soft:#F0F9FF;
+    --bd-primary-light:#E0F2FE;
+    --bd-primary-border:#BAE6FD;
+    --bd-success:#22C55E;
+    --bd-success-text:#15803D;
+    --bd-success-soft:#F0FDF4;
+    --bd-success-border:#BBF7D0;
+    --bd-danger:#EF4444;
+    --bd-danger-text:#B91C1C;
+    --bd-danger-soft:#FEF2F2;
+    --bd-danger-border:#FECACA;
+    --bd-warning:#F59E0B;
+    --bd-warning-text:#B45309;
+    --bd-warning-soft:#FFF4E5;
+    --bd-warning-border:#FDE68A;
+    --bd-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --bd-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+    --bd-radius-sm:6px;
+    --bd-radius-md:8px;
+    --bd-radius-lg:10px;
+    --bd-radius-xl:12px;
+    --bd-radius-window:16px;
+    --bd-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+    font-family:var(--bd-font);
+    -webkit-font-smoothing:antialiased;
+  }
+  #bd-root *{box-sizing:border-box;}
+  #bd-root button,#bd-root input,#bd-root select,#bd-root textarea{font-family:inherit;}
+  #bd-root button{color:inherit;}
+  #bd-root [hidden]{display:none !important;}
+  #bd-root :focus-visible{outline:2px solid var(--bd-primary);outline-offset:2px;}
+  /* disabled 五态：Web 稿与 WPF 的 IsEnabled=False 对齐（opacity 0.45 + not-allowed） */
+  #bd-root button:disabled,#bd-root button[disabled],
+  #bd-root input:disabled,#bd-root input[disabled],
+  #bd-root select:disabled,#bd-root select[disabled],
+  #bd-root textarea:disabled,#bd-root textarea[disabled]{opacity:.45;cursor:not-allowed;}
+  #bd-root button:disabled:hover,#bd-root button[disabled]:hover{filter:none;}
+  #bd-root .ic{width:14px;height:14px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+  #bd-root .ic-sm{width:12px;height:12px;}
+  #bd-root .ic-lg{width:18px;height:18px;}
+
+  #bd-root .bd-page{max-width:1360px;margin:0 auto;padding:24px 24px 44px;}
+  #bd-root .bd-page-head{max-width:1360px;margin:0 auto 16px;}
+  #bd-root .bd-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  #bd-root .bd-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--bd-text);}
+  #bd-root .bd-ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--bd-primary-light);color:var(--bd-primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;}
+  #bd-root .bd-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--bd-text-2);}
+  #bd-root .bd-page-sub b{color:var(--bd-text);font-weight:600;}
+  #bd-root .bd-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+  #bd-root .bd-demo-group{display:flex;align-items:center;gap:8px;}
+  #bd-root .bd-demo-label{font-size:11.5px;color:var(--bd-text-4);}
+  #bd-root .bd-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--bd-radius-md);background:var(--bd-surface-3);}
+  #bd-root .bd-seg button{height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--bd-text-2);font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;}
+  #bd-root .bd-seg button:hover{color:var(--bd-text);}
+  #bd-root .bd-seg button.is-on{background:#FFFFFF;color:var(--bd-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+  #bd-root .bd-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--bd-text-2);}
+  #bd-root .bd-scope .ic{width:13px;height:13px;margin-top:2px;color:var(--bd-warning-text);}
+  #bd-root .bd-scope b{color:var(--bd-text);font-weight:600;}
+
+  /* 产品窗口 */
+  #bd-root .bd-window{width:960px;max-width:100%;height:680px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:var(--bd-surface);border-radius:var(--bd-radius-window);box-shadow:var(--bd-shadow-window);transition:width 200ms ease;}
+  #bd-root .bd-window.is-narrow{width:640px;}
+  #bd-root .bd-titlebar{height:72px;flex:none;display:flex;align-items:center;padding:0 20px;background:var(--bd-surface);border-bottom:1px solid var(--bd-border-soft);}
+  #bd-root .bd-app-icon{width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--bd-primary-light);color:var(--bd-primary-text);}
+  #bd-root .bd-app-icon .ic{width:20px;height:20px;}
+  #bd-root .bd-title-text{margin-left:12px;min-width:0;flex:1;}
+  #bd-root .bd-title-line{display:flex;align-items:center;gap:8px;min-width:0;}
+  #bd-root .bd-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--bd-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #bd-root .bd-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--bd-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #bd-root .bd-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+  #bd-root .bd-icon-btn{width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--bd-radius-md);display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--bd-text-4);cursor:pointer;transition:background 150ms ease,color 150ms ease;}
+  #bd-root .bd-icon-btn:hover{background:var(--bd-surface-3);color:var(--bd-text);}
+  #bd-root .bd-icon-btn:active{background:var(--bd-border);}
+
+  #bd-root .bd-content{flex:1;min-height:0;display:grid;grid-template-columns:356px minmax(0,1fr);gap:16px;padding:16px 20px 20px;background:var(--bd-surface);}
+  #bd-root .bd-window.is-narrow .bd-content{grid-template-columns:300px minmax(0,1fr);gap:12px;padding:14px 16px 16px;}
+  #bd-root .bd-rail{min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;padding:12px;border:1px solid var(--bd-border-soft);border-radius:var(--bd-radius-xl);background:var(--bd-surface-2);scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+  #bd-root .bd-rail::-webkit-scrollbar{width:8px;}
+  #bd-root .bd-rail::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+
+  #bd-root .bd-card{margin-bottom:10px;padding:12px;border:1px solid var(--bd-border);border-radius:var(--bd-radius-lg);background:var(--bd-surface);box-shadow:0 1px 2px rgba(15,23,42,.04);}
+  #bd-root .bd-card:last-child{margin-bottom:0;}
+  #bd-root .bd-card-head{display:flex;align-items:center;gap:7px;margin-bottom:10px;}
+  #bd-root .bd-sec-num{width:20px;height:20px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--bd-primary-light);color:var(--bd-primary-text);font-size:11px;font-weight:700;}
+  #bd-root .bd-card-title{font-size:12.5px;font-weight:600;color:var(--bd-text);}
+  #bd-root .bd-card-hint{margin-left:auto;font-size:10.5px;color:var(--bd-text-3);white-space:nowrap;}
+  #bd-root .bd-field{margin-bottom:10px;}
+  #bd-root .bd-field:last-child{margin-bottom:0;}
+  #bd-root .bd-label{display:flex;align-items:center;gap:5px;margin-bottom:5px;font-size:11.5px;font-weight:500;line-height:1.3;color:var(--bd-text-2);}
+  #bd-root .bd-label .ic{width:11px;height:11px;color:var(--bd-text-3);}
+  #bd-root .bd-help{display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;font-size:11px;line-height:1.5;color:var(--bd-text-4);}
+  #bd-root .bd-help .ic{width:11px;height:11px;margin-top:2px;color:var(--bd-text-3);}
+  #bd-root .bd-input,#bd-root .bd-select{width:100%;height:32px;padding:0 9px;border:1px solid var(--bd-border);border-radius:var(--bd-radius-md);background:var(--bd-surface);color:var(--bd-text);font-size:12px;line-height:1;outline:none;transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;}
+  #bd-root .bd-input:hover,#bd-root .bd-select:hover{border-color:var(--bd-border-strong);}
+  #bd-root .bd-input:focus,#bd-root .bd-select:focus{border-color:var(--bd-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+  #bd-root .bd-input[readonly]{background:var(--bd-surface-2);color:var(--bd-text-2);}
+  #bd-root .bd-select{appearance:none;-webkit-appearance:none;padding-right:28px;cursor:pointer;}
+  #bd-root .bd-select-wrap{position:relative;}
+  #bd-root .bd-select-wrap > .ic{position:absolute;right:9px;top:50%;transform:translateY(-50%);width:12px;height:12px;color:var(--bd-text-3);pointer-events:none;}
+  #bd-root .bd-input-row{display:flex;align-items:center;gap:6px;}
+  #bd-root .bd-input-row .bd-input{flex:1;min-width:0;}
+  #bd-root .bd-sq-btn{width:32px;height:32px;flex:none;padding:0;border:1px solid var(--bd-border);border-radius:var(--bd-radius-md);background:var(--bd-surface);color:var(--bd-text-4);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;}
+  #bd-root .bd-sq-btn:hover{background:var(--bd-primary-soft);border-color:var(--bd-primary-border);color:var(--bd-primary-text);}
+  #bd-root .bd-grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+  #bd-root .bd-grid-2 .bd-field{margin-bottom:0;}
+  #bd-root .bd-check{display:flex;align-items:flex-start;gap:7px;margin-top:9px;font-size:11.5px;line-height:1.45;color:var(--bd-text-2);cursor:pointer;}
+  #bd-root .bd-check input{width:14px;height:14px;margin:1px 0 0;accent-color:var(--bd-primary);flex:none;}
+  #bd-root .bd-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 11px;border:1px solid var(--bd-border);border-radius:var(--bd-radius-md);background:var(--bd-surface);color:var(--bd-text);font-size:12px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;}
+  #bd-root .bd-btn:hover{background:var(--bd-surface-2);border-color:var(--bd-border-strong);}
+  #bd-root .bd-btn:active{background:var(--bd-surface-3);}
+  #bd-root .bd-btn-primary{background:var(--bd-primary);border-color:var(--bd-primary);color:#fff;font-weight:600;}
+  #bd-root .bd-btn-primary:hover{background:var(--bd-primary-strong);border-color:var(--bd-primary-strong);}
+  #bd-root .bd-btn-block{width:100%;}
+  #bd-root .bd-divider{height:1px;margin:10px 0;background:var(--bd-border-soft);}
+
+  /* 预览工作区 */
+  #bd-root .bd-preview{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--bd-border);border-radius:var(--bd-radius-xl);background:var(--bd-surface);}
+  #bd-root .bd-preview-head{height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid var(--bd-border-soft);background:var(--bd-surface);}
+  #bd-root .bd-file-chip{width:26px;height:26px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;background:var(--bd-surface-3);color:var(--bd-text-2);}
+  #bd-root .bd-file-chip .ic{width:13px;height:13px;}
+  #bd-root .bd-preview-title{font-size:12.5px;font-weight:600;color:var(--bd-text);white-space:nowrap;}
+  #bd-root .bd-count-chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:11px;background:var(--bd-surface-3);color:var(--bd-text-2);font-size:10.5px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  #bd-root .bd-preview-tools{margin-left:auto;display:flex;align-items:center;gap:1px;flex:none;}
+  #bd-root .bd-tool-text{height:26px;padding:0 7px;border:0;border-radius:6px;background:transparent;color:var(--bd-text-4);font-size:10.5px;font-weight:600;line-height:1;cursor:pointer;font-variant-numeric:tabular-nums;transition:background 150ms ease,color 150ms ease;}
+  #bd-root .bd-tool-text:hover{background:var(--bd-surface-3);color:var(--bd-text);}
+  #bd-root .bd-tabbar{height:38px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid var(--bd-border-soft);background:var(--bd-surface);}
+  #bd-root .bd-tabs{display:flex;align-items:center;gap:2px;padding:2px;border-radius:var(--bd-radius-md);background:var(--bd-surface-3);}
+  #bd-root .bd-tabs button{height:26px;padding:0 12px;border:0;border-radius:6px;background:transparent;color:var(--bd-text-2);font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;}
+  #bd-root .bd-tabs button.is-on{background:var(--bd-surface);color:var(--bd-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+  #bd-root .bd-auto-hint{margin-left:auto;font-size:10.5px;color:var(--bd-text-3);white-space:nowrap;}
+  #bd-root .bd-canvas{position:relative;flex:1;min-height:0;overflow:hidden;background:#0B1220;}
+  #bd-root .bd-canvas-view{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;}
+  #bd-root .bd-canvas-view[data-view="image"]{display:block;padding:0;}
+  #bd-root .bd-scene{width:100%;height:100%;display:block;}
+  #bd-root .bd-overlay{position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:6px;pointer-events:none;}
+  #bd-root .bd-chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;background:rgba(15,23,42,.62);border:1px solid rgba(148,163,184,.24);color:#E2E8F0;font-size:10.5px;line-height:1;font-variant-numeric:tabular-nums;}
+  #bd-root .bd-chip .ic{width:11px;height:11px;color:#7DD3FC;}
+  #bd-root .bd-verdict{position:absolute;right:10px;bottom:10px;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:6px;font-size:11px;font-weight:700;line-height:1;border:1px solid;backdrop-filter:blur(6px);}
+  #bd-root .bd-verdict.is-ng{background:rgba(239,68,68,.16);border-color:rgba(248,113,113,.45);color:#FCA5A5;}
+  #bd-root .bd-verdict.is-ok{background:rgba(34,197,94,.14);border-color:rgba(74,222,128,.40);color:#86EFAC;}
+  #bd-root .bd-state-icon{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.18);color:#94A3B8;margin-bottom:13px;}
+  #bd-root .bd-state-icon .ic{width:22px;height:22px;}
+  #bd-root .bd-state-title{font-size:14px;font-weight:600;line-height:1.4;color:#E2E8F0;margin-bottom:4px;}
+  #bd-root .bd-state-sub{max-width:360px;font-size:11.5px;line-height:1.65;color:#94A3B8;margin:0;}
+  #bd-root .bd-state-sub code{font-family:var(--bd-mono);font-size:10.5px;color:#BAE6FD;background:rgba(14,165,233,.12);padding:1px 5px;border-radius:4px;}
+  #bd-root .bd-error .bd-state-icon{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.30);color:#F87171;}
+  #bd-root .bd-error .bd-state-title{color:#FCA5A5;}
+
+  /* 数据输出 */
+  #bd-root .bd-data{position:absolute;inset:0;overflow:hidden;background:var(--bd-surface);display:flex;flex-direction:column;}
+  #bd-root .bd-data-scroll{flex:1;min-height:0;overflow-y:auto;padding:12px;}
+  #bd-root .bd-data-card{border:1px solid var(--bd-border);border-radius:var(--bd-radius-lg);background:var(--bd-surface);padding:10px 12px;margin-bottom:10px;}
+  #bd-root .bd-data-card:last-child{margin-bottom:0;}
+  #bd-root .bd-data-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  #bd-root .bd-data-title{font-size:12px;font-weight:600;color:var(--bd-text);}
+  #bd-root .bd-data-meta{margin-left:auto;font-size:10.5px;color:var(--bd-text-3);font-variant-numeric:tabular-nums;}
+  #bd-root table.bd-table{width:100%;border-collapse:separate;border-spacing:0;font-size:11px;font-variant-numeric:tabular-nums;}
+  #bd-root table.bd-table th{height:30px;padding:0 7px;text-align:left;font-size:10.5px;font-weight:600;color:var(--bd-text-2);background:var(--bd-surface-2);border-top:1px solid var(--bd-border-soft);border-bottom:1px solid var(--bd-border-soft);white-space:nowrap;}
+  #bd-root table.bd-table th:first-child{border-left:1px solid var(--bd-border-soft);border-radius:6px 0 0 0;}
+  #bd-root table.bd-table th:last-child{border-right:1px solid var(--bd-border-soft);border-radius:0 6px 0 0;}
+  #bd-root table.bd-table td{height:30px;padding:0 7px;color:var(--bd-text);border-bottom:1px solid var(--bd-border-soft);white-space:nowrap;}
+  #bd-root table.bd-table tr:nth-child(even) td{background:var(--bd-surface-2);}
+  #bd-root table.bd-table tr.is-selected td{background:var(--bd-primary-soft);}
+  #bd-root .bd-hist{width:100%;height:150px;display:block;}
+  #bd-root .bd-hist-note{display:flex;align-items:center;gap:12px;margin-top:7px;font-size:10.5px;color:var(--bd-text-3);font-variant-numeric:tabular-nums;}
+
+  #bd-root .bd-statusbar{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid var(--bd-border-soft);background:var(--bd-surface);font-size:11.5px;min-width:0;}
+  #bd-root .bd-status-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--bd-text-3);}
+  #bd-root .bd-status-dot.is-ok{background:var(--bd-success);}
+  #bd-root .bd-status-dot.is-warn{background:var(--bd-warning);}
+  #bd-root .bd-status-dot.is-err{background:var(--bd-danger);}
+  #bd-root .bd-status-msg{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--bd-text-2);}
+  #bd-root .bd-status-msg.is-ok{color:var(--bd-success-text);}
+  #bd-root .bd-status-msg.is-warn{color:var(--bd-warning-text);}
+  #bd-root .bd-status-msg.is-err{color:var(--bd-danger-text);}
+  #bd-root .bd-status-right{margin-left:auto;max-width:46%;flex:none;font-family:var(--bd-mono);font-size:10.5px;color:var(--bd-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  /* 宿主外壳（只作上下文，不改） */
+  #bd-root .bd-footer{height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid var(--bd-border-soft);background:var(--bd-surface-2);}
+  #bd-root .bd-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+  #bd-root .bd-status-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--bd-surface);border:1px solid var(--bd-border);font-size:11.5px;color:var(--bd-text-2);white-space:nowrap;}
+  #bd-root .bd-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--bd-text-3);}
+  #bd-root .bd-elapsed{font-family:var(--bd-mono);font-size:11px;color:var(--bd-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  #bd-root .bd-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+  #bd-root .bd-footer .bd-btn{height:32px;padding:0 16px;font-size:12.5px;}
+  #bd-root .bd-footer .bd-btn-primary{padding:0 18px;}
+
+  /* 说明 */
+  #bd-root .bd-notes{max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;}
+  #bd-root .bd-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--bd-text-2);}
+  #bd-root .bd-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--bd-border);}
+  #bd-root .bd-note-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--bd-primary-light);color:var(--bd-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}
+  #bd-root .bd-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--bd-text);}
+  #bd-root .bd-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--bd-text-2);}
+  #bd-root .bd-note code{font-family:var(--bd-mono);font-size:10.5px;color:var(--bd-primary-text);}
+  #bd-root .bd-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(8px);padding:8px 14px;border-radius:8px;background:#0F172A;color:#E2E8F0;font-size:11.5px;opacity:0;pointer-events:none;transition:opacity 180ms ease,transform 180ms ease;z-index:20;}
+  #bd-root .bd-toast.is-on{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  @media (prefers-reduced-motion: reduce){#bd-root *{animation:none !important;transition:none !important;}}
+  @media (max-width:1024px){
+    #bd-root .bd-page{padding:18px 14px 32px;}
+    #bd-root .bd-window{height:auto;min-height:640px;}
+    #bd-root .bd-content{grid-template-columns:1fr;}
+    #bd-root .bd-rail{overflow:visible;}
+    #bd-root .bd-preview{min-height:420px;}
+  }
+</style>
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><path d="M8 12h8"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.8 9.8 0 0 1 6.7 2.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.8 9.8 0 0 1-6.7-2.7L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="i-maximize" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16v-5"/><path d="M12 16V7"/><path d="M17 16v-8"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3-1.7l12 7a2 2 0 0 1 0 3.4l-12 7A2 2 0 0 1 5 19z"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M2 14h4"/><path d="M10 8h4"/><path d="M18 16h4"/></symbol>
+</svg>
+
+<div class="bd-page">
+  <header class="bd-page-head">
+    <div class="bd-title-row">
+      <h1>Blob 缺陷检测 · 配置窗口</h1>
+      <span class="bd-ver">v1</span>
+    </div>
+    <p class="bd-page-sub">
+      Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、3 个 <b>LinkableValueEditor</b>、
+      <b>ImageReadOnly</b> / <b>HistogramPlot</b> 两块画布、19 个数值参数、1 个缺陷清单 DataGrid 与全部命令/状态绑定；
+      不新增功能、不改绑定类型、不改业务逻辑。窗口 <b>960 × 680</b>，左侧配置轨 <b>356px</b>，右侧预览工作区自适应。
+    </p>
+    <div class="bd-demo-bar">
+      <div class="bd-demo-group" role="group" aria-label="窗口宽度">
+        <span class="bd-demo-label">窗口宽度</span>
+        <div class="bd-seg">
+          <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+          <button type="button" data-width="640" aria-pressed="false">640</button>
+        </div>
+      </div>
+      <div class="bd-demo-group" role="group" aria-label="二值化方式">
+        <span class="bd-demo-label">二值化方式</span>
+        <div class="bd-seg">
+          <button type="button" data-threshold="fixed" class="is-on" aria-pressed="true">固定</button>
+          <button type="button" data-threshold="auto" aria-pressed="false">自动</button>
+          <button type="button" data-threshold="dynamic" aria-pressed="false">动态</button>
+        </div>
+      </div>
+      <div class="bd-demo-group" role="group" aria-label="预览页签">
+        <span class="bd-demo-label">预览页签</span>
+        <div class="bd-seg">
+          <button type="button" data-tab="image" class="is-on" aria-pressed="true">图像视图</button>
+          <button type="button" data-tab="data" aria-pressed="false">数据输出</button>
+        </div>
+      </div>
+      <div class="bd-demo-group" role="group" aria-label="预览状态">
+        <span class="bd-demo-label">预览状态</span>
+        <div class="bd-seg">
+          <button type="button" data-state="normal" class="is-on" aria-pressed="true">有结果</button>
+          <button type="button" data-state="empty" aria-pressed="false">空态</button>
+          <button type="button" data-state="error" aria-pressed="false">错误</button>
+        </div>
+      </div>
+    </div>
+    <div class="bd-scope">
+      <svg class="ic"><use href="#i-info"/></svg>
+      <span><b>V1 未纳入（需新增功能或契约）：</b>加载骨架、图像尺寸 / 文件大小、放大 / 缩小按钮、打开所在文件夹、系统导航、第四档状态级别。
+      本稿只覆盖 960×680 与 640×680；宿主最小档 640×560 需真机复核左栏滚动与预览高度。</span>
+    </div>
+  </header>
+
+  <div class="bd-window" id="bd-window">
+    <div class="bd-titlebar">
+      <div class="bd-app-icon"><svg class="ic"><use href="#i-scan"/></svg></div>
+      <div class="bd-title-text">
+        <div class="bd-title-line"><div class="bd-title">Blob 缺陷检测</div></div>
+        <div class="bd-subtitle">阈值分割 + 连通域分析，检出划痕 / 暗斑并按个数与面积判定 OK / NG</div>
+      </div>
+      <div class="bd-title-actions">
+        <button type="button" class="bd-icon-btn" aria-label="关闭" data-tooltip="关闭"><svg class="ic"><use href="#i-close"/></svg></button>
+      </div>
+    </div>
+
+    <div class="bd-content">
+      <aside class="bd-rail" aria-label="Blob 检测配置">
+        <!-- 图像输入 -->
+        <section class="bd-card">
+          <div class="bd-card-head">
+            <span class="bd-sec-num">0</span>
+            <span class="bd-card-title">图像输入</span>
+            <span class="bd-card-hint">3 个输入端口</span>
+          </div>
+          <div class="bd-field">
+            <label class="bd-label" for="bd-src">输入图像 <svg class="ic"><use href="#i-link"/></svg></label>
+            <div class="bd-input-row">
+              <input class="bd-input" id="bd-src" type="text" value="SrcImage" readonly>
+              <button type="button" class="bd-sq-btn" aria-label="绑定变量" data-tooltip="变量链接"><svg class="ic"><use href="#i-link"/></svg></button>
+            </div>
+          </div>
+          <div class="bd-field">
+            <label class="bd-label" for="bd-mask">检测区域 <svg class="ic"><use href="#i-link"/></svg></label>
+            <div class="bd-input-row">
+              <input class="bd-input" id="bd-mask" type="text" value="MaskRegion（可选）" readonly>
+              <button type="button" class="bd-sq-btn" aria-label="绑定变量" data-tooltip="变量链接"><svg class="ic"><use href="#i-link"/></svg></button>
+            </div>
+          </div>
+          <div class="bd-field">
+            <label class="bd-label" for="bd-exclude">排除区域 <svg class="ic"><use href="#i-link"/></svg></label>
+            <div class="bd-input-row">
+              <input class="bd-input" id="bd-exclude" type="text" value="ExcludeRegion（可选）" readonly>
+              <button type="button" class="bd-sq-btn" aria-label="绑定变量" data-tooltip="变量链接"><svg class="ic"><use href="#i-link"/></svg></button>
+            </div>
+          </div>
+          <button type="button" class="bd-btn bd-btn-block" id="bd-adapt"><svg class="ic"><use href="#i-refresh"/></svg>按当前图像重新适配</button>
+          <p class="bd-help"><svg class="ic"><use href="#i-info"/></svg><span>首次加载图像时，若参数仍是出厂默认值会自动适配一次；改过参数后不再自动覆盖。检测/排除区域可不接。</span></p>
+        </section>
+
+        <!-- ① 二值化 -->
+        <section class="bd-card">
+          <div class="bd-card-head">
+            <span class="bd-sec-num">1</span>
+            <span class="bd-card-title">二值化</span>
+            <span class="bd-card-hint">分割方式</span>
+          </div>
+          <div class="bd-field">
+            <label class="bd-label" for="bd-threshold-mode">二值化方式</label>
+            <div class="bd-select-wrap">
+              <select class="bd-select" id="bd-threshold-mode">
+                <option value="fixed" selected>固定阈值</option>
+                <option value="auto">自动阈值</option>
+                <option value="dynamic">动态阈值</option>
+              </select>
+              <svg class="ic"><use href="#i-chevron"/></svg>
+            </div>
+          </div>
+
+          <div data-panel="fixed">
+            <div class="bd-grid-2">
+              <div class="bd-field">
+                <label class="bd-label" for="bd-mingray">下限灰度</label>
+                <input class="bd-input" id="bd-mingray" type="number" value="0" min="0" max="65535">
+              </div>
+              <div class="bd-field">
+                <label class="bd-label" for="bd-maxgray">上限灰度</label>
+                <input class="bd-input" id="bd-maxgray" type="number" value="128" min="0" max="65535">
+              </div>
+            </div>
+            <p class="bd-help"><svg class="ic"><use href="#i-info"/></svg><span>上下限填反了会按区间自动排序，不会报错。</span></p>
+          </div>
+
+          <div data-panel="auto" hidden>
+            <p class="bd-help"><svg class="ic"><use href="#i-info"/></svg><span>自动求分割点（最大类间方差法），适合来料灰度整体漂移、不方便固定阈值的场合，无需额外参数。</span></p>
+          </div>
+
+          <div data-panel="dynamic" hidden>
+            <div class="bd-grid-2">
+              <div class="bd-field">
+                <label class="bd-label" for="bd-varw">局部窗口宽</label>
+                <input class="bd-input" id="bd-varw" type="number" value="15" min="1" max="1000">
+              </div>
+              <div class="bd-field">
+                <label class="bd-label" for="bd-varh">局部窗口高</label>
+                <input class="bd-input" id="bd-varh" type="number" value="15" min="1" max="1000">
+              </div>
+              <div class="bd-field">
+                <label class="bd-label" for="bd-stddev">标准差权重</label>
+                <input class="bd-input" id="bd-stddev" type="number" value="0.4" min="0" max="100" step="0.1">
+              </div>
+              <div class="bd-field">
+                <label class="bd-label" for="bd-abs">绝对灰度偏移</label>
+                <input class="bd-input" id="bd-abs" type="number" value="2" min="0" max="65535">
+              </div>
+            </div>
+            <p class="bd-help"><svg class="ic"><use href="#i-info"/></svg><span>窗口要略大于缺陷宽度；标准差权重越大越严格，检出的越少。</span></p>
+          </div>
+
+          <div class="bd-field" id="bd-detect-target-field" style="margin-top:10px;">
+            <label class="bd-label" for="bd-detect-target">检测目标</label>
+            <div class="bd-select-wrap">
+              <select class="bd-select" id="bd-detect-target">
+                <option value="bright">亮缺陷</option>
+                <option value="dark" selected>暗缺陷</option>
+              </select>
+              <svg class="ic"><use href="#i-chevron"/></svg>
+            </div>
+          </div>
+
+          <label class="bd-check" id="bd-dual-field">
+            <input type="checkbox" id="bd-dual">
+            <span>亮暗同检（同时检出比背景亮与暗的缺陷）</span>
+          </label>
+          <p class="bd-help"><svg class="ic"><use href="#i-info"/></svg><span>固定阈值下由灰度区间决定极性，检测目标与亮暗同检自动隐藏。</span></p>
+        </section>
+
+        <!-- ② 特征筛选 -->
+        <section class="bd-card">
+          <div class="bd-card-head">
+            <span class="bd-sec-num">2</span>
+            <span class="bd-card-title">特征筛选</span>
+            <span class="bd-card-hint">噪点 / 形状 / 触边</span>
+          </div>
+          <div class="bd-grid-2">
+            <div class="bd-field">
+              <label class="bd-label" for="bd-minarea">面积下限</label>
+              <input class="bd-input" id="bd-minarea" type="number" value="30" min="0">
+            </div>
+            <div class="bd-field">
+              <label class="bd-label" for="bd-maxblob">面积上限</label>
+              <input class="bd-input" id="bd-maxblob" type="number" value="0" min="0">
+            </div>
+            <div class="bd-field">
+              <label class="bd-label" for="bd-mincirc">圆度下限</label>
+              <input class="bd-input" id="bd-mincirc" type="number" value="0" min="0" max="1" step="0.01">
+            </div>
+            <div class="bd-field">
+              <label class="bd-label" for="bd-maxaspect">长宽比上限</label>
+              <input class="bd-input" id="bd-maxaspect" type="number" value="0" min="0" max="10000">
+            </div>
+            <div class="bd-field">
+              <label class="bd-label" for="bd-border">排除触边(px)</label>
+              <input class="bd-input" id="bd-border" type="number" value="0" min="0" max="10000">
+            </div>
+          </div>
+          <p class="bd-help"><svg class="ic"><use href="#i-info"/></svg><span>筛选掉的不计数也不判定；判定规格在下方第 4 区，两者是两回事。面积单位是像素。</span></p>
+        </section>
+
+        <!-- ③ 形态学 -->
+        <section class="bd-card">
+          <div class="bd-card-head">
+            <span class="bd-sec-num">3</span>
+            <span class="bd-card-title">形态学</span>
+            <span class="bd-card-hint">去毛刺 / 连断桥</span>
+          </div>
+          <div class="bd-grid-2">
+            <div class="bd-field">
+              <label class="bd-label" for="bd-open">开运算半径</label>
+              <input class="bd-input" id="bd-open" type="number" value="0" min="0" max="1000">
+            </div>
+            <div class="bd-field">
+              <label class="bd-label" for="bd-close">闭运算半径</label>
+              <input class="bd-input" id="bd-close" type="number" value="0" min="0" max="1000">
+            </div>
+            <div class="bd-field">
+              <label class="bd-label" for="bd-merge">合并半径</label>
+              <input class="bd-input" id="bd-merge" type="number" value="0" min="0" max="1000">
+            </div>
+          </div>
+          <label class="bd-check"><input type="checkbox"><span>填孔（缺陷内部反光会把它挖成环形）</span></label>
+          <p class="bd-help"><svg class="ic"><use href="#i-info"/></svg><span>开/闭运算填 0 表示跳过该步（默认两步都跳过）。合并半径把间距小于 2 倍半径的几段连成一个缺陷。</span></p>
+        </section>
+
+        <!-- ④ 判定规格 -->
+        <section class="bd-card">
+          <div class="bd-card-head">
+            <span class="bd-sec-num">4</span>
+            <span class="bd-card-title">判定规格</span>
+            <span class="bd-card-hint">OK / NG</span>
+          </div>
+          <div class="bd-grid-2">
+            <div class="bd-field">
+              <label class="bd-label" for="bd-maxcount">缺陷个数上限</label>
+              <input class="bd-input" id="bd-maxcount" type="number" value="0" min="0">
+            </div>
+            <div class="bd-field">
+              <label class="bd-label" for="bd-mincount">缺陷个数下限</label>
+              <input class="bd-input" id="bd-mincount" type="number" value="0" min="0">
+            </div>
+            <div class="bd-field">
+              <label class="bd-label" for="bd-maxsingle">单个缺陷面积上限</label>
+              <input class="bd-input" id="bd-maxsingle" type="number" value="100" min="0">
+            </div>
+            <div class="bd-field">
+              <label class="bd-label" for="bd-maxtotal">缺陷总面积上限</label>
+              <input class="bd-input" id="bd-maxtotal" type="number" value="0" min="0">
+            </div>
+          </div>
+          <p class="bd-help"><svg class="ic"><use href="#i-info"/></svg><span>判定：个数超出上/下限、单个面积或总面积超出上限，任一命中即 NG。填 0 = 不启用该项。</span></p>
+        </section>
+
+        <!-- ⑤ 输出 -->
+        <section class="bd-card">
+          <div class="bd-card-head">
+            <span class="bd-sec-num">5</span>
+            <span class="bd-card-title">输出</span>
+            <span class="bd-card-hint">发布 / 单位 / 排序</span>
+          </div>
+          <div class="bd-field">
+            <label class="bd-label" for="bd-view">运行显示窗口</label>
+            <div class="bd-select-wrap">
+              <select class="bd-select" id="bd-view">
+                <option>不显示</option>
+                <option selected>图像窗口 1</option>
+                <option>图像窗口 2</option>
+                <option>图像窗口 3</option>
+                <option>图像窗口 4</option>
+                <option>图像窗口 5</option>
+                <option>图像窗口 6</option>
+                <option>图像窗口 7</option>
+                <option>图像窗口 8</option>
+                <option>图像窗口 9</option>
+              </select>
+              <svg class="ic"><use href="#i-chevron"/></svg>
+            </div>
+          </div>
+          <div class="bd-field">
+            <label class="bd-label" for="bd-pixel">像素当量(mm/px)</label>
+            <input class="bd-input" id="bd-pixel" type="number" value="1.0" min="0" max="1000" step="0.001">
+            <p class="bd-help"><svg class="ic"><use href="#i-info"/></svg><span>接「标定」插件的 MmPerPixel 输出时，运行时以标定值为准；判定仍按像素做。</span></p>
+          </div>
+          <div class="bd-field">
+            <label class="bd-label" for="bd-sort">输出排序</label>
+            <div class="bd-select-wrap">
+              <select class="bd-select" id="bd-sort">
+                <option selected>不排序（区域顺序）</option>
+                <option>面积从大到小</option>
+                <option>从上到下、从左到右</option>
+              </select>
+              <svg class="ic"><use href="#i-chevron"/></svg>
+            </div>
+            <p class="bd-help"><svg class="ic"><use href="#i-info"/></svg><span>数组端口与 Defects 端口按同一顺序逐项对齐，下游按同一索引取即可对上号。</span></p>
+          </div>
+        </section>
+      </aside>
+
+      <section class="bd-preview" aria-label="标注图预览与数据输出">
+        <div class="bd-preview-head">
+          <div class="bd-file-chip"><svg class="ic"><use href="#i-image"/></svg></div>
+          <span class="bd-preview-title">标注图预览</span>
+          <span class="bd-count-chip" id="bd-count-chip">共 3 个缺陷</span>
+          <div class="bd-preview-tools">
+            <button type="button" class="bd-icon-btn" id="bd-fit" aria-label="适应窗口" data-tooltip="适应窗口"><svg class="ic"><use href="#i-maximize"/></svg></button>
+            <button type="button" class="bd-tool-text" id="bd-fit1" aria-label="实际像素 1:1" data-tooltip="实际像素 1:1">1:1</button>
+          </div>
+        </div>
+
+        <div class="bd-tabbar">
+          <div class="bd-tabs" role="tablist" aria-label="预览页签">
+            <button type="button" data-tab-btn="image" class="is-on" role="tab" aria-selected="true">图像视图</button>
+            <button type="button" data-tab-btn="data" role="tab" aria-selected="false">数据输出</button>
+          </div>
+          <span class="bd-auto-hint">改参数后自动刷新</span>
+        </div>
+
+        <div class="bd-canvas">
+          <!-- 图像视图 -->
+          <div class="bd-canvas-view" data-view="image" id="bd-view-image">
+            <svg class="bd-scene" viewBox="0 0 860 520" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="bd-scene-title bd-scene-desc">
+              <title id="bd-scene-title">Blob 缺陷检测标注图</title>
+              <desc id="bd-scene-desc">深色背景上的金属板，三个缺陷被红色圆圈标注并编号 1 到 3。</desc>
+              <defs>
+                <linearGradient id="bd-bg" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#0B1220"/><stop offset="100%" stop-color="#151F31"/>
+                </linearGradient>
+                <pattern id="bd-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293B" stroke-width="1"/>
+                </pattern>
+                <radialGradient id="bd-metal" cx="46%" cy="38%" r="68%">
+                  <stop offset="0%" stop-color="#DCE3EC"/><stop offset="52%" stop-color="#A9B4C2"/>
+                  <stop offset="100%" stop-color="#5E6A78"/>
+                </radialGradient>
+                <filter id="bd-blur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="10"/></filter>
+              </defs>
+              <rect width="860" height="520" fill="url(#bd-bg)"/>
+              <rect width="860" height="520" fill="url(#bd-grid)" opacity=".55"/>
+              <ellipse cx="430" cy="282" rx="286" ry="210" fill="#000" opacity=".45" filter="url(#bd-blur)"/>
+              <rect x="118" y="82" width="624" height="356" rx="18" fill="url(#bd-metal)" stroke="#D7DEE8" stroke-width="2"/>
+              <rect x="150" y="114" width="560" height="292" rx="12" fill="none" stroke="#7B8794" stroke-width="1.5" opacity=".75"/>
+              <g stroke="#5B6675" stroke-width="1" opacity=".55">
+                <path d="M 190 150 H 670"/><path d="M 190 190 H 670"/><path d="M 190 230 H 670"/>
+                <path d="M 190 270 H 670"/><path d="M 190 310 H 670"/><path d="M 190 350 H 670"/>
+              </g>
+              <g fill="#2F3947" stroke="#8A96A5" stroke-width="1">
+                <circle cx="160" cy="124" r="9"/><circle cx="700" cy="124" r="9"/>
+                <circle cx="160" cy="396" r="9"/><circle cx="700" cy="396" r="9"/>
+              </g>
+              <!-- 缺陷痕迹 -->
+              <path d="M 292 204 q 32 -18 64 -4 q 22 10 46 2" fill="none" stroke="#2A3038" stroke-width="6" stroke-linecap="round" opacity=".9"/>
+              <ellipse cx="500" cy="286" rx="22" ry="16" fill="#2A3038" opacity=".92"/>
+              <path d="M 592 342 q 24 -22 52 -14" fill="none" stroke="#2A3038" stroke-width="5" stroke-linecap="round" opacity=".9"/>
+              <!-- 红色标注圈 + 编号 -->
+              <g fill="none" stroke="#EF4444" stroke-width="2.5">
+                <circle cx="336" cy="204" r="34"/>
+                <circle cx="500" cy="286" r="30"/>
+                <circle cx="614" cy="336" r="28"/>
+              </g>
+              <g font-family="Segoe UI, sans-serif" font-size="13" font-weight="700" fill="#FCA5A5">
+                <rect x="356" y="164" width="22" height="18" rx="4" fill="#7F1D1D" opacity=".9"/><text x="362" y="178">1</text>
+                <rect x="520" y="246" width="22" height="18" rx="4" fill="#7F1D1D" opacity=".9"/><text x="526" y="260">2</text>
+                <rect x="634" y="300" width="22" height="18" rx="4" fill="#7F1D1D" opacity=".9"/><text x="640" y="314">3</text>
+              </g>
+              <!-- 角标 -->
+              <g stroke="#38BDF8" stroke-opacity=".55" stroke-width="2" fill="none">
+                <path d="M 26 26 H 66 M 26 26 V 66"/><path d="M 834 26 H 794 M 834 26 V 66"/>
+                <path d="M 26 494 H 66 M 26 494 V 454"/><path d="M 834 494 H 794 M 834 494 V 454"/>
+              </g>
+            </svg>
+            <div class="bd-overlay"><span class="bd-chip"><svg class="ic"><use href="#i-scan"/></svg>标注图 · 只读</span></div>
+            <span class="bd-verdict is-ng" id="bd-verdict">NG · 3 个缺陷</span>
+          </div>
+
+          <!-- 空态 -->
+          <div class="bd-canvas-view" data-view="empty" id="bd-view-empty" hidden>
+            <div class="bd-state-icon"><svg class="ic"><use href="#i-image"/></svg></div>
+            <div class="bd-state-title">等待输入图像</div>
+            <p class="bd-state-sub">在流程中把上游图像连到 <code>输入图像</code> 端口；配置态预览会在接上后自动刷新。也可以先调参数，接图后立即看到标注结果。</p>
+          </div>
+
+          <!-- 错误态 -->
+          <div class="bd-canvas-view bd-error" data-view="error" id="bd-view-error" hidden role="alert">
+            <div class="bd-state-icon"><svg class="ic"><use href="#i-alert"/></svg></div>
+            <div class="bd-state-title">预览不可用</div>
+            <p class="bd-state-sub" id="bd-error-sub">输入图像取副本失败：HALCON 错误 #1203（Wrong image width）。请检查上游图像与检测/排除区域。</p>
+          </div>
+
+          <!-- 数据输出 -->
+          <div class="bd-data" id="bd-data-panel" hidden>
+            <div class="bd-data-scroll">
+              <div class="bd-data-card">
+                <div class="bd-data-head">
+                  <svg class="ic"><use href="#i-list"/></svg>
+                  <span class="bd-data-title">缺陷清单</span>
+                  <span class="bd-data-meta" id="bd-defect-meta">共 3 个</span>
+                </div>
+                <table class="bd-table" aria-label="缺陷清单">
+                  <thead>
+                    <tr><th>#</th><th>面积(px)</th><th>圆度</th><th>长宽比</th><th>宽</th><th>高</th><th>行</th><th>列</th></tr>
+                  </thead>
+                  <tbody id="bd-defect-rows">
+                    <tr class="is-selected"><td>1</td><td>128.4</td><td>0.72</td><td>1.3</td><td>12.6</td><td>9.8</td><td>84.2</td><td>132.7</td></tr>
+                    <tr><td>2</td><td>96.1</td><td>0.61</td><td>1.8</td><td>11.2</td><td>6.2</td><td>142.5</td><td>216.4</td></tr>
+                    <tr><td>3</td><td>71.8</td><td>0.55</td><td>2.4</td><td>10.4</td><td>4.3</td><td>188.9</td><td>301.2</td></tr>
+                  </tbody>
+                </table>
+                <p class="bd-help"><svg class="ic"><use href="#i-info"/></svg><span>点行会在标注图上套黄框并自动切回图像视图；清单顺序与输出端口顺序一致（最多列前 200 行）。</span></p>
+              </div>
+
+              <div class="bd-data-card">
+                <div class="bd-data-head">
+                  <svg class="ic"><use href="#i-chart"/></svg>
+                  <span class="bd-data-title">灰度直方图</span>
+                  <span class="bd-data-meta" id="bd-hist-meta">标记区间 = 当前固定阈值 0 ~ 128</span>
+                </div>
+                <svg class="bd-hist" viewBox="0 0 720 150" preserveAspectRatio="none" role="img" aria-label="灰度直方图">
+                  <rect x="0" y="0" width="720" height="150" fill="#F8FAFC"/>
+                  <g stroke="#E2E8F0" stroke-width="1">
+                    <path d="M 0 120 H 720"/><path d="M 0 90 H 720"/><path d="M 0 60 H 720"/><path d="M 0 30 H 720"/>
+                  </g>
+                  <rect x="0" y="0" width="256" height="150" fill="#0EA5E9" opacity=".10"/>
+                  <g fill="#2F6FBF" opacity=".75">
+                    <rect x="18" y="104" width="10" height="46"/><rect x="34" y="96" width="10" height="54"/><rect x="50" y="88" width="10" height="62"/>
+                    <rect x="66" y="76" width="10" height="74"/><rect x="82" y="62" width="10" height="88"/><rect x="98" y="48" width="10" height="102"/>
+                    <rect x="114" y="38" width="10" height="112"/><rect x="130" y="30" width="10" height="120"/><rect x="146" y="26" width="10" height="124"/>
+                    <rect x="162" y="30" width="10" height="120"/><rect x="178" y="38" width="10" height="112"/><rect x="194" y="50" width="10" height="100"/>
+                    <rect x="210" y="64" width="10" height="86"/><rect x="226" y="82" width="10" height="68"/><rect x="242" y="98" width="10" height="52"/>
+                    <rect x="258" y="108" width="10" height="42"/><rect x="274" y="112" width="10" height="38"/><rect x="290" y="106" width="10" height="44"/>
+                    <rect x="306" y="98" width="10" height="52"/><rect x="322" y="92" width="10" height="58"/><rect x="338" y="88" width="10" height="62"/>
+                    <rect x="354" y="84" width="10" height="66"/><rect x="370" y="82" width="10" height="68"/><rect x="386" y="84" width="10" height="66"/>
+                    <rect x="402" y="88" width="10" height="62"/><rect x="418" y="94" width="10" height="56"/><rect x="434" y="100" width="10" height="50"/>
+                    <rect x="450" y="106" width="10" height="44"/><rect x="466" y="110" width="10" height="40"/><rect x="482" y="112" width="10" height="38"/>
+                    <rect x="498" y="114" width="10" height="36"/><rect x="514" y="116" width="10" height="34"/><rect x="530" y="118" width="10" height="32"/>
+                    <rect x="546" y="120" width="10" height="30"/><rect x="562" y="122" width="10" height="28"/><rect x="578" y="124" width="10" height="26"/>
+                    <rect x="594" y="126" width="10" height="24"/><rect x="610" y="128" width="10" height="22"/><rect x="626" y="130" width="10" height="20"/>
+                    <rect x="642" y="132" width="10" height="18"/><rect x="658" y="134" width="10" height="16"/><rect x="674" y="136" width="10" height="14"/>
+                    <rect x="690" y="138" width="10" height="12"/>
+                  </g>
+                  <g stroke="#E6A23C" stroke-width="1.2" stroke-dasharray="4 3">
+                    <path d="M 0 0 V 150"/><path d="M 256 0 V 150"/>
+                  </g>
+                </svg>
+                <div class="bd-hist-note"><span id="bd-hist-range">灰度范围 12 ~ 238</span><span id="bd-hist-type">byte（8 位）</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bd-statusbar" aria-live="polite">
+          <span class="bd-status-dot is-err" id="bd-status-dot"></span>
+          <span class="bd-status-msg is-err" id="bd-status-msg">预览已更新 · 检出 3 个缺陷，判定 NG（个数上限 0）</span>
+          <span class="bd-status-right" id="bd-status-right">byte（8 位）</span>
+        </div>
+      </section>
+    </div>
+
+    <div class="bd-footer">
+      <div class="bd-footer-left">
+        <span class="bd-status-chip"><span class="bd-footer-dot"></span><span>状态: 待执行</span></span>
+        <span class="bd-elapsed">耗时: 0 ms</span>
+      </div>
+      <div class="bd-footer-right">
+        <button type="button" class="bd-btn"><svg class="ic"><use href="#i-play"/></svg>执行</button>
+        <button type="button" class="bd-btn">取消</button>
+        <button type="button" class="bd-btn bd-btn-primary">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bd-notes">
+    <div class="bd-notes-head">关键改动（V1）</div>
+    <div class="bd-note"><div class="bd-note-num">01</div><div><b>左栏五区 + 图像输入，固定顺序</b><span>图像输入 → ① 二值化 → ② 特征筛选 → ③ 形态学 → ④ 判定规格 → ⑤ 输出；19 个数值字段按 2 列紧凑排布，标签在上、控件在下。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">02</div><div><b>参数控件统一 32px</b><span>数值框、下拉、按钮统一 32px（Web 36px，WPF 为 640×560 最小档压缩 4px）；数值等宽、校验规则与上下限原样保留。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">03</div><div><b>二值化方式驱动分区显隐</b><span>固定阈值只显示上下限；自动阈值只显示说明；动态阈值显示 4 个局部参数；检测目标与亮暗同检按 <code>ShowDetectTarget</code> / <code>ShowDualPolarity</code> 显隐。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">04</div><div><b>预览升级为工作区</b><span>预览头（标题 + 缺陷计数 + 适应窗口 / 1:1）+ 页签条（图像视图 / 数据输出）+ 深色画布 + 状态栏；只接现有 <code>FitToWindow()</code> / <code>FitToImage()</code>。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">05</div><div><b>两块画布都保留</b><span><code>ImageReadOnly.HImage = PreviewImage</code> 常驻，不用 Collapsed 显隐；<code>HistogramPlot</code> 的 <code>Data</code> / <code>ShowThresholdMarkers</code> / <code>ThresholdLow</code> / <code>ThresholdHigh</code> 绑定原样。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">06</div><div><b>数据输出不抢图像高度</b><span>缺陷清单与直方图放在「数据输出」页签；点清单行仍触发 <code>DefectList_SelectionChanged</code> → 高亮并自动切回图像视图。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">07</div><div><b>状态栏三档</b><span><code>StatusMessage</code> + <code>StatusLevel</code>（Info / Warning / Error）；不新增第四档，空串显示「就绪」。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">08</div><div><b>颜色全部令牌化</b><span>映射 <code>Dialog*</code> / <code>Plugin*</code> 公共令牌；视图 XAML 内 0 个十六进制颜色，不改共享字典与共享控件。</span></div></div>
+
+    <div class="bd-notes-head" style="margin-top:20px;">V1 契约保留（一个都不能改）</div>
+    <div class="bd-note"><div class="bd-note-num">C1</div><div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不能换成独立 VM，否则确认等于没保存。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">C2</div><div><b>3 个 LinkableValueEditor</b><span><code>SrcImage</code> / <code>MaskRegion</code> / <code>ExcludeRegion</code>；端口持久化、类型转换、变量链接、解除链接都在这三个控件里。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">C3</div><div><b>ImageReadOnly 常驻</b><span><code>HImage = PreviewImage</code> 原样；不在已设图后折叠再恢复；空态/错误态是纯 WPF 覆盖层，不替换 HALCON 控件。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">C4</div><div><b>HistogramPlot 绑定</b><span><code>Data</code> / <code>ShowThresholdMarkers</code> / <code>ThresholdLow</code> / <code>ThresholdHigh</code> / <code>Visibility</code> 全部保留。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">C5</div><div><b>缺陷清单 DataGrid</b><span><code>ItemsSource=DefectRows</code>、单选、8 列绑定、<code>SelectionChanged=DefectList_SelectionChanged</code> 全部保留。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">C6</div><div><b>19 个 NumericBox</b><span>每个 <code>Value</code> 绑定、<code>Minimum/Maximum/DecimalPlaces</code> 与 <code>NumberValidationRule</code> 逐项保留，不换控件类型。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">C7</div><div><b>下拉与勾选</b><span><code>ThresholdMode</code> / <code>DetectTarget</code> / <code>SortMode</code> 枚举，<code>DisplayViewIndex</code> int（0~9），<code>DetectBrightAndDark</code> / <code>FillHoles</code> bool。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">C8</div><div><b>命令与状态</b><span><code>AdaptToImageCommand</code> 保留；<code>StatusMessage</code> / <code>StatusLevel</code> 三档原样消费。</span></div></div>
+
+    <div class="bd-notes-head" style="margin-top:20px;">V1 明确延后（需新增功能或契约）</div>
+    <div class="bd-note"><div class="bd-note-num">D1</div><div><b>加载骨架 / 蓝色加载态</b><span>需要 VM 新增 <code>IsPreviewLoading</code> 或 <code>PreviewState</code>；当前 <code>StatusLevel</code> 只有三档，V1 不扩展。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">D2</div><div><b>图像尺寸 / 文件大小</b><span>需要 VM 新增只读属性；V1 预览头只显示标题与缺陷计数。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">D3</div><div><b>放大 / 缩小按钮</b><span><code>HalconBase</code> 只有 <code>FitToWindow()</code> / <code>FitToImage()</code>，没有公开 zoom 方法；V1 不做这两个按钮。</span></div></div>
+    <div class="bd-note"><div class="bd-note-num">D4</div><div><b>打开所在文件夹 / 系统导航</b><span>需要新增行为或宿主导航契约；V1 不做，空态只给文字说明。</span></div></div>
+  </div>
+</div>
+
+<div class="bd-toast" id="bd-toast"></div>
+
+<script>
+(function(){
+  var root = document.getElementById('bd-root');
+  if(!root) return;
+  var win = root.querySelector('#bd-window');
+  var threshold = 'fixed';
+  var tab = 'image';
+  var state = 'normal';
+
+  var widthBtns = Array.prototype.slice.call(root.querySelectorAll('[data-width]'));
+  var thresholdBtns = Array.prototype.slice.call(root.querySelectorAll('[data-threshold]'));
+  var tabBtns = Array.prototype.slice.call(root.querySelectorAll('[data-tab-btn]'));
+  var stateBtns = Array.prototype.slice.call(root.querySelectorAll('[data-state]'));
+  var thresholdPanels = Array.prototype.slice.call(root.querySelectorAll('[data-panel]'));
+  var modeSelect = root.querySelector('#bd-threshold-mode');
+  var detectTargetField = root.querySelector('#bd-detect-target-field');
+  var dualField = root.querySelector('#bd-dual-field');
+  var dual = root.querySelector('#bd-dual');
+  var viewImage = root.querySelector('#bd-view-image');
+  var viewEmpty = root.querySelector('#bd-view-empty');
+  var viewError = root.querySelector('#bd-view-error');
+  var dataPanel = root.querySelector('#bd-data-panel');
+  var countChip = root.querySelector('#bd-count-chip');
+  var verdict = root.querySelector('#bd-verdict');
+  var statusDot = root.querySelector('#bd-status-dot');
+  var statusMsg = root.querySelector('#bd-status-msg');
+  var statusRight = root.querySelector('#bd-status-right');
+  var defectMeta = root.querySelector('#bd-defect-meta');
+  var histMeta = root.querySelector('#bd-hist-meta');
+  var toast = root.querySelector('#bd-toast');
+  var toastTimer = null;
+
+  function showToast(text){
+    toast.textContent = text;
+    toast.classList.add('is-on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toast.classList.remove('is-on'); }, 1800);
+  }
+
+  function syncThresholdPanels(){
+    thresholdPanels.forEach(function(p){ p.hidden = p.dataset.panel !== threshold; });
+    var fixed = threshold === 'fixed';
+    detectTargetField.hidden = fixed || dual.checked;
+    dualField.hidden = fixed;
+    if (fixed) dual.checked = false;
+    histMeta.textContent = fixed ? '标记区间 = 当前固定阈值 0 ~ 128' : '标记区间仅固定阈值显示';
+  }
+
+  function syncTab(){
+    tabBtns.forEach(function(b){
+      var on = b.dataset.tabBtn === tab;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-selected', String(on));
+    });
+    dataPanel.hidden = tab !== 'data';
+  }
+
+  function syncState(){
+    var showImage = state === 'normal';
+    var showEmpty = state === 'empty';
+    var showError = state === 'error';
+    viewImage.hidden = !showImage;
+    viewEmpty.hidden = !showEmpty;
+    viewError.hidden = !showError;
+    if (state === 'normal') {
+      countChip.textContent = '共 3 个缺陷';
+      countChip.hidden = false;
+      verdict.hidden = false;
+      statusDot.className = 'bd-status-dot is-err';
+      statusMsg.className = 'bd-status-msg is-err';
+      statusMsg.textContent = '预览已更新 · 检出 3 个缺陷，判定 NG（个数上限 0）';
+      statusRight.textContent = 'byte（8 位）';
+      defectMeta.textContent = '共 3 个';
+    } else if (state === 'empty') {
+      countChip.hidden = true;
+      verdict.hidden = true;
+      statusDot.className = 'bd-status-dot is-warn';
+      statusMsg.className = 'bd-status-msg is-warn';
+      statusMsg.textContent = '输入图像为空：请为「输入图像」指定图片，或连接上游图像端口';
+      statusRight.textContent = '—';
+      defectMeta.textContent = '共 0 个';
+    } else {
+      countChip.hidden = true;
+      verdict.hidden = true;
+      statusDot.className = 'bd-status-dot is-err';
+      statusMsg.className = 'bd-status-msg is-err';
+      statusMsg.textContent = '预览失败：输入图像取副本失败（HALCON #1203）';
+      statusRight.textContent = '—';
+      defectMeta.textContent = '共 0 个';
+    }
+  }
+
+  widthBtns.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var narrow = btn.dataset.width === '640';
+      win.classList.toggle('is-narrow', narrow);
+      widthBtns.forEach(function(b){ var on = b === btn; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
+    });
+  });
+
+  thresholdBtns.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      threshold = btn.dataset.threshold;
+      modeSelect.value = threshold;
+      thresholdBtns.forEach(function(b){ var on = b === btn; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
+      syncThresholdPanels();
+    });
+  });
+  modeSelect.addEventListener('change', function(){
+    threshold = modeSelect.value;
+    thresholdBtns.forEach(function(b){ var on = b.dataset.threshold === threshold; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
+    syncThresholdPanels();
+  });
+  dual.addEventListener('change', syncThresholdPanels);
+
+  tabBtns.forEach(function(btn){
+    btn.addEventListener('click', function(){ tab = btn.dataset.tabBtn; syncTab(); });
+  });
+
+  stateBtns.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      state = btn.dataset.state;
+      stateBtns.forEach(function(b){ var on = b === btn; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
+      syncState();
+    });
+  });
+
+  root.querySelector('#bd-adapt').addEventListener('click', function(){
+    showToast('WPF：调用现有 AdaptToImageCommand，按当前图像重算阈值/面积');
+    statusMsg.textContent = '已按当前图像重新适配：阈值 12 ~ 176 · 面积 48 ~ 1600 px';
+    statusDot.className = 'bd-status-dot is-ok';
+    statusMsg.className = 'bd-status-msg is-ok';
+  });
+
+  root.querySelector('#bd-fit').addEventListener('click', function(){ showToast('WPF：调用现有 FitToWindow()'); });
+  root.querySelector('#bd-fit1').addEventListener('click', function(){ showToast('WPF：调用现有 FitToImage()'); });
+
+  root.querySelectorAll('#bd-defect-rows tr').forEach(function(row){
+    row.addEventListener('click', function(){
+      root.querySelectorAll('#bd-defect-rows tr').forEach(function(r){ r.classList.remove('is-selected'); });
+      row.classList.add('is-selected');
+      showToast('WPF：HighlightDefect(index) 在标注图上套黄框，并切回图像视图');
+    });
+  });
+
+  syncThresholdPanels();
+  syncTab();
+  syncState();
+})();
+</script>
+</div>
+</body>
+</html>

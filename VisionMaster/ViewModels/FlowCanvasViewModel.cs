@@ -62,7 +62,7 @@ namespace VisionMaster.ViewModels
         //  2026-10-09 审查 #3：此前是两处各自字面量、靠注释提醒同步，已改成单向引用。
         // ------------------------------------------------------------------
 
-        /// <summary>模块盒标称尺寸（真实渲染随内容浮动，此处用于几何估算与锚点兜底）</summary>
+        /// <summary>模块盒标称尺寸（固定 156×58；FlowLayoutStore 为唯一数值源，锚点按此常量算）</summary>
         public const double NodeWidth = FlowLayoutStore.NodeWidth;
         public const double NodeHeight = FlowLayoutStore.NodeHeight;
 
@@ -85,6 +85,9 @@ namespace VisionMaster.ViewModels
         /// <summary>空分支泳道的占位尺寸</summary>
         public const double EmptyLaneWidth = FlowLayoutStore.EmptyLaneWidth;
         public const double EmptyLaneHeight = FlowLayoutStore.EmptyLaneHeight;
+
+        /// <summary>泳道最小宽度（组头可读下限，布局器与渲染器共用）</summary>
+        public const double MinLaneWidth = FlowLayoutStore.MinLaneWidth;
 
         private readonly IWorkspaceManager _workspace;
         private readonly IPluginProvider _pluginProvider;
@@ -519,6 +522,17 @@ namespace VisionMaster.ViewModels
                     RebuildInPlace();
                 }
             }
+        }
+
+        /// <summary>
+        /// 是否显示右下角小地图（flow-logic：默认关闭，改由工具条开关调出）。
+        /// 小地图是会话内视图态，不落盘；默认关掉是设计稿明确修掉的遮挡问题——
+        /// 常驻右下角会盖住"结果汇总"这类输出节点。
+        /// </summary>
+        public bool ShowMinimap
+        {
+            get => field;
+            set => SetProperty(ref field, value);
         }
 
         /// <summary>
@@ -1061,8 +1075,10 @@ namespace VisionMaster.ViewModels
         private Rect ComputeContainerGeometry(StepModel containerStep, IContainerStep container)
         {
             var node = _nodeMap[containerStep.StepID];
+            double laneBottomExtra = FlowLayoutStore.GetLaneBottomExtra(containerStep);
+            double frameBottomExtra = FlowLayoutStore.GetFrameBottomExtra(containerStep);
 
-            // 折叠态：框体就锚在存储坐标上，等高一枚模块盒
+            // 折叠态：框体就锚在存储坐标上，只剩头带
             if (node.IsCollapsed)
             {
                 var collapsedRect = new Rect(node.Location.X, node.Location.Y, CollapsedFrameWidth, CollapsedFrameHeight);
@@ -1075,10 +1091,11 @@ namespace VisionMaster.ViewModels
             // 各分支的内容矩形（先递归嵌套容器，保证祖先能拿到子孙框的最终矩形）。
             // 泳道每帧新建：它没有任何需要跨帧保留的状态，池化反而会在折叠后吐出脏泳道
             var branchNodes = new List<CanvasNodeViewModel>();
+            int branchIndex = 0;
             foreach (var branch in container.Children)
             {
                 if (branch?.Steps == null) continue;
-                var laneNode = CanvasNodeViewModel.CreateLane(branch);
+                var laneNode = CanvasNodeViewModel.CreateLane(branch, containerStep, branchIndex++);
                 laneNode.Depth = node.Depth;   // 泳道与所属容器同层：父框 < 父泳道 < 子内容
                 _lanes.Add(laneNode);
                 branchNodes.Add(laneNode);
@@ -1101,7 +1118,7 @@ namespace VisionMaster.ViewModels
                 return bare;
             }
 
-            var laneRects = ComputeLaneRects(contentRects, node.Location);
+            var laneRects = ComputeLaneRects(contentRects, node.Location, laneBottomExtra);
 
             for (int i = 0; i < branchNodes.Count; i++)
             {
@@ -1112,7 +1129,7 @@ namespace VisionMaster.ViewModels
                 laneNode.LaneHeight = laneRects[i].Height;
             }
 
-            // 框体 = 泳道并集 + 框内边距 + 头带
+            // 框体 = 泳道并集 + 框内边距 + 头带 + 底部条带（并行汇合条）
             var laneUnionLeft = laneRects.Min(r => r.Left);
             var laneUnionTop = laneRects.Min(r => r.Top);
             var laneUnionRight = laneRects.Max(r => r.Right);
@@ -1122,7 +1139,7 @@ namespace VisionMaster.ViewModels
                 laneUnionLeft - FramePadding,
                 laneUnionTop - FramePadding - FrameHeaderHeight,
                 (laneUnionRight - laneUnionLeft) + FramePadding * 2,
-                (laneUnionBottom - laneUnionTop) + FramePadding * 2 + FrameHeaderHeight);
+                (laneUnionBottom - laneUnionTop) + FramePadding * 2 + FrameHeaderHeight + frameBottomExtra);
 
             node.Location = frame.Location;
             node.LaneWidth = frame.Width;
@@ -1141,7 +1158,7 @@ namespace VisionMaster.ViewModels
         /// 多条空泳道不再同址、也不再压到内容/嵌套容器框上
         ///（2026-10-09 真机"流程画布太乱"里那条半透明蓝块就是它）。
         /// </summary>
-        private static List<Rect> ComputeLaneRects(List<Rect> contentRects, Point anchor)
+        private static List<Rect> ComputeLaneRects(List<Rect> contentRects, Point anchor, double laneBottomExtra)
         {
             var lanes = new List<Rect>(contentRects.Count);
             for (int i = 0; i < contentRects.Count; i++)
@@ -1155,7 +1172,7 @@ namespace VisionMaster.ViewModels
                 double y = anchor.Y + FrameHeaderHeight + FramePadding;
                 for (int i = 0; i < lanes.Count; i++)
                 {
-                    lanes[i] = new Rect(x, y, EmptyLaneWidth, EmptyLaneHeight);
+                    lanes[i] = new Rect(x, y, EmptyLaneWidth, EmptyLaneHeight + laneBottomExtra);
                     x += EmptyLaneWidth + ColumnGap;
                 }
                 return lanes;
@@ -1171,12 +1188,12 @@ namespace VisionMaster.ViewModels
             {
                 var content = contentRects[i];
                 lanes[i] = content.IsEmpty
-                    ? new Rect(cursorX, laneTop, EmptyLaneWidth, EmptyLaneHeight)
+                    ? new Rect(cursorX, laneTop, EmptyLaneWidth, EmptyLaneHeight + laneBottomExtra)
                     : new Rect(
                         content.Left - LanePadding,
                         content.Top - LanePadding - LaneHeaderHeight,
-                        content.Width + LanePadding * 2,
-                        content.Height + LanePadding * 2 + LaneHeaderHeight);
+                        Math.Max(content.Width + LanePadding * 2, MinLaneWidth),
+                        content.Height + LanePadding * 2 + LaneHeaderHeight + laneBottomExtra);
 
                 cursorX = lanes[i].Right + ColumnGap;
             }
@@ -1186,7 +1203,7 @@ namespace VisionMaster.ViewModels
             {
                 lanes[i] = new Rect(
                     lanes[i + 1].Left - ColumnGap - EmptyLaneWidth,
-                    laneTop, EmptyLaneWidth, EmptyLaneHeight);
+                    laneTop, EmptyLaneWidth, EmptyLaneHeight + laneBottomExtra);
             }
 
             return lanes;
@@ -2210,7 +2227,7 @@ namespace VisionMaster.ViewModels
         ///
         /// 折叠现场（每个容器的折叠标记）在**排位期**就交给布局器：清库重排后每个容器在
         /// FlowLayoutStore 眼里都是"新项"，若不声明最终态，深于 AutoCollapseDepth 的容器会按
-        /// 自动折叠的 230×64 足迹参与父级行/列推进，而重排后它们要渲染成展开——框体远大于
+        /// 自动折叠的 230×50 足迹参与父级行/列推进，而重排后它们要渲染成展开——框体远大于
         /// 父级预留：同级泳道互压、后续兄弟被吞进框内（2026-10-09 审查 #1，十层图式实测外层框
         /// 2092 高而排位只预留 700）。
         /// 因此这里把"重排前记录的折叠集"作为 collapseOverride 传进 AutoLayout：足迹与标记

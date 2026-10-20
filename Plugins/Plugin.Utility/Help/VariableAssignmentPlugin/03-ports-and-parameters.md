@@ -42,8 +42,8 @@
 | 界面行 | 控件（源码） | 绑定 | 行为要点 |
 | --- | --- | --- | --- |
 | 顶部说明 | 两行文本 | 写死在视图里 | "给一个运行时变量赋值" + 一句作用域科普（运行时本轮即弃 / 全局可跨流程随方案存盘） |
-| 作用域 | `ComboBox`（不可编辑，两项） | `SelectedValue` ←→ `Scope.Value`，`SelectedValuePath="Tag"` | 两项的显示文字是**中文**（运行时变量 / 全局变量）、`Tag` 是 `Runtime` / `Global`；改它触发候选与提示重算 |
-| 变量名 | 可编辑 `ComboBox`（候选 + 手填） | `Text` ←→ `VariableName.Value`（`UpdateSourceTrigger=PropertyChanged`），`ItemsSource` ←→ `NameCandidates` | `IsTextSearchEnabled="False"`（关掉"输入即补全"，否则刚敲 `OK` 被补成 `OKCount`）；**没有链接图标** |
+| 作用域 | 两张 `RadioButton` 卡片（运行时变量 / 全局变量） | `IsChecked` ←→ `Scope.Value`，经 `ScopeEqualsConverter` 写回字符串 | 选中态 = 主色描边 + 浅底 + 对勾；改它触发候选与提示重算。取值不在 Runtime/Global 白名单时两张卡片都不选中，提示会写「作用域取值无法识别」 |
+| 变量名 | 可编辑 `ComboBox`（候选 + 手填） | `Text` ←→ `VariableName.Value`（`UpdateSourceTrigger=PropertyChanged`），`ItemsSource` ←→ `NameCandidates`；候选行经 `NameCandidateItems` 显示「名字 + 声明类型」 | `IsTextSearchEnabled="False"`（关掉"输入即补全"，否则刚敲 `OK` 被补成 `OKCount`）；**没有链接图标**；选择落下的仍是名字常量 |
 | （名字行下方小字） | `TextBlock` | ←→ `NameHint` | 随作用域与当前名字变化，四类文案见第五节 |
 | 值 | `LinkableValueEditor`（宿主通用控件） | `Port` ←→ `Value`，`StepData` ←→ `StepData` | 手填常量 + 行尾链接图标二合一；**只有这一行允许连线** |
 | 变量不存在时自动创建 | `CheckBox` | ←→ `CreateIfNotExists.Value` | 布尔用勾选框比在文本框里敲 `true` 直观 |

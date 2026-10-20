@@ -154,11 +154,25 @@
 守门：**无断言，靠人工核对**。
 
 **B15 界面文案与算法口径不能各写一份**
-本插件现存**三处已知的文案漂移**（界面上写"填示意图路径并点「载入」"、"阈值暂写死"，
-ToolTip 说白线百分位"调小"而告警原文说"调高"；`TryPreviewAnalyze` 的失败提示也指向一个不存在的「载入」按钮）。
+本插件现存**两处已知的文案漂移**（界面上写"填示意图路径并点「载入」"、"阈值暂写死"，
+ToolTip 说白线百分位"调小"而告警原文说"调高"）。
 症状：现场照文案操作 → 找不到按钮、或按错方向调参然后以为算法坏了。
 机理：这些句子早于"图像只有端口一个来源"和"色卡可调"两次改版。
 守门：**无断言，靠人工核对**（`HelpManualCheck` 只核手册结构，不核视图文案）。**发现即修，别只写进手册**。
+> 2026-10-20 已核销一处：`TryPreviewAnalyze` 的空图提示不再指向不存在的「载入」按钮，改为"绑端口/点执行，
+> 或在画面上右键 → 打开图片，再试算"，并由 `ColorCheckSequenceCheck` 的 CC4 P5 断言钉住（含「载入」原话仍在，
+> 旧的 `summary.Contains("载入")` 断言不失效）。
+
+**B15b 试算的图源必须由视图显式传入，不许让插件自己猜**
+`TryPreviewAnalyze()` 无参入口只是转发 `TryPreviewAnalyze(null)`（回退 `DisplayImage`）；
+视图的 `TryAnalyzeCommand` 必须传 `ImageEditor?.HImage`。
+症状：改回无参调用 → 画布右键「打开图片」换的图**永远不参与试算**，用户看到的是"图明明换了、结果还是老图的那一套"
+（因为 `DisplayImage` 与控件 `HImage` 是两份状态，右键换图不经过插件）。
+机理：共享控件 `HalconBase.OpenImage()` 直接 `this.HImage = image`，不通知插件。
+守门：`ColorCheckSequenceCheck` 的 CC4 P6c 静态扫描（视图源码必须含 `TryPreviewAnalyze(ImageEditor?.HImage)` 且不得残留无参调用）+
+P2/P3/P4 三条行为断言（传入图优先 / 无参回退 / `DisplayImage` 未被覆盖）。变异反证：改回无参 → P6c 准确变红。
+另：带图重载必须是 `internal`——两个 public 同名重载会让 `Type.GetMethod("TryPreviewAnalyze")` 抛
+`AmbiguousMatchException`，断言宿主与任何反射调用方都会当场炸（P6a 钉住）。
 
 **B16 配置属性名不能随便改**
 `.vms` 的 `InputValues` 键**逐字等于属性名**（无前缀、无版本位）。

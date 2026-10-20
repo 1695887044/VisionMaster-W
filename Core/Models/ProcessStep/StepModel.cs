@@ -1,6 +1,7 @@
 using GongSolutions.Wpf.DragDrop;
 using Core.Interfaces;
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using Newtonsoft.Json;
 using System.Collections.Generic;
@@ -15,7 +16,7 @@ using VisionMaster.EventModel;
 
 namespace VisionMaster.Models
 {
-    public abstract class StepModel:BindableBase, IStepConfigData
+    public abstract class StepModel:BindableBase, IStepConfigData, IStepLinkInventory
     {
         public Guid StepID { get; set; } = Guid.NewGuid();
 
@@ -54,6 +55,61 @@ namespace VisionMaster.Models
         {
             get => field;
             set => SetProperty(ref field, value);
+        }
+
+        /// <summary>
+        /// 流程栏容器组头的条件/模式摘要（与画布容器头同源）。
+        /// 只读投影，不参与序列化；条件表达式变更由画布/流程栏重建或选中刷新承接。
+        ///
+        /// [RuntimeState]：它是**派生展示值**，不是流程语义输入。`RaiseContainerSummary`
+        /// 每次发两条通知（文本 + 可见性），不标会让 `SetLink`/`RemoveLink` 的版本号
+        /// 从 +1 变成 +3（E17④ 断言），每次绑定写回都白重编译两轮。
+        /// </summary>
+        [RuntimeState]
+        [JsonIgnore]
+        public string ContainerSummary => this switch
+        {
+            WhileStep w => w.Children.FirstOrDefault()?.Expression ?? string.Empty,
+            CaseStep c => c.JudgeExpression ?? string.Empty,
+            ParallelStep p => $"{(p.ExecutionMode == ParallelExecutionMode.Parallel ? "真并发" : "顺序")} · {p.JoinTimeoutMs / 1000.0:0.#}s",
+            ConditionStep c => c.Children.FirstOrDefault()?.Expression ?? string.Empty,
+            // LoopCount 已被上游连线接管时，DefaultLoopCount 只是未连线时的兜底值，不能当真实次数上屏
+            ForStep f => f.LinkedSources?.ContainsKey("LoopCount") == true
+                ? "运行时/上游连线"
+                : $"{f.DefaultLoopCount} 次",
+            WaitStep w => w.ConditionExpression ?? string.Empty,
+            _ => string.Empty,
+        };
+
+        /// <summary>同 <see cref="ContainerSummary"/>：派生展示值，不参与流程语义版本。</summary>
+        [RuntimeState]
+        [JsonIgnore]
+        public System.Windows.Visibility ContainerSummaryVisibility
+            => string.IsNullOrWhiteSpace(ContainerSummary)
+                ? System.Windows.Visibility.Collapsed
+                : System.Windows.Visibility.Visible;
+
+        /// <summary>
+        /// 容器摘要变化时由容器自身（或分支订阅器）调用。两个属性一起发：
+        /// 摘要为空时模板靠 Visibility 折叠，只发文本不发可见性会留下一个空胶囊。
+        /// </summary>
+        protected void RaiseContainerSummary()
+        {
+            RaisePropertyChanged(nameof(ContainerSummary));
+            RaisePropertyChanged(nameof(ContainerSummaryVisibility));
+        }
+
+        private void OnSummaryPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(CaseStep.JudgeExpression)
+                or nameof(ParallelStep.ExecutionMode)
+                or nameof(ParallelStep.JoinTimeoutMs)
+                or nameof(ForStep.DefaultLoopCount)
+                or nameof(WaitStep.ConditionExpression)
+                or nameof(LinkedSources))
+            {
+                RaiseContainerSummary();
+            }
         }
 
         public int SortId { get; set; }
@@ -367,6 +423,15 @@ namespace VisionMaster.Models
             }
         }
 
+        /// <summary>
+        /// 连线键快照（<see cref="IStepLinkInventory"/>）。
+        /// 给"动态端口插件"清理孤儿连线用：键必须与插件当前声明的输入变量一一对应，
+        /// 对不上的那条在 FlowCompiler 里是**错误**（'没有名为 X 的输入端口'），
+        /// 足以让整条流程编译失败，而它没有同名端口、行内与画布都够不到。
+        /// 返回快照（ToList）——调用方会边遍历边 RemoveLink。
+        /// </summary>
+        public IEnumerable<string> GetLinkedPortNames() => LinkedSources.Keys.ToList();
+
         public StepModel(string icon,string pluginName, string pluginTypeName, string stepName =null)
         {
             Icon=icon;
@@ -374,6 +439,10 @@ namespace VisionMaster.Models
             this.PluginTypeName = pluginTypeName;
             StepName = stepName == null ? pluginName: stepName;
             Description = pluginName;
+
+            // 摘要依赖自身属性的容器（Case 判据 / 并行模式 / For 次数 / Wait 条件）：
+            // 这些属性走 SetProperty 时本类会收到 PropertyChanged，在这里转成摘要通知。
+            PropertyChanged += OnSummaryPropertyChanged;
         }
 
         /// <summary>

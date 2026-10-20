@@ -76,7 +76,7 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>模式（见 <see cref="ModeSet"/> 等五个常量）</summary>
         [ScadaProperty(Key = "Mode", DisplayName = "模式", Kind = ElementPropertyKind.Choice,
-                       Group = "常规", DefaultValue = BitButtonElement.ModePressOn,
+                       Group = ScadaPropertyGroups.General, DefaultValue = BitButtonElement.ModePressOn,
                        Choices = new[]
                        {
                            BitButtonElement.ModeSet, BitButtonElement.ModeReset, BitButtonElement.ModeInvert,
@@ -89,46 +89,46 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>状态（true = 状态1）；运行态把工程变量的布尔值绑到这里</summary>
         [ScadaProperty(Key = "IsOn", DisplayName = "读变量", Kind = ElementPropertyKind.Bool,
-                       Group = "状态", DefaultValue = "False", IsBindable = true,
+                       Group = ScadaPropertyGroups.State, DefaultValue = "False", IsBindable = true,
                        Description = "运行态把工程变量的布尔值绑到这里；本控件也按它回写（读写同一根变量）")]
         public partial bool IsOn { get; set; }
 
         /// <summary>输出反向：勾选则对读取的值取反后再判状态（只影响显示，不影响写出去的值）</summary>
         [ScadaProperty(Key = "OutputInvert", DisplayName = "输出反向", Kind = ElementPropertyKind.Bool,
-                       Group = "状态", DefaultValue = "False",
+                       Group = ScadaPropertyGroups.State, DefaultValue = "False",
                        Description = "对读取的值取反后再判状态（只影响显示与取反写回，不改写出去的字面量）")]
         public partial bool OutputInvert { get; set; }
 
         /// <summary>状态1（ON）时显示的文字；留空表示沿用「文字」</summary>
         [ScadaProperty(Key = "OnText", DisplayName = "状态1文字", Kind = ElementPropertyKind.Text,
-                       Group = "状态", DefaultValue = "", IsBindable = true,
+                       Group = ScadaPropertyGroups.State, DefaultValue = "", IsBindable = true,
                        Description = "状态为 1 时显示的文字；留空则沿用「文字」")]
         public partial string? OnText { get; set; }
 
         /// <summary>状态0（OFF）时显示的文字；留空表示沿用「文字」</summary>
         [ScadaProperty(Key = "OffText", DisplayName = "状态0文字", Kind = ElementPropertyKind.Text,
-                       Group = "状态", DefaultValue = "", IsBindable = true,
+                       Group = ScadaPropertyGroups.State, DefaultValue = "", IsBindable = true,
                        Description = "状态为 0 时显示的文字；留空则沿用「文字」")]
         public partial string? OffText { get; set; }
 
         /// <summary>状态1（ON）时的背景色</summary>
         [ScadaProperty(Key = "OnFill", DisplayName = "状态1背景", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FF2D7DD2", IsBindable = true)]
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FF2D7DD2", IsBindable = true)]
         public partial Brush? OnFill { get; set; }
 
         /// <summary>状态0（OFF）时的背景色</summary>
         [ScadaProperty(Key = "OffFill", DisplayName = "状态0背景", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FF4A5568", IsBindable = true)]
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FF4A5568", IsBindable = true)]
         public partial Brush? OffFill { get; set; }
 
         /// <summary>状态1（ON）时的文字颜色</summary>
         [ScadaProperty(Key = "OnForeground", DisplayName = "状态1文字色", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FFFFFFFF", IsBindable = true)]
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FFFFFFFF", IsBindable = true)]
         public partial Brush? OnForeground { get; set; }
 
         /// <summary>状态0（OFF）时的文字颜色</summary>
         [ScadaProperty(Key = "OffForeground", DisplayName = "状态0文字色", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FFFFFFFF", IsBindable = true)]
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FFFFFFFF", IsBindable = true)]
         public partial Brush? OffForeground { get; set; }
 
         private static readonly DependencyPropertyKey DisplayTextPropertyKey = DependencyProperty.RegisterReadOnly(

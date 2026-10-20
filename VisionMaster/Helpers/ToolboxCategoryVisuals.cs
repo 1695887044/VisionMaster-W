@@ -115,4 +115,64 @@ namespace VisionMaster.Helpers
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
             => throw new NotSupportedException();
     }
+
+    /// <summary>
+    /// 分类色 → 浅底（与白色按比例混合），供图标块/胶囊背景使用。
+    /// 与 Accent 分开是为了让叶子节点同时保留"分类色图标 + 分类色浅底"，
+    /// 不把大面积高饱和色铺到流程栏/画布上。
+    /// </summary>
+    public sealed class CategorySoftBrushConverter : IValueConverter
+    {
+        private static readonly Dictionary<string, Brush> Cache = new(StringComparer.Ordinal);
+        private static readonly object Gate = new();
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var category = value as string ?? string.Empty;
+            lock (Gate)
+            {
+                if (Cache.TryGetValue(category, out var cached)) return cached;
+                var brush = CreateBlend(category, 0.88);
+                Cache[category] = brush;
+                return brush;
+            }
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+
+        private static Brush CreateBlend(string category, double whiteRatio)
+        {
+            var c = ToolboxCategoryVisuals.ColorFor(category);
+            byte Mix(byte channel) => (byte)Math.Round(channel + (255 - channel) * whiteRatio);
+            var brush = new SolidColorBrush(Color.FromRgb(Mix(c.R), Mix(c.G), Mix(c.B)));
+            brush.Freeze();
+            return brush;
+        }
+    }
+
+    /// <summary>分类色 → 浅描边（与白色混合 65%），用于图标块/胶囊边框。</summary>
+    public sealed class CategoryBorderBrushConverter : IValueConverter
+    {
+        private static readonly Dictionary<string, Brush> Cache = new(StringComparer.Ordinal);
+        private static readonly object Gate = new();
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var category = value as string ?? string.Empty;
+            lock (Gate)
+            {
+                if (Cache.TryGetValue(category, out var cached)) return cached;
+                var c = ToolboxCategoryVisuals.ColorFor(category);
+                byte Mix(byte channel) => (byte)Math.Round(channel + (255 - channel) * 0.65);
+                var brush = new SolidColorBrush(Color.FromRgb(Mix(c.R), Mix(c.G), Mix(c.B)));
+                brush.Freeze();
+                Cache[category] = brush;
+                return brush;
+            }
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
 }

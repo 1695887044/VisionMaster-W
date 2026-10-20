@@ -41,6 +41,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 RaisePropertyChanged(nameof(ShowBooleanEditor));
                 RaisePropertyChanged(nameof(ShowCaseValueEditor));
                 RaisePropertyChanged(nameof(EditorTitle));
+                // v2：卡内错误条与底栏摘要要跟着选中分支换（空表达式判定是分支自己的 IsConditionMissing）
+                RaisePropertyChanged(nameof(SelectedBranchMissingCondition));
+                RaisePropertyChanged(nameof(HasCardError));
+                RaisePropertyChanged(nameof(CardErrorText));
+                RaisePropertyChanged(nameof(ValidationSummaryText));
+                RaisePropertyChanged(nameof(HasValidationErrors));
+                RaisePropertyChanged(nameof(ValidationErrorCount));
+                RaisePropertyChanged(nameof(ValidationSummaryLevel));
                 BranchChanged?.Invoke(this, value);
             }
         }
@@ -51,7 +59,17 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>
         /// P1-⑥：For 节点并入本弹窗——为 true 时隐藏"变量+表达式"区，显示"循环次数"卡片
         /// </summary>
-        public bool IsForMode { get => field; set => SetProperty(ref field, value); }
+        public bool IsForMode
+        {
+            get => field;
+            set
+            {
+                if (!SetProperty(ref field, value))
+                    return;
+                RaisePropertyChanged(nameof(ModeChipText));
+                RefreshDraftDiagnostics();
+            }
+        }
 
         // ------------------------------------------------------------------
         //  等待节点模式（BuiltIn_Wait）：与 If/While 共用"草稿→校验→写回→Version++"事务管线，
@@ -72,6 +90,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 if (!SetProperty(ref field, value))
                     return;
                 RaisePropertyChanged(nameof(Title));
+                RaisePropertyChanged(nameof(ModeChipText));
+                RefreshDraftDiagnostics();
             }
         }
 
@@ -79,14 +99,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public string PollIntervalText
         {
             get => field;
-            set => SetProperty(ref field, value);
+            set { if (SetProperty(ref field, value)) RefreshDraftDiagnostics(); }
         } = "50";
 
         /// <summary>最大超时草稿（毫秒；0 = 不限）</summary>
         public string TimeoutText
         {
             get => field;
-            set => SetProperty(ref field, value);
+            set { if (SetProperty(ref field, value)) RefreshDraftDiagnostics(); }
         } = "60000";
 
         /// <summary>超时说明草稿（追加到超时日志/异常文案）</summary>
@@ -100,7 +120,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public string AlarmVariableNameDraft
         {
             get => field;
-            set => SetProperty(ref field, value);
+            set { if (SetProperty(ref field, value)) RefreshDraftDiagnostics(); }
         } = string.Empty;
 
         /// <summary>
@@ -159,6 +179,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 // 漏发这两条，宿主复用同一视图时灰条会停在非 Case 措辞（review 2026-10-10 低危 2）
                 RaisePropertyChanged(nameof(NoConditionTitle));
                 RaisePropertyChanged(nameof(NoConditionHintText));
+                RaisePropertyChanged(nameof(ModeChipText));
+                RefreshJudgeCandidates();
+                RefreshDraftDiagnostics();
             }
         }
 
@@ -169,7 +192,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public string JudgeExpressionDraft
         {
             get => field;
-            set => SetProperty(ref field, value);
+            set { if (SetProperty(ref field, value)) RefreshDraftDiagnostics(); }
         }
 
         /// <summary>
@@ -202,10 +225,312 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 ? "系统自动将其视为“真”：只有其他 Case 的匹配值都不命中时，才会执行本分支的步骤。"
                 : "系统自动将其视为“真”：只有其他分支的条件都不满足时，才会执行本分支的步骤。";
 
+        // ==================================================================
+        //  v2 展示层（只读，不参与保存判定）
+        //
+        //  这些属性只为「Web 化 v2」的标题胶囊 / 左栏徽标 / 卡内错误条 / 底栏摘要供数：
+        //   · 判定规则与 OnSave 里的 ValidateDraft / ValidateCaseBranches / SaveWait **同源**，
+        //     但不解析表达式（不跑 DynamicExpresso）、不拦保存、不改任何模型状态；
+        //   · 真正拦保存的仍然是 OnSave 那一套（点「保存并应用」才会执行），
+        //     所以这里的诊断只影响"显示什么"，绝不影响"能不能存"。
+        // ==================================================================
+
+        /// <summary>当前模式对应的标题胶囊文案（只读标识，不可点击）。</summary>
+        public string ModeChipText
+            => IsForMode ? "FOR"
+                : IsWaitMode ? "WAIT"
+                : IsCaseMode ? "CASE"
+                : "IF / WHILE";
+
+        /// <summary>当前选中分支是否缺条件（空表达式在编译期是硬错误）。</summary>
+        public bool SelectedBranchMissingCondition =>
+            !IsForMode && !IsWaitMode && SelectedBranch != null && SelectedBranch.IsConditionMissing;
+
+        /// <summary>草稿诊断清单（按当前模式计算，顺序即显示顺序）。</summary>
+        public ObservableCollection<string> DraftIssues { get; } = new();
+
+        /// <summary>是否有草稿问题（驱动底栏红/绿）。</summary>
+        public bool HasValidationErrors => DraftIssues.Count > 0;
+
+        /// <summary>问题条数（底栏「N 处问题」）。</summary>
+        public int ValidationErrorCount => DraftIssues.Count;
+
+        /// <summary>卡内错误条文案（多条用「；」连接）；无问题返回空串。</summary>
+        public string CardErrorText => string.Join("；", DraftIssues);
+
+        /// <summary>卡内错误条是否显示（只在有错时出现，成功摘要归底栏）。</summary>
+        public bool HasCardError => DraftIssues.Count > 0;
+
+        /// <summary>底栏摘要文案：与设计稿 v2 的四种口径一一对应。</summary>
+        public string ValidationSummaryText
+        {
+            get
+            {
+                if (DraftIssues.Count > 0)
+                    return $"校验未通过：{DraftIssues.Count} 处问题 · 点「保存并应用」会再次提示并停在弹窗";
+                if (IsForMode && HasLoopCountLink)
+                    return "循环次数由数据源驱动 · 草稿已就绪";
+                if (!IsForMode && !IsWaitMode && SelectedBranch != null && !SelectedBranch.RequiresExpression)
+                    return IsCaseMode ? "默认分支无需匹配值，可直接保存" : "兜底分支无需条件，可直接保存";
+                return "草稿已校验，可保存";
+            }
+        }
+
+        /// <summary>底栏摘要级别：<c>ok</c> / <c>err</c>（视图用它切颜色与图标）。</summary>
+        public string ValidationSummaryLevel => DraftIssues.Count > 0 ? "err" : "ok";
+
+        /// <summary>分支匹配「已用匹配值」列表（展示层：把 Branches 投影成只读行）。</summary>
+        public ObservableCollection<CaseMatchRow> CaseMatchRows { get; } = new();
+
+        /// <summary>判据候选：变量表别名 + 运行时变量名（名字语义，手填 + 候选，R33）。</summary>
+        public IReadOnlyList<string> JudgeVariableCandidates { get; private set; } = Array.Empty<string>();
+
+        /// <summary>For 模式摘要：循环体步骤数 / 默认次数（展示层）。</summary>
+        public string LoopSummaryText
+        {
+            get
+            {
+                int steps = _targetForNode?.TotalStepCount ?? 0;
+                string count = string.IsNullOrWhiteSpace(LoopCountText) ? "—" : LoopCountText.Trim();
+                string source = HasLoopCountLink ? (LoopCountSourceText ?? "已连线") : "未连线";
+                return $"循环体 {steps} 个步骤 · 默认次数 {count} · 数据源 {source}";
+            }
+        }
+
+        /// <summary>
+        /// 重算草稿诊断（只读）。调用点：分支切换、变量增删/改名、判据/等待参数变化、
+        /// 表达式文本变化（code-behind 写回后）、打开弹窗末尾。
+        /// </summary>
+        public void RefreshDraftDiagnostics()
+        {
+            DraftIssues.Clear();
+
+            // 变量表：别名非法 / 绑定却空别名 / 别名重复（与 VariableItem 的 IDataErrorInfo 同一规则）
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < Variables.Count; i++)
+            {
+                var v = Variables[i];
+                string alias = v?.AliasName?.Trim();
+                bool hasBinding = v?.OriginalLink != null || !string.IsNullOrEmpty(v?.SourceAddress);
+
+                if (string.IsNullOrEmpty(alias))
+                {
+                    if (hasBinding)
+                        DraftIssues.Add($"第 {i + 1} 行：变量已绑定数据源但别名为空");
+                    continue;
+                }
+                if (!VariableItem.IdentifierRegex.IsMatch(alias))
+                    DraftIssues.Add($"第 {i + 1} 行：别名「{alias}」不是合法标识符");
+                else if (!seen.Add(alias))
+                    DraftIssues.Add($"第 {i + 1} 行：别名「{alias}」与上一行重复，表达式将无法区分引用哪个");
+            }
+
+            if (!IsForMode)
+            {
+                if (IsCaseMode)
+                    CollectCaseIssues();
+                else if (!IsWaitMode)
+                    CollectConditionIssues();
+                else
+                    CollectWaitIssues();
+            }
+            else
+            {
+                CollectForIssues();
+            }
+
+            RefreshCaseMatchRows();
+            RaiseDiagnosticChanged();
+        }
+
+        /// <summary>条件模式：必需分支的空条件（编译期硬错误，与 StepCollection.IsConditionMissing 同源）。</summary>
+        private void CollectConditionIssues()
+        {
+            foreach (var br in Branches)
+            {
+                if (br != null && br.IsConditionMissing)
+                    DraftIssues.Add($"分支「{br.StepName}」的条件表达式为空（空条件在编译时是硬错误，流程将无法运行）");
+            }
+        }
+
+        /// <summary>分支匹配：判据必须已声明且类型可等值比较；匹配值按判据类型转换并查重。</summary>
+        private void CollectCaseIssues()
+        {
+            string judgeText = JudgeExpressionDraft?.Trim();
+            Type judgeType = null;
+
+            if (string.IsNullOrEmpty(judgeText))
+            {
+                DraftIssues.Add("判据表达式为空：请填写「拿哪个变量去比对」");
+            }
+            else
+            {
+                var judgeVar = Variables.FirstOrDefault(
+                    v => string.Equals((v.AliasName ?? string.Empty).Trim(), judgeText, StringComparison.Ordinal));
+
+                if (judgeVar != null)
+                {
+                    judgeType = TypeHelper.GetActualTypeFromLink(judgeVar.DataTypeName);
+                }
+                else
+                {
+                    var runtimeVar = _targetNode?.RuntimeVariableRefs?.FirstOrDefault(
+                        r => string.Equals((r?.Name ?? string.Empty).Trim(), judgeText, StringComparison.Ordinal));
+
+                    if (runtimeVar != null)
+                        judgeType = TypeHelper.GetActualTypeFromLink(runtimeVar.DataTypeName);
+                    else
+                        DraftIssues.Add($"判据「{judgeText}」不是本容器已声明的变量");
+                }
+            }
+
+            if (judgeType != null && !CaseValueHelper.IsSupportedJudgeType(judgeType))
+            {
+                DraftIssues.Add($"判据「{judgeText}」的类型 [{judgeType.Name}] 不支持等于匹配");
+                judgeType = null;
+            }
+
+            var seenValues = new HashSet<object>();
+            foreach (var br in Branches)
+            {
+                if (br == null) continue;
+                if (br.BranchType != BranchType.Case)
+                {
+                    if (br.RequiresExpression)
+                        DraftIssues.Add($"分支「{br.StepName}」不是 Case 分支，分支匹配容器里不能混用其它分支类型");
+                    continue;
+                }
+                if (string.IsNullOrWhiteSpace(br.Expression))
+                {
+                    DraftIssues.Add($"分支「{br.StepName}」的匹配值为空（编译时是硬错误）");
+                    continue;
+                }
+                if (judgeType == null) continue;
+                if (!CaseValueHelper.TryConvert(br.Expression, judgeType, out var value, out var convertError))
+                {
+                    DraftIssues.Add($"分支「{br.StepName}」{convertError}");
+                    continue;
+                }
+                if (!seenValues.Add(value))
+                    DraftIssues.Add($"分支「{br.StepName}」的匹配值与前面某条 Case 分支重复，永远不会被执行");
+            }
+        }
+
+        /// <summary>等待模式：轮询间隔 / 超时 / 报警变量（与 SaveWait 同规则，只做展示）。</summary>
+        private void CollectWaitIssues()
+        {
+            foreach (var br in Branches)
+            {
+                if (br != null && br.IsConditionMissing)
+                    DraftIssues.Add("等待条件为空（编译时是硬错误）");
+            }
+
+            if (!int.TryParse((PollIntervalText ?? string.Empty).Trim(), NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out int poll))
+                DraftIssues.Add("轮询间隔必须是整数（毫秒）");
+            else if (poll < 10)
+                DraftIssues.Add($"轮询间隔不能小于 10ms（当前 {poll}ms）");
+
+            if (!int.TryParse((TimeoutText ?? string.Empty).Trim(), NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out int timeout))
+                DraftIssues.Add("超时时间必须是整数（毫秒；0 表示不限）");
+            else if (timeout < 0)
+                DraftIssues.Add($"超时时间不能为负（当前 {timeout}ms）");
+
+            string alarm = (AlarmVariableNameDraft ?? string.Empty).Trim();
+            if (alarm.Length > 0 && !AlarmVariableCandidates.Contains(alarm))
+                DraftIssues.Add($"报警变量「{alarm}」不存在或不是全局 bool 变量");
+        }
+
+        /// <summary>For 模式：循环次数范围（已连线且留空时允许，与 SaveForLoop 同规则）。</summary>
+        private void CollectForIssues()
+        {
+            string text = (LoopCountText ?? string.Empty).Trim();
+            if (HasLoopCountLink && text.Length == 0) return;
+
+            if (!int.TryParse(text, out int count) || count < 1 || count > 99999)
+                DraftIssues.Add("循环次数必须是 1 ~ 99999 之间的整数");
+        }
+
+        /// <summary>把 Branches 投影成「已用匹配值」只读行（当前 / 已占用 / 兜底 / 重复）。</summary>
+        private void RefreshCaseMatchRows()
+        {
+            CaseMatchRows.Clear();
+            if (!IsCaseMode) return;
+
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < Branches.Count; i++)
+            {
+                var br = Branches[i];
+                if (br == null) continue;
+
+                if (!br.RequiresExpression)
+                {
+                    CaseMatchRows.Add(new CaseMatchRow
+                    {
+                        StepName = br.StepName ?? string.Empty,
+                        Value = "无需匹配值",
+                        Kind = "兜底",
+                        IsCurrent = ReferenceEquals(br, SelectedBranch),
+                        IsDuplicate = false,
+                        IsPlaceholder = true,
+                    });
+                    continue;
+                }
+
+                string value = (br.Expression ?? string.Empty).Trim();
+                bool dup = value.Length > 0 && !seen.Add(value);
+                CaseMatchRows.Add(new CaseMatchRow
+                {
+                    StepName = br.StepName ?? string.Empty,
+                    Value = value.Length == 0 ? "（空）" : value,
+                    Kind = dup ? "重复" : (ReferenceEquals(br, SelectedBranch) ? "当前" : "已占用"),
+                    IsCurrent = ReferenceEquals(br, SelectedBranch),
+                    IsDuplicate = dup,
+                    IsPlaceholder = value.Length == 0,
+                });
+            }
+        }
+
+        /// <summary>判据候选重建（变量表别名 + 运行时变量名，去重保序）。</summary>
+        private void RefreshJudgeCandidates()
+        {
+            var list = new List<string>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var v in Variables)
+            {
+                string alias = v?.AliasName?.Trim();
+                if (!string.IsNullOrEmpty(alias) && seen.Add(alias)) list.Add(alias);
+            }
+            if (_targetNode?.RuntimeVariableRefs != null)
+            {
+                foreach (var r in _targetNode.RuntimeVariableRefs)
+                {
+                    string name = r?.Name?.Trim();
+                    if (!string.IsNullOrEmpty(name) && seen.Add(name)) list.Add(name);
+                }
+            }
+            JudgeVariableCandidates = list;
+            RaisePropertyChanged(nameof(JudgeVariableCandidates));
+        }
+
+        private void RaiseDiagnosticChanged()
+        {
+            RaisePropertyChanged(nameof(HasValidationErrors));
+            RaisePropertyChanged(nameof(ValidationErrorCount));
+            RaisePropertyChanged(nameof(CardErrorText));
+            RaisePropertyChanged(nameof(HasCardError));
+            RaisePropertyChanged(nameof(ValidationSummaryText));
+            RaisePropertyChanged(nameof(ValidationSummaryLevel));
+            RaisePropertyChanged(nameof(SelectedBranchMissingCondition));
+            RaisePropertyChanged(nameof(LoopSummaryText));
+            RaisePropertyChanged(nameof(ModeChipText));
+        }
+
         /// <summary>
         /// 循环次数草稿（字符串承载：输入中途非数字也不会被绑定引擎吞掉，保存时统一 TryParse）
         /// </summary>
-        public string LoopCountText { get => field; set => SetProperty(ref field, value); } = "10";
+        public string LoopCountText { get => field; set { if (SetProperty(ref field, value)) RefreshDraftDiagnostics(); } } = "10";
 
         /// <summary>
         /// 循环次数连线草稿（与 LoopCountText 同属"草稿→校验→写回"事务，取消即丢弃）。
@@ -214,7 +539,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private LinkReference _loopCountLinkDraft;
 
         /// <summary>已连线的显示串（如 "Runtime.loopN"、"计数.Result"），仅用于展示</summary>
-        public string LoopCountSourceText { get => field; set => SetProperty(ref field, value); }
+        public string LoopCountSourceText
+        {
+            get => field;
+            set { if (SetProperty(ref field, value)) RefreshDraftDiagnostics(); }
+        }
 
         /// <summary>是否已给 LoopCount 连线（驱动"已连线/未连线"两种提示与解除按钮显隐）</summary>
         public bool HasLoopCountLink => _loopCountLinkDraft != null;
@@ -267,6 +596,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 LoopCountSourceText = _loopCountLinkDraft?.DisplayAddress;
                 RaisePropertyChanged(nameof(Title));
                 RaisePropertyChanged(nameof(HasLoopCountLink));
+                RefreshDraftDiagnostics();
                 return;
             }
 
@@ -332,6 +662,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 }
 
                 RaisePropertyChanged(nameof(Title));
+                RefreshDraftDiagnostics();
                 return;
             }
 
@@ -387,12 +718,21 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
             SelectedBranch = initialBranch ?? drafts.FirstOrDefault();
             RaisePropertyChanged(nameof(Title));
+            RefreshJudgeCandidates();
+            RefreshDraftDiagnostics();
         }
 
         public ConditionEditorViewModel(IDialogService dialogService, IWorkspaceManager workspace)
         {
             this.dialogService = dialogService;
             _workspace = workspace;
+
+            // IsWaitMode / IsCaseMode 的 setter 会先调 RefreshDraftDiagnostics()，而 OnDialogOpened
+            // 里 Branches 要到后面才赋实际草稿（等待模式在 IsWaitMode=true 之后才 new）。
+            // 不先给空集合，CollectWaitIssues/CollectCaseIssues 会在打开等待/分支匹配弹窗时
+            // 直接 foreach(null) 抛 NRE（真机 2026-10-20 17:24 的 [UI] Object reference）。
+            Branches = new ObservableCollection<StepCollection>();
+
             AddVariableCommand = new DelegateCommand(OnAddVariable);
             RemoveVariableCommand = new DelegateCommand<VariableItem>(OnRemoveVariable);
             SaveCommand = new DelegateCommand(OnSave);
@@ -423,6 +763,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 {
                     item.DataTypeName = typeName;
                 }
+                RefreshJudgeCandidates();
+                RefreshDraftDiagnostics();
             });
         }
 
@@ -459,6 +801,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 _loopCountLinkDraft = link;
                 LoopCountSourceText = link.DisplayAddress;
                 RaisePropertyChanged(nameof(HasLoopCountLink));
+                RefreshDraftDiagnostics();
             });
         }
 
@@ -467,6 +810,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _loopCountLinkDraft = null;
             LoopCountSourceText = null;
             RaisePropertyChanged(nameof(HasLoopCountLink));
+            RefreshDraftDiagnostics();
         }
 
         private void OnAddVariable()
@@ -477,6 +821,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var item = new VariableItem { AliasName = $"Var_{n}" };
             AttachDupCheck(item);
             Variables.Add(item);
+            RefreshJudgeCandidates();
+            RefreshDraftDiagnostics();
         }
 
         /// <summary>
@@ -488,11 +834,19 @@ namespace VisionMaster.ViewModels.DialogViewModels
             item.DuplicateChecker = name =>
                 Variables.Count(v => !ReferenceEquals(v, item)
                     && string.Equals((v.AliasName ?? "").Trim(), name, StringComparison.Ordinal)) > 0;
+            // v2：变量行的别名/绑定变化要驱动卡内错误条与底栏摘要（只读展示，不拦保存）
+            item.DiagnosticsInvalidated = () =>
+            {
+                RefreshJudgeCandidates();
+                RefreshDraftDiagnostics();
+            };
         }
 
         private void OnRemoveVariable(VariableItem item)
         {
             if (item != null) Variables.Remove(item);
+            RefreshJudgeCandidates();
+            RefreshDraftDiagnostics();
         }
 
         private void OnSave()
@@ -878,6 +1232,23 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
     }
 
+    /// <summary>
+    /// 分支匹配「已用匹配值」只读行（v2 设计稿的列表）。
+    /// 纯展示：由 <see cref="ConditionEditorViewModel.CaseMatchRows"/> 从 Branches 投影，
+    /// 不参与保存判定、不写模型。
+    /// </summary>
+    public class CaseMatchRow
+    {
+        public string StepName { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+        /// <summary>当前 / 已占用 / 兜底 / 重复</summary>
+        public string Kind { get; set; } = string.Empty;
+        public bool IsCurrent { get; set; }
+        public bool IsDuplicate { get; set; }
+        /// <summary>值为空或「无需匹配值」时用斜体弱化。</summary>
+        public bool IsPlaceholder { get; set; }
+    }
+
     public class VariableItem : BindableBase, IDataErrorInfo
     {
         /// <summary>
@@ -888,10 +1259,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public static readonly Regex IdentifierRegex =
             new Regex(@"^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
 
-        /// <summary>
-        /// VM 注入的查重回调：单行看不见集合里的其他行，跨行视野由外部提供
-        /// </summary>
+        /// <summary>VM 注入的查重回调：单行看不见集合里的其他行，跨行视野由外部提供</summary>
         public Func<string, bool> DuplicateChecker { get; set; }
+
+        /// <summary>VM 注入的诊断刷新回调（别名/类型/绑定变化后重算卡内错误条与底栏摘要）。</summary>
+        public Action DiagnosticsInvalidated { get; set; }
 
         public Guid Id { get; set; } = Guid.NewGuid();
 
@@ -901,14 +1273,37 @@ namespace VisionMaster.ViewModels.DialogViewModels
             set
             {
                 if (SetProperty(ref field, value))
+                {
                     RaisePropertyChanged("Error"); // 通知 WPF 重跑 IDataErrorInfo（附1：打字即校验）
+                    DiagnosticsInvalidated?.Invoke();
+                }
             }
         }
 
-        public string SourceAddress { get => field; set => SetProperty(ref field, value); }
+        public string SourceAddress
+        {
+            get => field;
+            set
+            {
+                if (SetProperty(ref field, value))
+                    DiagnosticsInvalidated?.Invoke();
+            }
+        }
         public LinkReference OriginalLink { get; set; }
 
         public string DataTypeName { get; set; } = "System.Double";
+
+        /// <summary>类型短名（v2 变量表「类型」列）：System.Double → DOUBLE，System.String → STRING。</summary>
+        public string DataTypeShortName
+        {
+            get
+            {
+                string name = DataTypeName ?? string.Empty;
+                int dot = name.LastIndexOf('.');
+                if (dot >= 0 && dot < name.Length - 1) name = name.Substring(dot + 1);
+                return name.ToUpperInvariant();
+            }
+        }
 
         private bool HasBinding => OriginalLink != null || !string.IsNullOrEmpty(SourceAddress);
 

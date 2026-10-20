@@ -1,0 +1,886 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>模板匹配 · 配置窗口 · 设计基线 v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+</style>
+</head>
+<body>
+<div id="mt-design-root">
+<style>
+  #mt-design-root{
+    color-scheme: light;
+    --mt-surface:#FFFFFF;
+    --mt-surface-2:#F8FAFC;
+    --mt-surface-3:#F1F5F9;
+    --mt-border:#E2E8F0;
+    --mt-border-soft:#EEF2F7;
+    --mt-border-strong:#CBD5E1;
+    --mt-text:#0F172A;
+    --mt-text-2:#475569;
+    --mt-text-3:#94A3B8;
+    --mt-text-4:#64748B;
+    --mt-primary:#0EA5E9;
+    --mt-primary-strong:#0284C7;
+    --mt-primary-text:#0369A1;
+    --mt-primary-soft:#F0F9FF;
+    --mt-primary-light:#E0F2FE;
+    --mt-primary-border:#BAE6FD;
+    --mt-success:#22C55E;
+    --mt-success-text:#15803D;
+    --mt-success-soft:#F0FDF4;
+    --mt-success-border:#BBF7D0;
+    --mt-danger:#EF4444;
+    --mt-danger-text:#B91C1C;
+    --mt-danger-soft:#FEF2F2;
+    --mt-danger-border:#FECACA;
+    --mt-warning:#F59E0B;
+    --mt-warning-text:#B45309;
+    --mt-warning-soft:#FFF4E5;
+    --mt-warning-border:#FDE68A;
+    --mt-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --mt-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+    --mt-radius-sm:6px;
+    --mt-radius-md:8px;
+    --mt-radius-lg:10px;
+    --mt-radius-xl:12px;
+    --mt-radius-window:16px;
+    --mt-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+    font-family:var(--mt-font);
+    -webkit-font-smoothing:antialiased;
+  }
+  #mt-design-root *{box-sizing:border-box;}
+  #mt-design-root button,
+  #mt-design-root input,
+  #mt-design-root select,
+  #mt-design-root textarea{font-family:inherit;}
+  #mt-design-root button{color:inherit;}
+  #mt-design-root [hidden]{display:none !important;}
+  #mt-design-root :focus-visible{outline:2px solid var(--mt-primary);outline-offset:2px;}
+
+  #mt-design-root .mt-page{max-width:1360px;margin:0 auto;padding:24px 24px 44px;background:transparent;}
+  #mt-design-root .mt-page-head{max-width:1360px;margin:0 auto 16px;}
+  #mt-design-root .mt-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  #mt-design-root .mt-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--mt-text);}
+  #mt-design-root .mt-ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--mt-primary-light);color:var(--mt-primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;}
+  #mt-design-root .mt-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--mt-text-2);}
+  #mt-design-root .mt-page-sub b{color:var(--mt-text);font-weight:600;}
+  #mt-design-root .mt-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+  #mt-design-root .mt-demo-group{display:flex;align-items:center;gap:8px;}
+  #mt-design-root .mt-demo-label{font-size:11.5px;color:var(--mt-text-4);}
+  #mt-design-root .mt-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--mt-text-2);}
+  #mt-design-root .mt-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--mt-warning-text);}
+  #mt-design-root .mt-scope b{color:var(--mt-text);font-weight:600;}
+  #mt-design-root .mt-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--mt-radius-md);background:var(--mt-surface-3);}
+  #mt-design-root .mt-seg button{height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--mt-text-2);font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;}
+  #mt-design-root .mt-seg button:hover{color:var(--mt-text);}
+  #mt-design-root .mt-seg button.is-on{background:#FFFFFF;color:var(--mt-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+
+  /* ================= 产品窗口 ================= */
+  #mt-design-root .mt-window{width:960px;max-width:100%;height:680px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:var(--mt-surface);border-radius:var(--mt-radius-window);box-shadow:var(--mt-shadow-window);transition:width 200ms ease;}
+  #mt-design-root .mt-window.is-narrow{width:640px;}
+  #mt-design-root .mt-titlebar{height:72px;flex:none;display:flex;align-items:center;padding:0 20px;background:var(--mt-surface);border-bottom:1px solid var(--mt-border-soft);}
+  #mt-design-root .mt-app-icon{width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--mt-primary-light);color:var(--mt-primary-text);}
+  #mt-design-root .mt-app-icon svg{width:19px;height:19px;}
+  #mt-design-root .mt-title-text{margin-left:12px;min-width:0;flex:1;}
+  #mt-design-root .mt-title-line{display:flex;align-items:center;gap:8px;min-width:0;}
+  #mt-design-root .mt-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--mt-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #mt-design-root .mt-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--mt-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #mt-design-root .mt-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+
+  #mt-design-root .mt-content{flex:1;min-height:0;display:grid;grid-template-columns:368px minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:16px;padding:16px 20px 20px;background:var(--mt-surface);}
+  #mt-design-root .mt-window.is-narrow .mt-content{grid-template-columns:300px minmax(0,1fr);gap:12px;padding:14px 16px 16px;}
+
+  /* ---- 左栏 ---- */
+  #mt-design-root .mt-rail{min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;padding:14px;border:1px solid var(--mt-border-soft);border-radius:var(--mt-radius-xl);background:var(--mt-surface-2);scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+  #mt-design-root .mt-rail::-webkit-scrollbar{width:8px;}
+  #mt-design-root .mt-rail::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+  #mt-design-root .mt-rail::-webkit-scrollbar-track{background:transparent;}
+  #mt-design-root .mt-section{padding-top:14px;margin-top:14px;border-top:1px solid var(--mt-border);}
+  #mt-design-root .mt-section:first-child{padding-top:0;margin-top:0;border-top:0;}
+  #mt-design-root .mt-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;font-size:12.5px;font-weight:600;color:var(--mt-text);}
+  #mt-design-root .mt-section-hint{font-size:10.5px;font-weight:400;color:var(--mt-text-3);white-space:nowrap;}
+  #mt-design-root .mt-field{margin-bottom:11px;}
+  #mt-design-root .mt-field:last-child{margin-bottom:0;}
+  #mt-design-root .mt-label{display:flex;align-items:center;gap:5px;margin-bottom:6px;font-size:12px;font-weight:500;line-height:1.3;color:var(--mt-text-2);}
+  #mt-design-root .mt-label .mt-link-hint{width:12px;height:12px;color:var(--mt-text-3);margin-left:2px;}
+  #mt-design-root .mt-input,#mt-design-root .mt-select{width:100%;height:36px;padding:0 10px;border:1px solid var(--mt-border);border-radius:var(--mt-radius-md);background:var(--mt-surface);color:var(--mt-text);font-size:12.5px;line-height:1;outline:none;transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;}
+  #mt-design-root .mt-input::placeholder{color:var(--mt-text-3);}
+  #mt-design-root .mt-input:hover,#mt-design-root .mt-select:hover{border-color:var(--mt-border-strong);}
+  #mt-design-root .mt-input:focus,#mt-design-root .mt-select:focus{border-color:var(--mt-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+  #mt-design-root .mt-input[readonly]{background:var(--mt-surface-3);color:var(--mt-text-3);}
+  #mt-design-root .mt-select{appearance:none;-webkit-appearance:none;padding-right:30px;cursor:pointer;}
+  #mt-design-root .mt-select-wrap{position:relative;flex:1;min-width:0;}
+  #mt-design-root .mt-select-wrap > svg{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--mt-text-3);pointer-events:none;}
+  #mt-design-root .mt-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  #mt-design-root .mt-input-row{display:flex;align-items:center;gap:8px;}
+  #mt-design-root .mt-help{display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;font-size:11.5px;line-height:1.5;color:var(--mt-text-4);}
+  #mt-design-root .mt-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--mt-text-3);}
+  #mt-design-root .mt-num{font-variant-numeric:tabular-nums;}
+
+  /* 按钮 */
+  #mt-design-root .mt-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 13px;border:1px solid var(--mt-border);border-radius:var(--mt-radius-md);background:var(--mt-surface);color:var(--mt-text);font-size:12.5px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;}
+  #mt-design-root .mt-btn svg{width:14px;height:14px;}
+  #mt-design-root .mt-btn:hover{background:var(--mt-surface-2);border-color:var(--mt-border-strong);}
+  #mt-design-root .mt-btn:active{background:var(--mt-surface-3);}
+  #mt-design-root .mt-btn:disabled{opacity:.45;cursor:not-allowed;}
+  #mt-design-root .mt-btn-primary{background:var(--mt-primary);border-color:var(--mt-primary);color:#fff;font-weight:600;}
+  #mt-design-root .mt-btn-primary:hover{background:var(--mt-primary-strong);border-color:var(--mt-primary-strong);}
+  #mt-design-root .mt-btn-ghost{border-color:transparent;background:transparent;color:var(--mt-text-2);}
+  #mt-design-root .mt-btn-ghost:hover{background:var(--mt-surface-3);border-color:transparent;color:var(--mt-text);}
+  #mt-design-root .mt-btn-sm{height:32px;padding:0 10px;font-size:12px;}
+  #mt-design-root .mt-btn-block{width:100%;}
+  #mt-design-root .mt-btn-square{width:36px;height:36px;flex:none;padding:0;border:1px solid var(--mt-border);border-radius:var(--mt-radius-md);background:var(--mt-surface);color:var(--mt-text-4);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;}
+  #mt-design-root .mt-btn-square:hover{background:var(--mt-primary-soft);border-color:var(--mt-primary-border);color:var(--mt-primary-text);}
+  #mt-design-root .mt-btn-square svg{width:14px;height:14px;}
+  #mt-design-root .mt-icon-btn{width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--mt-radius-md);display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--mt-text-4);cursor:pointer;transition:background 150ms ease,color 150ms ease;}
+  #mt-design-root .mt-icon-btn svg{width:15px;height:15px;}
+  #mt-design-root .mt-icon-btn:hover{background:var(--mt-surface-3);color:var(--mt-text);}
+  #mt-design-root .mt-icon-btn:active{background:var(--mt-border);}
+
+  /* 模板库 */
+  #mt-design-root .mt-list{border:1px solid var(--mt-border);border-radius:var(--mt-radius-md);background:var(--mt-surface);padding:4px;max-height:112px;overflow:auto;}
+  #mt-design-root .mt-list-item{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;border-radius:6px;font-size:12px;color:var(--mt-text);cursor:pointer;}
+  #mt-design-root .mt-list-item:hover{background:var(--mt-surface-3);}
+  #mt-design-root .mt-list-item.is-on{background:var(--mt-primary-light);color:var(--mt-primary-text);font-weight:600;}
+  #mt-design-root .mt-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--mt-text-3);}
+  #mt-design-root .mt-dot.is-ok{background:var(--mt-success);}
+  #mt-design-root .mt-list-item small{margin-left:auto;font-size:10.5px;font-weight:400;color:var(--mt-text-3);}
+  #mt-design-root .mt-actions{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;}
+  #mt-design-root .mt-summary{margin-top:10px;padding:9px 10px;border:1px solid var(--mt-border-soft);border-radius:var(--mt-radius-md);background:var(--mt-surface);font-size:11.5px;line-height:1.5;color:var(--mt-text-2);}
+  #mt-design-root .mt-summary b{display:block;margin-bottom:2px;font-size:10.5px;font-weight:600;letter-spacing:.03em;color:var(--mt-text-3);}
+  #mt-design-root .mt-summary .mt-mono{font-family:var(--mt-mono);font-size:10.5px;color:var(--mt-text-2);}
+
+  /* 状态胶囊 */
+  #mt-design-root .mt-pill{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;background:var(--mt-surface-3);border:1px solid var(--mt-border);font-size:10.5px;font-weight:600;color:var(--mt-text-4);white-space:nowrap;}
+  #mt-design-root .mt-pill .mt-dot{width:6px;height:6px;background:var(--mt-text-3);}
+  #mt-design-root .mt-pill.is-ready{background:var(--mt-success-soft);border-color:var(--mt-success-border);color:var(--mt-success-text);}
+  #mt-design-root .mt-pill.is-ready .mt-dot{background:var(--mt-success);}
+  #mt-design-root .mt-pill.is-stale{background:var(--mt-warning-soft);border-color:var(--mt-warning-border);color:var(--mt-warning-text);}
+  #mt-design-root .mt-pill.is-stale .mt-dot{background:var(--mt-warning);}
+
+  /* 折叠区 */
+  #mt-design-root .mt-details{margin-top:14px;border:1px solid var(--mt-border);border-radius:var(--mt-radius-lg);background:var(--mt-surface);overflow:hidden;}
+  #mt-design-root .mt-details summary{display:flex;align-items:center;gap:8px;padding:10px 12px;font-size:12px;font-weight:500;color:var(--mt-text-2);cursor:pointer;list-style:none;}
+  #mt-design-root .mt-details summary::-webkit-details-marker{display:none;}
+  #mt-design-root .mt-details summary:hover{background:var(--mt-surface-2);}
+  #mt-design-root .mt-details summary svg{width:14px;height:14px;color:var(--mt-text-3);}
+  #mt-design-root .mt-details summary .mt-chev{margin-left:auto;transition:transform 150ms ease;}
+  #mt-design-root .mt-details[open] summary .mt-chev{transform:rotate(180deg);}
+  #mt-design-root .mt-details-body{padding:0 12px 12px;border-top:1px solid var(--mt-border-soft);font-size:11.5px;line-height:1.6;color:var(--mt-text-2);}
+  #mt-design-root .mt-details-body p{margin:9px 0 0;}
+
+  /* ---- 工作区 ---- */
+  #mt-design-root .mt-workspace{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--mt-border);border-radius:var(--mt-radius-xl);background:var(--mt-surface);}
+  #mt-design-root .mt-workspace-head{height:46px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid var(--mt-border-soft);background:var(--mt-surface);}
+  #mt-design-root .mt-file-chip{width:26px;height:26px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;background:var(--mt-surface-3);color:var(--mt-text-2);}
+  #mt-design-root .mt-file-chip svg{width:13px;height:13px;}
+  #mt-design-root .mt-workspace-title{font-size:12.5px;font-weight:600;line-height:1.3;color:var(--mt-text);white-space:nowrap;}
+  #mt-design-root .mt-workspace-hint{font-size:10.5px;line-height:1.3;color:var(--mt-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #mt-design-root .mt-tools{margin-left:auto;display:flex;align-items:center;gap:1px;flex:none;}
+  #mt-design-root .mt-tool-text{height:26px;padding:0 7px;border:0;border-radius:6px;background:transparent;color:var(--mt-text-4);font-size:10.5px;font-weight:600;line-height:1;cursor:pointer;font-variant-numeric:tabular-nums;transition:background 150ms ease,color 150ms ease;}
+  #mt-design-root .mt-tool-text:hover{background:var(--mt-surface-3);color:var(--mt-text);}
+  #mt-design-root .mt-window.is-narrow .mt-workspace-hint{display:none;}
+  #mt-design-root .mt-window.is-narrow .mt-workspace .mt-pill{display:none;}
+
+  #mt-design-root .mt-canvas{position:relative;flex:1;min-height:0;overflow:hidden;background:#0B1220;}
+  #mt-design-root .mt-canvas-view{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+  #mt-design-root .mt-canvas-view[data-view="image"]{display:block;padding:0;}
+  #mt-design-root .mt-scene{width:100%;height:100%;display:block;}
+  #mt-design-root .mt-overlay{position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:6px;pointer-events:none;}
+  #mt-design-root .mt-chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;background:rgba(15,23,42,.62);border:1px solid rgba(148,163,184,.22);color:#E2E8F0;font-size:10.5px;line-height:1;font-variant-numeric:tabular-nums;backdrop-filter:blur(6px);}
+  #mt-design-root .mt-chip svg{width:11px;height:11px;color:#7DD3FC;}
+  #mt-design-root .mt-empty-card{width:min(400px,84%);padding:24px 22px;border:1.5px dashed #334155;border-radius:14px;background:rgba(30,41,59,.38);display:flex;flex-direction:column;align-items:center;text-align:center;}
+  #mt-design-root .mt-state-icon{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.18);color:#94A3B8;margin-bottom:13px;}
+  #mt-design-root .mt-state-icon svg{width:22px;height:22px;}
+  #mt-design-root .mt-state-title{font-size:14px;font-weight:600;line-height:1.4;color:#E2E8F0;margin-bottom:4px;}
+  #mt-design-root .mt-state-sub{max-width:320px;font-size:11.5px;line-height:1.6;color:#94A3B8;margin:0 0 14px;}
+  #mt-design-root .mt-state-sub code{font-family:var(--mt-mono);font-size:10.5px;color:#BAE6FD;background:rgba(14,165,233,.12);padding:1px 5px;border-radius:4px;}
+  #mt-design-root .mt-state-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;}
+  #mt-design-root .mt-state-actions .mt-btn{background:rgba(255,255,255,.06);border-color:rgba(148,163,184,.28);color:#E2E8F0;}
+  #mt-design-root .mt-state-actions .mt-btn:hover{background:rgba(255,255,255,.12);border-color:rgba(148,163,184,.45);}
+  #mt-design-root .mt-state-actions .mt-btn-primary{background:var(--mt-primary);border-color:var(--mt-primary);color:#fff;}
+  #mt-design-root .mt-state-actions .mt-btn-primary:hover{background:var(--mt-primary-strong);border-color:var(--mt-primary-strong);}
+  #mt-design-root .mt-error .mt-state-icon{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.30);color:#F87171;}
+  #mt-design-root .mt-error .mt-state-title{color:#FCA5A5;}
+
+  /* 模板预览条 */
+  #mt-design-root .mt-template-preview{height:148px;flex:none;display:grid;grid-template-columns:minmax(140px,.9fr) minmax(120px,1.1fr);gap:12px;padding:10px;border-top:1px solid var(--mt-border-soft);background:var(--mt-surface);}
+  #mt-design-root .mt-preview-box{position:relative;min-width:0;min-height:0;overflow:hidden;border:1px solid var(--mt-border);border-radius:var(--mt-radius-md);background:var(--mt-surface-3);}
+  #mt-design-root .mt-preview-box svg{width:100%;height:100%;display:block;}
+  #mt-design-root .mt-preview-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:12px;background:var(--mt-surface-2);color:var(--mt-text-3);font-size:11px;line-height:1.5;text-align:center;}
+  #mt-design-root .mt-preview-info{min-width:0;display:flex;flex-direction:column;justify-content:center;}
+  #mt-design-root .mt-preview-title{font-size:12px;font-weight:600;color:var(--mt-text);}
+  #mt-design-root .mt-preview-sub{margin-top:2px;font-size:10.5px;color:var(--mt-text-3);}
+  #mt-design-root .mt-preview-summary{margin-top:6px;font-family:var(--mt-mono);font-size:10.5px;line-height:1.55;color:var(--mt-text-2);word-break:break-all;}
+  #mt-design-root .mt-stale-banner{margin-top:7px;display:flex;align-items:flex-start;gap:6px;padding:6px 8px;border:1px solid var(--mt-warning-border);border-radius:var(--mt-radius-sm);background:var(--mt-warning-soft);color:var(--mt-warning-text);font-size:10.5px;line-height:1.45;}
+  #mt-design-root .mt-stale-banner svg{width:12px;height:12px;flex:none;margin-top:1px;}
+  #mt-design-root .mt-window.is-narrow .mt-template-preview{height:124px;grid-template-columns:minmax(110px,.85fr) minmax(110px,1.15fr);gap:9px;padding:8px;}
+
+  #mt-design-root .mt-statusbar{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid var(--mt-border-soft);background:var(--mt-surface);font-size:11.5px;min-width:0;}
+  #mt-design-root .mt-status-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--mt-text-3);}
+  #mt-design-root .mt-status-dot.is-ok{background:var(--mt-success);}
+  #mt-design-root .mt-status-dot.is-warn{background:var(--mt-warning);}
+  #mt-design-root .mt-status-dot.is-err{background:var(--mt-danger);}
+  #mt-design-root .mt-status-msg{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--mt-text-2);}
+  #mt-design-root .mt-status-msg.is-ok{color:var(--mt-success-text);}
+  #mt-design-root .mt-status-msg.is-warn{color:var(--mt-warning-text);}
+  #mt-design-root .mt-status-msg.is-err{color:var(--mt-danger-text);}
+  #mt-design-root .mt-status-entry{margin-left:auto;flex:none;font-family:var(--mt-mono);font-size:10.5px;color:var(--mt-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40%;}
+  #mt-design-root .mt-window.is-narrow .mt-status-entry{display:none;}
+
+  /* ---- 底部 ---- */
+  #mt-design-root .mt-footer{height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid var(--mt-border-soft);background:var(--mt-surface-2);}
+  #mt-design-root .mt-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+  #mt-design-root .mt-status-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--mt-surface);border:1px solid var(--mt-border);font-size:11.5px;color:var(--mt-text-2);white-space:nowrap;}
+  #mt-design-root .mt-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--mt-text-3);}
+  #mt-design-root .mt-elapsed{font-family:var(--mt-mono);font-size:11px;color:var(--mt-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  #mt-design-root .mt-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+  #mt-design-root .mt-footer .mt-btn{height:32px;padding:0 16px;font-size:12.5px;}
+  #mt-design-root .mt-footer .mt-btn-primary{padding:0 18px;}
+
+  /* ---- 说明 ---- */
+  #mt-design-root .mt-notes{max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;}
+  #mt-design-root .mt-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--mt-text-2);}
+  #mt-design-root .mt-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--mt-border);}
+  #mt-design-root .mt-note-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--mt-primary-light);color:var(--mt-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}
+  #mt-design-root .mt-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--mt-text);}
+  #mt-design-root .mt-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--mt-text-2);}
+
+  @media (prefers-reduced-motion: reduce){#mt-design-root *{animation:none !important;transition:none !important;}}
+  @media (max-width:1024px){
+    #mt-design-root .mt-page{padding:18px 14px 32px;}
+    #mt-design-root .mt-window{height:auto;min-height:640px;}
+    #mt-design-root .mt-content{grid-template-columns:1fr;}
+    #mt-design-root .mt-rail{overflow:visible;}
+    #mt-design-root .mt-workspace{min-height:520px;}
+  }
+</style>
+
+<div class="mt-page">
+  <header class="mt-page-head">
+    <div class="mt-page-title-row">
+      <h1>模板匹配 · 配置窗口</h1>
+      <span class="mt-ver">v1</span>
+    </div>
+    <p class="mt-page-sub">
+      Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、两个 <b>LinkableValueEditor</b>（Image / RecipeName）、
+      <b>ImageEdit</b> 与 <b>ImageReadOnly</b> 的全部绑定；不改端口名、命令语义、持久化与业务逻辑。窗口 <b>960 × 680</b>，
+      左侧配置轨 <b>368px</b>，右侧参考图工作区自适应。
+    </p>
+    <div class="mt-demo-bar">
+      <div class="mt-demo-group" role="group" aria-label="窗口宽度">
+        <span class="mt-demo-label">窗口宽度</span>
+        <div class="mt-seg">
+          <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+          <button type="button" data-width="640" aria-pressed="false">640</button>
+        </div>
+      </div>
+      <div class="mt-demo-group" role="group" aria-label="模板状态">
+        <span class="mt-demo-label">模板状态</span>
+        <div class="mt-seg">
+          <button type="button" data-status="new" aria-pressed="false">未学习</button>
+          <button type="button" data-status="ready" class="is-on" aria-pressed="true">已学习</button>
+          <button type="button" data-status="stale" aria-pressed="false">参数已改</button>
+        </div>
+      </div>
+      <div class="mt-demo-group" role="group" aria-label="画布状态">
+        <span class="mt-demo-label">画布状态</span>
+        <div class="mt-seg">
+          <button type="button" data-canvas="normal" class="is-on" aria-pressed="true">正常</button>
+          <button type="button" data-canvas="empty" aria-pressed="false">空态</button>
+          <button type="button" data-canvas="error" aria-pressed="false">错误</button>
+        </div>
+      </div>
+    </div>
+    <div class="mt-scope">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+      <span><b>本稿未纳入（需新增功能或契约）：</b>加载骨架、图像尺寸 / 文件大小、放大 / 缩小、打开所在文件夹、系统导航、模板库导入 / 导出、批量复制模板、撤销 / 重做。演示开关只用于设计稿，WPF 中不存在这些状态切换按钮。</span>
+    </div>
+  </header>
+
+  <div class="mt-window" id="mt-window">
+    <div class="mt-titlebar">
+      <div class="mt-app-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><circle cx="12" cy="12" r="3"></circle></svg>
+      </div>
+      <div class="mt-title-text">
+        <div class="mt-title-line"><div class="mt-title">模板匹配</div></div>
+        <div class="mt-subtitle">多模板库 + 配方驱动定位：按产品型号选模板，输出亚像素位姿与归一化图像</div>
+      </div>
+      <div class="mt-title-actions">
+        <button type="button" class="mt-icon-btn" data-tooltip="关闭" aria-label="关闭">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-content">
+      <aside class="mt-rail" aria-label="模板匹配配置">
+        <!-- 模板库 -->
+        <section class="mt-section">
+          <div class="mt-section-head">
+            <span>模板库</span>
+            <span class="mt-pill" data-status-pill><span class="mt-dot"></span><span data-status-text>已学习</span></span>
+          </div>
+          <div class="mt-list" id="mt-list" role="listbox" aria-label="模板库">
+            <div class="mt-list-item is-on" role="option" aria-selected="true"><span class="mt-dot is-ok"></span><span>模板1</span><small>已学习</small></div>
+            <div class="mt-list-item" role="option" aria-selected="false"><span class="mt-dot is-ok"></span><span>模板2</span><small>已学习</small></div>
+            <div class="mt-list-item" role="option" aria-selected="false"><span class="mt-dot"></span><span>模板3</span><small>未学习</small></div>
+          </div>
+          <div class="mt-actions">
+            <button type="button" class="mt-btn mt-btn-sm" data-action="add-entry">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>新增
+            </button>
+            <button type="button" class="mt-btn mt-btn-sm">删除</button>
+            <button type="button" class="mt-btn mt-btn-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.4l6.1-.9z"></path></svg>设为默认
+            </button>
+          </div>
+          <div class="mt-field" style="margin-top:11px;">
+            <label class="mt-label" for="mt-name">配方名</label>
+            <input class="mt-input" id="mt-name" type="text" value="模板1" spellcheck="false">
+            <p class="mt-help">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              RecipeName 端口按这个名字选模板；改名即时刷新列表。
+            </p>
+          </div>
+          <div class="mt-field">
+            <label class="mt-label">上游图像<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-link-hint" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg></label>
+            <div class="mt-input-row">
+              <input class="mt-input" type="text" value="HImage ← 未连接（点击右侧链接按钮绑定上游）" readonly>
+              <button type="button" class="mt-btn-square" data-tooltip="绑定变量" aria-label="绑定变量">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+              </button>
+            </div>
+            <p class="mt-help">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              运行期吃上游 Image 端口；配置态可试运行把图带进来。
+            </p>
+          </div>
+          <div class="mt-field">
+            <label class="mt-label" for="mt-ref">参考图路径（可选）</label>
+            <div class="mt-input-row">
+              <input class="mt-input" id="mt-ref" type="text" value="D:\Images\part-0042.bmp" spellcheck="false">
+              <button type="button" class="mt-btn mt-btn-sm" style="height:36px;" data-action="load-image">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path></svg>载入
+              </button>
+            </div>
+            <p class="mt-help">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              每个模板各自的示意图；仅配置态使用，运行期不用它。
+            </p>
+          </div>
+          <div class="mt-summary">
+            <b>当前模板区域</b>
+            <span class="mt-mono" data-summary>矩形  中心 (612, 438)  角度 2.5 度  半长 96  半宽 64</span>
+          </div>
+          <div class="mt-actions">
+            <button type="button" class="mt-btn mt-btn-primary" data-action="create-template">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18"></path><path d="M3 12h18"></path><circle cx="12" cy="12" r="9"></circle></svg>创建模板
+            </button>
+            <button type="button" class="mt-btn" data-action="clear-template">清除</button>
+          </div>
+        </section>
+
+        <!-- 提取参数 -->
+        <section class="mt-section">
+          <div class="mt-section-head"><span>提取参数</span><span class="mt-section-hint">改任何一项都要重新学习</span></div>
+          <div class="mt-grid-2">
+            <div class="mt-field">
+              <label class="mt-label" for="mt-min-angle">最小角度 (度)</label>
+              <input class="mt-input mt-num" id="mt-min-angle" type="number" value="-15" min="-180" max="180" step="0.1">
+            </div>
+            <div class="mt-field">
+              <label class="mt-label" for="mt-max-angle">最大角度 (度)</label>
+              <input class="mt-input mt-num" id="mt-max-angle" type="number" value="15" min="-180" max="180" step="0.1">
+            </div>
+          </div>
+          <div class="mt-grid-2">
+            <div class="mt-field">
+              <label class="mt-label" for="mt-angle-step">角度步长 (度)</label>
+              <input class="mt-input mt-num" id="mt-angle-step" type="number" value="0.5" min="0" max="30" step="0.1">
+            </div>
+            <div class="mt-field">
+              <label class="mt-label" for="mt-gradient">梯度阈值</label>
+              <input class="mt-input mt-num" id="mt-gradient" type="number" value="30" min="0" max="255" step="1">
+            </div>
+          </div>
+          <div class="mt-field">
+            <label class="mt-label" for="mt-polarity">使用极性</label>
+            <div class="mt-select-wrap">
+              <select class="mt-select" id="mt-polarity">
+                <option selected>使用极性</option>
+                <option>忽略极性</option>
+              </select>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+            </div>
+            <p class="mt-help">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              使用极性 = 黑白方向必须一致；光照会反相时选忽略极性。
+            </p>
+          </div>
+          <label class="mt-label" style="margin:2px 0 10px;">
+            <input type="checkbox" id="mt-scale-enabled"> 启用缩放匹配（目标远近会变才开）
+          </label>
+          <div class="mt-grid-2">
+            <div class="mt-field">
+              <label class="mt-label" for="mt-scale-min">最小比例 (倍)</label>
+              <input class="mt-input mt-num" id="mt-scale-min" type="number" value="0.8" min="0.5" max="2" step="0.01">
+            </div>
+            <div class="mt-field">
+              <label class="mt-label" for="mt-scale-max">最大比例 (倍)</label>
+              <input class="mt-input mt-num" id="mt-scale-max" type="number" value="1.2" min="0.5" max="2" step="0.01">
+            </div>
+          </div>
+          <div class="mt-field">
+            <label class="mt-label" for="mt-levels">金字塔层数</label>
+            <input class="mt-input mt-num" id="mt-levels" type="number" value="5" min="1" max="10" step="1">
+          </div>
+          <p class="mt-help">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+            角度 / 缩放 / 步长 / 梯度阈值 / 极性 / 金字塔都是创建态参数，改完徽标转橙。
+          </p>
+        </section>
+
+        <!-- 匹配参数 -->
+        <section class="mt-section">
+          <div class="mt-section-head"><span>匹配参数</span><span class="mt-section-hint">运行期 · 立即生效</span></div>
+          <div class="mt-grid-2">
+            <div class="mt-field">
+              <label class="mt-label" for="mt-score">分数下限</label>
+              <input class="mt-input mt-num" id="mt-score" type="number" value="0.50" min="0.01" max="1" step="0.01">
+            </div>
+            <div class="mt-field">
+              <label class="mt-label" for="mt-max-matches">匹配数上限</label>
+              <input class="mt-input mt-num" id="mt-max-matches" type="number" value="1" min="1" max="100" step="1">
+            </div>
+          </div>
+          <div class="mt-grid-2">
+            <div class="mt-field">
+              <label class="mt-label" for="mt-overlap">最大重叠</label>
+              <input class="mt-input mt-num" id="mt-overlap" type="number" value="0.30" min="0" max="1" step="0.01">
+            </div>
+            <div class="mt-field">
+              <label class="mt-label" for="mt-greedy">搜索激进度</label>
+              <input class="mt-input mt-num" id="mt-greedy" type="number" value="0.80" min="0.1" max="0.9" step="0.01">
+            </div>
+          </div>
+          <p class="mt-help">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+            找不到目标先降分数下限；误匹配多就往上提，或换一块更独特的模板区域。
+          </p>
+        </section>
+
+        <!-- 涂抹编辑 -->
+        <section class="mt-section">
+          <details class="mt-details" open>
+            <summary>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+              涂抹编辑
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-chev" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+            </summary>
+            <div class="mt-details-body">
+              <div class="mt-field">
+                <label class="mt-label" for="mt-smear-mode">涂抹模式</label>
+                <div class="mt-select-wrap">
+                  <select class="mt-select" id="mt-smear-mode">
+                    <option selected>正常显示</option>
+                    <option>绘制涂抹</option>
+                    <option>擦除涂抹</option>
+                  </select>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                </div>
+              </div>
+              <div class="mt-field">
+                <label class="mt-label" for="mt-brush">笔刷半径 (px)</label>
+                <input class="mt-input mt-num" id="mt-brush" type="number" value="10" min="1" max="50" step="1">
+              </div>
+              <button type="button" class="mt-btn mt-btn-sm" data-action="clear-smear">清除涂抹</button>
+              <p class="mt-help">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                涂抹后要重新点「创建模板」才生效；掩膜随方案保存。
+              </p>
+            </div>
+          </details>
+        </section>
+
+        <!-- 输出 -->
+        <section class="mt-section">
+          <div class="mt-section-head"><span>输出</span><span class="mt-section-hint">运行结果</span></div>
+          <div class="mt-field">
+            <label class="mt-label">配方名端口<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-link-hint" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg></label>
+            <div class="mt-input-row">
+              <input class="mt-input" type="text" value="留空 = 使用默认模板「模板1」" readonly>
+              <button type="button" class="mt-btn-square" data-tooltip="绑定变量" aria-label="绑定变量">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+              </button>
+            </div>
+          </div>
+          <div class="mt-field">
+            <label class="mt-label" for="mt-view">运行显示窗口</label>
+            <div class="mt-select-wrap">
+              <select class="mt-select" id="mt-view">
+                <option>不显示</option>
+                <option selected>图像窗口 1</option>
+                <option>图像窗口 2</option>
+                <option>图像窗口 3</option>
+                <option>图像窗口 4</option>
+                <option>图像窗口 5</option>
+                <option>图像窗口 6</option>
+                <option>图像窗口 7</option>
+                <option>图像窗口 8</option>
+                <option>图像窗口 9</option>
+              </select>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+            </div>
+          </div>
+          <label class="mt-label" style="margin-top:2px;">
+            <input type="checkbox" id="mt-aligned" checked> 输出位姿归一化图像（AlignedImage 端口）
+          </label>
+          <p class="mt-help">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            目标被刚性变换到标准位姿，下游固定坐标插件零改动直接吃。
+          </p>
+        </section>
+
+        <details class="mt-details">
+          <summary>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+            怎么用
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-chev" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+          </summary>
+          <div class="mt-details-body">
+            <p>① 流程里把本节点的 Image 连到上游；② 打开窗口点「执行」把上游图带进来，或填参考图路径点「载入」；③ 在图上右键 → 新建矩形/圆形/椭圆，框住模板特征；④ 点「创建模板」；⑤ 按需调整提取参数，改完重新点「创建模板」。</p>
+            <p>分数下限找不到目标先降到 0.3 看看是不是光照变了；误匹配就往上调，或换一块更独特的模板区域。</p>
+            <p>画框要领：框住目标上稳定、独特、随产品一起动的特征（丝印、边角组合、安装孔位），不要框到反光面或会变的区域。</p>
+          </div>
+        </details>
+      </aside>
+
+      <!-- 右侧工作区 -->
+      <section class="mt-workspace" aria-label="参考图像工作区">
+        <div class="mt-workspace-head">
+          <div class="mt-file-chip">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg>
+          </div>
+          <span class="mt-workspace-title">参考图像</span>
+          <span class="mt-workspace-hint">右键 → 新建 ROI</span>
+          <span class="mt-pill" data-status-pill><span class="mt-dot"></span><span data-status-text>已学习</span></span>
+          <div class="mt-tools">
+            <button type="button" class="mt-icon-btn" data-tooltip="适应窗口" aria-label="适应窗口">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
+            </button>
+            <button type="button" class="mt-tool-text" data-tooltip="实际像素 1:1" aria-label="实际像素">1:1</button>
+          </div>
+        </div>
+
+        <div class="mt-canvas" id="mt-canvas">
+          <div class="mt-canvas-view" data-view="image">
+            <svg class="mt-scene" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="mt-scene-title mt-scene-desc">
+              <title id="mt-scene-title">工业零件参考图</title>
+              <desc id="mt-scene-desc">深色背景上的金属支架零件，左上角有绿色模板框与四角手柄。</desc>
+              <defs>
+                <linearGradient id="mt-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0B1220"></stop><stop offset="100%" stop-color="#151F31"></stop></linearGradient>
+                <linearGradient id="mt-metal" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#E8EDF3"></stop><stop offset="42%" stop-color="#AEB9C6"></stop><stop offset="100%" stop-color="#66707E"></stop></linearGradient>
+                <pattern id="mt-grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293B" stroke-width="1"></path></pattern>
+                <filter id="mt-soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="9"></feGaussianBlur></filter>
+              </defs>
+              <rect width="800" height="520" fill="url(#mt-bg)"></rect>
+              <rect width="800" height="520" fill="url(#mt-grid)" opacity=".55"></rect>
+              <ellipse cx="430" cy="300" rx="250" ry="170" fill="#000000" opacity=".42" filter="url(#mt-soft)"></ellipse>
+              <path d="M210 170 L560 150 L610 260 L560 370 L260 390 L180 280 Z" fill="url(#mt-metal)" stroke="#D7DEE8" stroke-width="2"></path>
+              <path d="M240 205 L525 188 L566 268 L525 345 L285 360 L220 280 Z" fill="#8C97A5" stroke="#D7DEE8" stroke-width="1.4"></path>
+              <g fill="#1F2937" stroke="#C7D0DB" stroke-width="1.2">
+                <circle cx="270" cy="238" r="12"></circle>
+                <circle cx="505" cy="222" r="12"></circle>
+                <circle cx="515" cy="315" r="12"></circle>
+                <circle cx="300" cy="330" r="12"></circle>
+              </g>
+              <g fill="none" stroke="#FFFFFF" stroke-opacity=".18" stroke-width="1">
+                <path d="M260 280 C330 250 410 245 500 265"></path>
+                <path d="M280 300 C360 285 440 285 520 300"></path>
+              </g>
+              <g stroke="#38BDF8" stroke-opacity=".8" stroke-width="1">
+                <path d="M400 40 V 100"></path>
+                <path d="M400 420 V 480"></path>
+                <path d="M140 260 H 200"></path>
+                <path d="M600 260 H 660"></path>
+              </g>
+              <g id="mt-roi">
+                <rect x="505" y="175" width="192" height="128" fill="none" stroke="#22C55E" stroke-width="2.2" stroke-dasharray="7 5"></rect>
+                <g fill="#22C55E" stroke="#0B1220" stroke-width="1.2">
+                  <rect x="500" y="170" width="10" height="10"></rect><rect x="692" y="170" width="10" height="10"></rect>
+                  <rect x="500" y="298" width="10" height="10"></rect><rect x="692" y="298" width="10" height="10"></rect>
+                </g>
+                <text x="512" y="166" fill="#86EFAC" font-family="Segoe UI, Microsoft YaHei UI, sans-serif" font-size="12">模板区域 · 矩形</text>
+              </g>
+              <g stroke="#38BDF8" stroke-opacity=".55" stroke-width="2" fill="none">
+                <path d="M30 30 H70 M30 30 V70"></path><path d="M770 30 H730 M770 30 V70"></path>
+                <path d="M30 490 H70 M30 490 V450"></path><path d="M770 490 H730 M770 490 V450"></path>
+              </g>
+            </svg>
+            <div class="mt-overlay"><span class="mt-chip"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path></svg>可编辑 · 参考图</span></div>
+          </div>
+
+          <div class="mt-canvas-view" data-view="empty" hidden>
+            <div class="mt-empty-card">
+              <div class="mt-state-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><circle cx="10" cy="12" r="2"></circle><path d="m20 17-1.296-1.296a2.41 2.41 0 0 0-3.408 0L9 22"></path></svg></div>
+              <div class="mt-state-title">载入参考图开始框选</div>
+              <p class="mt-state-sub">填左侧「参考图路径」后点「载入」，或在流程里连好上游 Image 后点宿主「执行」把图带进来。支持 BMP / JPG / PNG / TIF。</p>
+              <div class="mt-state-actions"><button type="button" class="mt-btn mt-btn-primary" data-action="load-image">载入参考图</button></div>
+            </div>
+          </div>
+
+          <div class="mt-canvas-view mt-error" data-view="error" hidden role="alert">
+            <div class="mt-state-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></div>
+              <div class="mt-state-title">参考图载入失败</div>
+              <p class="mt-state-sub">参考图不存在：D:\Images\missing.bmp。请检查路径，或先在流程里连好上游 Image 再点宿主「执行」。</p>
+          </div>
+        </div>
+
+        <div class="mt-template-preview">
+          <div class="mt-preview-box">
+            <svg viewBox="0 0 260 120" preserveAspectRatio="xMidYMid slice" aria-label="模板特征预览">
+              <rect width="260" height="120" fill="#1E293B"></rect>
+              <g opacity=".45" stroke="#334155" stroke-width="1">
+                <path d="M0 30 H260 M0 60 H260 M0 90 H260 M40 0 V120 M100 0 V120 M160 0 V120 M220 0 V120"></path>
+              </g>
+              <path d="M18 34 L210 20 L242 58 L206 96 L30 104 L4 70 Z" fill="#8C97A5" stroke="#C7D0DB" stroke-width="1.4"></path>
+              <path d="M38 48 L180 38 L206 62 L178 84 L46 90 L22 70 Z" fill="#5F6B7A" stroke="#AEB9C6" stroke-width="1"></path>
+              <g fill="none" stroke="#22C55E" stroke-width="1.8">
+                <path d="M44 52 L176 42 L200 62 L174 82 L48 88 L26 70 Z"></path>
+                <path d="M64 58 L160 50 L180 64 L158 76 L68 80 L46 70 Z"></path>
+              </g>
+              <circle cx="120" cy="65" r="3" fill="#22C55E"></circle>
+            </svg>
+            <div class="mt-preview-empty" data-preview-empty hidden>创建模板后显示特征预览</div>
+          </div>
+          <div class="mt-preview-info">
+            <div class="mt-preview-title">模板预览</div>
+            <div class="mt-preview-sub">绿色 = 模型记住的特征边</div>
+            <div class="mt-preview-summary" data-summary>矩形  中心 (612, 438)  角度 2.5 度  半长 96  半宽 64</div>
+            <div class="mt-stale-banner" data-stale-banner hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+              <span>提取参数已修改，需重新点「创建模板」</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-statusbar" aria-live="polite">
+          <span class="mt-status-dot is-ok" data-status-dot></span>
+          <span class="mt-status-msg is-ok" data-status-msg>已载入参考图 part-0042.bmp：右键 → 新建矩形/圆形/椭圆，框住模板特征</span>
+          <span class="mt-status-entry">当前条目：模板1</span>
+        </div>
+      </section>
+    </div>
+
+    <div class="mt-footer">
+      <div class="mt-footer-left">
+        <span class="mt-status-chip"><span class="mt-footer-dot"></span><span>状态: 待执行</span></span>
+        <span class="mt-elapsed">耗时: 0 ms</span>
+      </div>
+      <div class="mt-footer-right">
+        <button type="button" class="mt-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></svg>执行
+        </button>
+        <button type="button" class="mt-btn mt-btn-ghost">取消</button>
+        <button type="button" class="mt-btn mt-btn-primary">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-notes">
+    <div class="mt-notes-head">关键改动（v1）</div>
+    <div class="mt-note"><div class="mt-note-num">01</div><div><b>模板库成为左栏第一屏</b><span>列表 + 新增 / 删除 / 设为默认 + 配方名 + 上游图像 + 参考图路径同区；仍是 <code>Library</code> / <code>EditingEntry</code> 双向绑定。</span></div></div>
+    <div class="mt-note"><div class="mt-note-num">02</div><div><b>参数按“提取 / 匹配 / 输出”分层</b><span>提取参数改完需要重新学习；匹配参数运行期立即生效；两组不再混在一起。所有 <code>NumericBox</code> 与校验规则原样保留。</span></div></div>
+    <div class="mt-note"><div class="mt-note-num">03</div><div><b>参考图升级为工作区</b><span>保留 <code>ImageEdit</code> 与全部 ROI / 涂抹绑定；空态与错误态是覆盖层，<b>不折叠画布</b>，避免“已设图后恢复不重绘”。</span></div></div>
+    <div class="mt-note"><div class="mt-note-num">04</div><div><b>模板预览常驻</b><span><code>ImageReadOnly.HImage = TemplatePreviewImage</code> 常驻可视树；无预览时用覆盖层显示“创建模板后显示特征预览”，不切 <code>Visibility</code>。</span></div></div>
+    <div class="mt-note"><div class="mt-note-num">05</div><div><b>状态徽标三态前置</b><span><code>未学习 / 已学习 / 参数已改·需重新学习</code> 由 <code>IsTemplateCreated</code> / <code>IsModelStale</code> 驱动；参数改动的橙提醒在列表头与预览条同时可见。</span></div></div>
+    <div class="mt-note"><div class="mt-note-num">06</div><div><b>颜色全部令牌化</b><span>颜色映射 <code>Dialog*</code> / <code>PluginPreview*</code> 公共令牌；视图 XAML 零十六进制。共享字典与共享控件不改。</span></div></div>
+    <div class="mt-note"><div class="mt-note-num">07</div><div><b>五态与可达性</b><span>hover / pressed / focus / disabled 全量；图标按钮 30×30 且 <code>Padding=0</code>（R68），焦点环走 <code>DialogFocusVisual</code>，ToolTip 走 <code>DialogToolTipStyle</code>。</span></div></div>
+
+    <div class="mt-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+    <div class="mt-note"><div class="mt-note-num">C1</div><div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不引入独立 VM。</span></div></div>
+    <div class="mt-note"><div class="mt-note-num">C2</div><div><b>两个 LinkableValueEditor</b><span><code>Image</code>（上游图像）与 <code>RecipeName</code>（配方名端口）；<code>Port</code> / <code>StepData</code> 原样保留，只设 <code>Label=""</code> 外置标签。</span></div></div>
+    <div class="mt-note"><div class="mt-note-num">C3</div><div><b>ImageEdit 全部绑定</b><span><code>HImage=DisplayImage</code>、<code>DrawObjectList=CanvasRois</code>、<code>ActiveRoi=CanvasActiveRoi</code>、<code>BrushRadius=BrushSize</code>、<code>SmearDraw/SmearErase/SmearMode</code> 逐字保留；控件常驻。</span></div></div>
+    <div class="mt-note"><div class="mt-note-num">C4</div><div><b>ImageReadOnly = TemplatePreviewImage</b><span>模板预览控件类型、<code>HImage</code> 绑定与 HALCON 缩放/右键菜单不变；不折叠已设图控件。</span></div></div>
+    <div class="mt-note"><div class="mt-note-num">C5</div><div><b>SelectedItem / 类型</b><span><code>Library</code> + <code>EditingEntry</code>（对象）、<code>DisplayViewIndex</code>（int 0~9）、<code>SmearModeIndex</code> / <code>PolarityIndex</code>（int）全部保留。</span></div></div>
+    <div class="mt-note"><div class="mt-note-num">C6</div><div><b>命令与状态三档</b><span>新增 / 删除 / 设为默认 / 载入 / 创建模板 / 清除 / 清除涂抹；<code>StatusMessage</code> + <code>StatusLevel</code>（Info / Warning / Error）原样消费。</span></div></div>
+
+    <div class="mt-notes-head" style="margin-top:20px;">明确延后（需新增功能或契约）</div>
+    <div class="mt-note"><div class="mt-note-num">D1</div><div><b>加载骨架 / 蓝色加载态</b><span>需要 VM 新增 <code>IsPreviewLoading</code> 或 <code>PreviewState</code>；当前 <code>StatusLevel</code> 只有三档。</span></div></div>
+    <div class="mt-note"><div class="mt-note-num">D2</div><div><b>尺寸 / 文件大小</b><span>需要 VM 新增只读属性；本稿预览头只显示模式与状态。</span></div></div>
+    <div class="mt-note"><div class="mt-note-num">D3</div><div><b>放大 / 缩小</b><span><code>HalconBase</code> 只有 <code>FitToWindow()</code> / <code>FitToImage()</code>，没有公开 zoom 方法。</span></div></div>
+    <div class="mt-note"><div class="mt-note-num">D4</div><div><b>打开所在文件夹</b><span>需要新增 <code>Process.Start("explorer.exe", ...)</code> 行为。</span></div></div>
+    <div class="mt-note"><div class="mt-note-num">D5</div><div><b>模板库导入 / 导出 / 批量复制</b><span>需要新的持久化/命令契约，本版不做。</span></div></div>
+    <div class="mt-note"><div class="mt-note-num">D6</div><div><b>撤销 / 重做</b><span>画布 ROI 与参数目前没有撤销栈；不在本轮 UI 改造范围。</span></div></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var root = document.getElementById('mt-design-root');
+    if (!root) return;
+
+    var win = root.querySelector('#mt-window');
+    var statusButtons = Array.prototype.slice.call(root.querySelectorAll('[data-status]'));
+    var canvasButtons = Array.prototype.slice.call(root.querySelectorAll('[data-canvas]'));
+    var sizeButtons = Array.prototype.slice.call(root.querySelectorAll('[data-width]'));
+    var canvasViews = Array.prototype.slice.call(root.querySelectorAll('.mt-canvas-view'));
+    var statusPills = Array.prototype.slice.call(root.querySelectorAll('[data-status-pill]'));
+    var statusTexts = Array.prototype.slice.call(root.querySelectorAll('[data-status-text]'));
+    var statusDot = root.querySelector('[data-status-dot]');
+    var statusMsg = root.querySelector('[data-status-msg]');
+    var summaries = Array.prototype.slice.call(root.querySelectorAll('[data-summary]'));
+    var previewEmpty = root.querySelector('[data-preview-empty]');
+    var staleBanner = root.querySelector('[data-stale-banner]');
+    var roi = root.querySelector('#mt-roi');
+
+    var status = 'ready';
+    var canvas = 'normal';
+
+    var statusCopy = {
+      new: { label: '未学习', pill: '', summary: '尚未框选模板区域', msg: '请先在右侧图上右键 → 新建矩形/圆形/椭圆，框住模板特征', level: 'warn' },
+      ready: { label: '已学习', pill: 'is-ready', summary: '矩形  中心 (612, 438)  角度 2.5 度  半长 96  半宽 64', msg: '已载入参考图 part-0042.bmp：右键 → 新建矩形/圆形/椭圆，框住模板特征', level: 'ok' },
+      stale: { label: '参数已改 · 需重新学习', pill: 'is-stale', summary: '矩形  中心 (612, 438)  角度 2.5 度  半长 96  半宽 64', msg: '提取参数已修改：重新点「创建模板」后生效', level: 'warn' }
+    };
+
+    function setStatus(level, msg) {
+      statusDot.className = 'mt-status-dot is-' + level;
+      statusMsg.className = 'mt-status-msg is-' + level;
+      statusMsg.textContent = msg;
+    }
+
+    function render() {
+      var item = statusCopy[status];
+      statusPills.forEach(function (pill) {
+        pill.className = 'mt-pill ' + item.pill;
+      });
+      statusTexts.forEach(function (text) { text.textContent = item.label; });
+      summaries.forEach(function (text) { text.textContent = item.summary; });
+
+      var hasPreview = status !== 'new';
+      previewEmpty.hidden = hasPreview;
+      staleBanner.hidden = status !== 'stale';
+      if (roi) roi.style.display = status === 'new' ? 'none' : '';
+
+      canvasViews.forEach(function (view) {
+        var viewName = canvas === 'normal' ? 'image' : canvas;
+        view.hidden = view.dataset.view !== viewName;
+      });
+
+      if (canvas === 'empty') {
+        setStatus('warn', '还没有参考图路径：填一个图像路径后再点「载入」');
+      } else if (canvas === 'error') {
+        setStatus('err', '参考图不存在：D:\\Images\\missing.bmp');
+      } else {
+        setStatus(item.level, item.msg);
+      }
+    }
+
+    statusButtons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        status = btn.dataset.status;
+        statusButtons.forEach(function (b) {
+          var on = b === btn;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        render();
+      });
+    });
+
+    canvasButtons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        canvas = btn.dataset.canvas;
+        canvasButtons.forEach(function (b) {
+          var on = b === btn;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        render();
+      });
+    });
+
+    sizeButtons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var narrow = btn.dataset.width === '640';
+        win.classList.toggle('is-narrow', narrow);
+        sizeButtons.forEach(function (b) {
+          var on = b === btn;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+      });
+    });
+
+    root.querySelectorAll('[data-action="create-template"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        status = 'ready';
+        canvas = 'normal';
+        statusButtons.forEach(function (b) {
+          var on = b.dataset.status === 'ready';
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        canvasButtons.forEach(function (b) {
+          var on = b.dataset.canvas === 'normal';
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        render();
+      });
+    });
+
+    root.querySelectorAll('[data-action="clear-template"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        status = 'new';
+        statusButtons.forEach(function (b) {
+          var on = b.dataset.status === 'new';
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        render();
+      });
+    });
+
+    root.querySelectorAll('[data-action="load-image"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var input = root.querySelector('#mt-ref');
+        if (input) input.focus();
+        if (canvas === 'empty') { canvas = 'normal'; }
+        render();
+      });
+    });
+
+    root.querySelectorAll('[data-action="add-entry"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var list = root.querySelector('#mt-list');
+        if (!list) return;
+        var index = list.querySelectorAll('.mt-list-item').length + 1;
+        var item = document.createElement('div');
+        item.className = 'mt-list-item';
+        item.setAttribute('role', 'option');
+        item.setAttribute('aria-selected', 'false');
+        item.innerHTML = '<span class="mt-dot"></span><span>模板' + index + '</span><small>未学习</small>';
+        list.appendChild(item);
+        list.scrollTop = list.scrollHeight;
+      });
+    });
+
+    root.querySelectorAll('[data-action="clear-smear"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        setStatus('warn', '已清除涂抹：重新点「创建模板」后生效');
+      });
+    });
+
+    render();
+  })();
+</script>
+</div>
+</body>
+</html>

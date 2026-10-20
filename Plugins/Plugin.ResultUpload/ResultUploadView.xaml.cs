@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace Plugin.ResultUpload
@@ -73,18 +74,41 @@ namespace Plugin.ResultUpload
             => throw new NotSupportedException();
     }
 
-    /// <summary>日志级别着色：ERROR 红 / WARN 橙 / 其余灰。</summary>
+    /// <summary>日志级别着色：ERROR 红 / WARN 橙 / 其余灰。颜色走公共令牌，取不到时退回命名色。</summary>
     public class LogLevelColorConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             switch (value as string)
             {
-                case "ERROR": return new SolidColorBrush(Color.FromRgb(0xC6, 0x28, 0x28));
-                case "WARN": return new SolidColorBrush(Color.FromRgb(0xE6, 0x7E, 0x22));
-                default: return new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+                case "ERROR": return Resolve("DialogDangerTextBrush", Brushes.Firebrick);
+                case "WARN": return Resolve("DialogWarningTextBrush", Brushes.DarkOrange);
+                default: return Resolve("DialogTextMutedBrush", Brushes.Gray);
             }
         }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+
+        internal static Brush Resolve(string key, Brush fallback)
+            => Application.Current?.TryFindResource(key) as Brush ?? fallback;
+    }
+
+    /// <summary>报文预览是否处于"无法预览"错误态（决定深色工作区里的文字颜色）。</summary>
+    public class PreviewErrorConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is string s && s.StartsWith("（无法预览：", StringComparison.Ordinal);
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>预览头目标 URL：空串显示"未配置目标 URL"，不伪造地址。</summary>
+    public class UrlDisplayConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => string.IsNullOrWhiteSpace(value as string) ? "未配置目标 URL" : value;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
             => throw new NotSupportedException();
@@ -122,15 +146,78 @@ namespace Plugin.ResultUpload
     }
 
     /// <summary>
-    /// 结果上报配置视图：报文预设 / 上传内容 / 发送策略 / 测试发送。
+    /// 视图级命令：只把按钮点击转发到插件既有公开方法。
+    /// 不引入独立 VM —— DataContext 仍是插件实例，宿主靠它取 IPluginConfigView.OnConfirm。
+    /// </summary>
+    internal sealed class RelayCommand : ICommand
+    {
+        private readonly Action<object> _execute;
+        private readonly Predicate<object> _canExecute;
+
+        public RelayCommand(Action<object> execute, Predicate<object> canExecute = null)
+        {
+            _execute = execute ?? throw new ArgumentNullException(nameof(execute));
+            _canExecute = canExecute;
+        }
+
+        public bool CanExecute(object parameter) => _canExecute?.Invoke(parameter) ?? true;
+
+        public void Execute(object parameter) => _execute(parameter);
+
+        public event EventHandler CanExecuteChanged
+        {
+            add => CommandManager.RequerySuggested += value;
+            remove => CommandManager.RequerySuggested -= value;
+        }
+    }
+
+    /// <summary>
+    /// 结果上报配置视图：报文预设 / 上报内容 / 发送策略 / 测试发送。
     /// 预览与字段联动的刷新由插件自身发 PropertyChanged，这里只管行增删、订阅与结果着色。
     /// </summary>
     public partial class ResultUploadView : UserControl
     {
         private ResultUploadPlugin Plugin => DataContext as ResultUploadPlugin;
 
+        /// <summary>「添加字段」按钮：转发插件既有 AddField()。</summary>
+        public ICommand AddFieldCommand { get; }
+
+        /// <summary>「删除字段」按钮：转发 Fields.Remove(item)。</summary>
+        public ICommand RemoveFieldCommand { get; }
+
+        /// <summary>「添加请求头」按钮：转发插件既有 AddHeader()。</summary>
+        public ICommand AddHeaderCommand { get; }
+
+        /// <summary>「删除请求头」按钮：转发 Headers.Remove(item)。</summary>
+        public ICommand RemoveHeaderCommand { get; }
+
+        /// <summary>「立即发送」按钮：转发插件既有 TestSend()。</summary>
+        public ICommand TestSendCommand { get; }
+
+        /// <summary>「刷新日志」按钮：只重拉 RecentLogs 快照。</summary>
+        public ICommand RefreshLogsCommand { get; }
+
         public ResultUploadView()
         {
+            AddFieldCommand = new RelayCommand(_ => Plugin?.AddField());
+            RemoveFieldCommand = new RelayCommand(
+                parameter =>
+                {
+                    if (parameter is UploadFieldDef f)
+                        Plugin?.Fields?.Remove(f);
+                },
+                parameter => parameter is UploadFieldDef);
+            AddHeaderCommand = new RelayCommand(_ => Plugin?.AddHeader());
+            RemoveHeaderCommand = new RelayCommand(
+                parameter =>
+                {
+                    if (parameter is HttpHeaderDef h)
+                        Plugin?.Headers?.Remove(h);
+                },
+                parameter => parameter is HttpHeaderDef);
+            TestSendCommand = new RelayCommand(_ => Plugin?.TestSend());
+            RefreshLogsCommand = new RelayCommand(_ => RefreshRecentLogs());
+
             InitializeComponent();
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
@@ -167,14 +254,29 @@ namespace Plugin.ResultUpload
             }
         }
 
-        /// <summary>按 "✔" 前缀给结果文本着色：成功绿、失败红，一眼分清。</summary>
+        /// <summary>
+        /// 按 "✔" 前缀给结果文本着色：成功绿、失败红、未测试灰。
+        /// 颜色全部取公共令牌；断言宿主没有 Application 资源时退回命名色。
+        /// </summary>
         private void RefreshResultColor()
         {
             if (ResultText == null) return;
             string s = Plugin?.LastResult;
-            ResultText.Foreground = s != null && s.StartsWith("✔")
-                ? new SolidColorBrush(Color.FromRgb(0x2E, 0x7D, 0x32))
-                : new SolidColorBrush(Color.FromRgb(0xC6, 0x28, 0x28));
+            if (s != null && s.StartsWith("✔"))
+            {
+                ResultText.Foreground = LogLevelColorConverter.Resolve("DialogSuccessTextBrush", Brushes.Green);
+                ResultText.Background = LogLevelColorConverter.Resolve("DialogSuccessSubtleBrush", Brushes.Honeydew);
+            }
+            else if (!string.IsNullOrEmpty(s))
+            {
+                ResultText.Foreground = LogLevelColorConverter.Resolve("DialogDangerTextBrush", Brushes.Firebrick);
+                ResultText.Background = LogLevelColorConverter.Resolve("DialogDangerSubtleBrush", Brushes.MistyRose);
+            }
+            else
+            {
+                ResultText.Foreground = LogLevelColorConverter.Resolve("DialogTextMutedBrush", Brushes.Gray);
+                ResultText.Background = LogLevelColorConverter.Resolve("DialogRowAlternateBrush", Brushes.WhiteSmoke);
+            }
         }
 
         /// <summary>拉一次最近日志快照（最多 50 条）填进回看列表。</summary>
@@ -187,27 +289,5 @@ namespace Plugin.ResultUpload
             if (RecentLogsList.Items.Count > 0)
                 RecentLogsList.ScrollIntoView(RecentLogsList.Items[RecentLogsList.Items.Count - 1]);
         }
-
-        private void RefreshLogs_Click(object sender, RoutedEventArgs e) => RefreshRecentLogs();
-
-        // 行内按钮的 DataContext 就是行对象（UploadFieldDef / HttpHeaderDef），直接从集合移除
-
-        private void AddField_Click(object sender, RoutedEventArgs e) => Plugin?.AddField();
-
-        private void RemoveField_Click(object sender, RoutedEventArgs e)
-        {
-            if ((sender as FrameworkElement)?.DataContext is UploadFieldDef f)
-                Plugin?.Fields?.Remove(f);
-        }
-
-        private void AddHeader_Click(object sender, RoutedEventArgs e) => Plugin?.AddHeader();
-
-        private void RemoveHeader_Click(object sender, RoutedEventArgs e)
-        {
-            if ((sender as FrameworkElement)?.DataContext is HttpHeaderDef h)
-                Plugin?.Headers?.Remove(h);
-        }
-
-        private void TestSend_Click(object sender, RoutedEventArgs e) => Plugin?.TestSend();
     }
 }

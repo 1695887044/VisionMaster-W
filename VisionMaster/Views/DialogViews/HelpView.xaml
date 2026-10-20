@@ -137,6 +137,7 @@
                                     <ToggleButton
                                         x:Name="Expander"
                                         Grid.Column="0"
+                                        HorizontalAlignment="Stretch"
                                         VerticalAlignment="Center"
                                         ClickMode="Press"
                                         Focusable="False"

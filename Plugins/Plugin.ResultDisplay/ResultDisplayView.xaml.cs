@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 
 namespace Plugin.ResultDisplay
 {
@@ -68,7 +69,33 @@ namespace Plugin.ResultDisplay
     }
 
     /// <summary>
-    /// 「结果显示」配置视图：底图 / 结果项表（行内连线）/ 显示与判定 / 高级。
+    /// 视图级命令：只把按钮点击转发到插件既有公开方法。
+    /// 不引入独立 VM —— DataContext 仍是插件实例，宿主靠它取 IPluginConfigView.OnConfirm。
+    /// </summary>
+    internal sealed class RelayCommand : ICommand
+    {
+        private readonly Action<object?> _execute;
+        private readonly Predicate<object?>? _canExecute;
+
+        public RelayCommand(Action<object?> execute, Predicate<object?>? canExecute = null)
+        {
+            _execute = execute ?? throw new ArgumentNullException(nameof(execute));
+            _canExecute = canExecute;
+        }
+
+        public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter) ?? true;
+
+        public void Execute(object? parameter) => _execute(parameter);
+
+        public event EventHandler? CanExecuteChanged
+        {
+            add => CommandManager.RequerySuggested += value;
+            remove => CommandManager.RequerySuggested -= value;
+        }
+    }
+
+    /// <summary>
+    /// 「结果显示」配置视图：底图 / 结果项（行内连线）/ 显示与判定 / 文字位置 / 高级。
     /// 本视图不含"执行"与"实时预览"按钮——试运行由主程序外壳提供；
     /// 配置期不出预览是有意的（离屏烧录要开 HALCON 窗口，只能在流程线程上做）。
     /// </summary>
@@ -76,21 +103,24 @@ namespace Plugin.ResultDisplay
     {
         private ResultDisplayPlugin? Plugin => DataContext as ResultDisplayPlugin;
 
+        /// <summary>「添加一项」按钮：转发插件既有 AddItem()。</summary>
+        public ICommand AddItemCommand { get; }
+
+        /// <summary>「删除该项」按钮：转发插件既有 Items.Remove(item)。</summary>
+        public ICommand DeleteItemCommand { get; }
+
         public ResultDisplayView()
         {
+            AddItemCommand = new RelayCommand(_ => Plugin?.AddItem());
+            DeleteItemCommand = new RelayCommand(
+                parameter =>
+                {
+                    if (parameter is DisplayItemDef item && Plugin?.Items != null)
+                        Plugin.Items.Remove(item);
+                },
+                parameter => parameter is DisplayItemDef);
+
             InitializeComponent();
-        }
-
-        private void AddItem_Click(object sender, RoutedEventArgs e)
-        {
-            Plugin?.AddItem();
-        }
-
-        private void DelItem_Click(object sender, RoutedEventArgs e)
-        {
-            if (Plugin?.Items == null) return;
-            if ((sender as FrameworkElement)?.Tag is DisplayItemDef item)
-                Plugin.Items.Remove(item);
         }
     }
 }

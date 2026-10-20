@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>图像脚本 · 配置窗口 · 设计基线 v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #es-design-root { color-scheme: light; }
+</style>
+</head>
+<body>
+<div id="es-design-root">
+  <style>
+    #es-design-root{
+      --es-surface:#FFFFFF;
+      --es-surface-2:#F8FAFC;
+      --es-surface-3:#F1F5F9;
+      --es-border:#E2E8F0;
+      --es-border-soft:#EEF2F7;
+      --es-border-strong:#CBD5E1;
+      --es-text:#0F172A;
+      --es-text-2:#475569;
+      --es-text-3:#94A3B8;
+      --es-text-4:#64748B;
+      --es-primary:#0EA5E9;
+      --es-primary-strong:#0284C7;
+      --es-primary-text:#0369A1;
+      --es-primary-soft:#F0F9FF;
+      --es-primary-light:#E0F2FE;
+      --es-primary-border:#BAE6FD;
+      --es-success:#22C55E;
+      --es-success-text:#15803D;
+      --es-success-soft:#F0FDF4;
+      --es-success-border:#BBF7D0;
+      --es-danger:#EF4444;
+      --es-danger-text:#B91C1C;
+      --es-danger-soft:#FEF2F2;
+      --es-danger-border:#FECACA;
+      --es-warning:#F59E0B;
+      --es-warning-text:#B45309;
+      --es-warning-soft:#FFF4E5;
+      --es-warning-border:#FDE68A;
+      --es-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --es-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --es-radius-sm:6px;
+      --es-radius-md:8px;
+      --es-radius-lg:10px;
+      --es-radius-xl:12px;
+      --es-radius-window:16px;
+      --es-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--es-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #es-design-root *{box-sizing:border-box;}
+    #es-design-root button,
+    #es-design-root input,
+    #es-design-root select,
+    #es-design-root textarea{font-family:inherit;}
+    #es-design-root button{color:inherit;}
+    #es-design-root [hidden]{display:none !important;}
+    #es-design-root :focus-visible{outline:2px solid var(--es-primary);outline-offset:2px;}
+
+    #es-design-root .es-page{max-width:1360px;margin:0 auto;padding:24px 24px 44px;}
+    #es-design-root .es-page-head{max-width:1360px;margin:0 auto 16px;}
+    #es-design-root .es-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #es-design-root .es-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--es-text);}
+    #es-design-root .es-ver{
+      display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+      background:var(--es-primary-light);color:var(--es-primary-text);
+      font-size:11px;font-weight:700;letter-spacing:.02em;
+    }
+    #es-design-root .es-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--es-text-2);}
+    #es-design-root .es-page-sub b{color:var(--es-text);font-weight:600;}
+    #es-design-root .es-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #es-design-root .es-demo-group{display:flex;align-items:center;gap:8px;}
+    #es-design-root .es-demo-label{font-size:11.5px;color:var(--es-text-4);}
+    #es-design-root .es-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--es-text-2);}
+    #es-design-root .es-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--es-warning-text);}
+    #es-design-root .es-scope b{color:var(--es-text);font-weight:600;}
+    #es-design-root .es-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--es-radius-md);background:var(--es-surface-3);}
+    #es-design-root .es-seg button{
+      height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;
+      color:var(--es-text-2);font-size:11.5px;line-height:1;cursor:pointer;
+      transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;
+    }
+    #es-design-root .es-seg button:hover{color:var(--es-text);}
+    #es-design-root .es-seg button.is-on{background:#FFFFFF;color:var(--es-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+
+    /* ================= 产品窗口 ================= */
+    #es-design-root .es-window{
+      width:960px;max-width:100%;height:680px;margin:0 auto;
+      display:flex;flex-direction:column;overflow:hidden;
+      background:var(--es-surface);border-radius:var(--es-radius-window);
+      box-shadow:var(--es-shadow-window);transition:width 200ms ease;
+    }
+    #es-design-root .es-window.is-narrow{width:640px;}
+
+    #es-design-root .es-titlebar{
+      height:72px;flex:none;display:flex;align-items:center;padding:0 20px;
+      background:var(--es-surface);border-bottom:1px solid var(--es-border-soft);
+    }
+    #es-design-root .es-app-icon{
+      width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;
+      background:var(--es-primary-light);color:var(--es-primary-text);
+    }
+    #es-design-root .es-app-icon svg{width:19px;height:19px;}
+    #es-design-root .es-title-text{margin-left:12px;min-width:0;flex:1;}
+    #es-design-root .es-title-line{display:flex;align-items:center;gap:8px;min-width:0;}
+    #es-design-root .es-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--es-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #es-design-root .es-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--es-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #es-design-root .es-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+    #es-design-root .es-icon-btn{
+      width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--es-radius-md);
+      display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--es-text-4);cursor:pointer;
+      transition:background 150ms ease,color 150ms ease;
+    }
+    #es-design-root .es-icon-btn svg{width:15px;height:15px;}
+    #es-design-root .es-icon-btn:hover{background:var(--es-surface-3);color:var(--es-text);}
+    #es-design-root .es-icon-btn:active{background:var(--es-border);}
+
+    #es-design-root .es-content{
+      flex:1;min-height:0;display:grid;grid-template-columns:356px minmax(0,1fr);
+      gap:16px;padding:16px 20px 20px;background:var(--es-surface);
+    }
+    #es-design-root .es-window.is-narrow .es-content{grid-template-columns:300px minmax(0,1fr);gap:12px;padding:14px 16px 16px;}
+
+    /* ---- 左栏 ---- */
+    #es-design-root .es-rail{
+      min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;
+      padding:14px;border:1px solid var(--es-border-soft);border-radius:var(--es-radius-xl);
+      background:var(--es-surface-2);scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;
+    }
+    #es-design-root .es-rail::-webkit-scrollbar{width:8px;}
+    #es-design-root .es-rail::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+    #es-design-root .es-panel{padding-top:14px;border-top:1px solid var(--es-border);}
+    #es-design-root .es-panel:first-child{padding-top:0;border-top:0;}
+    #es-design-root .es-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;font-size:12px;font-weight:600;color:var(--es-text-2);}
+    #es-design-root .es-section-hint{font-size:10.5px;font-weight:400;color:var(--es-text-3);white-space:nowrap;}
+    #es-design-root .es-field{margin-bottom:12px;}
+    #es-design-root .es-field:last-child{margin-bottom:0;}
+    #es-design-root .es-label{display:flex;align-items:center;gap:5px;margin-bottom:6px;font-size:12px;font-weight:500;line-height:1.3;color:var(--es-text-2);}
+    #es-design-root .es-select-wrap{position:relative;}
+    #es-design-root .es-select{
+      width:100%;height:36px;padding:0 30px 0 10px;border:1px solid var(--es-border);border-radius:var(--es-radius-md);
+      background:var(--es-surface);color:var(--es-text);font-size:12.5px;line-height:1;outline:none;
+      appearance:none;-webkit-appearance:none;cursor:pointer;transition:border-color 150ms ease,box-shadow 150ms ease;
+    }
+    #es-design-root .es-select:hover{border-color:var(--es-border-strong);}
+    #es-design-root .es-select:focus{border-color:var(--es-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #es-design-root .es-select-wrap > svg{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--es-text-3);pointer-events:none;}
+    #es-design-root .es-help{display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;font-size:11.5px;line-height:1.5;color:var(--es-text-4);}
+    #es-design-root .es-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--es-text-3);}
+
+    #es-design-root .es-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:10px;}
+    #es-design-root .es-btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 10px;
+      border:1px solid var(--es-border);border-radius:var(--es-radius-md);background:var(--es-surface);
+      color:var(--es-text);font-size:12px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;
+    }
+    #es-design-root .es-btn svg{width:13px;height:13px;flex:none;}
+    #es-design-root .es-btn:hover{background:var(--es-surface-2);border-color:var(--es-border-strong);}
+    #es-design-root .es-btn:active{background:var(--es-surface-3);}
+    #es-design-root .es-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #es-design-root .es-btn-warn{color:var(--es-warning-text);}
+    #es-design-root .es-btn-sm{height:32px;padding:0 11px;font-size:12px;}
+
+    /* ---- 变量卡 ---- */
+    #es-design-root .es-var-card{
+      padding:9px;margin-bottom:6px;border:1px solid var(--es-border-soft);border-radius:var(--es-radius-md);
+      background:var(--es-surface);transition:border-color 150ms ease;
+    }
+    #es-design-root .es-var-card:hover{border-color:var(--es-border);}
+    #es-design-root .es-var-top{display:grid;grid-template-columns:minmax(0,1fr) 104px auto;gap:6px;align-items:center;}
+    #es-design-root .es-var-name{
+      min-width:0;font-size:12px;font-weight:600;color:var(--es-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #es-design-root .es-var-type{
+      height:30px;padding:0 24px 0 8px;border:1px solid var(--es-border);border-radius:6px;
+      background:var(--es-surface);color:var(--es-text-2);font-size:11.5px;outline:none;
+      appearance:none;-webkit-appearance:none;cursor:pointer;
+    }
+    #es-design-root .es-var-window{
+      height:30px;padding:0 24px 0 8px;border:1px solid var(--es-border);border-radius:6px;
+      background:var(--es-surface);color:var(--es-text-2);font-size:11.5px;outline:none;
+      appearance:none;-webkit-appearance:none;cursor:pointer;
+    }
+    #es-design-root .es-var-link{
+      display:flex;align-items:center;gap:7px;height:34px;margin-top:7px;padding:0 9px;
+      border:1px solid var(--es-border);border-radius:6px;background:var(--es-surface-2);
+      font-size:11.5px;color:var(--es-text-2);
+    }
+    #es-design-root .es-var-link svg{width:12px;height:12px;flex:none;color:var(--es-primary-text);}
+    #es-design-root .es-var-link b{font-weight:600;color:var(--es-text);}
+    #es-design-root .es-var-link .es-link-chip{
+      margin-left:auto;display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:999px;
+      background:var(--es-primary-light);color:var(--es-primary-text);font-size:10.5px;font-weight:600;white-space:nowrap;
+    }
+    #es-design-root .es-var-remark{margin-top:6px;font-size:10.5px;color:var(--es-text-4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #es-design-root .es-empty-hint{margin:4px 0 0;font-size:11px;color:var(--es-text-3);line-height:1.5;}
+    #es-design-root .es-rail-note{margin:14px 0 0;padding-top:12px;border-top:1px solid var(--es-border);font-size:11px;line-height:1.55;color:var(--es-text-4);}
+
+    /* ---- 右侧脚本工作区 ---- */
+    #es-design-root .es-editor{
+      min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+      border:1px solid var(--es-border);border-radius:var(--es-radius-xl);background:var(--es-surface);
+    }
+    #es-design-root .es-editor-head{
+      height:52px;flex:none;display:flex;align-items:center;gap:9px;padding:0 12px;
+      border-bottom:1px solid var(--es-border-soft);background:var(--es-surface);
+    }
+    #es-design-root .es-file-chip{
+      width:28px;height:28px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;
+      background:var(--es-primary-light);color:var(--es-primary-text);
+    }
+    #es-design-root .es-file-chip svg{width:14px;height:14px;}
+    #es-design-root .es-editor-title-wrap{min-width:0;flex:1;}
+    #es-design-root .es-editor-title{
+      font-family:var(--es-mono);font-size:12.5px;font-weight:600;line-height:1.3;color:var(--es-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #es-design-root .es-editor-sub{margin-top:2px;font-size:10.5px;line-height:1.3;color:var(--es-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #es-design-root .es-editor-tools{margin-left:auto;display:flex;align-items:center;gap:4px;flex:none;}
+
+    #es-design-root .es-code-wrap{
+      flex:1;min-height:0;position:relative;overflow:auto;background:var(--es-surface);
+      scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;
+    }
+    #es-design-root .es-code-wrap::-webkit-scrollbar{width:10px;height:10px;}
+    #es-design-root .es-code-wrap::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:10px;border:2px solid transparent;background-clip:padding-box;}
+    #es-design-root .es-code-lines{
+      counter-reset:es-line;padding:8px 0 18px;min-width:max-content;
+      font-family:var(--es-mono);font-size:12.5px;line-height:1.75;
+    }
+    #es-design-root .es-line{display:flex;min-height:22px;}
+    #es-design-root .es-line::before{
+      counter-increment:es-line;content:counter(es-line);
+      width:42px;flex:none;padding-right:10px;text-align:right;
+      color:var(--es-text-3);font-size:10.5px;line-height:22px;user-select:none;
+      background:var(--es-surface-2);border-right:1px solid var(--es-border-soft);
+    }
+    #es-design-root .es-line code{
+      padding:0 14px;white-space:pre;color:var(--es-text);font-family:inherit;font-size:inherit;
+    }
+    #es-design-root .es-line.is-error{background:var(--es-danger-soft);}
+    #es-design-root .es-line.is-error::before{background:var(--es-danger-soft);color:var(--es-danger-text);font-weight:700;}
+    #es-design-root .es-line.is-error code{box-shadow:inset 3px 0 0 var(--es-danger);}
+    #es-design-root .es-code-lines .c{color:#64748B;}
+    #es-design-root .es-code-lines .k{color:var(--es-primary-strong);font-weight:600;}
+    #es-design-root .es-code-lines .s{color:var(--es-warning-text);}
+    #es-design-root .es-code-lines .n{color:var(--es-primary-text);}
+    #es-design-root .es-code-lines .v{color:var(--es-text);}
+    #es-design-root .es-code-empty{
+      position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      padding:24px;text-align:center;background:var(--es-surface);
+    }
+    #es-design-root .es-empty-icon{
+      width:46px;height:46px;margin-bottom:13px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+      background:var(--es-surface-3);border:1px solid var(--es-border);color:var(--es-text-3);
+    }
+    #es-design-root .es-empty-icon svg{width:21px;height:21px;}
+    #es-design-root .es-empty-title{font-size:14px;font-weight:600;line-height:1.4;color:var(--es-text);margin-bottom:4px;}
+    #es-design-root .es-empty-sub{max-width:360px;margin:0;font-size:11.5px;line-height:1.6;color:var(--es-text-4);}
+
+    #es-design-root .es-validation{
+      min-height:42px;flex:none;display:flex;align-items:center;gap:8px;padding:8px 12px;
+      border-top:1px solid var(--es-border-soft);background:var(--es-surface-2);
+      font-size:11.5px;line-height:1.5;
+    }
+    #es-design-root .es-status-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--es-text-3);}
+    #es-design-root .es-status-dot.is-ok{background:var(--es-success);}
+    #es-design-root .es-status-dot.is-warn{background:var(--es-warning);}
+    #es-design-root .es-status-dot.is-err{background:var(--es-danger);}
+    #es-design-root .es-val-msg{min-width:0;color:var(--es-text-2);line-height:1.5;}
+    #es-design-root .es-val-msg.is-ok{color:var(--es-success-text);}
+    #es-design-root .es-val-msg.is-err{color:var(--es-danger-text);}
+    #es-design-root .es-window.is-narrow .es-editor-sub{display:none;}
+    #es-design-root .es-window.is-narrow .es-editor-title{max-width:170px;}
+
+    /* ---- 底部（宿主外壳） ---- */
+    #es-design-root .es-footer{
+      height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;
+      border-top:1px solid var(--es-border-soft);background:var(--es-surface-2);
+    }
+    #es-design-root .es-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #es-design-root .es-status-chip{
+      display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;
+      background:var(--es-surface);border:1px solid var(--es-border);font-size:11.5px;color:var(--es-text-2);white-space:nowrap;
+    }
+    #es-design-root .es-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--es-text-3);}
+    #es-design-root .es-elapsed{font-family:var(--es-mono);font-size:11px;color:var(--es-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+    #es-design-root .es-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #es-design-root .es-footer .es-btn{height:32px;padding:0 16px;font-size:12.5px;}
+    #es-design-root .es-footer .es-btn-primary{padding:0 18px;}
+    #es-design-root .es-btn-primary{background:var(--es-primary);border-color:var(--es-primary);color:#fff;font-weight:600;}
+    #es-design-root .es-btn-primary:hover{background:var(--es-primary-strong);border-color:var(--es-primary-strong);}
+    #es-design-root .es-btn-ghost{border-color:transparent;background:transparent;color:var(--es-text-2);}
+    #es-design-root .es-btn-ghost:hover{background:var(--es-surface-3);border-color:transparent;color:var(--es-text);}
+
+    /* ---- 说明 ---- */
+    #es-design-root .es-notes{max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;}
+    #es-design-root .es-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--es-text-2);}
+    #es-design-root .es-note{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--es-border);}
+    #es-design-root .es-note-num{
+      width:28px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+      background:var(--es-primary-light);color:var(--es-primary-text);font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;
+    }
+    #es-design-root .es-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--es-text);}
+    #es-design-root .es-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--es-text-2);}
+    #es-design-root .es-note code{font-family:var(--es-mono);font-size:10.5px;color:var(--es-primary-text);background:var(--es-primary-soft);padding:1px 4px;border-radius:4px;}
+
+    #es-design-root .es-toast{
+      position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(8px);
+      padding:8px 14px;border-radius:8px;background:#0F172A;color:#E2E8F0;font-size:12px;
+      opacity:0;pointer-events:none;transition:opacity 160ms ease,transform 160ms ease;z-index:99;
+    }
+    #es-design-root .es-toast.is-on{opacity:1;transform:translateX(-50%) translateY(0);}
+
+    @media (prefers-reduced-motion: reduce){#es-design-root *{animation:none !important;transition:none !important;}}
+    @media (max-width:1024px){
+      #es-design-root .es-page{padding:18px 14px 32px;}
+      #es-design-root .es-window{height:auto;min-height:640px;}
+      #es-design-root .es-content{grid-template-columns:1fr;}
+      #es-design-root .es-rail{overflow:visible;}
+      #es-design-root .es-editor{min-height:460px;}
+    }
+  </style>
+
+  <div class="es-page">
+    <header class="es-page-head">
+      <div class="es-page-title-row">
+        <h1>图像脚本 · 配置窗口</h1>
+        <span class="es-ver">v1</span>
+      </div>
+      <p class="es-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、
+        <b>AvalonEdit 脚本编辑器</b>、变量表 <b>LinkableValueEditor</b> 与全部 Click 动作；
+        不新增功能、不改绑定类型。窗口 <b>960 × 680</b>，左侧配置轨 <b>356px</b>，右侧脚本工作区自适应。
+      </p>
+      <div class="es-demo-bar">
+        <div class="es-demo-group" role="group" aria-label="窗口宽度">
+          <span class="es-demo-label">窗口宽度</span>
+          <div class="es-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="es-demo-group" role="group" aria-label="视图状态">
+          <span class="es-demo-label">视图状态</span>
+          <div class="es-seg">
+            <button type="button" data-state="default" class="is-on" aria-pressed="true">默认</button>
+            <button type="button" data-state="empty" aria-pressed="false">空态</button>
+            <button type="button" data-state="error" aria-pressed="false">校验失败</button>
+            <button type="button" data-state="long" aria-pressed="false">长列表</button>
+          </div>
+        </div>
+      </div>
+      <div class="es-scope">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span><b>v1 未纳入（需新增功能或契约）：</b>加载骨架、脚本行数 / 字数统计、编辑器字体缩放、
+        打开所在文件夹、系统导航 / 帮助页。本稿只覆盖 960×680 与 640×560（宿主最小档）。</span>
+      </div>
+    </header>
+
+    <div class="es-window" id="es-window">
+      <div class="es-titlebar">
+        <div class="es-app-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg>
+        </div>
+        <div class="es-title-text">
+          <div class="es-title-line"><div class="es-title">图像脚本</div></div>
+          <div class="es-subtitle">导入 / 编写 Halcon 过程脚本，输入输出变量可显式声明类型并连线</div>
+        </div>
+        <div class="es-title-actions">
+          <button type="button" class="es-icon-btn" aria-label="关闭" data-toast="关闭由宿主外壳提供">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="es-content">
+        <aside class="es-rail" aria-label="脚本配置">
+          <section class="es-panel">
+            <div class="es-section-head"><span>脚本过程</span><span class="es-section-hint">HDevelop 过程</span></div>
+            <div class="es-field">
+              <label class="es-label" for="es-edit-proc">编辑目标（修改其过程体）</label>
+              <div class="es-select-wrap">
+                <select class="es-select" id="es-edit-proc">
+                  <option value="script" selected>script</option>
+                  <option value="detect_blob">detect_blob</option>
+                  <option value="main">main</option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+            </div>
+            <div class="es-field">
+              <label class="es-label" for="es-run-proc">运行过程（执行时调用的过程）</label>
+              <div class="es-select-wrap">
+                <select class="es-select" id="es-run-proc">
+                  <option value="script" selected>script</option>
+                  <option value="detect_blob">detect_blob</option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+            </div>
+            <div class="es-actions">
+              <button type="button" class="es-btn" data-toast="新建过程：创建 script2 并选中">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>新建过程
+              </button>
+              <button type="button" class="es-btn" data-toast="删除过程：确认后删除当前编辑目标">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>删除过程
+              </button>
+              <button type="button" class="es-btn" data-toast="导入 .hdev：选择 HDevelop 文件">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></svg>导入 .hdev
+              </button>
+              <button type="button" class="es-btn" data-toast="导出 .hdev：先同步接口再保存">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"></path><path d="m7 8 5-5 5 5"></path><path d="M5 21h14"></path></svg>导出 .hdev
+              </button>
+              <button type="button" class="es-btn" data-toast="同步接口变量：按过程接口重建变量表">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M16 8h5V3"></path></svg>同步接口变量
+              </button>
+              <button type="button" class="es-btn es-btn-warn" data-toast="恢复默认脚本：确认后替换全部过程">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path></svg>恢复默认脚本
+              </button>
+            </div>
+          </section>
+
+          <section class="es-panel">
+            <div class="es-section-head"><span>输入变量</span><span class="es-section-hint" id="es-input-count">1 个</span></div>
+            <div id="es-input-list">
+              <div class="es-var-card">
+                <div class="es-var-top">
+                  <span class="es-var-name" title="Image">Image</span>
+                  <select class="es-var-type" data-iconic="true">
+                    <option value="HImage" selected>Halcon 图像</option>
+                    <option value="HRegion">Halcon 区域</option>
+                    <option value="HXld">Halcon 轮廓</option>
+                    <option value="HObject">Halcon 图形对象</option>
+                    <option value="HTuple">Halcon 元组</option>
+                    <option value="Int">整数</option>
+                    <option value="Double">浮点数</option>
+                    <option value="String">字符串</option>
+                  </select>
+                </div>
+                <div class="es-var-link">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+                  <b>上游图像</b><span>·</span><span>图像采集.ResultImage</span>
+                  <span class="es-link-chip">已链接</span>
+                </div>
+              </div>
+              <div class="es-var-card" data-extra hidden>
+                <div class="es-var-top">
+                  <span class="es-var-name" title="MinArea">MinArea</span>
+                  <select class="es-var-type"><option value="Double" selected>浮点数</option><option value="Int">整数</option></select>
+                </div>
+                <div class="es-var-link"><b>50</b><span class="es-link-chip">固定值</span></div>
+              </div>
+              <div class="es-var-card" data-extra hidden>
+                <div class="es-var-top">
+                  <span class="es-var-name" title="ThreshMin">ThreshMin</span>
+                  <select class="es-var-type"><option value="Int" selected>整数</option><option value="Double">浮点数</option></select>
+                </div>
+                <div class="es-var-link"><b>128</b><span class="es-link-chip">固定值</span></div>
+              </div>
+              <div class="es-var-card" data-extra hidden>
+                <div class="es-var-top">
+                  <span class="es-var-name" title="ModelPath">ModelPath</span>
+                  <select class="es-var-type"><option value="String" selected>字符串</option></select>
+                </div>
+                <div class="es-var-link"><b>models\detect.omc</b><span class="es-link-chip">固定值</span></div>
+              </div>
+              <div class="es-var-card" data-extra hidden>
+                <div class="es-var-top">
+                  <span class="es-var-name" title="Timeout">Timeout</span>
+                  <select class="es-var-type"><option value="Int" selected>整数</option></select>
+                </div>
+                <div class="es-var-link"><b>1000</b><span class="es-link-chip">固定值</span></div>
+              </div>
+              <div class="es-var-card" data-extra hidden>
+                <div class="es-var-top">
+                  <span class="es-var-name" title="OffsetX">OffsetX</span>
+                  <select class="es-var-type"><option value="Double" selected>浮点数</option></select>
+                </div>
+                <div class="es-var-link"><b>0.0</b><span class="es-link-chip">固定值</span></div>
+              </div>
+              <div class="es-var-card" data-extra hidden>
+                <div class="es-var-top">
+                  <span class="es-var-name" title="OffsetY">OffsetY</span>
+                  <select class="es-var-type"><option value="Double" selected>浮点数</option></select>
+                </div>
+                <div class="es-var-link"><b>0.0</b><span class="es-link-chip">固定值</span></div>
+              </div>
+              <div class="es-var-card" data-extra hidden>
+                <div class="es-var-top">
+                  <span class="es-var-name" title="Scale">Scale</span>
+                  <select class="es-var-type"><option value="Double" selected>浮点数</option></select>
+                </div>
+                <div class="es-var-link"><b>1.0</b><span class="es-link-chip">固定值</span></div>
+              </div>
+            </div>
+            <p class="es-empty-hint" id="es-input-empty" hidden>（无输入变量：导入脚本或点“同步接口变量”）</p>
+          </section>
+
+          <section class="es-panel">
+            <div class="es-section-head"><span>输出变量</span><span class="es-section-hint" id="es-output-count">2 个</span></div>
+            <div id="es-output-list">
+              <div class="es-var-card">
+                <div class="es-var-top">
+                  <span class="es-var-name" title="ResultImage">ResultImage</span>
+                  <select class="es-var-type" data-iconic="true">
+                    <option value="HImage" selected>Halcon 图像</option>
+                    <option value="HRegion">Halcon 区域</option>
+                    <option value="HXld">Halcon 轮廓</option>
+                    <option value="HObject">Halcon 图形对象</option>
+                  </select>
+                  <select class="es-var-window" title="显示到主界面第几号视图窗口">
+                    <option value="0">不显示</option>
+                    <option value="1" selected>窗口 1</option>
+                    <option value="2">窗口 2</option>
+                    <option value="3">窗口 3</option>
+                  </select>
+                </div>
+                <div class="es-var-remark">处理后图像 · 可直接连给下游</div>
+              </div>
+              <div class="es-var-card">
+                <div class="es-var-top">
+                  <span class="es-var-name" title="Result">Result</span>
+                  <select class="es-var-type"><option value="String" selected>字符串</option><option value="Int">整数</option><option value="Double">浮点数</option><option value="HTuple">Halcon 元组</option></select>
+                  <select class="es-var-window" hidden>
+                    <option value="0" selected>不显示</option>
+                  </select>
+                </div>
+                <div class="es-var-remark">判定结论 'OK' / 'NG' · 可接条件分支</div>
+              </div>
+              <div class="es-var-card" data-extra hidden>
+                <div class="es-var-top">
+                  <span class="es-var-name" title="Area">Area</span>
+                  <select class="es-var-type"><option value="Double" selected>浮点数</option><option value="Int">整数</option></select>
+                  <select class="es-var-window" hidden><option value="0" selected>不显示</option></select>
+                </div>
+                <div class="es-var-remark">亮斑总面积</div>
+              </div>
+              <div class="es-var-card" data-extra hidden>
+                <div class="es-var-top">
+                  <span class="es-var-name" title="Count">Count</span>
+                  <select class="es-var-type"><option value="Int" selected>整数</option></select>
+                  <select class="es-var-window" hidden><option value="0" selected>不显示</option></select>
+                </div>
+                <div class="es-var-remark">目标个数</div>
+              </div>
+              <div class="es-var-card" data-extra hidden>
+                <div class="es-var-top">
+                  <span class="es-var-name" title="Score">Score</span>
+                  <select class="es-var-type"><option value="Double" selected>浮点数</option></select>
+                  <select class="es-var-window" hidden><option value="0" selected>不显示</option></select>
+                </div>
+                <div class="es-var-remark">匹配得分</div>
+              </div>
+              <div class="es-var-card" data-extra hidden>
+                <div class="es-var-top">
+                  <span class="es-var-name" title="DefectList">DefectList</span>
+                  <select class="es-var-type"><option value="HTuple" selected>Halcon 元组</option></select>
+                  <select class="es-var-window" hidden><option value="0" selected>不显示</option></select>
+                </div>
+                <div class="es-var-remark">缺陷坐标列表</div>
+              </div>
+            </div>
+            <p class="es-empty-hint" id="es-output-empty" hidden>（无输出变量）</p>
+          </section>
+
+          <p class="es-rail-note">
+            变量表是过程接口的唯一真源：运行前会把输入/输出表反向写回过程接口；
+            变量名与过程接口参数名必须一致。
+          </p>
+        </aside>
+
+        <section class="es-editor" aria-label="脚本编辑器">
+          <div class="es-editor-head">
+            <div class="es-file-chip">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg>
+            </div>
+            <div class="es-editor-title-wrap">
+              <div class="es-editor-title" id="es-editor-title">script ( Image : ResultImage : : Result )</div>
+              <div class="es-editor-sub" id="es-editor-sub">HDevelop 过程 · 语法高亮 / 智能提示 / 右键插入示例</div>
+            </div>
+            <div class="es-editor-tools">
+              <button type="button" class="es-btn es-btn-sm" id="es-validate">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>校验脚本
+              </button>
+            </div>
+          </div>
+
+          <div class="es-code-wrap">
+            <div class="es-code-lines" id="es-code-lines">
+              <div class="es-line"><code><span class="c">* 默认脚本：1 个图像进 → 1 个图像出 + 1 个结论出</span></code></div>
+              <div class="es-line"><code><span class="c">*   Image       输入图像（本步骤的输入端口，需要连上游）</span></code></div>
+              <div class="es-line"><code><span class="c">*   ResultImage 处理后的图像（可以直接连给下游）</span></code></div>
+              <div class="es-line"><code><span class="c">*   Result      判定结论 'OK' / 'NG'（可以接条件分支）</span></code></div>
+              <div class="es-line"><code><span class="c">* ──────────────────────────────────────</span></code></div>
+              <div class="es-line"><code><span class="c">* ── 示教参数区：换产品只改这一段，下面代码不用动 ──</span></code></div>
+              <div class="es-line"><code><span class="v">ThreshMin</span> := <span class="n">128</span></code></div>
+              <div class="es-line"><code><span class="v">MinArea</span> := <span class="n">50</span></code></div>
+              <div class="es-line"><code>&nbsp;</code></div>
+              <div class="es-line"><code><span class="c">* 第1步 彩色转灰度：机器视觉大多在灰度图上做，数据量小一半</span></code></div>
+              <div class="es-line"><code><span class="k">count_channels</span> (<span class="v">Image</span>, <span class="v">Channels</span>)</code></div>
+              <div class="es-line"><code><span class="k">if</span> (<span class="v">Channels</span> &gt;= <span class="n">3</span>)</code></div>
+              <div class="es-line"><code>    <span class="k">rgb1_to_gray</span> (<span class="v">Image</span>, <span class="v">GrayImage</span>)</code></div>
+              <div class="es-line"><code><span class="k">else</span></code></div>
+              <div class="es-line"><code>    <span class="k">copy_image</span> (<span class="v">Image</span>, <span class="v">GrayImage</span>)</code></div>
+              <div class="es-line"><code><span class="k">endif</span></code></div>
+              <div class="es-line"><code>&nbsp;</code></div>
+              <div class="es-line"><code><span class="c">* 第2步 阈值分割：亮于 ThreshMin 的像素连成候选区域</span></code></div>
+              <div class="es-line" id="es-error-line"><code><span class="k">threshold</span> (<span class="v">GrayImage</span>, <span class="v">Region</span>, <span class="v">ThreshMin</span>, <span class="n">255</span>)</code></div>
+              <div class="es-line"><code>&nbsp;</code></div>
+              <div class="es-line"><code><span class="c">* 第3步 拆分与筛选：粘连的拆成一个个，再按面积甩掉噪点</span></code></div>
+              <div class="es-line"><code><span class="k">connection</span> (<span class="v">Region</span>, <span class="v">ConnectedRegions</span>)</code></div>
+              <div class="es-line"><code><span class="k">select_shape</span> (<span class="v">ConnectedRegions</span>, <span class="v">Targets</span>, <span class="s">'area'</span>, <span class="s">'and'</span>, <span class="v">MinArea</span>, <span class="n">1e7</span>)</code></div>
+              <div class="es-line"><code><span class="k">count_obj</span> (<span class="v">Targets</span>, <span class="v">Number</span>)</code></div>
+              <div class="es-line"><code>&nbsp;</code></div>
+              <div class="es-line"><code><span class="c">* 第4步 判定：数出个数就能判 OK/NG</span></code></div>
+              <div class="es-line"><code><span class="k">if</span> (<span class="v">Number</span> &gt; <span class="n">0</span>)</code></div>
+              <div class="es-line"><code>    <span class="v">Result</span> := <span class="s">'NG'</span></code></div>
+              <div class="es-line"><code><span class="k">else</span></code></div>
+              <div class="es-line"><code>    <span class="v">Result</span> := <span class="s">'OK'</span></code></div>
+              <div class="es-line"><code><span class="k">endif</span></code></div>
+              <div class="es-line"><code>&nbsp;</code></div>
+              <div class="es-line"><code><span class="c">* 第5步 画在画布上：脚本结束时会自动回读成效果图送到界面窗口1</span></code></div>
+              <div class="es-line"><code><span class="k">dev_display</span> (<span class="v">GrayImage</span>)</code></div>
+              <div class="es-line"><code><span class="k">dev_set_draw</span> (<span class="s">'margin'</span>)</code></div>
+              <div class="es-line"><code><span class="k">dev_set_line_width</span> (<span class="n">2</span>)</code></div>
+              <div class="es-line"><code><span class="k">dev_set_color</span> (<span class="s">'red'</span>)</code></div>
+              <div class="es-line"><code><span class="k">dev_display</span> (<span class="v">Targets</span>)</code></div>
+              <div class="es-line"><code><span class="k">dev_disp_text</span> (<span class="s">'Result: '</span> + <span class="v">Result</span> + <span class="s">'  数量: '</span> + <span class="v">Number</span>$<span class="s">'.0f'</span>, <span class="s">'window'</span>, <span class="n">12</span>, <span class="n">12</span>, <span class="s">'black'</span>, [<span class="s">'box'</span>,<span class="s">'box_color'</span>], [<span class="s">'true'</span>,<span class="s">'yellow'</span>])</code></div>
+              <div class="es-line"><code>&nbsp;</code></div>
+              <div class="es-line"><code><span class="c">* 第6步 输出图像：ResultImage 就是本步骤的图像输出端口</span></code></div>
+              <div class="es-line"><code><span class="v">ResultImage</span> := <span class="v">GrayImage</span></code></div>
+            </div>
+            <div class="es-code-empty" id="es-code-empty" hidden>
+              <div class="es-empty-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg>
+              </div>
+              <div class="es-empty-title">尚无脚本过程</div>
+              <p class="es-empty-sub">点击左侧「新建过程」从空白脚本开始，或「导入 .hdev」载入 HDevelop 导出的过程。也可以点「恢复默认脚本」装入开箱示例。</p>
+            </div>
+          </div>
+
+          <div class="es-validation" aria-live="polite">
+            <span class="es-status-dot" id="es-val-dot"></span>
+            <span class="es-val-msg" id="es-val-msg">尚未校验：点击右上角「校验脚本」或右键菜单「编译」</span>
+          </div>
+        </section>
+      </div>
+
+      <div class="es-footer">
+        <div class="es-footer-left">
+          <span class="es-status-chip"><span class="es-footer-dot"></span><span>状态: 待执行</span></span>
+          <span class="es-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="es-footer-right">
+          <button type="button" class="es-btn" data-toast="执行由宿主外壳提供">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></svg>执行
+          </button>
+          <button type="button" class="es-btn es-btn-ghost" data-toast="取消由宿主外壳提供">取消</button>
+          <button type="button" class="es-btn es-btn-primary" data-toast="确认由宿主外壳提供">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="es-notes">
+      <div class="es-notes-head">关键改动（v1）</div>
+      <div class="es-note"><div class="es-note-num">01</div><div><b>两栏固定分工</b><span>左 356px 配置轨（过程 + 变量表），右侧脚本工作区自适应；不再让 380px 左栏和编辑器互相抢宽。</span></div></div>
+      <div class="es-note"><div class="es-note-num">02</div><div><b>过程管理卡片化</b><span>编辑目标 / 运行过程两个下拉 + 六个动作按钮；仍是原来的 <code>EditProcCombo</code> / <code>RunProcCombo</code> 与 Click 处理器。</span></div></div>
+      <div class="es-note"><div class="es-note-num">03</div><div><b>变量行卡片化</b><span>每个变量一张小卡：变量名 + 类型下拉 + 连线/固定值；类型下拉仍写 <code>ScriptVarDef.Type</code>，端口经 <code>PortsVersion</code> 锚点重建。</span></div></div>
+      <div class="es-note"><div class="es-note-num">04</div><div><b>编辑器成为主工作区</b><span>保留 <code>avalon:TextEditor</code>（行号、语法高亮、智能提示、右键菜单全部不动），只换外框、标题与工具条。</span></div></div>
+      <div class="es-note"><div class="es-note-num">05</div><div><b>校验状态条</b><span>底部常驻 <code>ValidationResult</code>；通过绿色、失败红色，初始为「尚未校验」提示。不新增 <code>StatusLevel</code>。</span></div></div>
+      <div class="es-note"><div class="es-note-num">06</div><div><b>全令牌化</b><span>颜色全部映射 <code>Dialog*</code> 公共令牌；视图 XAML 零十六进制；代码高亮色仍由既有 <code>HalconHighlighting</code> 提供。</span></div></div>
+      <div class="es-note"><div class="es-note-num">07</div><div><b>五态与可达性</b><span>hover / pressed / focus / disabled 全量定义；图标按钮 30×30 且 <code>Padding=0</code>（R68），焦点环走 <code>DialogFocusVisual</code>。</span></div></div>
+      <div class="es-note"><div class="es-note-num">08</div><div><b>边界态</b><span>空态（无过程 / 无变量）、校验失败（错误行标红 + 状态条红字）、长变量表（左栏滚动）都在本稿可切换查看。</span></div></div>
+
+      <div class="es-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="es-note"><div class="es-note-num">C1</div><div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不能换成独立 VM，否则确认等于没保存。</span></div></div>
+      <div class="es-note"><div class="es-note-num">C2</div><div><b>变量行 LinkableValueEditor</b><span><code>Port</code> 走 <code>InputPortConverter</code> MultiBinding（Name + 插件 + <code>PortsVersion</code>）；<code>StepData</code> 原样传入；不改共享控件。</span></div></div>
+      <div class="es-note"><div class="es-note-num">C3</div><div><b>AvalonEdit 编辑器</b><span><code>avalon:TextEditor x:Name="Editor"</code>、<code>TextChanged</code>、<code>HalconHighlighting</code>、<code>ScriptIntelliSense</code>、<code>ScriptEditorBehavior</code>、右键菜单全部保留。</span></div></div>
+      <div class="es-note"><div class="es-note-num">C4</div><div><b>配置属性与类型</b><span><code>Procedures</code> / <code>SelectedProcedure</code> / <code>InputVars</code> / <code>OutputVars</code> 不变；类型下拉仍写 <code>ScriptVarType</code>，显示窗口仍是 <code>SelectedIndex</code> 绑 int 的 <code>DisplayWindow</code>。</span></div></div>
+      <div class="es-note"><div class="es-note-num">C5</div><div><b>动作与校验</b><span>新建 / 删除 / 导入 / 导出 / 同步 / 恢复默认 / 校验七个 Click 处理器原样保留；<code>ValidationResult</code> 仍由 <code>ValidateScript()</code> 写入。</span></div></div>
+
+      <div class="es-notes-head" style="margin-top:20px;">v1 明确延后（需新增功能或契约）</div>
+      <div class="es-note"><div class="es-note-num">D1</div><div><b>加载骨架 / 编译中状态</b><span>需要新增 <code>IsValidating</code> 或 <code>PreviewState</code>；当前只有同步的 <code>ValidationResult</code>。</span></div></div>
+      <div class="es-note"><div class="es-note-num">D2</div><div><b>脚本行数 / 字数统计</b><span>需要新增只读属性；本稿只显示过程签名。</span></div></div>
+      <div class="es-note"><div class="es-note-num">D3</div><div><b>编辑器字体缩放按钮</b><span><code>ScriptEditorBehavior</code> 已支持快捷键缩放，但没有公开的按钮入口；v1 不加按钮。</span></div></div>
+      <div class="es-note"><div class="es-note-num">D4</div><div><b>打开所在文件夹</b><span>需要新增 <code>Process.Start("explorer.exe", ...)</code> 行为；v1 不做。</span></div></div>
+      <div class="es-note"><div class="es-note-num">D5</div><div><b>变量增删 / 重命名 UI</b><span>变量表由过程接口同步；要手工增删需要新的过程接口编辑契约，v1 不做。</span></div></div>
+      <div class="es-note"><div class="es-note-num">D6</div><div><b>系统导航 / 帮助页</b><span>需要新的宿主导航契约；v1 只保留宿主外壳已有的执行 / 取消 / 确认。</span></div></div>
+    </div>
+  </div>
+
+  <div class="es-toast" id="es-toast"></div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('es-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#es-window');
+      var stateButtons = Array.prototype.slice.call(root.querySelectorAll('[data-state]'));
+      var widthButtons = Array.prototype.slice.call(root.querySelectorAll('[data-width]'));
+      var editProc = root.querySelector('#es-edit-proc');
+      var runProc = root.querySelector('#es-run-proc');
+      var editorTitle = root.querySelector('#es-editor-title');
+      var editorSub = root.querySelector('#es-editor-sub');
+      var codeLines = root.querySelector('#es-code-lines');
+      var codeEmpty = root.querySelector('#es-code-empty');
+      var errorLine = root.querySelector('#es-error-line');
+      var valDot = root.querySelector('#es-val-dot');
+      var valMsg = root.querySelector('#es-val-msg');
+      var inputCount = root.querySelector('#es-input-count');
+      var outputCount = root.querySelector('#es-output-count');
+      var inputEmpty = root.querySelector('#es-input-empty');
+      var outputEmpty = root.querySelector('#es-output-empty');
+      var inputList = root.querySelector('#es-input-list');
+      var outputList = root.querySelector('#es-output-list');
+      var extraCards = Array.prototype.slice.call(root.querySelectorAll('[data-extra]'));
+      var toast = root.querySelector('#es-toast');
+      var toastTimer = null;
+
+      var state = 'default';
+      var signatures = {
+        script: 'script ( Image : ResultImage : : Result )',
+        detect_blob: 'detect_blob ( Image : ResultImage : : Area, Count )',
+        main: 'main ( Image : ResultImage : : Result )'
+      };
+
+      function showToast(text) {
+        if (!toast) return;
+        toast.textContent = text;
+        toast.classList.add('is-on');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { toast.classList.remove('is-on'); }, 1800);
+      }
+
+      function setValidation(level, text) {
+        valDot.className = 'es-status-dot' + (level === 'ok' ? ' is-ok' : level === 'err' ? ' is-err' : level === 'warn' ? ' is-warn' : '');
+        valMsg.className = 'es-val-msg' + (level === 'ok' ? ' is-ok' : level === 'err' ? ' is-err' : '');
+        valMsg.textContent = text;
+      }
+
+      function updateTitle() {
+        var name = editProc.value;
+        editorTitle.textContent = signatures[name] || '（未选择过程）';
+        editorSub.textContent = name ? 'HDevelop 过程 · 语法高亮 / 智能提示 / 右键插入示例' : '未选择过程';
+      }
+
+      function syncWindowFields() {
+        Array.prototype.forEach.call(root.querySelectorAll('.es-var-card'), function (card) {
+          var type = card.querySelector('.es-var-type');
+          var winField = card.querySelector('.es-var-window');
+          if (!type || !winField) return;
+          var iconic = type.options[type.selectedIndex] && type.options[type.selectedIndex].dataset.iconic === 'true';
+          winField.hidden = !iconic;
+        });
+      }
+
+      function render() {
+        var empty = state === 'empty';
+        var error = state === 'error';
+        var longState = state === 'long';
+
+        codeLines.hidden = empty;
+        codeEmpty.hidden = !empty;
+        if (errorLine) errorLine.classList.toggle('is-error', error);
+
+        inputList.hidden = empty;
+        outputList.hidden = empty;
+        inputEmpty.hidden = !empty;
+        outputEmpty.hidden = !empty;
+        inputCount.textContent = empty ? '0 个' : (longState ? '8 个' : '1 个');
+        outputCount.textContent = empty ? '0 个' : (longState ? '6 个' : '2 个');
+
+        extraCards.forEach(function (card) { card.hidden = !longState; });
+
+        if (empty) {
+          editProc.value = '';
+          runProc.value = '';
+          updateTitle();
+          setValidation('muted', '未校验：当前没有可校验的过程');
+        } else {
+          if (!editProc.value) editProc.value = 'script';
+          if (!runProc.value) runProc.value = 'script';
+          updateTitle();
+          if (error) {
+            setValidation('err', "✘ 脚本编译失败: HDevEngineException: invalid program line: 19 【第 19 行】threshold (GrayImage, Region, ThreshMin, 255) —— 请检查变量是否已在变量表中声明，或括号/引号是否配对。");
+          } else {
+            setValidation('muted', '尚未校验：点击右上角「校验脚本」或右键菜单「编译」');
+          }
+        }
+        syncWindowFields();
+      }
+
+      stateButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          state = btn.dataset.state;
+          stateButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          render();
+        });
+      });
+
+      widthButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var narrow = btn.dataset.width === '640';
+          win.classList.toggle('is-narrow', narrow);
+          widthButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+        });
+      });
+
+      editProc.addEventListener('change', updateTitle);
+      runProc.addEventListener('change', function () {
+        showToast('运行过程：' + (runProc.value || '（未选择）'));
+      });
+
+      root.querySelectorAll('.es-var-type').forEach(function (select) {
+        select.addEventListener('change', syncWindowFields);
+      });
+
+      root.querySelector('#es-validate').addEventListener('click', function () {
+        if (state === 'empty') {
+          setValidation('warn', '请先选择或新建一个过程，再执行校验');
+          return;
+        }
+        if (state === 'error') {
+          setValidation('err', "✘ 脚本编译失败: HDevEngineException: invalid program line: 19 【第 19 行】threshold (GrayImage, Region, ThreshMin, 255) —— 请检查变量是否已在变量表中声明，或括号/引号是否配对。");
+          return;
+        }
+        setValidation('ok', '✔ 脚本校验通过（编译无误）');
+        showToast('校验脚本：编译通过');
+      });
+
+      root.querySelectorAll('[data-toast]').forEach(function (btn) {
+        btn.addEventListener('click', function () { showToast(btn.dataset.toast); });
+      });
+
+      render();
+    })();
+  </script>
+</div>
+</body>
+</html>

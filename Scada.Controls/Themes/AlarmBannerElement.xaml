@@ -4,29 +4,34 @@
     xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
 
     <!--
-        实时报警条图元的外观：左侧严重度色条 + 表头（标题 / 未确认计数）+ 一列报警行。
+        实时报警条图元的外观（D10：深色卡片 + 两行式行模板 + 44px 行高）。
 
-        三件事在模板里刻意不做
-        ========
-        1) 不挑颜色。哪一行该用哪个色，由 AlarmBannerElement.RebuildRows() 在构造行对象时算好
-           （AlarmBannerRow.ChipBrush），模板只管画。放在模板里挑，就得用转换器 + 跨层
-           RelativeSource 去取本图元配的颜色——出错时是"静默显示成默认色"，最难查的一类问题。
-        2) 不排序。引擎的 ActiveAlarms 已按"严重度降序、同级按激活时间降序"排好（那是产品规则，
-           不是某个面板的显示偏好），这里只负责从上往下画。
-        3) 不闪自己。相位是控件从全画面共享节拍源算出来的只读属性 BlinkOn，模板不碰它；
-           "色条此刻该多亮"由控件代码按 IsFlashing / BlinkOn 直接改 AccentBar 的 Opacity
-           （见 AlarmBannerElement.UpdateBannerLayout）——模板可被替换，控件拿不到模板内部元素，
-           所以相位必须做成属性；又因为本环境下 ControlTemplate.Triggers 里的 DataTrigger
-           一律不触发（见 ScadaElementBase.SetPartVisible），这个"翻状态"的活儿只能落在代码里。
+        三件事在模板里刻意不做：
+        1) 不挑颜色。哪一行该用哪个色由 AlarmBannerElement.RebuildRows() 算好（AlarmBannerRow.ChipBrush），
+           模板只管画；模板里挑色就得用转换器 + 跨层 RelativeSource，出错时是“静默显示成默认色”。
+        2) 不排序。引擎已按“严重度降序、同级按激活时间降序”排好，这里只负责从上往下画。
+        3) 不闪自己。相位是控件从全画面共享节拍源算出的只读属性 BlinkOn；模板不碰它，
+           “色条此刻该多亮”由控件代码直接改 AccentBar 的 Opacity（见 UpdateBannerLayout）。
 
-        文字属性（字体/字号/字重/前景色）靠 WPF 的属性继承往下传：设在外层 Border 上，
-        表头、行、空态提示全都继承到。之所以不用 TemplateBinding 逐个绑，
-        是因为 DataTemplate 里没有 TemplatedParent——嵌在 ControlTemplate 里的 DataTemplate
-        写 TemplateBinding 是取不到值的（这是 WPF 里最容易踩且不报错的坑之一）。
+        行模板是两行式：第一行报警名，第二行条件/触发值；右侧时间与状态靠右。
+        严重度胶囊用“描边 + 同色文字”（不用实心底 + 白字）：严重度色配浅时白字会糊成一片。
 
-        层级只靠"字重 + 透明度"区分（名字重、其余淡），字号统一继承：这样把 FontSize 调大
-        给大屏用时，行高、徽标、时间会一起放大，不会出现"名字变大了、时间还停在 11px"的错位。
+        颜色一律走 ScadaTokens.xaml（本文件 hex=0，R140）；本分册就地合并令牌（R30）。
     -->
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <Style x:Key="AlarmEmptyStateStyle" TargetType="StackPanel">
+        <Setter Property="Visibility" Value="Collapsed" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding HasAlarms, RelativeSource={RelativeSource AncestorType=local:AlarmBannerElement}}" Value="False">
+                <Setter Property="Visibility" Value="Visible" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style TargetType="{x:Type local:AlarmBannerElement}">
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Focusable" Value="False" />
@@ -35,31 +40,32 @@
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type local:AlarmBannerElement}">
                     <Grid>
-                        <!-- 底框。用 Border 而不是 Rectangle：Border 的边框本来就画在边界内侧，
-                             不需要像矩形图元那样再靠 Padding 向内缩半个线宽。 -->
+                        <!-- 深色卡片底：Fill 未配置时（直接 new 控件）也能得到运行画面的表面色 -->
                         <Border
+                            Background="{StaticResource HmiSurfaceBrush}"
+                            BorderBrush="{StaticResource HmiBorderBrush}"
+                            BorderThickness="{TemplateBinding StrokeThickness}"
+                            CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}" />
+
+                        <!-- 用户配置的 Fill/Stroke 叠在令牌底之上：不改变既有属性语义 -->
+                        <Border
+                            x:Name="BannerFrame"
                             Background="{TemplateBinding Fill}"
                             BorderBrush="{TemplateBinding Stroke}"
                             BorderThickness="{TemplateBinding StrokeThickness}"
-                            CornerRadius="{TemplateBinding CornerRadius}" />
+                            CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}" />
 
-                        <!-- 左侧严重度色条：盖在底框之上的一层描边，圆角跟着底框走，
-                             所以色条的左上/左下角与底框严丝合缝。粗细固定 3px——
-                             它是一条"提示"不是"边框"，不该跟着 StrokeThickness 一起变。
-                             闪烁就是这一层的 Opacity 在 1 与 0.25 之间切换，
-                             由控件代码按 IsFlashing / BlinkOn 改（见 AlarmBannerElement.UpdateBannerLayout）。 -->
+                        <!-- 左侧严重度色条：3px，圆角跟底框走；闪烁就是这一层的 Opacity 在 1/0.25 间切换 -->
                         <Border
                             x:Name="AccentBar"
                             BorderBrush="{TemplateBinding AccentBrush}"
                             BorderThickness="3,0,0,0"
-                            CornerRadius="{TemplateBinding CornerRadius}"
+                            CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}"
                             IsHitTestVisible="False" />
 
-                        <!-- Padding 是基类 ApplyStrokeInset() 算出来的"半个线宽 + 1"，
-                             用来让内容避开边框线；12/6/8/6 才是留给内容自己的呼吸空间。 -->
                         <Border
                             Margin="{TemplateBinding Padding}"
-                            Padding="12,6,8,6"
+                            Padding="12,10,10,10"
                             TextElement.FontFamily="{TemplateBinding FontFamily}"
                             TextElement.FontSize="{TemplateBinding FontSize}"
                             TextElement.FontWeight="{TemplateBinding FontWeight}"
@@ -71,8 +77,8 @@
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
 
-                                <!-- 表头：左边是标题，右边是计数 -->
-                                <Grid Grid.Row="0" Margin="0,0,0,4">
+                                <!-- 表头：标题 + 未确认计数 -->
+                                <Grid Grid.Row="0" Margin="0,0,0,6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
@@ -80,106 +86,114 @@
 
                                     <TextBlock
                                         Grid.Column="0"
+                                        VerticalAlignment="Center"
+                                        FontSize="{TemplateBinding FontSize}"
+                                        FontWeight="{TemplateBinding FontWeight}"
                                         Text="{TemplateBinding Text}"
-                                        TextTrimming="CharacterEllipsis"
-                                        VerticalAlignment="Center" />
+                                        TextTrimming="CharacterEllipsis" />
 
-                                    <!-- 计数是"我还欠多少活"，比标题次要，所以淡一档 -->
                                     <TextBlock
                                         Grid.Column="1"
                                         Margin="8,0,0,0"
-                                        Text="{TemplateBinding SummaryText}"
-                                        Opacity="0.7"
-                                        VerticalAlignment="Center" />
+                                        VerticalAlignment="Center"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource HmiTextMutedBrush}"
+                                        Text="{TemplateBinding SummaryText}" />
                                 </Grid>
 
                                 <Rectangle
                                     Grid.Row="1"
                                     Height="1"
-                                    Margin="0,0,0,4"
-                                    Fill="{TemplateBinding Stroke}"
-                                    Opacity="0.35" />
+                                    Margin="0,0,0,6"
+                                    Fill="{StaticResource HmiBorderBrush}" />
 
                                 <Grid Grid.Row="2">
-                                    <!-- 滚动条只在行数超过控件高度时才出现：报警条通常钉在画面顶部，
-                                         高度是设计期定死的，行数一多就必须能翻，否则等于没报。 -->
                                     <ScrollViewer
                                         x:Name="ListScroll"
-                                        VerticalScrollBarVisibility="Auto"
+                                        HorizontalContentAlignment="Stretch"
                                         HorizontalScrollBarVisibility="Disabled"
+                                        VerticalScrollBarVisibility="Auto"
                                         Focusable="False">
-                                        <ItemsControl ItemsSource="{TemplateBinding Rows}">
+                                        <ItemsControl
+                                            HorizontalContentAlignment="Stretch"
+                                            ItemsSource="{TemplateBinding Rows}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <!-- 整行悬停给出「怎么修」（故障原因/解决措施/附加信息）。
-                                                         报警条一行要挤五样东西，这三段长文本放不下，
-                                                         但现场看到报警后第一个动作就是"我该干什么"。
-                                                         HelpText 为空时由下面的触发器把提示清掉：
-                                                         一个空白提示框比没有提示框更让人怀疑软件。 -->
-                                                    <Grid x:Name="RowRoot" Margin="0,3" ToolTip="{Binding HelpText}">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto" />
-                                                            <ColumnDefinition Width="Auto" />
-                                                            <ColumnDefinition Width="*" />
-                                                            <ColumnDefinition Width="Auto" />
-                                                        </Grid.ColumnDefinitions>
+                                                    <!-- 一行 = 44px 卡片；两行文字，右侧时间/状态靠右 -->
+                                                    <Border
+                                                        x:Name="RowRoot"
+                                                        Height="44"
+                                                        Margin="0,0,0,3"
+                                                        Padding="6,2"
+                                                        Background="{StaticResource HmiSurfaceRaisedBrush}"
+                                                        CornerRadius="4"
+                                                        ToolTip="{Binding HelpText}">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
 
-                                                        <!-- 严重度徽标：描边 + 同色文字，而不是实心底 + 白字。
-                                                             实心徽标一旦把严重度色配浅了，白字就糊成一片；
-                                                             描边徽标配任何颜色都读得清。 -->
-                                                        <Border
-                                                            Grid.Column="0"
-                                                            Margin="0,1,8,0"
-                                                            Padding="5,0"
-                                                            VerticalAlignment="Top"
-                                                            CornerRadius="3"
-                                                            BorderThickness="1"
-                                                            BorderBrush="{Binding ChipBrush}">
-                                                            <TextBlock Text="{Binding SeverityText}" />
-                                                        </Border>
+                                                            <!-- 严重度胶囊：描边 + 同色文字，任何严重度色都读得清 -->
+                                                            <Border
+                                                                Grid.Column="0"
+                                                                Margin="0,4,8,0"
+                                                                Padding="6,1"
+                                                                VerticalAlignment="Top"
+                                                                BorderBrush="{Binding ChipBrush}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="9">
+                                                                <TextBlock
+                                                                    FontSize="10.5"
+                                                                    Foreground="{Binding ChipBrush}"
+                                                                    Text="{Binding SeverityText}" />
+                                                            </Border>
 
-                                                        <!-- 时间用等宽字体：一列时间对齐后，"哪条先报的"一眼扫得出来 -->
-                                                        <TextBlock
-                                                            Grid.Column="1"
-                                                            Margin="0,1,8,0"
-                                                            VerticalAlignment="Top"
-                                                            Text="{Binding TimeText}"
-                                                            FontFamily="Consolas, Courier New"
-                                                            Opacity="0.7" />
+                                                            <StackPanel
+                                                                Grid.Column="1"
+                                                                Margin="0,1,8,0"
+                                                                VerticalAlignment="Center">
+                                                                <TextBlock
+                                                                    FontSize="{Binding FontSize, RelativeSource={RelativeSource AncestorType=local:AlarmBannerElement}}"
+                                                                    FontWeight="{Binding FontWeight, RelativeSource={RelativeSource AncestorType=local:AlarmBannerElement}}"
+                                                                    Text="{Binding Name}"
+                                                                    TextTrimming="CharacterEllipsis" />
+                                                                <!-- 条件 + 触发值：现场看到报警名后第一句追问永远是“报的时候是多少” -->
+                                                                <TextBlock
+                                                                    Margin="0,1,0,0"
+                                                                    FontSize="11.5"
+                                                                    FontWeight="Normal"
+                                                                    Foreground="{StaticResource HmiTextSecondaryBrush}"
+                                                                    Text="{Binding Detail}"
+                                                                    TextTrimming="CharacterEllipsis" />
+                                                            </StackPanel>
 
-                                                        <StackPanel Grid.Column="2" Margin="0,1,8,0">
-                                                            <TextBlock
-                                                                Text="{Binding Name}"
-                                                                TextTrimming="CharacterEllipsis" />
-
-                                                            <!-- 条件 + 触发值。现场看到报警名的第一句追问永远是
-                                                                 "报的时候是多少"，所以触发值跟条件排在一起，
-                                                                 不让人再去历史面板翻一遍。 -->
-                                                            <TextBlock
-                                                                Text="{Binding Detail}"
-                                                                FontWeight="Normal"
-                                                                Opacity="0.7"
-                                                                TextTrimming="CharacterEllipsis" />
-                                                        </StackPanel>
-
-                                                        <TextBlock
-                                                            Grid.Column="3"
-                                                            Margin="0,1,0,0"
-                                                            VerticalAlignment="Top"
-                                                            Text="{Binding StateText}"
-                                                            FontWeight="Normal"
-                                                            Opacity="0.7" />
-                                                    </Grid>
+                                                            <StackPanel
+                                                                Grid.Column="2"
+                                                                Margin="0,3,0,0"
+                                                                HorizontalAlignment="Right">
+                                                                <TextBlock
+                                                                    HorizontalAlignment="Right"
+                                                                    FontFamily="Consolas, Cascadia Mono"
+                                                                    FontSize="10.5"
+                                                                    Foreground="{StaticResource HmiTextMutedBrush}"
+                                                                    Text="{Binding TimeText}" />
+                                                                <TextBlock
+                                                                    Margin="0,1,0,0"
+                                                                    HorizontalAlignment="Right"
+                                                                    FontSize="10.5"
+                                                                    Foreground="{StaticResource HmiTextSecondaryBrush}"
+                                                                    Text="{Binding StateText}" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
 
                                                     <DataTemplate.Triggers>
-                                                        <!-- 确认过的整行淡化："这条我看过了"。
-                                                             不删行——报警还在，只是有人认领了；
-                                                             删掉会让操作员以为故障已经恢复。 -->
+                                                        <!-- 已确认行淡化：报警还在，只是有人认领了 -->
                                                         <DataTrigger Binding="{Binding IsAcknowledged}" Value="True">
                                                             <Setter TargetName="RowRoot" Property="Opacity" Value="0.5" />
                                                         </DataTrigger>
-
-                                                        <!-- 没配"怎么修"就不弹提示框（HelpText 为空串） -->
                                                         <DataTrigger Binding="{Binding HelpText}" Value="">
                                                             <Setter TargetName="RowRoot" Property="ToolTip" Value="{x:Null}" />
                                                         </DataTrigger>
@@ -189,18 +203,32 @@
                                         </ItemsControl>
                                     </ScrollViewer>
 
-                                    <!-- 空态：设计期预览、以及现场"一切正常"时看到的东西。
-                                         与列表互斥，由控件代码按 HasAlarms 翻显隐
-                                         （见 AlarmBannerElement.UpdateBannerLayout）——
-                                         所以这里不写 Visibility 初值。 -->
-                                    <TextBlock
-                                        x:Name="EmptyHint"
-                                        Text="{TemplateBinding EmptyText}"
-                                        Opacity="0.7"
-                                        TextAlignment="Center"
-                                        TextWrapping="Wrap"
+                                    <!-- 空态：设计期预览与“一切正常”时显示；列表与空态由 HasAlarms 互斥 -->
+                                    <StackPanel
                                         HorizontalAlignment="Center"
-                                        VerticalAlignment="Center" />
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal"
+                                        Style="{StaticResource AlarmEmptyStateStyle}">
+                                        <Path
+                                            Width="14"
+                                            Height="14"
+                                            Margin="0,0,6,0"
+                                            VerticalAlignment="Center"
+                                            Data="M2 8l4 4 8-8"
+                                            Stretch="Uniform"
+                                            Stroke="{StaticResource HmiSuccessBrush}"
+                                            StrokeEndLineCap="Round"
+                                            StrokeStartLineCap="Round"
+                                            StrokeThickness="2" />
+                                        <TextBlock
+                                            x:Name="EmptyHint"
+                                            VerticalAlignment="Center"
+                                            FontSize="12.5"
+                                            Foreground="{StaticResource HmiTextSecondaryBrush}"
+                                            Text="{TemplateBinding EmptyText}"
+                                            TextAlignment="Center"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
                                 </Grid>
                             </Grid>
                         </Border>

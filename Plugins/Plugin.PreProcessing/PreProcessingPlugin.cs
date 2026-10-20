@@ -300,16 +300,52 @@ namespace Plugin.PreProcessing
         /// <summary>视图就绪信号：把上游/变量里的图取来做预览底图</summary>
         public void OnViewLoaded()
         {
+            MarkAsConfigInstance();
             _sourceImage = SrcImage.ActualValue;
             RefreshPreview();
         }
 
+        /// <summary>
+        /// 是否配置态实例（视图就绪后置位）。只有配置态才订阅输入图变化去刷预览：
+        /// 运行实例每跑一轮都会收到上游新图，跟着重算预览等于把整条链再跑一遍。
+        /// </summary>
+        private bool _isConfigInstance;
+
+        /// <summary>
+        /// 标记为配置态实例（幂等），并订阅输入图变化。
+        ///
+        /// 少了这条订阅，"点「执行」后画面不刷新"：试运行把上游实际值桥接进配置实例的
+        /// SrcImage（PluginTestRunner.BridgeInputs 走的是 port.Value），本插件此前只在
+        /// 视图就绪 / 参数变更 / 链变更时取图，端口灌值这条路径完全没人接 ——
+        /// 状态栏显示"成功"，画布还是黑的。
+        /// </summary>
+        private void MarkAsConfigInstance()
+        {
+            if (_isConfigInstance) return;
+            _isConfigInstance = true;
+            // 输入图像变了（换图 / 接上上游变量 / 试运行桥接上游实际值）也刷新预览，
+            // 否则点「执行」后画面纹丝不动，用户会以为没跑起来
+            SrcImage.ValueChanged += OnSrcImageValueChanged;
+        }
+
+        /// <summary>源图变化：可能发生在后台线程（试运行桥接），投递回 UI 后走防抖</summary>
+        private void OnSrcImageValueChanged(object? sender, EventArgs e) => SchedulePreview();
+
         private void SchedulePreview()
         {
+            // 运行实例不跑预览（理由见 _isConfigInstance 的注释）；订阅已按配置态收口，这里是纵深防御
+            if (!_isConfigInstance) return;
+
             // 流程线程上跑算子时，参数纠偏也会发通知，一路调到这儿。
             // DispatcherTimer 只能在创建它的线程上启停，所以非 UI 线程先投递回去。
             var dispatcher = UiDispatcher;
-            if (dispatcher != null && !dispatcher.CheckAccess())
+            if (dispatcher == null)
+            {
+                // 没有 Application（离线跑流程 / 断言宿主）：就地同步跑一次，不排队
+                RefreshPreview();
+                return;
+            }
+            if (!dispatcher.CheckAccess())
             {
                 dispatcher.BeginInvoke(new Action(SchedulePreview));
                 return;

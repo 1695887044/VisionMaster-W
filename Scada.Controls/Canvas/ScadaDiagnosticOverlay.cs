@@ -49,6 +49,8 @@ namespace VisionMaster.Scada.Controls
         /// <summary>命中区边长：圆点太小，鼠标很难精确停上去，外面套一圈透明方块专门接 ToolTip</summary>
         private const double HitSize = 14;
 
+        // 与 Themes/ScadaTokens.xaml 的 HmiDiagnosticWarningBrush / HmiDiagnosticErrorBrush 同值。
+        // 静态字段不能在静态初始化里查 Application 资源（断言宿主没有 Application）。
         private static readonly Brush WarningBrush = ScadaBrushes.Frozen(0xE8, 0x8B, 0x1A);
         private static readonly Brush ErrorBrush = ScadaBrushes.Frozen(0xE0, 0x3A, 0x2B);
 

@@ -254,7 +254,8 @@ namespace VisionMaster.Scada
         /// 权限判定在运行态的<b>热路径</b>上（每次按下都要问一次），把它变成"读字符串再 parse"
         /// 既慢又丢类型安全；更糟的是——属性袋里的键要靠描述符声明，
         /// 哪个描述符漏声明，那个图元的权限配置就<b>静默失效</b>，而这类静默失败正是
-        /// <c>ElementDescriptor.NonBindableGroups</c> 注释里批评过的东西。
+        /// <c>ScadaPropertyGroups</c>（VM.Scada.Controls）的类注释里批评过的东西——
+        /// 它接手了原先那份按字符串匹配的 <c>NonBindableGroups</c> 清单。
         ///
         /// 为什么 <c>null</c> 而不是 <see cref="ScadaRole.Operator"/> 表达"不限制"
         /// ---------

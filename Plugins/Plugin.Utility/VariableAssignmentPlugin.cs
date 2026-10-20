@@ -86,6 +86,18 @@ namespace VisionMaster.Plugins.Util
         /// </summary>
         public ObservableCollection<string> NameCandidates { get; } = new();
 
+        /// <summary>
+        /// 「变量名」候选的只读展示项（名字 + 声明类型 + 说明），与 <see cref="NameCandidates"/> 同源同序。
+        ///
+        /// 为什么另开一份而不是改 <see cref="NameCandidates"/>：后者是既有公开契约
+        /// （Text 绑定、候选计数与断言都按字符串用它），换成对象集合会牵动绑定与校验；
+        /// 这里只给下拉候选行提供"名字 + 类型"的展示数据，选择落下的仍是名字常量。
+        /// </summary>
+        public ObservableCollection<NameCandidateItem> NameCandidateItems { get; } = new();
+
+        /// <summary>候选行的只读展示数据（名字 / 声明类型 / 说明）</summary>
+        public sealed record NameCandidateItem(string Name, string TypeName, string Note);
+
         private string _nameHint = "「变量名」填要写入的变量名，也可点右侧箭头从列表里选。";
 
         /// <summary>
@@ -176,6 +188,7 @@ namespace VisionMaster.Plugins.Util
             var keep = VariableName.GetTypedValue();
 
             NameCandidates.Clear();
+            NameCandidateItems.Clear();
             if (_configContext?.Variables != null)
             {
                 foreach (var option in _configContext.Variables)
@@ -188,6 +201,10 @@ namespace VisionMaster.Plugins.Util
                         continue;
 
                     NameCandidates.Add(option.Name);
+                    NameCandidateItems.Add(new NameCandidateItem(
+                        option.Name,
+                        option.TypeName ?? string.Empty,
+                        option.Description ?? string.Empty));
                 }
             }
 
@@ -207,6 +224,17 @@ namespace VisionMaster.Plugins.Util
             var scope = CurrentScope;
             bool isGlobal = string.Equals(scope, ScopeGlobal, StringComparison.OrdinalIgnoreCase);
             var name = VariableName.GetTypedValue();
+
+            // 作用域取值认不出来时不猜：既不按 Runtime 取候选，也不在提示里假装是运行时。
+            // 运行期的白名单校验（RunAlgorithm）会明确报错；这里只把同一事实提前说清。
+            if (scope.Length == 0)
+            {
+                var rawScope = Scope.GetTypedValue();
+                NameHint = string.IsNullOrWhiteSpace(rawScope)
+                    ? "还没选择作用域：请选择「运行时变量」或「全局变量」。"
+                    : $"作用域取值无法识别：「{rawScope}」（应为 {ScopeRuntime} 或 {ScopeGlobal}）；运行期会明确报错。";
+                return;
+            }
 
             var match = FindOption(name, scope);
             // 同名但另一个作用域也有：这是最容易让人以为"变量明明建好了"的情形，单独说一句
@@ -252,15 +280,22 @@ namespace VisionMaster.Plugins.Util
                 && string.Equals(o.Name, name, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(o.Scope, scope, StringComparison.OrdinalIgnoreCase));
 
-        /// <summary>当前作用域（认不出来按运行时 —— 与 RunAlgorithm 的白名单校验不同，这里只是界面取候选）</summary>
+        /// <summary>
+        /// 当前作用域：只认白名单里的 Runtime / Global。
+        /// 认不出来（空值、拼错）时返回空串 —— **不再静默回退 Runtime**：
+        /// 否则界面会按运行时变量列候选、提示也写成"运行时"，而运行期白名单照样报错，
+        /// 用户看到的界面语义与实际执行结果不一致。空作用域下候选为空、提示说明取值无法识别。
+        /// </summary>
         private string CurrentScope
         {
             get
             {
                 var scope = Scope.GetTypedValue();
-                return string.Equals(scope, ScopeGlobal, StringComparison.OrdinalIgnoreCase)
-                    ? ScopeGlobal
-                    : ScopeRuntime;
+                if (string.Equals(scope, ScopeGlobal, StringComparison.OrdinalIgnoreCase))
+                    return ScopeGlobal;
+                if (string.Equals(scope, ScopeRuntime, StringComparison.OrdinalIgnoreCase))
+                    return ScopeRuntime;
+                return string.Empty;
             }
         }
 

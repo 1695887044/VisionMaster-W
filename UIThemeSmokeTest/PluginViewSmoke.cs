@@ -130,12 +130,15 @@ namespace UIThemeSmokeTest
                         Check(label + " LinkableValueEditor.Port", editors.All(e => e.Port != null),
                             $"count={editors.Count} ports={string.Join(",", ports)}");
 
-                        var buttons = Descendants<Button>(view).ToList();
-                        var buttonCommands = buttons
+                        // LinkableValueEditor 内部的 🔗/✕ 按钮是共享控件的 Click 按钮，不是视图动作按钮；
+                        // 只检查视图自己的按钮是否至少有一个 Command 绑定。
+                        var ownButtons = Descendants<Button>(view)
+                            .Where(b => !IsInsideLinkableEditor(b)).ToList();
+                        var buttonCommands = ownButtons
                             .Select(b => BindingOperations.GetBinding(b, Button.CommandProperty)?.Path?.Path)
                             .Where(p => !string.IsNullOrEmpty(p)).Distinct().ToList();
-                        Check(label + " Button.Command 绑定", buttons.Count == 0 || buttonCommands.Count > 0,
-                            $"buttons={buttons.Count} commands={string.Join(",", buttonCommands)}");
+                        Check(label + " Button.Command 绑定", ownButtons.Count == 0 || buttonCommands.Count > 0,
+                            $"buttons={ownButtons.Count} commands={string.Join(",", buttonCommands)}");
 
                         var combos = Descendants<ComboBox>(view).ToList();
                         var comboBindings = combos
@@ -174,8 +177,9 @@ namespace UIThemeSmokeTest
                         }
 
                         // 静态：项目内所有 XAML 不得有硬编码十六进制颜色
-                        var projectDir = Path.Combine(RepoRoot, "Plugins", asmName);
-                        var xamls = Directory.Exists(projectDir)
+                        // 程序集名不一定等于工程目录名（如 Plugin.Util → Plugin.Utility），按前缀解析
+                        var projectDir = ResolveProjectDir(asmName);
+                        var xamls = projectDir != null && Directory.Exists(projectDir)
                             ? Directory.GetFiles(projectDir, "*.xaml", SearchOption.AllDirectories)
                                 .Where(p => !p.Contains(@"\bin\") && !p.Contains(@"\obj\")).ToList()
                             : new List<string>();
@@ -202,6 +206,39 @@ namespace UIThemeSmokeTest
                 ? "=== 插件自定义视图批量冒烟：全部通过 ==="
                 : $"### 插件自定义视图批量冒烟：{failures} 项失败");
             return failures == 0 ? 0 : 1;
+        }
+
+        private static string? ResolveProjectDir(string asmName)
+        {
+            var exact = Path.Combine(RepoRoot, "Plugins", asmName);
+            if (Directory.Exists(exact))
+                return exact;
+
+            var pluginsRoot = Path.Combine(RepoRoot, "Plugins");
+            if (!Directory.Exists(pluginsRoot))
+                return null;
+
+            return Directory.GetDirectories(pluginsRoot)
+                .Where(d =>
+                {
+                    var name = Path.GetFileName(d);
+                    return name.StartsWith(asmName, StringComparison.OrdinalIgnoreCase)
+                        || asmName.StartsWith(name, StringComparison.OrdinalIgnoreCase);
+                })
+                .OrderByDescending(d => Path.GetFileName(d).Length)
+                .FirstOrDefault();
+        }
+
+        private static bool IsInsideLinkableEditor(DependencyObject node)
+        {
+            var cur = node;
+            while (cur != null)
+            {
+                if (cur is LinkableValueEditor)
+                    return true;
+                cur = VisualTreeHelper.GetParent(cur);
+            }
+            return false;
         }
 
         private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject

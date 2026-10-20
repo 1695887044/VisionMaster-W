@@ -49,37 +49,37 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>激活态强调色（使能/到位/运动/原点灯，以及位置大字）</summary>
         [ScadaProperty(Key = "AccentColor", DisplayName = "强调色", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FFFF6161",
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FFFF6161",
                        Description = "激活态的颜色：使能/到位/运动中/原点灯与位置大字；默认取参考模板的珊瑚红")]
         public partial Brush? AccentColor { get; set; }
 
         /// <summary>告警态颜色（报警/正负限位/急停）</summary>
         [ScadaProperty(Key = "AlarmColor", DisplayName = "告警色", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FFE03A2B",
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FFE03A2B",
                        Description = "报警/限位/急停灯的颜色；与多态灯、报警条的「严重红」同一个色")]
         public partial Brush? AlarmColor { get; set; }
 
         /// <summary>熄灭态颜色（灯不亮时的底色）</summary>
         [ScadaProperty(Key = "OffColor", DisplayName = "熄灭色", Kind = ElementPropertyKind.Color,
-                       Group = "状态", DefaultValue = "#FF2A2D31",
+                       Group = ScadaPropertyGroups.State, DefaultValue = "#FF2A2D31",
                        Description = "灯不亮时的底色；比卡片底稍亮一档，才看得出「这里有一只灯」")]
         public partial Brush? OffColor { get; set; }
 
         /// <summary>次要文字色（单位、说明、轴卡片副标题）</summary>
         [ScadaProperty(Key = "MutedColor", DisplayName = "次要文字色", Kind = ElementPropertyKind.Color,
-                       Group = "文字", DefaultValue = "#FF9A9A9D",
+                       Group = ScadaPropertyGroups.Text, DefaultValue = "#FF9A9A9D",
                        Description = "单位、状态说明与轴卡片副标题的颜色")]
         public partial Brush? MutedColor { get; set; }
 
         /// <summary>是否显示操作按钮（使能/点动/回零/停止/清报警）</summary>
         [ScadaProperty(Key = "ShowCommands", DisplayName = "显示操作按钮", Kind = ElementPropertyKind.Bool,
-                       Group = "操作", DefaultValue = "True",
+                       Group = ScadaPropertyGroups.Operation, DefaultValue = "True",
                        Description = "关掉就退化成纯监视面板：只显示位置/速度/状态灯，不出现任何会动机构的按钮")]
         public partial bool ShowCommands { get; set; }
 
         /// <summary>点动速度（mm/s）。按住点动按钮时按这个速度走。</summary>
         [ScadaProperty(Key = "JogVelocity", DisplayName = "点动速度", Kind = ElementPropertyKind.Number,
-                       Group = "操作", DefaultValue = "10", Min = 0.1, Max = 10000,
+                       Group = ScadaPropertyGroups.Operation, DefaultValue = "10", Min = 0.1, Max = 10000,
                        Description = "按住点动按钮时的速度（mm/s）；方向由按钮决定")]
         public partial double JogVelocityMmPerS { get; set; }
 
@@ -91,7 +91,7 @@ namespace VisionMaster.Scada.Controls
         /// 这个开关只控制"多问一句"，不是权限的替代品。
         /// </summary>
         [ScadaProperty(Key = "ConfirmCommands", DisplayName = "操作二次确认", Kind = ElementPropertyKind.Bool,
-                       Group = "操作", DefaultValue = "True",
+                       Group = ScadaPropertyGroups.Operation, DefaultValue = "True",
                        Description = "示教/定位前弹出确认框；关掉后一键直接执行（权限仍照常检查）")]
         public partial bool ConfirmCommands { get; set; }
 
@@ -103,13 +103,13 @@ namespace VisionMaster.Scada.Controls
         /// 同一个控件类、同一份数据绑定，只是预设不同——这样运动与监控永远是同一根轴。
         /// </summary>
         [ScadaProperty(Key = "ShowPoints", DisplayName = "显示点位", Kind = ElementPropertyKind.Bool,
-                       Group = "点位", DefaultValue = "False",
+                       Group = ScadaPropertyGroups.Points, DefaultValue = "False",
                        Description = "显示点位表（示教/定位/改速度）。关掉就是紧凑面板；打开后与运动共用同一个轴选择器")]
         public partial bool ShowPoints { get; set; }
 
         /// <summary>点位区可见行数（其余滚动）</summary>
         [ScadaProperty(Key = "PointsRows", DisplayName = "点位可见行数", Kind = ElementPropertyKind.Number,
-                       Group = "点位", DefaultValue = "6", Min = 1, Max = 16,
+                       Group = ScadaPropertyGroups.Points, DefaultValue = "6", Min = 1, Max = 16,
                        Description = "点位区最多显示几行，超出的滚动；这个值决定点位区高度")]
         public partial int PointsRows { get; set; }
 

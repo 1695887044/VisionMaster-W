@@ -61,6 +61,9 @@
         <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.DataGrid.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.Misc.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.Navigation.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.ConditionEditor.xaml" />
+        <!--  MessageDialog 卡片域（设计基线 message-dialog v1）；只 merge Colors.xaml，不跨册  -->
+        <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.Message.xaml" />
 
         <!--
             ============ 最后一层：旧键转发 ============

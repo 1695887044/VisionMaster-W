@@ -337,10 +337,10 @@ namespace VisionMaster.Models
             // 分支级写入作用域：每个并行分支有独立 owner，
             // 两个分支写同一个 DO 时后者被明确拒绝（而不是“最后写入者赢”）；
             // 作用域结束时只释放本分支持有的租约，不会误放兄弟分支的。
-            string? branchOwner = IoWriteScope.CurrentOwner is { Length: > 0 } flowOwner
+            string? branchOwner = WriteScope.CurrentOwner is { Length: > 0 } flowOwner
                 ? $"{flowOwner}/branch:{branchIndex}"
                 : $"branch:{branchIndex}";
-            using var writeScope = IoWriteScope.Begin(branchOwner);
+            using var writeScope = WriteScope.Begin(branchOwner);
 
             try
             {

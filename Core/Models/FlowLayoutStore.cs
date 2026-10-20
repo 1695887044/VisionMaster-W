@@ -274,22 +274,41 @@ namespace VisionMaster.Models
         //  两边不一致会直接击穿"框 ⊆ 泳道、同级列不相交"（2026-10-09 审查 #3 防漂移）。
         // ------------------------------------------------------------------
 
-        /// <summary>模块盒标称尺寸（画布卡片固定 210×62）</summary>
-        public const double NodeWidth = 210;
-        public const double NodeHeight = 62;
+        /// <summary>模块盒标称尺寸（flow-logic：画布卡片固定 156×58）</summary>
+        public const double NodeWidth = 156;
+        public const double NodeHeight = 58;
 
-        /// <summary>折叠容器的框体尺寸（只剩头带，等高一个普通模块盒）</summary>
+        /// <summary>折叠容器的框体尺寸（只剩 46 头带 + 上下边框，收口为 50 高）</summary>
         public const double CollapsedFrameWidth = 230;
-        public const double CollapsedFrameHeight = 64;
+        public const double CollapsedFrameHeight = 50;
 
         /// <summary>泳道/框体的内边距与头带高度</summary>
         public const double LanePadding = 14;
-        public const double LaneHeaderHeight = 26;
+        public const double LaneHeaderHeight = 28;
         public const double FramePadding = 16;
-        public const double FrameHeaderHeight = 36;
+        public const double FrameHeaderHeight = 46;
+
+        /// <summary>
+        /// 泳道底部说明条（While / For）预留高度：说明条高 22 + 底距 9 + 间隙 3。
+        /// 布局器与画布渲染共用同一数值，否则说明条会压住分支里的最后一个节点。
+        /// </summary>
+        public const double LaneNoteExtraHeight = 34;
+
+        /// <summary>
+        /// 并行分组底部汇合条预留高度：条高 22 + 底距 6 + 间隙 6。
+        /// 只在容器框底部留白，不改变泳道高度。
+        /// </summary>
+        public const double ParallelJoinExtraHeight = 34;
+
+        /// <summary>
+        /// 泳道最小宽度：容器组头要容纳「类型徽标 + 标题 + 条件胶囊 + 分支/算子计数 + 状态点」，
+        /// 单节点泳道按 156+28=184 会挤掉标题（2026-10-20 渲染实测 While/For 标题变成 "Whi..."）。
+        /// 240 = 组头可读下限；布局器与画布渲染共用同一数值。
+        /// </summary>
+        public const double MinLaneWidth = 240;
 
         /// <summary>空分支泳道的占位尺寸</summary>
-        public const double EmptyLaneWidth = 150;
+        public const double EmptyLaneWidth = 240;
         public const double EmptyLaneHeight = 88;
 
         /// <summary>行距：上一行框体底缘 + RowGap = 下一行框体顶缘（兄弟行不叠）。画布侧不用，仅本处行推进</summary>
@@ -297,6 +316,14 @@ namespace VisionMaster.Models
 
         /// <summary>列距：上一列泳道右缘 + ColumnGap = 下一列泳道左缘（同级分支列不互压）</summary>
         public const double ColumnGap = 24;
+
+        /// <summary>泳道底部说明条（While / For）预留高度；其它容器为 0</summary>
+        public static double GetLaneBottomExtra(StepModel? step)
+            => step is WhileStep or ForStep ? LaneNoteExtraHeight : 0;
+
+        /// <summary>容器框底部汇合条（并行分组）预留高度；其它容器为 0</summary>
+        public static double GetFrameBottomExtra(StepModel? step)
+            => step is ParallelStep ? ParallelJoinExtraHeight : 0;
 
         /// <summary>
         /// 单层布局：本层内纵向堆叠，遇到容器则递归铺其分支列。
@@ -403,7 +430,7 @@ namespace VisionMaster.Models
                 count++;
                 total += branch.Steps.Count == 0
                     ? EmptyLaneWidth
-                    : MeasureLevelWidth(branch.Steps, depth + 1) + LanePadding * 2;
+                    : Math.Max(MeasureLevelWidth(branch.Steps, depth + 1) + LanePadding * 2, MinLaneWidth);
             }
 
             if (count == 0)
@@ -457,7 +484,7 @@ namespace VisionMaster.Models
                 existing.Collapsed = forced.Value;
             }
 
-            var frame = PlaceExpanded(container, existing.X, existing.Y, depth, ref added);
+            var frame = PlaceExpanded(step, container, existing.X, existing.Y, depth, ref added);
 
             // 折叠态：渲染时框体只剩头带（等高一枚模块盒），但子孙坐标照铺——
             // 展开时不必先跑一次整理也能看到内容，也让 HasMissing 不会长期为真
@@ -478,8 +505,10 @@ namespace VisionMaster.Models
         /// 旧实现给空列固定顶（anchorY + 头带 + 内边距），内容被拖到更高处时框体比渲染多出一段
         ///（2026-10-09 审查 #4）。
         /// </summary>
-        private Rect PlaceExpanded(IContainerStep container, double anchorX, double anchorY, int depth, ref int added)
+        private Rect PlaceExpanded(StepModel step, IContainerStep container, double anchorX, double anchorY, int depth, ref int added)
         {
+            double laneBottomExtra = GetLaneBottomExtra(step);
+            double frameBottomExtra = GetFrameBottomExtra(step);
             double laneTop = anchorY + FrameHeaderHeight + FramePadding;   // 各列泳道统一顶边（并列/分支等高起点）
             double contentTop = laneTop + LaneHeaderHeight + LanePadding;
             double originX = anchorX + FramePadding;                       // 首列泳道左缘
@@ -501,7 +530,7 @@ namespace VisionMaster.Models
                     laneLeft = originX;
                     laneTopHere = null;
                     laneWidth = EmptyLaneWidth;
-                    laneHeight = EmptyLaneHeight;
+                    laneHeight = EmptyLaneHeight + laneBottomExtra;
                 }
                 else
                 {
@@ -509,8 +538,8 @@ namespace VisionMaster.Models
                     // 有内容的列：泳道左/上缘随内容外接框（用户拖过的旧坐标也不会漏在泳道外）
                     laneLeft = content.Left - LanePadding;
                     laneTopHere = content.Top - LanePadding - LaneHeaderHeight;
-                    laneWidth = content.Width + LanePadding * 2;
-                    laneHeight = content.Height + LanePadding * 2 + LaneHeaderHeight;
+                    laneWidth = Math.Max(content.Width + LanePadding * 2, MinLaneWidth);
+                    laneHeight = content.Height + LanePadding * 2 + LaneHeaderHeight + laneBottomExtra;
                     populatedTop = populatedTop == null
                         ? laneTopHere
                         : Math.Min(populatedTop.Value, laneTopHere.Value);
@@ -546,7 +575,7 @@ namespace VisionMaster.Models
                 minLaneLeft - FramePadding,
                 minLaneTop - FramePadding - FrameHeaderHeight,
                 (maxLaneRight - minLaneLeft) + FramePadding * 2,
-                (maxLaneBottom - minLaneTop) + FramePadding * 2 + FrameHeaderHeight);
+                (maxLaneBottom - minLaneTop) + FramePadding * 2 + FrameHeaderHeight + frameBottomExtra);
         }
 
         /// <summary>读已有布局项的占位盒（缺项返回 false，调用方负责补坐标）</summary>

@@ -1,0 +1,201 @@
+<UserControl
+    x:Class="VisionMaster.Views.DialogViews.AutoPortRow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Views.DialogViews">
+
+    <!--
+        自动参数面板的单行：左侧「描述 + 端口键 + 类型/必填徽章」，右侧 240px
+        编辑列（LinkableValueEditor 内置链接/清除，输入区约 190；标签置空，由本控件外置），
+        行尾在枚举端口显示锁图标。
+
+        行状态（不改 LinkableValueEditor 内部）：
+          · 已链接            → DialogAccentSoftBrush 底 + DialogAccentBorderBrush 边
+          · 不可文本且未链接  → DialogRowAlternateBrush 底 + DialogBorderStrongBrush 边
+          · 悬停              → DialogRowHoverBrush 底
+        输入框 focus / 按钮 hover/pressed 仍由 LinkableValueEditor 自己负责。
+    -->
+
+    <UserControl.Resources>
+        <Style x:Key="TypeBadgeStyle" TargetType="Border">
+            <Setter Property="Height" Value="16" />
+            <Setter Property="Padding" Value="5,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+
+        <Style x:Key="TypeBadgeTextStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="9.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        </Style>
+
+        <Style x:Key="RequiredBadgeStyle" TargetType="Border">
+            <Setter Property="Height" Value="16" />
+            <Setter Property="Padding" Value="5,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+
+        <Style x:Key="RequiredBadgeTextStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="9.5" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+        </Style>
+
+        <Style x:Key="OptionalBadgeStyle" TargetType="Border">
+            <Setter Property="Height" Value="16" />
+            <Setter Property="Padding" Value="5,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+
+        <Style x:Key="OptionalBadgeTextStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="9.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+        </Style>
+    </UserControl.Resources>
+
+    <Border
+        x:Name="RowBorder"
+        MinHeight="48"
+        Padding="12,4"
+        CornerRadius="8">
+        <Border.Style>
+            <Style TargetType="Border">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+                <Setter Property="BorderThickness" Value="0,0,0,1" />
+                <Style.Triggers>
+                    <!--  行悬停：整行浅底，鼠标在输入框/按钮上同样生效。
+                          链接态/不可输入态的底色只落在右侧 EditorShell，不把整行染蓝（与设计稿一致）。  -->
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <!--  240 = 共享控件内置的输入框 + 链接/清除按钮；设计稿的 190+64 操作列
+                      无法在不改 LinkableValueEditor 的前提下拆开，这里用总宽 240 让输入区
+                      实际约 190，视觉密度与设计稿一致。  -->
+                <ColumnDefinition Width="240" />
+                <ColumnDefinition Width="28" />
+            </Grid.ColumnDefinitions>
+
+            <!--  左侧：中文描述 + 端口键 + 类型徽章 + 必填/可选  -->
+            <StackPanel
+                Grid.Column="0"
+                Margin="0,0,10,0"
+                VerticalAlignment="Center">
+                <TextBlock
+                    x:Name="LabelText"
+                    FontSize="12"
+                    FontWeight="Medium"
+                    Foreground="{StaticResource DialogTextPrimaryBrush}"
+                    TextTrimming="CharacterEllipsis"
+                    ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+
+                <StackPanel Margin="0,2,0,0" Orientation="Horizontal">
+                    <TextBlock
+                        x:Name="PortKeyText"
+                        MaxWidth="120"
+                        VerticalAlignment="Center"
+                        FontFamily="Cascadia Mono, Consolas, Courier New"
+                        FontSize="10"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        TextTrimming="CharacterEllipsis"
+                        ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                    <Border
+                        Margin="6,0,0,0"
+                        Style="{StaticResource TypeBadgeStyle}">
+                        <TextBlock x:Name="TypeText" Style="{StaticResource TypeBadgeTextStyle}" />
+                    </Border>
+                    <Border
+                        x:Name="RequiredBadge"
+                        Margin="4,0,0,0"
+                        Style="{StaticResource RequiredBadgeStyle}">
+                        <TextBlock Style="{StaticResource RequiredBadgeTextStyle}" Text="必填" />
+                    </Border>
+                    <Border
+                        x:Name="OptionalBadge"
+                        Margin="4,0,0,0"
+                        Style="{StaticResource OptionalBadgeStyle}">
+                        <TextBlock Style="{StaticResource OptionalBadgeTextStyle}" Text="可选" />
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+
+            <!--  右侧编辑区：唯一编辑入口仍是共享控件，Label 置空由左侧承担。
+                  控件在 code-behind 创建：VisionMaster 里存在 VisionMaster.Core 命名空间，
+                  XAML 直接写 clr-namespace:Core.Controls 会被生成代码按相对命名空间解析成
+                  VisionMaster.Core.Controls（CS0234），所以这里用 ContentControl 承载。
+                  链接态/不可输入态只给这一圈 EditorShell 上底色与描边，行本身保持白底。  -->
+            <Border
+                x:Name="EditorShell"
+                Grid.Column="1"
+                Height="38"
+                CornerRadius="8">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="BorderBrush" Value="Transparent" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Style.Triggers>
+                            <!--  已链接：主色浅底 + 主色浅描边  -->
+                            <DataTrigger Binding="{Binding IsLinked, RelativeSource={RelativeSource AncestorType={x:Type local:AutoPortRow}}}" Value="True">
+                                <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                                <Setter Property="BorderThickness" Value="1" />
+                            </DataTrigger>
+                            <!--  不可文本输入且未链接（如图像/区域）：灰底 + 深一档描边  -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsLinked, RelativeSource={RelativeSource AncestorType={x:Type local:AutoPortRow}}}" Value="False" />
+                                    <Condition Binding="{Binding IsTextEditable, RelativeSource={RelativeSource AncestorType={x:Type local:AutoPortRow}}}" Value="False" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+                                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderStrongBrush}" />
+                                <Setter Property="BorderThickness" Value="1" />
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <ContentControl
+                    x:Name="EditorHost"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Center" />
+            </Border>
+
+            <!--  行尾：枚举/封闭候选的锁图标（不提供链接/清除，控件内部已隐藏）  -->
+            <Border
+                x:Name="LockIcon"
+                Grid.Column="2"
+                Width="28"
+                Height="28"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="Transparent"
+                ToolTip="封闭候选，只能选择"
+                Visibility="Collapsed">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontFamily="{StaticResource Icon}"
+                    FontSize="13"
+                    Foreground="{StaticResource DialogTextMutedBrush}"
+                    Text="&#xf023;" />
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

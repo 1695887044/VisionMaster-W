@@ -58,6 +58,15 @@ namespace VisionMaster.Models
         public string ModuleGroup { get; init; } = "Tool";
 
         /// <summary>
+        /// 候选来源类别：<c>"Step"</c> = 上游步骤（默认），<c>"Variable"</c> = 全局变量 / 运行时变量。
+        ///
+        /// 为什么不能直接用 <see cref="ModuleGroup"/> 分组：它的值是 "Global" / "Runtime" / 步骤名，
+        /// 变量与步骤混在一起，界面无法一次分出「变量来源」「上游算子」两组。
+        /// 纯显示字段，不参与流程寻址。
+        /// </summary>
+        public string SourceCategory { get; init; } = "Step";
+
+        /// <summary>
         /// 模块类型名称（完整类型名，用于反射创建实例）
         /// </summary>
         public string ModuleTypeName { get; init; }

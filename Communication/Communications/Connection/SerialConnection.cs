@@ -121,8 +121,9 @@ namespace VisionMaster.Communications
         public bool[] ReadBits(string address, ushort count)
         {
             if (!_isConnected) throw new InvalidOperationException("设备未连接");
-            // 富地址 "x=2;" 为离散输入（FC2），其余位区地址按线圈（FC1）处理
-            var result = address.StartsWith("x=2;", StringComparison.Ordinal)
+            // 富地址 "x=2;" 为离散输入（FC2），其余位区地址按线圈（FC1）处理。
+            // 必须按 x= 段解析而不是判前缀：带站号的地址是 "s=2;x=2;100"，前缀判断会把它当线圈。
+            var result = ModbusRichAddress.IsDiscreteInput(address)
                 ? _device.ReadDiscrete(address, count)
                 : _device.ReadCoil(address, count);
             if (!result.IsSuccess) throw new InvalidOperationException(result.Message);

@@ -60,12 +60,29 @@ partial class YoloPlugin : VisionPluginBase, IPluginCustomViewProvider
 ## 五 配置界面与测试器桥接
 
 实现 `IPluginCustomViewProvider.GetConfigView`，`Initialize(stepData)` 后 `new YoloView{DataContext=this}`；
-`OnViewLoaded` 里刷新一次摘要（换图后不用重开界面也能刷新）。
+`OnViewLoaded` 里刷新一次模型态与摘要（换图后不用重开界面也能刷新）。
 构造函数订阅 `Image.PropertyChanged`，是为了 `PluginTestRunner` 桥接输入（`BridgeInputs`）时能立刻感知到值变化。
-界面态属性：`Hint`、`ResultSummary`（未试算时显示"尚未试算"）、`ModelSummary`（getter 里调 `EnsureSession`）。
+界面态属性：`Hint`、`ResultSummary`（未试算时显示"尚未试算"）、`ModelSummary`（getter 里调 `EnsureSession`），
+以及只读运行态 `ModelState` / `PreviewState`（`private set`，**不带 `[StepConfig]`**，不参与 `OnConfirm` 落盘）。
+模型态的刷新统一走 `RefreshModelState()`（`OnModelPathChanged` / `Initialize(stepData)` / `OnViewLoaded` 三个入口）。
 
 ## 六 落盘与打包
 
-`.vms` 里只有上面 7 个 `[StepConfig]` 键，没有额外自定义键；会话与推理结果都不落盘。
-手册五页用户册加三页开发章节，全部扁平在 `Help\` 下、由 `.csproj` 里那条把 `Help` 目录全部 Markdown 收进 DLL 的 `EmbeddedResource` 通配项 收进 `Plugin.Yolo.dll`。
+`.vms` 里只有上面 7 个 `[StepConfig]` 键，没有额外自定义键；会话、推理结果、`ModelState` / `PreviewState` 都不落盘
+（`OnConfirm` 只遍历 `[StepConfig]` 属性与未链接的输入端口）。
+手册四页用户册加三页开发章节，全部扁平在 `Help\` 下、由 `.csproj` 里那条把 `Help` 目录全部 Markdown 收进 DLL 的 `EmbeddedResource` 通配项 收进 `Plugin.Yolo.dll`。
 onnxruntime 的原生库同样要落在**宿主 exe 目录**（`x64`），只投插件 dll 会报"加载 ONNX 模型失败"。
+
+## 七 配置视图的状态消费口径
+
+- 视图只读插件状态，不自己推断：`PreviewState` 决定结果卡配色（`Error` 红 / `Empty` 黄）、
+  只读角标与空/错态；`ModelState` 决定"模型加载失败"的错误态。
+- 两个旧转换器（`ResultStateConverter` / `YoloStateConverter`）已删除；它们曾用
+  `ResultSummary.StartsWith("试算失败")`、`ModelSummary.Contains("模型加载失败")` 判状态，
+  文案一改就静默失效，**不要再加回来**。
+- 空态/错误态/角标的触发顺序是"后写的 Trigger 覆盖前面的"：空态先按 `DisplayImage == null` 显示，
+  再用 `ModelState == Failed` / `PreviewState == Error` 收起；角标则先默认显示，再按三种"没有可看内容"收起。
+- `ModelSummary` 的 getter 会调 `EnsureSession()`（同路径命中缓存）；它适合普通绑定，**不要**放进定时器或
+  高频刷新路径。模型加载由 `RefreshModelState()` 在三个明确入口触发，不靠绑定副作用。
+- `PreviewState` 是"最近一次试算"的结论：换图（`ShowUpstreamImage` 成功）会复位成 `Idle` 并把
+  `ResultSummary` 写回"尚未试算"；这是有意行为，避免旧图结论留在新图上。

@@ -545,6 +545,7 @@ namespace VisionMaster.ViewModels
             {
                 { "IsSingleBindMode", true },
                 { "TargetPortName", @event.InputPortName },
+                { "AllowGlobals", @event.AllowGlobals },
             };
             if (@event.TargetType != null)
                 p.Add("TargetTypeName", @event.TargetType.AssemblyQualifiedName);

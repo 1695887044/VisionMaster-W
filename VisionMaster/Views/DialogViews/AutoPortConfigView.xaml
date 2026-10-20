@@ -4,22 +4,349 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
-        框架给"没有自定义视图的插件"自动包的一层。
+        框架给"没有自定义视图的插件"自动包的一层参数面板（Web 设计基线 v1）。
 
-        内容（每行一个可链接参数编辑器）在 code-behind 里按端口动态生成 ——
-        因为"有哪些端口"只有运行期才知道（插件类型是动态加载的），
-        写死 DataTemplate 反而要多绕一层 ViewModel 才能拿到端口实例。
+        结构（从上到下）：
+          步骤信息卡 → 「输入参数」区块头 → 端口清单（每行一个 AutoPortRow） / 空态。
+
+        端口行仍然由 code-behind 按运行期端口动态生成 —— "有哪些端口"只有插件实例
+        活起来才知道；但每行的视觉与编辑控件已收进 AutoPortRow，本视图只负责
+        步骤上下文、统计与列表/空态切换。
+
+        颜色全部走 Dialog* 语义令牌；本文件不出现十六进制色值。
     -->
+
+    <UserControl.Resources>
+        <!--  步骤信息卡：浅底 + 浅描边 + 12 圆角（DialogRowAlternateBrush 与设计稿的浅灰面一致）  -->
+        <Style x:Key="StepCardStyle" TargetType="Border">
+            <Setter Property="MinHeight" Value="56" />
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+        </Style>
+
+        <!--  步骤图标徽章：38×38 白底 + 主色浅描边  -->
+        <Style x:Key="StepIconBadgeStyle" TargetType="Border">
+            <Setter Property="Width" Value="38" />
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="11" />
+        </Style>
+
+        <Style x:Key="StepKickerStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+        </Style>
+
+        <Style x:Key="StepNameStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,3,0,0" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <Style x:Key="StepSubtitleStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <!--  统计胶囊：输入 / 必填 / 已链接；已链接用主色浅底强调  -->
+        <Style x:Key="MetricChipStyle" TargetType="Border">
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
+
+        <Style
+            x:Key="MetricChipAccentStyle"
+            BasedOn="{StaticResource MetricChipStyle}"
+            TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+        </Style>
+
+        <Style x:Key="MetricLabelStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        </Style>
+
+        <Style x:Key="MetricValueStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="3,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+        </Style>
+
+        <Style x:Key="MetricAccentLabelStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+        </Style>
+
+        <Style x:Key="MetricAccentValueStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="3,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+        </Style>
+
+        <Style x:Key="SectionTitleStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+        </Style>
+
+        <Style x:Key="CountBadgeStyle" TargetType="Border">
+            <Setter Property="MinWidth" Value="20" />
+            <Setter Property="Height" Value="19" />
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+            <Setter Property="CornerRadius" Value="9.5" />
+        </Style>
+
+        <Style x:Key="CountBadgeTextStyle" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        </Style>
+
+        <Style x:Key="SectionHintTextStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+        </Style>
+
+        <!--  端口清单容器：一整块圆角列表，行与行之间由 AutoPortRow 的底边分隔  -->
+        <Style x:Key="PortListStyle" TargetType="Border">
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+        </Style>
+
+        <!--  空态：图标 + 原因 + 说明 + 提示 chip  -->
+        <Style x:Key="EmptyStateStyle" TargetType="Border">
+            <Setter Property="MinHeight" Value="250" />
+            <Setter Property="Padding" Value="28,24" />
+            <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderStrongBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+        </Style>
+
+        <Style x:Key="EmptyIconBadgeStyle" TargetType="Border">
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="46" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="14" />
+        </Style>
+
+        <Style x:Key="EmptyTitleStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,12,0,0" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+        </Style>
+
+        <Style x:Key="EmptySubtitleStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,5,0,0" />
+            <Setter Property="MaxWidth" Value="360" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="LineHeight" Value="18" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        </Style>
+
+        <Style x:Key="EmptyHintStyle" TargetType="Border">
+            <Setter Property="Margin" Value="0,12,0,0" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Padding" Value="9,0" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+        </Style>
+
+        <Style x:Key="EmptyHintTextStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+        </Style>
+    </UserControl.Resources>
+
     <!--
         MaxHeight 是配合"窗口按内容自适应高度"用的：
-        参数少时窗口跟着内容变矮；参数多到超过这个高度，就由这里出滚动条，
-        而不是让窗口一路长到屏幕外面去。
+        参数少时窗口跟着内容变矮；参数多到超过 600，就由这里出滚动条，
+        而不是让窗口一路长到屏幕外面去（窗口自身 MaxHeight=760，见 OnLoaded）。
     -->
     <ScrollViewer
-        MaxHeight="420"
+        MaxHeight="600"
         Padding="0"
         HorizontalScrollBarVisibility="Disabled"
         VerticalScrollBarVisibility="Auto">
-        <StackPanel x:Name="PortPanel" />
+        <StackPanel>
+            <!--  ① 步骤信息卡  -->
+            <Border Margin="0,0,0,6" Style="{StaticResource StepCardStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Style="{StaticResource StepIconBadgeStyle}">
+                        <TextBlock
+                            x:Name="StepIconText"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource Icon}"
+                            FontSize="18"
+                            Foreground="{StaticResource DialogAccentTextBrush}" />
+                    </Border>
+
+                    <StackPanel
+                        Grid.Column="1"
+                        Margin="12,0,0,0"
+                        VerticalAlignment="Center">
+                        <TextBlock Style="{StaticResource StepKickerStyle}" Text="步骤信息 · STEP" />
+                        <TextBlock x:Name="StepNameText" Style="{StaticResource StepNameStyle}" Text="插件配置" />
+                        <TextBlock Style="{StaticResource StepSubtitleStyle}" Text="通用参数面板 · 无自定义配置界面" />
+                    </StackPanel>
+
+                    <StackPanel
+                        Grid.Column="2"
+                        Margin="12,0,0,0"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
+                        <Border Style="{StaticResource MetricChipStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource MetricLabelStyle}" Text="输入" />
+                                <TextBlock x:Name="InputMetricText" Style="{StaticResource MetricValueStyle}" Text="0" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChipStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource MetricLabelStyle}" Text="必填" />
+                                <TextBlock x:Name="RequiredMetricText" Style="{StaticResource MetricValueStyle}" Text="0" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChipAccentStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource MetricAccentLabelStyle}" Text="已链接" />
+                                <TextBlock x:Name="LinkedMetricText" Style="{StaticResource MetricAccentValueStyle}" Text="0" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!--  ② 区块头：标题 + 数量 + 使用提示  -->
+            <Grid
+                x:Name="SectionHeader"
+                MinHeight="22"
+                Margin="0,2,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    Grid.Column="0"
+                    Style="{StaticResource SectionTitleStyle}"
+                    Text="输入参数" />
+                <Border
+                    Grid.Column="1"
+                    Margin="8,0,0,0"
+                    Style="{StaticResource CountBadgeStyle}">
+                    <TextBlock x:Name="SectionCountText" Style="{StaticResource CountBadgeTextStyle}" Text="0" />
+                </Border>
+
+                <StackPanel
+                    Grid.Column="2"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <TextBlock
+                        Margin="0,0,5,0"
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource Icon}"
+                        FontSize="11"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="&#xf05a;" />
+                    <TextBlock Style="{StaticResource SectionHintTextStyle}" Text="常量直接填 · 需要上游供值点链接" />
+                </StackPanel>
+            </Grid>
+
+            <!--  ③ 端口清单（行由 AutoPortRow 动态生成）  -->
+            <Border x:Name="PortListBorder" Style="{StaticResource PortListStyle}">
+                <StackPanel x:Name="PortPanel" />
+            </Border>
+
+            <!--  ④ 空态  -->
+            <Border
+                x:Name="EmptyState"
+                Style="{StaticResource EmptyStateStyle}"
+                Visibility="Collapsed">
+                <StackPanel VerticalAlignment="Center">
+                    <Border Style="{StaticResource EmptyIconBadgeStyle}">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource Icon}"
+                            FontSize="21"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            Text="&#xf01c;" />
+                    </Border>
+
+                    <TextBlock x:Name="EmptyTitleText" Style="{StaticResource EmptyTitleStyle}" Text="该步骤没有输入参数" />
+                    <TextBlock
+                        x:Name="EmptyDescriptionText"
+                        Style="{StaticResource EmptySubtitleStyle}"
+                        Text="插件没有声明任何输入端口，因此没有可编辑的参数。仍可执行、确认或取消；若该插件应有参数，请检查插件是否把配置写成了 [StepConfig]（本版兜底面板只渲染 InputPort）。" />
+
+                    <Border Style="{StaticResource EmptyHintStyle}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                Margin="0,0,5,0"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="11"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                Text="&#xf05a;" />
+                            <TextBlock Style="{StaticResource EmptyHintTextStyle}" Text="确认 / 取消 / 执行入口保持可用" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
     </ScrollViewer>
 </UserControl>

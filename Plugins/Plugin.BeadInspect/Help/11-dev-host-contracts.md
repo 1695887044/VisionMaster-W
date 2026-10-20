@@ -50,7 +50,7 @@
 
 | 成员 | 本插件哪里用 |
 | --- | --- |
-| `InputValues` | 18 个 `[StepConfig]` 属性与 5 个输入端口的值都落在这个字典里（键 = 名称，无映射层） |
+| `InputValues` | 20 个 `[StepConfig]` 属性与 5 个输入端口的值都落在这个字典里（键 = 名称，无映射层），合计 **25 个键**。**配置会话属性不进这里**（见第五节末条） |
 | `SetInputValue` / `RemoveInputValue` | 由基类 `OnConfirm` 调用；写它会触发变更通知 → 流程版本递增 → 重编译 |
 | `IsLinked(port)` / `GetLinkedAddress(port)` | 「⓪ 输入绑定」卡的 5 个 `LinkableValueEditor` 依赖它显示"已链接到 Global.XXX"；`ApplyConfigValues`/`OnConfirm` 都按它跳过已链接端口 |
 | `GetLink` / `SetLink` / `RemoveLink` | 连线语义（值由对方提供）；`RecipeName` 这种"给个名字字符串"的口正是靠它接上游变量 |
@@ -70,6 +70,12 @@
   `RuntimeRowT/ColT`、`RuntimeRectifiedRef`、`RuntimePlane`、`RuntimeContour` 和两个 `…Source`），
   否则 HALCON 句柄会被序列化进方案。
 - **改属性名 = 静默丢配置**：`InputValues` 的键就是属性名，没有映射层。
+- **配置会话属性（不是 `[StepConfig]`）**：`ExtractImagePath`、`ExtractTargetPoints`、`RectifyQuadJson` 的界面草稿态、
+  状态栏与横幅字段等只活在配置实例上。它们**不进 `InputValues`**，`OnConfirm` 也不会写键——
+  `ExtractTargetPoints` 因此「重开配置界面回到默认 40」是**设计行为**，不是丢配置。
+  给这类属性补界面入口**不需要**改插件，但必须同步：
+  ① 视图绑定路径（`FlowCanvasChecks\BeadInspectChecks.cs` 的 `[BeadInspect·v2]` 静态扫描）；
+  ② 断言「`OnConfirm` 后 `InputValues` 仍是 25 键且不含该键」——否则有人顺手加个 `[StepConfig]` 就会静默改落盘契约。
 
 ## 六、共享件 `AnnotationBaker`（离屏烘焙唯一入口，R36/R37）
 
@@ -109,7 +115,7 @@
 
 ## 九、`.vms` 方案里本插件落下来的键
 
-`InputValues` 的键（名字 = 属性名/端口名）：
+`InputValues` 的键（名字 = 属性名/端口名，共 **25** 个）：
 
 ```
 RecipeLibraryJson     配方库整表 JSON（默认 "[]"）
@@ -120,6 +126,16 @@ FindAngleStartDeg / FindAngleExtentDeg / FindScaleRMin / FindScaleRMax / FindSca
 DisplayViewIndex / OutputAlignedImage / PixelSizeMm
 SrcImage / RecipeName / AlignedImage / RoiRegion / Transform   端口值（已变量链接的会被 OnConfirm 移除）
 ```
+
+**不在 `.vms` 里的配置态属性**（有界面入口但不落盘）：
+
+```
+ExtractImagePath       自动提取用的良品图路径（教学会话数据）
+ExtractTargetPoints    抽稀目标点数（10~500，默认 40）
+```
+
+这两个都由配置界面持有、重开配置界面即回到默认；加它们**不改变 25 个键**。
+`BeadInspectChecks` 的 `[BeadInspect·v2]` 断言同时钉住「4 个 `[StepConfig]` 落盘」与「`ExtractTargetPoints` 不写键」。
 
 `RecipeLibraryJson` 里每条配方的字段名（落盘的唯一口径）：
 `Name`、`RefImagePath`、`RefNoBeadImagePath`、`RefPointsJson`、`RectifyQuadJson`、

@@ -457,6 +457,14 @@
 | R131 | **禁止用"桌面端实现更方便"反向修改设计**。设计变更只能由设计基线升版发起；实现侧遇到不可复刻项，按 R125 走升级决策，不得静默降级。 |
 | R132 | **验收由用户裁定**：每批交付必须附"改前/改后截图 + 与设计基线的逐项对照表 + 差异清单"；差异清单未关闭或未经用户接受的，不得宣称完成。 |
 
+**例外（2026-10-21）：SCADA 运行态 Web 客户端**
+
+用户裁定：允许把 SCADA **运行态** Web 客户端作为交付物部署到局域网，用于多用户同时监控/操作；**设计态** Web 编辑器仍禁止，R126 的其余口径不变。
+
+| # | 规则 |
+| --- | --- |
+| R132A | **SCADA 运行态 Web 客户端是交付物**，允许进入仓库构建、允许部署到局域网、允许作为独立客户端维护；范围仅限"已设计好的组态画面的运行态查看/操作"，**不包含**在浏览器里编辑组态、不包含把 Web 作为设计基准替代 WPF。落地必须走"单一运行内核 + N 视图会话"（禁止每浏览器一个 `ScadaRuntime`），并满足：默认只读、服务端逐命令鉴权、审计带操作者/会话/IP、运动命令默认禁用。方案与测试见 `docs/SCADA运行态Web客户端方案.md`。 |
+
 ### 30.2 自定义控件模板的高度表达（2026-10-19）
 
 **起因**：IO 健康弹窗的页签文字被裁成一条（真机截图）。模板用 `Grid` 的 `Auto` 行承载文字、`2px` 行承载指示条，靠 `ContentPresenter` 的上下 `Margin` 撑开高度；在对话框宿主里高度分配不稳定，文字被压没。细节与探针证据见 `docs\code-changes\2026-10-19-IO健康页签文字被裁（TabItem模板依赖Grid行高分配）.md`。**排查流程已固化为 Skill `.zcode/skills/wpf-ui-debug/SKILL.md`——改主题/模板后"没生效"先照它走，不要凭截图猜。**
@@ -510,3 +518,30 @@
 | R144 | **出厂布局快照（`DefaultLayout.xml`）必须每次启动重捕获，且"加载布局"命令不许刷新它**。`LayoutHelper.Load(bool refreshDefaultSnapshot)`：启动路径（`OnContentRendered`）传 true——此刻 `LoadFromString` 还没跑，内存里必然是 Shell.xaml 默认布局；「加载布局」命令传 false——那时内存里是用户布局，刷新会把用户布局写成"出厂默认"。**"只捕获一次"会让历史错误快照永久留存**：实测 2026-10-18 的 `DefaultLayout.xml` 里流程栏 `DockWidth="25"`、两个左栏 pane 连 `DockHeight` 都没有，点"恢复默认布局"等于恢复成一条缝。捕获前先 `UpdateLayout()`，宽高才是实测值。**恢复命令必须"先确认、失败也说话"**：`Reset()` 在快照缺失/过期时只删文件返回 false，命令不提示就是"点了没反应"（现场会当成功能坏了）。守门人：`UIThemeSmokeTest.RunPanelModeChecks` 第 ⑩ 条——序列化 ShellCopy 后必须含 `DockWidth="340"` 与 `DockHeight="180"`（变异反证：改 230 / 去掉 180 → 红）。 |
 | R145 | **AvalonDock 的"让空间"与标签页有三条硬语义，写模式收敛前必须知道**：① **`DockHeight = 0` 会被夹回原值**（实测 set0 读回 200），要收起一个 pane 用 **1px**；幂等判据不能用高度（收起后是 1 不是 0），用"是否已保存过原高度"的字段。② **同一 pane 的多个 anchorable 是标签页**：切标签看 `IsSelected`，`IsActive` 是"整个 DockingManager 的活动内容"——`ShowPanel` 里少一句 `anchorable.IsSelected = true`，会停在最后 Show 的那个标签上（属性/图层合并后实测）。③ **`ShowAnchorable` 会重挂 LayoutContent**，模式切换后**旧引用会失效**——断言/后续代码必须重新 `FindPanel`，不能拿切换前的对象读状态（本轮两条断言假红就是拿旧实例量高度）。**组态模式的"让空间"收敛**（`ApplyScadaPanelMode`）：左栏（程序/流程栏）收起 + 底部日志收 1px；退出恢复。属性/图层合并属于**面板归属变更**，必须同时升 `CurrentLayoutSchemaVersion`（3→4，R43）；左栏/日志的收起是模式收敛，不升版本。守门人：`UIThemeSmokeTest.RunPanelModeChecks` ③b 三条（左栏收起/恢复、日志 1px/恢复 200、属性图层同 pane 且属性选中）。 |
 | R146 | **新增库样式键（`UI\Controls\Themes\**` 里的 `x:Key`）之前，必须全仓查同名，且键名要带用途后缀**。**2026-10-20 事故**：给 IO 设置补主/危险按钮时新加了 `DialogChipDanger`（`TargetType="Button"`），而库里**早就有**同名键——它是 `Border` 样式（`BasedOn FluentChipDangerStyle`，状态胶囊用）。新键把旧键顶掉后，视图把 Border 样式套到 Button 上，真机打开 IO 设置直接抛 `XamlParseException: "{DependencyProperty.UnsetValue}" 不是属性"BorderBrush"的有效值`（栈落在 `FrameworkTemplate.LoadTemplateXaml` → `Border.MeasureOverride`，看起来像模板/资源断链，实际是**键名撞车**）。**三条口径**：① 加键前 `grep 'x:Key="你的键"'` 扫 `UI\Controls\Themes` 全目录（不是只看目标分册——`FluentAliases.xaml` 里有一大批同名不同 TargetType 的键）；② 键名带用途后缀：按钮用 `...Button`（`DialogChipDangerButton` / `DialogChipPrimaryButton`），胶囊/徽标用 `DialogTag`/`DialogChip*`（Border），**同名不同 TargetType 一律视为冲突**；③ 改完必须真机开一次对应弹窗——`XamlParseException` 只在模板实例化时才抛，编译期与静态扫描全绿（R65 同族：绿灯是真的，只是没跑到那条路径）。 |
+
+---
+
+## 32. SCADA 属性分组必须走目录（2026-10-20）
+
+**起因**：用户问「Scada 图元的属性是不是还没做，怎么和设计稿不一样」。探查结论是面板功能完整，
+但组名是散在 33 个文件里的字面量，且「哪些组不许绑变量」按**字符串精确匹配**判——
+把「位置与尺寸」改名成设计稿的「布局」，编译期全绿，那条校验当场失效（面板上凭空多出一个 ƒx）。
+细节与证据见 `docs/code-changes/2026-10-20-SCADA属性分组目录与注册期校验.md`。
+
+| # | 规则 |
+| --- | --- |
+| R147 | **属性面板的组名只能来自 `ScadaPropertyGroups`（`Scada.Controls/Descriptors/ScadaPropertyGroups.cs`），不许再写字面量**。四条口径：① **新增一个分组 = 先登记**（加常量 + 进 `Order` 数组），否则 `ElementDescriptor.Validate` 直接判注册失败、图元进不了工具箱——这条把"顺手写个「文本」"从运行期静默问题变成启动期红字；② **分组顺序由 `Order` 决定**，不许再依赖"声明里首次出现的次序"（旧口径下同一个「外观」组在不同图元里位置不同，用户每换一个图元都要重新找）；未知组排在最后并保持首现次序（`OrderBy` 稳定排序），给外部图元留活路；③ **「不可绑」口径只有 `NonBindable` 一处**，不要再另立清单——原先那份 `ElementDescriptor.NonBindableGroups` 按字符串匹配，改名即静默失效，正是本批治掉的病；④ **改名只改常量值**，且必须同步 `ScadaChecks` 的「显示名快照」那条断言（常量让改名只改一处，快照让那一处改动必须被看见）。守门人：`ScadaChecks` 的 `[AH]` 十条（目录自洽 / 全量覆盖 28 个图元 + 8 条画面属性 / 两条**反证**：目录外的组必须被拒、不可绑组里声明 `IsBindable` 必须被拒）。**唯一豁免**：`Shard/Core.ScadaGenerators/ScadaPropertyGenerator.cs` 里属性未写 `Group` 时的兜底字面量 `"外观"`——analyzer 是 netstandard2.0 工程、不能引用目标程序集（R17 同族），所以由快照断言间接钉住。 |
+
+---
+
+## 33. 自定义模板里的 ToggleButton 必须自己声明对齐（2026-10-20）
+
+**起因**：真机截图反馈「属性栏下拉框 UI 和 Expander UI 显示有问题」——组头下划线只到标题那么宽、
+下拉框没有框且箭头跑到文字左边。实测 `App.xaml` 最后合并的 .NET 9 Fluent 给**所有** `ToggleButton`
+设了 `HorizontalAlignment=Left` / `VerticalAlignment=Center`（`Button` 同样 `Left`，`BasedOn ButtonBase`），
+自定义模板里的 ToggleButton 没挂 Style，外壳就被压成内容宽度。
+细节、setter 实测链、8 处修复清单与变异反证见 `docs/code-changes/2026-10-20-属性面板下拉与组头被Fluent隐式样式压扁.md`。
+
+| # | 规则 |
+| --- | --- |
+| R148 | **自定义模板（`<X.Template>`）里的 `ToggleButton` 必须自己声明 `HorizontalAlignment`（外壳类还要 `VerticalAlignment`），不许指望默认值**。原因：应用级 Fluent 的隐式样式把对齐设成 `Left/Center`，显式模板的元素照样吃得到——外壳缩成内容宽度后，`Border` 的下沿 hairline 只到标题、ComboBox 的框只剩箭头。三条豁免：① 显式 `Style=`（隐式样式整份不生效）；② 自己写了 `HorizontalAlignment=`；③ 同时写了 `Width=` 与 `Height=`（自定尺寸，对齐无所谓，与 R68 同口径）。**同族先例**：`UI/Controls/Themes/Dialog/Dialog.Input.xaml` 的 ComboBox 外壳早就写了 `Stretch`，只是没推广开。守门人两层：`ScadaChecks` 的 `[AI]` 静态扫描（87 个 XAML，变异反证：去掉一处 → 准确红并给出文件:行号）+ 属性面板渲染探针的「**合并 Fluent 再渲染一次**」两条（组头 ToggleButton 必须与 Expander 等宽、ComboBox 外壳必须与 ComboBox 等宽；变异反证：87.9×259 / 18.7 vs 145）。**更普遍的教训**：现有渲染探针都不合并 Fluent，所以"只在真机上错"的隐式样式问题探针永远看不见——**凡涉及应用级隐式样式的断言，必须在合并了 Fluent 的条件下渲染一次**（本轮之前 2096 条断言全绿、面板却明显是坏的，就是这个原因）。 |

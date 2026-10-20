@@ -1,0 +1,1153 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>卡尺测量 · 配置窗口 · 设计基线 v1</title>
+<style>
+  html, body { margin:0; padding:0; background:#EEF2F7; }
+</style>
+</head>
+<body>
+<div id="cm-design-root">
+  <style>
+    #cm-design-root{
+      --cm-surface:#FFFFFF;
+      --cm-surface-2:#F8FAFC;
+      --cm-surface-3:#F1F5F9;
+      --cm-border:#E2E8F0;
+      --cm-border-soft:#EEF2F7;
+      --cm-border-strong:#CBD5E1;
+      --cm-text:#0F172A;
+      --cm-text-2:#475569;
+      --cm-text-3:#94A3B8;
+      --cm-text-4:#64748B;
+      --cm-primary:#0EA5E9;
+      --cm-primary-strong:#0284C7;
+      --cm-primary-text:#0369A1;
+      --cm-primary-soft:#F0F9FF;
+      --cm-primary-light:#E0F2FE;
+      --cm-primary-border:#BAE6FD;
+      --cm-success:#22C55E;
+      --cm-success-text:#15803D;
+      --cm-success-soft:#F0FDF4;
+      --cm-success-border:#BBF7D0;
+      --cm-danger:#EF4444;
+      --cm-danger-text:#B91C1C;
+      --cm-danger-soft:#FEF2F2;
+      --cm-danger-border:#FECACA;
+      --cm-warning:#F59E0B;
+      --cm-warning-text:#B45309;
+      --cm-warning-soft:#FFF4E5;
+      --cm-warning-border:#FDE68A;
+      --cm-canvas:#0B1220;
+      --cm-canvas-2:#1E293B;
+      --cm-canvas-border:#334155;
+      --cm-canvas-text:#E2E8F0;
+      --cm-canvas-muted:#94A3B8;
+      --cm-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --cm-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --cm-radius-sm:6px;
+      --cm-radius-md:8px;
+      --cm-radius-lg:10px;
+      --cm-radius-xl:12px;
+      --cm-radius-window:16px;
+      --cm-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--cm-font);
+      color-scheme:light;
+      -webkit-font-smoothing:antialiased;
+    }
+    #cm-design-root *{box-sizing:border-box;}
+    #cm-design-root button,
+    #cm-design-root input,
+    #cm-design-root select{font-family:inherit;}
+    #cm-design-root button{color:inherit;}
+    #cm-design-root [hidden]{display:none !important;}
+    #cm-design-root :focus-visible{outline:2px solid var(--cm-primary);outline-offset:2px;}
+
+    /* ================= 页面 ================= */
+    #cm-design-root .cm-page{max-width:1360px;margin:0 auto;padding:24px 24px 44px;}
+    #cm-design-root .cm-page-head{max-width:1360px;margin:0 auto 16px;}
+    #cm-design-root .cm-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #cm-design-root .cm-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--cm-text);}
+    #cm-design-root .cm-ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--cm-primary-light);color:var(--cm-primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;}
+    #cm-design-root .cm-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.65;color:var(--cm-text-2);}
+    #cm-design-root .cm-page-sub b{color:var(--cm-text);font-weight:600;}
+    #cm-design-root .cm-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #cm-design-root .cm-demo-group{display:flex;align-items:center;gap:8px;}
+    #cm-design-root .cm-demo-label{font-size:11.5px;color:var(--cm-text-4);}
+    #cm-design-root .cm-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--cm-radius-md);background:var(--cm-surface-3);}
+    #cm-design-root .cm-seg button{height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--cm-text-2);font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;}
+    #cm-design-root .cm-seg button:hover{color:var(--cm-text);}
+    #cm-design-root .cm-seg button.is-on{background:#FFFFFF;color:var(--cm-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+    #cm-design-root .cm-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--cm-text-2);}
+    #cm-design-root .cm-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--cm-warning-text);}
+    #cm-design-root .cm-scope b{color:var(--cm-text);font-weight:600;}
+
+    /* ================= 产品窗口 ================= */
+    #cm-design-root .cm-window{width:960px;max-width:100%;height:680px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:var(--cm-surface);border-radius:var(--cm-radius-window);box-shadow:var(--cm-shadow-window);transition:width 200ms ease;}
+    #cm-design-root .cm-window.is-narrow{width:640px;}
+
+    /* 标题栏 */
+    #cm-design-root .cm-titlebar{height:72px;flex:none;display:flex;align-items:center;padding:0 20px;background:var(--cm-surface);border-bottom:1px solid var(--cm-border-soft);}
+    #cm-design-root .cm-app-icon{width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--cm-primary-light);color:var(--cm-primary-text);}
+    #cm-design-root .cm-app-icon svg{width:20px;height:20px;}
+    #cm-design-root .cm-title-text{margin-left:12px;min-width:0;flex:1;}
+    #cm-design-root .cm-title-line{display:flex;align-items:center;gap:8px;min-width:0;}
+    #cm-design-root .cm-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--cm-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #cm-design-root .cm-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--cm-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #cm-design-root .cm-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+
+    /* 内容 */
+    #cm-design-root .cm-content{flex:1;min-height:0;display:grid;grid-template-columns:356px minmax(0,1fr);gap:16px;padding:16px 20px 20px;background:var(--cm-surface);}
+    #cm-design-root .cm-window.is-narrow .cm-content{grid-template-columns:300px minmax(0,1fr);gap:12px;padding:14px 16px 16px;}
+
+    /* 左栏 */
+    #cm-design-root .cm-rail{min-height:0;overflow-y:auto;overflow-x:hidden;padding:14px;border:1px solid var(--cm-border-soft);border-radius:var(--cm-radius-xl);background:var(--cm-surface-2);scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+    #cm-design-root .cm-rail::-webkit-scrollbar{width:8px;}
+    #cm-design-root .cm-rail::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+    #cm-design-root .cm-rail::-webkit-scrollbar-track{background:transparent;}
+    #cm-design-root .cm-section{padding:0 0 14px;margin:0 0 14px;border-bottom:1px solid var(--cm-border);}
+    #cm-design-root .cm-section:last-child{padding-bottom:0;margin-bottom:0;border-bottom:0;}
+    #cm-design-root .cm-section-head{display:flex;align-items:center;gap:8px;margin-bottom:9px;font-size:12px;font-weight:600;color:var(--cm-text-2);}
+    #cm-design-root .cm-sec-num{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--cm-primary-light);color:var(--cm-primary-text);font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;flex:none;}
+    #cm-design-root .cm-section-hint{margin-left:auto;font-size:10.5px;font-weight:400;color:var(--cm-text-3);white-space:nowrap;}
+
+    /* 表单 */
+    #cm-design-root .cm-field{margin-bottom:12px;}
+    #cm-design-root .cm-field:last-child{margin-bottom:0;}
+    #cm-design-root .cm-label{display:flex;align-items:center;gap:5px;margin-bottom:6px;font-size:12px;font-weight:500;line-height:1.3;color:var(--cm-text-2);}
+    #cm-design-root .cm-label .cm-link-hint{width:12px;height:12px;color:var(--cm-text-3);margin-left:2px;}
+    #cm-design-root .cm-input-row{display:flex;align-items:center;gap:8px;}
+    #cm-design-root .cm-input,
+    #cm-design-root .cm-select{width:100%;height:36px;padding:0 10px;border:1px solid var(--cm-border);border-radius:var(--cm-radius-md);background:var(--cm-surface);color:var(--cm-text);font-size:12.5px;line-height:1;outline:none;transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;}
+    #cm-design-root .cm-input::placeholder{color:var(--cm-text-3);}
+    #cm-design-root .cm-input:hover,#cm-design-root .cm-select:hover{border-color:var(--cm-border-strong);}
+    #cm-design-root .cm-input:focus,#cm-design-root .cm-select:focus{border-color:var(--cm-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #cm-design-root .cm-input:disabled{background:var(--cm-surface-3);color:var(--cm-text-3);cursor:not-allowed;}
+    #cm-design-root .cm-input.is-num{text-align:right;font-variant-numeric:tabular-nums;}
+    #cm-design-root .cm-select{appearance:none;-webkit-appearance:none;padding-right:30px;cursor:pointer;}
+    #cm-design-root .cm-select-wrap{position:relative;flex:1;min-width:0;}
+    #cm-design-root .cm-select-wrap > svg{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--cm-text-3);pointer-events:none;}
+    #cm-design-root .cm-grid-2{display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:center;}
+    #cm-design-root .cm-help{display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;font-size:11.5px;line-height:1.5;color:var(--cm-text-4);}
+    #cm-design-root .cm-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--cm-text-3);}
+
+    /* 按钮 */
+    #cm-design-root .cm-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 13px;border:1px solid var(--cm-border);border-radius:var(--cm-radius-md);background:var(--cm-surface);color:var(--cm-text);font-size:12.5px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;}
+    #cm-design-root .cm-btn svg{width:14px;height:14px;}
+    #cm-design-root .cm-btn:hover{background:var(--cm-surface-2);border-color:var(--cm-border-strong);}
+    #cm-design-root .cm-btn:active{background:var(--cm-surface-3);}
+    #cm-design-root .cm-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #cm-design-root .cm-btn-primary{background:var(--cm-primary);border-color:var(--cm-primary);color:#fff;font-weight:600;}
+    #cm-design-root .cm-btn-primary:hover{background:var(--cm-primary-strong);border-color:var(--cm-primary-strong);}
+    #cm-design-root .cm-btn-ghost{border-color:transparent;background:transparent;color:var(--cm-text-2);}
+    #cm-design-root .cm-btn-ghost:hover{background:var(--cm-surface-3);border-color:transparent;color:var(--cm-text);}
+    #cm-design-root .cm-btn-sm{height:32px;padding:0 11px;font-size:12px;}
+    #cm-design-root .cm-btn-block{width:100%;}
+    #cm-design-root .cm-btn-square{width:36px;height:36px;flex:none;padding:0;border:1px solid var(--cm-border);border-radius:var(--cm-radius-md);background:var(--cm-surface);color:var(--cm-text-4);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;}
+    #cm-design-root .cm-btn-square:hover{background:var(--cm-primary-soft);border-color:var(--cm-primary-border);color:var(--cm-primary-text);}
+    #cm-design-root .cm-btn-square svg{width:14px;height:14px;}
+    #cm-design-root .cm-icon-btn{width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--cm-radius-md);display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--cm-text-4);cursor:pointer;transition:background 150ms ease,color 150ms ease;}
+    #cm-design-root .cm-icon-btn svg{width:15px;height:15px;}
+    #cm-design-root .cm-icon-btn:hover{background:var(--cm-surface-3);color:var(--cm-text);}
+    #cm-design-root .cm-icon-btn:active{background:var(--cm-border);}
+
+    /* 测量类型卡片 */
+    #cm-design-root .cm-type-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+    #cm-design-root .cm-type{position:relative;display:flex;align-items:center;gap:8px;min-height:50px;padding:7px 9px;border:1px solid var(--cm-border);border-radius:var(--cm-radius-lg);background:var(--cm-surface);text-align:left;cursor:pointer;transition:border-color 150ms ease,background 150ms ease,box-shadow 150ms ease;}
+    #cm-design-root .cm-type:hover{border-color:var(--cm-border-strong);background:#FBFDFF;}
+    #cm-design-root .cm-type:active{background:var(--cm-surface-3);}
+    #cm-design-root .cm-type.is-active{border-color:var(--cm-primary);background:var(--cm-primary-soft);box-shadow:0 0 0 3px rgba(14,165,233,.10);}
+    #cm-design-root .cm-type.is-wide{grid-column:1 / -1;}
+    #cm-design-root .cm-type-icon{width:28px;height:28px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--cm-surface-3);color:var(--cm-text-4);transition:background 150ms ease,color 150ms ease;}
+    #cm-design-root .cm-type-icon svg{width:16px;height:16px;}
+    #cm-design-root .cm-type.is-active .cm-type-icon{background:var(--cm-primary-light);color:var(--cm-primary-text);}
+    #cm-design-root .cm-type-text{display:flex;flex-direction:column;min-width:0;padding-right:16px;}
+    #cm-design-root .cm-type-text b{font-size:12.5px;font-weight:600;line-height:1.35;color:var(--cm-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #cm-design-root .cm-type-text small{margin-top:2px;font-size:10.5px;line-height:1.3;color:var(--cm-text-4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #cm-design-root .cm-type-check{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:16px;height:16px;border-radius:50%;display:none;align-items:center;justify-content:center;background:var(--cm-primary);color:#fff;}
+    #cm-design-root .cm-type-check svg{width:10px;height:10px;}
+    #cm-design-root .cm-type.is-active .cm-type-check{display:flex;}
+
+    /* 提示横幅 */
+    #cm-design-root .cm-hint-banner{display:flex;align-items:flex-start;gap:7px;margin-top:10px;padding:8px 10px;border:1px solid var(--cm-primary-border);border-radius:var(--cm-radius-md);background:var(--cm-primary-soft);color:var(--cm-primary-text);font-size:11px;line-height:1.5;}
+    #cm-design-root .cm-hint-banner svg{width:13px;height:13px;flex:none;margin-top:1px;}
+    #cm-design-root .cm-hint-banner.is-warn{border-color:var(--cm-warning-border);background:var(--cm-warning-soft);color:var(--cm-warning-text);}
+
+    /* 搜索区列表 */
+    #cm-design-root .cm-list{margin:8px 0 0;border:1px solid var(--cm-border);border-radius:var(--cm-radius-md);background:var(--cm-surface);overflow:hidden;}
+    #cm-design-root .cm-list-row{display:flex;align-items:center;gap:8px;padding:8px 10px;font-size:11.5px;color:var(--cm-text-2);cursor:pointer;border-bottom:1px solid var(--cm-border-soft);transition:background 150ms ease;}
+    #cm-design-root .cm-list-row:last-child{border-bottom:0;}
+    #cm-design-root .cm-list-row:hover{background:var(--cm-surface-2);}
+    #cm-design-root .cm-list-row.is-selected{background:#E8F1FD;color:var(--cm-primary-text);font-weight:600;}
+    #cm-design-root .cm-list-row .cm-list-icon{width:16px;height:16px;flex:none;color:var(--cm-text-3);}
+    #cm-design-root .cm-list-row.is-selected .cm-list-icon{color:var(--cm-primary-text);}
+    #cm-design-root .cm-list-row .cm-list-tag{margin-left:auto;font-size:10px;font-weight:400;color:var(--cm-text-3);}
+    #cm-design-root .cm-list-actions{display:flex;gap:8px;margin-top:8px;}
+    #cm-design-root .cm-list-actions .cm-btn{flex:1;height:32px;font-size:12px;}
+
+    /* 参数微调 */
+    #cm-design-root .cm-param-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:12px 0 6px;font-size:11.5px;font-weight:600;color:var(--cm-text-2);}
+    #cm-design-root .cm-param-head span:last-child{font-size:10.5px;font-weight:400;color:var(--cm-text-3);}
+    #cm-design-root .cm-param-row{display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:center;margin-bottom:6px;}
+    #cm-design-root .cm-param-row:last-child{margin-bottom:0;}
+    #cm-design-root .cm-param-name{font-size:11.5px;color:var(--cm-text-4);}
+    #cm-design-root .cm-param-row .cm-input{height:30px;font-size:11.5px;}
+
+    /* 预览区 */
+    #cm-design-root .cm-preview{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--cm-border);border-radius:var(--cm-radius-xl);background:var(--cm-surface);}
+    #cm-design-root .cm-preview-head{height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid var(--cm-border-soft);background:var(--cm-surface);}
+    #cm-design-root .cm-file-chip{width:26px;height:26px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;background:var(--cm-surface-3);color:var(--cm-text-2);}
+    #cm-design-root .cm-file-chip svg{width:14px;height:14px;}
+    #cm-design-root .cm-preview-title{font-size:12.5px;font-weight:600;line-height:1.3;color:var(--cm-text);white-space:nowrap;}
+    #cm-design-root .cm-preview-meta{flex:none;font-size:10.5px;line-height:1.3;color:var(--cm-text-3);white-space:nowrap;font-variant-numeric:tabular-nums;}
+    #cm-design-root .cm-preview-tools{margin-left:auto;display:flex;align-items:center;gap:1px;flex:none;}
+    #cm-design-root .cm-tool-text{height:26px;padding:0 7px;border:0;border-radius:6px;background:transparent;color:var(--cm-text-4);font-size:10.5px;font-weight:600;line-height:1;cursor:pointer;font-variant-numeric:tabular-nums;transition:background 150ms ease,color 150ms ease;}
+    #cm-design-root .cm-tool-text:hover{background:var(--cm-surface-3);color:var(--cm-text);}
+
+    /* 画布 */
+    #cm-design-root .cm-canvas{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--cm-canvas);}
+    #cm-design-root .cm-scene{width:100%;height:100%;display:block;}
+    #cm-design-root .cm-verdict{display:flex;align-items:center;gap:5px;height:22px;margin-right:6px;padding:0 8px;border-radius:6px;background:var(--cm-success-soft);border:1px solid var(--cm-success-border);color:var(--cm-success-text);font-size:10.5px;font-weight:600;line-height:1;}
+    #cm-design-root .cm-verdict.is-ng{background:var(--cm-danger-soft);border-color:var(--cm-danger-border);color:var(--cm-danger-text);}
+    #cm-design-root .cm-info-bar{flex:none;display:flex;align-items:flex-start;gap:7px;margin:8px 10px 0;padding:8px 10px;border:1px solid var(--cm-warning-border);border-radius:var(--cm-radius-md);background:var(--cm-warning-soft);color:var(--cm-warning-text);font-size:11.5px;line-height:1.5;}
+    #cm-design-root .cm-info-bar.is-err{border-color:var(--cm-danger-border);background:var(--cm-danger-soft);color:var(--cm-danger-text);}
+    #cm-design-root .cm-info-bar svg{width:13px;height:13px;flex:none;margin-top:1px;}
+    #cm-design-root .cm-canvas-view{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;}
+    #cm-design-root .cm-dropzone{width:min(420px,82%);padding:26px 24px;border:1.5px dashed var(--cm-canvas-border);border-radius:14px;background:rgba(30,41,59,.35);display:flex;flex-direction:column;align-items:center;text-align:center;transition:border-color 150ms ease,background 150ms ease;}
+    #cm-design-root .cm-dropzone:hover{border-color:var(--cm-primary);background:rgba(14,165,233,.08);}
+    #cm-design-root .cm-state-icon{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.18);color:var(--cm-canvas-muted);margin-bottom:13px;}
+    #cm-design-root .cm-state-icon svg{width:22px;height:22px;}
+    #cm-design-root .cm-state-title{font-size:14px;font-weight:600;line-height:1.4;color:var(--cm-canvas-text);margin-bottom:4px;}
+    #cm-design-root .cm-state-sub{max-width:360px;font-size:11.5px;line-height:1.6;color:var(--cm-canvas-muted);margin:0 0 14px;}
+    #cm-design-root .cm-state-sub code{font-family:var(--cm-mono);font-size:10.5px;color:#BAE6FD;background:rgba(14,165,233,.12);padding:1px 5px;border-radius:4px;}
+    #cm-design-root .cm-state-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;}
+    #cm-design-root .cm-state-actions .cm-btn{background:rgba(255,255,255,.06);border-color:rgba(148,163,184,.28);color:var(--cm-canvas-text);}
+    #cm-design-root .cm-state-actions .cm-btn:hover{background:rgba(255,255,255,.12);border-color:rgba(148,163,184,.45);}
+    #cm-design-root .cm-error .cm-state-icon{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.30);color:#F87171;}
+    #cm-design-root .cm-error .cm-state-title{color:#FCA5A5;}
+
+    /* 状态栏 */
+    #cm-design-root .cm-statusbar{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid var(--cm-border-soft);background:var(--cm-surface);font-size:11.5px;min-width:0;}
+    #cm-design-root .cm-status-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--cm-text-3);}
+    #cm-design-root .cm-status-dot.is-ok{background:var(--cm-success);}
+    #cm-design-root .cm-status-dot.is-warn{background:var(--cm-warning);}
+    #cm-design-root .cm-status-dot.is-err{background:var(--cm-danger);}
+    #cm-design-root .cm-status-msg{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--cm-text-2);}
+    #cm-design-root .cm-status-msg.is-ok{color:var(--cm-success-text);}
+    #cm-design-root .cm-status-msg.is-warn{color:var(--cm-warning-text);}
+    #cm-design-root .cm-status-msg.is-err{color:var(--cm-danger-text);}
+    #cm-design-root .cm-status-meta{margin-left:auto;flex:none;font-family:var(--cm-mono);font-size:10.5px;color:var(--cm-text-3);white-space:nowrap;font-variant-numeric:tabular-nums;}
+    #cm-design-root .cm-window.is-narrow .cm-status-meta{display:none;}
+    #cm-design-root .cm-window.is-narrow .cm-preview-meta{display:none;}
+
+    /* 底部宿主栏 */
+    #cm-design-root .cm-footer{height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid var(--cm-border-soft);background:var(--cm-surface-2);}
+    #cm-design-root .cm-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #cm-design-root .cm-status-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--cm-surface);border:1px solid var(--cm-border);font-size:11.5px;color:var(--cm-text-2);white-space:nowrap;}
+    #cm-design-root .cm-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--cm-text-3);}
+    #cm-design-root .cm-elapsed{font-family:var(--cm-mono);font-size:11px;color:var(--cm-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+    #cm-design-root .cm-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #cm-design-root .cm-footer .cm-btn{height:32px;padding:0 16px;font-size:12.5px;}
+    #cm-design-root .cm-footer .cm-btn-primary{padding:0 18px;}
+
+    /* 说明 */
+    #cm-design-root .cm-notes{max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:0;}
+    #cm-design-root .cm-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--cm-text-2);}
+    #cm-design-root .cm-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--cm-border);}
+    #cm-design-root .cm-note-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--cm-primary-light);color:var(--cm-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}
+    #cm-design-root .cm-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--cm-text);}
+    #cm-design-root .cm-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--cm-text-2);}
+    #cm-design-root .cm-note code{font-family:var(--cm-mono);font-size:10.5px;color:var(--cm-primary-text);background:var(--cm-primary-soft);padding:1px 4px;border-radius:4px;}
+
+    @media (prefers-reduced-motion: reduce){#cm-design-root *{animation:none !important;transition:none !important;}}
+    @media (max-width:1024px){
+      #cm-design-root .cm-page{padding:18px 14px 32px;}
+      #cm-design-root .cm-window{height:auto;min-height:640px;}
+      #cm-design-root .cm-content{grid-template-columns:1fr;}
+      #cm-design-root .cm-rail{overflow:visible;}
+      #cm-design-root .cm-preview{min-height:420px;}
+    }
+  </style>
+
+  <div class="cm-page">
+    <header class="cm-page-head">
+      <div class="cm-page-title-row">
+        <h1>卡尺测量 · 配置窗口</h1>
+        <span class="cm-ver">v1</span>
+      </div>
+      <p class="cm-page-sub">
+        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留 <b>DataContext = 插件实例</b>、
+        <b>SrcImage 的 LinkableValueEditor</b>、<b>ImageEdit</b> 的
+        <code>ActiveRoi</code> / <code>DrawObjectList</code> / <code>HImage</code> 绑定与全部命令；
+        不改测量类型、搜索区、卡尺数与判定参数的业务语义。窗口 <b>960 × 680</b>，
+        左侧配置轨 <b>356px</b>，右侧标注图工作区自适应。
+      </p>
+      <div class="cm-demo-bar">
+        <div class="cm-demo-group" role="group" aria-label="窗口宽度">
+          <span class="cm-demo-label">窗口宽度</span>
+          <div class="cm-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="cm-demo-group" role="group" aria-label="预览状态">
+          <span class="cm-demo-label">预览状态</span>
+          <div class="cm-seg">
+            <button type="button" data-state="normal" class="is-on" aria-pressed="true">正常</button>
+            <button type="button" data-state="ng" aria-pressed="false">NG</button>
+            <button type="button" data-state="empty" aria-pressed="false">空态</button>
+            <button type="button" data-state="error" aria-pressed="false">错误</button>
+          </div>
+        </div>
+        <div class="cm-demo-group" role="group" aria-label="快捷场景">
+          <span class="cm-demo-label">快捷场景</span>
+          <div class="cm-seg">
+            <button type="button" data-kind="width" class="is-on" aria-pressed="true">宽度</button>
+            <button type="button" data-kind="p2p" aria-pressed="false">两点距</button>
+            <button type="button" data-kind="circle" aria-pressed="false">圆直径</button>
+            <button type="button" data-kind="angle" aria-pressed="false">角度</button>
+          </div>
+        </div>
+      </div>
+      <div class="cm-scope">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span><b>本版未纳入（需新增功能或契约）：</b>加载骨架、图像尺寸/文件大小、放大/缩小、打开所在文件夹、系统导航。
+        本稿覆盖 960×680 与 640×680；640×560 为宿主最小档，需真机复核左栏滚动与画布高度。</span>
+      </div>
+    </header>
+
+    <div class="cm-window" id="cm-window">
+      <div class="cm-titlebar">
+        <div class="cm-app-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 5v14"></path><path d="M20 5v14"></path><path d="M7 12h10"></path><path d="M7 12l3-3M7 12l3 3"></path><path d="M17 12l-3-3M17 12l-3 3"></path>
+          </svg>
+        </div>
+        <div class="cm-title-text">
+          <div class="cm-title-line"><div class="cm-title">卡尺测量</div></div>
+          <div class="cm-subtitle">阵列式卡尺测量：亚像素找边 · 5 种测量类型 · OK/NG 判定</div>
+        </div>
+        <div class="cm-title-actions">
+          <button type="button" class="cm-icon-btn" data-tooltip="关闭" aria-label="关闭">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="cm-content">
+        <aside class="cm-rail" aria-label="卡尺测量配置">
+          <!-- 01 图像输入 -->
+          <section class="cm-section">
+            <div class="cm-section-head"><span class="cm-sec-num">01</span>图像输入</div>
+            <div class="cm-field">
+              <label class="cm-label" for="cm-src-image">输入图像<span class="cm-link-hint" data-tooltip="可绑定上游图像或变量"></span></label>
+              <div class="cm-input-row">
+                <input class="cm-input" id="cm-src-image" type="text" value="上游图像 · Image" readonly>
+                <button type="button" class="cm-btn-square" data-tooltip="变量链接（LinkableValueEditor 自带）" aria-label="变量链接">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+                </button>
+              </div>
+              <p class="cm-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                未接图像时信息栏会提示；接上上游或变量后预览自动刷新。
+              </p>
+            </div>
+            <button type="button" class="cm-btn cm-btn-block" id="cm-reset-regions">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>
+              重置搜索区
+            </button>
+            <p class="cm-help">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              按当前测量类型重建默认搜索区；会清掉现有区域，请谨慎使用。
+            </p>
+          </section>
+
+          <!-- 02 测量类型 -->
+          <section class="cm-section">
+            <div class="cm-section-head"><span class="cm-sec-num">02</span>测量类型<span class="cm-section-hint">一个步骤只测一个尺寸</span></div>
+            <div class="cm-type-grid" role="group" aria-label="测量类型">
+              <button type="button" class="cm-type is-active" data-kind="width" aria-pressed="true">
+                <span class="cm-type-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 5v14"></path><path d="M17 5v14"></path><path d="M9 12h6"></path><path d="M9 12l2-2M9 12l2 2"></path><path d="M15 12l-2-2M15 12l-2 2"></path></svg>
+                </span>
+                <span class="cm-type-text"><b>宽度/间隙</b><small>1 区 · 成对找边</small></span>
+                <span class="cm-type-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+              </button>
+              <button type="button" class="cm-type" data-kind="p2p" aria-pressed="false">
+                <span class="cm-type-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="2"></circle><circle cx="18" cy="12" r="2"></circle><path d="M8 12h8"></path></svg>
+                </span>
+                <span class="cm-type-text"><b>两点距</b><small>2 区 · 各取一点</small></span>
+                <span class="cm-type-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+              </button>
+              <button type="button" class="cm-type" data-kind="p2l" aria-pressed="false">
+                <span class="cm-type-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="16" r="1.6"></circle><path d="M4 6l16 4"></path><path d="M7 16l3.2-5.6"></path></svg>
+                </span>
+                <span class="cm-type-text"><b>点到线距</b><small>2 区 · 1 点 1 线</small></span>
+                <span class="cm-type-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+              </button>
+              <button type="button" class="cm-type" data-kind="circle" aria-pressed="false">
+                <span class="cm-type-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M6 12h12"></path></svg>
+                </span>
+                <span class="cm-type-text"><b>圆直径</b><small>1 圆区 · 径向扫描</small></span>
+                <span class="cm-type-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+              </button>
+              <button type="button" class="cm-type is-wide" data-kind="angle" aria-pressed="false">
+                <span class="cm-type-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19h15"></path><path d="M5 19L18 6"></path><path d="M10 19a5 5 0 0 0 1.8-3.9"></path></svg>
+                </span>
+                <span class="cm-type-text"><b>角度</b><small>2 区 · 各拟合一线，结果单位是度</small></span>
+                <span class="cm-type-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+              </button>
+            </div>
+            <div class="cm-hint-banner" id="cm-region-hint">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              <span id="cm-region-hint-text">当前测量类型需要 1 个矩形搜索区，已配置 1 个</span>
+            </div>
+          </section>
+
+          <!-- 03 搜索区与卡尺 -->
+          <section class="cm-section">
+            <div class="cm-section-head"><span class="cm-sec-num">03</span>搜索区与卡尺<span class="cm-section-hint">右键图像 → 区域 → 新建</span></div>
+            <div class="cm-field">
+              <label class="cm-label" for="cm-caliper-count">卡尺数 N</label>
+              <div class="cm-grid-2">
+                <span class="cm-help" style="margin:0;">每个搜索区内自动均布；多点平均抗噪，越多越稳但越慢。</span>
+                <input class="cm-input is-num" id="cm-caliper-count" type="number" value="5" min="1" max="1000">
+              </div>
+            </div>
+            <div class="cm-list" id="cm-region-list" role="listbox" aria-label="搜索区列表"></div>
+            <div class="cm-list-actions">
+              <button type="button" class="cm-btn" id="cm-delete-region">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6M14 11v6"></path></svg>
+                删除
+              </button>
+              <button type="button" class="cm-btn" id="cm-reset-regions-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>
+                重置
+              </button>
+            </div>
+            <div class="cm-param-head"><span>参数微调</span><span id="cm-selected-region-name">搜索区1</span></div>
+            <div id="cm-param-rows"></div>
+            <p class="cm-help">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              矩形要「横跨」被测的边缝：半长 L1 方向=扫描方向（与边垂直），半宽 L2 方向=卡尺阵列排布方向。
+            </p>
+          </section>
+
+          <!-- 04 找边参数 -->
+          <section class="cm-section">
+            <div class="cm-section-head"><span class="cm-sec-num">04</span>找边参数</div>
+            <div class="cm-field">
+              <label class="cm-label" for="cm-sigma">平滑 Sigma</label>
+              <input class="cm-input is-num" id="cm-sigma" type="number" value="1.0" min="0.4" max="100" step="0.1">
+              <p class="cm-help">越大越抗噪、边缘定位越糊；常用 1.0，HALCON 要求 ≥ 0.4。</p>
+            </div>
+            <div class="cm-field">
+              <label class="cm-label" for="cm-threshold">边缘阈值</label>
+              <input class="cm-input is-num" id="cm-threshold" type="number" value="30" min="1" max="255" step="1">
+              <p class="cm-help">相邻像素最小灰度差；太大找不到边，太小噪声当边。常用 30。</p>
+            </div>
+            <div class="cm-field">
+              <label class="cm-label" for="cm-polarity">极性</label>
+              <div class="cm-select-wrap">
+                <select class="cm-select" id="cm-polarity">
+                  <option>暗→亮</option>
+                  <option>亮→暗</option>
+                  <option selected>全部</option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+              <p class="cm-help">沿扫描方向允许哪种明暗跳变；不确定就选「全部」。</p>
+            </div>
+            <div class="cm-field">
+              <label class="cm-label" for="cm-select">选择</label>
+              <div class="cm-select-wrap">
+                <select class="cm-select" id="cm-select">
+                  <option>第一条</option>
+                  <option>最后一条</option>
+                  <option selected>全部</option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+              <p class="cm-help">一条卡尺上有多条边缘时取哪条；宽度/间隙取第一条配对。</p>
+            </div>
+            <div class="cm-field">
+              <label class="cm-label" for="cm-interp">插值方式</label>
+              <div class="cm-select-wrap">
+                <select class="cm-select" id="cm-interp">
+                  <option>最近邻（整像素）</option>
+                  <option selected>双线性（亚像素，默认）</option>
+                  <option>双三次（亚像素）</option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+            </div>
+          </section>
+
+          <!-- 05 拟合参数 -->
+          <section class="cm-section" id="cm-fit-section">
+            <div class="cm-section-head"><span class="cm-sec-num">05</span>拟合参数<span class="cm-section-hint">仅拟合类测量</span></div>
+            <div class="cm-field">
+              <label class="cm-label" for="cm-fit-algo">拟合方式</label>
+              <div class="cm-select-wrap">
+                <select class="cm-select" id="cm-fit-algo">
+                  <option>最小二乘</option>
+                  <option>Huber 抗离群</option>
+                  <option selected>Tukey 抗离群（推荐）</option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+              <p class="cm-help">Tukey 对离群点降权，推荐；最小二乘会被单个坏点拽歪整条线/圆。</p>
+            </div>
+            <div class="cm-field">
+              <label class="cm-label" for="cm-fit-error">最大残差 (px)</label>
+              <input class="cm-input is-num" id="cm-fit-error" type="number" value="1.0" min="0.05" max="1000000" step="0.1">
+              <p class="cm-help">边缘点到拟合几何距离的中位数上限，超限判拟合失败。</p>
+            </div>
+            <div class="cm-field">
+              <label class="cm-label" for="cm-fit-min">最少点数</label>
+              <input class="cm-input is-num" id="cm-fit-min" type="number" value="3" min="2" max="1000" step="1">
+              <p class="cm-help">直线 2 点定线、圆 3 点定圆；默认 3。</p>
+            </div>
+            <div class="cm-field" id="cm-annulus-field">
+              <label class="cm-label" for="cm-annulus">环宽 (px)</label>
+              <input class="cm-input is-num" id="cm-annulus" type="number" value="30" min="2" max="100000" step="1">
+              <p class="cm-help">每把卡尺沿半径方向扫描的总宽度，覆盖圆心/半径摆放误差；默认 30 = ±15px。</p>
+            </div>
+          </section>
+
+          <!-- 06 判定与标定 -->
+          <section class="cm-section">
+            <div class="cm-section-head"><span class="cm-sec-num">06</span>判定与标定<span class="cm-section-hint">下公差 ≤ 偏差 ≤ 上公差</span></div>
+            <div class="cm-field">
+              <label class="cm-label" for="cm-standard">标准值</label>
+              <input class="cm-input is-num" id="cm-standard" type="number" value="12.500" step="0.001">
+              <p class="cm-help">名义尺寸；默认 0 是「零容忍」起点，提示你去填实际规格。</p>
+            </div>
+            <div class="cm-field">
+              <label class="cm-label" for="cm-upper">上公差</label>
+              <input class="cm-input is-num" id="cm-upper" type="number" value="0.050" step="0.001">
+            </div>
+            <div class="cm-field">
+              <label class="cm-label" for="cm-lower">下公差</label>
+              <input class="cm-input is-num" id="cm-lower" type="number" value="-0.050" step="0.001">
+            </div>
+            <div class="cm-field">
+              <label class="cm-label" for="cm-pixel-size">像素当量 (mm/px)</label>
+              <input class="cm-input is-num" id="cm-pixel-size" type="number" value="1.000000" step="0.000001">
+              <p class="cm-help">物理值 = 像素测量值 × 像素当量；默认 1.0 = 直接输出像素值（未标定）。</p>
+            </div>
+            <p class="cm-help">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              接线取值：把「标定」插件的 MmPerPixel 输出连到本步骤的输入端口「MmPerPixel」，运行时自动以标定当量为准（本框数值作为未接线时的兜底）。
+            </p>
+            <p class="cm-help">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              判定：下公差 ≤ 偏差 ≤ 上公差 为 OK；默认标准值/上下公差均为 0（零容忍），因此默认即为 NG。
+            </p>
+          </section>
+        </aside>
+
+        <section class="cm-preview" aria-label="标注图预览">
+          <div class="cm-preview-head">
+            <div class="cm-file-chip">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5v14"></path><path d="M20 5v14"></path><path d="M7 12h10"></path><path d="M7 12l3-3M7 12l3 3"></path><path d="M17 12l-3-3M17 12l-3 3"></path></svg>
+            </div>
+            <span class="cm-preview-title">标注图预览</span>
+            <span class="cm-preview-meta" id="cm-preview-meta">宽度/间隙 · 可拖拽</span>
+            <div class="cm-preview-tools">
+              <div class="cm-verdict" id="cm-verdict">OK · 宽度/间隙</div>
+              <button type="button" class="cm-icon-btn" data-tooltip="适应窗口" aria-label="适应窗口" id="cm-fit-window">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
+              </button>
+              <button type="button" class="cm-tool-text" data-tooltip="实际像素 1:1" aria-label="实际像素" id="cm-fit-image">1:1</button>
+            </div>
+          </div>
+
+          <div class="cm-info-bar" id="cm-info-bar" hidden>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+            <span id="cm-info-text">等待输入图像…</span>
+          </div>
+
+          <div class="cm-canvas">
+            <svg class="cm-scene" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid slice" role="img" aria-label="卡尺测量标注图示意">
+              <defs>
+                <linearGradient id="cm-bg" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#0B1220"></stop>
+                  <stop offset="100%" stop-color="#151F31"></stop>
+                </linearGradient>
+                <pattern id="cm-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293B" stroke-width="1"></path>
+                </pattern>
+                <radialGradient id="cm-metal" cx="42%" cy="38%" r="66%">
+                  <stop offset="0%" stop-color="#E8EDF3"></stop>
+                  <stop offset="45%" stop-color="#AEB9C6"></stop>
+                  <stop offset="75%" stop-color="#7B8794"></stop>
+                  <stop offset="100%" stop-color="#4B5563"></stop>
+                </radialGradient>
+                <filter id="cm-soft" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="9"></feGaussianBlur>
+                </filter>
+              </defs>
+              <rect width="800" height="520" fill="url(#cm-bg)"></rect>
+              <rect width="800" height="520" fill="url(#cm-grid)" opacity=".55"></rect>
+
+              <!-- 宽度/间隙 -->
+              <g data-kind="width">
+                <rect x="470" y="60" width="280" height="400" fill="url(#cm-metal)" opacity=".92"></rect>
+                <rect x="60" y="60" width="410" height="400" fill="#111827" opacity=".55"></rect>
+                <path d="M470 60V460" stroke="#E2E8F0" stroke-width="2" opacity=".9"></path>
+                <rect x="382" y="158" width="176" height="204" fill="rgba(14,165,233,.06)" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="6 4"></rect>
+                <g stroke="#7DD3FC" stroke-width="1.4" fill="none">
+                  <rect x="402" y="176" width="136" height="22"></rect>
+                  <rect x="402" y="216" width="136" height="22"></rect>
+                  <rect x="402" y="256" width="136" height="22"></rect>
+                  <rect x="402" y="296" width="136" height="22"></rect>
+                  <rect x="402" y="336" width="136" height="22"></rect>
+                </g>
+                <g stroke="#FDE68A" stroke-width="1.8">
+                  <path d="M470 182v10M470 222v10M470 262v10M470 302v10M470 342v10"></path>
+                </g>
+                <g stroke="#FDE68A" stroke-width="1.6">
+                  <path d="M464 187h12M464 227h12M464 267h12M464 307h12M464 347h12"></path>
+                  <path d="M470 187v-7M470 347v7"></path>
+                </g>
+                <path d="M470 132h58" stroke="#38BDF8" stroke-width="1.4"></path>
+                <path d="M470 132l7-4M470 132l7 4M528 132l-7-4M528 132l-7 4" stroke="#38BDF8" stroke-width="1.4" fill="none"></path>
+                <text x="474" y="124" fill="#7DD3FC" font-size="12" font-family="Consolas,monospace">12.480 mm</text>
+              </g>
+
+              <!-- 两点距 -->
+              <g data-kind="p2p" style="display:none">
+                <rect x="70" y="70" width="660" height="380" fill="#111827" opacity=".55"></rect>
+                <circle cx="250" cy="260" r="86" fill="url(#cm-metal)" opacity=".85"></circle>
+                <circle cx="550" cy="260" r="86" fill="url(#cm-metal)" opacity=".85"></circle>
+                <rect x="168" y="190" width="164" height="140" fill="rgba(14,165,233,.06)" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="6 4"></rect>
+                <rect x="468" y="190" width="164" height="140" fill="rgba(14,165,233,.06)" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="6 4"></rect>
+                <g stroke="#7DD3FC" stroke-width="1.4" fill="none">
+                  <rect x="186" y="206" width="128" height="18"></rect>
+                  <rect x="186" y="236" width="128" height="18"></rect>
+                  <rect x="186" y="266" width="128" height="18"></rect>
+                  <rect x="186" y="296" width="128" height="18"></rect>
+                  <rect x="186" y="326" width="128" height="18"></rect>
+                  <rect x="486" y="206" width="128" height="18"></rect>
+                  <rect x="486" y="236" width="128" height="18"></rect>
+                  <rect x="486" y="266" width="128" height="18"></rect>
+                  <rect x="486" y="296" width="128" height="18"></rect>
+                  <rect x="486" y="326" width="128" height="18"></rect>
+                </g>
+                <g stroke="#FDE68A" stroke-width="1.8">
+                  <path d="M250 212v12M250 242v12M250 272v12M250 302v12M250 332v12"></path>
+                  <path d="M550 212v12M550 242v12M550 272v12M550 302v12M550 332v12"></path>
+                </g>
+                <path d="M250 260L550 260" stroke="#38BDF8" stroke-width="1.6" stroke-dasharray="6 4"></path>
+                <circle cx="250" cy="260" r="5" fill="#FDE68A"></circle>
+                <circle cx="550" cy="260" r="5" fill="#FDE68A"></circle>
+                <text x="366" y="250" fill="#7DD3FC" font-size="12" font-family="Consolas,monospace">86.312 mm</text>
+              </g>
+
+              <!-- 点到线距 -->
+              <g data-kind="p2l" style="display:none">
+                <rect x="70" y="70" width="660" height="380" fill="#111827" opacity=".55"></rect>
+                <path d="M300 110L690 300" stroke="url(#cm-metal)" stroke-width="46" opacity=".9"></path>
+                <rect x="220" y="220" width="130" height="96" fill="rgba(14,165,233,.06)" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="6 4"></rect>
+                <rect x="430" y="130" width="230" height="110" fill="rgba(14,165,233,.06)" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="6 4" transform="rotate(26 545 185)"></rect>
+                <g stroke="#7DD3FC" stroke-width="1.4" fill="none">
+                  <rect x="236" y="236" width="98" height="16"></rect>
+                  <rect x="236" y="262" width="98" height="16"></rect>
+                  <rect x="236" y="288" width="98" height="16"></rect>
+                  <rect x="446" y="148" width="198" height="16" transform="rotate(26 545 156)"></rect>
+                  <rect x="446" y="174" width="198" height="16" transform="rotate(26 545 182)"></rect>
+                  <rect x="446" y="200" width="198" height="16" transform="rotate(26 545 208)"></rect>
+                </g>
+                <path d="M300 110L690 300" stroke="#F0ABFC" stroke-width="2"></path>
+                <circle cx="285" cy="268" r="5" fill="#FDE68A"></circle>
+                <path d="M285 268L338 292" stroke="#38BDF8" stroke-width="1.6" stroke-dasharray="5 4"></path>
+                <text x="330" y="252" fill="#7DD3FC" font-size="12" font-family="Consolas,monospace">24.106 mm</text>
+              </g>
+
+              <!-- 圆直径 -->
+              <g data-kind="circle" style="display:none">
+                <rect x="70" y="60" width="660" height="400" fill="#111827" opacity=".55"></rect>
+                <circle cx="400" cy="260" r="172" fill="url(#cm-metal)" stroke="#D7DEE8" stroke-width="2"></circle>
+                <circle cx="400" cy="260" r="132" fill="#5F6B7A" stroke="#AEB9C6" stroke-width="1.5"></circle>
+                <circle cx="400" cy="260" r="86" fill="#2F3947" stroke="#7B8794" stroke-width="2"></circle>
+                <circle cx="400" cy="260" r="172" fill="none" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="6 4"></circle>
+                <g stroke="#7DD3FC" stroke-width="1.3">
+                  <rect x="392" y="82" width="16" height="28"></rect>
+                  <rect x="392" y="410" width="16" height="28"></rect>
+                  <rect x="222" y="252" width="28" height="16"></rect>
+                  <rect x="550" y="252" width="28" height="16"></rect>
+                  <rect x="285" y="124" width="16" height="28" transform="rotate(-45 293 138)"></rect>
+                  <rect x="499" y="368" width="16" height="28" transform="rotate(-45 507 382)"></rect>
+                  <rect x="499" y="124" width="16" height="28" transform="rotate(45 507 138)"></rect>
+                  <rect x="285" y="368" width="16" height="28" transform="rotate(45 293 382)"></rect>
+                </g>
+                <path d="M228 260H572" stroke="#38BDF8" stroke-width="1.6"></path>
+                <circle cx="400" cy="260" r="5" fill="#FDE68A"></circle>
+                <text x="410" y="248" fill="#7DD3FC" font-size="12" font-family="Consolas,monospace">60.284 mm</text>
+                <text x="410" y="286" fill="#F0ABFC" font-size="11" font-family="Consolas,monospace">R = 30.142</text>
+              </g>
+
+              <!-- 角度 -->
+              <g data-kind="angle" style="display:none">
+                <rect x="60" y="60" width="680" height="400" fill="#111827" opacity=".55"></rect>
+                <path d="M150 410L650 410L650 110" fill="none" stroke="url(#cm-metal)" stroke-width="54" opacity=".9"></path>
+                <rect x="180" y="250" width="190" height="92" fill="rgba(14,165,233,.06)" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="6 4"></rect>
+                <rect x="470" y="220" width="92" height="190" fill="rgba(14,165,233,.06)" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="6 4"></rect>
+                <g stroke="#7DD3FC" stroke-width="1.4" fill="none">
+                  <rect x="196" y="266" width="158" height="14"></rect>
+                  <rect x="196" y="292" width="158" height="14"></rect>
+                  <rect x="196" y="318" width="158" height="14"></rect>
+                  <rect x="486" y="236" width="14" height="158"></rect>
+                  <rect x="512" y="236" width="14" height="158"></rect>
+                  <rect x="538" y="236" width="14" height="158"></rect>
+                </g>
+                <path d="M120 410H680" stroke="#F0ABFC" stroke-width="2"></path>
+                <path d="M680 410V80" stroke="#F0ABFC" stroke-width="2"></path>
+                <path d="M680 410m-56 0a56 56 0 0 0-16-39" stroke="#38BDF8" stroke-width="1.6" fill="none"></path>
+                <text x="590" y="380" fill="#7DD3FC" font-size="12" font-family="Consolas,monospace">45.000°</text>
+              </g>
+            </svg>
+          </div>
+
+          <div class="cm-statusbar" aria-live="polite">
+            <span class="cm-status-dot is-ok" id="cm-status-dot"></span>
+            <span class="cm-status-msg is-ok" id="cm-status-msg">宽度/间隙：测量值=12.480（像素=12.480×1.0000） 标准=12.500 偏差=-0.020 判定=OK 卡尺=5</span>
+            <span class="cm-status-meta" id="cm-status-meta">卡尺 5 把 · 搜索区 1 个</span>
+          </div>
+        </section>
+      </div>
+
+      <div class="cm-footer">
+        <div class="cm-footer-left">
+          <span class="cm-status-chip">
+            <span class="cm-footer-dot"></span>
+            <span id="cm-host-status">状态: 待执行</span>
+          </span>
+          <span class="cm-elapsed" id="cm-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="cm-footer-right">
+          <button type="button" class="cm-btn" id="cm-run">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></svg>
+            执行
+          </button>
+          <button type="button" class="cm-btn cm-btn-ghost" id="cm-cancel">取消</button>
+          <button type="button" class="cm-btn cm-btn-primary" id="cm-confirm">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="cm-notes">
+      <div class="cm-notes-head">关键改动（V1）</div>
+      <div class="cm-note">
+        <div class="cm-note-num">01</div>
+        <div><b>测量类型改为 5 张卡片</b><span>仍是 <code>RadioButton</code> + <code>EnumConverter</code> 写 <code>MeasureKind</code>；切换类型照常补足搜索区、刷新预览、显隐拟合参数。</span></div>
+      </div>
+      <div class="cm-note">
+        <div class="cm-note-num">02</div>
+        <div><b>左栏一屏完成配置</b><span>图像输入 → 测量类型 → 搜索区与卡尺 → 找边参数 → 拟合参数 → 判定与标定；只保留一个滚动区，不再五张卡片各自占一屏。</span></div>
+      </div>
+      <div class="cm-note">
+        <div class="cm-note-num">03</div>
+        <div><b>搜索区列表与参数微调同卡</b><span>列表绑 <code>CaliperRegions</code> / <code>SelectedRegion</code>；参数行绑 <code>SelectedRegion.ParamEntries</code>；删除/重置仍走既有命令。</span></div>
+      </div>
+      <div class="cm-note">
+        <div class="cm-note-num">04</div>
+        <div><b>标注图升级为工作区</b><span>保留 <code>ImageEdit</code> 常驻，不折叠、不替换；<code>ActiveRoi</code> / <code>DrawObjectList</code> / <code>HImage</code> 三条绑定逐字保留。空/错误态放在画布上方信息条、判定胶囊放在预览头（HALCON <code>HwndHost</code> 之外，避免覆盖层被 HWND 盖住）。</span></div>
+      </div>
+      <div class="cm-note">
+        <div class="cm-note-num">05</div>
+        <div><b>状态栏承载判定与数量</b><span><code>StatusMessage</code> + <code>StatusLevel</code> 三档原样消费；右侧只显示 <code>CaliperCount</code> 与 <code>CaliperRegions.Count</code> 的只读摘要。</span></div>
+      </div>
+      <div class="cm-note">
+        <div class="cm-note-num">06</div>
+        <div><b>全令牌化</b><span>颜色映射 <code>PluginConfigColors.xaml</code> / <code>Colors.xaml</code>；只在本视图派生样式，不改共享字典与共享控件；视图 XAML <code>hex=0</code>。</span></div>
+      </div>
+      <div class="cm-note">
+        <div class="cm-note-num">07</div>
+        <div><b>五态与键盘可达</b><span>hover / pressed / focus / disabled 全量；图标按钮 30×30 且 <code>Padding=0</code>（R68），焦点环 <code>DialogFocusVisual</code>，ToolTip <code>DialogToolTipStyle</code>。</span></div>
+      </div>
+
+      <div class="cm-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
+      <div class="cm-note">
+        <div class="cm-note-num">C1</div>
+        <div><b>DataContext = 插件实例 + IPluginConfigView</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；不引入独立 VM。</span></div>
+      </div>
+      <div class="cm-note">
+        <div class="cm-note-num">C2</div>
+        <div><b>SrcImage 的 LinkableValueEditor</b><span><code>Port="{Binding SrcImage}"</code> + <code>StepData="{Binding StepData}"</code>；端口持久化、变量链接、解除链接都在控件内部。</span></div>
+      </div>
+      <div class="cm-note">
+        <div class="cm-note-num">C3</div>
+        <div><b>ImageEdit 三条绑定</b><span><code>ActiveRoi="{Binding CanvasActiveRegion, Mode=TwoWay}"</code>、<code>DrawObjectList="{Binding CanvasRegions}"</code>、<code>HImage="{Binding PreviewImage, Mode=OneWay}"</code> 逐字保留。</span></div>
+      </div>
+      <div class="cm-note">
+        <div class="cm-note-num">C4</div>
+        <div><b>全部数值参数与校验规则</b><span><code>CaliperCount</code> / <code>Sigma</code> / <code>EdgeThreshold</code> / <code>FitMaxError</code> / <code>FitMinPoints</code> / <code>AnnulusWidth</code> / <code>StandardValue</code> / <code>UpperTolerance</code> / <code>LowerTolerance</code> / <code>PixelSizeMm</code> 的绑定、范围与 <code>NumberValidationRule</code> 不变。</span></div>
+      </div>
+      <div class="cm-note">
+        <div class="cm-note-num">C5</div>
+        <div><b>命令与生命周期</b><span><code>DeleteSelectedRegionCommand</code> / <code>ResetRegionsCommand</code> / Del 快捷键 / <code>OnViewLoaded()</code> 保留；不新增业务命令。</span></div>
+      </div>
+      <div class="cm-note">
+        <div class="cm-note-num">C6</div>
+        <div><b>状态三档</b><span><code>StatusMessage</code> + <code>StatusLevel</code>（Info / Warning / Error）原样消费；不新增第四档。</span></div>
+      </div>
+
+      <div class="cm-notes-head" style="margin-top:20px;">明确延后（需新增功能或契约）</div>
+      <div class="cm-note">
+        <div class="cm-note-num">D1</div>
+        <div><b>加载骨架 / 加载态</b><span>需要 VM 新增 <code>IsPreviewLoading</code> 或 <code>PreviewState</code>；当前 <code>StatusLevel</code> 只有三档。</span></div>
+      </div>
+      <div class="cm-note">
+        <div class="cm-note-num">D2</div>
+        <div><b>图像尺寸 / 文件大小</b><span>需要 VM 新增只读属性（<code>HImage.GetImageSize</code>）；本稿预览头不显示尺寸。</span></div>
+      </div>
+      <div class="cm-note">
+        <div class="cm-note-num">D3</div>
+        <div><b>放大 / 缩小按钮</b><span><code>HalconBase</code> 只有 <code>FitToWindow()</code> / <code>FitToImage()</code>；本稿只做「适应窗口 / 1:1」。</span></div>
+      </div>
+      <div class="cm-note">
+        <div class="cm-note-num">D4</div>
+        <div><b>打开所在文件夹 / 系统导航</b><span>需要新增 <code>Process.Start</code> 或宿主导航契约；本稿不做。</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('cm-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#cm-window');
+      var typeButtons = Array.prototype.slice.call(root.querySelectorAll('.cm-type'));
+      var widthButtons = Array.prototype.slice.call(root.querySelectorAll('[data-width]'));
+      var stateButtons = Array.prototype.slice.call(root.querySelectorAll('[data-state]'));
+      var quickButtons = Array.prototype.slice.call(root.querySelectorAll('button[data-kind]')).filter(function (b) {
+        return b.classList.contains('cm-type') === false;
+      });
+      var scenes = Array.prototype.slice.call(root.querySelectorAll('.cm-scene g[data-kind]'));
+      var scene = root.querySelector('.cm-scene');
+
+      var regionList = root.querySelector('#cm-region-list');
+      var regionHint = root.querySelector('#cm-region-hint');
+      var regionHintText = root.querySelector('#cm-region-hint-text');
+      var selectedName = root.querySelector('#cm-selected-region-name');
+      var paramRows = root.querySelector('#cm-param-rows');
+      var fitSection = root.querySelector('#cm-fit-section');
+      var annulusField = root.querySelector('#cm-annulus-field');
+      var previewMeta = root.querySelector('#cm-preview-meta');
+      var statusDot = root.querySelector('#cm-status-dot');
+      var statusMsg = root.querySelector('#cm-status-msg');
+      var statusMeta = root.querySelector('#cm-status-meta');
+      var infoBar = root.querySelector('#cm-info-bar');
+      var infoText = root.querySelector('#cm-info-text');
+      var verdict = root.querySelector('#cm-verdict');
+      var caliperInput = root.querySelector('#cm-caliper-count');
+      var hostStatus = root.querySelector('#cm-host-status');
+      var elapsed = root.querySelector('#cm-elapsed');
+
+      var meta = {
+        width: {
+          label: '宽度/间隙',
+          shape: '矩形',
+          regionCount: 1,
+          caliper: 5,
+          hint: '当前测量类型需要 1 个矩形搜索区，已配置 1 个',
+          fit: false,
+          annulus: false,
+          normal: '宽度/间隙：测量值=12.480（像素=12.480×1.0000） 标准=12.500 偏差=-0.020 判定=OK 卡尺=5',
+          error: '第 1 把卡尺未检出成对边缘（共 5 把）：请降低边缘阈值、放宽极性，或调整/放大搜索区'
+        },
+        p2p: {
+          label: '两点距',
+          shape: '矩形',
+          regionCount: 2,
+          caliper: 5,
+          hint: '当前测量类型需要 2 个矩形搜索区，已配置 2 个',
+          fit: false,
+          annulus: false,
+          normal: '两点距：测量值=86.312（像素=86.312×1.0000） 标准=86.000 偏差=+0.312 判定=OK 卡尺=5',
+          error: '第 1 个搜索区的第 1 把卡尺未检出边缘（共 5 把）：请降低边缘阈值、放宽极性，或调整/放大搜索区'
+        },
+        p2l: {
+          label: '点到线距',
+          shape: '矩形',
+          regionCount: 2,
+          caliper: 5,
+          hint: '当前测量类型需要 2 个矩形搜索区，已配置 2 个',
+          fit: true,
+          annulus: false,
+          normal: '点到线距：测量值=24.106（像素=24.106×1.0000） 标准=24.000 偏差=+0.106 判定=OK 卡尺=5',
+          error: '搜索区「搜索区2」拟合残差过大（主体点残差 1.82 px > 允许 1.00 px）：请增大卡尺数、增大平滑 Sigma，或把搜索区挪到更直的边缘上'
+        },
+        circle: {
+          label: '圆直径',
+          shape: '圆形',
+          regionCount: 1,
+          caliper: 12,
+          hint: '当前测量类型需要 1 个圆形搜索区，已配置 1 个',
+          fit: true,
+          annulus: true,
+          normal: '圆直径：测量值=60.284（像素=60.284×1.0000） 标准=60.000 偏差=+0.284 判定=OK 卡尺=12',
+          error: '第 1 把圆周卡尺未检出边缘（共 12 把）：请降低边缘阈值、放宽极性，或增大环宽（真实圆边可能在环外）'
+        },
+        angle: {
+          label: '角度',
+          shape: '矩形',
+          regionCount: 2,
+          caliper: 5,
+          hint: '当前测量类型需要 2 个矩形搜索区，已配置 2 个',
+          fit: true,
+          annulus: false,
+          normal: '角度：测量值=45.000°（角度不受像素当量影响） 标准=45.000° 偏差=0.000° 判定=OK 卡尺=5',
+          error: '两条拟合直线接近平行，无法确定夹角：请让两个搜索区分别压在两条相交的特征边上'
+        }
+      };
+
+      var paramsRect = [
+        ['中心行(R)', '240.0'],
+        ['中心列(C)', '320.0'],
+        ['角度(Phi)', '0.0'],
+        ['半长(L1)', '120.0'],
+        ['半宽(L2)', '60.0']
+      ];
+      var paramsCircle = [
+        ['圆心行(R)', '240.0'],
+        ['圆心列(C)', '320.0'],
+        ['半径(Radius)', '150.0']
+      ];
+
+      var kind = 'width';
+      var state = 'normal';
+      var selectedIndex = 0;
+      var regionCountOverride = null;
+
+      function currentCount() {
+        if (regionCountOverride !== null) return regionCountOverride;
+        return meta[kind].regionCount;
+      }
+
+      function regionName(i) {
+        return '搜索区' + (i + 1);
+      }
+
+      function renderRegions() {
+        var count = currentCount();
+        if (selectedIndex >= count) selectedIndex = Math.max(0, count - 1);
+        regionList.innerHTML = '';
+        for (var i = 0; i < count; i++) {
+          var row = document.createElement('div');
+          row.className = 'cm-list-row' + (i === selectedIndex ? ' is-selected' : '');
+          row.setAttribute('role', 'option');
+          row.setAttribute('aria-selected', i === selectedIndex ? 'true' : 'false');
+          row.innerHTML = '<svg class="cm-list-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+            (meta[kind].shape === '圆形'
+              ? '<circle cx="12" cy="12" r="8"></circle><path d="M6 12h12"></path>'
+              : '<rect x="4" y="7" width="16" height="10" rx="1"></rect><path d="M8 7v10M16 7v10"></path>') +
+            '</svg><span>' + regionName(i) + '</span><span class="cm-list-tag">' + meta[kind].shape + '</span>';
+          (function (index) {
+            row.addEventListener('click', function () {
+              selectedIndex = index;
+              renderRegions();
+              renderParams();
+            });
+          })(i);
+          regionList.appendChild(row);
+        }
+        if (selectedIndex >= count) selectedIndex = Math.max(0, count - 1);
+        selectedName.textContent = count > 0 ? regionName(selectedIndex) : '选中搜索区后可编辑';
+      }
+
+      function renderParams() {
+        var rows = meta[kind].shape === '圆形' ? paramsCircle : paramsRect;
+        paramRows.innerHTML = '';
+        if (currentCount() === 0) {
+          paramRows.innerHTML = '<div class="cm-help" style="margin:0;">当前没有搜索区，请点「重置搜索区」或右键画布新建。</div>';
+          return;
+        }
+        rows.forEach(function (row) {
+          var div = document.createElement('div');
+          div.className = 'cm-param-row';
+          div.innerHTML = '<span class="cm-param-name">' + row[0] + '</span><input class="cm-input is-num" type="number" value="' + row[1] + '" step="0.1">';
+          paramRows.appendChild(div);
+        });
+      }
+
+      function render() {
+        var m = meta[kind];
+        var count = currentCount();
+        var regionMissing = count < m.regionCount;
+
+        typeButtons.forEach(function (b) {
+          var on = b.dataset.kind === kind;
+          b.classList.toggle('is-active', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        quickButtons.forEach(function (b) {
+          var on = b.dataset.kind === kind;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+
+        scenes.forEach(function (g) {
+          g.style.display = g.dataset.kind === kind ? '' : 'none';
+        });
+
+        regionHint.classList.toggle('is-warn', regionMissing);
+        regionHintText.textContent = regionMissing
+          ? '当前测量类型需要 ' + m.regionCount + ' 个' + m.shape + '搜索区，实际只有 ' + count + ' 个：请在画布上右键新建，或点「重置搜索区」'
+          : (count === m.regionCount ? m.hint : m.hint.replace('已配置 ' + m.regionCount + ' 个', '已配置 ' + count + ' 个'));
+
+        fitSection.hidden = !m.fit;
+        annulusField.hidden = !m.annulus;
+        previewMeta.textContent = m.label + ' · 可拖拽';
+        caliperInput.value = String(m.caliper);
+
+        var level = 'ok';
+        var msg = m.normal;
+        var showEmpty = false;
+        var showError = false;
+
+        if (state === 'empty') {
+          level = 'warn';
+          msg = '输入图像为空：请为上方「输入图像」指定图片，或连接上游图像端口';
+          showEmpty = true;
+        } else if (state === 'error' || regionMissing) {
+          level = 'err';
+          msg = regionMissing
+            ? '当前测量类型需要 ' + m.regionCount + ' 个' + m.shape + '搜索区，实际只有 ' + count + ' 个：请在画布上右键新建，或点「重置搜索区」'
+            : m.error;
+          showError = true;
+        } else if (state === 'ng') {
+          level = 'err';
+          msg = m.normal.replace('判定=OK', '判定=NG（偏差超出上公差）');
+        }
+
+        infoBar.hidden = !(showEmpty || showError);
+        infoBar.classList.toggle('is-err', showError);
+        infoText.textContent = msg;
+        scene.style.visibility = (showEmpty || showError) ? 'hidden' : 'visible';
+        verdict.hidden = showEmpty || showError;
+        verdict.classList.toggle('is-ng', state === 'ng');
+        verdict.textContent = (state === 'ng' ? 'NG · ' : 'OK · ') + m.label;
+
+        statusDot.className = 'cm-status-dot is-' + level;
+        statusMsg.className = 'cm-status-msg is-' + level;
+        statusMsg.textContent = msg;
+        statusMeta.textContent = '卡尺 ' + m.caliper + ' 把 · 搜索区 ' + count + ' 个';
+
+        renderRegions();
+        renderParams();
+      }
+
+      function selectKind(next) {
+        kind = next;
+        state = 'normal';
+        selectedIndex = 0;
+        regionCountOverride = null;
+        stateButtons.forEach(function (b) {
+          b.classList.toggle('is-on', b.dataset.state === 'normal');
+          b.setAttribute('aria-pressed', String(b.dataset.state === 'normal'));
+        });
+        render();
+      }
+
+      typeButtons.forEach(function (b) {
+        b.addEventListener('click', function () { selectKind(b.dataset.kind); });
+      });
+      quickButtons.forEach(function (b) {
+        b.addEventListener('click', function () { selectKind(b.dataset.kind); });
+      });
+
+      stateButtons.forEach(function (b) {
+        b.addEventListener('click', function () {
+          state = b.dataset.state;
+          stateButtons.forEach(function (x) {
+            var on = x === b;
+            x.classList.toggle('is-on', on);
+            x.setAttribute('aria-pressed', String(on));
+          });
+          render();
+        });
+      });
+
+      widthButtons.forEach(function (b) {
+        b.addEventListener('click', function () {
+          var narrow = b.dataset.width === '640';
+          win.classList.toggle('is-narrow', narrow);
+          widthButtons.forEach(function (x) {
+            var on = x === b;
+            x.classList.toggle('is-on', on);
+            x.setAttribute('aria-pressed', String(on));
+          });
+        });
+      });
+
+      function resetRegions() {
+        regionCountOverride = null;
+        selectedIndex = 0;
+        state = 'normal';
+        stateButtons.forEach(function (b) {
+          b.classList.toggle('is-on', b.dataset.state === 'normal');
+          b.setAttribute('aria-pressed', String(b.dataset.state === 'normal'));
+        });
+        render();
+        flash('已按当前测量类型重建默认搜索区');
+      }
+
+      function deleteRegion() {
+        var count = currentCount();
+        if (count <= 0) { flash('没有可删除的搜索区'); return; }
+        regionCountOverride = count - 1;
+        if (selectedIndex >= regionCountOverride) selectedIndex = Math.max(0, regionCountOverride - 1);
+        render();
+        flash('已删除 ' + regionName(Math.min(count - 1, selectedIndex)));
+      }
+
+      root.querySelector('#cm-reset-regions').addEventListener('click', resetRegions);
+      root.querySelector('#cm-reset-regions-2').addEventListener('click', resetRegions);
+      root.querySelector('#cm-delete-region').addEventListener('click', deleteRegion);
+
+      var flashTimer = null;
+      function flash(text) {
+        var m = meta[kind];
+        statusMsg.textContent = text;
+        statusDot.className = 'cm-status-dot is-ok';
+        statusMsg.className = 'cm-status-msg is-ok';
+        if (flashTimer) clearTimeout(flashTimer);
+        flashTimer = setTimeout(function () {
+          render();
+        }, 1400);
+      }
+
+      root.querySelector('#cm-fit-window').addEventListener('click', function () { flash('已适应窗口（FitToWindow）'); });
+      root.querySelector('#cm-fit-image').addEventListener('click', function () { flash('已切换到实际像素 1:1（FitToImage）'); });
+
+      root.querySelector('#cm-run').addEventListener('click', function () {
+        hostStatus.textContent = '状态: 执行中...';
+        elapsed.textContent = '耗时: 0 ms';
+        setTimeout(function () {
+          hostStatus.textContent = '状态: ✅ 成功 - ' + meta[kind].label;
+          elapsed.textContent = '耗时: 86 ms';
+        }, 700);
+      });
+      root.querySelector('#cm-cancel').addEventListener('click', function () {
+        hostStatus.textContent = '状态: ⏹ 已取消';
+      });
+      root.querySelector('#cm-confirm').addEventListener('click', function () {
+        hostStatus.textContent = '状态: 已确认';
+      });
+
+      render();
+    })();
+  </script>
+</div>
+</body>
+</html>

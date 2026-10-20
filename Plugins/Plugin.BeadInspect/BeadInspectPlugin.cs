@@ -650,6 +650,12 @@ namespace Plugin.BeadInspect
                 error = contourError;
                 return false;
             }
+            if (contour == null)
+            {
+                // 防御性判空：TryBuildContour 成功时约定返回非空，编译器无法从 out 参数推断。
+                error = "参考路径轮廓为空";
+                return false;
+            }
             try
             {
                 entry.RuntimeBeadModel = BeadInspectHalcon.CreateBeadModel(

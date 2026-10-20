@@ -8,6 +8,8 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
+using Prism.Commands;
 
 namespace Plugin.ImageScript
 {
@@ -36,22 +38,51 @@ namespace Plugin.ImageScript
     {
         private ImageScriptPlugin Plugin => DataContext as ImageScriptPlugin;
 
+        /// <summary>
+        /// 工具栏「校验脚本」的视图级命令：只包装既有的 Validate_Click 逻辑，
+        /// 不新增校验行为。视图仍是唯一 DataContext 之外不引入独立 VM。
+        /// </summary>
+        public ICommand ValidateScriptCommand { get; }
+
         // 当前编辑目标过程（独立于"运行过程"，允许编辑非运行过程）
         private EProcedure _editTarget;
 
         private bool _initialized;   // Loaded 完成前置 false，屏蔽初始化期事件
         private bool _loadingText;   // 程序写 Editor.Text 时置 true，避免回写 Body 死循环
+        private bool _dataContextApplied; // DataContext 只预置一次，后续变化不覆盖用户正在编辑的内容
 
         public ImageScriptView()
         {
+            // 命令必须先于 InitializeComponent 就绪，XAML 里的 RelativeSource 绑定才能一次取到。
+            ValidateScriptCommand = new DelegateCommand(ValidateScript);
             InitializeComponent();
             Loaded += OnLoaded;
+            DataContextChanged += OnDataContextChanged;
+        }
+
+        /// <summary>
+        /// DataContext 到位时先把过程下拉与编辑器内容预置好。
+        /// 正式运行时 OnLoaded 仍会完成语法高亮 / 智能提示 / 右键菜单的挂接；
+        /// 断言宿主或预览器不触发 Loaded 时，也能看到真实的初始过程与脚本正文。
+        /// </summary>
+        private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (Plugin == null) return;
+            if (_dataContextApplied) return;   // 只在首次 DataContext 到位时预置；后续变化不覆盖编辑中的值
+            _dataContextApplied = true;
+
+            RefreshLists();
+            EditProcCombo.SelectedItem = Plugin.CurrentProcedure;
+            RunProcCombo.SelectedItem = Plugin.SelectedProcedure;
+            LoadEditorText(Plugin.CurrentProcedure);
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             // 语法高亮（关键字来自 Keyword.cs；接口变量在切换过程时动态并入）
             Editor.SyntaxHighlighting = HalconHighlighting.GetDefinition();
+            // DataContextChanged 可能已预置过带接口变量的高亮；这里补一次，保证 OnLoaded 后不丢。
+            UpdateEditorIntel();
 
             // 算子智能提示：补全 + 参数模板 + 悬浮文档（接口变量数据源=当前编辑过程）
             ScriptIntelliSense.Attach(Editor, CollectInterfaceVars);
@@ -88,7 +119,6 @@ namespace Plugin.ImageScript
             if (Plugin == null) return;
 
             EditProcCombo.ItemsSource = Plugin.Procedures;
-            EditProcCombo.DisplayMemberPath = "Name";
             RunProcCombo.ItemsSource = Plugin.RunProcedureNameList;
             RunProcCombo.SelectedItem = Plugin.SelectedProcedure;
 
@@ -261,7 +291,9 @@ namespace Plugin.ImageScript
         }
 
         /// <summary>校验脚本：强制重编译全部过程，结果显示在编辑器底部并标红错误行（不执行）。</summary>
-        private void Validate_Click(object sender, RoutedEventArgs e)
+        private void Validate_Click(object sender, RoutedEventArgs e) => ValidateScript();
+
+        private void ValidateScript()
         {
             if (Plugin == null) return;
 
@@ -272,9 +304,6 @@ namespace Plugin.ImageScript
             Plugin.ValidationResult = err == null ? "✔ 脚本校验通过（编译无误）" : "✘ " + err;
             // 校验时接口已按变量表反向同步，刷新顶部签名行显示
             if (_editTarget != null) EditorTitle.Text = _editTarget.GetProcedureMethod();
-            ValidateResultText.Foreground = err == null
-                ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2E, 0x7D, 0x32))
-                : System.Windows.Media.Brushes.Red;
 
             // 解析错误行号 → 编辑器标红 + 跳到首个错误行
             var errorLines = err == null
@@ -476,5 +505,43 @@ namespace Plugin.ImageScript
         }
 
         #endregion
+    }
+
+    /// <summary>
+    /// 校验状态三档：空串 → Idle；✔ 开头 → Ok；✘ 开头 → Error。
+    /// 只驱动视觉，不改变插件 ValidationResult 的字符串语义。
+    /// </summary>
+    public sealed class ValidationStateConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var text = value as string;
+            if (string.IsNullOrWhiteSpace(text)) return "Idle";
+            var trimmed = text.TrimStart();
+            if (trimmed.StartsWith("✔", StringComparison.Ordinal)) return "Ok";
+            if (trimmed.StartsWith("✘", StringComparison.Ordinal)) return "Error";
+            return "Idle";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => Binding.DoNothing;
+    }
+
+    /// <summary>
+    /// 校验结果空串显示为「尚未校验」；其余文本原样显示。
+    /// 纯展示转换，不改变 ValidationResult 的语义。
+    /// </summary>
+    public sealed class ValidationMessageConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var text = value as string;
+            return string.IsNullOrWhiteSpace(text)
+                ? "尚未校验：点击右上角「校验脚本」或右键菜单「编译」"
+                : text;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => Binding.DoNothing;
     }
 }
