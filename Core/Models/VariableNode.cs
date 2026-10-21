@@ -230,7 +230,8 @@ namespace VisionMaster.Models
 
         /// <summary>
         /// 网络数组是否可整组写入：只读存储区（离散输入 / S7 输入映像 I）不给入口。
-        /// <para>元素行始终只读——整组写是唯一写语义，单元素写会与"固定跨度"的配置脱节。</para>
+        /// <para>元素行只读——写入走父行的「写入数组…」弹窗（默认只写修改项，
+        /// 按元素地址逐项下发；长度/换算/运行互锁都在弹窗内校验）。</para>
         /// </summary>
         public bool CanWriteNetworkArray =>
             IsArrayRootNode && OriginalModel is NetworkVariableModel && !IsValueReadOnly;
@@ -378,7 +379,7 @@ namespace VisionMaster.Models
         {
             var model = OriginalModel;
             if (model == null || ElementIndex < 0) return false;
-            if (model is NetworkVariableModel) return false; // 网络数组只读，没有"元素级恢复基准"
+            if (model is NetworkVariableModel) return false; // 网络数组没有元素级基准（写入走弹窗）
             if (model.DefaultValue is not Array baseline || ElementIndex >= baseline.Length) return false;
             if (model.Value is not Array current || ElementIndex >= current.Length) return false;
 

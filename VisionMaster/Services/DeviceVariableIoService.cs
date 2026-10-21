@@ -268,6 +268,13 @@ namespace VisionMaster.Services
         /// <summary>数组逐元素换算档案（仅数组；null = 不换算）</summary>
         public ElementConversion?[]? ElementConversions { get; set; }
 
+        /// <summary>
+        /// 源文件里是否有「逐元素换算」列。
+        /// <para>区分"列缺失"（旧文件 → 更新时保持原档案）与"列存在但为空"（显式清空），
+        /// 否则用旧模板导出/导入一次就会把现有档案静默清掉。</para>
+        /// </summary>
+        public bool HasElementConversionsColumn { get; set; }
+
         public DeviceAddressBase Address { get; set; } = null!;
     }
 
@@ -487,11 +494,21 @@ namespace VisionMaster.Services
             return row;
         }
 
-        /// <summary>逐元素换算 → JSON（全 null 不导出，避免每行都挂一串 null）</summary>
+        /// <summary>逐元素换算 → JSON（全 null 不导出，避免每行都挂一串 null；短档案按元素个数补齐）</summary>
         private static string BuildElementConversionsJson(NetworkVariableModel variable)
         {
             var conversions = variable.ElementConversions;
             if (conversions == null || !conversions.Any(c => c != null)) return string.Empty;
+
+            // 导入侧要求"项数 == 元素个数"：短档案先补齐 null，否则导出后无法再导入
+            int length = variable.AddressConfig?.Length ?? conversions.Length;
+            if (length > conversions.Length)
+            {
+                var padded = new ElementConversion?[length];
+                Array.Copy(conversions, padded, conversions.Length);
+                conversions = padded;
+            }
+
             return JsonConvert.SerializeObject(conversions, Formatting.None);
         }
 
@@ -582,9 +599,10 @@ namespace VisionMaster.Services
                 ("显示分组", string.Join(" / ", displayGroups) + "；未知显示分组按导入选项自动创建或回落「未分组」"),
                 ("地址", "按 存储区 + 偏移量 + 位偏移 + 站号 + DB号 + 元素个数 + 地址偏移 结构化填写；40001写法仅 Modbus；S7 需填 DB号"),
                 ("每元素字节数", "仅字符串数组：每个元素的固定字节数（>= 1）"),
+                ("逐元素换算", "数组专用 JSON 列（如 [{\"Scale\":0.1,\"Offset\":5,\"DecimalPlaces\":1,\"Unit\":\"℃\"},null]）；长度必须等于元素个数；null = 该元素不换算；Scale 不能为 0；列缺失 = 保持原档案，列存在但为空 = 清空"),
                 ("初始值", "仅标量；新增行留空 = 类型默认值；更新行留空 = 保持原初始值；数组忽略"),
                 ("空白默认值", "DB号 1；元素个数 1；缩放系数 1；位偏移留空 = 不使用；站号 / 地址偏移 / 工程偏移 0"),
-                ("列适用", "站号 / 40001写法仅 Modbus；DB号仅 S7；每元素字节数仅字符串数组；位偏移仅布尔变量；字符串标量的「元素个数」是总字节数"),
+                ("列适用", "站号 / 40001写法仅 Modbus；DB号仅 S7；每元素字节数仅字符串数组；逐元素换算仅数值数组；位偏移仅布尔变量；字符串标量的「元素个数」是总字节数"),
                 ("删除", "默认不删除文件中没有的变量；勾选「删除文件中没有的变量」后才删除"),
                 ("运行锁", "流程运行中不可导入"),
                 ("地址预览", "只读列，导入时忽略"),
@@ -973,7 +991,7 @@ namespace VisionMaster.Services
 
                 if ((isArray || isStringScalar) && conversion == true)
                 {
-                    Fail("数组与字符串变量暂不支持工程量换算，请关闭「启用换算」。");
+                    Fail("数组与字符串变量不支持地址上的整组换算（数组请用「逐元素换算」列）。");
                     continue;
                 }
 
@@ -1045,9 +1063,17 @@ namespace VisionMaster.Services
 
                 // 数组逐元素换算：JSON 数组，长度必须等于元素个数（下标就是元素下标）。
                 // 字符串/布尔数组不做换算；标量走上面的「启用换算 + 缩放系数/偏移」。
+                bool hasConversionsColumn = row.Has(DeviceVariableColumns.ElementConversions);
                 ElementConversion?[]? elementConversions = null;
                 string conversionsText = row.Get(DeviceVariableColumns.ElementConversions).Trim();
-                if (conversionsText.Length > 0)
+
+                if (hasConversionsColumn && conversionsText.Length == 0)
+                {
+                    // 列存在但为空 = 显式清空（完整导出→导入往返时"没有换算"就是这个形状）；
+                    // 与"列缺失"分开，旧模板缺列时更新不会把现有档案静默清掉。
+                    elementConversions = Array.Empty<ElementConversion?>();
+                }
+                else if (conversionsText.Length > 0)
                 {
                     if (!isArray || isStringArray || isBoolArray)
                     {
@@ -1072,6 +1098,12 @@ namespace VisionMaster.Services
                             if (item.Scale == 0)
                             {
                                 Fail($"「逐元素换算」第 {i} 项缩放系数为 0（无法反算）。");
+                                conversionsValid = false;
+                                break;
+                            }
+                            if (!double.IsFinite(item.Scale) || !double.IsFinite(item.Offset))
+                            {
+                                Fail($"「逐元素换算」第 {i} 项换算参数不是有限数（NaN / Infinity）。");
                                 conversionsValid = false;
                                 break;
                             }
@@ -1169,6 +1201,7 @@ namespace VisionMaster.Services
                     Unit = row.Get(DeviceVariableColumns.Unit).Trim(),
                     InitialValue = initial,
                     ElementConversions = elementConversions,
+                    HasElementConversionsColumn = hasConversionsColumn,
                     Address = address
                 };
 
@@ -1210,7 +1243,9 @@ namespace VisionMaster.Services
                     AddressConfig = definition.Address,
                     ScanGroup = definition.ScanGroup,
                     MergeAdjacentRead = definition.MergeAdjacentRead,
-                    ElementConversions = definition.ElementConversions,
+                    ElementConversions = definition.HasElementConversionsColumn
+                        ? definition.ElementConversions
+                        : existing.ElementConversions,
                     GroupId = Guid.Empty,
                     DefaultValue = definition.InitialValue
                 };
@@ -1380,7 +1415,10 @@ namespace VisionMaster.Services
                         variable.AddressConfig = definition.Address;
                         variable.ScanGroup = definition.ScanGroup;
                         variable.MergeAdjacentRead = definition.MergeAdjacentRead;
-                        variable.ElementConversions = definition.ElementConversions;
+                        // 列缺失（旧模板）保持原档案；列存在但为空 = 显式清空
+                        if (definition.HasElementConversionsColumn)
+                            variable.ElementConversions = definition.ElementConversions
+                                ?? Array.Empty<ElementConversion?>();
                         variable.GroupId = groupId;
 
                         if (typeChanged)

@@ -35,6 +35,31 @@ namespace VisionMaster.ScadaWeb
         private long _dropped;
         private int _disposed;
         private int _revoked;
+        private long _lastSendSucceededUtcTicks;
+
+        /// <summary>
+        /// 增量值帧的"已成功送达"基线：<c>(elementId + 属性键) → 该 item 的规范 JSON</c>。
+        ///
+        /// <b>只在 <see cref="TrySend"/> 返回 true 之后推进</b>：入队失败/队列满时下一拍必须
+        /// 重新带上这些变化，否则客户端会永久停在旧值上，直到下一次 keyframe。
+        /// 连接级（不是宿主级）：每个会话的发送进度不同。
+        /// </summary>
+        internal Dictionary<string, string> LastValues { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>每连接单调递增的帧序号（delta/缺口诊断用；与宿主级 <c>seq</c> 分开）</summary>
+        internal long FrameSeq { get; set; }
+
+        /// <summary>下一帧是否必须整帧（首帧 / 结构变更后 / 重连后）</summary>
+        internal bool NeedsKeyframe { get; set; } = true;
+
+        /// <summary>上一次 keyframe 的 UTC 时刻（周期 keyframe 用）</summary>
+        internal DateTime LastKeyframeUtc { get; set; } = DateTime.MinValue;
+
+        /// <summary>预算裁剪的轮转游标：保证 1000 项全变时尾部不会被永久饿死</summary>
+        internal int DeltaCursor { get; set; }
+
+        /// <summary>最近一次"真正发出去"的 UTC ticks（45 秒死连接判据的一半；TrySend 只是入队，不算）</summary>
+        internal long LastSendSucceededUtcTicks => Volatile.Read(ref _lastSendSucceededUtcTicks);
 
         internal ScadaWebSession(WebSocketSession socket, ScadaWebTicketGrant grant, string remoteIp, string userAgent)
         {
@@ -134,7 +159,28 @@ namespace VisionMaster.ScadaWeb
         internal string? CurrentPageKey { get; set; }
 
         /// <summary>作废页键（运行开始/结束、新会话首屏）：下一拍必定重发完整快照</summary>
-        internal void ResetPageKey() => CurrentPageKey = null;
+        internal void ResetPageKey()
+        {
+            CurrentPageKey = null;
+            ResetDeltaForNewStructure();
+        }
+
+        /// <summary>
+        /// 结构消息（snapshot/page）成功入队后调用：清空增量基线，下一帧必须是 keyframe。
+        /// 与 <see cref="ResetPageKey"/> 的区别是<b>不动页键</b>（页键由调用方在成功后推进）。
+        /// </summary>
+        internal void ResetDeltaForNewStructure()
+        {
+            LastValues.Clear();
+            FrameSeq = 0;
+            NeedsKeyframe = true;
+            LastKeyframeUtc = DateTime.MinValue;
+            DeltaCursor = 0;
+        }
+
+        /// <summary>发送循环里"这一帧真的出去了"——45 秒判死只认这个时间戳</summary>
+        internal void MarkSendSucceeded()
+            => Interlocked.Exchange(ref _lastSendSucceededUtcTicks, DateTime.UtcNow.Ticks);
 
         /// <summary>底层 Watson 会话（<b>只给 <see cref="ScadaWebHost"/> 收尾用</b>，别在业务里直接用）</summary>
         internal WebSocketSession Socket => _socket;
@@ -169,6 +215,7 @@ namespace VisionMaster.ScadaWeb
                 await foreach (var message in _outbound.Reader.ReadAllAsync(token).ConfigureAwait(false))
                 {
                     await _socket.SendTextAsync(message, token).ConfigureAwait(false);
+                    MarkSendSucceeded();
                 }
             }
             catch (OperationCanceledException)

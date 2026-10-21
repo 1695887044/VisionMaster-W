@@ -130,7 +130,14 @@ namespace VisionMaster.Binding
 
             public string Name => $"{_variable.Name}[{_index.ToString(CultureInfo.InvariantCulture)}]";
 
-            public Type DataType => _variable.DataType.GetElementType() ?? typeof(object);
+            /// <summary>
+            /// 元素的数据类型：有生效逐元素换算时是 <c>double</c>（工程域），
+            /// 否则是声明元素类型。SCADA 文本写入按这个类型解析——写死声明类型（int）
+            /// 会让 "105.1" 在到达 TryWriteElement 之前就被拒。
+            /// </summary>
+            public Type DataType => _variable is NetworkVariableModel network && network.HasConversionAt(_index)
+                ? typeof(double)
+                : _variable.DataType.GetElementType() ?? typeof(object);
 
             public object? Value
             {
@@ -202,8 +209,9 @@ namespace VisionMaster.Binding
 
             public bool TryWrite(object? value, out string? error)
             {
-                // 本地数组支持就地写；网络数组只支持整组写（读-改-写会覆盖其它元素），
-                // 这里不替它做危险的整组回写，直接把原因交给上层。
+                // 本地数组就地写；网络数组按元素地址写（TryWriteElement 不读改写、不碰邻居）。
+                // 真正不能写的变量源由设计期的 SupportsElementWrite / IsReadOnlyArea 拦住，
+                // 这里只按接口能力分派。
                 if (_variable is IArrayElementWritable writable)
                     return writable.TryWriteElement(_index, value, out error);
 

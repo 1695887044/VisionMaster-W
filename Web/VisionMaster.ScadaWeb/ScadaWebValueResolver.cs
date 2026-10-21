@@ -54,7 +54,22 @@ namespace VisionMaster.ScadaWeb
         [JsonProperty("pageVersion")]
         public int PageVersion { get; set; }
 
-        /// <summary>本帧的值项（M1 全量发送；空表表示这一轮没有任何可解析的绑定）</summary>
+        /// <summary>
+        /// 每连接单调递增的帧序号（从 1 开始；结构消息不占这个号）。
+        /// 与宿主级 <c>seq</c> 分开：<c>seq</c> 被所有会话与结构消息共用，无法判断"这条连接漏了哪一帧"。
+        /// </summary>
+        [JsonProperty("frameSeq")]
+        public long FrameSeq { get; set; }
+
+        /// <summary>
+        /// 整帧标记：true = 本帧携带当前全部绑定（客户端应先重置本地值再合并）；
+        /// false = 增量（没出现的键表示"未变化"，保持上一次的值）。
+        /// 首帧、结构变更后、周期重同步与发送失败后的恢复帧都是 true。
+        /// </summary>
+        [JsonProperty("keyframe")]
+        public bool Keyframe { get; set; }
+
+        /// <summary>本帧的值项（增量模式下只含变化项；空表表示这一轮没有任何可解析的绑定）</summary>
         [JsonProperty("items")]
         public List<ScadaFrameItemDto> Items { get; set; } = new();
     }
@@ -131,9 +146,21 @@ namespace VisionMaster.ScadaWeb
 
             var items = new List<ScadaFrameItemDto>();
 
-            // 基座是跨页公共层：它在本页之下，同样要出值
-            if (page.BasePage is not null)
+            // 基座是跨页公共层：它在本页之下，同样要出值。
+            // 多基座（2026-10-21 起）：BasePages 是权威清单，BasePage 只是"第一只"的兼容视图。
+            // 只遍历 BasePage 会让第 2 只起的基座绑定永远不刷新（值帧里根本没有它们的项）。
+            if (page.BasePages is { Count: > 0 })
+            {
+                foreach (var basePage in page.BasePages)
+                {
+                    if (basePage is not null)
+                        Collect(basePage, values, cache, items);
+                }
+            }
+            else if (page.BasePage is not null)
+            {
                 Collect(page.BasePage, values, cache, items);
+            }
 
             Collect(page, values, cache, items);
 

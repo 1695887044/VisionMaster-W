@@ -404,6 +404,15 @@ namespace VisionMaster.Models
         public int MaxSessions { get; set; } = DefaultMaxSessions;
 
         /// <summary>
+        /// 会话空闲判死阈值（秒）。<b>默认 45</b>；0 = 关闭判死。
+        ///
+        /// 判据是"当前 socket 45 秒既没有入站帧、也没有一次成功出站"（双条件）：
+        /// 只看入站会误杀被浏览器节流的后台标签页；只看出站会杀掉所有空闲页
+        /// （未运行时本来就没有值帧）。命令在飞（pending/executing）的会话豁免。
+        /// </summary>
+        public int SessionIdleTimeoutSeconds { get; set; } = 45;
+
+        /// <summary>
         /// 每会话入站命令队列容量，取值范围 <see cref="MinSessionInboundQueueCapacity"/>~<see cref="MaxSessionInboundQueueCapacity"/>
         /// （16~64）。<b>默认 32</b>。超出范围时按边界夹取并记一条 Warn（不阻断启动）。
         /// </summary>

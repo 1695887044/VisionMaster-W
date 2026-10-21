@@ -31,7 +31,7 @@
             <Setter Property="SizeToContent" Value="Manual" />
             <Setter Property="Width" Value="640" />
             <Setter Property="Height" Value="680" />
-            <Setter Property="MinWidth" Value="560" />
+            <Setter Property="MinWidth" Value="600" />
             <Setter Property="MinHeight" Value="560" />
         </Style>
     </prism:Dialog.WindowStyle>
@@ -303,8 +303,7 @@
                                             Content="只写修改项"
                                             Cursor="Hand"
                                             FocusVisualStyle="{StaticResource DialogFocusVisual}"
-                                            FontSize="11"
-                                            IsEnabled="{Binding SupportsElementWrite}">
+                                            FontSize="11">
                                             <Button.Style>
                                                 <Style TargetType="Button">
                                                     <Setter Property="Background" Value="Transparent" />
@@ -421,7 +420,7 @@
                                 BorderBrush="{StaticResource DialogWarningBrush}"
                                 BorderThickness="1"
                                 CornerRadius="6"
-                                Visibility="{Binding HasSizeWarning, Converter={ui:BooleanToVisibilityConverter}}">
+                                Visibility="{Binding ShowSizeWarning, Converter={ui:BooleanToVisibilityConverter}}">
                                 <TextBlock
                                     FontSize="10.5"
                                     Foreground="{StaticResource DialogWarningTextBrush}"
@@ -610,7 +609,7 @@
                                                     Foreground="{StaticResource DialogTextMutedBrush}"
                                                     Text="{Binding ConversionText}"
                                                     TextTrimming="CharacterEllipsis"
-                                                    Visibility="{Binding IsNetworkMode, Converter={ui:BooleanToVisibilityConverter}}" />
+                                                    Visibility="{Binding DataContext.ShowConversionControls, RelativeSource={RelativeSource AncestorType=ListBox}, Converter={ui:BooleanToVisibilityConverter}}" />
                                                 <Button
                                                     Width="24"
                                                     Height="24"
@@ -623,7 +622,7 @@
                                                     FocusVisualStyle="{StaticResource DialogFocusVisual}"
                                                     Style="{StaticResource DialogIconButton}"
                                                     ToolTip="{Binding ConversionText}"
-                                                    Visibility="{Binding IsNetworkMode, Converter={ui:BooleanToVisibilityConverter}}">
+                                                    Visibility="{Binding DataContext.ShowConversionControls, RelativeSource={RelativeSource AncestorType=ListBox}, Converter={ui:BooleanToVisibilityConverter}}">
                                                     <TextBlock FontFamily="{StaticResource DialogIconFont}" FontSize="11" Text="&#xf1ec;">
                                                         <TextBlock.Style>
                                                             <Style TargetType="TextBlock">
@@ -850,11 +849,13 @@
                             </Button>
 
                             <TextBlock
+                                MaxWidth="170"
                                 Margin="8,0,0,0"
                                 VerticalAlignment="Center"
                                 FontSize="10.5"
                                 Foreground="{StaticResource DialogTextMutedBrush}"
-                                Text="{Binding FooterSummary}" />
+                                Text="{Binding FooterSummary}"
+                                TextTrimming="CharacterEllipsis" />
 
                             <Button
                                 Height="28"
@@ -922,7 +923,7 @@
                                 IsEnabled="{Binding CanRefresh}"
                                 Style="{StaticResource DialogIconButton}"
                                 ToolTip="从设备立刻读一次（有未写入修改时会拒绝，避免吞掉编辑）"
-                                Visibility="{Binding ShowConversionControls, Converter={ui:BooleanToVisibilityConverter}}">
+                                Visibility="{Binding ShowRefresh, Converter={ui:BooleanToVisibilityConverter}}">
                                 <TextBlock
                                     FontFamily="{StaticResource DialogIconFont}"
                                     FontSize="11"

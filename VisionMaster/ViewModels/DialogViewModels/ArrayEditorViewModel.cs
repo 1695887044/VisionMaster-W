@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
@@ -214,12 +215,18 @@ namespace VisionMaster.ViewModels.DialogViewModels
             ResetAllCommand = new DelegateCommand(ResetAll);
             WriteCurrentOnlyCommand = new DelegateCommand(() => SyncBaseline = false);
             WriteBothCommand = new DelegateCommand(() => SyncBaseline = true);
-            WriteChangedOnlyCommand = new DelegateCommand(() => SetWriteMode(ArrayWriteMode.ChangedOnly));
-            WriteWholeGroupCommand = new DelegateCommand(() => SetWriteMode(ArrayWriteMode.WholeGroup));
+            WriteChangedOnlyCommand = new DelegateCommand(
+                () => SetWriteMode(ArrayWriteMode.ChangedOnly),
+                () => !IsBusy && SupportsElementWrite);
+            WriteWholeGroupCommand = new DelegateCommand(
+                () => SetWriteMode(ArrayWriteMode.WholeGroup),
+                () => !IsBusy);
             RefreshCommand = new DelegateCommand(RefreshFromDevice, () => IsNetwork && !IsBusy);
             EditConversionCommand = new DelegateCommand<object?>(EditConversion);
-            BatchConversionCommand = new DelegateCommand(EditBatchConversion, () => IsNetwork && !IsBusy);
-            ClearConversionCommand = new DelegateCommand(ClearConversions, () => IsNetwork && !IsBusy);
+            BatchConversionCommand = new DelegateCommand(
+                EditBatchConversion, () => ShowConversionControls && !IsBusy);
+            ClearConversionCommand = new DelegateCommand(
+                ClearConversions, () => ShowConversionControls && !IsBusy);
             ConfirmCommand = new DelegateCommand(Confirm);
             CancelCommand = new DelegateCommand(() => RequestClose.Invoke(ButtonResult.Cancel));
         }
@@ -242,22 +249,43 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>网络数组元素个数固定，不允许增删/移动</summary>
         public bool CanEditStructure => !IsNetwork;
 
-        /// <summary>网络数组行显示「换算」列与行内 Σ</summary>
-        public bool ShowConversionControls => IsNetwork;
+        /// <summary>
+        /// 网络数组行显示「换算」列与行内 Σ。
+        /// <para>只对数值数组开放：字符串/布尔没有量程、byte[] 是原始块；
+        /// 给它们显示入口只会让用户配出一份导入时必被拒绝的档案。</para>
+        /// </summary>
+        public bool ShowConversionControls => IsNetwork
+            && _elementType != null
+            && NetworkModel?.DataType != typeof(byte[])
+            && ArrayConversion.IsNumericElement(_elementType);
+
+        /// <summary>刷新按钮显隐（与换算列解耦：修换算显隐时刷新按钮不能一起消失）</summary>
+        public bool ShowRefresh => IsNetwork;
 
         /// <summary>当前协议是否支持按元素地址逐项写入（Modbus/S7；MC/FINS 暂不支持）</summary>
         public bool SupportsElementWrite => NetworkModel?.SupportsElementWrite == true;
 
+        /// <summary>整组写入的超限预警只在整组模式下显示（只写修改项不受单请求上限影响）</summary>
+        public bool ShowSizeWarning => IsWholeGroup && HasSizeWarning;
+
         /// <summary>本地数组才显示「基准」对照；网络数组显示「原值」</summary>
         public string ResetAllText => IsNetwork ? "撤销全部修改" : "恢复全部为基准";
 
-        /// <summary>第三列标题：本地是「操作」，网络是「换算」</summary>
-        public string OperationHeader => IsNetwork ? "换算" : "操作";
+        /// <summary>第三列标题：本地是「操作」；网络数值数组是「换算」，其余网络数组仍是「操作」</summary>
+        public string OperationHeader => IsNetwork && ShowConversionControls ? "换算" : "操作";
 
         /// <summary>确认按钮文案：写设备与编辑内存是两种后果，不能都叫「确定」</summary>
-        public string ConfirmText => !IsNetwork
-            ? "确定"
-            : IsChangedOnly ? "写入修改项" : "整组写入";
+        public string ConfirmText
+        {
+            get
+            {
+                if (!IsNetwork) return "确定";
+                if (IsWholeGroup) return "整组写入";
+
+                // 只改换算、没有改值：实际不写设备，文案不能骗人
+                return ChangedCount == 0 && ConversionChanged ? "保存换算" : "写入修改项";
+            }
+        }
 
         /// <summary>
         /// 网络数组必须能拿到一组可写的值才允许确认：
@@ -388,6 +416,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 RaisePropertyChanged(nameof(CanResetAll));
                 RaisePropertyChanged(nameof(ChangedSummary));
                 RaisePropertyChanged(nameof(FooterSummary));
+                RaisePropertyChanged(nameof(ConfirmText));
                 RaisePropertyChanged(nameof(CanConfirm));
                 RaisePropertyChanged(nameof(ConfirmHint));
             }
@@ -403,6 +432,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 RaisePropertyChanged(nameof(HasPendingChanges));
                 RaisePropertyChanged(nameof(CanResetAll));
                 RaisePropertyChanged(nameof(FooterSummary));
+                RaisePropertyChanged(nameof(ConfirmText));
                 RaisePropertyChanged(nameof(CanConfirm));
                 RaisePropertyChanged(nameof(ConfirmHint));
             }
@@ -488,8 +518,29 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public bool HasQualityWarning => !string.IsNullOrEmpty(QualityWarning);
 
+        /// <summary>质量戳是轮询线程推的：订阅模型属性，弹窗打开期间变 Uncertain/Bad 也要刷新预警</summary>
+        private void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(NetworkVariableModel.Quality)) return;
+
+            RaisePropertyChanged(nameof(QualityWarning));
+            RaisePropertyChanged(nameof(HasQualityWarning));
+        }
+
         /// <summary>整组写入的单请求上限预警（Modbus 120 寄存器 / S7 约 110 字节）</summary>
-        public string SizeWarning => NetworkModel?.GetWholeGroupWriteWarning() ?? string.Empty;
+        public string SizeWarning
+        {
+            get
+            {
+                string warning = NetworkModel?.GetWholeGroupWriteWarning() ?? string.Empty;
+                if (warning.Length == 0) return string.Empty;
+
+                // MC/FINS 没有元素地址：不能只说"改用只写修改项"（那个段是禁用的）
+                return SupportsElementWrite
+                    ? warning
+                    : warning + "（当前协议不支持逐项写入，请减小元素个数或拆分为多个变量）";
+            }
+        }
 
         public bool HasSizeWarning => !string.IsNullOrEmpty(SizeWarning);
 
@@ -505,9 +556,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 RaisePropertyChanged(nameof(CanResetAll));
                 RaisePropertyChanged(nameof(CanConfirm));
                 RaisePropertyChanged(nameof(ConfirmHint));
+                RaisePropertyChanged(nameof(ShowSizeWarning));
                 RefreshCommand.RaiseCanExecuteChanged();
                 BatchConversionCommand.RaiseCanExecuteChanged();
                 ClearConversionCommand.RaiseCanExecuteChanged();
+                WriteChangedOnlyCommand.RaiseCanExecuteChanged();
+                WriteWholeGroupCommand.RaiseCanExecuteChanged();
             }
         }
 
@@ -557,11 +611,22 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public bool CanCloseDialog() => !IsBusy;
 
-        public void OnDialogClosed() { }
+        public void OnDialogClosed()
+        {
+            if (_model is NetworkVariableModel nv)
+                nv.PropertyChanged -= OnModelPropertyChanged;
+        }
 
         public void OnDialogOpened(IDialogParameters parameters)
         {
+            // 弹窗实例可能被复用：先退订上一次的模型，避免事件泄漏/旧模型继续推质量
+            if (_model is NetworkVariableModel previous)
+                previous.PropertyChanged -= OnModelPropertyChanged;
+
             _model = parameters.TryGetValue<IVariable>(VariableKey, out var model) ? model : null;
+            if (_model is NetworkVariableModel current)
+                current.PropertyChanged += OnModelPropertyChanged;
+
             _elementType = _model?.DataType.GetElementType();
             _isFlowRunning = parameters.TryGetValue<Func<bool>>(IsFlowRunningKey, out var isRunning)
                 ? isRunning
@@ -631,7 +696,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             for (int i = 0; i < length; i++)
                 Elements.Add(NewRow(FormatEditable(i < (source?.Length ?? 0) ? source!.GetValue(i) : null)));
 
-            if (NetworkModel is { } nv)
+            if (NetworkModel is { } nv && ShowConversionControls)
             {
                 _originalConversions = NormalizeConversions(nv.ElementConversions, length);
                 _pendingConversions = CloneConversions(_originalConversions);
@@ -728,6 +793,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RaisePropertyChanged(nameof(ConfirmText));
             RaisePropertyChanged(nameof(CanConfirm));
             RaisePropertyChanged(nameof(ConfirmHint));
+            RaisePropertyChanged(nameof(ShowSizeWarning));
             ClearError();
         }
 
@@ -747,9 +813,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 row.HasBaseline = hasBaseline;
                 object? baselineValue = hasBaseline ? _baseline!.GetValue(i) : null;
                 row.BaselineText = hasBaseline ? FormatEditable(baselineValue) : string.Empty;
-                row.IsChanged = hasBaseline && !RowEqualsBaseline(row.Value, baselineValue);
+                row.IsChanged = hasBaseline && !RowEqualsBaseline(i, row.Value, baselineValue);
 
-                if (IsNetwork)
+                if (ShowConversionControls)
                 {
                     var conversion = i < _pendingConversions.Length ? _pendingConversions[i] : null;
                     row.ConversionText = conversion?.Describe() ?? "—";
@@ -782,7 +848,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 object? baselineValue = _baseline.GetValue(index);
                 row.HasBaseline = true;
                 row.BaselineText = FormatEditable(baselineValue);
-                row.IsChanged = !RowEqualsBaseline(row.Value, baselineValue);
+                row.IsChanged = !RowEqualsBaseline(index, row.Value, baselineValue);
             }
             else
             {
@@ -799,8 +865,32 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// 行文本与对照值是否相等：按元素类型转换后比较（"12.50" 与 "12.5" 视为相同）。
         /// 转换失败 = 与对照值不同（错误行同时也会显示对照值，方便对照）。
         /// </summary>
-        private bool RowEqualsBaseline(string text, object? baselineValue)
+        private bool RowEqualsBaseline(int index, string text, object? baselineValue)
         {
+            // 换算生效的元素：工程域是 double，文本必须按 double 解析/比较。
+            // 按声明元素类型（int）解析会把 "105.1" 判成"解析失败 = 已修改"——
+            // 整行永远脏、确认时 TryBuildArray 也永远失败。
+            if (IsNetwork && NetworkModel?.HasConversionAt(index) == true)
+            {
+                if (baselineValue == null) return string.IsNullOrWhiteSpace(text);
+                if (string.IsNullOrWhiteSpace(text)) return false;
+                if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var engineering))
+                    return false;
+
+                try
+                {
+                    double baseline = Convert.ToDouble(baselineValue, CultureInfo.InvariantCulture);
+                    if (engineering.Equals(baseline)) return true;
+
+                    double tolerance = 1e-9 * Math.Max(1, Math.Max(Math.Abs(engineering), Math.Abs(baseline)));
+                    return Math.Abs(engineering - baseline) <= tolerance;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+
             // 网络数组第一拍轮询前快照槽位是 null：空文本 = 没动过（不能因为"原值未知"就整列标红）
             if (baselineValue == null && string.IsNullOrWhiteSpace(text))
                 return true;
@@ -888,7 +978,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>行内 Σ：编辑该元素的换算（确认写入后生效）</summary>
         private void EditConversion(object? parameter)
         {
-            if (!IsNetwork || parameter is not ArrayEditorRow row) return;
+            if (!ShowConversionControls || IsBusy) return;
+            if (parameter is not ArrayEditorRow row) return;
 
             int index = Elements.IndexOf(row);
             if (index < 0) return;
@@ -911,14 +1002,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             _pendingConversions[index] = conversion;
             RefreshRowState();
-            InfoText = $"第 {index} 项换算已更新（确认写入后生效）。";
+            InfoText = $"第 {index} 项换算已更新；行内值会在写入或刷新后按新换算显示。";
             ClearError();
         }
 
         /// <summary>批量换算：同一份档案应用到全部元素（个别项再用行内 Σ 调整）</summary>
         private void EditBatchConversion()
         {
-            if (!IsNetwork) return;
+            if (!ShowConversionControls || IsBusy) return;
 
             if (Application.Current == null)
             {
@@ -948,7 +1039,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>清除全部逐元素换算（确认后落回模型）</summary>
         private void ClearConversions()
         {
-            if (!IsNetwork) return;
+            if (!ShowConversionControls || IsBusy) return;
 
             for (int i = 0; i < _pendingConversions.Length; i++)
                 _pendingConversions[i] = null;
@@ -968,16 +1059,23 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if (string.IsNullOrEmpty(text)) return 0;
 
             var lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            // Excel 复制一个单元格/一列常带尾换行：末尾空段不是"要清空的元素"
+            int last = lines.Length - 1;
+            while (last >= 0 && lines[last].Length == 0) last--;
+
             int start = startRow != null ? Elements.IndexOf(startRow) : 0;
             if (start < 0) start = 0;
 
             int filled = 0;
             int ignored = 0;
-            for (int i = 0; i < lines.Length; i++)
+            int emptySkipped = 0;
+
+            for (int i = 0; i <= last; i++)
             {
                 string cell = lines[i];
                 int tab = cell.IndexOf('\t');
                 if (tab >= 0) cell = cell.Substring(0, tab);
+                cell = cell.Trim();
 
                 int index = start + i;
                 if (index >= Elements.Count)
@@ -993,17 +1091,25 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     Elements.Add(NewRow(string.Empty));
                 }
 
-                Elements[index].Value = cell.Trim();
+                if (IsNetwork && cell.Length == 0)
+                {
+                    // 网络模式：空单元格 = 不改（要清空请显式编辑该行）。
+                    // 把空串写下去会编码成全 0 定长块，静默清空设备值。
+                    emptySkipped++;
+                    continue;
+                }
+
+                Elements[index].Value = cell;
                 filled++;
             }
 
             RefreshRowState();
             ClearError();
 
-            if (ignored > 0)
-                InfoText = $"已粘贴 {filled} 项；多出的 {ignored} 行未使用（网络数组长度由设备点位固定）。";
-            else
-                InfoText = $"已粘贴 {filled} 项。";
+            var notes = new List<string> { $"已粘贴 {filled} 项" };
+            if (emptySkipped > 0) notes.Add($"跳过 {emptySkipped} 个空单元格");
+            if (ignored > 0) notes.Add($"多出的 {ignored} 行未使用（网络数组长度由设备点位固定）");
+            InfoText = string.Join("；", notes) + "。";
 
             return filled;
         }
@@ -1022,16 +1128,42 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
 
             var texts = Elements.Select(row => row.Value).ToList();
-            var array = GlobalVariableManagerViewModel.TryBuildArray(
-                _elementType, texts, out string error, out int errorIndex);
+            Array? array = null;
 
-            if (array == null)
+            // 只写修改项不需要整组数组：逐项写由 TryWriteElement 自己解析/校验。
+            // 只有本地数组（回传整组）与网络整组写入才构建数组——
+            // 否则"镜像未到、只填了一行"会被其它空行卡住（整组解析对空行必然失败）。
+            if (!IsNetwork || IsWholeGroup)
             {
-                for (int i = 0; i < Elements.Count; i++)
-                    Elements[i].HasError = i == errorIndex;
+                if (IsNetwork && NetworkModel?.HasElementConversion == true)
+                {
+                    // 换算生效：工程域是 double。按声明元素类型（int）解析会把 105.1 判成非法，
+                    // 整组确认永远过不去；写路径也必须在反算之后才落声明类型。
+                    if (!TryBuildEngineeringArray(texts, out var engineering, out string engError, out int engIndex))
+                    {
+                        for (int i = 0; i < Elements.Count; i++)
+                            Elements[i].HasError = i == engIndex;
 
-                ErrorText = error;
-                return;
+                        ErrorText = engError;
+                        return;
+                    }
+
+                    array = engineering;
+                }
+                else
+                {
+                    array = GlobalVariableManagerViewModel.TryBuildArray(
+                        _elementType, texts, out string error, out int errorIndex);
+
+                    if (array == null)
+                    {
+                        for (int i = 0; i < Elements.Count; i++)
+                            Elements[i].HasError = i == errorIndex;
+
+                        ErrorText = error;
+                        return;
+                    }
+                }
             }
 
             ErrorText = string.Empty;
@@ -1040,13 +1172,23 @@ namespace VisionMaster.ViewModels.DialogViewModels
             // 短写/长写会覆盖邻居或留下旧值，不能在弹窗里"顺手改长度"。
             if (IsNetwork)
             {
-                await ConfirmNetworkAsync(array);
+                try
+                {
+                    await ConfirmNetworkAsync(array);
+                }
+                catch (Exception ex)
+                {
+                    // 兜底：写入链路的异常必须变成弹窗里的原因，不能变成未捕获异常把进程带下去
+                    ErrorText = $"写入失败：{ex.Message}";
+                    IsBusy = false;
+                    BusyText = string.Empty;
+                }
                 return;
             }
 
             var result = new DialogParameters
             {
-                { ArrayKey, array },
+                { ArrayKey, array! },
                 { VariableKey, _model },
                 { SyncBaselineKey, SyncBaseline },
             };
@@ -1054,7 +1196,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RequestClose.Invoke(result, ButtonResult.OK);
         }
 
-        private async Task ConfirmNetworkAsync(Array array)
+        private async Task ConfirmNetworkAsync(Array? array)
         {
             if (_model is not NetworkVariableModel networkModel)
             {
@@ -1064,7 +1206,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             if (_isFlowRunning?.Invoke() == true)
             {
-                ErrorText = "流程已启动，本次写入未执行。请先停止流程——整组替换会覆盖运行步骤正在读的那组数据。";
+                ErrorText = IsChangedOnly
+                    ? "流程已启动，本次写入未执行。请先停止流程——运行步骤正在读这组数据。"
+                    : "流程已启动，本次整组写入未执行。请先停止流程——整组替换会覆盖运行步骤正在读的那组数据。";
                 return;
             }
 
@@ -1118,7 +1262,21 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 && current.Length == RequiredLength
                 && HasMirrorConflict(current))
             {
-                ErrorText = "设备值在编辑期间已变化，整组写入会覆盖这些新值。请点「刷新」后重新确认，或改用「只写修改项」。";
+                ErrorText = "设备值在编辑期间已变化，整组写入会覆盖这些新值。请先「撤销全部修改」再点「刷新」后重新确认，或改用「只写修改项」。";
+                return;
+            }
+
+            // 镜像不完整且用户没把全部项填满：不允许整组写（否则未填的项会按 0/false 写下去）。
+            // 按钮禁用只是第一道闸，命令被程序化触发时这里还要再拦一次。
+            if (!HasCompleteMirror && !AllRowsFilled)
+            {
+                ErrorText = ConfirmHint;
+                return;
+            }
+
+            if (array == null)
+            {
+                ErrorText = "数组构建失败，请重试。";
                 return;
             }
 
@@ -1183,7 +1341,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 if (failures.Any(f => f.Index == index)) continue;
                 if (_baseline != null && index < _baseline.Length)
-                    _baseline.SetValue(ParseRowValue(text), index);
+                    _baseline.SetValue(ParseRowValue(index, text), index);
             }
 
             foreach (var failure in failures)
@@ -1248,6 +1406,42 @@ namespace VisionMaster.ViewModels.DialogViewModels
             return dirty;
         }
 
+        /// <summary>
+        /// 换算生效时把行文本解析成工程域的 double[]。
+        /// <para>不能走 <see cref="GlobalVariableManagerViewModel.TryBuildArray"/>：那是"按声明元素类型解析"，
+        /// int 元素的 "105.1" 会直接失败。</para>
+        /// </summary>
+        private bool TryBuildEngineeringArray(
+            IReadOnlyList<string> texts, out double[] array, out string error, out int errorIndex)
+        {
+            error = string.Empty;
+            errorIndex = -1;
+            array = new double[texts.Count];
+
+            for (int i = 0; i < texts.Count; i++)
+            {
+                string text = texts[i] ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    error = $"第 {i + 1} 项：工程值不能为空（该元素配置了换算）";
+                    errorIndex = i;
+                    return false;
+                }
+
+                if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+                    || double.IsNaN(value) || double.IsInfinity(value))
+                {
+                    error = $"第 {i + 1} 项：[{text}] 不是有效数值";
+                    errorIndex = i;
+                    return false;
+                }
+
+                array[i] = value;
+            }
+
+            return true;
+        }
+
         /// <summary>把编辑中的换算草稿拷成模型档案（长度 = 元素个数；全 identity 时保留对象以便显示单位）</summary>
         private ElementConversion?[] BuildPendingConversions()
         {
@@ -1276,20 +1470,23 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private static bool ValuesEqual(object? left, object? right)
         {
             if (left == null || right == null) return left == null && right == null;
-            if (Equals(left, right)) return true;
 
-            try
-            {
-                return Convert.ToDouble(left, CultureInfo.InvariantCulture)
-                    .Equals(Convert.ToDouble(right, CultureInfo.InvariantCulture));
-            }
-            catch
+            // 任一侧是字符串就按文本比："00123" 与 "123"、"1e3" 与 "1000" 不是同一个值。
+            // 先 Convert.ToDouble 再比会把它们判成相等，整组写入的冲突检查会漏报。
+            if (left is string || right is string)
             {
                 return string.Equals(
                     Convert.ToString(left, CultureInfo.InvariantCulture),
                     Convert.ToString(right, CultureInfo.InvariantCulture),
                     StringComparison.Ordinal);
             }
+
+            if (Equals(left, right)) return true;
+            if (IsNumericValue(left) && IsNumericValue(right))
+                return Convert.ToDouble(left, CultureInfo.InvariantCulture)
+                    .Equals(Convert.ToDouble(right, CultureInfo.InvariantCulture));
+
+            return false;
         }
 
         private bool HasCompleteMirror
@@ -1362,6 +1559,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RaisePropertyChanged(nameof(ShowWriteModeControls));
             RaisePropertyChanged(nameof(CanEditStructure));
             RaisePropertyChanged(nameof(ShowConversionControls));
+            RaisePropertyChanged(nameof(ShowRefresh));
             RaisePropertyChanged(nameof(SupportsElementWrite));
             RaisePropertyChanged(nameof(IsChangedOnly));
             RaisePropertyChanged(nameof(IsWholeGroup));
@@ -1377,12 +1575,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RaisePropertyChanged(nameof(HasQualityWarning));
             RaisePropertyChanged(nameof(SizeWarning));
             RaisePropertyChanged(nameof(HasSizeWarning));
+            RaisePropertyChanged(nameof(ShowSizeWarning));
             RaisePropertyChanged(nameof(FooterSummary));
             RaisePropertyChanged(nameof(HasPendingChanges));
             RaisePropertyChanged(nameof(IsNetwork));
             RefreshCommand.RaiseCanExecuteChanged();
             BatchConversionCommand.RaiseCanExecuteChanged();
             ClearConversionCommand.RaiseCanExecuteChanged();
+            WriteChangedOnlyCommand.RaiseCanExecuteChanged();
+            WriteWholeGroupCommand.RaiseCanExecuteChanged();
         }
 
         /// <summary>
@@ -1407,8 +1608,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <para>不能直接拿字符串当对照值：<c>RowEqualsBaseline</c> 对数值元素做数值比较，
         /// 字符串 "25" 与 int 25 会被判成不同 → 已成功写入的行仍显示「已修改」，重试时会重复写。</para>
         /// </summary>
-        private object? ParseRowValue(string text)
+        private object? ParseRowValue(int index, string text)
         {
+            // 换算生效的元素：对照值在工程域（double），不能推进成声明元素类型
+            if (IsNetwork && NetworkModel?.HasConversionAt(index) == true)
+            {
+                return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var engineering)
+                    ? engineering
+                    : text;
+            }
+
             if (_elementType == null) return text;
             if (_elementType == typeof(string)) return text;
             if (string.IsNullOrWhiteSpace(text))

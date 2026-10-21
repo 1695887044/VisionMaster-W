@@ -14,8 +14,8 @@ namespace VisionMaster.Communications
     /// 不挂在地址对象上：地址对象回答"怎么寻址"，元素档案回答"每个元素怎么解释"。</para>
     ///
     /// <para><b>Identity 的判定只看 Scale/Offset</b>：Scale=1 且 Offset=0 视为不换算
-    /// （读/写都原样返回，不做舍入）；此时 Unit/DecimalPlaces 只影响界面显示，
-    /// 用于"不换算但想显示 ℃ / 两位小数"的场景。</para>
+    /// （读/写都原样返回，不做舍入）；此时 Unit 只影响界面显示（有 Unit 时按 DecimalPlaces 格式化），
+    /// 没有 Unit 就按原值显示。</para>
     /// </summary>
     public sealed class ElementConversion
     {
@@ -50,7 +50,7 @@ namespace VisionMaster.Communications
             if (IsIdentity && string.IsNullOrEmpty(Unit))
                 return "—";
 
-            string scale = Scale.ToString("0.######", CultureInfo.InvariantCulture);
+            string scale = Scale.ToString("0.##########", CultureInfo.InvariantCulture);
             string text = $"×{scale}";
             if (Offset != 0)
             {
@@ -90,6 +90,12 @@ namespace VisionMaster.Communications
             if (!IsNumericElement(elementType))
                 return true;
 
+            if (!IsFinite(conversion.Scale) || !IsFinite(conversion.Offset))
+            {
+                error = "换算参数不是有限数（NaN / Infinity）";
+                return false;
+            }
+
             try
             {
                 double value = Convert.ToDouble(raw, CultureInfo.InvariantCulture);
@@ -108,6 +114,11 @@ namespace VisionMaster.Communications
         /// <summary>
         /// 工程值 → 原始值（读路径的逆运算）。整数元素按原实现同一口径
         /// （<see cref="Math.Round(double, int)"/>）舍入，不静默截断。
+        ///
+        /// <para><b>没有生效换算也必须把值落到声明元素类型</b>：数组里只要有一个元素配了档案，
+        /// 整个工程域就是 <c>double[]</c>，未配档案的元素也会以 double 传进来。
+        /// 直接原样返回 double 的后果是 <see cref="Array.SetValue(object, int)"/> 往 int[] 里塞 double
+        /// （InvalidCastException），或者按 8 字节把值写进 Int32 点位。</para>
         /// </summary>
         public static bool TryToRaw(
             ElementConversion? conversion, object? engineering, Type elementType,
@@ -116,12 +127,17 @@ namespace VisionMaster.Communications
             raw = engineering;
             error = null;
 
-            if (conversion == null || conversion.IsIdentity || engineering == null)
-                return true;
+            if (conversion == null || conversion.IsIdentity)
+                return TryCoerceToElement(engineering, elementType, out raw, out error);
 
-            if (!IsNumericElement(elementType))
-                return true;
+            if (engineering == null) return true;
+            if (!IsNumericElement(elementType)) return true;
 
+            if (!IsFinite(conversion.Scale) || !IsFinite(conversion.Offset))
+            {
+                error = "换算参数不是有限数（NaN / Infinity）";
+                return false;
+            }
             if (conversion.Scale == 0)
             {
                 error = "缩放系数为 0，无法把工程值反算成原始值（请填 1 或实际比例）";
@@ -133,23 +149,7 @@ namespace VisionMaster.Communications
                 double value = Convert.ToDouble(engineering, CultureInfo.InvariantCulture);
                 double unoffset = value - conversion.Offset;
                 double result = unoffset / conversion.Scale;
-
-                Type target = Nullable.GetUnderlyingType(elementType) ?? elementType;
-                raw = Type.GetTypeCode(target) switch
-                {
-                    TypeCode.SByte => Convert.ToSByte(Math.Round(result, 0)),
-                    TypeCode.Byte => Convert.ToByte(Math.Round(result, 0)),
-                    TypeCode.Int16 => Convert.ToInt16(Math.Round(result, 0)),
-                    TypeCode.UInt16 => Convert.ToUInt16(Math.Round(result, 0)),
-                    TypeCode.Int32 => Convert.ToInt32(Math.Round(result, 0)),
-                    TypeCode.UInt32 => Convert.ToUInt32(Math.Round(result, 0)),
-                    TypeCode.Int64 => Convert.ToInt64(Math.Round(result, 0)),
-                    TypeCode.UInt64 => Convert.ToUInt64(Math.Round(result, 0)),
-                    TypeCode.Single => (float)result,
-                    TypeCode.Double => result,
-                    TypeCode.Decimal => (decimal)result,
-                    _ => Convert.ChangeType(result, target, CultureInfo.InvariantCulture),
-                };
+                raw = ConvertNumericToElement(result, elementType);
                 return true;
             }
             catch (Exception ex)
@@ -159,6 +159,78 @@ namespace VisionMaster.Communications
                 return false;
             }
         }
+
+        /// <summary>把工程域的值（double / 文本 / 声明类型）落到元素类型；失败给明确原因</summary>
+        private static bool TryCoerceToElement(object? value, Type elementType, out object? raw, out string? error)
+        {
+            raw = value;
+            error = null;
+            if (value == null) return true;
+
+            Type target = Nullable.GetUnderlyingType(elementType) ?? elementType;
+            if (target.IsInstanceOfType(value)) return true;
+
+            try
+            {
+                if (value is string text)
+                {
+                    if (target == typeof(string)) { raw = text; return true; }
+                    if (IsNumericElement(target))
+                    {
+                        if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+                        {
+                            error = $"「{text}」不是有效数值";
+                            return false;
+                        }
+                        raw = ConvertNumericToElement(parsed, target);
+                        return true;
+                    }
+
+                    raw = Convert.ChangeType(text, target, CultureInfo.InvariantCulture);
+                    return true;
+                }
+
+                if (IsNumericElement(target))
+                {
+                    raw = ConvertNumericToElement(
+                        Convert.ToDouble(value, CultureInfo.InvariantCulture), target);
+                    return true;
+                }
+
+                raw = Convert.ChangeType(value, target, CultureInfo.InvariantCulture);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = $"「{value}」无法转换为 {target.Name}：{ex.Message}";
+                raw = value;
+                return false;
+            }
+        }
+
+        /// <summary>double → 声明元素类型（整数按 <see cref="Math.Round(double, int)"/> 舍入）</summary>
+        private static object ConvertNumericToElement(double value, Type elementType)
+        {
+            Type target = Nullable.GetUnderlyingType(elementType) ?? elementType;
+            return Type.GetTypeCode(target) switch
+            {
+                TypeCode.SByte => Convert.ToSByte(Math.Round(value, 0)),
+                TypeCode.Byte => Convert.ToByte(Math.Round(value, 0)),
+                TypeCode.Int16 => Convert.ToInt16(Math.Round(value, 0)),
+                TypeCode.UInt16 => Convert.ToUInt16(Math.Round(value, 0)),
+                TypeCode.Int32 => Convert.ToInt32(Math.Round(value, 0)),
+                TypeCode.UInt32 => Convert.ToUInt32(Math.Round(value, 0)),
+                TypeCode.Int64 => Convert.ToInt64(Math.Round(value, 0)),
+                TypeCode.UInt64 => Convert.ToUInt64(Math.Round(value, 0)),
+                TypeCode.Single => (float)value,
+                TypeCode.Double => value,
+                TypeCode.Decimal => (decimal)value,
+                _ => Convert.ChangeType(value, target, CultureInfo.InvariantCulture),
+            };
+        }
+
+        private static bool IsFinite(double value)
+            => !double.IsNaN(value) && !double.IsInfinity(value);
 
         /// <summary>
         /// 界面显示：有单位/小数位就按工程格式显示，否则按不变文化原样显示。

@@ -308,6 +308,28 @@ namespace ScadaWebChecks
                 Check("B11", frame != null && items != null && items.Count == seeds.Count,
                     frame == null ? "未收到 frame" : $"items={items?.Count} json={Truncate(frame.ToString(Formatting.None), 200)}");
 
+                // B11b/B11c（2026-10-22 增量帧）：首帧必须是 keyframe（全量）；
+                // 随后没有变化的帧是增量空帧（10Hz 心跳），且同页连续帧不应再重建整页快照。
+                var firstKeyframe = frame?.Value<bool?>("keyframe") == true;
+                var idleFrame = await ReceiveUntilAsync(ws, m => TypeOf(m) == "frame", 3000);
+                var idleItems = idleFrame == null ? null : Pick(idleFrame, "items", "Items") as JArray;
+
+                Check("B11b",
+                    firstKeyframe
+                    && idleFrame != null
+                    && idleFrame.Value<bool?>("keyframe") == false
+                    && idleItems != null && idleItems.Count == 0,
+                    $"firstKeyframe={firstKeyframe} idleKeyframe={idleFrame?.Value<bool?>("keyframe")} "
+                    + $"idleItems={idleItems?.Count}");
+
+                var buildsBefore = host.StructureBuildCount;
+                var idleFrame2 = await ReceiveUntilAsync(ws, m => TypeOf(m) == "frame", 3000);
+                var buildsAfter = host.StructureBuildCount;
+
+                Check("B11c",
+                    idleFrame2 != null && buildsAfter == buildsBefore,
+                    $"同页连续帧重建次数 {buildsBefore}→{buildsAfter}（期望不变）");
+
                 // B40（M2b）：AckButton 的报警列表/未确认计数必须由服务端主动广播。
                 var alarmsMessage = await ReceiveUntilAsync(ws, m => TypeOf(m) == "alarms", 5000);
                 var alarmItems = alarmsMessage == null ? null : Pick(alarmsMessage, "alarms", "Alarms") as JArray;
@@ -388,6 +410,14 @@ namespace ScadaWebChecks
                 Check("B13", changed != null,
                     changed == null ? "改值后 5s 内没看到新值" : $"frame={Truncate(changed.ToString(Formatting.None), 200)}");
 
+                // B13b：改一个值 → 增量帧只带这一项（不是全量 10 项）。
+                var changedItems = changed == null ? null : Pick(changed, "items", "Items") as JArray;
+                Check("B13b",
+                    changed != null
+                    && changed.Value<bool?>("keyframe") == false
+                    && changedItems != null && changedItems.Count == 1,
+                    $"keyframe={changed?.Value<bool?>("keyframe")} items={changedItems?.Count}");
+
                 // ---------------- 改页版本 → page ----------------
                 page.Version = page.Version + 1;
                 var expectedVersion = page.Version;
@@ -402,6 +432,16 @@ namespace ScadaWebChecks
                     && pageVersionNode?.Value<int>() == expectedVersion
                     && innerVersion?.Value<int>() == expectedVersion,
                     pageMessage == null ? "未收到 page" : $"expected={expectedVersion} json={Truncate(pageMessage.ToString(Formatting.None), 200)}");
+
+                // B14b：结构变更后的第一帧必须是 keyframe（增量基线作废）。
+                var afterPageFrame = await ReceiveUntilAsync(
+                    ws, m => TypeOf(m) == "frame" && m.Value<bool?>("keyframe") == true, 3000);
+
+                Check("B14b", afterPageFrame != null,
+                    afterPageFrame == null
+                        ? "结构变更后 3s 内没收到 keyframe"
+                        : $"frameSeq={afterPageFrame.Value<long?>("frameSeq")} "
+                          + $"items={(Pick(afterPageFrame, "items", "Items") as JArray)?.Count}");
 
                 // ---------------- ping / 未知 kind ----------------
                 await SendTextAsync(ws, "{\"type\":\"ping\",\"t\":\"p1\"}");
@@ -720,6 +760,33 @@ namespace ScadaWebChecks
 
                     await clientU.CloseAsync();
                 }
+            }
+
+            // ---------------- B45：死连接回收（判死阈值压到 1s；运行已停止，双向都无进展） ----------------
+            {
+                hub.Stop();
+                settings.SessionIdleTimeoutSeconds = 1;
+
+                var idleIssue = await IssueTicketAsync(http, baseUrl);
+                var (idleConnected, idleError, idleSocket) = await ConnectAsync($"{wsBase}/ws?ticket={idleIssue.Ticket}");
+
+                if (!idleConnected || idleSocket == null)
+                {
+                    Check("B45", false, $"连接失败 err={idleError ?? "<none>"}");
+                }
+                else
+                {
+                    using (idleSocket)
+                    {
+                        await ReceiveUntilAsync(idleSocket, m => TypeOf(m) == "hello", 3000);
+                        var idleCloseCode = await WaitForCloseCodeAsync(idleSocket, 6000);
+
+                        Check("B45", idleCloseCode == 4408,
+                            $"closeCode={idleCloseCode?.ToString() ?? "<none>"}（期望 4408）");
+                    }
+                }
+
+                settings.SessionIdleTimeoutSeconds = 45;
             }
 
             // ---------------- 停服幂等 ----------------

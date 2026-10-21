@@ -116,6 +116,7 @@ namespace ScadaChecks
             RunHubChecks.Run();
             ModuleLoaderChecks.Run();
             RenderCatalogChecks.Run();
+            WebRendererCoverageChecks.Run();
             PageSnapshotChecks.Run();
             UserStoreConcurrencyChecks.Run();
             // 并发段有自己的计数与汇总（顶层 public 类），必须把它的结果并回主汇总：

@@ -96,6 +96,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
             conversion = null;
             error = string.Empty;
 
+            if (double.IsNaN(Scale) || double.IsInfinity(Scale)
+                || double.IsNaN(Offset) || double.IsInfinity(Offset))
+            {
+                error = "换算参数必须是有限数（不允许 NaN / Infinity）。";
+                return false;
+            }
+
             if (Scale == 0)
             {
                 error = "缩放系数不能为 0：工程值无法反算成原始值，请填 1 或实际比例。";

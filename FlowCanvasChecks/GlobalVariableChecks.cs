@@ -10,6 +10,7 @@ using Core.Interfaces.Io;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Prism.Dialogs;
+using UI.CustomControl.PropertyGrid;
 using VisionMaster;
 using VisionMaster.Communications;
 using VisionMaster.Models;
@@ -1206,6 +1207,20 @@ namespace FlowCanvasChecks
                 && editor.Elements[1].Value == "2" && editor.Elements[2].Value == "3",
                 $"v=[{string.Join(",", editor.Elements.Select(r => r.Value))}] count={editor.ChangedCount}");
 
+            // 尾换行：Excel 复制单格常带 \r\n，不能把末尾空段当成"清空下一行"
+            int trailingPaste = editor.Paste("10\r\n", null);
+            Check("[G] 网络数组：粘贴尾换行被忽略（不把末尾空段当成空值）",
+                trailingPaste == 1 && editor.Elements[0].Value == "10"
+                && editor.Elements[1].Value == "2" && editor.ChangedCount == 1,
+                $"filled={trailingPaste} v=[{string.Join(",", editor.Elements.Select(r => r.Value))}]");
+
+            // 中间空单元格：网络模式跳过，不写设备（空串会编码成全 0 定长块）
+            int emptyCellPaste = editor.Paste("20\n\n22", null);
+            Check("[G] 网络数组：中间空单元格跳过（不静默清空设备值）",
+                emptyCellPaste == 2 && editor.Elements[1].Value == "2"
+                && editor.InfoText.Contains("跳过 1 个空单元格", StringComparison.Ordinal),
+                $"filled={emptyCellPaste} v=[{string.Join(",", editor.Elements.Select(r => r.Value))}] info={editor.InfoText}");
+
             // —— 逐元素换算：读写互逆 / 文案进弹窗 / Scale=0 拒绝 ——
             var conversion = new ElementConversion { Scale = 0.1, Offset = 5, DecimalPlaces = 1, Unit = "℃" };
             object? raw = null;
@@ -1215,6 +1230,16 @@ namespace FlowCanvasChecks
                 && ArrayConversion.TryToRaw(conversion, 105.0, typeof(int), out raw, out _)
                 && Convert.ToInt32(raw) == 1000,
                 $"eng={engineering} raw={raw}");
+
+            Check("[G] 逐元素换算：工程值 105.5 → raw 1005（不能先舍成 106 再反算成 1010）",
+                ArrayConversion.TryToRaw(conversion, 105.5, typeof(int), out var fractionalRaw, out _)
+                && Convert.ToInt32(fractionalRaw) == 1005,
+                fractionalRaw?.ToString() ?? "(null)");
+
+            Check("[G] 逐元素换算：无档案时 double 工程值落回声明 int（不把 double 塞进 int[]）",
+                ArrayConversion.TryToRaw(null, 105.0, typeof(int), out var identityRaw, out _)
+                && identityRaw is int identityInt && identityInt == 105,
+                identityRaw?.GetType().Name + " " + identityRaw);
 
             Check("[G] 逐元素换算：Scale=0 反算明确失败（不静默写 0）",
                 !ArrayConversion.TryToRaw(new ElementConversion { Scale = 0 }, 1.0, typeof(int), out _, out var scaleError)
@@ -1249,6 +1274,33 @@ namespace FlowCanvasChecks
                 $"c0={conversionEditor.Elements[0].ConversionText} c1={conversionEditor.Elements[1].ConversionText} " +
                 $"c2={conversionEditor.Elements[2].ConversionText}");
 
+            // —— 字符串数组：换算列不出现（只对数值数组开放） ——
+            var stringArrayModel = new NetworkVariableModel
+            {
+                Name = "Codes",
+                DataType = typeof(string[]),
+                ConnectionName = "PLC1",
+                AddressConfig = new ModbusAddress
+                {
+                    Area = ModbusArea.HoldingRegisters,
+                    DataType = DataValueType.String,
+                    Offset = "0",
+                    Length = 2,
+                    ElementByteLength = 8
+                },
+                Value = new[] { "A", "B" }
+            };
+            var stringArrayEditor = new ArrayEditorViewModel();
+            stringArrayEditor.OnDialogOpened(new DialogParameters
+            {
+                { ArrayEditorViewModel.VariableKey, stringArrayModel }
+            });
+            Check("[G] 字符串数组：不显示换算列（换算仅数值数组；否则导出后再导入必被拒）",
+                !stringArrayEditor.ShowConversionControls
+                && stringArrayEditor.OperationHeader == "操作"
+                && stringArrayEditor.Elements.All(r => !r.HasConversion),
+                $"show={stringArrayEditor.ShowConversionControls} header={stringArrayEditor.OperationHeader}");
+
             // —— 添加变量：数组类型不再暴露可编辑的换算字段 ——
             var draftContext = new NetworkVariableDraftContext
             {
@@ -1265,13 +1317,29 @@ namespace FlowCanvasChecks
                 Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(),
                 context: draftContext);
             networkDraft.TypeName = "Int32[]";
-            bool arrayConversionIsHint = networkDraft.Conversion is ConversionHintDraft
-                && !networkDraft.EnableConversion;
+            var arrayConversion = networkDraft.Conversion;
+            var arrayVisible = PropertyGridDefaults.GetVisibleProperties(arrayConversion)
+                .Select(p => p.Name).ToList();
+            bool arrayConversionIsHint = arrayConversion is ConversionHintDraft
+                && !networkDraft.EnableConversion
+                && arrayVisible.Contains(nameof(ConversionHintDraft.Hint))
+                && !arrayVisible.Contains(nameof(ScalarConversionDraft.Scale));
+
             networkDraft.TypeName = "Int32";
-            bool scalarConversionIsEditable = networkDraft.Conversion is ScalarConversionDraft;
+            var scalarConversion = networkDraft.Conversion;
+            var scalarVisible = PropertyGridDefaults.GetVisibleProperties(scalarConversion)
+                .Select(p => p.Name).ToList();
+            bool scalarConversionIsEditable = scalarConversion is ScalarConversionDraft
+                && scalarVisible.Contains(nameof(ScalarConversionDraft.EnableConversion))
+                && scalarVisible.Contains(nameof(ScalarConversionDraft.Scale))
+                && scalarVisible.Contains(nameof(ScalarConversionDraft.EngineeringOffset))
+                && scalarVisible.Contains(nameof(ScalarConversionDraft.Unit))
+                && !scalarVisible.Contains(nameof(ConversionHintDraft.Hint));
+
             Check("[G] 添加变量：数组类型给「逐元素配置」说明，数值标量才给可编辑换算字段",
                 arrayConversionIsHint && scalarConversionIsEditable,
-                $"arrayHint={arrayConversionIsHint} scalarEditable={scalarConversionIsEditable}");
+                $"arrayVisible=[{string.Join(",", arrayVisible)}] " +
+                $"scalarVisible=[{string.Join(",", scalarVisible)}]");
 
             var emptyModel = new NetworkVariableModel
             {
@@ -1304,6 +1372,20 @@ namespace FlowCanvasChecks
             Check("[G] 网络数组写入弹窗：镜像未到时把全部项填满 → 允许整组写入（写的是用户显式给的值）",
                 emptyEditor.CanConfirm,
                 $"CanConfirm={emptyEditor.CanConfirm} hint={emptyEditor.ConfirmHint}");
+
+            // 按钮禁用只是第一道闸：命令被程序化触发时 ConfirmNetworkAsync 必须再拦一次
+            var emptyWholeEditor = new ArrayEditorViewModel();
+            emptyWholeEditor.OnDialogOpened(new DialogParameters
+            {
+                { ArrayEditorViewModel.VariableKey, emptyModel }
+            });
+            emptyWholeEditor.WriteWholeGroupCommand.Execute();
+            bool emptyWholeClosed = false;
+            emptyWholeEditor.RequestClose = MakeDialogCloseListener(_ => emptyWholeClosed = true);
+            emptyWholeEditor.ConfirmCommand.Execute();
+            Check("[G] 网络数组：空镜像 + 空行 → 程序化整组确认也被复检拦住（不写成 0）",
+                !emptyWholeClosed && emptyWholeEditor.HasError,
+                $"closed={emptyWholeClosed} err={emptyWholeEditor.ErrorText}");
         }
 
         // ==================================================================
@@ -1549,20 +1631,59 @@ namespace FlowCanvasChecks
                         EnableConversion = true,
                         Scale = 0.1,
                         EngineeringOffset = 5,
-                        Unit = "℃"
+                        Unit = "℃",
+                        DecimalPlaces = 1
                     }
                 }, CommunicationType.ModbusTcp);
             var scalarBack = JsonConvert.DeserializeObject<VariableDto>(
                 JsonConvert.SerializeObject(scalarDto));
             var scalarAddress = scalarBack?.BuildAddressConfig();
-            Check("[G] ★持久化往返：标量换算参数（启用/缩放/偏移/单位）原样还原",
-                scalarBack is { EnableConversion: true, Scale: 0.1, EngineeringOffset: 5, Unit: "℃" }
-                && scalarAddress is { EnableConversion: true, Scale: 0.1, EngineeringOffset: 5, Unit: "℃" },
+            Check("[G] ★持久化往返：标量换算参数（启用/缩放/偏移/单位/小数位）原样还原",
+                scalarBack is { EnableConversion: true, Scale: 0.1, EngineeringOffset: 5, Unit: "℃", DecimalPlaces: 1 }
+                && scalarAddress is { EnableConversion: true, Scale: 0.1, EngineeringOffset: 5, Unit: "℃", DecimalPlaces: 1 },
                 scalarBack == null
                     ? "dto=null"
                     : $"enabled={scalarBack.EnableConversion} scale={scalarBack.Scale} " +
-                      $"offset={scalarBack.EngineeringOffset} unit={scalarBack.Unit} " +
-                      $"addrScale={scalarAddress?.Scale} addrUnit={scalarAddress?.Unit}");
+                      $"offset={scalarBack.EngineeringOffset} unit={scalarBack.Unit} dp={scalarBack.DecimalPlaces} " +
+                      $"addrScale={scalarAddress?.Scale} addrUnit={scalarAddress?.Unit} addrDp={scalarAddress?.DecimalPlaces}");
+
+            // .vms 恢复：换算数组的镜像必须按 double[] 还原（按声明 int[] 会把 105.5 舍成 106）
+            var restoreModel = new NetworkVariableModel
+            {
+                Name = "Restored",
+                DataType = typeof(int[]),
+                ConnectionName = "PLC1",
+                Value = new double[] { 105.5, 2000.0 },
+                ElementConversions = new ElementConversion?[]
+                {
+                    new() { Scale = 0.1, Offset = 5, DecimalPlaces = 1, Unit = "℃" },
+                    null
+                },
+                AddressConfig = new ModbusAddress
+                {
+                    Area = ModbusArea.HoldingRegisters,
+                    DataType = DataValueType.Int32,
+                    Offset = "0",
+                    Length = 2
+                }
+            };
+            var restoreSolution = new SolutionModel();
+            restoreSolution.VariableSnapshots.Add(
+                VariableDto.FromNetwork(restoreModel, CommunicationType.ModbusTcp));
+            var restoredSolution = JsonConvert.DeserializeObject<SolutionModel>(
+                JsonConvert.SerializeObject(restoreSolution))!;
+            var restoreWorkspace = new WorkspaceContext();
+            VariablePersistenceService.Restore(restoredSolution, restoreWorkspace);
+            var restoredArray = restoreWorkspace.GlobalVariables
+                .OfType<NetworkVariableModel>()
+                .FirstOrDefault(v => v.Name == "Restored");
+            Check("[G] ★.vms 恢复：换算数组的镜像按 double[] 还原（105.5 不被舍成 106）",
+                restoredArray?.Value is double[] { Length: 2 } restoredValues
+                && Math.Abs(restoredValues[0] - 105.5) < 1e-9
+                && restoredArray.HasElementConversion,
+                restoredArray?.Value is Array valueArray
+                    ? $"{valueArray.GetType().Name} [{string.Join(",", valueArray.Cast<object?>())}]"
+                    : "(null)");
 
             var legacyDto = JsonConvert.DeserializeObject<VariableDto>(
                 "{\"VarType\":\"Network\",\"Name\":\"Old\",\"ConnectionName\":\"PLC1\"}");

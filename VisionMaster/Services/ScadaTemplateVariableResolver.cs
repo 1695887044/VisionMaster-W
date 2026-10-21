@@ -134,9 +134,14 @@ namespace VisionMaster.Services
 
             Type elementType = root.DataType.GetElementType() ?? typeof(object);
 
-            // 网络数组只支持整组写（读-改-写会覆盖其它元素），所以只有实现
-            // IArrayElementWritable 的变量源（本地数组）才允许写动作。
-            bool writable = root is IArrayElementWritable;
+            // 本地数组直接可写；网络数组必须真的能按元素地址下发（MC/FINS 没有元素地址）、
+            // 不是只读区、且有地址配置。旧判据 `root is IArrayElementWritable` 对
+            // NetworkVariableModel 恒真，会让不可写的网络数组在设计期也允许写动作，运行期才失败。
+            bool writable = root is IArrayElementWritable
+                && (root is not NetworkVariableModel network
+                    || (network.SupportsElementWrite
+                        && !network.IsReadOnlyArea
+                        && network.AddressConfig != null));
 
             variable = new ScadaTemplateVariable(
                 root.VariableId,

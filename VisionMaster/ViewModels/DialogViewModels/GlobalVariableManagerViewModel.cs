@@ -1610,7 +1610,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
             if ((isArray || isStringScalar) && draft.EnableConversion)
             {
-                EasyDialog.ShowSync("数组与字符串变量暂不支持工程量换算，请关闭「启用工程量换算」。", "提示");
+                EasyDialog.ShowSync("数组与字符串变量不支持地址上的整组换算（数组请在「写入数组 → 换算」里逐元素配置）。", "提示");
                 return;
             }
             if (!isArray && !isStringScalar && draft.EnableConversion && draft.Scale == 0)
@@ -2005,7 +2005,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if (_workspace.CurrentFlow?.RunState == FlowRunState.Running)
             {
                 EasyDialog.ShowSync(
-                    "流程运行中禁止整组写入数组。\n请先停止流程——整组替换会覆盖运行步骤正在读的那组数据。",
+                    "流程运行中禁止写入数组。\n请先停止流程——写入会覆盖运行步骤正在读的那组数据。",
                     "互锁");
                 return;
             }

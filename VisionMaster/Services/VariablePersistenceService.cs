@@ -117,7 +117,18 @@ namespace VisionMaster.Services
                 if (dataType == null) continue;
 
                 var defaultValue = VariableDto.JsonToValue(dto.DefaultValue, dataType);
-                var currentValue = VariableDto.JsonToValue(dto.Value, dataType);
+
+                // 换算生效的数组：镜像是 double[]（工程域）。按声明 int[] 还原会把 105.5
+                // 四舍五入成 106（离线时树/弹窗一直显示错值，再保存还会写回快照）。
+                Type? elementType = dataType.IsArray ? dataType.GetElementType() : null;
+                bool hasElementConversion = dto.ElementConversions?.Any(c => c != null && !c.IsIdentity) == true;
+                Type mirrorType = hasElementConversion
+                    && elementType != null
+                    && dataType != typeof(byte[])
+                    && ArrayConversion.IsNumericElement(elementType)
+                        ? typeof(double[])
+                        : dataType;
+                var currentValue = VariableDto.JsonToValue(dto.Value, mirrorType);
 
                 // 身份还原（迁移）：老方案快照没有 Id 字段，反序列化后为 Guid.Empty。
                 // 此处补发一个新 Id —— 变量本身可用，但"老方案里按名寻址的历史引用"仍靠 Name 兜底

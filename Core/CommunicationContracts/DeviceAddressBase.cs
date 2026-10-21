@@ -220,7 +220,8 @@ namespace VisionMaster.Communications
             try
             {
             // 只对数值类型进行转换。数组（int[]/double[]…）不做逐元素换算：
-            // 第一期数组只读，换算语义（每元素 Scale/Offset）没有定论，静默跳过比猜一个更安全。
+            // 数组换算走变量上的逐元素档案（NetworkVariableModel.ElementConversions）；
+            // 地址对象上的这一份只服务标量，数组在这里原样返回（避免双重换算）。
             if (rawValue is bool || rawValue is string || rawValue is Array)
                 return rawValue;
 
@@ -244,7 +245,7 @@ namespace VisionMaster.Communications
 
             try
             {
-            // 只对数值类型进行转换；数组不做逐元素换算（与读路径同一口径）
+            // 只对数值类型进行转换；数组的换算在变量模型的逐元素档案里（这里原样返回）
             if (engineeringValue is bool || engineeringValue is string || engineeringValue is Array)
                 return engineeringValue;
 

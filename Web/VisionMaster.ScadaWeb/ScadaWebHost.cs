@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.WebSockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
@@ -141,6 +142,22 @@ namespace VisionMaster.ScadaWeb
         private readonly ScadaPageSnapshotBuilder _builder = new();
         private readonly ScadaWebValueResolver _resolver;
 
+        // 结构快照缓存：只在"结构键"变化时重建整页（3000 图元 × 10Hz 的逐图元复制/分配
+        // 是 UI 线程最大的固定开销）。缓存的是**未加 caps 的原始快照**——caps 逐会话，
+        // 绝不能进这里。只在 UI 线程（CaptureLiveState）读写。
+        private string? _structureKey;
+        private ScadaPageSnapshot? _structurePage;
+        private long _structureBuildCount;
+
+        /// <summary>
+        /// 每帧每会话的 UTF-8 字节预算（含 envelope）。由 70Mbps / MaxSessions / 10Hz 推导，
+        /// 并与配置项取较小值——120KiB 的默认值原样生效等于 157Mbps，不能直接信。
+        /// </summary>
+        private readonly int _frameBudgetBytes;
+
+        /// <summary>周期 keyframe：10 秒一次（丢帧/慢消费者的自愈上限）</summary>
+        private static readonly TimeSpan KeyframeInterval = TimeSpan.FromSeconds(10);
+
         // ---- M2a：命令面的五个协作者（宿主只做接线，判据都在各自类里）----
         private readonly IScadaActionDispatcher? _actionDispatcher;
         private readonly IScadaValueWriter? _valueWriter;
@@ -213,6 +230,22 @@ namespace VisionMaster.ScadaWeb
             _settings = settings ?? new ScadaWebSettings();
             _resolver = new ScadaWebValueResolver(message => _log.Warn(message));
 
+            // 预算推导：70Mbps 目标、15% 余量、16 会话、10Hz → 约 46KB/帧/会话。
+            // 配置值更大时不放行（那会把目标直接打穿），更小时尊重现场带宽更窄的选择。
+            var budgetSessions = Math.Max(1,
+                _settings.MaxSessions > 0 ? _settings.MaxSessions : ScadaWebSettings.DefaultMaxSessions);
+            var budgetCeiling = (int)(70_000_000 * 0.85 / 8 / budgetSessions / (1000 / FrameIntervalMs));
+            _frameBudgetBytes = Math.Clamp(
+                Math.Min(_settings.FrameBudgetBytes, budgetCeiling),
+                8 * 1024,
+                256 * 1024);
+
+            if (_frameBudgetBytes != _settings.FrameBudgetBytes)
+            {
+                _log.Info($"[ScadaWeb] FrameBudgetBytes={_settings.FrameBudgetBytes} 已按 "
+                    + $"{budgetSessions} 会话 × 10Hz × 70Mbps 目标夹取为 {_frameBudgetBytes} 字节/帧/会话");
+            }
+
             _actionDispatcher = actionDispatcher;
             _valueWriter = valueWriter;
             _alarmCommands = alarmCommands;
@@ -241,6 +274,12 @@ namespace VisionMaster.ScadaWeb
 
         /// <summary>当前在线会话数</summary>
         public int OnlineCount => _sessions.Count;
+
+        /// <summary>实际生效的每帧每会话字节预算（诊断/断言用；配置值可能被 70Mbps 目标夹小）</summary>
+        public int EffectiveFrameBudgetBytes => _frameBudgetBytes;
+
+        /// <summary>结构快照真正重建的次数（诊断/断言用：同页连续两拍不该增加）</summary>
+        public long StructureBuildCount => Interlocked.Read(ref _structureBuildCount);
 
         /// <summary>实际生效的监听端口（<c>0</c> = 未启动）</summary>
         public int Port { get; private set; }
@@ -516,6 +555,10 @@ namespace VisionMaster.ScadaWeb
             }
 
             if (server == null && cts == null) return null;   // 幂等：没启动过 / 已停止
+
+            // 停服后下一轮可能换方案：结构缓存不能跨轮存活。
+            _structureKey = null;
+            _structurePage = null;
 
             // 先退订：停服过程中 hub 再发 RunStarted/RunStopped 时不该还有人往会话里塞帧
             UnsubscribeHubEvents();
@@ -2032,6 +2075,9 @@ namespace VisionMaster.ScadaWeb
         {
             try
             {
+                _structureKey = null;
+                _structurePage = null;
+
                 foreach (var item in _sessions.Values)
                     item.ResetPageKey();
 
@@ -2054,6 +2100,8 @@ namespace VisionMaster.ScadaWeb
             try
             {
                 _loopSawRunning = false;
+                _structureKey = null;
+                _structurePage = null;
 
                 var message = Json(new { type = "stopped", runGeneration = generation });
                 foreach (var item in _sessions.Values)
@@ -2115,6 +2163,10 @@ namespace VisionMaster.ScadaWeb
 
             if (!state.Running || state.Page is null)
             {
+                // 停运行后缓存必须作废：下一轮可能换方案/换页，旧快照的 PageId/Version 不能复用。
+                _structureKey = null;
+                _structurePage = null;
+
                 if (_loopSawRunning)
                 {
                     _loopSawRunning = false;
@@ -2138,14 +2190,12 @@ namespace VisionMaster.ScadaWeb
 
             _loopSawRunning = true;
 
-            var pageKey = PageKey(state.Page);
+            var pageKey = state.PageKey;
 
-            // 值帧仍然"拍一次、序列化一次、扇出"（值不随会话变化）；
             // 快照/结构消息<b>按会话序列化</b>：caps（CanOperate/OperateReason）是逐会话算的
             // （角色 + 最高角色策略 + 只读票），共用一份会把"谁能点"广播成同一个答案。
-            // 代价是结构变化时 N 份序列化（N ≤ MaxSessions，且只在换页/改结构那一刻发生）。
-            string? frameJson = null;
-
+            // 值帧也改成按会话：增量基线是"每个连接已经成功收到哪些值"，共享一份会让
+            // 慢消费者丢掉的变化在别人的成功里被误记成"已送达"。
             foreach (var session in _sessions.Values)
             {
                 var previousKey = session.CurrentPageKey;
@@ -2166,7 +2216,11 @@ namespace VisionMaster.ScadaWeb
                     // 只有真的入队成功才推进页键；失败（出站队列满）就保持旧键，下一拍重试。
                     // 先推进再发送会让客户端永远停在旧结构上——这是 M1c 复评抓到的静默冻结。
                     if (sent)
+                    {
                         session.CurrentPageKey = pageKey;
+                        // 结构变了：增量基线作废，下一帧必须是整帧（客户端也要按新结构重建值）。
+                        session.ResetDeltaForNewStructure();
+                    }
 
                     continue;
                 }
@@ -2174,8 +2228,7 @@ namespace VisionMaster.ScadaWeb
                 if (state.Items.Count == 0)
                     continue;
 
-                frameJson ??= BuildFrameMessage(state);
-                session.TrySend(frameJson);
+                SendFrame(state, session);
             }
         }
 
@@ -2194,15 +2247,31 @@ namespace VisionMaster.ScadaWeb
                 if (!_hub.TryGetCurrent(out var session, out _, out var generation) || session is null)
                     return LiveState.NotRunning;
 
-                var page = _builder.Build(session);
-                if (page is null)
-                    return LiveState.NotRunning;
+                // 结构键覆盖：运行轮次、本页标量（名称/尺寸/底色/弹窗标记，这些 setter 不升 Version）、
+                // 有序基座身份+版本（BasePageVersion 是求和，对换序不敏感）、弹窗及其基座。
+                var key = BuildStructureKey(session, generation);
+                ScadaPageSnapshot? page;
+
+                if (string.Equals(_structureKey, key, StringComparison.Ordinal) && _structurePage != null)
+                {
+                    page = _structurePage;
+                }
+                else
+                {
+                    page = _builder.Build(session);
+                    if (page is null)
+                        return LiveState.NotRunning;
+
+                    Interlocked.Increment(ref _structureBuildCount);
+                    _structureKey = key;
+                    _structurePage = page;
+                }
 
                 var items = _values is null
                     ? (IReadOnlyList<ScadaFrameItemDto>)Array.Empty<ScadaFrameItemDto>()
                     : _resolver.Resolve(page, _values);
 
-                return new LiveState(true, generation, page, items);
+                return new LiveState(true, generation, page, items, key);
             }
             catch (Exception ex)
             {
@@ -2224,8 +2293,13 @@ namespace VisionMaster.ScadaWeb
                 return;
             }
 
-            session.CurrentPageKey = PageKey(state.Page);
-            session.TrySend(BuildSnapshotMessage(state, session));
+            // 先发、成功才推进页键：失败（出站队列满）时下一拍必须重试整份快照，
+            // 先推进会让客户端永远停在"没有结构"的状态上。
+            if (session.TrySend(BuildSnapshotMessage(state, session)))
+            {
+                session.CurrentPageKey = state.PageKey;
+                session.ResetDeltaForNewStructure();
+            }
         }
 
         /// <summary>
@@ -2379,31 +2453,175 @@ namespace VisionMaster.ScadaWeb
             };
         }
 
-        private string BuildFrameMessage(LiveState state) => JsonWire(new ScadaFrameDto
+        /// <summary>
+        /// 给一个会话发一帧：增量（只含变化项）或整帧（首帧/结构变更后/每 10 秒）。
+        ///
+        /// <b>基线只在 <c>TrySend</c> 成功之后推进</b>：队列满时这一帧没出去，下一拍必须
+        /// 重新带上同一批变化；否则客户端会永久停在旧值上，直到下一次 keyframe。
+        ///
+        /// <b>预算按 UTF-8 字节、整条 item 裁</b>：超预算的项留在"未送达"状态，下一拍继续；
+        /// 游标轮转让 1000 项全变时尾部不会被永久饿死。整帧（keyframe）不裁预算——
+        /// 它每 10 秒才一次，10Hz 的预算不该把"自愈帧"也切成半截。
+        /// </summary>
+        private void SendFrame(LiveState state, ScadaWebSession session)
         {
-            Seq = Interlocked.Increment(ref _seq),
-            RunGeneration = state.Generation,
-            PageId = state.Page!.PageId,
-            PageVersion = state.Page.PageVersion,
-            Items = state.Items as List<ScadaFrameItemDto> ?? new List<ScadaFrameItemDto>(state.Items)
-        });
+            var now = DateTime.UtcNow;
+            var keyframe = session.NeedsKeyframe
+                || now - session.LastKeyframeUtc >= KeyframeInterval;
+
+            var items = state.Items;
+            if (items.Count == 0)
+                return;
+
+            var included = new List<KeyValuePair<string, string>>(
+                keyframe ? items.Count : Math.Min(items.Count, 64));
+
+            var sb = new StringBuilder(Math.Max(512, items.Count * 64));
+            var frameSeq = session.FrameSeq + 1;
+
+            sb.Append("{\"type\":\"frame\",\"seq\":").Append(Interlocked.Increment(ref _seq))
+              .Append(",\"frameSeq\":").Append(frameSeq)
+              .Append(",\"keyframe\":").Append(keyframe ? "true" : "false")
+              .Append(",\"runGeneration\":").Append(state.Generation)
+              .Append(",\"pageId\":\"").Append(state.Page!.PageId).Append('"')
+              .Append(",\"pageVersion\":").Append(state.Page.PageVersion)
+              .Append(",\"items\":[");
+
+            var usedBytes = Encoding.UTF8.GetByteCount(sb.ToString());
+            var stoppedForBudget = false;
+            var count = items.Count;
+            var start = count > 0 ? session.DeltaCursor % count : 0;
+            var nextCursor = 0;
+
+            for (var n = 0; n < count; n++)
+            {
+                var index = (start + n) % count;
+                var item = items[index];
+                if (item is null)
+                    continue;
+
+                var key = item.ElementId + "\u001F" + item.Property;
+                var json = JsonConvert.SerializeObject(item, WireJson);
+
+                if (!keyframe
+                    && session.LastValues.TryGetValue(key, out var previous)
+                    && string.Equals(previous, json, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var bytes = Encoding.UTF8.GetByteCount(json) + (included.Count == 0 ? 0 : 1);
+
+                // 增量帧按预算裁；至少放一条（单条超预算也要发，否则这条永远出不去）。
+                if (!keyframe && included.Count > 0 && usedBytes + bytes > _frameBudgetBytes)
+                {
+                    stoppedForBudget = true;
+                    nextCursor = index;
+                    break;
+                }
+
+                if (included.Count > 0)
+                    sb.Append(',');
+
+                sb.Append(json);
+                usedBytes += bytes;
+                included.Add(new KeyValuePair<string, string>(key, json));
+            }
+
+            // 没有变化也发一条空帧：保持 10Hz 心跳与 frameSeq 连续。
+            // 空帧约 150B，16 端合计 ~24kbps，换来的是"客户端能区分'没变化'与'连接死了'"。
+            sb.Append("]}");
+
+            if (!session.TrySend(sb.ToString()))
+                return;   // 入队失败：基线不推进，下一拍重发同一批变化
+
+            foreach (var pair in included)
+                session.LastValues[pair.Key] = pair.Value;
+
+            session.FrameSeq = frameSeq;
+            session.NeedsKeyframe = false;
+            session.DeltaCursor = stoppedForBudget ? nextCursor : 0;
+
+            if (keyframe)
+                session.LastKeyframeUtc = now;
+        }
 
         /// <summary>
-        /// 页面键：<c>pageId@pageVersion@basePageVersion</c>。
+        /// 结构键：决定"要不要重建整页快照 / 要不要给客户端发 <c>page</c>"。
         ///
-        /// <b>为什么必须带上基座版本</b>
+        /// <b>为什么不能只看 <c>pageId@pageVersion@basePageVersion</c></b>
         /// ---------
-        /// 基座是跨页公共层，它自己的 <c>Version</c> <b>不</b>冒泡进本页的 <c>Version</c>
-        /// （两个不同的 <c>ScadaPage</c> 对象）。只拼 <c>pageId@pageVersion</c> 的话，
-        /// "改基座图元属性"→ 页键不变 → 永远不发 <c>page</c>，基座热更新在 Web 侧等于没发生。
-        /// 拼上之后"本页没变、基座变了"照常发 <c>page</c>（客户端拿到的 <c>pageVersion</c> 可以不变）。
+        /// ① 基座版本是求和，对"两只基座换序/同版本替换"不敏感，也不含基座身份；
+        /// ② 页面标量（名称/宽高/底色/弹窗标记/弹窗锚点）走 <c>SetProperty</c>，<b>不升 Version</b>；
+        /// ③ 弹窗打开/关闭不动 <c>CurrentPage.Version</c>（<c>ScadaRuntime.OpenPopup</c> 只换
+        ///    <c>CurrentPopup</c>），旧键会让弹窗永远推不出去；
+        /// ④ 跨轮 <c>Page.Version</c> 可能归零（<c>[JsonIgnore]</c> 不落盘），必须带 runGeneration。
         ///
-        /// <b>联合判定</b>：跨页时版本号可能变小，不能单独比数字。
+        /// 所以键 = 运行轮次 + 本页身份/版本/标量哈希 + 有序基座身份/版本 + 弹窗及弹窗基座。
+        /// 键只用于"是否重建/是否发结构消息"，不发给客户端。
         /// </summary>
-        private static string PageKey(ScadaPageSnapshot page)
-            => page.PageId
-               + "@" + page.PageVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)
-               + "@" + page.BasePageVersion.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        private static string BuildStructureKey(ScadaRuntime session, long generation)
+        {
+            var page = session.CurrentPage;
+            if (page is null)
+                return string.Empty;
+
+            var sb = new StringBuilder(192);
+            sb.Append(generation.ToString(CultureInfo.InvariantCulture)).Append('|');
+            AppendPageIdentity(sb, page);
+
+            foreach (var basePage in session.CurrentBasePages)
+            {
+                sb.Append(';');
+                AppendPageIdentity(sb, basePage);
+            }
+
+            sb.Append("|p|");
+            var popup = session.CurrentPopup;
+            if (popup is not null)
+            {
+                AppendPageIdentity(sb, popup);
+                foreach (var basePage in session.CurrentPopupBasePages)
+                {
+                    sb.Append(';');
+                    AppendPageIdentity(sb, basePage);
+                }
+            }
+
+            return sb.ToString();
+        }
+
+        /// <summary>页面身份段：Id/Version 显式拼、标量走 FNV-1a 64（避免把整段用户文本塞进每拍比较的键）。</summary>
+        private static void AppendPageIdentity(StringBuilder sb, ScadaPage page)
+        {
+            sb.Append(page.PageId.ToString("N")).Append(':')
+              .Append(page.Version.ToString(CultureInfo.InvariantCulture)).Append(':');
+
+            ulong hash = 14695981039346656037UL;
+            hash = Fnv(hash, page.Name);
+            hash = Fnv(hash, page.Background);
+            hash = Fnv(hash, page.Width.ToString("R", CultureInfo.InvariantCulture));
+            hash = Fnv(hash, page.Height.ToString("R", CultureInfo.InvariantCulture));
+            hash = Fnv(hash, page.IsPopup ? "1" : "0");
+            hash = Fnv(hash, page.PopupAnchor.ToString());
+            hash = Fnv(hash, page.PopupModal ? "1" : "0");
+
+            sb.Append(hash.ToString("X16"));
+        }
+
+        private static ulong Fnv(ulong hash, string? text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return hash;
+
+            foreach (var ch in text)
+            {
+                hash ^= ch;
+                hash *= 1099511628211UL;
+            }
+
+            return hash;
+        }
 
         /// <summary>
         /// 把一段读模型的动作放到 UI 线程执行。
@@ -2424,10 +2642,11 @@ namespace VisionMaster.ScadaWeb
             bool Running,
             long Generation,
             ScadaPageSnapshot? Page,
-            IReadOnlyList<ScadaFrameItemDto> Items)
+            IReadOnlyList<ScadaFrameItemDto> Items,
+            string PageKey)
         {
             public static readonly LiveState NotRunning =
-                new(false, 0, null, Array.Empty<ScadaFrameItemDto>());
+                new(false, 0, null, Array.Empty<ScadaFrameItemDto>(), string.Empty);
         }
 
         #endregion
@@ -2453,6 +2672,7 @@ namespace VisionMaster.ScadaWeb
 
                 try
                 {
+                    SweepDeadSessions();
                     BroadcastPresence();
                     await BroadcastCapsAsync(token).ConfigureAwait(false);
                     BroadcastAlarms();
@@ -2461,6 +2681,77 @@ namespace VisionMaster.ScadaWeb
                 {
                     _log.Warn($"[ScadaWeb] 在线列表/报警广播异常：{ex.GetType().Name}：{ex.Message}");
                 }
+            }
+        }
+
+        /// <summary>
+        /// 回收"既没有入站、也没有成功出站"的死连接（默认 45 秒，配置为 0 时关闭）。
+        ///
+        /// <b>双条件</b>：只看入站会误杀被浏览器节流的后台标签页（ping 定时器被降到 1/min）；
+        /// 只看出站会杀掉所有空闲页（未运行时本来就没有值帧）。两个方向都停滞才是死连接。
+        /// <b>豁免</b>：撤销中的会话交给撤销路径（否则 B43 拿不到 4403）；命令排队/执行中的
+        /// 会话不算死（长命令可能占住 UI 线程几十秒）。
+        /// </summary>
+        private void SweepDeadSessions()
+        {
+            var seconds = _settings.SessionIdleTimeoutSeconds;
+            if (seconds <= 0 || _sessions.IsEmpty)
+                return;
+
+            var timeout = TimeSpan.FromSeconds(seconds);
+            var now = DateTime.UtcNow;
+
+            foreach (var pair in _sessions)
+            {
+                var session = pair.Value;
+
+                if (session.IsRevoked)
+                    continue;
+
+                if (_pump?.IsSessionBusy(session.SessionId) == true)
+                    continue;
+
+                var lastIn = session.LastSeenUtc;
+                var lastOutTicks = session.LastSendSucceededUtcTicks;
+                var lastOut = lastOutTicks > 0
+                    ? new DateTime(lastOutTicks, DateTimeKind.Utc)
+                    : session.ConnectedAtUtc;
+
+                if (now - lastIn < timeout || now - lastOut < timeout)
+                    continue;
+
+                if (!_sessions.TryRemove(pair.Key, out var removed))
+                    continue;
+
+                _log.Warn($"[ScadaWeb] 会话 {removed.SessionRef} 超过 {seconds}s 无收发进展，按死连接回收");
+                _ = CloseIdleSessionAsync(removed, seconds);
+            }
+        }
+
+        private async Task CloseIdleSessionAsync(ScadaWebSession session, int seconds)
+        {
+            try
+            {
+                await SafeSendAsync(session.Socket, Json(new
+                {
+                    type = "bye",
+                    reason = "idle-timeout",
+                    closeCode = 4408,
+                    message = $"连接 {seconds} 秒无收发进展"
+                })).ConfigureAwait(false);
+            }
+            catch
+            {
+                // 对端已经不读了：下面照样关连接
+            }
+
+            try
+            {
+                await session.CloseAsync((WebSocketCloseStatus)4408, "idle-timeout").ConfigureAwait(false);
+            }
+            catch
+            {
+                // 已断开
             }
         }
 

@@ -129,6 +129,23 @@ namespace FlowCanvasChecks
                     && plan.Items[0].Definition.ElementConversions[0]?.Unit == "℃"
                     && plan.Items[0].Definition.ElementConversions[1] == null,
                     "计划未带回逐元素换算");
+
+                // 旧模板缺「逐元素换算」列：更新时保持原档案（列缺失 ≠ 显式清空）
+                var rowWithoutConversions = Row(2,
+                    (DeviceVariableColumns.Name, "Ctrl"),
+                    (DeviceVariableColumns.Description, "数组换算"),
+                    (DeviceVariableColumns.DataType, GlobalVariableManagerViewModel.TypeDisplayName(typeof(int[]))),
+                    (DeviceVariableColumns.Area, GlobalVariableManagerViewModel.AreaDisplayName(ModbusArea.HoldingRegisters)),
+                    (DeviceVariableColumns.Offset, "200"),
+                    (DeviceVariableColumns.ElementCount, "2"));
+                var planWithout = BuildPlan(
+                    connection, ws, new[] { rowWithoutConversions }, new[] { arrayNv }, groups);
+                Check("[IO] 旧模板缺「逐元素换算」列：计划判无变化（保持原档案）",
+                    planWithout.UnchangedCount == 1 && planWithout.UpdateCount == 0,
+                    $"新增 {planWithout.NewCount} / 更新 {planWithout.UpdateCount} / 无变化 {planWithout.UnchangedCount} / {planWithout.Items.FirstOrDefault()?.Note}");
+                Check("[IO] 旧模板缺列：定义标记 HasElementConversionsColumn=false（应用时保留原档案）",
+                    planWithout.Items[0].Definition?.HasElementConversionsColumn == false,
+                    "定义未标记列缺失");
             }
             finally
             {

@@ -161,6 +161,16 @@ namespace VisionMaster.Models
             }
         }
 
+        /// <summary>该下标是否有生效的逐元素换算（用于界面按工程域解析/比较该行）</summary>
+        public bool HasConversionAt(int index)
+        {
+            if (!HasElementConversion) return false;
+
+            var conversions = ElementConversions;
+            var conversion = index >= 0 && index < conversions.Length ? conversions[index] : null;
+            return conversion != null && !conversion.IsIdentity;
+        }
+
         /// <summary>
         /// 读路径的换算入口（由 <c>NetworkVariableBridge</c> 注入 <c>CommunicationVariable.EngineeringConverter</c>）。
         /// <para>标量走地址对象上的换算（改造前行为）；数组逐元素换算，数值元素返回
@@ -384,7 +394,7 @@ namespace VisionMaster.Models
 
             if (AddressConfig.EnableConversion)
             {
-                error = $"变量 [{Name}] 是数组类型，暂不支持工程量换算（请关闭地址上的「启用转换」）";
+                error = $"变量 [{Name}] 是数组类型，不支持地址上的整组换算（请关闭「启用转换」，改用逐元素换算档案）";
                 return false;
             }
 
@@ -403,18 +413,35 @@ namespace VisionMaster.Models
 
             Type elementType = DataType.GetElementType() ?? typeof(object);
 
-            if (!TryCoerceElement(value, elementType, out object? converted, out error))
-                return false;
-
             // 逐元素换算：界面/SCADA 给的是工程值，设备要的是原始值。
             // 地址对象上的整组换算对数组是禁用的，所以这里只走元素档案；
             // byte[] 是原始块，不参与换算（即使有人手工塞了档案）。
-            object? deviceElement = converted;
             var conversions = ElementConversions;
             var conversion = DataType != typeof(byte[]) && index < conversions.Length
                 ? conversions[index]
                 : null;
-            if (!ArrayConversion.TryToRaw(conversion, converted, elementType, out deviceElement, out var conversionError))
+            bool hasConversion = conversion != null
+                && !conversion.IsIdentity
+                && ArrayConversion.IsNumericElement(elementType);
+
+            object? engineeringValue;
+            if (hasConversion)
+            {
+                // 工程域是 double：文本/数值都先解析成 double，绝不能先落到声明元素类型。
+                // 反例：int 元素、×0.1+5，工程值 105.5 先 Convert.ChangeType 成 106，
+                // 再反算就是 1010——设备侧拿到错值，界面上完全看不出来。
+                if (!TryParseEngineeringValue(value, out double engineering, out error))
+                    return false;
+                engineeringValue = engineering;
+            }
+            else
+            {
+                if (!TryCoerceElement(value, elementType, out engineeringValue, out error))
+                    return false;
+            }
+
+            object? deviceElement = engineeringValue;
+            if (!ArrayConversion.TryToRaw(conversion, engineeringValue, elementType, out deviceElement, out var conversionError))
             {
                 error = $"变量 [{Name}] 的第 {index} 项换算失败：{conversionError}";
                 return false;
@@ -468,7 +495,7 @@ namespace VisionMaster.Models
                     try
                     {
                         var copy = (Array)mirror.Clone();
-                        copy.SetValue(ToMirrorElement(copy, converted), index);
+                        copy.SetValue(ToMirrorElement(copy, engineeringValue), index);
                         UpdateMirrorValue(copy);
                     }
                     catch (Exception mirrorEx)
@@ -525,6 +552,51 @@ namespace VisionMaster.Models
                 error = $"「{value}」无法转换为数组元素类型 {elementType.Name}：{ex.Message}";
                 return false;
             }
+        }
+
+        /// <summary>
+        /// 把外部输入解析成工程域的 double（换算生效的元素专用）。
+        /// <para>文本按不变文化解析；数值直通。不允许 NaN/Infinity——它们会一路传到设备写。</para>
+        /// </summary>
+        private static bool TryParseEngineeringValue(object? value, out double engineering, out string? error)
+        {
+            engineering = 0;
+            error = null;
+
+            if (value == null)
+            {
+                error = "工程值不能为空";
+                return false;
+            }
+
+            if (value is string text)
+            {
+                if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out engineering))
+                {
+                    error = $"「{text}」不是有效数值";
+                    return false;
+                }
+            }
+            else
+            {
+                try
+                {
+                    engineering = Convert.ToDouble(value, CultureInfo.InvariantCulture);
+                }
+                catch (Exception ex)
+                {
+                    error = $"「{value}」无法转换为数值：{ex.Message}";
+                    return false;
+                }
+            }
+
+            if (double.IsNaN(engineering) || double.IsInfinity(engineering))
+            {
+                error = "工程值必须是有限数（不允许 NaN / Infinity）";
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -604,22 +676,40 @@ namespace VisionMaster.Models
                     error = $"变量 [{Name}] 是数组类型，写入值必须是数组（收到 {value?.GetType().Name ?? "null"}）";
                     return false;
                 }
-                if (!TryNormalizeArray(inputArray, out var normalized, out var normalizeError))
+                if (HasElementConversion)
                 {
-                    error = $"变量 [{Name}] 数组写入失败：{normalizeError}";
-                    return false;
+                    // 换算生效：工程域是 double[]，绝不能先 TryNormalizeArray 到声明元素类型
+                    // （int 元素会把 105.5 舍成 106 再反算，静默写错 raw）。
+                    if (!TryBuildEngineeringArray(inputArray, out var engineeringArray, out var engineeringError))
+                    {
+                        error = $"变量 [{Name}] 数组写入失败：{engineeringError}";
+                        return false;
+                    }
+
+                    value = engineeringArray;
+                    mirrorValue = engineeringArray;
+                    writtenValue = engineeringArray;
+
+                    if (!TryToRawArray(engineeringArray, out var rawArray, out var conversionError))
+                    {
+                        error = $"变量 [{Name}] 数组换算失败：{conversionError}";
+                        return false;
+                    }
+                    deviceValue = rawArray;
                 }
-
-                value = normalized;
-                mirrorValue = ToMirrorArray(normalized);
-                writtenValue = mirrorValue;
-
-                if (!TryToRawArray(normalized, out var rawArray, out var conversionError))
+                else
                 {
-                    error = $"变量 [{Name}] 数组换算失败：{conversionError}";
-                    return false;
+                    if (!TryNormalizeArray(inputArray, out var normalized, out var normalizeError))
+                    {
+                        error = $"变量 [{Name}] 数组写入失败：{normalizeError}";
+                        return false;
+                    }
+
+                    value = normalized;
+                    mirrorValue = normalized;
+                    writtenValue = normalized;
+                    deviceValue = normalized;
                 }
-                deviceValue = rawArray;
             }
             // 字符串变量：非文本值按不变文化转成文本（避免把 int 当数值写到字符串区，
             // 那样 HslHelper 会按 4 字节整数下发，字符串区直接错位）。
@@ -798,23 +888,30 @@ namespace VisionMaster.Models
         }
 
         /// <summary>
-        /// 把"声明元素类型"的工程值数组转成镜像表示。
-        /// <para>换算生效时读路径发布的是 <c>double[]</c>（工程值），写成功后镜像必须落到同一表示，
-        /// 否则会出现"写一次镜像变 int[]、下一拍轮询又变 double[]"的类型翻转；
-        /// 更重要的是 <see cref="Array.SetValue(object, int)"/> 不允许把 int 塞进 double[]
-        /// （按元素写成功后更新镜像时会直接抛 InvalidCastException）。</para>
+        /// 把外部数组解析成工程域的 <c>double[]</c>（换算生效时专用）。
+        /// <para>为什么不能先 <see cref="TryNormalizeArray"/>：那会把 105.5 按声明元素类型
+        /// 舍成 106，再反算就是错值。这里只解析成 double，落元素类型交给
+        /// <see cref="ArrayConversion.TryToRaw"/> 在反算之后做。</para>
+        /// <para>文本按不变文化解析；数值直通；不允许 NaN/Infinity。</para>
         /// </summary>
-        private Array ToMirrorArray(Array normalized)
+        private bool TryBuildEngineeringArray(Array input, out double[] engineering, out string? error)
         {
-            if (!HasElementConversion) return normalized;
+            error = null;
+            engineering = new double[input.Length];
 
-            Type? elementType = DataType.GetElementType();
-            if (elementType == null || !ArrayConversion.IsNumericElement(elementType)) return normalized;
+            for (int i = 0; i < input.Length; i++)
+            {
+                if (!TryParseEngineeringValue(input.GetValue(i), out double value, out var itemError))
+                {
+                    error = $"第 {i} 项：{itemError}";
+                    engineering = Array.Empty<double>();
+                    return false;
+                }
 
-            var result = new double[normalized.Length];
-            for (int i = 0; i < normalized.Length; i++)
-                result[i] = TryToDouble(normalized.GetValue(i));
-            return result;
+                engineering[i] = value;
+            }
+
+            return true;
         }
 
         /// <summary>把声明元素类型的工程值转成镜像数组的元素类型（int → double[] 镜像时用）</summary>
@@ -1023,7 +1120,8 @@ namespace VisionMaster.Models
         /// </summary>
         public void ResetToDefault()
         {
-            // 数组只读：恢复初始值既不写设备，也不该把镜像值改成基准（那会让界面显示一个设备上并不存在的值）
+            // 数组不走隐式恢复初始值：既不写设备，也不该把镜像值改成基准
+            // （那会让界面显示一个设备上并不存在的值）；写入走显式整组/逐项写。
             if (DataType.IsArray) return;
 
             if (!TryWriteToValue(DefaultValue, out _))

@@ -43,7 +43,9 @@ namespace VisionMaster.ScadaWeb
     public sealed class ScadaWebCommandRouter
     {
         /// <summary>
-        /// Web 可执行动作的默认白名单（M2a：<b>全部 <see cref="ScadaActionType"/> 去掉 <see cref="ScadaActionType.Navigate"/></b>）。
+        /// Web 可执行动作的默认白名单（M2a：<b>全部 <see cref="ScadaActionType"/> 去掉 <see cref="ScadaActionType.Navigate"/></b>；
+        /// A 范围再硬排除 <see cref="ScadaActionType.StartFlow"/>/<see cref="ScadaActionType.RunFlowOnce"/>/
+        /// <see cref="ScadaActionType.ResumeFlow"/>，见 <c>BuildAllowedSet</c>）。
         ///
         /// <b>为什么不是逐条枚举</b>：M2a 的默认口径是"桌面能配的动作，Web 默认都能执行"，只有镜像模式
         /// 做不到的 <see cref="ScadaActionType.Navigate"/> 剔除（它会在<b>桌面</b>上切页，改掉所有会话看到的画面）。
@@ -846,6 +848,12 @@ namespace VisionMaster.ScadaWeb
                 if (IsMotion(type) && !settings.AllowMotionCommands)
                     continue;
 
+                // A 范围（Web 轴只读）：启动/恢复流程能从流程里间接驱动轴（流程可以含
+                // 轴运动/回零/停止步骤），只关九条 Motion 动作封不住这条旁路。
+                // 停/暂停流程是安全方向，保留；文案必须写清"停流程不等于停轴"。
+                if (IsFlowStart(type))
+                    continue;
+
                 set.Add(type);
             }
 
@@ -858,6 +866,14 @@ namespace VisionMaster.ScadaWeb
             or ScadaActionType.MotionHome or ScadaActionType.MotionStop
             or ScadaActionType.MotionClearAlarm or ScadaActionType.MotionJogStart
             or ScadaActionType.MotionJogStop;
+
+        /// <summary>
+        /// A 范围硬排除的流程启动类动作：它们能把"流程里的运动步骤"带起来，
+        /// 而 <see cref="ScadaWebSettings.AllowMotionCommands"/> 只过滤直接的运动动作。
+        /// 显式 <c>allowedActions</c> 参数也绕不过这一条（判据在集合构建处，不在默认值上）。
+        /// </summary>
+        private static bool IsFlowStart(ScadaActionType type) => type is
+            ScadaActionType.StartFlow or ScadaActionType.RunFlowOnce or ScadaActionType.ResumeFlow;
 
         /// <summary>确认令牌绑定的"动作种类"：按事件区分（同一个按钮的 Pressed 与 Released 不共享令牌）</summary>
         private static string ActionKindFor(ScadaEventType eventType) => "event:" + eventType;

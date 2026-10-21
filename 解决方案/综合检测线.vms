@@ -10,7 +10,7 @@
       "FlowName": "Home",
       "Description": "回原 / 回零",
       "Version": 0,
-      "IsEnabled": true,
+      "IsEnabled": false,
       "Role": 1,
       "InvokeType": 0,
       "TimerIntervalMs": 0,
@@ -97,6 +97,44 @@
             "Axis": "Y",
             "Mode": "NegativeLimitIndex",
             "TimeoutMs": 60000
+          },
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "fc7137dc-7a65-e38d-9b05-5476d8f68038",
+          "Icon": "",
+          "PluginName": "读轴状态",
+          "Category": "运动控制",
+          "PluginTypeName": "Plugin.Motion.Steps.MotionReadStatusPlugin, Plugin.Motion.Steps, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "读X轴状态",
+          "Description": "读轴状态",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "Axis": "X",
+            "FailOnAlarm": false
+          },
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "c03c35bb-f58f-9ddd-b697-be410bcd336b",
+          "Icon": "",
+          "PluginName": "读轴状态",
+          "Category": "运动控制",
+          "PluginTypeName": "Plugin.Motion.Steps.MotionReadStatusPlugin, Plugin.Motion.Steps, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "读Y轴状态",
+          "Description": "读轴状态",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "Axis": "Y",
+            "FailOnAlarm": false
           },
           "LinkedSources": {},
           "OutputPortDefinitions": []
@@ -198,7 +236,7 @@
           "InputValues": {
             "Name": "SystemReady",
             "CreateIfNotExists": false,
-            "Scope": "Runtime",
+            "Scope": "Global",
             "Value": true
           },
           "LinkedSources": {},
@@ -289,7 +327,7 @@
                   "InputValues": {},
                   "LinkedSources": {},
                   "OutputPortDefinitions": [],
-                  "DefaultLoopCount": 5,
+                  "DefaultLoopCount": 2,
                   "Children": [
                     {
                       "Steps": [
@@ -535,39 +573,6 @@
                         },
                         {
                           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-                          "StepID": "f7a43d24-fd61-16a0-b6d6-b569563d92d3",
-                          "Icon": "",
-                          "PluginName": "几何查找",
-                          "Category": "几何工具",
-                          "PluginTypeName": "Plugin.GeometryFinder.GeometryFinderPlugin, Plugin.GeometryFinder, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-                          "StepName": "找直线",
-                          "Description": "几何查找",
-                          "SortId": 0,
-                          "IsDisEnable": false,
-                          "State": 0,
-                          "InputValues": {
-                            "Kind": "Line",
-                            "Sigma": 1.0,
-                            "LowThreshold": 20.0,
-                            "HighThreshold": 40.0,
-                            "MinContourLength": 100.0,
-                            "FitAlgorithm": "Tukey",
-                            "FailOnNotFound": false,
-                            "DisplayViewIndex": 0
-                          },
-                          "LinkedSources": {
-                            "SrcImage": {
-                              "Kind": 1,
-                              "TargetStepId": "fe7911f8-4e82-ad4c-a2fc-60d54b3455e6",
-                              "TargetPortName": "Image",
-                              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-                              "DisplayAddress": "图像预处理.Image"
-                            }
-                          },
-                          "OutputPortDefinitions": []
-                        },
-                        {
-                          "$type": "VisionMaster.Models.ActionStep, VM.Core",
                           "StepID": "befe5bc9-952c-22f9-2f40-6c459f4cc581",
                           "Icon": "",
                           "PluginName": "几何计算",
@@ -781,7 +786,7 @@
                           "IsDisEnable": false,
                           "State": 0,
                           "InputValues": {
-                            "B": 0.0,
+                            "B": 10.0,
                             "Type": "LessThanOrEqual",
                             "Tolerance": 1E-06
                           },
@@ -871,7 +876,7 @@
                           "State": 0,
                           "InputValues": {
                             "Name": "CurrentResult",
-                            "CreateIfNotExists": false,
+                            "CreateIfNotExists": true,
                             "Scope": "Runtime"
                           },
                           "LinkedSources": {
@@ -899,7 +904,7 @@
                           "State": 0,
                           "InputValues": {
                             "Name": "OcrText",
-                            "CreateIfNotExists": false,
+                            "CreateIfNotExists": true,
                             "Scope": "Runtime"
                           },
                           "LinkedSources": {
@@ -927,7 +932,7 @@
                           "State": 0,
                           "InputValues": {
                             "Name": "DefectCount",
-                            "CreateIfNotExists": false,
+                            "CreateIfNotExists": true,
                             "Scope": "Runtime"
                           },
                           "LinkedSources": {
@@ -1103,7 +1108,7 @@
                                   "StepName": "X到取料位",
                                   "Description": "轴运动",
                                   "SortId": 0,
-                                  "IsDisEnable": false,
+                                  "IsDisEnable": true,
                                   "State": 0,
                                   "InputValues": {
                                     "Axis": "X",
@@ -1124,7 +1129,7 @@
                                   "StepName": "等待取料位",
                                   "Description": "等待到位",
                                   "SortId": 0,
-                                  "IsDisEnable": false,
+                                  "IsDisEnable": true,
                                   "State": 0,
                                   "InputValues": {
                                     "Axis": "X",
@@ -1144,7 +1149,7 @@
                                   "StepName": "X回检测位",
                                   "Description": "轴运动",
                                   "SortId": 0,
-                                  "IsDisEnable": false,
+                                  "IsDisEnable": true,
                                   "State": 0,
                                   "InputValues": {
                                     "Axis": "X",
@@ -1165,7 +1170,7 @@
                                   "StepName": "等待回位",
                                   "Description": "等待到位",
                                   "SortId": 0,
-                                  "IsDisEnable": false,
+                                  "IsDisEnable": true,
                                   "State": 0,
                                   "InputValues": {
                                     "Axis": "X",
@@ -1192,7 +1197,7 @@
                                   "StepName": "NG停止",
                                   "Description": "轴停止",
                                   "SortId": 0,
-                                  "IsDisEnable": false,
+                                  "IsDisEnable": true,
                                   "State": 0,
                                   "InputValues": {
                                     "Axis": "X",
@@ -1212,7 +1217,7 @@
                                   "StepName": "NG报警灯",
                                   "Description": "轴卡 IO",
                                   "SortId": 0,
-                                  "IsDisEnable": false,
+                                  "IsDisEnable": true,
                                   "State": 0,
                                   "InputValues": {
                                     "Card": "ZMotion_Virtual",
@@ -1281,9 +1286,9 @@
                           "RuntimeVariableRefs": [],
                           "ConditionExpression": "Ack == 1",
                           "PollIntervalMs": 50,
-                          "TimeoutMs": 5000,
+                          "TimeoutMs": 1000,
                           "TimeoutAction": 1,
-                          "TimeoutMessage": "PLC 未在 5 秒内给出确认，继续执行",
+                          "TimeoutMessage": "PLC 未在 1 秒内给出确认，继续执行",
                           "AlarmVariableName": ""
                         }
                       ],
@@ -1292,6 +1297,1905 @@
                       "Expression": ""
                     }
                   ]
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "bb138196-803f-c60e-6e97-ea070434200d",
+                  "Icon": "",
+                  "PluginName": "图像采集",
+                  "Category": "常用工具",
+                  "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "采集颜色图",
+                  "Description": "图像采集",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Mode": "SingleFile",
+                    "FilePath": "D:\\C#\\VM\\Image\\颜色\\合成颜色_8bit.png",
+                    "DisplayViewIndex": 1
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "421094b9-5db6-8ec5-46ed-c94b0d292906",
+                  "Icon": "",
+                  "PluginName": "颜色序列检查",
+                  "Category": "图像处理",
+                  "PluginTypeName": "Plugin.ColorCheck.ColorCheckPlugin, Plugin.ColorCheck, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "颜色序列检查",
+                  "Description": "颜色序列检查",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "RoiParams": [
+                      400.0,
+                      276.0,
+                      1.5708,
+                      320.0,
+                      210.0
+                    ],
+                    "ExpectedSequence": "",
+                    "RecipeText": "12 芯 = *,*,*,*,*,*,*,*,*,*,*,*\r\n",
+                    "WireCount": 12,
+                    "ReverseSequence": false,
+                    "Regularize": true,
+                    "DisplayViewIndex": 1
+                  },
+                  "LinkedSources": {
+                    "Image": {
+                      "Kind": 1,
+                      "TargetStepId": "bb138196-803f-c60e-6e97-ea070434200d",
+                      "TargetPortName": "Image",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "采集颜色图.Image"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "d9fd960c-52b2-5089-f893-7f0c4e046963",
+                  "Icon": "",
+                  "PluginName": "区域颜色检查",
+                  "Category": "图像处理",
+                  "PluginTypeName": "Plugin.ColorRegion.RegionColorPlugin, Plugin.ColorRegion, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "区域红灯",
+                  "Description": "区域颜色检查",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "RoiShape": "Circle",
+                    "RoiParams": [
+                      250.0,
+                      830.0,
+                      55.0,
+                      0.0,
+                      0.0
+                    ],
+                    "ExpectedColors": "红",
+                    "MinShare": 0.6,
+                    "SamplePoints": 400,
+                    "DisplayViewIndex": 1
+                  },
+                  "LinkedSources": {
+                    "Image": {
+                      "Kind": 1,
+                      "TargetStepId": "bb138196-803f-c60e-6e97-ea070434200d",
+                      "TargetPortName": "Image",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "采集颜色图.Image"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "6dcdfddb-6bfd-4168-03ea-3c6baca2f470",
+                  "Icon": "",
+                  "PluginName": "区域颜色检查",
+                  "Category": "图像处理",
+                  "PluginTypeName": "Plugin.ColorRegion.RegionColorPlugin, Plugin.ColorRegion, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "区域紫块",
+                  "Description": "区域颜色检查",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "RoiShape": "Rectangle",
+                    "RoiParams": [
+                      505.0,
+                      790.0,
+                      0.0,
+                      45.0,
+                      45.0
+                    ],
+                    "ExpectedColors": "紫",
+                    "MinShare": 0.6,
+                    "SamplePoints": 400,
+                    "DisplayViewIndex": 1
+                  },
+                  "LinkedSources": {
+                    "Image": {
+                      "Kind": 1,
+                      "TargetStepId": "bb138196-803f-c60e-6e97-ea070434200d",
+                      "TargetPortName": "Image",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "采集颜色图.Image"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "aaa491de-c287-3555-472e-32bded0c8168",
+                  "Icon": "",
+                  "PluginName": "逻辑运算",
+                  "Category": "逻辑判断",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "颜色与1",
+                  "Description": "逻辑运算",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Operation": "And"
+                  },
+                  "LinkedSources": {
+                    "A": {
+                      "Kind": 1,
+                      "TargetStepId": "421094b9-5db6-8ec5-46ed-c94b0d292906",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "颜色序列检查.Result"
+                    },
+                    "B": {
+                      "Kind": 1,
+                      "TargetStepId": "d9fd960c-52b2-5089-f893-7f0c4e046963",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "区域红灯.Result"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "09c00a68-cdc9-86e6-9946-7320a7ab77a6",
+                  "Icon": "",
+                  "PluginName": "逻辑运算",
+                  "Category": "逻辑判断",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "颜色综合判定",
+                  "Description": "逻辑运算",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Operation": "And"
+                  },
+                  "LinkedSources": {
+                    "A": {
+                      "Kind": 1,
+                      "TargetStepId": "aaa491de-c287-3555-472e-32bded0c8168",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "颜色与1.Result"
+                    },
+                    "B": {
+                      "Kind": 1,
+                      "TargetStepId": "6dcdfddb-6bfd-4168-03ea-3c6baca2f470",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "区域紫块.Result"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "1a0aa606-3ed6-e533-951e-3a394115344e",
+                  "Icon": "",
+                  "PluginName": "结果显示",
+                  "Category": "常用工具",
+                  "PluginTypeName": "Plugin.ResultDisplay.ResultDisplayPlugin, Plugin.ResultDisplay, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "颜色结果显示",
+                  "Description": "结果显示",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Items": [
+                      {
+                        "Id": "r1",
+                        "Label": "序列",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      },
+                      {
+                        "Id": "r2",
+                        "Label": "红占比",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      },
+                      {
+                        "Id": "r3",
+                        "Label": "判定",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      }
+                    ],
+                    "ShowTextOnImage": true,
+                    "JudgeItemLabel": "判定",
+                    "NgValue": "NG",
+                    "MaxDrawElements": 300,
+                    "TextAnchor": "TopLeft",
+                    "TextMargin": 0,
+                    "TextScale": 1.0,
+                    "DisplayViewIndex": 1
+                  },
+                  "LinkedSources": {
+                    "SrcImage": {
+                      "Kind": 1,
+                      "TargetStepId": "bb138196-803f-c60e-6e97-ea070434200d",
+                      "TargetPortName": "Image",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "采集颜色图.Image"
+                    },
+                    "r1": {
+                      "Kind": 1,
+                      "TargetStepId": "421094b9-5db6-8ec5-46ed-c94b0d292906",
+                      "TargetPortName": "Verdict",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "颜色序列检查.Verdict"
+                    },
+                    "r2": {
+                      "Kind": 1,
+                      "TargetStepId": "d9fd960c-52b2-5089-f893-7f0c4e046963",
+                      "TargetPortName": "Share",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "区域红灯.Share"
+                    },
+                    "r3": {
+                      "Kind": 1,
+                      "TargetStepId": "09c00a68-cdc9-86e6-9946-7320a7ab77a6",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "颜色综合判定.Result"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "99dff801-d64b-21a8-4ca7-e69f27541f0c",
+                  "Icon": "",
+                  "PluginName": "图像采集",
+                  "Category": "常用工具",
+                  "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "采集宽度图",
+                  "Description": "图像采集",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Mode": "SingleFile",
+                    "FilePath": "D:\\C#\\VM\\Image\\卡尺测试\\1-宽度40px.png",
+                    "DisplayViewIndex": 1
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "3407a9db-aec7-00e7-8faa-9001b8035286",
+                  "Icon": "",
+                  "PluginName": "卡尺测量",
+                  "Category": "测量",
+                  "PluginTypeName": "Plugin.CaliperMeasure.CaliperMeasurePlugin, Plugin.CaliperMeasure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "宽度测量",
+                  "Description": "卡尺测量",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "MeasureKind": "Width",
+                    "CaliperRegions": [
+                      {
+                        "Name": "宽度区",
+                        "ShapeType": "Rectangle",
+                        "Params": [
+                          240.0,
+                          300.0,
+                          0.0,
+                          80.0,
+                          100.0
+                        ]
+                      }
+                    ],
+                    "CaliperCount": 5,
+                    "Sigma": 1.0,
+                    "EdgeThreshold": 30.0,
+                    "Polarity": "All",
+                    "Select": "All",
+                    "Interpolation": "Bilinear",
+                    "FitAlgorithm": "Tukey",
+                    "FitMaxError": 1.0,
+                    "FitMinPoints": 3,
+                    "AnnulusWidth": 30.0,
+                    "StandardValue": 40.0,
+                    "UpperTolerance": 0.5,
+                    "LowerTolerance": -0.5,
+                    "PixelSizeMm": 1.0,
+                    "MmPerPixel": 1.0
+                  },
+                  "LinkedSources": {
+                    "SrcImage": {
+                      "Kind": 1,
+                      "TargetStepId": "99dff801-d64b-21a8-4ca7-e69f27541f0c",
+                      "TargetPortName": "Image",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "采集宽度图.Image"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "f689837a-4e3f-e4e5-b8f9-95b930aaa36a",
+                  "Icon": "",
+                  "PluginName": "图像采集",
+                  "Category": "常用工具",
+                  "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "采集两点距图",
+                  "Description": "图像采集",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Mode": "SingleFile",
+                    "FilePath": "D:\\C#\\VM\\Image\\卡尺测试\\2-两点距240px.png",
+                    "DisplayViewIndex": 1
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "e8951667-326e-f15e-c6e2-37ef9f691fa5",
+                  "Icon": "",
+                  "PluginName": "卡尺测量",
+                  "Category": "测量",
+                  "PluginTypeName": "Plugin.CaliperMeasure.CaliperMeasurePlugin, Plugin.CaliperMeasure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "两点距测量",
+                  "Description": "卡尺测量",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "MeasureKind": "PointToPoint",
+                    "CaliperRegions": [
+                      {
+                        "Name": "左条",
+                        "ShapeType": "Rectangle",
+                        "Params": [
+                          240.0,
+                          100.0,
+                          0.0,
+                          60.0,
+                          80.0
+                        ]
+                      },
+                      {
+                        "Name": "右条",
+                        "ShapeType": "Rectangle",
+                        "Params": [
+                          240.0,
+                          340.0,
+                          0.0,
+                          60.0,
+                          80.0
+                        ]
+                      }
+                    ],
+                    "CaliperCount": 5,
+                    "Sigma": 1.0,
+                    "EdgeThreshold": 30.0,
+                    "Polarity": "All",
+                    "Select": "All",
+                    "Interpolation": "Bilinear",
+                    "FitAlgorithm": "Tukey",
+                    "FitMaxError": 1.0,
+                    "FitMinPoints": 3,
+                    "AnnulusWidth": 30.0,
+                    "StandardValue": 240.0,
+                    "UpperTolerance": 0.5,
+                    "LowerTolerance": -0.5,
+                    "PixelSizeMm": 1.0,
+                    "MmPerPixel": 1.0
+                  },
+                  "LinkedSources": {
+                    "SrcImage": {
+                      "Kind": 1,
+                      "TargetStepId": "f689837a-4e3f-e4e5-b8f9-95b930aaa36a",
+                      "TargetPortName": "Image",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "采集两点距图.Image"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "3bfd7562-7e28-24cd-9d01-d7cdbde12d70",
+                  "Icon": "",
+                  "PluginName": "图像采集",
+                  "Category": "常用工具",
+                  "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "采集点线距图",
+                  "Description": "图像采集",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Mode": "SingleFile",
+                    "FilePath": "D:\\C#\\VM\\Image\\卡尺测试\\3-点到线距200px.png",
+                    "DisplayViewIndex": 1
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "35c0ebcd-c1ae-ee46-b424-ebd9d12387db",
+                  "Icon": "",
+                  "PluginName": "卡尺测量",
+                  "Category": "测量",
+                  "PluginTypeName": "Plugin.CaliperMeasure.CaliperMeasurePlugin, Plugin.CaliperMeasure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "点到线距测量",
+                  "Description": "卡尺测量",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "MeasureKind": "PointToLineDistance",
+                    "CaliperRegions": [
+                      {
+                        "Name": "点区",
+                        "ShapeType": "Rectangle",
+                        "Params": [
+                          250.0,
+                          300.0,
+                          0.0,
+                          60.0,
+                          60.0
+                        ]
+                      },
+                      {
+                        "Name": "线区",
+                        "ShapeType": "Rectangle",
+                        "Params": [
+                          250.0,
+                          100.0,
+                          0.0,
+                          60.0,
+                          80.0
+                        ]
+                      }
+                    ],
+                    "CaliperCount": 5,
+                    "Sigma": 1.0,
+                    "EdgeThreshold": 30.0,
+                    "Polarity": "All",
+                    "Select": "All",
+                    "Interpolation": "Bilinear",
+                    "FitAlgorithm": "Tukey",
+                    "FitMaxError": 1.0,
+                    "FitMinPoints": 3,
+                    "AnnulusWidth": 30.0,
+                    "StandardValue": 200.0,
+                    "UpperTolerance": 0.5,
+                    "LowerTolerance": -0.5,
+                    "PixelSizeMm": 1.0,
+                    "MmPerPixel": 1.0
+                  },
+                  "LinkedSources": {
+                    "SrcImage": {
+                      "Kind": 1,
+                      "TargetStepId": "3bfd7562-7e28-24cd-9d01-d7cdbde12d70",
+                      "TargetPortName": "Image",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "采集点线距图.Image"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "45b6bc87-28c8-5cd4-1e2f-9e7380ebe486",
+                  "Icon": "",
+                  "PluginName": "图像采集",
+                  "Category": "常用工具",
+                  "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "采集圆图",
+                  "Description": "图像采集",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Mode": "SingleFile",
+                    "FilePath": "D:\\C#\\VM\\Image\\卡尺测试\\4-圆直径200px.png",
+                    "DisplayViewIndex": 1
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "6bd580da-0a92-12fe-f285-c13b677412c3",
+                  "Icon": "",
+                  "PluginName": "卡尺测量",
+                  "Category": "测量",
+                  "PluginTypeName": "Plugin.CaliperMeasure.CaliperMeasurePlugin, Plugin.CaliperMeasure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "圆直径测量",
+                  "Description": "卡尺测量",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "MeasureKind": "CircleDiameter",
+                    "CaliperRegions": [
+                      {
+                        "Name": "圆搜索区",
+                        "ShapeType": "Circle",
+                        "Params": [
+                          240.0,
+                          320.0,
+                          100.0
+                        ]
+                      }
+                    ],
+                    "CaliperCount": 16,
+                    "Sigma": 1.0,
+                    "EdgeThreshold": 30.0,
+                    "Polarity": "All",
+                    "Select": "All",
+                    "Interpolation": "Bilinear",
+                    "FitAlgorithm": "Tukey",
+                    "FitMaxError": 1.0,
+                    "FitMinPoints": 3,
+                    "AnnulusWidth": 30.0,
+                    "StandardValue": 200.0,
+                    "UpperTolerance": 1.0,
+                    "LowerTolerance": -1.0,
+                    "PixelSizeMm": 1.0,
+                    "MmPerPixel": 1.0
+                  },
+                  "LinkedSources": {
+                    "SrcImage": {
+                      "Kind": 1,
+                      "TargetStepId": "45b6bc87-28c8-5cd4-1e2f-9e7380ebe486",
+                      "TargetPortName": "Image",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "采集圆图.Image"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "2b4656f5-de78-70d2-ed9e-6fa6ecfcb305",
+                  "Icon": "",
+                  "PluginName": "图像采集",
+                  "Category": "常用工具",
+                  "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "采集角度图",
+                  "Description": "图像采集",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Mode": "SingleFile",
+                    "FilePath": "D:\\C#\\VM\\Image\\卡尺测试\\5-角度90.png",
+                    "DisplayViewIndex": 1
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "50ef48a9-4bd7-7860-977a-e3aeafb20dbd",
+                  "Icon": "",
+                  "PluginName": "卡尺测量",
+                  "Category": "测量",
+                  "PluginTypeName": "Plugin.CaliperMeasure.CaliperMeasurePlugin, Plugin.CaliperMeasure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "角度测量",
+                  "Description": "卡尺测量",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "MeasureKind": "Angle",
+                    "CaliperRegions": [
+                      {
+                        "Name": "竖线区",
+                        "ShapeType": "Rectangle",
+                        "Params": [
+                          120.0,
+                          240.0,
+                          1.5708,
+                          60.0,
+                          80.0
+                        ]
+                      },
+                      {
+                        "Name": "横线区",
+                        "ShapeType": "Rectangle",
+                        "Params": [
+                          240.0,
+                          440.0,
+                          0.0,
+                          60.0,
+                          80.0
+                        ]
+                      }
+                    ],
+                    "CaliperCount": 5,
+                    "Sigma": 1.0,
+                    "EdgeThreshold": 30.0,
+                    "Polarity": "All",
+                    "Select": "All",
+                    "Interpolation": "Bilinear",
+                    "FitAlgorithm": "Tukey",
+                    "FitMaxError": 1.0,
+                    "FitMinPoints": 3,
+                    "AnnulusWidth": 30.0,
+                    "StandardValue": 90.0,
+                    "UpperTolerance": 0.5,
+                    "LowerTolerance": -0.5,
+                    "PixelSizeMm": 1.0,
+                    "MmPerPixel": 1.0
+                  },
+                  "LinkedSources": {
+                    "SrcImage": {
+                      "Kind": 1,
+                      "TargetStepId": "2b4656f5-de78-70d2-ed9e-6fa6ecfcb305",
+                      "TargetPortName": "Image",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "采集角度图.Image"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "bf01f09b-9069-85bd-71b6-bfd29f713042",
+                  "Icon": "",
+                  "PluginName": "逻辑运算",
+                  "Category": "逻辑判断",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "卡尺与1",
+                  "Description": "逻辑运算",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Operation": "And"
+                  },
+                  "LinkedSources": {
+                    "A": {
+                      "Kind": 1,
+                      "TargetStepId": "3407a9db-aec7-00e7-8faa-9001b8035286",
+                      "TargetPortName": "IsOk",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "宽度测量.IsOk"
+                    },
+                    "B": {
+                      "Kind": 1,
+                      "TargetStepId": "e8951667-326e-f15e-c6e2-37ef9f691fa5",
+                      "TargetPortName": "IsOk",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "两点距测量.IsOk"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "b701f133-ce6b-b01a-e71b-822e9d6c4eb3",
+                  "Icon": "",
+                  "PluginName": "逻辑运算",
+                  "Category": "逻辑判断",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "卡尺与2",
+                  "Description": "逻辑运算",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Operation": "And"
+                  },
+                  "LinkedSources": {
+                    "A": {
+                      "Kind": 1,
+                      "TargetStepId": "bf01f09b-9069-85bd-71b6-bfd29f713042",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "卡尺与1.Result"
+                    },
+                    "B": {
+                      "Kind": 1,
+                      "TargetStepId": "35c0ebcd-c1ae-ee46-b424-ebd9d12387db",
+                      "TargetPortName": "IsOk",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "点到线距测量.IsOk"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "68ae186a-f39f-41f3-e9c3-ebb1794806ce",
+                  "Icon": "",
+                  "PluginName": "逻辑运算",
+                  "Category": "逻辑判断",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "卡尺与3",
+                  "Description": "逻辑运算",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Operation": "And"
+                  },
+                  "LinkedSources": {
+                    "A": {
+                      "Kind": 1,
+                      "TargetStepId": "b701f133-ce6b-b01a-e71b-822e9d6c4eb3",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "卡尺与2.Result"
+                    },
+                    "B": {
+                      "Kind": 1,
+                      "TargetStepId": "6bd580da-0a92-12fe-f285-c13b677412c3",
+                      "TargetPortName": "IsOk",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "圆直径测量.IsOk"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "b2d3b0b6-b85c-425a-dfbc-ca953597f2ea",
+                  "Icon": "",
+                  "PluginName": "逻辑运算",
+                  "Category": "逻辑判断",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "卡尺综合判定",
+                  "Description": "逻辑运算",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Operation": "And"
+                  },
+                  "LinkedSources": {
+                    "A": {
+                      "Kind": 1,
+                      "TargetStepId": "68ae186a-f39f-41f3-e9c3-ebb1794806ce",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "卡尺与3.Result"
+                    },
+                    "B": {
+                      "Kind": 1,
+                      "TargetStepId": "50ef48a9-4bd7-7860-977a-e3aeafb20dbd",
+                      "TargetPortName": "IsOk",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "角度测量.IsOk"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "65d5a715-6623-b48d-cb10-d2c5534fc226",
+                  "Icon": "",
+                  "PluginName": "结果显示",
+                  "Category": "常用工具",
+                  "PluginTypeName": "Plugin.ResultDisplay.ResultDisplayPlugin, Plugin.ResultDisplay, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "卡尺结果显示",
+                  "Description": "结果显示",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Items": [
+                      {
+                        "Id": "r1",
+                        "Label": "宽度",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      },
+                      {
+                        "Id": "r2",
+                        "Label": "两点距",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      },
+                      {
+                        "Id": "r3",
+                        "Label": "圆直径",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      },
+                      {
+                        "Id": "r4",
+                        "Label": "角度",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      }
+                    ],
+                    "ShowTextOnImage": true,
+                    "JudgeItemLabel": "判定",
+                    "NgValue": "NG",
+                    "MaxDrawElements": 300,
+                    "TextAnchor": "TopLeft",
+                    "TextMargin": 0,
+                    "TextScale": 1.0,
+                    "DisplayViewIndex": 1
+                  },
+                  "LinkedSources": {
+                    "SrcImage": {
+                      "Kind": 1,
+                      "TargetStepId": "45b6bc87-28c8-5cd4-1e2f-9e7380ebe486",
+                      "TargetPortName": "Image",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "采集圆图.Image"
+                    },
+                    "r1": {
+                      "Kind": 1,
+                      "TargetStepId": "3407a9db-aec7-00e7-8faa-9001b8035286",
+                      "TargetPortName": "MeasureValue",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "宽度测量.MeasureValue"
+                    },
+                    "r2": {
+                      "Kind": 1,
+                      "TargetStepId": "e8951667-326e-f15e-c6e2-37ef9f691fa5",
+                      "TargetPortName": "MeasureValue",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "两点距测量.MeasureValue"
+                    },
+                    "r3": {
+                      "Kind": 1,
+                      "TargetStepId": "6bd580da-0a92-12fe-f285-c13b677412c3",
+                      "TargetPortName": "MeasureValue",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "圆直径测量.MeasureValue"
+                    },
+                    "r4": {
+                      "Kind": 1,
+                      "TargetStepId": "50ef48a9-4bd7-7860-977a-e3aeafb20dbd",
+                      "TargetPortName": "MeasureValue",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "角度测量.MeasureValue"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "cfc9ecd6-9aa8-8248-fc30-5889fd8e86b0",
+                  "Icon": "",
+                  "PluginName": "图像采集",
+                  "Category": "常用工具",
+                  "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "采集胶路图",
+                  "Description": "图像采集",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Mode": "SingleFile",
+                    "FilePath": "D:\\C#\\VM\\Image\\bead\\adhesive_bead_01.png",
+                    "DisplayViewIndex": 1
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "5a8d49ff-5418-685d-b557-6487fd2b2cc7",
+                  "Icon": "",
+                  "PluginName": "胶路检测",
+                  "Category": "缺陷检测",
+                  "PluginTypeName": "Plugin.BeadInspect.BeadInspectPlugin, Plugin.BeadInspect, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "胶路检测",
+                  "Description": "胶路检测",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "RecipeLibraryJson": "[{\"Name\":\"BeadA\",\"RefImagePath\":\"D:\\\\C#\\\\VM\\\\Image\\\\bead\\\\adhesive_bead_01.png\",\"RefNoBeadImagePath\":\"D:\\\\C#\\\\VM\\\\Image\\\\bead\\\\adhesive_bead_ref.png\",\"RefPointsJson\":\"[[610,419],[570,421],[530,425],[490,433],[450,445],[430,454],[394,475],[358,500],[331,525],[309,550],[294,575],[284,600],[277,625],[273,650],[271,675],[269,700],[267,725],[267,750],[274,775],[285,800],[304,825],[323,850],[343,875],[364,900],[388,925],[419,950],[456,975],[470,984],[490,993],[510,997],[530,997]]\",\"RectifyQuadJson\":\"\",\"TargetWidth\":15.0,\"WidthTolerance\":8.0,\"PositionTolerance\":30.0,\"Polarity\":\"dark\",\"LearnedSignature\":\"\"}]",
+                    "DefaultRecipeName": "BeadA",
+                    "AlignMode": "None",
+                    "Polarity": "Dark",
+                    "TargetWidth": 15.0,
+                    "WidthTolerance": 8.0,
+                    "PositionTolerance": 30.0,
+                    "MinErrorLength": 10.0,
+                    "MinScore": 0.4,
+                    "DisplayViewIndex": 1,
+                    "OutputAlignedImage": false,
+                    "UnitOutput": "Pixel",
+                    "PixelSizeMm": 0.05
+                  },
+                  "LinkedSources": {
+                    "SrcImage": {
+                      "Kind": 1,
+                      "TargetStepId": "cfc9ecd6-9aa8-8248-fc30-5889fd8e86b0",
+                      "TargetPortName": "Image",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "采集胶路图.Image"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "1907bc7b-7ba1-3e38-cf92-28ee954ec8e3",
+                  "Icon": "",
+                  "PluginName": "结果显示",
+                  "Category": "常用工具",
+                  "PluginTypeName": "Plugin.ResultDisplay.ResultDisplayPlugin, Plugin.ResultDisplay, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "胶路结果显示",
+                  "Description": "结果显示",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Items": [
+                      {
+                        "Id": "r1",
+                        "Label": "错误数",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      },
+                      {
+                        "Id": "r2",
+                        "Label": "总长",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      },
+                      {
+                        "Id": "r3",
+                        "Label": "判定",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      }
+                    ],
+                    "ShowTextOnImage": true,
+                    "JudgeItemLabel": "判定",
+                    "NgValue": "NG",
+                    "MaxDrawElements": 300,
+                    "TextAnchor": "TopLeft",
+                    "TextMargin": 0,
+                    "TextScale": 1.0,
+                    "DisplayViewIndex": 1
+                  },
+                  "LinkedSources": {
+                    "SrcImage": {
+                      "Kind": 1,
+                      "TargetStepId": "cfc9ecd6-9aa8-8248-fc30-5889fd8e86b0",
+                      "TargetPortName": "Image",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "采集胶路图.Image"
+                    },
+                    "r1": {
+                      "Kind": 1,
+                      "TargetStepId": "5a8d49ff-5418-685d-b557-6487fd2b2cc7",
+                      "TargetPortName": "ErrorCount",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "胶路检测.ErrorCount"
+                    },
+                    "r2": {
+                      "Kind": 1,
+                      "TargetStepId": "5a8d49ff-5418-685d-b557-6487fd2b2cc7",
+                      "TargetPortName": "TotalErrorLength",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "胶路检测.TotalErrorLength"
+                    },
+                    "r3": {
+                      "Kind": 1,
+                      "TargetStepId": "5a8d49ff-5418-685d-b557-6487fd2b2cc7",
+                      "TargetPortName": "IsOk",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "胶路检测.IsOk"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "0122da51-803e-835d-63d7-0829cfd3a5cf",
+                  "Icon": "",
+                  "PluginName": "图像采集",
+                  "Category": "常用工具",
+                  "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "采集二维码图",
+                  "Description": "图像采集",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Mode": "SingleFile",
+                    "FilePath": "D:\\C#\\VM\\Image\\images\\datacode\\qrcode\\qr_workpiece_01.png",
+                    "DisplayViewIndex": 1
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "a2f92d18-c6bb-46c8-c991-584cb37d03ed",
+                  "Icon": "",
+                  "PluginName": "二维码读取",
+                  "Category": "图像处理",
+                  "PluginTypeName": "Plugin.CodeReader.CodeReaderPlugin, Plugin.CodeReader, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "二维码读取",
+                  "Description": "二维码读取",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Symbology": "QR Code",
+                    "TimeoutMs": 500,
+                    "Polarity": "any"
+                  },
+                  "LinkedSources": {
+                    "Image": {
+                      "Kind": 1,
+                      "TargetStepId": "0122da51-803e-835d-63d7-0829cfd3a5cf",
+                      "TargetPortName": "Image",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "采集二维码图.Image"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "31366cef-b397-ca1e-21cd-9a67a46a8a73",
+                  "Icon": "",
+                  "PluginName": "变量赋值",
+                  "Category": "变量操作",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "写条码文本",
+                  "Description": "变量赋值",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Name": "BarcodeText",
+                    "CreateIfNotExists": false,
+                    "Scope": "Global"
+                  },
+                  "LinkedSources": {
+                    "Value": {
+                      "Kind": 1,
+                      "TargetStepId": "a2f92d18-c6bb-46c8-c991-584cb37d03ed",
+                      "TargetPortName": "Text",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "二维码读取.Text"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "2a441ec3-3671-1923-a7b4-0e5bd08227dd",
+                  "Icon": "",
+                  "PluginName": "结果显示",
+                  "Category": "常用工具",
+                  "PluginTypeName": "Plugin.ResultDisplay.ResultDisplayPlugin, Plugin.ResultDisplay, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "码结果显示",
+                  "Description": "结果显示",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Items": [
+                      {
+                        "Id": "r1",
+                        "Label": "内容",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      },
+                      {
+                        "Id": "r2",
+                        "Label": "数量",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      }
+                    ],
+                    "ShowTextOnImage": true,
+                    "JudgeItemLabel": "判定",
+                    "NgValue": "NG",
+                    "MaxDrawElements": 300,
+                    "TextAnchor": "TopLeft",
+                    "TextMargin": 0,
+                    "TextScale": 1.0,
+                    "DisplayViewIndex": 1
+                  },
+                  "LinkedSources": {
+                    "SrcImage": {
+                      "Kind": 1,
+                      "TargetStepId": "0122da51-803e-835d-63d7-0829cfd3a5cf",
+                      "TargetPortName": "Image",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "采集二维码图.Image"
+                    },
+                    "r1": {
+                      "Kind": 1,
+                      "TargetStepId": "a2f92d18-c6bb-46c8-c991-584cb37d03ed",
+                      "TargetPortName": "Text",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "二维码读取.Text"
+                    },
+                    "r2": {
+                      "Kind": 1,
+                      "TargetStepId": "a2f92d18-c6bb-46c8-c991-584cb37d03ed",
+                      "TargetPortName": "Count",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "二维码读取.Count"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "6dd87032-4d4a-c6e9-08b5-7d929c8d3fed",
+                  "Icon": "",
+                  "PluginName": "数值比较",
+                  "Category": "逻辑判断",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.ComparisonPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "码有内容",
+                  "Description": "数值比较",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "B": 0.0,
+                    "Type": "GreaterThan",
+                    "Tolerance": 1E-06
+                  },
+                  "LinkedSources": {
+                    "A": {
+                      "Kind": 1,
+                      "TargetStepId": "a2f92d18-c6bb-46c8-c991-584cb37d03ed",
+                      "TargetPortName": "Count",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "二维码读取.Count"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "07cff542-2440-dc6b-bd5f-08830e36d128",
+                  "Icon": "",
+                  "PluginName": "逻辑运算",
+                  "Category": "逻辑判断",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "工位与1",
+                  "Description": "逻辑运算",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Operation": "And"
+                  },
+                  "LinkedSources": {
+                    "A": {
+                      "Kind": 1,
+                      "TargetStepId": "09c00a68-cdc9-86e6-9946-7320a7ab77a6",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "颜色综合判定.Result"
+                    },
+                    "B": {
+                      "Kind": 1,
+                      "TargetStepId": "b2d3b0b6-b85c-425a-dfbc-ca953597f2ea",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "卡尺综合判定.Result"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "de066864-c927-77ec-cc9b-def5fd5aa2a5",
+                  "Icon": "",
+                  "PluginName": "逻辑运算",
+                  "Category": "逻辑判断",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "工位与2",
+                  "Description": "逻辑运算",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Operation": "And"
+                  },
+                  "LinkedSources": {
+                    "A": {
+                      "Kind": 1,
+                      "TargetStepId": "07cff542-2440-dc6b-bd5f-08830e36d128",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "工位与1.Result"
+                    },
+                    "B": {
+                      "Kind": 1,
+                      "TargetStepId": "5a8d49ff-5418-685d-b557-6487fd2b2cc7",
+                      "TargetPortName": "IsOk",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "胶路检测.IsOk"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "b791ab9c-296d-672e-0cbd-4d502ad59ca2",
+                  "Icon": "",
+                  "PluginName": "逻辑运算",
+                  "Category": "逻辑判断",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "工位综合判定",
+                  "Description": "逻辑运算",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Operation": "And"
+                  },
+                  "LinkedSources": {
+                    "A": {
+                      "Kind": 1,
+                      "TargetStepId": "de066864-c927-77ec-cc9b-def5fd5aa2a5",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "工位与2.Result"
+                    },
+                    "B": {
+                      "Kind": 1,
+                      "TargetStepId": "6dd87032-4d4a-c6e9-08b5-7d929c8d3fed",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "码有内容.Result"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "dd648558-858f-15dd-966b-341c94726ee7",
+                  "Icon": "",
+                  "PluginName": "变量赋值",
+                  "Category": "变量操作",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "写工位结果",
+                  "Description": "变量赋值",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Name": "StationOk",
+                    "CreateIfNotExists": false,
+                    "Scope": "Global"
+                  },
+                  "LinkedSources": {
+                    "Value": {
+                      "Kind": 1,
+                      "TargetStepId": "b791ab9c-296d-672e-0cbd-4d502ad59ca2",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "工位综合判定.Result"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "684c15aa-93b5-abbc-9b53-15a7c862aa7e",
+                  "Icon": "",
+                  "PluginName": "C#脚本",
+                  "Category": "逻辑控制",
+                  "PluginTypeName": "Plugin.CSharpScript.CSharpScriptPlugin, Plugin.CSharpScript, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "工位完成脚本",
+                  "Description": "C#脚本",
+                  "SortId": 0,
+                  "IsDisEnable": true,
+                  "State": 0,
+                  "InputValues": {
+                    "ScriptText": "Context.Info(\"综合工位：颜色/卡尺/胶路/码读取 全部执行完毕\");",
+                    "InputVars": [],
+                    "OutputVars": [],
+                    "SharedVars": []
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "b86c594b-d8cc-6de7-6e06-2c43be282568",
+                  "Icon": "",
+                  "PluginName": "结果显示",
+                  "Category": "常用工具",
+                  "PluginTypeName": "Plugin.ResultDisplay.ResultDisplayPlugin, Plugin.ResultDisplay, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "工位结果显示",
+                  "Description": "结果显示",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Items": [
+                      {
+                        "Id": "r1",
+                        "Label": "颜色",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      },
+                      {
+                        "Id": "r2",
+                        "Label": "卡尺",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      },
+                      {
+                        "Id": "r3",
+                        "Label": "胶路",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      },
+                      {
+                        "Id": "r4",
+                        "Label": "码数",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      },
+                      {
+                        "Id": "r5",
+                        "Label": "工位",
+                        "Format": "",
+                        "Unit": "",
+                        "Enabled": true
+                      }
+                    ],
+                    "ShowTextOnImage": true,
+                    "JudgeItemLabel": "判定",
+                    "NgValue": "NG",
+                    "MaxDrawElements": 300,
+                    "TextAnchor": "TopLeft",
+                    "TextMargin": 0,
+                    "TextScale": 1.0,
+                    "DisplayViewIndex": 1
+                  },
+                  "LinkedSources": {
+                    "SrcImage": {
+                      "Kind": 1,
+                      "TargetStepId": "bb138196-803f-c60e-6e97-ea070434200d",
+                      "TargetPortName": "Image",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "采集颜色图.Image"
+                    },
+                    "r1": {
+                      "Kind": 1,
+                      "TargetStepId": "09c00a68-cdc9-86e6-9946-7320a7ab77a6",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "颜色综合判定.Result"
+                    },
+                    "r2": {
+                      "Kind": 1,
+                      "TargetStepId": "b2d3b0b6-b85c-425a-dfbc-ca953597f2ea",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "卡尺综合判定.Result"
+                    },
+                    "r3": {
+                      "Kind": 1,
+                      "TargetStepId": "5a8d49ff-5418-685d-b557-6487fd2b2cc7",
+                      "TargetPortName": "IsOk",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "胶路检测.IsOk"
+                    },
+                    "r4": {
+                      "Kind": 1,
+                      "TargetStepId": "a2f92d18-c6bb-46c8-c991-584cb37d03ed",
+                      "TargetPortName": "Count",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "二维码读取.Count"
+                    },
+                    "r5": {
+                      "Kind": 1,
+                      "TargetStepId": "b791ab9c-296d-672e-0cbd-4d502ad59ca2",
+                      "TargetPortName": "Result",
+                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                      "DisplayAddress": "工位综合判定.Result"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.CaseStep, VM.Core",
+                  "StepID": "4ede03a1-2716-f03f-d6ba-98a4fc1a11a2",
+                  "Icon": "",
+                  "PluginName": "分支匹配",
+                  "Category": "逻辑控制",
+                  "PluginTypeName": "BuiltIn_Case",
+                  "StepName": "结果计数",
+                  "Description": "按判据匹配分支",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {},
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": [],
+                  "LocalVariables": [],
+                  "RuntimeVariableRefs": [
+                    {
+                      "Id": "cb8741cf-2ddd-22da-c7aa-88dc646cfe9a",
+                      "Name": "CurrentResult",
+                      "DataTypeName": "System.Boolean"
+                    }
+                  ],
+                  "JudgeExpression": "CurrentResult",
+                  "Children": [
+                    {
+                      "Steps": [
+                        {
+                          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                          "StepID": "f2a5912d-9e73-07e2-969f-9a87e5951ba3",
+                          "Icon": "",
+                          "PluginName": "数学计算",
+                          "Category": "数据处理",
+                          "PluginTypeName": "VisionMaster.Plugins.Util.MathCalculationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                          "StepName": "OK计数+1",
+                          "Description": "数学计算",
+                          "SortId": 0,
+                          "IsDisEnable": false,
+                          "State": 0,
+                          "InputValues": {
+                            "Operation": "Add",
+                            "B": 1.0
+                          },
+                          "LinkedSources": {
+                            "A": {
+                              "Kind": 2,
+                              "TargetStepId": "00000000-0000-0000-0000-000000000000",
+                              "TargetPortName": "OKCount",
+                              "TargetVariableId": "a6c71d14-f03d-1c76-a4b1-1b54d512890e",
+                              "DisplayAddress": "全局变量 (Global).OKCount"
+                            }
+                          },
+                          "OutputPortDefinitions": []
+                        },
+                        {
+                          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                          "StepID": "653edc08-8b71-41b0-940a-0851449172de",
+                          "Icon": "",
+                          "PluginName": "类型转换",
+                          "Category": "数据处理",
+                          "PluginTypeName": "VisionMaster.Plugins.Util.DataConversionPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                          "StepName": "OK计数转Int",
+                          "Description": "类型转换",
+                          "SortId": 0,
+                          "IsDisEnable": false,
+                          "State": 0,
+                          "InputValues": {
+                            "Target": "Int32",
+                            "Format": "yyyy-MM-dd HH:mm:ss"
+                          },
+                          "LinkedSources": {
+                            "Input": {
+                              "Kind": 1,
+                              "TargetStepId": "f2a5912d-9e73-07e2-969f-9a87e5951ba3",
+                              "TargetPortName": "Result",
+                              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                              "DisplayAddress": "OK计数+1.Result"
+                            }
+                          },
+                          "OutputPortDefinitions": []
+                        },
+                        {
+                          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                          "StepID": "d55e7cca-b74e-b8b3-73d7-d97e2380740d",
+                          "Icon": "",
+                          "PluginName": "变量赋值",
+                          "Category": "变量操作",
+                          "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                          "StepName": "写OKCount",
+                          "Description": "变量赋值",
+                          "SortId": 0,
+                          "IsDisEnable": false,
+                          "State": 0,
+                          "InputValues": {
+                            "Name": "OKCount",
+                            "CreateIfNotExists": false,
+                            "Scope": "Global"
+                          },
+                          "LinkedSources": {
+                            "Value": {
+                              "Kind": 1,
+                              "TargetStepId": "653edc08-8b71-41b0-940a-0851449172de",
+                              "TargetPortName": "Result",
+                              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                              "DisplayAddress": "OK计数转Int.Result"
+                            }
+                          },
+                          "OutputPortDefinitions": []
+                        }
+                      ],
+                      "BranchType": 4,
+                      "StepName": "OK",
+                      "Expression": "True"
+                    },
+                    {
+                      "Steps": [
+                        {
+                          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                          "StepID": "2b379866-b5e9-041e-5e3a-6848386cd174",
+                          "Icon": "",
+                          "PluginName": "数学计算",
+                          "Category": "数据处理",
+                          "PluginTypeName": "VisionMaster.Plugins.Util.MathCalculationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                          "StepName": "NG计数+1",
+                          "Description": "数学计算",
+                          "SortId": 0,
+                          "IsDisEnable": false,
+                          "State": 0,
+                          "InputValues": {
+                            "Operation": "Add",
+                            "B": 1.0
+                          },
+                          "LinkedSources": {
+                            "A": {
+                              "Kind": 2,
+                              "TargetStepId": "00000000-0000-0000-0000-000000000000",
+                              "TargetPortName": "NGCount",
+                              "TargetVariableId": "31ecb327-a39d-ca57-5bab-c197bf62d43d",
+                              "DisplayAddress": "全局变量 (Global).NGCount"
+                            }
+                          },
+                          "OutputPortDefinitions": []
+                        },
+                        {
+                          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                          "StepID": "b3e4d4cc-56dc-26d6-d9c2-9fdc6910e985",
+                          "Icon": "",
+                          "PluginName": "类型转换",
+                          "Category": "数据处理",
+                          "PluginTypeName": "VisionMaster.Plugins.Util.DataConversionPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                          "StepName": "NG计数转Int",
+                          "Description": "类型转换",
+                          "SortId": 0,
+                          "IsDisEnable": false,
+                          "State": 0,
+                          "InputValues": {
+                            "Target": "Int32",
+                            "Format": "yyyy-MM-dd HH:mm:ss"
+                          },
+                          "LinkedSources": {
+                            "Input": {
+                              "Kind": 1,
+                              "TargetStepId": "2b379866-b5e9-041e-5e3a-6848386cd174",
+                              "TargetPortName": "Result",
+                              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                              "DisplayAddress": "NG计数+1.Result"
+                            }
+                          },
+                          "OutputPortDefinitions": []
+                        },
+                        {
+                          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                          "StepID": "56937c0a-78a1-1df6-c6c2-c9b1b9086e3a",
+                          "Icon": "",
+                          "PluginName": "变量赋值",
+                          "Category": "变量操作",
+                          "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                          "StepName": "写NGCount",
+                          "Description": "变量赋值",
+                          "SortId": 0,
+                          "IsDisEnable": false,
+                          "State": 0,
+                          "InputValues": {
+                            "Name": "NGCount",
+                            "CreateIfNotExists": false,
+                            "Scope": "Global"
+                          },
+                          "LinkedSources": {
+                            "Value": {
+                              "Kind": 1,
+                              "TargetStepId": "b3e4d4cc-56dc-26d6-d9c2-9fdc6910e985",
+                              "TargetPortName": "Result",
+                              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+                              "DisplayAddress": "NG计数转Int.Result"
+                            }
+                          },
+                          "OutputPortDefinitions": []
+                        }
+                      ],
+                      "BranchType": 4,
+                      "StepName": "NG",
+                      "Expression": "False"
+                    },
+                    {
+                      "Steps": [],
+                      "BranchType": 2,
+                      "StepName": "默认",
+                      "Expression": ""
+                    }
+                  ]
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "ad572ccc-459c-db62-7c9b-2743858b487a",
+                  "Icon": "",
+                  "PluginName": "变量赋值",
+                  "Category": "变量操作",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "写配方到运行时",
+                  "Description": "变量赋值",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Name": "RecipeName",
+                    "CreateIfNotExists": true,
+                    "Scope": "Runtime"
+                  },
+                  "LinkedSources": {
+                    "Value": {
+                      "Kind": 2,
+                      "TargetStepId": "00000000-0000-0000-0000-000000000000",
+                      "TargetPortName": "RecipeName",
+                      "TargetVariableId": "89e5dcbe-d289-4435-6098-994c1a6a35b8",
+                      "DisplayAddress": "全局变量 (Global).RecipeName"
+                    }
+                  },
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ParallelStep, VM.Core",
+                  "StepID": "1d5da2d5-eba8-2a9f-a42b-a7a0e6849adc",
+                  "Icon": "",
+                  "PluginName": "并行分组",
+                  "Category": "逻辑控制",
+                  "PluginTypeName": "BuiltIn_Parallel",
+                  "StepName": "并行收尾",
+                  "Description": "多分支并行执行",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {},
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": [],
+                  "ExecutionMode": 1,
+                  "FailFastMode": 0,
+                  "JoinTimeoutMs": 15000,
+                  "Children": [
+                    {
+                      "Steps": [
+                        {
+                          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                          "StepID": "46245b68-0437-6041-406c-3258d6712772",
+                          "Icon": "",
+                          "PluginName": "结果上报",
+                          "Category": "数据处理",
+                          "PluginTypeName": "Plugin.ResultUpload.ResultUploadPlugin, Plugin.ResultUpload, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                          "StepName": "上报MES",
+                          "Description": "结果上报",
+                          "SortId": 0,
+                          "IsDisEnable": false,
+                          "State": 0,
+                          "InputValues": {
+                            "PayloadKind": "FieldTable",
+                            "Url": "http://127.0.0.1:19001/api/inspect",
+                            "TimeoutMs": 3000,
+                            "Headers": [],
+                            "Fields": [
+                              {
+                                "Name": "sn",
+                                "Source": "Variable",
+                                "VariableName": "RecipeName",
+                                "BuiltIn": "Timestamp",
+                                "Enabled": true
+                              },
+                              {
+                                "Name": "result",
+                                "Source": "Variable",
+                                "VariableName": "CurrentResult",
+                                "BuiltIn": "Timestamp",
+                                "Enabled": true
+                              },
+                              {
+                                "Name": "time",
+                                "Source": "BuiltIn",
+                                "VariableName": "",
+                                "BuiltIn": "Timestamp",
+                                "Enabled": true
+                              }
+                            ],
+                            "SendTiming": "OnTrigger",
+                            "JudgeFieldName": "result",
+                            "NgValue": "NG",
+                            "AsyncMode": true,
+                            "RetryCount": 0,
+                            "BlockOnFailure": false,
+                            "SpoolEnabled": false,
+                            "TimestampFormat": "yyyy-MM-dd HH:mm:ss.fff",
+                            "TimestampUtc": false,
+                            "上报触发": false
+                          },
+                          "LinkedSources": {},
+                          "OutputPortDefinitions": []
+                        }
+                      ],
+                      "BranchType": 0,
+                      "StepName": "上报MES",
+                      "Expression": ""
+                    },
+                    {
+                      "Steps": [
+                        {
+                          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                          "StepID": "90ca7a6e-c10c-5b9e-af91-93ec33c89d4f",
+                          "Icon": "",
+                          "PluginName": "CSV记录",
+                          "Category": "数据处理",
+                          "PluginTypeName": "Plugin.DataRecord.DataRecordPlugin, Plugin.DataRecord, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                          "StepName": "CSV记录",
+                          "Description": "CSV记录",
+                          "SortId": 0,
+                          "IsDisEnable": false,
+                          "State": 0,
+                          "InputValues": {
+                            "DirectoryTemplate": "D:\\Records\\{StepName}\\{yyyy-MM}\\",
+                            "FileNamePattern": "{yyyy-MM-dd}.csv",
+                            "WriteHeader": true,
+                            "KeepDays": 30,
+                            "BlockOnFailure": false,
+                            "FlushEveryRow": false,
+                            "Columns": [
+                              {
+                                "Name": "时间",
+                                "Source": "BuiltIn",
+                                "VariableName": "",
+                                "BuiltIn": "Timestamp",
+                                "Format": "",
+                                "Enabled": true
+                              },
+                              {
+                                "Name": "序号",
+                                "Source": "BuiltIn",
+                                "VariableName": "",
+                                "BuiltIn": "Sequence",
+                                "Format": "",
+                                "Enabled": true
+                              },
+                              {
+                                "Name": "结果",
+                                "Source": "Variable",
+                                "VariableName": "CurrentResult",
+                                "BuiltIn": "Timestamp",
+                                "Format": "",
+                                "Enabled": true
+                              },
+                              {
+                                "Name": "OCR",
+                                "Source": "Variable",
+                                "VariableName": "OcrText",
+                                "BuiltIn": "Timestamp",
+                                "Format": "",
+                                "Enabled": true
+                              },
+                              {
+                                "Name": "缺陷数",
+                                "Source": "Variable",
+                                "VariableName": "DefectCount",
+                                "BuiltIn": "Timestamp",
+                                "Format": "",
+                                "Enabled": true
+                              }
+                            ],
+                            "ImageSaveMode": "Off",
+                            "ResultColumn": "结果",
+                            "NgValue": "NG",
+                            "ImageDirName": "img",
+                            "ImageNameTemplate": "{序号}_{结果}",
+                            "ImageFormat": "png"
+                          },
+                          "LinkedSources": {},
+                          "OutputPortDefinitions": []
+                        }
+                      ],
+                      "BranchType": 0,
+                      "StepName": "CSV记账",
+                      "Expression": ""
+                    }
+                  ]
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "566b2f18-91e6-51b2-a728-63aaa5d8538e",
+                  "Icon": "",
+                  "PluginName": "Excel报表",
+                  "Category": "数据处理",
+                  "PluginTypeName": "Plugin.ExcelExport.ExcelExportPlugin, Plugin.ExcelExport, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "导出Excel报表",
+                  "Description": "Excel报表",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "SourcePathTemplate": "D:\\Records\\{源步骤}\\{yyyy-MM}\\{yyyy-MM-dd}.csv",
+                    "SourceStepName": "CSV记录",
+                    "OutputDirectoryTemplate": "D:\\Records\\{StepName}\\{yyyy-MM}\\报表\\",
+                    "ReportFileNamePattern": "{yyyy-MM-dd}_报表.xlsx",
+                    "LinkColumn": "图片路径",
+                    "FreezeHeader": true,
+                    "AutoFilter": true,
+                    "OnlyRowsWithImage": false,
+                    "ExportPolicy": "Manual",
+                    "OpenAfterExport": false,
+                    "BlockOnFailure": false
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                },
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "0d861324-a981-131b-29d5-c87219c1f3b0",
+                  "Icon": "",
+                  "PluginName": "延时",
+                  "Category": "常用工具",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.DelayPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "循环节拍",
+                  "Description": "延时",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Delay": 500
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
                 }
               ],
               "BranchType": 1,
@@ -1324,1981 +3228,6 @@
               "Expression": ""
             }
           ]
-        },
-        {
-          "$type": "VisionMaster.Models.CaseStep, VM.Core",
-          "StepID": "4ede03a1-2716-f03f-d6ba-98a4fc1a11a2",
-          "Icon": "",
-          "PluginName": "分支匹配",
-          "Category": "逻辑控制",
-          "PluginTypeName": "BuiltIn_Case",
-          "StepName": "结果计数",
-          "Description": "按判据匹配分支",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {},
-          "LinkedSources": {},
-          "OutputPortDefinitions": [],
-          "LocalVariables": [],
-          "RuntimeVariableRefs": [
-            {
-              "Id": "cb8741cf-2ddd-22da-c7aa-88dc646cfe9a",
-              "Name": "CurrentResult",
-              "DataTypeName": "System.Boolean"
-            }
-          ],
-          "JudgeExpression": "CurrentResult",
-          "Children": [
-            {
-              "Steps": [
-                {
-                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
-                  "StepID": "f2a5912d-9e73-07e2-969f-9a87e5951ba3",
-                  "Icon": "",
-                  "PluginName": "数学计算",
-                  "Category": "数据处理",
-                  "PluginTypeName": "VisionMaster.Plugins.Util.MathCalculationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-                  "StepName": "OK计数+1",
-                  "Description": "数学计算",
-                  "SortId": 0,
-                  "IsDisEnable": false,
-                  "State": 0,
-                  "InputValues": {
-                    "Operation": "Add",
-                    "B": 1.0
-                  },
-                  "LinkedSources": {
-                    "A": {
-                      "Kind": 2,
-                      "TargetStepId": "00000000-0000-0000-0000-000000000000",
-                      "TargetPortName": "OKCount",
-                      "TargetVariableId": "a6c71d14-f03d-1c76-a4b1-1b54d512890e",
-                      "DisplayAddress": "全局变量 (Global).OKCount"
-                    }
-                  },
-                  "OutputPortDefinitions": []
-                },
-                {
-                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
-                  "StepID": "d55e7cca-b74e-b8b3-73d7-d97e2380740d",
-                  "Icon": "",
-                  "PluginName": "变量赋值",
-                  "Category": "变量操作",
-                  "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-                  "StepName": "写OKCount",
-                  "Description": "变量赋值",
-                  "SortId": 0,
-                  "IsDisEnable": false,
-                  "State": 0,
-                  "InputValues": {
-                    "Name": "OKCount",
-                    "CreateIfNotExists": false,
-                    "Scope": "Global"
-                  },
-                  "LinkedSources": {
-                    "Value": {
-                      "Kind": 1,
-                      "TargetStepId": "f2a5912d-9e73-07e2-969f-9a87e5951ba3",
-                      "TargetPortName": "Result",
-                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-                      "DisplayAddress": "OK计数+1.Result"
-                    }
-                  },
-                  "OutputPortDefinitions": []
-                }
-              ],
-              "BranchType": 4,
-              "StepName": "OK",
-              "Expression": "True"
-            },
-            {
-              "Steps": [
-                {
-                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
-                  "StepID": "2b379866-b5e9-041e-5e3a-6848386cd174",
-                  "Icon": "",
-                  "PluginName": "数学计算",
-                  "Category": "数据处理",
-                  "PluginTypeName": "VisionMaster.Plugins.Util.MathCalculationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-                  "StepName": "NG计数+1",
-                  "Description": "数学计算",
-                  "SortId": 0,
-                  "IsDisEnable": false,
-                  "State": 0,
-                  "InputValues": {
-                    "Operation": "Add",
-                    "B": 1.0
-                  },
-                  "LinkedSources": {
-                    "A": {
-                      "Kind": 2,
-                      "TargetStepId": "00000000-0000-0000-0000-000000000000",
-                      "TargetPortName": "NGCount",
-                      "TargetVariableId": "31ecb327-a39d-ca57-5bab-c197bf62d43d",
-                      "DisplayAddress": "全局变量 (Global).NGCount"
-                    }
-                  },
-                  "OutputPortDefinitions": []
-                },
-                {
-                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
-                  "StepID": "56937c0a-78a1-1df6-c6c2-c9b1b9086e3a",
-                  "Icon": "",
-                  "PluginName": "变量赋值",
-                  "Category": "变量操作",
-                  "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-                  "StepName": "写NGCount",
-                  "Description": "变量赋值",
-                  "SortId": 0,
-                  "IsDisEnable": false,
-                  "State": 0,
-                  "InputValues": {
-                    "Name": "NGCount",
-                    "CreateIfNotExists": false,
-                    "Scope": "Global"
-                  },
-                  "LinkedSources": {
-                    "Value": {
-                      "Kind": 1,
-                      "TargetStepId": "2b379866-b5e9-041e-5e3a-6848386cd174",
-                      "TargetPortName": "Result",
-                      "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-                      "DisplayAddress": "NG计数+1.Result"
-                    }
-                  },
-                  "OutputPortDefinitions": []
-                }
-              ],
-              "BranchType": 4,
-              "StepName": "NG",
-              "Expression": "False"
-            },
-            {
-              "Steps": [],
-              "BranchType": 2,
-              "StepName": "默认",
-              "Expression": ""
-            }
-          ]
-        },
-        {
-          "$type": "VisionMaster.Models.ParallelStep, VM.Core",
-          "StepID": "1d5da2d5-eba8-2a9f-a42b-a7a0e6849adc",
-          "Icon": "",
-          "PluginName": "并行分组",
-          "Category": "逻辑控制",
-          "PluginTypeName": "BuiltIn_Parallel",
-          "StepName": "并行收尾",
-          "Description": "多分支并行执行",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {},
-          "LinkedSources": {},
-          "OutputPortDefinitions": [],
-          "ExecutionMode": 1,
-          "FailFastMode": 0,
-          "JoinTimeoutMs": 15000,
-          "Children": [
-            {
-              "Steps": [
-                {
-                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
-                  "StepID": "46245b68-0437-6041-406c-3258d6712772",
-                  "Icon": "",
-                  "PluginName": "结果上报",
-                  "Category": "数据处理",
-                  "PluginTypeName": "Plugin.ResultUpload.ResultUploadPlugin, Plugin.ResultUpload, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-                  "StepName": "上报MES",
-                  "Description": "结果上报",
-                  "SortId": 0,
-                  "IsDisEnable": false,
-                  "State": 0,
-                  "InputValues": {
-                    "PayloadKind": "FieldTable",
-                    "Url": "http://127.0.0.1:19001/api/inspect",
-                    "TimeoutMs": 3000,
-                    "Headers": [],
-                    "Fields": [
-                      {
-                        "Name": "sn",
-                        "Source": "Variable",
-                        "VariableName": "RecipeName",
-                        "BuiltIn": "Timestamp",
-                        "Enabled": true
-                      },
-                      {
-                        "Name": "result",
-                        "Source": "Variable",
-                        "VariableName": "CurrentResult",
-                        "BuiltIn": "Timestamp",
-                        "Enabled": true
-                      },
-                      {
-                        "Name": "time",
-                        "Source": "BuiltIn",
-                        "VariableName": "",
-                        "BuiltIn": "Timestamp",
-                        "Enabled": true
-                      }
-                    ],
-                    "SendTiming": "EachRun",
-                    "JudgeFieldName": "result",
-                    "NgValue": "NG",
-                    "AsyncMode": true,
-                    "RetryCount": 3,
-                    "BlockOnFailure": false,
-                    "SpoolEnabled": true,
-                    "TimestampFormat": "yyyy-MM-dd HH:mm:ss.fff",
-                    "TimestampUtc": false
-                  },
-                  "LinkedSources": {},
-                  "OutputPortDefinitions": []
-                }
-              ],
-              "BranchType": 0,
-              "StepName": "上报MES",
-              "Expression": ""
-            },
-            {
-              "Steps": [
-                {
-                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
-                  "StepID": "90ca7a6e-c10c-5b9e-af91-93ec33c89d4f",
-                  "Icon": "",
-                  "PluginName": "CSV记录",
-                  "Category": "数据处理",
-                  "PluginTypeName": "Plugin.DataRecord.DataRecordPlugin, Plugin.DataRecord, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-                  "StepName": "CSV记录",
-                  "Description": "CSV记录",
-                  "SortId": 0,
-                  "IsDisEnable": false,
-                  "State": 0,
-                  "InputValues": {
-                    "DirectoryTemplate": "D:\\Records\\{StepName}\\{yyyy-MM}\\",
-                    "FileNamePattern": "{yyyy-MM-dd}.csv",
-                    "WriteHeader": true,
-                    "KeepDays": 30,
-                    "BlockOnFailure": false,
-                    "FlushEveryRow": false,
-                    "Columns": [
-                      {
-                        "Name": "时间",
-                        "Source": "BuiltIn",
-                        "VariableName": "",
-                        "BuiltIn": "Timestamp",
-                        "Format": "",
-                        "Enabled": true
-                      },
-                      {
-                        "Name": "序号",
-                        "Source": "BuiltIn",
-                        "VariableName": "",
-                        "BuiltIn": "Sequence",
-                        "Format": "",
-                        "Enabled": true
-                      },
-                      {
-                        "Name": "结果",
-                        "Source": "Variable",
-                        "VariableName": "CurrentResult",
-                        "BuiltIn": "Timestamp",
-                        "Format": "",
-                        "Enabled": true
-                      },
-                      {
-                        "Name": "OCR",
-                        "Source": "Variable",
-                        "VariableName": "OcrText",
-                        "BuiltIn": "Timestamp",
-                        "Format": "",
-                        "Enabled": true
-                      },
-                      {
-                        "Name": "缺陷数",
-                        "Source": "Variable",
-                        "VariableName": "DefectCount",
-                        "BuiltIn": "Timestamp",
-                        "Format": "",
-                        "Enabled": true
-                      }
-                    ],
-                    "ImageSaveMode": "Off",
-                    "ResultColumn": "结果",
-                    "NgValue": "NG",
-                    "ImageDirName": "img",
-                    "ImageNameTemplate": "{序号}_{结果}",
-                    "ImageFormat": "png"
-                  },
-                  "LinkedSources": {},
-                  "OutputPortDefinitions": []
-                }
-              ],
-              "BranchType": 0,
-              "StepName": "CSV记账",
-              "Expression": ""
-            }
-          ]
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "566b2f18-91e6-51b2-a728-63aaa5d8538e",
-          "Icon": "",
-          "PluginName": "Excel报表",
-          "Category": "数据处理",
-          "PluginTypeName": "Plugin.ExcelExport.ExcelExportPlugin, Plugin.ExcelExport, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "导出Excel报表",
-          "Description": "Excel报表",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "SourcePathTemplate": "D:\\Records\\{源步骤}\\{yyyy-MM}\\{yyyy-MM-dd}.csv",
-            "SourceStepName": "CSV记录",
-            "OutputDirectoryTemplate": "D:\\Records\\{StepName}\\{yyyy-MM}\\报表\\",
-            "ReportFileNamePattern": "{yyyy-MM-dd}_报表.xlsx",
-            "LinkColumn": "图片路径",
-            "FreezeHeader": true,
-            "AutoFilter": true,
-            "OnlyRowsWithImage": false,
-            "ExportPolicy": "Manual",
-            "OpenAfterExport": false,
-            "BlockOnFailure": false
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "ba4dca95-3f56-79c4-b0b8-7dbc83e35d29",
-          "Icon": "",
-          "PluginName": "调用流程",
-          "Category": "流程控制",
-          "PluginTypeName": "VisionMaster.Plugins.RunFlow.RunFlowPlugin, Plugin.RunFlow, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "调用综合工位",
-          "Description": "调用流程",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "FlowName": "综合工位",
-            "TimeoutMs": 180000
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        }
-      ]
-    },
-    {
-      "FlowID": "42eedd6dbd6ec34f217cdf0fd5960439",
-      "FlowName": "颜色检查",
-      "Description": "合成颜色图：序列 + 区域颜色",
-      "Version": 0,
-      "IsEnabled": true,
-      "Role": 0,
-      "InvokeType": 32,
-      "TimerIntervalMs": 0,
-      "StepsEncrypted": false,
-      "TriggerMode": 0,
-      "Layout": {
-        "Nodes": {},
-        "Count": 0
-      },
-      "Steps": [
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "bb138196-803f-c60e-6e97-ea070434200d",
-          "Icon": "",
-          "PluginName": "图像采集",
-          "Category": "常用工具",
-          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "采集颜色图",
-          "Description": "图像采集",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Mode": "SingleFile",
-            "FilePath": "D:\\C#\\VM\\Image\\颜色\\合成颜色_8bit.png",
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "421094b9-5db6-8ec5-46ed-c94b0d292906",
-          "Icon": "",
-          "PluginName": "颜色序列检查",
-          "Category": "图像处理",
-          "PluginTypeName": "Plugin.ColorCheck.ColorCheckPlugin, Plugin.ColorCheck, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "颜色序列检查",
-          "Description": "颜色序列检查",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "RoiParams": [
-              400.0,
-              276.0,
-              1.5708,
-              320.0,
-              210.0
-            ],
-            "ExpectedSequence": "",
-            "RecipeText": "12 芯 = *,*,*,*,*,*,*,*,*,*,*,*\r\n",
-            "WireCount": 12,
-            "ReverseSequence": false,
-            "Regularize": true,
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {
-            "Image": {
-              "Kind": 1,
-              "TargetStepId": "bb138196-803f-c60e-6e97-ea070434200d",
-              "TargetPortName": "Image",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "采集颜色图.Image"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "d9fd960c-52b2-5089-f893-7f0c4e046963",
-          "Icon": "",
-          "PluginName": "区域颜色检查",
-          "Category": "图像处理",
-          "PluginTypeName": "Plugin.ColorRegion.RegionColorPlugin, Plugin.ColorRegion, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "区域红灯",
-          "Description": "区域颜色检查",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "RoiShape": "Circle",
-            "RoiParams": [
-              250.0,
-              830.0,
-              55.0,
-              0.0,
-              0.0
-            ],
-            "ExpectedColors": "红",
-            "MinShare": 0.6,
-            "SamplePoints": 400,
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {
-            "Image": {
-              "Kind": 1,
-              "TargetStepId": "bb138196-803f-c60e-6e97-ea070434200d",
-              "TargetPortName": "Image",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "采集颜色图.Image"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "6dcdfddb-6bfd-4168-03ea-3c6baca2f470",
-          "Icon": "",
-          "PluginName": "区域颜色检查",
-          "Category": "图像处理",
-          "PluginTypeName": "Plugin.ColorRegion.RegionColorPlugin, Plugin.ColorRegion, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "区域紫块",
-          "Description": "区域颜色检查",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "RoiShape": "Rectangle",
-            "RoiParams": [
-              505.0,
-              790.0,
-              0.0,
-              45.0,
-              45.0
-            ],
-            "ExpectedColors": "紫",
-            "MinShare": 0.6,
-            "SamplePoints": 400,
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {
-            "Image": {
-              "Kind": 1,
-              "TargetStepId": "bb138196-803f-c60e-6e97-ea070434200d",
-              "TargetPortName": "Image",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "采集颜色图.Image"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "aaa491de-c287-3555-472e-32bded0c8168",
-          "Icon": "",
-          "PluginName": "逻辑运算",
-          "Category": "逻辑判断",
-          "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "颜色与1",
-          "Description": "逻辑运算",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Operation": "And"
-          },
-          "LinkedSources": {
-            "A": {
-              "Kind": 1,
-              "TargetStepId": "421094b9-5db6-8ec5-46ed-c94b0d292906",
-              "TargetPortName": "Result",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "颜色序列检查.Result"
-            },
-            "B": {
-              "Kind": 1,
-              "TargetStepId": "d9fd960c-52b2-5089-f893-7f0c4e046963",
-              "TargetPortName": "Result",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "区域红灯.Result"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "09c00a68-cdc9-86e6-9946-7320a7ab77a6",
-          "Icon": "",
-          "PluginName": "逻辑运算",
-          "Category": "逻辑判断",
-          "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "颜色综合判定",
-          "Description": "逻辑运算",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Operation": "And"
-          },
-          "LinkedSources": {
-            "A": {
-              "Kind": 1,
-              "TargetStepId": "aaa491de-c287-3555-472e-32bded0c8168",
-              "TargetPortName": "Result",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "颜色与1.Result"
-            },
-            "B": {
-              "Kind": 1,
-              "TargetStepId": "6dcdfddb-6bfd-4168-03ea-3c6baca2f470",
-              "TargetPortName": "Result",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "区域紫块.Result"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "1a0aa606-3ed6-e533-951e-3a394115344e",
-          "Icon": "",
-          "PluginName": "结果显示",
-          "Category": "常用工具",
-          "PluginTypeName": "Plugin.ResultDisplay.ResultDisplayPlugin, Plugin.ResultDisplay, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "颜色结果显示",
-          "Description": "结果显示",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Items": [
-              {
-                "Id": "r1",
-                "Label": "序列",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              },
-              {
-                "Id": "r2",
-                "Label": "红占比",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              },
-              {
-                "Id": "r3",
-                "Label": "判定",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              }
-            ],
-            "ShowTextOnImage": true,
-            "JudgeItemLabel": "判定",
-            "NgValue": "NG",
-            "MaxDrawElements": 300,
-            "TextAnchor": "TopLeft",
-            "TextMargin": 0,
-            "TextScale": 1.0,
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {
-            "SrcImage": {
-              "Kind": 1,
-              "TargetStepId": "bb138196-803f-c60e-6e97-ea070434200d",
-              "TargetPortName": "Image",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "采集颜色图.Image"
-            },
-            "r1": {
-              "Kind": 1,
-              "TargetStepId": "421094b9-5db6-8ec5-46ed-c94b0d292906",
-              "TargetPortName": "Verdict",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "颜色序列检查.Verdict"
-            },
-            "r2": {
-              "Kind": 1,
-              "TargetStepId": "d9fd960c-52b2-5089-f893-7f0c4e046963",
-              "TargetPortName": "Share",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "区域红灯.Share"
-            },
-            "r3": {
-              "Kind": 1,
-              "TargetStepId": "09c00a68-cdc9-86e6-9946-7320a7ab77a6",
-              "TargetPortName": "Result",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "颜色综合判定.Result"
-            }
-          },
-          "OutputPortDefinitions": []
-        }
-      ]
-    },
-    {
-      "FlowID": "fdf84e63bad592e5ef507ba6400dd51a",
-      "FlowName": "卡尺测量",
-      "Description": "5 种测量类型：宽度/两点距/点线距/圆直径/角度",
-      "Version": 0,
-      "IsEnabled": true,
-      "Role": 0,
-      "InvokeType": 32,
-      "TimerIntervalMs": 0,
-      "StepsEncrypted": false,
-      "TriggerMode": 0,
-      "Layout": {
-        "Nodes": {},
-        "Count": 0
-      },
-      "Steps": [
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "99dff801-d64b-21a8-4ca7-e69f27541f0c",
-          "Icon": "",
-          "PluginName": "图像采集",
-          "Category": "常用工具",
-          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "采集宽度图",
-          "Description": "图像采集",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Mode": "SingleFile",
-            "FilePath": "D:\\C#\\VM\\Image\\卡尺测试\\1-宽度40px.png",
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "3407a9db-aec7-00e7-8faa-9001b8035286",
-          "Icon": "",
-          "PluginName": "卡尺测量",
-          "Category": "测量",
-          "PluginTypeName": "Plugin.CaliperMeasure.CaliperMeasurePlugin, Plugin.CaliperMeasure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "宽度测量",
-          "Description": "卡尺测量",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "MeasureKind": "Width",
-            "CaliperRegions": [
-              {
-                "Name": "宽度区",
-                "ShapeType": "Rectangle",
-                "Params": [
-                  240.0,
-                  300.0,
-                  0.0,
-                  80.0,
-                  100.0
-                ]
-              }
-            ],
-            "CaliperCount": 5,
-            "Sigma": 1.0,
-            "EdgeThreshold": 30.0,
-            "Polarity": "All",
-            "Select": "All",
-            "Interpolation": "Bilinear",
-            "FitAlgorithm": "Tukey",
-            "FitMaxError": 1.0,
-            "FitMinPoints": 3,
-            "AnnulusWidth": 30.0,
-            "StandardValue": 40.0,
-            "UpperTolerance": 0.5,
-            "LowerTolerance": -0.5,
-            "PixelSizeMm": 1.0,
-            "MmPerPixel": 1.0
-          },
-          "LinkedSources": {
-            "SrcImage": {
-              "Kind": 1,
-              "TargetStepId": "99dff801-d64b-21a8-4ca7-e69f27541f0c",
-              "TargetPortName": "Image",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "采集宽度图.Image"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "f689837a-4e3f-e4e5-b8f9-95b930aaa36a",
-          "Icon": "",
-          "PluginName": "图像采集",
-          "Category": "常用工具",
-          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "采集两点距图",
-          "Description": "图像采集",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Mode": "SingleFile",
-            "FilePath": "D:\\C#\\VM\\Image\\卡尺测试\\2-两点距240px.png",
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "e8951667-326e-f15e-c6e2-37ef9f691fa5",
-          "Icon": "",
-          "PluginName": "卡尺测量",
-          "Category": "测量",
-          "PluginTypeName": "Plugin.CaliperMeasure.CaliperMeasurePlugin, Plugin.CaliperMeasure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "两点距测量",
-          "Description": "卡尺测量",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "MeasureKind": "PointToPoint",
-            "CaliperRegions": [
-              {
-                "Name": "左条",
-                "ShapeType": "Rectangle",
-                "Params": [
-                  240.0,
-                  100.0,
-                  0.0,
-                  60.0,
-                  80.0
-                ]
-              },
-              {
-                "Name": "右条",
-                "ShapeType": "Rectangle",
-                "Params": [
-                  240.0,
-                  340.0,
-                  0.0,
-                  60.0,
-                  80.0
-                ]
-              }
-            ],
-            "CaliperCount": 5,
-            "Sigma": 1.0,
-            "EdgeThreshold": 30.0,
-            "Polarity": "All",
-            "Select": "All",
-            "Interpolation": "Bilinear",
-            "FitAlgorithm": "Tukey",
-            "FitMaxError": 1.0,
-            "FitMinPoints": 3,
-            "AnnulusWidth": 30.0,
-            "StandardValue": 240.0,
-            "UpperTolerance": 0.5,
-            "LowerTolerance": -0.5,
-            "PixelSizeMm": 1.0,
-            "MmPerPixel": 1.0
-          },
-          "LinkedSources": {
-            "SrcImage": {
-              "Kind": 1,
-              "TargetStepId": "f689837a-4e3f-e4e5-b8f9-95b930aaa36a",
-              "TargetPortName": "Image",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "采集两点距图.Image"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "3bfd7562-7e28-24cd-9d01-d7cdbde12d70",
-          "Icon": "",
-          "PluginName": "图像采集",
-          "Category": "常用工具",
-          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "采集点线距图",
-          "Description": "图像采集",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Mode": "SingleFile",
-            "FilePath": "D:\\C#\\VM\\Image\\卡尺测试\\3-点到线距200px.png",
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "35c0ebcd-c1ae-ee46-b424-ebd9d12387db",
-          "Icon": "",
-          "PluginName": "卡尺测量",
-          "Category": "测量",
-          "PluginTypeName": "Plugin.CaliperMeasure.CaliperMeasurePlugin, Plugin.CaliperMeasure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "点到线距测量",
-          "Description": "卡尺测量",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "MeasureKind": "PointToLineDistance",
-            "CaliperRegions": [
-              {
-                "Name": "点区",
-                "ShapeType": "Rectangle",
-                "Params": [
-                  250.0,
-                  300.0,
-                  0.0,
-                  60.0,
-                  60.0
-                ]
-              },
-              {
-                "Name": "线区",
-                "ShapeType": "Rectangle",
-                "Params": [
-                  250.0,
-                  100.0,
-                  0.0,
-                  60.0,
-                  80.0
-                ]
-              }
-            ],
-            "CaliperCount": 5,
-            "Sigma": 1.0,
-            "EdgeThreshold": 30.0,
-            "Polarity": "All",
-            "Select": "All",
-            "Interpolation": "Bilinear",
-            "FitAlgorithm": "Tukey",
-            "FitMaxError": 1.0,
-            "FitMinPoints": 3,
-            "AnnulusWidth": 30.0,
-            "StandardValue": 200.0,
-            "UpperTolerance": 0.5,
-            "LowerTolerance": -0.5,
-            "PixelSizeMm": 1.0,
-            "MmPerPixel": 1.0
-          },
-          "LinkedSources": {
-            "SrcImage": {
-              "Kind": 1,
-              "TargetStepId": "3bfd7562-7e28-24cd-9d01-d7cdbde12d70",
-              "TargetPortName": "Image",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "采集点线距图.Image"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "45b6bc87-28c8-5cd4-1e2f-9e7380ebe486",
-          "Icon": "",
-          "PluginName": "图像采集",
-          "Category": "常用工具",
-          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "采集圆图",
-          "Description": "图像采集",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Mode": "SingleFile",
-            "FilePath": "D:\\C#\\VM\\Image\\卡尺测试\\4-圆直径200px.png",
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "6bd580da-0a92-12fe-f285-c13b677412c3",
-          "Icon": "",
-          "PluginName": "卡尺测量",
-          "Category": "测量",
-          "PluginTypeName": "Plugin.CaliperMeasure.CaliperMeasurePlugin, Plugin.CaliperMeasure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "圆直径测量",
-          "Description": "卡尺测量",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "MeasureKind": "CircleDiameter",
-            "CaliperRegions": [
-              {
-                "Name": "圆搜索区",
-                "ShapeType": "Circle",
-                "Params": [
-                  240.0,
-                  320.0,
-                  100.0
-                ]
-              }
-            ],
-            "CaliperCount": 16,
-            "Sigma": 1.0,
-            "EdgeThreshold": 30.0,
-            "Polarity": "All",
-            "Select": "All",
-            "Interpolation": "Bilinear",
-            "FitAlgorithm": "Tukey",
-            "FitMaxError": 1.0,
-            "FitMinPoints": 3,
-            "AnnulusWidth": 30.0,
-            "StandardValue": 200.0,
-            "UpperTolerance": 1.0,
-            "LowerTolerance": -1.0,
-            "PixelSizeMm": 1.0,
-            "MmPerPixel": 1.0
-          },
-          "LinkedSources": {
-            "SrcImage": {
-              "Kind": 1,
-              "TargetStepId": "45b6bc87-28c8-5cd4-1e2f-9e7380ebe486",
-              "TargetPortName": "Image",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "采集圆图.Image"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "2b4656f5-de78-70d2-ed9e-6fa6ecfcb305",
-          "Icon": "",
-          "PluginName": "图像采集",
-          "Category": "常用工具",
-          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "采集角度图",
-          "Description": "图像采集",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Mode": "SingleFile",
-            "FilePath": "D:\\C#\\VM\\Image\\卡尺测试\\5-角度90.png",
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "50ef48a9-4bd7-7860-977a-e3aeafb20dbd",
-          "Icon": "",
-          "PluginName": "卡尺测量",
-          "Category": "测量",
-          "PluginTypeName": "Plugin.CaliperMeasure.CaliperMeasurePlugin, Plugin.CaliperMeasure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "角度测量",
-          "Description": "卡尺测量",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "MeasureKind": "Angle",
-            "CaliperRegions": [
-              {
-                "Name": "竖线区",
-                "ShapeType": "Rectangle",
-                "Params": [
-                  120.0,
-                  240.0,
-                  1.5708,
-                  60.0,
-                  80.0
-                ]
-              },
-              {
-                "Name": "横线区",
-                "ShapeType": "Rectangle",
-                "Params": [
-                  240.0,
-                  440.0,
-                  0.0,
-                  60.0,
-                  80.0
-                ]
-              }
-            ],
-            "CaliperCount": 5,
-            "Sigma": 1.0,
-            "EdgeThreshold": 30.0,
-            "Polarity": "All",
-            "Select": "All",
-            "Interpolation": "Bilinear",
-            "FitAlgorithm": "Tukey",
-            "FitMaxError": 1.0,
-            "FitMinPoints": 3,
-            "AnnulusWidth": 30.0,
-            "StandardValue": 90.0,
-            "UpperTolerance": 0.5,
-            "LowerTolerance": -0.5,
-            "PixelSizeMm": 1.0,
-            "MmPerPixel": 1.0
-          },
-          "LinkedSources": {
-            "SrcImage": {
-              "Kind": 1,
-              "TargetStepId": "2b4656f5-de78-70d2-ed9e-6fa6ecfcb305",
-              "TargetPortName": "Image",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "采集角度图.Image"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "bf01f09b-9069-85bd-71b6-bfd29f713042",
-          "Icon": "",
-          "PluginName": "逻辑运算",
-          "Category": "逻辑判断",
-          "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "卡尺与1",
-          "Description": "逻辑运算",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Operation": "And"
-          },
-          "LinkedSources": {
-            "A": {
-              "Kind": 1,
-              "TargetStepId": "3407a9db-aec7-00e7-8faa-9001b8035286",
-              "TargetPortName": "IsOk",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "宽度测量.IsOk"
-            },
-            "B": {
-              "Kind": 1,
-              "TargetStepId": "e8951667-326e-f15e-c6e2-37ef9f691fa5",
-              "TargetPortName": "IsOk",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "两点距测量.IsOk"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "b701f133-ce6b-b01a-e71b-822e9d6c4eb3",
-          "Icon": "",
-          "PluginName": "逻辑运算",
-          "Category": "逻辑判断",
-          "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "卡尺与2",
-          "Description": "逻辑运算",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Operation": "And"
-          },
-          "LinkedSources": {
-            "A": {
-              "Kind": 1,
-              "TargetStepId": "bf01f09b-9069-85bd-71b6-bfd29f713042",
-              "TargetPortName": "Result",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "卡尺与1.Result"
-            },
-            "B": {
-              "Kind": 1,
-              "TargetStepId": "35c0ebcd-c1ae-ee46-b424-ebd9d12387db",
-              "TargetPortName": "IsOk",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "点到线距测量.IsOk"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "68ae186a-f39f-41f3-e9c3-ebb1794806ce",
-          "Icon": "",
-          "PluginName": "逻辑运算",
-          "Category": "逻辑判断",
-          "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "卡尺与3",
-          "Description": "逻辑运算",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Operation": "And"
-          },
-          "LinkedSources": {
-            "A": {
-              "Kind": 1,
-              "TargetStepId": "b701f133-ce6b-b01a-e71b-822e9d6c4eb3",
-              "TargetPortName": "Result",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "卡尺与2.Result"
-            },
-            "B": {
-              "Kind": 1,
-              "TargetStepId": "6bd580da-0a92-12fe-f285-c13b677412c3",
-              "TargetPortName": "IsOk",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "圆直径测量.IsOk"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "b2d3b0b6-b85c-425a-dfbc-ca953597f2ea",
-          "Icon": "",
-          "PluginName": "逻辑运算",
-          "Category": "逻辑判断",
-          "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "卡尺综合判定",
-          "Description": "逻辑运算",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Operation": "And"
-          },
-          "LinkedSources": {
-            "A": {
-              "Kind": 1,
-              "TargetStepId": "68ae186a-f39f-41f3-e9c3-ebb1794806ce",
-              "TargetPortName": "Result",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "卡尺与3.Result"
-            },
-            "B": {
-              "Kind": 1,
-              "TargetStepId": "50ef48a9-4bd7-7860-977a-e3aeafb20dbd",
-              "TargetPortName": "IsOk",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "角度测量.IsOk"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "65d5a715-6623-b48d-cb10-d2c5534fc226",
-          "Icon": "",
-          "PluginName": "结果显示",
-          "Category": "常用工具",
-          "PluginTypeName": "Plugin.ResultDisplay.ResultDisplayPlugin, Plugin.ResultDisplay, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "卡尺结果显示",
-          "Description": "结果显示",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Items": [
-              {
-                "Id": "r1",
-                "Label": "宽度",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              },
-              {
-                "Id": "r2",
-                "Label": "两点距",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              },
-              {
-                "Id": "r3",
-                "Label": "圆直径",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              },
-              {
-                "Id": "r4",
-                "Label": "角度",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              }
-            ],
-            "ShowTextOnImage": true,
-            "JudgeItemLabel": "判定",
-            "NgValue": "NG",
-            "MaxDrawElements": 300,
-            "TextAnchor": "TopLeft",
-            "TextMargin": 0,
-            "TextScale": 1.0,
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {
-            "SrcImage": {
-              "Kind": 1,
-              "TargetStepId": "45b6bc87-28c8-5cd4-1e2f-9e7380ebe486",
-              "TargetPortName": "Image",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "采集圆图.Image"
-            },
-            "r1": {
-              "Kind": 1,
-              "TargetStepId": "3407a9db-aec7-00e7-8faa-9001b8035286",
-              "TargetPortName": "MeasureValue",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "宽度测量.MeasureValue"
-            },
-            "r2": {
-              "Kind": 1,
-              "TargetStepId": "e8951667-326e-f15e-c6e2-37ef9f691fa5",
-              "TargetPortName": "MeasureValue",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "两点距测量.MeasureValue"
-            },
-            "r3": {
-              "Kind": 1,
-              "TargetStepId": "6bd580da-0a92-12fe-f285-c13b677412c3",
-              "TargetPortName": "MeasureValue",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "圆直径测量.MeasureValue"
-            },
-            "r4": {
-              "Kind": 1,
-              "TargetStepId": "50ef48a9-4bd7-7860-977a-e3aeafb20dbd",
-              "TargetPortName": "MeasureValue",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "角度测量.MeasureValue"
-            }
-          },
-          "OutputPortDefinitions": []
-        }
-      ]
-    },
-    {
-      "FlowID": "5e2fd251ef6ebeb99d66bf525e910824",
-      "FlowName": "胶路检测",
-      "Description": "胶路宽度/断胶/偏移检测",
-      "Version": 0,
-      "IsEnabled": true,
-      "Role": 0,
-      "InvokeType": 32,
-      "TimerIntervalMs": 0,
-      "StepsEncrypted": false,
-      "TriggerMode": 0,
-      "Layout": {
-        "Nodes": {},
-        "Count": 0
-      },
-      "Steps": [
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "cfc9ecd6-9aa8-8248-fc30-5889fd8e86b0",
-          "Icon": "",
-          "PluginName": "图像采集",
-          "Category": "常用工具",
-          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "采集胶路图",
-          "Description": "图像采集",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Mode": "SingleFile",
-            "FilePath": "D:\\C#\\VM\\Image\\bead\\adhesive_bead_01.png",
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "5a8d49ff-5418-685d-b557-6487fd2b2cc7",
-          "Icon": "",
-          "PluginName": "胶路检测",
-          "Category": "缺陷检测",
-          "PluginTypeName": "Plugin.BeadInspect.BeadInspectPlugin, Plugin.BeadInspect, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "胶路检测",
-          "Description": "胶路检测",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "RecipeLibraryJson": "[{\"Name\":\"BeadA\",\"RefImagePath\":\"D:\\\\C#\\\\VM\\\\Image\\\\bead\\\\adhesive_bead_01.png\",\"RefNoBeadImagePath\":\"D:\\\\C#\\\\VM\\\\Image\\\\bead\\\\adhesive_bead_ref.png\",\"RefPointsJson\":\"[[610,419],[570,421],[530,425],[490,433],[450,445],[430,454],[394,475],[358,500],[331,525],[309,550],[294,575],[284,600],[277,625],[273,650],[271,675],[269,700],[267,725],[267,750],[274,775],[285,800],[304,825],[323,850],[343,875],[364,900],[388,925],[419,950],[456,975],[470,984],[490,993],[510,997],[530,997]]\",\"RectifyQuadJson\":\"\",\"TargetWidth\":15.0,\"WidthTolerance\":8.0,\"PositionTolerance\":30.0,\"Polarity\":\"dark\",\"LearnedSignature\":\"\"}]",
-            "DefaultRecipeName": "BeadA",
-            "AlignMode": "None",
-            "Polarity": "Dark",
-            "TargetWidth": 15.0,
-            "WidthTolerance": 8.0,
-            "PositionTolerance": 30.0,
-            "MinErrorLength": 10.0,
-            "MinScore": 0.4,
-            "DisplayViewIndex": 1,
-            "OutputAlignedImage": false,
-            "UnitOutput": "Pixel",
-            "PixelSizeMm": 0.05
-          },
-          "LinkedSources": {
-            "SrcImage": {
-              "Kind": 1,
-              "TargetStepId": "cfc9ecd6-9aa8-8248-fc30-5889fd8e86b0",
-              "TargetPortName": "Image",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "采集胶路图.Image"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "1907bc7b-7ba1-3e38-cf92-28ee954ec8e3",
-          "Icon": "",
-          "PluginName": "结果显示",
-          "Category": "常用工具",
-          "PluginTypeName": "Plugin.ResultDisplay.ResultDisplayPlugin, Plugin.ResultDisplay, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "胶路结果显示",
-          "Description": "结果显示",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Items": [
-              {
-                "Id": "r1",
-                "Label": "错误数",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              },
-              {
-                "Id": "r2",
-                "Label": "总长",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              },
-              {
-                "Id": "r3",
-                "Label": "判定",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              }
-            ],
-            "ShowTextOnImage": true,
-            "JudgeItemLabel": "判定",
-            "NgValue": "NG",
-            "MaxDrawElements": 300,
-            "TextAnchor": "TopLeft",
-            "TextMargin": 0,
-            "TextScale": 1.0,
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {
-            "SrcImage": {
-              "Kind": 1,
-              "TargetStepId": "cfc9ecd6-9aa8-8248-fc30-5889fd8e86b0",
-              "TargetPortName": "Image",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "采集胶路图.Image"
-            },
-            "r1": {
-              "Kind": 1,
-              "TargetStepId": "5a8d49ff-5418-685d-b557-6487fd2b2cc7",
-              "TargetPortName": "ErrorCount",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "胶路检测.ErrorCount"
-            },
-            "r2": {
-              "Kind": 1,
-              "TargetStepId": "5a8d49ff-5418-685d-b557-6487fd2b2cc7",
-              "TargetPortName": "TotalErrorLength",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "胶路检测.TotalErrorLength"
-            },
-            "r3": {
-              "Kind": 1,
-              "TargetStepId": "5a8d49ff-5418-685d-b557-6487fd2b2cc7",
-              "TargetPortName": "IsOk",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "胶路检测.IsOk"
-            }
-          },
-          "OutputPortDefinitions": []
-        }
-      ]
-    },
-    {
-      "FlowID": "5a3768e5df8a94b252c782d0e2107762",
-      "FlowName": "码读取",
-      "Description": "QR 码读取 + 写运行期变量",
-      "Version": 0,
-      "IsEnabled": true,
-      "Role": 0,
-      "InvokeType": 32,
-      "TimerIntervalMs": 0,
-      "StepsEncrypted": false,
-      "TriggerMode": 0,
-      "Layout": {
-        "Nodes": {},
-        "Count": 0
-      },
-      "Steps": [
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "0122da51-803e-835d-63d7-0829cfd3a5cf",
-          "Icon": "",
-          "PluginName": "图像采集",
-          "Category": "常用工具",
-          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "采集二维码图",
-          "Description": "图像采集",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Mode": "SingleFile",
-            "FilePath": "D:\\C#\\VM\\Image\\images\\datacode\\qrcode\\qr_workpiece_01.png",
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "a2f92d18-c6bb-46c8-c991-584cb37d03ed",
-          "Icon": "",
-          "PluginName": "二维码读取",
-          "Category": "图像处理",
-          "PluginTypeName": "Plugin.CodeReader.CodeReaderPlugin, Plugin.CodeReader, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "二维码读取",
-          "Description": "二维码读取",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Symbology": "QR Code",
-            "TimeoutMs": 500,
-            "Polarity": "any"
-          },
-          "LinkedSources": {
-            "Image": {
-              "Kind": 1,
-              "TargetStepId": "0122da51-803e-835d-63d7-0829cfd3a5cf",
-              "TargetPortName": "Image",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "采集二维码图.Image"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "31366cef-b397-ca1e-21cd-9a67a46a8a73",
-          "Icon": "",
-          "PluginName": "变量赋值",
-          "Category": "变量操作",
-          "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "写条码文本",
-          "Description": "变量赋值",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Name": "BarcodeText",
-            "CreateIfNotExists": false,
-            "Scope": "Runtime"
-          },
-          "LinkedSources": {
-            "Value": {
-              "Kind": 1,
-              "TargetStepId": "a2f92d18-c6bb-46c8-c991-584cb37d03ed",
-              "TargetPortName": "Text",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "二维码读取.Text"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "2a441ec3-3671-1923-a7b4-0e5bd08227dd",
-          "Icon": "",
-          "PluginName": "结果显示",
-          "Category": "常用工具",
-          "PluginTypeName": "Plugin.ResultDisplay.ResultDisplayPlugin, Plugin.ResultDisplay, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "码结果显示",
-          "Description": "结果显示",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Items": [
-              {
-                "Id": "r1",
-                "Label": "内容",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              },
-              {
-                "Id": "r2",
-                "Label": "数量",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              }
-            ],
-            "ShowTextOnImage": true,
-            "JudgeItemLabel": "判定",
-            "NgValue": "NG",
-            "MaxDrawElements": 300,
-            "TextAnchor": "TopLeft",
-            "TextMargin": 0,
-            "TextScale": 1.0,
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {
-            "SrcImage": {
-              "Kind": 1,
-              "TargetStepId": "0122da51-803e-835d-63d7-0829cfd3a5cf",
-              "TargetPortName": "Image",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "采集二维码图.Image"
-            },
-            "r1": {
-              "Kind": 1,
-              "TargetStepId": "a2f92d18-c6bb-46c8-c991-584cb37d03ed",
-              "TargetPortName": "Text",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "二维码读取.Text"
-            },
-            "r2": {
-              "Kind": 1,
-              "TargetStepId": "a2f92d18-c6bb-46c8-c991-584cb37d03ed",
-              "TargetPortName": "Count",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "二维码读取.Count"
-            }
-          },
-          "OutputPortDefinitions": []
-        }
-      ]
-    },
-    {
-      "FlowID": "6b30728fdfc74614eb8d77eebafb482c",
-      "FlowName": "综合工位",
-      "Description": "颜色 + 卡尺 + 胶路 + 码读取 串联演示",
-      "Version": 0,
-      "IsEnabled": true,
-      "Role": 0,
-      "InvokeType": 32,
-      "TimerIntervalMs": 0,
-      "StepsEncrypted": false,
-      "TriggerMode": 0,
-      "Layout": {
-        "Nodes": {},
-        "Count": 0
-      },
-      "Steps": [
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "e84aefc5-385d-40b3-07fa-cb30e20ea875",
-          "Icon": "",
-          "PluginName": "图像采集",
-          "Category": "常用工具",
-          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "工位缩略图",
-          "Description": "图像采集",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Mode": "SingleFile",
-            "FilePath": "D:\\C#\\VM\\Image\\颜色\\合成颜色_8bit.png",
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "eb04abcd-a87c-f555-e403-021312349987",
-          "Icon": "",
-          "PluginName": "调用流程",
-          "Category": "流程控制",
-          "PluginTypeName": "VisionMaster.Plugins.RunFlow.RunFlowPlugin, Plugin.RunFlow, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "调用颜色检查",
-          "Description": "调用流程",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "FlowName": "颜色检查",
-            "TimeoutMs": 60000
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "663a8084-a525-2700-fa2a-ba3563ef57aa",
-          "Icon": "",
-          "PluginName": "调用流程",
-          "Category": "流程控制",
-          "PluginTypeName": "VisionMaster.Plugins.RunFlow.RunFlowPlugin, Plugin.RunFlow, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "调用卡尺测量",
-          "Description": "调用流程",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "FlowName": "卡尺测量",
-            "TimeoutMs": 120000
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "9a123d90-8b48-b80b-1460-a7e41c3b1d95",
-          "Icon": "",
-          "PluginName": "调用流程",
-          "Category": "流程控制",
-          "PluginTypeName": "VisionMaster.Plugins.RunFlow.RunFlowPlugin, Plugin.RunFlow, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "调用胶路检测",
-          "Description": "调用流程",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "FlowName": "胶路检测",
-            "TimeoutMs": 60000
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "ea1aa06a-74d8-a321-f389-16357ba6288b",
-          "Icon": "",
-          "PluginName": "调用流程",
-          "Category": "流程控制",
-          "PluginTypeName": "VisionMaster.Plugins.RunFlow.RunFlowPlugin, Plugin.RunFlow, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "调用码读取",
-          "Description": "调用流程",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "FlowName": "码读取",
-            "TimeoutMs": 60000
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "50b833cc-59e8-db32-57f3-cea71040c538",
-          "Icon": "",
-          "PluginName": "逻辑运算",
-          "Category": "逻辑判断",
-          "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "工位与1",
-          "Description": "逻辑运算",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Operation": "And"
-          },
-          "LinkedSources": {
-            "A": {
-              "Kind": 1,
-              "TargetStepId": "eb04abcd-a87c-f555-e403-021312349987",
-              "TargetPortName": "Invoked",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "调用颜色检查.Invoked"
-            },
-            "B": {
-              "Kind": 1,
-              "TargetStepId": "663a8084-a525-2700-fa2a-ba3563ef57aa",
-              "TargetPortName": "Invoked",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "调用卡尺测量.Invoked"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "f89c7fce-cf51-38c8-1228-a689b38bd424",
-          "Icon": "",
-          "PluginName": "逻辑运算",
-          "Category": "逻辑判断",
-          "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "工位与2",
-          "Description": "逻辑运算",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Operation": "And"
-          },
-          "LinkedSources": {
-            "A": {
-              "Kind": 1,
-              "TargetStepId": "50b833cc-59e8-db32-57f3-cea71040c538",
-              "TargetPortName": "Result",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "工位与1.Result"
-            },
-            "B": {
-              "Kind": 1,
-              "TargetStepId": "9a123d90-8b48-b80b-1460-a7e41c3b1d95",
-              "TargetPortName": "Invoked",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "调用胶路检测.Invoked"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "5f1cab2c-4a2c-db2c-2b09-d2b532956523",
-          "Icon": "",
-          "PluginName": "逻辑运算",
-          "Category": "逻辑判断",
-          "PluginTypeName": "VisionMaster.Plugins.Util.LogicOperationPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "工位综合判定",
-          "Description": "逻辑运算",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Operation": "And"
-          },
-          "LinkedSources": {
-            "A": {
-              "Kind": 1,
-              "TargetStepId": "f89c7fce-cf51-38c8-1228-a689b38bd424",
-              "TargetPortName": "Result",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "工位与2.Result"
-            },
-            "B": {
-              "Kind": 1,
-              "TargetStepId": "ea1aa06a-74d8-a321-f389-16357ba6288b",
-              "TargetPortName": "Invoked",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "调用码读取.Invoked"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "2e9f7319-b5da-2682-2186-76b2a2c60990",
-          "Icon": "",
-          "PluginName": "变量赋值",
-          "Category": "变量操作",
-          "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "写工位结果",
-          "Description": "变量赋值",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Name": "StationOk",
-            "CreateIfNotExists": false,
-            "Scope": "Runtime"
-          },
-          "LinkedSources": {
-            "Value": {
-              "Kind": 1,
-              "TargetStepId": "5f1cab2c-4a2c-db2c-2b09-d2b532956523",
-              "TargetPortName": "Result",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "工位综合判定.Result"
-            }
-          },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "26dfad84-9bb8-0438-0928-d8fa92f3ceca",
-          "Icon": "",
-          "PluginName": "C#脚本",
-          "Category": "逻辑控制",
-          "PluginTypeName": "Plugin.CSharpScript.CSharpScriptPlugin, Plugin.CSharpScript, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "工位完成脚本",
-          "Description": "C#脚本",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "ScriptText": "Context.Info(\"综合工位：颜色/卡尺/胶路/码读取 全部执行完毕\");",
-            "InputVars": [],
-            "OutputVars": [],
-            "SharedVars": []
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "51eb4c0a-d2c1-9eeb-bf48-13da9bc14dc6",
-          "Icon": "",
-          "PluginName": "结果显示",
-          "Category": "常用工具",
-          "PluginTypeName": "Plugin.ResultDisplay.ResultDisplayPlugin, Plugin.ResultDisplay, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "工位结果显示",
-          "Description": "结果显示",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Items": [
-              {
-                "Id": "r1",
-                "Label": "颜色",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              },
-              {
-                "Id": "r2",
-                "Label": "卡尺",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              },
-              {
-                "Id": "r3",
-                "Label": "胶路",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              },
-              {
-                "Id": "r4",
-                "Label": "码读取",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              },
-              {
-                "Id": "r5",
-                "Label": "综合",
-                "Format": "",
-                "Unit": "",
-                "Enabled": true
-              }
-            ],
-            "ShowTextOnImage": true,
-            "JudgeItemLabel": "判定",
-            "NgValue": "NG",
-            "MaxDrawElements": 300,
-            "TextAnchor": "TopLeft",
-            "TextMargin": 0,
-            "TextScale": 1.0,
-            "DisplayViewIndex": 1
-          },
-          "LinkedSources": {
-            "SrcImage": {
-              "Kind": 1,
-              "TargetStepId": "e84aefc5-385d-40b3-07fa-cb30e20ea875",
-              "TargetPortName": "Image",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "工位缩略图.Image"
-            },
-            "r1": {
-              "Kind": 1,
-              "TargetStepId": "eb04abcd-a87c-f555-e403-021312349987",
-              "TargetPortName": "Invoked",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "调用颜色检查.Invoked"
-            },
-            "r2": {
-              "Kind": 1,
-              "TargetStepId": "663a8084-a525-2700-fa2a-ba3563ef57aa",
-              "TargetPortName": "Invoked",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "调用卡尺测量.Invoked"
-            },
-            "r3": {
-              "Kind": 1,
-              "TargetStepId": "9a123d90-8b48-b80b-1460-a7e41c3b1d95",
-              "TargetPortName": "Invoked",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "调用胶路检测.Invoked"
-            },
-            "r4": {
-              "Kind": 1,
-              "TargetStepId": "ea1aa06a-74d8-a321-f389-16357ba6288b",
-              "TargetPortName": "Invoked",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "调用码读取.Invoked"
-            },
-            "r5": {
-              "Kind": 1,
-              "TargetStepId": "5f1cab2c-4a2c-db2c-2b09-d2b532956523",
-              "TargetPortName": "Result",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "工位综合判定.Result"
-            }
-          },
-          "OutputPortDefinitions": []
         }
       ]
     },
@@ -3307,7 +3236,7 @@
       "FlowName": "End",
       "Description": "收尾：停轴 / IO 复位 / PLC 收尾",
       "Version": 0,
-      "IsEnabled": true,
+      "IsEnabled": false,
       "Role": 3,
       "InvokeType": 0,
       "TimerIntervalMs": 0,
@@ -3414,7 +3343,7 @@
           "InputValues": {
             "Name": "SystemReady",
             "CreateIfNotExists": false,
-            "Scope": "Runtime",
+            "Scope": "Global",
             "Value": false
           },
           "LinkedSources": {},
@@ -3832,7 +3761,7 @@
       "VarType": "Network",
       "Name": "PLC_Trigger",
       "VariableId": "1ec9339f-c0b4-d88a-8c42-5050f3765cfb",
-      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "DataTypeString": "System.Int16, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "PLC 触发计数",
       "DefaultValue": 0,
       "Value": 0,
@@ -3855,7 +3784,7 @@
       "VarType": "Network",
       "Name": "PLC_Ack",
       "VariableId": "dca55321-2e35-b22a-cc94-325712086c37",
-      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "DataTypeString": "System.Int16, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "PLC 完成确认",
       "DefaultValue": 0,
       "Value": 0,
@@ -3892,7 +3821,7 @@
       "ElementByteLength": 0,
       "UseLegacyAddress": false,
       "DbNumber": 0,
-      "DataValueType": "Int16",
+      "DataValueType": "Int32",
       "ScanGroup": "",
       "GroupId": "00000000-0000-0000-0000-000000000000",
       "MergeAdjacentRead": true
@@ -3970,7 +3899,7 @@
       "VarType": "Network",
       "Name": "S7_Result",
       "VariableId": "742d2811-c26c-6b86-7c9d-3afaa69dc4d3",
-      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "DataTypeString": "System.Int16, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "S7 判定字",
       "DefaultValue": 0,
       "Value": 0,

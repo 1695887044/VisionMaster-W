@@ -1795,6 +1795,11 @@ namespace CommChecks
                 && engineering[0] == 105.0 && engineering[1] == 2000.0 && engineering[2] == 6000.0,
                 engineering == null ? "(null)" : string.Join(",", engineering));
 
+            var fractional = model.ToEngineeringValue(new[] { 1001, 2000, 3000 }) as double[];
+            Check("C26-1b 读路径：raw 1001 ×0.1+5 → 105.1（工程值允许带小数）",
+                fractional is { Length: 3 } && Math.Abs(fractional[0] - 105.1) < 1e-9,
+                fractional == null ? "(null)" : string.Join(",", fractional));
+
             var plain = new NetworkVariableModel
             {
                 DataType = typeof(int[]),
@@ -1824,6 +1829,16 @@ namespace CommChecks
                 Check("C26-3 写路径：工程值 105/2000/6000 → 原始 1000/2000/3000",
                     ok && raw is { Length: 3 } && raw[0] == 1000 && raw[1] == 2000 && raw[2] == 3000,
                     ok ? (raw == null ? "null" : string.Join(",", raw)) : args[2] as string ?? "null");
+
+                // 关键回归：工程值带小数时不能先落声明元素类型（105.5 → int 106 → 反算 1010）
+                object?[] fractionalArgs = { new[] { 105.5, 2000, 6000 }, null, null };
+                bool fractionalOk = (bool)toRawArray.Invoke(model, fractionalArgs)!;
+                var fractionalRaw = fractionalArgs[1] as int[];
+                Check("C26-3b 写路径：工程值 105.5 → raw 1005（不能先舍成 106 再反算成 1010）",
+                    fractionalOk && fractionalRaw is { Length: 3 } && fractionalRaw[0] == 1005,
+                    fractionalOk
+                        ? (fractionalRaw == null ? "null" : string.Join(",", fractionalRaw))
+                        : fractionalArgs[2] as string ?? "null");
             }
 
             // 读路径的注入点：轮询发布 / 立刻读都走 CommunicationVariable.ToEngineering
@@ -1894,6 +1909,17 @@ namespace CommChecks
                     }
                 }.SupportsElementWrite,
                 $"Int32[]={model.SupportsElementWrite}");
+
+            Check("C26-9 identity/null 档案：double 工程值必须落回声明 int（不能把 double 塞进 int[]）",
+                ArrayConversion.TryToRaw(null, 105.0, typeof(int), out var identityRaw, out _)
+                && identityRaw is int identityInt && identityInt == 105,
+                identityRaw?.GetType().Name + " " + identityRaw);
+
+            Check("C26-10 非有限换算参数：写路径明确失败（不把 NaN/Infinity 发到设备）",
+                !ArrayConversion.TryToRaw(
+                    new ElementConversion { Scale = double.NaN }, 1.0, typeof(int), out _, out var nanError)
+                && !string.IsNullOrEmpty(nanError),
+                nanError ?? "(没有错误)");
         }
 
         #endregion

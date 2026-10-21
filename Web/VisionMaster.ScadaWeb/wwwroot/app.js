@@ -97,6 +97,7 @@
     fitWatchTimer: null,
     warned: new Set(),
     lastSeq: 0,
+    frameSeq: 0,
     lastFrameAt: 0,
     lastCloseReason: '',
     overlayKind: '',
@@ -514,6 +515,8 @@
     var level = depth || 0;
     var elementsRaw = pick(raw, 'Elements', 'elements') || [];
     var baseRaw = pick(raw, 'BasePage', 'basePage', 'base');
+    // 多基座（2026-10-21 起）：BasePages 是权威清单；BasePage 只是"第一只"的兼容视图。
+    var basesRaw = pick(raw, 'BasePages', 'basePages');
 
     var indexed = [];
     for (var i = 0; i < elementsRaw.length; i++) {
@@ -532,6 +535,22 @@
     var width = toNumber(pick(raw, 'Width', 'width'), 0);
     var height = toNumber(pick(raw, 'Height', 'height'), 0);
 
+    // 基座只递归一层（模型本身就禁止基座再套基座）。
+    // 多基座按数组序叠加：后一只画在前一只之上；单基座旧消息回退到 BasePage。
+    var bases = [];
+    if (level === 0) {
+      if (Array.isArray(basesRaw)) {
+        for (var b = 0; b < basesRaw.length; b++) {
+          var normalizedBase = normalizePage(basesRaw[b], 1);
+          if (normalizedBase) bases.push(normalizedBase);
+        }
+      }
+      if (bases.length === 0 && baseRaw) {
+        var singleBase = normalizePage(baseRaw, 1);
+        if (singleBase) bases.push(singleBase);
+      }
+    }
+
     var page = {
       PageId: toText(pick(raw, 'PageId', 'pageId', 'id'), ''),
       PageName: toText(pick(raw, 'PageName', 'pageName', 'name'), ''),
@@ -539,8 +558,8 @@
       Width: width > 0 ? width : DEFAULT_PAGE_WIDTH,
       Height: height > 0 ? height : DEFAULT_PAGE_HEIGHT,
       Background: toText(pick(raw, 'Background', 'background'), ''),
-      // 基座只递归一层（模型本身就禁止基座再套基座）
-      BasePage: level === 0 && baseRaw ? normalizePage(baseRaw, 1) : null,
+      BasePage: bases.length > 0 ? bases[0] : null,
+      BasePages: bases,
       Elements: elements,
     };
 
@@ -551,6 +570,7 @@
     page.height = page.Height;
     page.background = page.Background;
     page.basePage = page.BasePage;
+    page.basePages = page.BasePages;
     page.elements = page.Elements;
 
     return page;
@@ -1321,6 +1341,7 @@
       el: el,
       node: node,
       update: typeof result.update === 'function' ? result.update : null,
+      reset: typeof result.reset === 'function' ? result.reset : null,
       childrenHost: result.childrenHost || null,
       childrenOrigin: result.childrenOrigin || null,
       parent: null,
@@ -1432,23 +1453,28 @@
 
     state.page = page;
     state.pageVersion = page.PageVersion;
+    state.frameSeq = 0;
     state.records = [];
     state.pageRecords = [];
     state.baseRecords = [];
     state.nodes = new Map();
 
-    if (page.BasePage) {
-      state.baseRecords = buildPage(page.BasePage, dom.baseLayer, ctx);
+    var basePages = (page.BasePages && page.BasePages.length > 0)
+      ? page.BasePages
+      : (page.BasePage ? [page.BasePage] : []);
+
+    for (var bi = 0; bi < basePages.length; bi++) {
+      state.baseRecords = state.baseRecords.concat(buildPage(basePages[bi], dom.baseLayer, ctx));
     }
     state.pageRecords = buildPage(page, dom.pageLayer, ctx);
     state.records = state.baseRecords.concat(state.pageRecords);
 
-    // 值帧只认当前页；同名 Id 时当前页优先
+    // 值帧只认当前页；同名 Id 时当前页优先，其次是最上面的基座（数组末尾）
     for (var i = 0; i < state.pageRecords.length; i++) {
       var pageRec = state.pageRecords[i];
       if (pageRec.el.ElementId) state.nodes.set(pageRec.el.ElementId, pageRec);
     }
-    for (var j = 0; j < state.baseRecords.length; j++) {
+    for (var j = state.baseRecords.length - 1; j >= 0; j--) {
       var baseRec = state.baseRecords[j];
       if (baseRec.el.ElementId && !state.nodes.has(baseRec.el.ElementId)) {
         state.nodes.set(baseRec.el.ElementId, baseRec);
@@ -2712,11 +2738,33 @@
     updateTopbar();
   }
 
+  /** keyframe 到达时给渲染器一次"清本地派生状态"的机会；没声明 reset 的渲染器无操作。 */
+  function resetRecords() {
+    for (var i = 0; i < state.records.length; i++) {
+      var rec = state.records[i];
+      if (!rec || typeof rec.reset !== 'function') continue;
+
+      try {
+        rec.reset();
+      } catch (err) {
+        warnOnce('reset:' + (rec.el && rec.el.TypeKey),
+          '[SCADA Web] 渲染器重置失败（' + (rec.el && rec.el.TypeKey) + '）：', err);
+      }
+    }
+  }
+
   function applyFrame(message) {
     if (!state.page) return;
 
+    // runGeneration 闸必须在写 state 之前：旧轮的帧既不能上屏，也不能污染命令信封。
     if (message.runGeneration !== undefined) {
-      state.runGeneration = toNumber(pick(message, 'runGeneration', 'RunGeneration'), state.runGeneration);
+      var frameGeneration = toNumber(pick(message, 'runGeneration', 'RunGeneration'), state.runGeneration);
+      if (state.runGeneration && frameGeneration !== state.runGeneration) {
+        warnOnce('frame-generation:' + frameGeneration,
+          '[SCADA Web] 值帧属于旧运行轮次（' + frameGeneration + '），已忽略');
+        return;
+      }
+      state.runGeneration = frameGeneration;
     }
 
     var pageId = pick(message, 'pageId', 'PageId');
@@ -2738,8 +2786,14 @@
       }
     }
 
+    var keyframe = toBool(pick(message, 'keyframe', 'Keyframe'), false);
+    if (keyframe) resetRecords();
+
     var items = normalizeFrameItems(message);
-    if (!items.size) return;
+    if (!items.size) {
+      if (keyframe) refreshInteractionStates();
+      return;
+    }
 
     var applied = 0;
     items.forEach(function (values, elementId) {
@@ -2754,7 +2808,11 @@
       }
     });
 
+    var frameSeq = toNumber(pick(message, 'frameSeq', 'FrameSeq'), 0);
+    if (frameSeq > 0) state.frameSeq = frameSeq;
+
     if (applied > 0) state.lastFrameAt = Date.now();
+    if (keyframe) refreshInteractionStates();
   }
 
   // ---------------------------------------------------------------------------

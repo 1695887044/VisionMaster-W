@@ -944,6 +944,32 @@ namespace ScadaWebChecks
                     && !allowedSet && world.Dispatcher.Calls.Count == 0,
                     $"code={result.Code} 生效白名单含运动={allowedSet} 分发={world.Dispatcher.Calls.Count}");
             }
+
+            // A 范围（2026-10-22）：流程启动三类即使显式塞进 allowedActions 也必须被硬排除；
+            // 停/暂停是安全方向，保留。这条闸是"Web 轴只读"能成立的前提——流程里可以含运动步骤。
+            {
+                using var world = new World(
+                    allowedActions: new[]
+                    {
+                        ScadaActionType.StartFlow,
+                        ScadaActionType.RunFlowOnce,
+                        ScadaActionType.ResumeFlow,
+                        ScadaActionType.StopFlow,
+                        ScadaActionType.PauseFlow,
+                    },
+                    allowMotionCommands: true,
+                    requireConfirmForDangerous: false);
+
+                var allowed = world.Router.AllowedActions;
+
+                Check("M2-13e",
+                    !allowed.Contains(ScadaActionType.StartFlow)
+                    && !allowed.Contains(ScadaActionType.RunFlowOnce)
+                    && !allowed.Contains(ScadaActionType.ResumeFlow)
+                    && allowed.Contains(ScadaActionType.StopFlow)
+                    && allowed.Contains(ScadaActionType.PauseFlow),
+                    "生效白名单=" + string.Join("、", allowed.OrderBy(a => a)));
+            }
         }
 
         // ==================================================================

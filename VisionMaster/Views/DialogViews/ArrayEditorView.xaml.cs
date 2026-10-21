@@ -40,8 +40,10 @@ namespace VisionMaster.Views.DialogViews
                 string text = ReadClipboard();
                 if (string.IsNullOrEmpty(text)) return;
 
-                // 单值粘贴不拦：让 TextBox 自己处理（保留光标/选区语义）
-                if (!text.Contains('\n') && !text.Contains('\r') && !text.Contains('\t')) return;
+                // 单值（含 Excel 复制单格常带的尾换行）交给 TextBox 自己处理；
+                // 只有真正的多行/制表符文本才按行铺到列表。
+                string trimmed = text.TrimEnd('\r', '\n');
+                if (!trimmed.Contains('\n') && !trimmed.Contains('\r') && !trimmed.Contains('\t')) return;
 
                 vm.Paste(text, ElementList.SelectedItem as ArrayEditorRow);
                 e.Handled = true;

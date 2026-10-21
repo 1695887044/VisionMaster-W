@@ -67,6 +67,12 @@ namespace VisionMaster.ScadaWeb
         /// <summary>pending 计数的读改写锁（见 <see cref="Enqueue"/> 与 <see cref="ReleasePending"/>）</summary>
         private readonly object _pendingGate = new();
 
+        /// <summary>
+        /// 每会话"正在 UI 线程执行"的条数。45 秒判死用它豁免长命令：
+        /// 命令已经出队（pending=0）但还在执行时，会话不能被当成死连接回收。
+        /// </summary>
+        private readonly ConcurrentDictionary<string, int> _executingBySession = new(StringComparer.Ordinal);
+
         private long _processed;
         private int _stopped;
 
@@ -116,6 +122,21 @@ namespace VisionMaster.ScadaWeb
 
         /// <summary>本泵的每会话容量（诊断 / 断言核对）</summary>
         public int SessionCapacity => _sessionCapacity;
+
+        /// <summary>
+        /// 该会话是否还有命令在排队或正在执行。45 秒判死的豁免判据：
+        /// 有活干就不算死连接，哪怕这 45 秒里一帧都没有。
+        /// </summary>
+        public bool IsSessionBusy(string? sessionId)
+        {
+            if (string.IsNullOrEmpty(sessionId))
+                return false;
+
+            if (_pendingBySession.TryGetValue(sessionId, out var pending) && pending > 0)
+                return true;
+
+            return _executingBySession.TryGetValue(sessionId, out var executing) && executing > 0;
+        }
 
         /// <summary>入队一条命令（不需要失败原因时用这个重载）</summary>
         public bool Enqueue(ScadaWebSession session, ScadaWebCommand command)
@@ -251,7 +272,9 @@ namespace VisionMaster.ScadaWeb
             {
                 await foreach (var command in _channel.Reader.ReadAllAsync(_cts.Token).ConfigureAwait(false))
                 {
-                    ReleasePending(command.Session?.SessionId);
+                    var commandSessionId = command.Session?.SessionId;
+                    ReleasePending(commandSessionId);
+                    MarkExecuting(commandSessionId);
 
                     var queueDelayMs = (int)Math.Max(0, (DateTime.UtcNow - command.EnqueuedAtUtc).TotalMilliseconds);
                     if (queueDelayMs > SlowQueueMs)
@@ -261,7 +284,16 @@ namespace VisionMaster.ScadaWeb
                     }
 
                     var startedAt = Environment.TickCount64;
-                    var result = await ExecuteAsync(command).ConfigureAwait(false);
+                    ScadaWebCommandResult result;
+                    try
+                    {
+                        result = await ExecuteAsync(command).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        UnmarkExecuting(commandSessionId);
+                    }
+
                     var elapsedMs = Environment.TickCount64 - startedAt;
 
                     Interlocked.Increment(ref _processed);
@@ -335,6 +367,33 @@ namespace VisionMaster.ScadaWeb
                     _pendingBySession.TryRemove(sessionId!, out _);
                 else
                     _pendingBySession[sessionId!] = current - 1;
+            }
+        }
+
+        private void MarkExecuting(string? sessionId)
+        {
+            if (string.IsNullOrWhiteSpace(sessionId)) return;
+            _executingBySession.AddOrUpdate(sessionId!, 1, (_, current) => current + 1);
+        }
+
+        private void UnmarkExecuting(string? sessionId)
+        {
+            if (string.IsNullOrWhiteSpace(sessionId)) return;
+
+            while (true)
+            {
+                if (!_executingBySession.TryGetValue(sessionId!, out var current))
+                    return;
+
+                if (current <= 1)
+                {
+                    if (_executingBySession.TryRemove(sessionId!, out _))
+                        return;
+                }
+                else if (_executingBySession.TryUpdate(sessionId!, current - 1, current))
+                {
+                    return;
+                }
             }
         }
 

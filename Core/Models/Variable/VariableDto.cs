@@ -77,6 +77,9 @@ namespace VisionMaster.Models
 
         public string Unit { get; set; } = string.Empty;
 
+        /// <summary>标量换算的显示小数位（0~10；旧方案缺省 2，与 DeviceAddressBase 默认一致）</summary>
+        public int DecimalPlaces { get; set; } = 2;
+
         /// <summary>
         /// 数组逐元素工程量换算档案（下标与元素一一对应；null/缺省 = 该元素不换算）。
         /// <para>必须随方案落盘：不存的话下次打开方案，数组换算全部丢失，
@@ -188,6 +191,7 @@ namespace VisionMaster.Models
             address.Scale = Scale;
             address.EngineeringOffset = EngineeringOffset;
             address.Unit = Unit;
+            address.DecimalPlaces = DecimalPlaces;
 
             // UseLegacyAddress 只在 ModbusAddress 上（S7 没有 5 位写法）；按反射设置，Core 不反向引用通信程序集。
             var legacyProp = addressType.GetProperty("UseLegacyAddress");
@@ -241,6 +245,7 @@ namespace VisionMaster.Models
                 Scale = addr?.Scale ?? 1,
                 EngineeringOffset = addr?.EngineeringOffset ?? 0,
                 Unit = addr?.Unit ?? string.Empty,
+                DecimalPlaces = addr?.DecimalPlaces ?? 2,
                 DataValueType = addr?.DataType.ToString(),
                 // 扫描组随变量落盘（漏拷 = 挂好的快组在下次打开方案时静默退回默认组）
                 ScanGroup = nv.ScanGroup ?? string.Empty,
