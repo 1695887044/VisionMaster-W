@@ -284,6 +284,36 @@ namespace ScadaWebChecks
                         ? "未收到 snapshot"
                         : $"elements={elementsNode?.Count} bindings={bindingsNode?.Count} json={Truncate(snapshot.ToString(Formatting.None), 200)}");
 
+                // B10b：ImageView.Source 不得进 10Hz 标量帧——每拍全尺寸 HImage→BitmapSource
+                // 会把 UI 线程打满，而且四类标量帧只能把 BitmapSource 变成类型名。
+                // 图像应由 /img + imageToken 按需取；这里用纯内存快照钉住 resolver 的跳过规则。
+                var imagePage = new VisionMaster.Scada.Snapshots.ScadaPageSnapshot
+                {
+                    PageId = Guid.NewGuid().ToString("D"),
+                    PageVersion = 1,
+                    Elements = new List<VisionMaster.Scada.Snapshots.ScadaElementSnapshot>
+                    {
+                        new()
+                        {
+                            ElementId = Guid.NewGuid().ToString("D"),
+                            TypeKey = "Hmi.ImageView",
+                            Bindings = new List<VisionMaster.Scada.Snapshots.ScadaBindingSnapshot>
+                            {
+                                new()
+                                {
+                                    TargetProperty = "Source",
+                                    VariableName = "img",
+                                    Enabled = true
+                                }
+                            }.AsReadOnly()
+                        }
+                    }.AsReadOnly()
+                };
+
+                var imageItems = new ScadaWebValueResolver().Resolve(imagePage, new ImageOnlyValueSource());
+                Check("B10b", imageItems.Count == 0,
+                    $"items={imageItems.Count}（期望 0；图像应由 /img 通道提供）");
+
                 // M1c：10 个 Hmi.* 图元全部出现，且 Id 与种子逐条一致
                 var hmiElements = elementsNode?.OfType<JObject>().ToList() ?? new List<JObject>();
                 var typeKeys = hmiElements
@@ -1611,6 +1641,36 @@ namespace ScadaWebChecks
                             Acknowledged: false)
                     },
                     UnacknowledgedCount: 1);
+        }
+
+        /// <summary>B10b 专用：任何变量引用都返回一个非图像值，用来证明 resolver 根本没读它。</summary>
+        private sealed class ImageOnlyValueSource : IScadaValueSource
+        {
+            public bool TryResolve(Guid variableId, string? fallbackName, out IScadaValueHandle? handle)
+            {
+                handle = new ImageOnlyHandle();
+                return true;
+            }
+
+            private sealed class ImageOnlyHandle : IScadaValueHandle
+            {
+                public Guid VariableId => Guid.Empty;
+                public string Name => "img";
+                public Type DataType => typeof(string);
+                public object? Value => "not-an-image";
+
+                public event EventHandler? ValueChanged
+                {
+                    add { }
+                    remove { }
+                }
+
+                public bool TryWrite(object? value, out string? error)
+                {
+                    error = null;
+                    return false;
+                }
+            }
         }
 
         private sealed class FakeValueSource : IScadaValueSource

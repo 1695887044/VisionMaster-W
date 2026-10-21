@@ -186,6 +186,16 @@ namespace VisionMaster.ScadaWeb
                     if (string.IsNullOrWhiteSpace(binding.TargetProperty))
                         continue;
 
+                    // 图像不走 10Hz 标量帧：`ImageView.Source` 的值是 BitmapSource/HImage，
+                    // 每拍转换一次全尺寸位图会把 UI 线程打满，而四类标量帧又只能把它变成
+                    // 类型名（"System.Windows.Media.Imaging.BitmapSource"）。
+                    // 图像由 /img + imageToken 按需取（1fps/元素），这里必须跳过。
+                    if (string.Equals(element.TypeKey, "Hmi.ImageView", StringComparison.Ordinal)
+                        && string.Equals(binding.TargetProperty, "Source", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
                     var key = new VariableKey(ParseGuid(binding.VariableId), binding.VariableName);
 
                     // 既没 Id 也没名字 = 空绑定，跳过（不算故障，用户刚建了一条还没选变量）
