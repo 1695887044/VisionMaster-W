@@ -2033,4 +2033,69 @@
         draw();
         return { node: node, update: update };
     };
+
+    // ----------------------------------------------------------------------
+    //  Hmi.ImageView 图像显示（只读；按 1fps 拉 /img，token 由 hello/img.token 下发）
+    //
+    //  图像字节不走 WS 值帧（10Hz 全尺寸位图转换会把 UI 线程打满），
+    //  由服务端 /img?elementId=…&version=…&t=imageToken 按需编码成 PNG。
+    //  版本号用 Date.now() 做 cache-busting；服务端 Cache-Control 仍是 private/max-age=30。
+    //  Stretch 映射到 CSS object-fit；没有 token/图时显示 PlaceholderText。
+    // ----------------------------------------------------------------------
+    registry['Hmi.ImageView'] = function (el, ctx) {
+        var node = global.document.createElement('div');
+        node.className = 'hmi-image-view';
+        node.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;'
+            + 'display:flex;align-items:center;justify-content:center;';
+
+        var img = global.document.createElement('img');
+        var stretch = (rawProp(el, 'Stretch') || 'Uniform').toLowerCase();
+        img.style.cssText = 'max-width:100%;max-height:100%;display:none;';
+        img.style.objectFit = stretch === 'fill' ? 'fill'
+            : stretch === 'uniformtofill' ? 'cover'
+            : stretch === 'none' ? 'none'
+            : 'contain';
+
+        var placeholder = global.document.createElement('div');
+        placeholder.textContent = rawProp(el, 'PlaceholderText') || '无图像';
+        placeholder.style.cssText = 'color:#7C8A99;font-size:12px;text-align:center;padding:4px;';
+
+        node.appendChild(img);
+        node.appendChild(placeholder);
+
+        var timer = null;
+
+        function refresh() {
+            var url = ctx.imageUrl ? ctx.imageUrl(el.ElementId, Date.now()) : '';
+            if (!url) {
+                img.style.display = 'none';
+                placeholder.style.display = '';
+                return;
+            }
+
+            img.onload = function () {
+                img.style.display = '';
+                placeholder.style.display = 'none';
+            };
+            img.onerror = function () {
+                img.style.display = 'none';
+                placeholder.style.display = '';
+            };
+            img.src = url;
+        }
+
+        refresh();
+        timer = global.setInterval(refresh, 1000);
+
+        return {
+            node: node,
+            update: function () { },
+            dispose: function () {
+                if (timer) {
+                    global.clearInterval(timer);
+                    timer = null;
+                }
+            }
+        };
+    };
 })(window);

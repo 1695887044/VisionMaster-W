@@ -11,6 +11,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Core.Interfaces;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -792,6 +794,9 @@ namespace ScadaWebChecks
                 }
             }
 
+            // ---------------- B51：/img 图像通道（独立宿主 + 2x2 测试图） ----------------
+            await RunImageChecksAsync(http);
+
             // ---------------- B45：死连接回收（判死阈值压到 1s；运行已停止，双向都无进展） ----------------
             {
                 hub.Stop();
@@ -1243,6 +1248,132 @@ namespace ScadaWebChecks
         }
 
         /// <summary>等对端关闭帧，返回关闭码（超时/异常返回 null）。用于 B43 验 4403。</summary>
+        /// <summary>
+        /// B51：/img 图像通道。独立宿主 + 一个 ImageView（Source 绑定到 2x2 红色位图），
+        /// 用 hello.imageToken 取图，断言 PNG 字节与坏 token 的 401。
+        /// </summary>
+        private static async Task RunImageChecksAsync(HttpClient http)
+        {
+            var port = GetFreePort();
+            var document = new ScadaDocument();
+            var page = document.AddPage("图像页");
+            page.Version = 1;
+
+            var values = new FakeValueSource();
+            var handle = values.Add(Guid.NewGuid(), "img", CreateTestBitmap());
+            var element = new ScadaElement
+            {
+                TypeKey = "Hmi.ImageView",
+                Name = "图像",
+                X = 10,
+                Y = 10,
+                Width = 120,
+                Height = 80
+            };
+            element.Bindings.Add(new ScadaBinding
+            {
+                TargetProperty = "Source",
+                VariableId = handle.VariableId,
+                VariableName = handle.Name,
+                IsEnabled = true
+            });
+            page.Elements.Add(element);
+            document.SetStartupPage(page);
+
+            var runtime = new ScadaRuntime(document);
+            runtime.Start();
+
+            var hub = new FakeRunHub();
+            hub.SetRunning(runtime, document, 1);
+
+            var settings = new ScadaWebSettings
+            {
+                Enabled = true,
+                Port = port,
+                BindAddress = "127.0.0.1",
+                AllowAnonymousView = true,
+                MaxSessions = 4
+            };
+
+            var host = new ScadaWebHost(
+                hub,
+                authenticator: null,
+                catalog: null,
+                new FakeLog(),
+                settings,
+                values);
+
+            host.Start();
+
+            if (!host.IsListening)
+            {
+                Check("B51", false, $"图像宿主未启动：{host.LastError ?? "<none>"}");
+                return;
+            }
+
+            var baseUrl = $"http://127.0.0.1:{port}";
+
+            try
+            {
+                var issue = await IssueTicketAsync(http, baseUrl);
+                var (connected, connectError, socket) = await ConnectAsync($"{baseUrl.Replace("http", "ws")}/ws?ticket={issue.Ticket}");
+
+                if (!connected || socket == null)
+                {
+                    Check("B51", false, $"图像宿主 WS 连接失败：{connectError ?? "<none>"}");
+                    return;
+                }
+
+                using (socket)
+                {
+                    var hello = await ReceiveUntilAsync(socket, m => TypeOf(m) == "hello", 3000);
+                    var token = hello?.Value<string>("imageToken");
+                    var elementId = element.ElementId.ToString("D");
+                    var url = $"{baseUrl}/img?elementId={elementId}&version=1&t={Uri.EscapeDataString(token ?? "")}";
+                    var (status, contentType, bytes) = await GetBytesAsync(http, url);
+
+                    var pngMagic = bytes.Length >= 8
+                                   && bytes[0] == 0x89 && bytes[1] == 0x50
+                                   && bytes[2] == 0x4E && bytes[3] == 0x47;
+
+                    Check("B51",
+                        !string.IsNullOrWhiteSpace(token)
+                        && status == 200
+                        && contentType.Contains("image/png", StringComparison.OrdinalIgnoreCase)
+                        && pngMagic
+                        && bytes.Length > 8,
+                        $"token={(string.IsNullOrWhiteSpace(token) ? "<缺失>" : Short(token))} "
+                        + $"status={status} type={contentType} bytes={bytes.Length} png={pngMagic}");
+
+                    var (badStatus, _, _) = await GetBytesAsync(
+                        http, $"{baseUrl}/img?elementId={elementId}&version=1&t=not-a-token");
+
+                    Check("B51b", badStatus == 401, $"badTokenStatus={badStatus}（期望 401）");
+                }
+            }
+            finally
+            {
+                await host.StopAsync();
+            }
+        }
+
+        private static BitmapSource CreateTestBitmap()
+        {
+            // 2x2 BGRA 红色（B=0,G=0,R=255,A=255），冻结后跨线程安全
+            var pixels = new byte[2 * 2 * 4];
+            for (var i = 0; i < pixels.Length; i += 4)
+            {
+                pixels[i] = 0;
+                pixels[i + 1] = 0;
+                pixels[i + 2] = 255;
+                pixels[i + 3] = 255;
+            }
+
+            var bitmap = BitmapSource.Create(2, 2, 96, 96, PixelFormats.Bgra32, null, pixels, 2 * 4);
+            bitmap.Freeze();
+            return bitmap;
+        }
+
         private static async Task<int?> WaitForCloseCodeAsync(ClientWebSocket socket, int timeoutMs)
         {
             using var cts = new CancellationTokenSource(timeoutMs);

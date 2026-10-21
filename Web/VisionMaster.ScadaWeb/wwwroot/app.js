@@ -64,6 +64,7 @@
     ticket: '',
     ticketUsed: false,
     sessionToken: '',
+    imageToken: '',
     user: '',
     refreshing: false,
     loginBusy: false,
@@ -720,6 +721,15 @@
         return state.runGeneration;
       },
       commandClient: window.ScadaCommandClient || null,
+      imageToken: function () {
+        return state.imageToken;
+      },
+      imageUrl: function (elementId, version) {
+        if (!state.imageToken || !elementId) return '';
+        return '/img?elementId=' + encodeURIComponent(elementId)
+          + '&version=' + encodeURIComponent(version || 0)
+          + '&t=' + encodeURIComponent(state.imageToken);
+      },
       canOperate: function (elementId, el) {
         return canOperate(elementId, el);
       },
@@ -1342,6 +1352,7 @@
       node: node,
       update: typeof result.update === 'function' ? result.update : null,
       reset: typeof result.reset === 'function' ? result.reset : null,
+      dispose: typeof result.dispose === 'function' ? result.dispose : null,
       childrenHost: result.childrenHost || null,
       childrenOrigin: result.childrenOrigin || null,
       parent: null,
@@ -1447,6 +1458,14 @@
     }
 
     var ctx = createContext(page);
+
+    // 结构重建前释放旧渲染器的资源（ImageView 的 1fps 定时器等）。
+    for (var d = 0; d < state.records.length; d++) {
+      var oldRec = state.records[d];
+      if (!oldRec || typeof oldRec.dispose !== 'function') continue;
+      try { oldRec.dispose(); }
+      catch (err) { warnOnce('dispose:' + (oldRec.el && oldRec.el.TypeKey), '[SCADA Web] 释放渲染器失败：', err); }
+    }
 
     dom.baseLayer.replaceChildren();
     dom.pageLayer.replaceChildren();
@@ -2555,6 +2574,10 @@
           storageSet(STORAGE_SESSION, state.sessionToken);
         }
 
+        // 图像凭据：45 秒短命 token，只用于 /img?...&t=；与 sessionToken 分开
+        var helloImageToken = pick(message, 'imageToken', 'ImageToken');
+        if (helloImageToken) state.imageToken = String(helloImageToken);
+
         var helloUser = pick(message, 'user', 'User', 'userName', 'UserName');
         if (helloUser) {
           state.user = String(helloUser);
@@ -2615,6 +2638,11 @@
         refreshInteractionStates();
         updateTopbar();
         break;
+
+      case 'img.token':
+        var rotatedImageToken = pick(message, 'token', 'Token');
+        if (rotatedImageToken) state.imageToken = String(rotatedImageToken);
+        return;
 
       case 'alarms':
       case 'alarm':

@@ -32,11 +32,10 @@ namespace ScadaChecks
         /// <summary>已知缺口：实现一个就从这里删一个（只许变短）。</summary>
         private static readonly string[] KnownMissingWebRenderers =
         {
-            // Hmi.ChartTrend 已于 2026-10-22 用 Value 值帧实现（elements-process.js），
-            // 不再列入例外；下面 4 项需要运行态数据通道（表格行/图像字节/轴样本），
+            // Hmi.ChartTrend 已于 2026-10-22 用 Value 值帧实现；Hmi.ImageView 已用
+            // /img + imageToken 实现；下面 3 项需要运行态数据通道（表格行/轴样本），
             // 不是单个渲染器函数能补齐的。
             "Hmi.DataGrid",
-            "Hmi.ImageView",
             "Hmi.AxisPanel",
             "Hmi.AxisConsole",
             // 注意：Hmi.AxisPointTable 是 ShowInToolbox=false 的兼容别名，不在"工具箱图元"集合里，
@@ -112,8 +111,8 @@ namespace ScadaChecks
                     ? $"例外 {exceptions.Count} 项全部仍然缺失且仍在注册表"
                     : "过期例外：" + string.Join("、", staleExceptions));
 
-            Check("[WR3] 例外清单只许变短（当前上限 4）",
-                KnownMissingWebRenderers.Length <= 4,
+            Check("[WR3] 例外清单只许变短（当前上限 3）",
+                KnownMissingWebRenderers.Length <= 3,
                 $"例外清单 {KnownMissingWebRenderers.Length} 项：" + string.Join("、", KnownMissingWebRenderers));
 
             Check("[WR4] 例外清单每项都仍是已注册图元（防止改名后例外悬空）",

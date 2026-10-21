@@ -9,6 +9,7 @@ using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
+using System.Windows.Media.Imaging;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using Core.Interfaces;
@@ -155,6 +156,16 @@ namespace VisionMaster.ScadaWeb
         private string? _structureKey;
         private ScadaPageSnapshot? _structurePage;
         private long _structureBuildCount;
+
+        // ---- 图像通道（/img）----
+        // token 按会话、45 秒、最多 3 个；只放 query，sessionToken 绝不进 URL。
+        // 图像字节不走 WS（WS 只跑文本帧），由静态路由直接吐 PNG。
+        private const int ImageTokenSeconds = 45;
+        private const int ImageTokenMaxPerSession = 3;
+        private readonly ConcurrentDictionary<string, ImageTokenEntry> _imageTokens = new(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<string, string> _currentImageToken = new(StringComparer.Ordinal);
+
+        private sealed record ImageTokenEntry(string SessionId, DateTime ExpiresAtUtc);
 
         /// <summary>
         /// 每帧每会话的 UTF-8 字节预算（含 envelope）。由 70Mbps / MaxSessions / 10Hz 推导，
@@ -422,10 +433,11 @@ namespace VisionMaster.ScadaWeb
                 server.Get("/api/catalog", HandleCatalog);
                 server.Post("/api/ticket", HandleTicket);
 
-                // ---- /img：M1b 仍未接 imageToken；现在一律 404，占住路由形状 ----
-                server.Get("/img", HandleImagePlaceholder);
-                server.Get("/img/{elementId}", HandleImagePlaceholder);
-                server.Get("/img/{elementId}/{version}", HandleImagePlaceholder);
+                // ---- /img：图像通道（静态路由，原样吐 PNG；token 校验在 handler 内）----
+                // 必须走 PreAuthentication.Static 才能拿 HttpContextBase.Response.Send(byte[])；
+                // server.Get 会把 byte[] 当对象 JSON 序列化（变 base64）。URL 用 query：
+                // /img?elementId=<guid>&version=<v>&t=<imageToken>（sessionToken 绝不进 URL）。
+                // 具体注册在 RegisterStaticRoutes 里（与其它静态路由同一处）。
 
                 // ---- 静态资源：基础页（无鉴权、不含任何组态数据；数据只走 /ws）----
                 RegisterStaticRoutes(server);
@@ -604,6 +616,8 @@ namespace VisionMaster.ScadaWeb
                 sessions = _sessions.Values.ToArray();
                 _sessions.Clear();
                 Interlocked.Exchange(ref _admittedSessions, 0);
+                _imageTokens.Clear();
+                _currentImageToken.Clear();
             }
 
             if (server == null && cts == null) return null;   // 幂等：没启动过 / 已停止
@@ -1284,18 +1298,214 @@ namespace VisionMaster.ScadaWeb
         }
 
         /// <summary>
-        /// <c>GET /img/…</c>：M1b 接 <c>imageToken</c> 后才会真正出图；现在固定 404，
-        /// 但把路由形状占住（客户端拼 URL 的行为从 M1a 就能跑通，不会 404 成"服务不存在"）。
+        /// 给会话签发一个 imageToken（45 秒、每会话最多 3 个）。
+        ///
+        /// <b>为什么不复用 sessionToken</b>：sessionToken 是 8 小时可复用的登录凭据，
+        /// 放进 URL 会经浏览器历史/代理/Referer 泄漏；imageToken 只读图、短命、可轮换。
         /// </summary>
-        private Task<object> HandleImagePlaceholder(ApiRequest request)
+        private string IssueImageToken(ScadaWebSession session)
         {
-            request.Http.Response.StatusCode = 404;
-            return Task.FromResult<object>(new
+            var now = DateTime.UtcNow;
+
+            foreach (var pair in _imageTokens)
             {
-                ok = false,
-                code = "E_IMG_NOT_READY",
-                message = "M1a 尚未实现图像通道（M1b 接入 imageToken）"
-            });
+                if (pair.Value.ExpiresAtUtc <= now)
+                    _imageTokens.TryRemove(pair.Key, out _);
+            }
+
+            var mine = _imageTokens
+                .Where(pair => string.Equals(pair.Value.SessionId, session.SessionId, StringComparison.Ordinal))
+                .OrderBy(pair => pair.Value.ExpiresAtUtc)
+                .Select(pair => pair.Key)
+                .ToList();
+
+            while (mine.Count >= ImageTokenMaxPerSession)
+            {
+                _imageTokens.TryRemove(mine[0], out _);
+                mine.RemoveAt(0);
+            }
+
+            var token = Guid.NewGuid().ToString("N");
+            _imageTokens[token] = new ImageTokenEntry(session.SessionId, now.AddSeconds(ImageTokenSeconds));
+            _currentImageToken[session.SessionId] = token;
+            return token;
+        }
+
+        private bool TryResolveImageToken(string? token, out string sessionId)
+        {
+            sessionId = string.Empty;
+            if (string.IsNullOrWhiteSpace(token))
+                return false;
+
+            if (!_imageTokens.TryGetValue(token, out var entry))
+                return false;
+
+            if (entry.ExpiresAtUtc <= DateTime.UtcNow)
+            {
+                _imageTokens.TryRemove(token, out _);
+                return false;
+            }
+
+            sessionId = entry.SessionId;
+            return true;
+        }
+
+        private void RemoveImageTokens(string sessionId)
+        {
+            foreach (var pair in _imageTokens)
+            {
+                if (string.Equals(pair.Value.SessionId, sessionId, StringComparison.Ordinal))
+                    _imageTokens.TryRemove(pair.Key, out _);
+            }
+
+            _currentImageToken.TryRemove(sessionId, out _);
+        }
+
+        /// <summary>
+        /// <c>GET /img?elementId=…&amp;version=…&amp;t=…</c>：按会话 token 取当前页 ImageView 的图。
+        ///
+        /// 校验顺序：token → 会话仍在 → 元素是当前页的 ImageView 且 Source 有启用绑定 →
+        /// 取值（HImage 已在值源里转成冻结位图）→ PNG 编码 → 原样吐字节。
+        /// 失败一律回 JSON 错误码；成功走 `Response.Send(byte[])`，绝不 JSON 序列化图片。
+        /// </summary>
+        private async Task HandleImageAsync(HttpContextBase ctx)
+        {
+            var query = ParseQuery(ctx.Request.Url.RawWithQuery);
+
+            if (!TryResolveImageToken(query.GetValueOrDefault("t"), out var sessionId))
+            {
+                await SendImageErrorAsync(ctx, 401, "E_IMG_TOKEN", "图像令牌无效或已过期").ConfigureAwait(false);
+                return;
+            }
+
+            if (!_sessions.Values.Any(session => string.Equals(session.SessionId, sessionId, StringComparison.Ordinal)))
+            {
+                await SendImageErrorAsync(ctx, 401, "E_SESSION_EXPIRED", "会话已结束").ConfigureAwait(false);
+                return;
+            }
+
+            if (!Guid.TryParse(query.GetValueOrDefault("elementId"), out var elementId))
+            {
+                await SendImageErrorAsync(ctx, 400, "E_BAD_REQUEST", "缺少或非法的 elementId").ConfigureAwait(false);
+                return;
+            }
+
+            BitmapSource? bitmap;
+
+            try
+            {
+                bitmap = await RunOnUiAsync(() => CaptureImage(elementId), CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"[ScadaWeb] 取图失败（element={elementId:D}）：{ex.GetType().Name}：{ex.Message}");
+                await SendImageErrorAsync(ctx, 500, "E_IMG_ENCODE", "取图失败").ConfigureAwait(false);
+                return;
+            }
+
+            if (bitmap == null)
+            {
+                await SendImageErrorAsync(ctx, 404, "E_IMG_EMPTY", "该图元当前没有图像").ConfigureAwait(false);
+                return;
+            }
+
+            byte[] bytes;
+
+            try
+            {
+                bytes = await Task.Run(() => EncodePng(bitmap)).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"[ScadaWeb] 图像编码失败（element={elementId:D}）：{ex.GetType().Name}：{ex.Message}");
+                await SendImageErrorAsync(ctx, 500, "E_IMG_ENCODE", "图像编码失败").ConfigureAwait(false);
+                return;
+            }
+
+            ctx.Response.StatusCode = 200;
+            ctx.Response.ContentType = "image/png";
+
+            try
+            {
+                ctx.Response.Headers.Add("Cache-Control", "private, max-age=30");
+                ctx.Response.Headers.Add("X-Content-Type-Options", "nosniff");
+                ctx.Response.Headers.Add("Referrer-Policy", "no-referrer");
+            }
+            catch
+            {
+                // 重复头/旧版本 Watson：不加也能出图
+            }
+
+            await ctx.Response.Send(bytes, CancellationToken.None).ConfigureAwait(false);
+        }
+
+        /// <summary>在 UI 线程上取当前页某个 ImageView 的位图（不缓存；1fps/元素足够）。</summary>
+        private BitmapSource? CaptureImage(Guid elementId)
+        {
+            var page = _hub?.Session?.CurrentPage;
+            var element = page?.FindElement(elementId);
+
+            if (element == null
+                || !string.Equals(element.TypeKey, "Hmi.ImageView", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            var binding = element.FindBinding("Source");
+            if (binding == null || !binding.IsEnabled || _values == null)
+                return null;
+
+            if (!_values.TryResolve(binding.ToReference(), out var handle, out _) || handle == null)
+                return null;
+
+            var value = handle.Value as BitmapSource;
+            if (value == null)
+                return null;
+
+            if (!value.IsFrozen && value.CanFreeze)
+                value.Freeze();
+
+            return value;
+        }
+
+        private static byte[] EncodePng(BitmapSource source)
+        {
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(source));
+
+            using var stream = new MemoryStream();
+            encoder.Save(stream);
+            return stream.ToArray();
+        }
+
+        private static Dictionary<string, string> ParseQuery(string? rawWithQuery)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrEmpty(rawWithQuery))
+                return result;
+
+            var mark = rawWithQuery.IndexOf('?');
+            if (mark < 0 || mark == rawWithQuery.Length - 1)
+                return result;
+
+            foreach (var part in rawWithQuery[(mark + 1)..].Split('&', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var eq = part.IndexOf('=');
+                var key = eq >= 0 ? part[..eq] : part;
+                var value = eq >= 0 ? part[(eq + 1)..] : string.Empty;
+                result[Uri.UnescapeDataString(key)] = Uri.UnescapeDataString(value);
+            }
+
+            return result;
+        }
+
+        private static async Task SendImageErrorAsync(HttpContextBase ctx, int status, string code, string message)
+        {
+            ctx.Response.StatusCode = status;
+            ctx.Response.ContentType = "application/json; charset=utf-8";
+            await ctx.Response.Send(Json(new { ok = false, code, message }), CancellationToken.None)
+                .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -1489,6 +1699,7 @@ namespace VisionMaster.ScadaWeb
             {
                 session.Dispose();
                 _sessions.TryRemove(socket.Id, out _);
+                RemoveImageTokens(session.SessionId);
                 ReleaseAdmissionSlot();
 
                 // 在线列表与限速表都要摘掉这条会话：留下就是"幽灵在线"与"每连一次多一个键"。
@@ -2103,7 +2314,10 @@ namespace VisionMaster.ScadaWeb
                 pageVersion = snapshot.PageVersion,
                 online = _sessions.Count,
                 sessionToken = sessionGrant?.Token,
-                sessionExpiresIn = sessionGrant?.RemainingSeconds(DateTime.UtcNow) ?? 0
+                sessionExpiresIn = sessionGrant?.RemainingSeconds(DateTime.UtcNow) ?? 0,
+                // 图像 URL 的短期凭据：45 秒、每会话最多 3 个；客户端用它拼 /img?...&t=
+                imageToken = IssueImageToken(session),
+                imageTokenExpiresIn = ImageTokenSeconds
             });
         }
 
@@ -2821,6 +3035,7 @@ namespace VisionMaster.ScadaWeb
                 {
                     SweepDeadSessions();
                     BroadcastPresence();
+                    RotateImageTokens();
                     await BroadcastCapsAsync(token).ConfigureAwait(false);
                     BroadcastAlarms();
                 }
@@ -2839,6 +3054,36 @@ namespace VisionMaster.ScadaWeb
         /// <b>豁免</b>：撤销中的会话交给撤销路径（否则 B43 拿不到 4403）；命令排队/执行中的
         /// 会话不算死（长命令可能占住 UI 线程几十秒）。
         /// </summary>
+        /// <summary>
+        /// 图像 token 轮换：剩余寿命不足 15 秒就发一个新的（45 秒 TTL、每会话最多 3 个）。
+        /// 客户端收到 <c>img.token</c> 后更新本地 token；下一次 <c>src</c> 刷新自动用新值。
+        /// </summary>
+        private void RotateImageTokens()
+        {
+            if (_sessions.IsEmpty)
+                return;
+
+            var now = DateTime.UtcNow;
+
+            foreach (var session in _sessions.Values)
+            {
+                if (_currentImageToken.TryGetValue(session.SessionId, out var token)
+                    && _imageTokens.TryGetValue(token, out var entry)
+                    && entry.ExpiresAtUtc - now > TimeSpan.FromSeconds(15))
+                {
+                    continue;
+                }
+
+                var fresh = IssueImageToken(session);
+                session.TrySend(Json(new
+                {
+                    type = "img.token",
+                    token = fresh,
+                    expiresIn = ImageTokenSeconds
+                }));
+            }
+        }
+
         private void SweepDeadSessions()
         {
             var seconds = _settings.SessionIdleTimeoutSeconds;
@@ -3167,6 +3412,13 @@ namespace VisionMaster.ScadaWeb
         private void RegisterStaticRoutes(Webserver server)
         {
             var routes = server.Routes.PreAuthentication.Static;
+
+            // 图像通道：/img?elementId=…&version=…&t=…（token 在 handler 内校验）。
+            // 走静态路由才能拿 HttpContextBase.Response.Send(byte[])；普通 server.Get 会 JSON 序列化。
+            routes.Add(
+                WatsonWebserver.Core.HttpMethod.GET,
+                "/img",
+                ctx => HandleImageAsync(ctx));
 
             // "/" 与 "/index.html" 都给首页
             AddStaticRoute(routes, "/", "index.html");
