@@ -157,13 +157,41 @@ namespace VisionMaster.Communications
         public void MarkUncertain() => SetQuality(VariableQuality.Uncertain);
 
         /// <summary>
+        /// 工程值换算器（可选）：由 <see cref="NetworkVariableBridge"/> 注入变量模型的
+        /// <c>ToEngineeringValue</c>。
+        /// <para><b>为什么需要它</b>：标量的换算参数在地址对象上（一份），数组是逐元素档案
+        /// （<c>NetworkVariableModel.ElementConversions</c>），地址对象表达不了。把"怎么换算"
+        /// 上提到变量模型，轮询发布路径（<c>PollBatchPlanner.PublishValue</c>）与立刻读
+        /// （<c>ReadVariableNow</c>）都走 <see cref="ToEngineering"/>，两条读路径天然同一口径。</para>
+        /// <para>为 null（旧方案/断言夹具直接构造 CommunicationVariable）时退回地址对象上的
+        /// 标量换算，行为与改造前一致。</para>
+        /// </summary>
+        [JsonIgnore]
+        public Func<object?, object?>? EngineeringConverter { get; set; }
+
+        /// <summary>
         /// 把设备原始值换算成工程值（缩放系数 + 工程偏移 + 小数位）。
-        /// <para>换算参数挂在 <see cref="AddressConfig"/> 上（<c>DeviceAddressBase.EnableConversion</c> 等），
-        /// 与写链路的 <c>ConvertToRaw</c> 是同一份配置、同一套互逆公式。</para>
+        /// <para>优先走 <see cref="EngineeringConverter"/>（变量模型，支持数组逐元素）；
+        /// 没有注入时退回 <see cref="AddressConfig"/> 上的标量换算。</para>
         /// <para>没有地址配置对象（旧方案只有地址字符串）时原样返回——那种数据本来就没有换算参数。</para>
+        /// <para>换算器抛异常时退回原始值：读链路不能因为一条坏配置把整段采集吞掉，
+        /// 写链路会按 <see cref="ArrayConversion.TryToRaw"/> 的失败结果明确报错。</para>
         /// </summary>
         public object? ToEngineering(object? rawValue)
         {
+            var converter = EngineeringConverter;
+            if (converter != null)
+            {
+                try
+                {
+                    return converter(rawValue);
+                }
+                catch
+                {
+                    return rawValue;
+                }
+            }
+
             var config = AddressConfig;
             if (config == null || !config.EnableConversion) return rawValue;
             return config.ConvertToEngineering(rawValue);

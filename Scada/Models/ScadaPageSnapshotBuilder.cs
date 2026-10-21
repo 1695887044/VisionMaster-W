@@ -39,27 +39,45 @@ namespace VisionMaster.Scada.Snapshots
             if (page is null)
                 return null;
 
-            // 基座只取一层：模型的 TrySetBasePage / TryAddBasePage 本就禁止"基座再套基座"，
-            // 这里传 null 表示"基座自己的 BasePage 字段不再往下拍"（不是"基座没有基座"的猜测）。
-            var basePage = session.CurrentBasePage;
-            var baseSnapshot = basePage is null ? null : BuildPage(basePage, null);
+            // 基座只取一层：模型的引用写入本就禁止"基座再套基座"，
+            // 这里给每只基座传空列表，表示"基座自己的引用不再往下拍"。
+            var baseSnapshots = new List<ScadaPageSnapshot>(session.CurrentBasePages.Count);
+            foreach (var basePage in session.CurrentBasePages)
+                baseSnapshots.Add(BuildPage(basePage, Array.Empty<ScadaPageSnapshot>(), null));
 
-            return BuildPage(page, baseSnapshot);
+            var popupSnapshot = session.CurrentPopup is { } popup
+                ? BuildPage(
+                    popup,
+                    session.CurrentPopupBasePages
+                        .Select(b => BuildPage(b, Array.Empty<ScadaPageSnapshot>(), null))
+                        .ToList(),
+                    null)
+                : null;
+
+            return BuildPage(page, baseSnapshots, popupSnapshot);
         }
 
-        private static ScadaPageSnapshot BuildPage(ScadaPage page, ScadaPageSnapshot? baseSnapshot)
+        private static ScadaPageSnapshot BuildPage(
+            ScadaPage page,
+            IReadOnlyList<ScadaPageSnapshot> baseSnapshots,
+            ScadaPageSnapshot? popupSnapshot)
             => new()
             {
                 PageId = page.PageId.ToString("D"),
                 PageName = page.Name,
                 PageVersion = page.Version,
-                // 基座版本取自已拍好的基座快照（同一刻的读数，不重新读活模型）；
-                // 无基座 = 0，与"基座版本恰好是 0"（刚建出来还没改过）在语义上都表示"没有基座内容变化"。
-                BasePageVersion = baseSnapshot?.PageVersion ?? 0,
+                // 多基座下任何一个基座变了都要让 web 缓存失效：把所有基座版本求和
+                // （旧字段名保留，语义从"那一只基座的版本"扩成"基座层的合并版本"）。
+                BasePageVersion = baseSnapshots.Sum(s => s.PageVersion),
                 Width = page.Width,
                 Height = page.Height,
                 Background = page.Background,
-                BasePage = baseSnapshot,
+                BasePage = baseSnapshots.Count > 0 ? baseSnapshots[0] : null,
+                BasePages = baseSnapshots.ToList().AsReadOnly(),
+                IsPopup = page.IsPopup,
+                PopupAnchor = page.IsPopup ? page.PopupAnchor.ToString() : null,
+                PopupModal = page.IsPopup && page.PopupModal,
+                Popup = popupSnapshot,
                 Elements = BuildElements(page),
             };
 

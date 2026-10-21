@@ -62,7 +62,7 @@
                 <ColumnDefinition Width="90" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="数组下标（可空）" />
+            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="数组元素下标（可空）" />
             <TextBox Grid.Column="1" Style="{StaticResource FieldBox}" Text="{Binding IndexText, UpdateSourceTrigger=PropertyChanged}" />
             <TextBlock
                 Grid.Column="2"
@@ -70,7 +70,7 @@
                 VerticalAlignment="Center"
                 FontSize="11"
                 Foreground="{StaticResource ScadaSecondaryTextBrush}"
-                Text="填 0 = 把 Control[0] 改成 Control[{i}]；留空=不按数组下标参数化" />
+                Text="两个按钮的事件动作分别写 Control[0] / State[0] 时填 0；留空=不按数组下标参数化" />
         </Grid>
 
         <Grid Grid.Row="1" Margin="0,0,0,4">

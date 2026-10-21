@@ -122,6 +122,9 @@ namespace VisionMaster.Services
                 MergeAdjacentRead = nv.MergeAdjacentRead,
                 // 轮询新值 → 推回网络变量镜像（UI 订阅 ValueChanged 自动刷新）
                 MirrorCallback = v => nv.UpdateMirrorValue(v),
+                // 工程量换算上提到变量模型：标量走地址配置，数组走逐元素档案；
+                // 轮询发布与「立刻读」两条路径都经 CommunicationVariable.ToEngineering，天然同一口径
+                EngineeringConverter = nv.ToEngineeringValue,
                 // 质量变化 → 推回网络变量（UI 色点显示采集健康度）
                 QualityCallback = q => nv.UpdateQuality(q)
             };

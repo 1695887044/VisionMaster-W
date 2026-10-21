@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 
 namespace VisionMaster.Scada.Controls
 {
@@ -36,6 +37,14 @@ namespace VisionMaster.Scada.Controls
         public double Max { get; init; } = double.PositiveInfinity;
 
         public IReadOnlyList<string> Choices { get; init; } = Array.Empty<string>();
+
+        /// <summary>
+        /// 这一行在哪些画面上可见（null = 恒可见）。弹窗的模态/锚点/偏移只在
+        /// <see cref="ScadaPage.IsPopup"/> 为 true 时有意义，不勾弹窗页就不该占面板位置。
+        /// </summary>
+        public Func<ScadaPage, bool>? VisibleWhen { get; init; }
+
+        public bool IsVisibleFor(ScadaPage page) => VisibleWhen?.Invoke(page) ?? true;
 
         /// <summary>
         /// 画面属性一律不可绑变量。
@@ -124,26 +133,54 @@ namespace VisionMaster.Scada.Controls
                 Write = (p, _, v) => p.RequiredRole = ParseRole(v),
             },
 
-            // ---- 基座：这一页引用哪只公共层 ----
+            // ---- 弹窗（特殊画面）：弹窗页不参与普通导航，只由「打开弹窗」动作打开 ----
             new ScadaPagePropertySpec
             {
-                Key = "BasePage", DisplayName = "基座", Kind = ElementPropertyKind.Choice, Group = ScadaPropertyGroups.PageRun,
-                Description = "本页共享的公共层：底色、公共图元、公共事件都在那只基座上。改基座一次，所有引用它的页面跟着变",
-                Choices = Array.Empty<string>(), // 候选项由 Read 时的文档给出，见 Read/Write 注释
-                // 真值在画面上（ScadaPage.BasePageId），读写都穿透到文档（ScadaDocument.TrySetBasePage
-                // 带环检测与"是不是已注册基座"的校验）——视图模型不自己写字段，
-                // 与"启动画面"那一行同一形态：行只是个开关，判据在别处。
-                Read = (p, d) => d.FindBasePage(p.BasePageId)?.Name ?? string.Empty,
-                Write = (p, d, v) =>
-                {
-                    if (!d.TrySetBasePage(p, d.BasePages.FirstOrDefault(b => b.Name == v), out _))
-                        return; // 校验失败（环/未注册）保持现状
-                },
+                Key = "IsPopup", DisplayName = "弹窗页", Kind = ElementPropertyKind.Bool, Group = ScadaPropertyGroups.PageRun,
+                Description = "勾选后这一页作为弹窗打开（浮层盖在当前页上，关闭后回到原页）；弹窗页不进页面菜单，也不能被「切换画面」选中",
+                Read = (p, _) => p.IsPopup.ToString(),
+                Write = (p, _, v) => { if (bool.TryParse(v, out var flag)) p.IsPopup = flag; },
             },
+            new ScadaPagePropertySpec
+            {
+                Key = "PopupModal", DisplayName = "模态", Kind = ElementPropertyKind.Bool, Group = ScadaPropertyGroups.PageRun,
+                VisibleWhen = p => p.IsPopup,
+                Description = "模态 = 遮罩 + 背景不可操作；非模态 = 主画面仍可操作（适合参考/帮助类弹窗）",
+                Read = (p, _) => p.PopupModal.ToString(),
+                Write = (p, _, v) => { if (bool.TryParse(v, out var flag)) p.PopupModal = flag; },
+            },
+            new ScadaPagePropertySpec
+            {
+                Key = "PopupAnchor", DisplayName = "弹窗位置", Kind = ElementPropertyKind.Choice, Group = ScadaPropertyGroups.PageRun,
+                VisibleWhen = p => p.IsPopup,
+                Choices = ScadaPopupAnchorExtensions.All.Select(a => a.DisplayName()).ToArray(),
+                Description = "弹窗在运行窗口里的九宫格锚点；偏移量在此基础上平移",
+                Read = (p, _) => p.PopupAnchor.DisplayName(),
+                Write = (p, _, v) => p.PopupAnchor = ScadaPopupAnchorExtensions.Parse(v),
+            },
+            new ScadaPagePropertySpec
+            {
+                Key = "PopupOffsetX", DisplayName = "弹窗偏移 X", Kind = ElementPropertyKind.Number, Group = ScadaPropertyGroups.PageRun,
+                VisibleWhen = p => p.IsPopup,
+                Description = "相对锚点的水平平移（像素，正数向右）",
+                Read = (p, _) => Format(p.PopupOffsetX),
+                Write = (p, _, v) => { if (TryNumber(v, out var d)) p.PopupOffsetX = d; },
+            },
+            new ScadaPagePropertySpec
+            {
+                Key = "PopupOffsetY", DisplayName = "弹窗偏移 Y", Kind = ElementPropertyKind.Number, Group = ScadaPropertyGroups.PageRun,
+                VisibleWhen = p => p.IsPopup,
+                Description = "相对锚点的垂直平移（像素，正数向下）",
+                Read = (p, _) => Format(p.PopupOffsetY),
+                Write = (p, _, v) => { if (TryNumber(v, out var d)) p.PopupOffsetY = d; },
+            },
+            // ---- 基座引用不在这里：一页可以引用多只基座，属性面板的单选行无法表达顺序，
+            //      入口统一在编辑器顶栏的「基座」多选菜单（ScadaEditorViewModel.BasePageSelections）。
             // ---- 运行：改的是"这一页跑起来是什么样"，不是画布上看到了什么 ----
             new ScadaPagePropertySpec
             {
                 Key = "StartupPage", DisplayName = "启动画面", Kind = ElementPropertyKind.Bool, Group = ScadaPropertyGroups.PageRun,
+                VisibleWhen = p => !p.IsPopup,
                 Description = "运行态打开时先显示这一页。一个方案至多勾一页；一页都不勾就用画面列表的第一页",
                 // 真值在方案上（ScadaDocument.StartupPageId），本行只是它在本画面上的一个投影：
                 // 读 = "我是不是那个 Id"，写 = 勾上指我、取消只在我确实是时才清空。

@@ -59,5 +59,16 @@ namespace VisionMaster.Scada
         /// 单独开这个方法而不是让分发器去拿会话：分发器只认识本接口（它拿不到会话，也不该拿到）。
         /// </summary>
         bool GoBack(out string? reason);
+
+        /// <summary>
+        /// 打开一个弹窗页（特殊画面）。寻址口径与 <see cref="Navigate"/> 相同：Id 优先、名字兜底。
+        /// 目标不是弹窗页、已有弹窗打开、无权限、会话已结束时返回 false。
+        /// </summary>
+        bool OpenPopup(Guid pageId, string? fallbackName, out string? reason);
+
+        /// <summary>
+        /// 关闭当前弹窗。没有弹窗时返回 false，<paramref name="reason"/> 说明原因。
+        /// </summary>
+        bool ClosePopup(out string? reason);
     }
 }

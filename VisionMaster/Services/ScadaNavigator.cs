@@ -65,5 +65,33 @@ namespace VisionMaster.Services
             // 这里不再复制一套文案。
             return ((IScadaNavigator)session).GoBack(out reason);
         }
+
+        /// <inheritdoc/>
+        public bool OpenPopup(Guid pageId, string? fallbackName, out string? reason)
+        {
+            var session = _session;
+
+            if (session == null)
+            {
+                reason = "运行已经结束";
+                return false;
+            }
+
+            return session.OpenPopup(pageId, fallbackName, out reason);
+        }
+
+        /// <inheritdoc/>
+        public bool ClosePopup(out string? reason)
+        {
+            var session = _session;
+
+            if (session == null)
+            {
+                reason = "运行已经结束";
+                return false;
+            }
+
+            return ((IScadaNavigator)session).ClosePopup(out reason);
+        }
     }
 }

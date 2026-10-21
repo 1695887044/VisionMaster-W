@@ -2,7 +2,9 @@
     x:Class="VisionMaster.Views.FlowCanvasView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:VisionMaster.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:dd="urn:gong-wpf-dragdrop"
     xmlns:helpers="clr-namespace:VisionMaster.Helpers"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:nodify="clr-namespace:Nodify;assembly=Nodify"
@@ -1434,17 +1436,18 @@
 
         <!--  点阵背景：DrawingBrush 平铺 24×24 一个圆点，与 GridCellSize 对齐（吸附格 = 可见格）。
               NodifyEditor 不自带网格绘制，只设 GridCellSize 是看不见格子的。
-              AllowDrop + 三个事件 = 工具箱拖入（主编辑面）与双击开参数：
-              拖放坐标用 NodifyEditor.GetLocationInsideEditor(e) 换算成图坐标（与节点 Location 同一坐标系）。  -->
+              dd:DragDrop.IsDropTarget = 工具箱拖入（主编辑面）：**必须走 gong 的拖放目标**，
+              不能只挂裸 DragOver/Drop——gong 的拖影 Popup 只在它自己的 Drop 处理器里关闭，
+              裸 Drop 返回 Copy 会让拖影永久停在落点（2026-10-21 真机）。DropHandler 在
+              FlowCanvasView.xaml.cs 里挂（要拿 Editor 的缩放/视口换算图坐标）。
+              AllowDrop 由 IsDropTarget 一并设置，这里不再重复声明。  -->
         <nodify:NodifyEditor
             x:Name="Editor"
             Grid.Row="2"
-            AllowDrop="True"
+            dd:DragDrop.IsDropTarget="True"
             Connections="{Binding Links}"
             ConnectionTemplate="{StaticResource ModuleLinkTemplate}"
             DisplayConnectionsOnTop="False"
-            DragOver="OnEditorDragOver"
-            Drop="OnEditorDrop"
             GridCellSize="24"
             ItemsSource="{Binding Nodes}"
             ItemsDragStartedCommand="{Binding ItemsDragStartedCommand}"
@@ -1543,6 +1546,26 @@
                 </DataTemplate>
             </nodify:NodifyEditor.PendingConnectionTemplate>
         </nodify:NodifyEditor>
+
+        <!--  画布内拖动节点的浮层（纯视觉）：与工具箱 / 流程栏共用 DragGhostCard（设计基线 v2）。
+              Popup 相对 Editor 定位，偏移由视图在 PreviewMouseMove 里按 (16,12) 更新；
+              不参与命中测试，不会挡住放置目标。  -->
+        <Popup
+            x:Name="NodeDragGhost"
+            Grid.Row="2"
+            AllowsTransparency="True"
+            Focusable="False"
+            IsHitTestVisible="False"
+            IsOpen="{Binding IsDragGhostVisible, Mode=OneWay}"
+            Placement="Relative"
+            PlacementTarget="{Binding ElementName=Editor}"
+            PopupAnimation="Fade"
+            StaysOpen="True">
+            <controls:DragGhostCard
+                Category="{Binding DragGhostCategory}"
+                Icon="{Binding DragGhostIcon}"
+                Title="{Binding DragGhostTitle}" />
+        </Popup>
 
         <!--  小地图（flow-logic：180×118，工具条开关控制，默认关闭）：
               打开后仍可拖动/点击平移视口；关闭时整体 Collapsed，不占位、不遮挡输出节点  -->

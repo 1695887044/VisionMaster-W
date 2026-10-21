@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>流程胶囊条 · 设计基线 v1</title>
+<style>
+  :root {
+    /* ---- 令牌：与 UI/Controls/Themes/Colors.xaml 一一对应 ---- */
+    --accent: #0EA5E9;              /* DialogAccentBrush */
+    --accent-dark: #0284C7;         /* DialogAccentDarkBrush */
+    --accent-light: #E0F2FE;        /* DialogAccentLightBrush */
+    --accent-soft: #F0F9FF;         /* DialogAccentSoftBrush */
+    --accent-border: #BAE6FD;       /* DialogAccentBorderBrush */
+    --accent-text: #0369A1;         /* DialogAccentTextBrush */
+
+    --surface: #FFFFFF;             /* DialogSurfaceBrush */
+    --surface-2: #F8FAFC;           /* DialogRowAlternateBrush */
+    --background: #EEF2F7;          /* DialogBackgroundBrush */
+    --border: #E2E8F0;              /* DialogBorderBrush */
+    --border-light: #EEF2F7;        /* DialogBorderLightBrush */
+    --border-strong: #CBD5E1;       /* DialogBorderStrongBrush */
+
+    --text-1: #0F172A;              /* DialogTextPrimaryBrush */
+    --text-2: #475569;              /* DialogTextSecondaryBrush */
+    --text-3: #64748B;              /* DialogTextTertiaryBrush */
+    --text-4: #94A3B8;              /* DialogTextMutedBrush */
+
+    --success: #22C55E;             /* FlowCanvasSuccessBrush */
+    --success-text: #15803D;        /* DialogSuccessTextBrush */
+    --warning-text: #B45309;        /* DialogWarningTextBrush */
+    --danger-text: #B91C1C;         /* DialogDangerTextBrush */
+
+    --disabled: #C0C4CC;            /* ScadaDisabledTextBrush */
+
+    --row-hover: #F1F5F9;           /* DialogRowHoverBrush */
+    --selected-soft: #EEF2FF;       /* LogicIfSoftBrush */
+    --selected-border: #C7D2FE;     /* LogicIfBorderBrush */
+    --selected-text: #4338CA;       /* LogicIfTextBrush */
+
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+
+    --font: -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 28px;
+    background: var(--background);
+    font-family: var(--font);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-1);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .panel {
+    width: 380px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: 0 10px 28px rgba(15,23,42,.10), 0 2px 6px rgba(15,23,42,.05);
+    display: flex;
+    flex-direction: column;
+  }
+  .panel.wide { width: 300px; }
+
+  .caption {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 10px 16px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .caption h1 { margin: 0; font-size: 13px; font-weight: 600; }
+  .caption .tag {
+    font-size: 11px; color: var(--text-3);
+    padding: 1px 6px; border: 1px solid var(--border);
+    border-radius: 10px; background: var(--surface);
+  }
+  .caption .size { margin-left: auto; font-size: 11px; color: var(--text-4); font-family: var(--mono); }
+
+  /* ============ 胶囊条 ============ */
+  .strip { padding: 10px 10px 4px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+  .capsule {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 46px;
+    padding: 7px 9px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 150ms ease, border-color 150ms ease;
+  }
+  .capsule:hover { background: var(--row-hover); border-color: var(--border-strong); }
+  .capsule:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .capsule[aria-pressed="true"] {
+    background: var(--selected-soft);
+    border-color: var(--selected-border);
+  }
+
+  /* 状态点：只表达"启用 / 禁用"，不兼任运行态 */
+  .capsule .dot {
+    flex: 0 0 auto;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--success);
+  }
+
+  .capsule .body { flex: 1 1 auto; min-width: 0; }
+  /* 名称必须能省略：禁用胶囊右侧多一枚「禁用」标签，若不 min-width:0 会把名称挤到换行 */
+  .capsule .line1 { display: flex; align-items: center; gap: 5px; min-width: 0; }
+  .capsule .name {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--text-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .capsule[aria-pressed="true"] .name { font-weight: 600; }
+  .capsule .line2 {
+    display: flex; align-items: center; gap: 5px;
+    margin-top: 2px;
+    font-size: 10.5px;
+    line-height: 1.35;
+    color: var(--text-4);
+  }
+  .capsule .steps {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-3);
+  }
+
+  /* 角色徽标：Home / Main / End 三条骨架流程 */
+  .role {
+    flex: 0 0 auto;
+    font-size: 9.5px;
+    line-height: 1.4;
+    padding: 0 4px;
+    border-radius: 3px;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+  .role.home { color: #6D28D9; background: #F5F3FF; border-color: #DDD6FE; }  /* LogicCase 系 */
+  .role.main { color: #4338CA; background: #EEF2FF; border-color: #C7D2FE; }  /* LogicIf 系 */
+  .role.end  { color: #B45309; background: #FFFBEB; border-color: #FDE68A; }  /* LogicWhile 系 */
+
+  /* 运行标记：与禁用互斥（禁用流程不可能在跑） */
+  .run {
+    flex: 0 0 auto;
+    display: none;
+    align-items: center;
+    gap: 3px;
+    font-size: 9.5px;
+    font-weight: 600;
+    color: var(--success-text);
+  }
+  .run::before {
+    content: "";
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+  /* 运行中 */
+  .capsule[data-run="running"] .name { font-weight: 600; }
+  .capsule[data-run="running"] .run { display: inline-flex; }
+
+  /* 已暂停：点与文字转主色 */
+  .capsule[data-run="paused"] .name { font-weight: 600; }
+  .capsule[data-run="paused"] .dot { background: var(--accent); }
+  .capsule[data-run="paused"] .run { display: inline-flex; color: var(--accent-text); }
+
+  /* 禁用：点灰、名称删除线、行去饱和、右侧"禁用"标签 */
+  .capsule[data-enabled="false"] { background: var(--surface-2); }
+  /* 禁用胶囊的第二行必须完整可见：它是"这条流程还有几步"的唯一信息。
+     实测 380/300 两档下，若 body 不设 min-height，标签会把 line2 压掉半行。 */
+  .capsule[data-enabled="false"] .body { min-height: 34px; }
+  .capsule[data-enabled="false"] .dot { background: var(--disabled); }
+  .capsule[data-enabled="false"] .name {
+    color: var(--text-3);
+    text-decoration: line-through;
+    text-decoration-color: var(--text-4);
+  }
+  .capsule[data-enabled="false"] .steps { color: var(--disabled); }
+  .capsule[data-enabled="false"] .role { opacity: .5; }
+  .capsule[data-enabled="false"] .run { display: none !important; }
+  .capsule[data-enabled="false"] .disabled-tag {
+    flex: 0 0 auto;
+    align-self: center;
+    font-size: 9.5px;
+    line-height: 1.5;
+    color: var(--danger-text);
+    border: 1px solid #FECACA;
+    background: #FEF2F2;
+    border-radius: 3px;
+    padding: 0 4px;
+    white-space: nowrap;
+  }
+
+  /* ============ 选中提示条 ============ */
+  .notice {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 2px 10px 8px;
+    padding: 6px 9px;
+    border-radius: var(--radius-sm);
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    font-size: 11px;
+    color: var(--danger-text);
+  }
+  .notice .glyph { font-size: 11px; }
+  .notice.hidden { display: none; }
+
+  /* ============ 空态 ============ */
+  .empty {
+    display: none;
+    padding: 44px 20px;
+    text-align: center;
+  }
+  .empty .glyph { font-size: 30px; color: var(--border-strong); line-height: 1; }
+  .empty h2 { margin: 10px 0 0; font-size: 13px; font-weight: 600; color: var(--text-3); }
+  .empty p { margin: 6px 0 0; font-size: 11.5px; color: var(--text-4); }
+  .empty .btn {
+    margin-top: 12px;
+    height: 28px; padding: 0 12px;
+    border: 1px solid var(--accent-dark);
+    border-radius: var(--radius-sm);
+    background: var(--accent-dark);
+    color: #fff;
+    font-family: inherit; font-size: 12px;
+    cursor: pointer;
+  }
+  .empty .btn:hover { background: #026AA7; }
+  .is-empty .strip { display: none; }
+  .is-empty .empty { display: block; }
+  .is-empty .notice { display: none; }
+  /* ============ 底部统计（与 ProcessView 底部条同口径） ============ */
+  .footbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-2);
+    font-size: 11px;
+    color: var(--text-3);
+  }
+  .footbar .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--text-1); font-weight: 600; }
+  .spacer { flex: 1 1 auto; }
+
+  /* ============ 右键菜单示意 ============ */
+  .menu {
+    width: 208px;
+    padding: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 22px rgba(15,23,42,.14), 0 2px 6px rgba(15,23,42,.06);
+    font-size: 12px;
+  }
+  .menu .item {
+    display: flex; align-items: center; gap: 8px;
+    height: 28px; padding: 0 8px;
+    border-radius: 4px;
+    color: var(--text-2);
+    cursor: pointer;
+  }
+  .menu .item .ic { width: 14px; text-align: center; color: var(--text-4); font-size: 11px; }
+  .menu .item:hover { background: var(--row-hover); color: var(--text-1); }
+  .menu .item.danger:hover { background: #FEF2F2; color: var(--danger-text); }
+  .menu .item.danger .ic { color: var(--danger-text); }
+  .menu .sep { height: 1px; margin: 4px 6px; background: var(--border-light); }
+  .menu .sub {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 28px; padding: 0 8px;
+    border-radius: 4px; color: var(--text-2); cursor: pointer;
+  }
+  .menu .sub:hover { background: var(--row-hover); }
+  .menu .sub .arrow { color: var(--text-4); font-size: 10px; }
+  .menu .label {
+    padding: 6px 8px 4px;
+    font-size: 10.5px;
+    color: var(--text-4);
+  }
+
+  /* ============ 演示控制 ============ */
+  .demo {
+    position: fixed; right: 20px; bottom: 20px;
+    display: flex; gap: 8px; align-items: center;
+    padding: 8px 12px;
+    background: rgba(15,23,42,.88);
+    border-radius: var(--radius-md);
+    color: #fff; font-size: 12px;
+  }
+  .demo button {
+    height: 24px; padding: 0 10px;
+    border: 0; border-radius: var(--radius-sm);
+    background: rgba(255,255,255,.16); color: #fff;
+    font-family: inherit; font-size: 12px; cursor: pointer;
+  }
+  .demo button:hover { background: rgba(255,255,255,.28); }
+</style>
+</head>
+<body>
+
+<!-- ================= 主面板：默认态（380 宽，2 列） ================= -->
+<section class="panel" id="p1">
+  <div class="caption">
+    <h1>流程</h1>
+    <span class="tag">流程导航顶部</span>
+    <span class="size">380 × 260</span>
+  </div>
+
+  <div class="strip">
+    <div class="grid">
+      <button class="capsule" aria-pressed="false" data-enabled="true">
+        <span class="dot"></span>
+        <span class="body">
+          <span class="line1"><span class="name">回原点</span><span class="role home">回零</span></span>
+          <span class="line2"><span class="steps">6 步</span></span>
+        </span>
+      </button>
+
+      <button class="capsule" aria-pressed="true" data-enabled="true" data-run="running">
+        <span class="dot"></span>
+        <span class="body">
+          <span class="line1"><span class="name">主检测</span><span class="role main">主</span></span>
+          <span class="line2"><span class="steps">18 步</span><span class="run">运行中</span></span>
+        </span>
+      </button>
+
+      <button class="capsule" aria-pressed="false" data-enabled="true" data-run="paused">
+        <span class="dot"></span>
+        <span class="body">
+          <span class="line1"><span class="name">定位检测</span></span>
+          <span class="line2"><span class="steps">11 步</span><span class="run">已暂停</span></span>
+        </span>
+      </button>
+
+      <button class="capsule" aria-pressed="false" data-enabled="true">
+        <span class="dot"></span>
+        <span class="body">
+          <span class="line1"><span class="name">缺陷复判</span></span>
+          <span class="line2"><span class="steps">9 步</span></span>
+        </span>
+      </button>
+
+      <button class="capsule" aria-pressed="false" data-enabled="false">
+        <span class="dot"></span>
+        <span class="body">
+          <span class="line1"><span class="name">数据上报</span></span>
+          <span class="line2"><span class="steps">4 步</span></span>
+        </span>
+        <span class="disabled-tag">禁用</span>
+      </button>
+
+      <button class="capsule" aria-pressed="false" data-enabled="true">
+        <span class="dot"></span>
+        <span class="body">
+          <span class="line1"><span class="name">收尾</span><span class="role end">收尾</span></span>
+          <span class="line2"><span class="steps">5 步</span></span>
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 选中禁用流程时的提示条 -->
+  <div class="notice hidden" id="notice">
+    <span class="glyph">⚠</span>
+    <span>该流程已禁用：不会参与自动触发，手动运行仍可用。</span>
+  </div>
+
+  <div class="footbar">
+    <span><b class="mono">6</b> 条流程</span>
+    <span>·</span>
+    <span><b class="mono">53</b> 步</span>
+    <span class="spacer"></span>
+    <span>选中：主检测</span>
+  </div>
+</section>
+
+<!-- ================= 边界态：300 窄 / 空态 / 右键菜单 ================= -->
+<section class="panel wide" id="p2">
+  <div class="caption">
+    <h1>流程</h1>
+    <span class="tag">300 窄面板</span>
+    <span class="size">300</span>
+  </div>
+
+  <div class="strip">
+    <div class="grid" style="grid-template-columns: 1fr;">
+      <button class="capsule" aria-pressed="false" data-enabled="true">
+        <span class="dot"></span>
+        <span class="body">
+          <span class="line1"><span class="name">回原点</span><span class="role home">回零</span></span>
+          <span class="line2"><span class="steps">6 步</span></span>
+        </span>
+      </button>
+      <button class="capsule" aria-pressed="true" data-enabled="true" data-run="running">
+        <span class="dot"></span>
+        <span class="body">
+          <span class="line1"><span class="name">主检测</span><span class="role main">主</span></span>
+          <span class="line2"><span class="steps">18 步</span><span class="run">运行中</span></span>
+        </span>
+      </button>
+      <button class="capsule" aria-pressed="false" data-enabled="false">
+        <span class="dot"></span>
+        <span class="body">
+          <span class="line1"><span class="name">数据上报</span></span>
+          <span class="line2"><span class="steps">4 步</span></span>
+        </span>
+        <span class="disabled-tag">禁用</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="footbar">
+    <span><b class="mono">3</b> 条流程</span>
+    <span class="spacer"></span>
+    <span>选中：主检测</span>
+  </div>
+</section>
+
+<!-- 空态 + 右键菜单并排 -->
+<div style="display:flex; flex-direction:column; gap:24px;">
+  <section class="panel is-empty" id="p3" style="width:300px;">
+    <div class="caption">
+      <h1>流程</h1>
+      <span class="tag">空态</span>
+      <span class="size">300</span>
+    </div>
+    <div class="empty">
+      <div class="glyph">▤</div>
+      <h2>还没有流程</h2>
+      <p>新建一条流程开始编排算子。</p>
+      <button class="btn">新建流程</button>
+    </div>
+    <div class="footbar">
+      <span><b class="mono">0</b> 条流程</span>
+      <span class="spacer"></span>
+    </div>
+  </section>
+
+  <div class="menu">
+    <div class="label">流程</div>
+    <div class="sub"><span>流程</span><span class="arrow">▸</span></div>
+    <div class="sep"></div>
+    <div class="item"><span class="ic">◉</span>重命名</div>
+    <div class="item"><span class="ic">✎</span>编辑注释</div>
+    <div class="item"><span class="ic">◐</span>禁用此流程</div>
+    <div class="item"><span class="ic">⚙</span>编译本流程</div>
+    <div class="sep"></div>
+    <div class="item"><span class="ic">▶</span>运行一次</div>
+    <div class="item"><span class="ic">↻</span>循环运行</div>
+    <div class="item"><span class="ic">■</span>停止本流程</div>
+    <div class="sep"></div>
+    <div class="item"><span class="ic">☰</span>流程管理</div>
+    <div class="item"><span class="ic">🔔</span>变量事件（方案级）</div>
+    <div class="sep"></div>
+    <div class="item danger"><span class="ic">✕</span>删除</div>
+  </div>
+</div>
+
+<!-- 演示控制 -->
+<div class="demo">
+  <span>演示控制</span>
+  <button onclick="document.getElementById('p3').classList.toggle('is-empty')">空态切换</button>
+  <button onclick="document.getElementById('notice').classList.toggle('hidden')">禁用提示条</button>
+</div>
+
+<script>
+  // 胶囊单选 + 选中禁用流程时显示提示条
+  document.querySelectorAll('#p1 .capsule').forEach(c => {
+    c.addEventListener('click', () => {
+      document.querySelectorAll('#p1 .capsule').forEach(x => x.setAttribute('aria-pressed','false'));
+      c.setAttribute('aria-pressed','true');
+      const disabled = c.dataset.enabled === 'false';
+      document.getElementById('notice').classList.toggle('hidden', !disabled);
+    });
+  });
+</script>
+</body>
+</html>

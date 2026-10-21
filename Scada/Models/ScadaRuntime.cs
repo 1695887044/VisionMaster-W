@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace VisionMaster.Scada
 {
@@ -120,16 +121,59 @@ namespace VisionMaster.Scada
         }
 
         /// <summary>
-        /// 当前页引用的基座画面（画布的公共层）。
+        /// 当前页引用的<b>全部基座</b>（按页面里的引用顺序：靠前的压在下面）。
         ///
-        /// <b>为什么由会话投影出来而不是窗口自己去查</b>：窗口的 DataContext 就是本会话，
-        /// 而"当前页的基座是哪一只"是领域层的知识（按 <see cref="ScadaPage.BasePageId"/>
-        /// 在 <see cref="ScadaDocument.BasePages"/> 里反查）。窗口再写一遍这个反查就是第二份口径。
+        /// 画布按这个列表逐层叠：列表顺序就是绘制顺序，最后一只基座盖在所有基座之上、
+        /// 本页图元再盖在基座之上。找不到/悬空的 Id 已由
+        /// <see cref="ScadaDocument.ResolveBasePages"/> 跳过，窗口不自己过滤。
         ///
-        /// 换页时跟着 <see cref="CurrentPage"/> 一起通知：画布按这两个绑定重新装配，
-        /// 谁先变都不影响最终一致性（画布按"当前的两个值"全量重建）。
+        /// 换页时跟着 <see cref="CurrentPage"/> 一起通知：画布按这两个绑定重新装配。
         /// </summary>
-        public ScadaPage? CurrentBasePage => _currentPage?.ResolveBase(_document);
+        public IReadOnlyList<ScadaPage> CurrentBasePages
+            => _currentPage is null
+                ? Array.Empty<ScadaPage>()
+                : _document.ResolveBasePages(_currentPage);
+
+        /// <summary>
+        /// 单基座兼容视图：当前页的第一只基座（没有则 null）。
+        /// 新代码用 <see cref="CurrentBasePages"/>——一个画面可以引用多只基座。
+        /// </summary>
+        public ScadaPage? CurrentBasePage => CurrentBasePages.FirstOrDefault();
+
+        /// <summary>
+        /// 当前弹窗页（null = 没有弹窗）。弹窗盖在当前页上，<see cref="CurrentPage"/> 不变——
+        /// 关闭弹窗后仍回到原页，页栈也不需要为弹窗压一层。
+        ///
+        /// <b>v1 只允许一层弹窗</b>：已有弹窗时再打开会被拒绝（设计稿的 Nested 状态）。
+        /// 层叠弹窗的焦点、Esc 归属与遮罩叠加没有可靠口径，先不做比做错好。
+        /// </summary>
+        public ScadaPage? CurrentPopup => _currentPopup;
+
+        private ScadaPage? _currentPopup;
+
+        /// <summary>
+        /// 正在关弹窗（Unloaded 动作里再调 ClosePopup/GoBack/Navigate 时的重入闸）。
+        /// 没有它，Unloaded 钩子里的「关闭弹窗」会再次广播同一条 Unloaded，直接栈溢出。
+        /// </summary>
+        private bool _closingPopup;
+
+        /// <summary>此刻有没有弹窗（窗口浮层、Esc、关闭按钮都读它）。</summary>
+        public bool IsPopupOpen => _currentPopup != null;
+
+        /// <summary>当前弹窗是否模态（无弹窗时 false）。</summary>
+        public bool IsPopupModal => _currentPopup?.PopupModal == true;
+
+        /// <summary>当前弹窗引用的基座列表（弹窗画布用；无弹窗时为空）。</summary>
+        public IReadOnlyList<ScadaPage> CurrentPopupBasePages
+            => _currentPopup is null
+                ? Array.Empty<ScadaPage>()
+                : _document.ResolveBasePages(_currentPopup);
+
+        /// <summary>弹窗打开（宿主据此给弹窗画布建数据泵；领域层不碰 WPF）。</summary>
+        public event Action<ScadaPage>? PopupOpened;
+
+        /// <summary>弹窗关闭（宿主据此摘掉弹窗数据泵）。</summary>
+        public event Action<ScadaPage>? PopupClosed;
 
         /// <summary>
         /// 会话决定把某一页显示出来（<b>无条件发一次</b>，与配没配事件无关）。
@@ -211,7 +255,18 @@ namespace VisionMaster.Scada
             if (!_running || element == null)
                 return 0;
 
-            if (CurrentPage == null || !ReferenceEquals(CurrentPage.FindElement(element.ElementId), element))
+            var inPopup = _currentPopup != null
+                && ReferenceEquals(_currentPopup.FindElement(element.ElementId), element);
+
+            var inPage = CurrentPage != null
+                && ReferenceEquals(CurrentPage.FindElement(element.ElementId), element);
+
+            if (!inPopup && !inPage)
+                return 0;
+
+            // 模态弹窗：背景页上的控件不可命中（视觉上有遮罩，逻辑上也必须挡住——
+            // 否则遮罩挡得住鼠标、挡不住快捷键/脚本派发的事件）。非模态允许两边都点。
+            if (!inPopup && _currentPopup is { PopupModal: true })
                 return 0;
 
             // ④ 权限闸门（S12）。顺序上排在结构判断之后、扫钩子之前：
@@ -247,7 +302,7 @@ namespace VisionMaster.Scada
             if (!_running || page == null)
                 return 0;
 
-            if (!ReferenceEquals(CurrentPage, page))
+            if (!ReferenceEquals(CurrentPage, page) && !ReferenceEquals(_currentPopup, page))
                 return 0;
 
             return BroadcastPageHooks(page, eventType);
@@ -319,7 +374,7 @@ namespace VisionMaster.Scada
 
             _running = true;
             CurrentPage = page;
-            RaisePropertyChanged(nameof(CurrentBasePage)); // 跟着页走：画布按这两个值重新装配
+            RaiseBasePagesChanged(); // 跟着页走：画布按这两个值重新装配
 
             // 事件在 CurrentPage 赋值之后发：订阅方（宿主）往往要按"已经显示出来了"来记日志，
             // 先赋值后通知，订阅方读 CurrentPage 才拿得到这一页而不是上一页。
@@ -347,11 +402,16 @@ namespace VisionMaster.Scada
 
             _running = false;
 
+            // 先收弹窗再收页面：弹窗是"最上面那一层"，它的 Unloaded 动作要在会话还活着时跑完
+            // （_running 已置 false，与页面卸载同一口径：会话要停了，动作里的切页/启停会被挡住）。
+            if (_currentPopup != null)
+                ClosePopup();
+
             if (leaving != null)
                 BroadcastPageHooks(leaving, ScadaEventType.Unloaded);
 
             CurrentPage = null;
-            RaisePropertyChanged(nameof(CurrentBasePage));
+            RaiseBasePagesChanged();
             _pageStack.Clear();
             RaisePropertyChanged(nameof(CanGoBack));
             RaisePropertyChanged(nameof(PageStackDepth));
@@ -364,8 +424,8 @@ namespace VisionMaster.Scada
         // ② 事件怎么发：旧页 Unloaded → 换 CurrentPage → 新页 PageLoaded，顺序固定，各发一次。
         // ③ 重复怎么挡：目标就是当前页时什么都不做——"连点两下不能触发两次 Loaded"。
 
-        /// <summary>还能不能回退（页栈非空）</summary>
-        public bool CanGoBack => _pageStack.Count > 0;
+        /// <summary>还能不能回退（页栈非空，或有一个可以关掉的弹窗）</summary>
+        public bool CanGoBack => _pageStack.Count > 0 || _currentPopup != null;
 
         /// <summary>页栈里压着几页（状态栏显示、断言核对用）</summary>
         public int PageStackDepth => _pageStack.Count;
@@ -383,7 +443,23 @@ namespace VisionMaster.Scada
         /// </summary>
         public bool Navigate(Guid pageId, string? fallbackName, out string? reason)
         {
-            var page = _document.FindNavigablePage(pageId) ?? _document.FindNavigablePageByName(fallbackName);
+            var page = _document.FindNavigablePage(pageId);
+
+            // Id 指向一个"存在但不可导航"的画面时，不允许再按名字兜底到另一张普通页：
+            // 那会绕过"弹窗页只能 OpenPopup / 基座不能当终点"的拒绝，静默切到别的页面。
+            if (page == null && pageId != Guid.Empty)
+            {
+                var existing = _document.FindPage(pageId);
+                if (existing != null)
+                {
+                    reason = existing.IsPopup
+                        ? $"「{existing.Name}」是弹窗页，只能用「打开弹窗」打开"
+                        : "目标画面是基座画面（公共层），不能作为跳转目标";
+                    return false;
+                }
+            }
+
+            page ??= _document.FindNavigablePageByName(fallbackName);
 
             if (page == null)
             {
@@ -393,6 +469,15 @@ namespace VisionMaster.Scada
                     || _document.FindBasePageByName(fallbackName) != null)
                 {
                     reason = "目标画面是基座画面（公共层），不能作为跳转目标";
+                    return false;
+                }
+
+                // 弹窗页在 Pages 里，但 FindNavigablePage 已经把它排除；这里给一句专属原因，
+                // 否则分发器会拿 null 原因记一条"切换画面：，本条未执行"。
+                var popup = _document.FindPage(pageId) ?? _document.FindPageByName(fallbackName);
+                if (popup is { IsPopup: true })
+                {
+                    reason = $"「{popup.Name}」是弹窗页，只能用「打开弹窗」打开";
                     return false;
                 }
 
@@ -435,6 +520,12 @@ namespace VisionMaster.Scada
             if (!_document.IsNavigable(page)) return false;
             // 页面级角色：与动作表、返回、页面菜单共用同一个判定（界面不自己过滤）。
             if (!CanAccess(page, out _)) return false;
+
+            // 切页前先收掉弹窗：弹窗是盖在旧页上的浮层，留着它会在新页上继续显示旧页的内容。
+            // 即使目标就是当前页（下面的幂等分支），一次显式的"切换画面"也应该退掉弹窗。
+            if (_currentPopup != null)
+                ClosePopup();
+
             if (ReferenceEquals(page, _currentPage)) return true;
 
             PushPage(_currentPage);
@@ -451,6 +542,11 @@ namespace VisionMaster.Scada
         public bool GoBack()
         {
             if (!_running) return false;
+
+            // 弹窗打开时，「返回」的语义是"先关掉最上面这一层"，而不是跳过弹窗直接退页。
+            // 这与窗口上的返回按钮/页面菜单共用同一个出口，不需要窗口自己判断。
+            if (_currentPopup != null)
+                return ClosePopup();
 
             while (_pageStack.Count > 0)
             {
@@ -484,6 +580,139 @@ namespace VisionMaster.Scada
             return false;
         }
 
+        /// <summary><see cref="IScadaNavigator.ClosePopup"/> 的显式实现：把“没有弹窗”翻译成可直接写日志的原因。</summary>
+        bool IScadaNavigator.ClosePopup(out string? reason)
+        {
+            if (ClosePopup())
+            {
+                reason = null;
+                return true;
+            }
+
+            reason = _running ? "当前没有弹窗" : "运行已经结束";
+            return false;
+        }
+
+        /// <summary>
+        /// 打开一个弹窗页（按 Id 优先、名字兜底寻址，与切页同一口径）。
+        /// </summary>
+        public bool OpenPopup(Guid pageId, string? fallbackName, out string? reason)
+        {
+            var page = _document.FindPage(pageId) ?? _document.FindPageByName(fallbackName);
+
+            if (page == null)
+            {
+                reason = string.IsNullOrWhiteSpace(fallbackName)
+                    ? "还没选目标画面"
+                    : $"方案里没有叫「{fallbackName.Trim()}」的画面";
+                return false;
+            }
+
+            return OpenPopup(page, out reason);
+        }
+
+        /// <summary>
+        /// 打开一个弹窗页（调用方已经拿到画面对象时走这条）。
+        ///
+        /// 五道闸门：会话在跑、目标在本方案里、目标标了 <see cref="ScadaPage.IsPopup"/>、
+        /// 目标不是基座、当前没有别的弹窗；再过一次页面级角色。
+        /// 与普通切页的区别：<b>不改 <see cref="CurrentPage"/>、不压页栈</b>——
+        /// 关闭弹窗后自然回到原页，这正是"弹窗"与"子画面"的语义差别。
+        ///
+        /// Loaded 钩子不在这里发：与首帧/切页同一条纪律，宿主等弹窗画布布局跑完再调
+        /// <see cref="RaisePageEvent"/>，否则"加载完成"会早于弹窗真正画出来。
+        /// </summary>
+        public bool OpenPopup(ScadaPage? page, out string? reason)
+        {
+            if (!_running)
+            {
+                reason = "运行已经结束";
+                return false;
+            }
+
+            if (page == null)
+            {
+                reason = "目标画面为空";
+                return false;
+            }
+
+            if (!_document.Pages.Contains(page))
+            {
+                reason = $"「{page.Name}」不在本方案里";
+                return false;
+            }
+
+            if (_document.IsBasePage(page))
+            {
+                reason = "基座画面是公共层，不能作为弹窗";
+                return false;
+            }
+
+            if (!page.IsPopup)
+            {
+                reason = $"「{page.Name}」不是弹窗画面（请先在画面属性里勾选「弹窗页」）";
+                return false;
+            }
+
+            if (_currentPopup != null)
+            {
+                reason = $"已有弹窗「{_currentPopup.Name}」打开，本版本不支持弹窗嵌套";
+                return false;
+            }
+
+            if (!CanAccess(page, out reason))
+                return false;
+
+            _currentPopup = page;
+            RaisePopupChanged();
+            PopupOpened?.Invoke(page);
+            reason = null;
+            return true;
+        }
+
+        /// <summary>
+        /// 关闭当前弹窗（没有弹窗时返回 false）。弹窗的 Unloaded 钩子先跑，再清状态：
+        /// 与切页的"旧页先卸载"同一顺序，动作里读 CurrentPopup 时还能读到要关的那一页。
+        /// </summary>
+        public bool ClosePopup()
+        {
+            if (_currentPopup == null || _closingPopup)
+                return false;
+
+            var page = _currentPopup;
+            _closingPopup = true;
+
+            try
+            {
+                BroadcastPageHooks(page, ScadaEventType.Unloaded);
+
+                _currentPopup = null;
+                RaisePopupChanged();
+                PopupClosed?.Invoke(page);
+            }
+            finally
+            {
+                _closingPopup = false;
+            }
+
+            return true;
+        }
+
+        private void RaisePopupChanged()
+        {
+            RaisePropertyChanged(nameof(CurrentPopup));
+            RaisePropertyChanged(nameof(IsPopupOpen));
+            RaisePropertyChanged(nameof(IsPopupModal));
+            RaisePropertyChanged(nameof(CurrentPopupBasePages));
+            RaisePropertyChanged(nameof(CanGoBack));
+        }
+
+        private void RaiseBasePagesChanged()
+        {
+            RaisePropertyChanged(nameof(CurrentBasePage));
+            RaisePropertyChanged(nameof(CurrentBasePages));
+        }
+
         /// <summary>
         /// 换页的唯一落点：旧页 <see cref="ScadaEventType.Unloaded"/> → 换 <see cref="CurrentPage"/>
         /// → 新页 <see cref="PageLoaded"/>。
@@ -504,7 +733,7 @@ namespace VisionMaster.Scada
                 BroadcastPageHooks(leaving, ScadaEventType.Unloaded);
 
             CurrentPage = page;
-            RaisePropertyChanged(nameof(CurrentBasePage));
+            RaiseBasePagesChanged();
             PageLoaded?.Invoke(page);
 
             return true;

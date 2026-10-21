@@ -2364,6 +2364,14 @@ namespace VisionMaster.ViewModels
         /// </summary>
         private void OnPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
+            // 弹窗页开关会改变"模态/位置/偏移"四行是否可见：只 RefreshValue 不会增减行，
+            // 必须整份重建（勾上后四行要立刻出现，取消后要立刻消失）。
+            if (e.PropertyName == nameof(ScadaPage.IsPopup))
+            {
+                Rebuild();
+                return;
+            }
+
             foreach (var row in _rows)
                 row.RefreshValue();
 
@@ -2454,7 +2462,12 @@ namespace VisionMaster.ViewModels
                 var document = _editor.Document;
 
                 foreach (var spec in ScadaPageProperties.All)
+                {
+                    if (!spec.IsVisibleFor(page))
+                        continue;
+
                     _rows.Add(new ScadaPagePropertyRow(page, document, spec));
+                }
 
                 // 画面级事件行：与图元侧同一份实现（宿主收成 IScadaEventHost），差别只有清单来源与分组。
                 // 只列 ScadaPageEvents 声明的那两条——清单里没有的事件不出行，因为"配了却永远不响"

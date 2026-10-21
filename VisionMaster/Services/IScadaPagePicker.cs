@@ -25,5 +25,12 @@ namespace VisionMaster.Services
         /// <param name="currentName">当前已选的目标画面名（旧数据只有名字时靠它预选）</param>
         /// <param name="onPicked">确认后的落点：(画面 Id, 画面名)</param>
         void Pick(Guid currentId, string? currentName, Action<Guid, string?> onPicked);
+
+        /// <summary>
+        /// 只挑<b>弹窗页</b>（「打开弹窗」动作用）。默认实现退化成 <see cref="Pick"/>，
+        /// 保证既有假实现/旧实现不用改也能编译；真实现会按 <see cref="ScadaPage.IsPopup"/> 过滤。
+        /// </summary>
+        void PickPopup(Guid currentId, string? currentName, Action<Guid, string?> onPicked)
+            => Pick(currentId, currentName, onPicked);
     }
 }

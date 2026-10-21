@@ -205,7 +205,58 @@ namespace ScadaUiProbe
             Shot(dir, "scada-editor-04-narrow.png", 1010, 700, (view, vm, canvas) =>
                 Select(canvas, vm.SelectedPage!.Elements.Take(2).ToList()));
 
+            // 顶栏折行：宽度不够时右组整组掉到第二行（见 ScadaEditorView.xaml 顶栏注释）。
+            // 700 是"窗口 1120 最小宽 + 右侧属性/图层面板都停靠"时文档区的大致宽度；
+            // 520 再压一档，验"连一组都放不下时组内按钮各自折行、任何宽度都不裁切"。
+            Shot(dir, "scada-editor-06-toolbar-700.png", 700, 620, null);
+            Shot(dir, "scada-editor-07-toolbar-520.png", 520, 620, null);
+
+            ProbeToolbarResize(dir);
+
             Shot(dir, "scada-editor-05-empty.png", 1500, 830, null, createPage: false);
+        }
+
+        /// <summary>
+        /// 顶栏折行的"活尺寸变化"探针：同一个视图先宽后窄再变宽。
+        ///
+        /// 单独验这一条，是因为 <see cref="Shot"/> 每张图都新建视图，走不到
+        /// "ToolbarSpacer 已经撑开之后再把窗口拖窄"那条路径——而它正是用户拖分隔条时天天走的，
+        /// 也是"改尺寸 → 布局 → 再改尺寸"死循环最容易冒出来的地方（真循环就是界面卡死）。
+        /// </summary>
+        private static void ProbeToolbarResize(string dir)
+        {
+            var workspace = new WorkspaceContext();
+            var doc = new ScadaDocument();
+            var page = doc.AddPage("主画面");
+            page.Width = 1280;
+            page.Height = 800;
+            workspace.SwitchSolution(new SolutionModel { Scada = doc });
+
+            var vm = new ScadaEditorViewModel(workspace, new FakeRuntimeHost());
+            vm.Activate();
+            vm.SelectedPage = page;
+            ViewModelLocationProvider.Register<ScadaEditorView>(() => vm);
+
+            var view = new ScadaEditorView();
+            var window = Show(view, 1500, 700);
+            Pump(500);
+
+            foreach (int width in new[] { 1500, 700, 1500, 520, 1500 })
+            {
+                window.Width = width;
+                Pump(300);
+
+                string state = view.FindName("ToolbarPanel") is WrapPanel panel
+                    ? $"{panel.ActualWidth:0.#}×{panel.ActualHeight:0.#}"
+                    : "找不到 ToolbarPanel";
+                Console.WriteLine($"    窗口宽 {width,4} → 顶栏 {state}");
+            }
+
+            Save(Render(view, (int)view.ActualWidth, (int)view.ActualHeight),
+                Path.Combine(dir, "scada-editor-08-resize-back.png"));
+
+            window.Close();
+            vm.Deactivate();
         }
 
         private static void Shot(
@@ -257,6 +308,16 @@ namespace ScadaUiProbe
 
             Save(Render(view, (int)view.ActualWidth, (int)view.ActualHeight), Path.Combine(dir, fileName));
             Console.WriteLine($"  {fileName}  选中={canvas?.SelectedElements.Count ?? -1}  缩放={canvas?.Zoom.ToString("0.##") ?? "-"}");
+
+            // 顶栏高度就是"折没折行"的判据：单行 = 32、折两行 ≈ 68（44 是整行含居中留白的最小高度）
+            if (view.FindName("ToolbarPanel") is WrapPanel toolbar)
+            {
+                string rowHeight = toolbar.Parent is FrameworkElement host
+                    ? host.ActualHeight.ToString("0.#")
+                    : "-";
+                Console.WriteLine($"    顶栏 {toolbar.ActualWidth:0.#}×{toolbar.ActualHeight:0.#}（行高 {rowHeight}）" +
+                    $"（{(toolbar.ActualHeight > 40 ? "已折行" : "单行")}）");
+            }
 
             window.Close();
             vm.Deactivate();

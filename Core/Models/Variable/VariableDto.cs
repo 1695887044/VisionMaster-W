@@ -63,6 +63,36 @@ namespace VisionMaster.Models
         /// <summary>字符串数组：每个元素的固定字节数（0 = 非字符串数组）</summary>
         public int ElementByteLength { get; set; }
 
+        /// <summary>
+        /// 标量工程量换算（地址对象上的那一份）。
+        /// <para>旧实现只把这些参数留在内存里的 <see cref="DeviceAddressBase"/> 上、没随方案落盘：
+        /// 用户配好的缩放/偏移/单位在下次打开方案时静默回到默认（不换算）。
+        /// 旧方案无这些字段 → EnableConversion=false / Scale=1 / Unit 空，行为不变。</para>
+        /// </summary>
+        public bool EnableConversion { get; set; }
+
+        public double Scale { get; set; } = 1;
+
+        public double EngineeringOffset { get; set; }
+
+        public string Unit { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 数组逐元素工程量换算档案（下标与元素一一对应；null/缺省 = 该元素不换算）。
+        /// <para>必须随方案落盘：不存的话下次打开方案，数组换算全部丢失，
+        /// 界面显示的是原始值、写回设备的也是原始值——而且没有任何报错。</para>
+        /// <para>旧方案无此字段 → null → 不换算，行为与改造前一致。</para>
+        /// </summary>
+        public ElementConversion?[]? ElementConversions { get; set; }
+
+        /// <summary>
+        /// 是否允许与相邻地址合并成一次区域读（默认 true）。
+        /// <para>旧实现只把它抄进 <c>CommunicationVariable</c>、没随方案落盘：
+        /// 用户关掉合并读后，下次打开方案静默恢复成 true（"只读自己这一小块"的配置丢失）。
+        /// 旧方案无此字段 → 初始值 true，零回归。</para>
+        /// </summary>
+        public bool MergeAdjacentRead { get; set; } = true;
+
         /// <summary>Modbus 传统 5 位地址写法开关（40001 → 0 基 0；默认 false，旧数据零影响）</summary>
         public bool UseLegacyAddress { get; set; }
 
@@ -153,6 +183,12 @@ namespace VisionMaster.Models
             address.AddressOffset = AddressOffset;
             address.ElementByteLength = ElementByteLength;
 
+            // 标量换算参数：漏还原 = 配好的缩放/偏移在下次打开方案时静默失效
+            address.EnableConversion = EnableConversion;
+            address.Scale = Scale;
+            address.EngineeringOffset = EngineeringOffset;
+            address.Unit = Unit;
+
             // UseLegacyAddress 只在 ModbusAddress 上（S7 没有 5 位写法）；按反射设置，Core 不反向引用通信程序集。
             var legacyProp = addressType.GetProperty("UseLegacyAddress");
             if (legacyProp != null && legacyProp.PropertyType == typeof(bool))
@@ -195,6 +231,16 @@ namespace VisionMaster.Models
                 Length = addr?.Length ?? 0,
                 AddressOffset = addr?.AddressOffset ?? 0,
                 ElementByteLength = addr?.ElementByteLength ?? 0,
+                // 逐元素换算与区域合并读必须随方案落盘（漏拷 = 下次打开静默退回默认行为）
+                ElementConversions = nv.ElementConversions
+                    ?.Select(c => c?.Clone())
+                    .ToArray(),
+                MergeAdjacentRead = nv.MergeAdjacentRead,
+                // 标量换算随方案落盘（旧实现漏拷 = 下次打开静默回到"不换算"）
+                EnableConversion = addr?.EnableConversion ?? false,
+                Scale = addr?.Scale ?? 1,
+                EngineeringOffset = addr?.EngineeringOffset ?? 0,
+                Unit = addr?.Unit ?? string.Empty,
                 DataValueType = addr?.DataType.ToString(),
                 // 扫描组随变量落盘（漏拷 = 挂好的快组在下次打开方案时静默退回默认组）
                 ScanGroup = nv.ScanGroup ?? string.Empty,

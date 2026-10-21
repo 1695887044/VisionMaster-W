@@ -239,21 +239,6 @@ namespace VisionMaster
         IoSettings,
 
         /// <summary>
-        /// IO 健康：总线/设备/点位的运行态诊断面板（只读、1s 刷新）。
-        /// 追加在末尾——理由见 <see cref="RuntimeWindowSettings"/>。
-        /// <para>2026-10-19 起它只是"系统健康"的一个页签；该值保留用于旧布局/脚本的转发，
-        /// 新入口用 <see cref="SystemHealth"/>。</para>
-        /// </summary>
-        IoHealth,
-
-        /// <summary>
-        /// 系统健康：通讯 / 相机 / 运动 / IO 四域诊断（只读、1s 刷新）。
-        /// <para><b>只能追加在末尾</b>：这些枚举值会落进 <c>Layout.xml</c> 与旧配置，
-        /// 中间插项会把后面所有成员的整数值整体挪位（旧文件读回来就指向别的动作）。</para>
-        /// </summary>
-        SystemHealth,
-
-        /// <summary>
         /// 系统设置（合并窗口）：运行窗口形态 / 落屏 + 安全与会话 + 历史留档 + 画布（图集）。
         /// <para>「运行窗口设置」与「系统参数设置」两个旧入口写的都是程序目录 AppConfig.json，
         /// 口径也逐条相同，现已合并成一个弹窗；两个旧枚举值保留（可能已落盘），

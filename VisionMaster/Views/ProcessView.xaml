@@ -2,6 +2,7 @@
     x:Class="VisionMaster.Views.ProcessView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:VisionMaster.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:dd="urn:gong-wpf-dragdrop"
     xmlns:helpers="clr-namespace:VisionMaster.Helpers"
@@ -23,6 +24,31 @@
         <helpers:CategoryAccentBrushConverter x:Key="CategoryAccentBrushConverter" />
         <helpers:CategorySoftBrushConverter x:Key="CategorySoftBrushConverter" />
         <helpers:CategoryBorderBrushConverter x:Key="CategoryBorderBrushConverter" />
+
+        <!--  ==========================================  -->
+        <!--  🎯 拖拽浮层：流程栏内部拖动（步骤 / 分支卡片）  -->
+        <!--  视觉与工具箱共用 VisionMaster\Controls\DragGhostCard.xaml（设计基线 v2）。  -->
+        <!--  树里混着 StepModel 与 StepCollection 两种条目，gong 的 DragAdornerTemplate  -->
+        <!--  是"一个源一份模板"——用选择器按数据类型分派，否则分支卡片会显示成空卡片。  -->
+        <!--  ==========================================  -->
+        <DataTemplate x:Key="StepDragGhostTemplate">
+            <controls:DragGhostCard
+                Category="{Binding Category}"
+                Icon="{Binding Icon}"
+                Title="{Binding StepName}" />
+        </DataTemplate>
+
+        <DataTemplate x:Key="BranchDragGhostTemplate">
+            <controls:DragGhostCard
+                Category="分支"
+                Icon="&#xf126;"
+                Title="{Binding DisplayName}" />
+        </DataTemplate>
+
+        <helpers:DragGhostTemplateSelector
+            x:Key="StepDragGhostSelector"
+            BranchTemplate="{StaticResource BranchDragGhostTemplate}"
+            StepTemplate="{StaticResource StepDragGhostTemplate}" />
 
         <!--  ==========================================  -->
         <!--  🎨 流程栏行容器（v2：整行铺满，悬停/选中用底色表达）  -->
@@ -266,11 +292,13 @@
         <TreeView
             x:Name="StepTree"
             Grid.Row="1"
+            dd:DragDrop.DragAdornerTemplateSelector="{StaticResource StepDragGhostSelector}"
+            dd:DragDrop.DragAdornerTranslation="16,12"
             dd:DragDrop.DragHandler="{Binding}"
             dd:DragDrop.DropHandler="{Binding}"
             dd:DragDrop.IsDragSource="True"
             dd:DragDrop.IsDropTarget="True"
-            dd:DragDrop.UseDefaultDragAdorner="True"
+            dd:DragDrop.UseDefaultDragAdorner="False"
             dd:DragDrop.UseDefaultEffectDataTemplate="True"
             ui:TreeViewBehavior.BindableSelectedItem="{Binding SelectStep}"
             ui:TreeViewBehavior.DoubleClickCommand="{Binding ModuleActionCommand}"

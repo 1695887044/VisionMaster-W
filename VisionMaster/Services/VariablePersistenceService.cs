@@ -158,6 +158,11 @@ namespace VisionMaster.Services
                         // 扫描组随方案还原：漏它的后果是"挂好的快组在下次打开方案时静默退回默认组"，
                         // 而桥接器 Register 时会把这里的值抄进 CommunicationVariable，故必须在接线之前填好
                         ScanGroup = dto.ScanGroup ?? string.Empty,
+                        // 逐元素换算 / 区域合并读：同样必须在桥接器接线之前还原
+                        ElementConversions = dto.ElementConversions
+                            ?.Select(c => c?.Clone())
+                            .ToArray() ?? Array.Empty<ElementConversion?>(),
+                        MergeAdjacentRead = dto.MergeAdjacentRead,
                         // 显示分组随方案还原：漏它 = 用户归好的类在下次打开方案时静默回到「未分组」
                         GroupId = groupId
                     });

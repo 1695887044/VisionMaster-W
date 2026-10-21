@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using MiniExcelLibs;
+using Newtonsoft.Json;
 using Prism.Mvvm;
 using VisionMaster.Communications;
 using VisionMaster.Models;
@@ -36,6 +37,13 @@ namespace VisionMaster.Services
         public const string InitialValue = "初始值";
         public const string AddressPreview = "地址预览";
 
+        /// <summary>
+        /// 数组逐元素换算（JSON 数组：每项 {"Scale":..,"Offset":..,"DecimalPlaces":..,"Unit":".."}，null = 该元素不换算）。
+        /// <para>为什么单独一列而不复用「缩放系数/工程偏移」：那两列是"整个变量一份"的标量语义，
+        /// 数组逐元素档案塞不进去；用 JSON 一列既不打乱既有列，也能一眼看出是数组专用。</para>
+        /// </summary>
+        public const string ElementConversions = "逐元素换算";
+
         /// <summary>导入时必须有值的列（其它列可缺省）。</summary>
         public static readonly string[] Required = { Name, DataType, Area, Offset };
 
@@ -63,6 +71,7 @@ namespace VisionMaster.Services
                 [EngineeringOffset] = new[] { EngineeringOffset, "工程偏移量" },
                 [Unit] = new[] { Unit, "工程单位名" },
                 [InitialValue] = new[] { InitialValue, "初始值（选填）" },
+                [ElementConversions] = new[] { ElementConversions, "数组换算", "逐元素换算档案" },
                 [AddressPreview] = new[] { AddressPreview, "地址预览列" },
             };
     }
@@ -255,6 +264,10 @@ namespace VisionMaster.Services
         public double EngineeringOffset { get; set; }
         public string Unit { get; set; } = string.Empty;
         public object? InitialValue { get; set; }
+
+        /// <summary>数组逐元素换算档案（仅数组；null = 不换算）</summary>
+        public ElementConversion?[]? ElementConversions { get; set; }
+
         public DeviceAddressBase Address { get; set; } = null!;
     }
 
@@ -465,12 +478,21 @@ namespace VisionMaster.Services
                 [DeviceVariableColumns.EngineeringOffset] = engineeringOffset.ToString("0.############", CultureInfo.InvariantCulture),
                 [DeviceVariableColumns.Unit] = unit,
                 [DeviceVariableColumns.InitialValue] = initial,
+                [DeviceVariableColumns.ElementConversions] = BuildElementConversionsJson(variable),
             };
 
             if (includeAddressPreview)
                 row[DeviceVariableColumns.AddressPreview] = address?.Address ?? string.Empty;
 
             return row;
+        }
+
+        /// <summary>逐元素换算 → JSON（全 null 不导出，避免每行都挂一串 null）</summary>
+        private static string BuildElementConversionsJson(NetworkVariableModel variable)
+        {
+            var conversions = variable.ElementConversions;
+            if (conversions == null || !conversions.Any(c => c != null)) return string.Empty;
+            return JsonConvert.SerializeObject(conversions, Formatting.None);
         }
 
         public static void Export(
@@ -884,6 +906,11 @@ namespace VisionMaster.Services
                 }
                 // 空白 = 1（缩放系数是乘数，0 会把所有读数变成 0）。
                 if (row.Get(DeviceVariableColumns.Scale).Trim().Length == 0) scale = 1;
+                if (conversion == true && scale == 0)
+                {
+                    Fail("缩放系数不能为 0（工程值无法反算成原始值）。");
+                    continue;
+                }
                 if (!DeviceVariableIoText.TryParseDouble(row.Get(DeviceVariableColumns.EngineeringOffset), out var engineeringOffset, out var engineeringError))
                 {
                     Fail($"工程偏移：{engineeringError}");
@@ -1016,6 +1043,56 @@ namespace VisionMaster.Services
                     continue;
                 }
 
+                // 数组逐元素换算：JSON 数组，长度必须等于元素个数（下标就是元素下标）。
+                // 字符串/布尔数组不做换算；标量走上面的「启用换算 + 缩放系数/偏移」。
+                ElementConversion?[]? elementConversions = null;
+                string conversionsText = row.Get(DeviceVariableColumns.ElementConversions).Trim();
+                if (conversionsText.Length > 0)
+                {
+                    if (!isArray || isStringArray || isBoolArray)
+                    {
+                        Fail("「逐元素换算」仅数值数组适用（字符串/布尔数组与标量不做逐元素换算）。");
+                        continue;
+                    }
+
+                    try
+                    {
+                        var parsed = JsonConvert.DeserializeObject<ElementConversion?[]>(conversionsText);
+                        if (parsed == null || parsed.Length != elementCount)
+                        {
+                            Fail($"「逐元素换算」项数必须等于元素个数 {elementCount}（收到 {parsed?.Length ?? 0} 项）。");
+                            continue;
+                        }
+
+                        bool conversionsValid = true;
+                        for (int i = 0; i < parsed.Length; i++)
+                        {
+                            var item = parsed[i];
+                            if (item == null) continue;
+                            if (item.Scale == 0)
+                            {
+                                Fail($"「逐元素换算」第 {i} 项缩放系数为 0（无法反算）。");
+                                conversionsValid = false;
+                                break;
+                            }
+                            if (item.DecimalPlaces < 0 || item.DecimalPlaces > 10)
+                            {
+                                Fail($"「逐元素换算」第 {i} 项小数位必须在 0~10 之间。");
+                                conversionsValid = false;
+                                break;
+                            }
+                        }
+
+                        if (!conversionsValid) continue;
+                        elementConversions = parsed;
+                    }
+                    catch (Exception ex)
+                    {
+                        Fail($"「逐元素换算」不是合法 JSON：{ex.Message}");
+                        continue;
+                    }
+                }
+
                 var scanGroupText = row.Get(DeviceVariableColumns.ScanGroup).Trim();
                 string storedScanGroup;
                 string scanGroupDisplay;
@@ -1091,6 +1168,7 @@ namespace VisionMaster.Services
                     EngineeringOffset = engineeringOffset,
                     Unit = row.Get(DeviceVariableColumns.Unit).Trim(),
                     InitialValue = initial,
+                    ElementConversions = elementConversions,
                     Address = address
                 };
 
@@ -1132,6 +1210,7 @@ namespace VisionMaster.Services
                     AddressConfig = definition.Address,
                     ScanGroup = definition.ScanGroup,
                     MergeAdjacentRead = definition.MergeAdjacentRead,
+                    ElementConversions = definition.ElementConversions,
                     GroupId = Guid.Empty,
                     DefaultValue = definition.InitialValue
                 };
@@ -1271,6 +1350,7 @@ namespace VisionMaster.Services
                             AddressConfig = definition.Address,
                             ScanGroup = definition.ScanGroup,
                             MergeAdjacentRead = definition.MergeAdjacentRead,
+                            ElementConversions = definition.ElementConversions,
                             GroupId = groupId,
                             DefaultValue = definition.InitialValue,
                             Value = definition.InitialValue
@@ -1300,6 +1380,7 @@ namespace VisionMaster.Services
                         variable.AddressConfig = definition.Address;
                         variable.ScanGroup = definition.ScanGroup;
                         variable.MergeAdjacentRead = definition.MergeAdjacentRead;
+                        variable.ElementConversions = definition.ElementConversions;
                         variable.GroupId = groupId;
 
                         if (typeChanged)
@@ -1509,6 +1590,7 @@ namespace VisionMaster.Services
             public string ScanGroup { get; init; } = string.Empty;
             public bool MergeAdjacentRead { get; init; }
             public Guid GroupId { get; init; }
+            public ElementConversion?[] ElementConversions { get; init; } = Array.Empty<ElementConversion?>();
             public DeviceAddressBase? AddressConfig { get; init; }
 
             public static VariableSnapshot Capture(NetworkVariableModel variable) => new()
@@ -1520,6 +1602,9 @@ namespace VisionMaster.Services
                 ScanGroup = variable.ScanGroup,
                 MergeAdjacentRead = variable.MergeAdjacentRead,
                 GroupId = variable.GroupId,
+                ElementConversions = variable.ElementConversions
+                    .Select(c => c?.Clone())
+                    .ToArray(),
                 AddressConfig = variable.AddressConfig
             };
 
@@ -1531,6 +1616,7 @@ namespace VisionMaster.Services
                 variable.ScanGroup = ScanGroup;
                 variable.MergeAdjacentRead = MergeAdjacentRead;
                 variable.GroupId = GroupId;
+                variable.ElementConversions = ElementConversions;
                 variable.AddressConfig = AddressConfig;
                 // 类型变更时成功路径会改镜像；回滚必须把镜像也还原（走 UpdateMirrorValue，不写设备）。
                 variable.UpdateMirrorValue(Value);

@@ -95,6 +95,8 @@ namespace VisionMaster.ViewModels
 
             AddPageCommand = new DelegateCommand(OnAddPage, () => Document != _fallback);
             AddBasePageCommand = new DelegateCommand(OnAddBasePage, () => Document != _fallback);
+            AddPopupPageCommand = new DelegateCommand(OnAddPopupPage, () => Document != _fallback);
+            ClearBasePagesCommand = new DelegateCommand(OnClearBasePages, () => CanSelectBasePage);
             RemovePageCommand = new DelegateCommand(OnRemovePage, CanRemovePage);
             RunPageCommand = new DelegateCommand(OnRunPage, CanRunPage);
             OpenAlarmConfigCommand = new DelegateCommand(OnOpenAlarmConfig, CanOpenAlarmConfig);
@@ -204,6 +206,11 @@ namespace VisionMaster.ViewModels
                     option.Detach();
 
                 BasePageOptions.Clear();
+
+                foreach (var selection in BasePageSelections)
+                    selection.Detach();
+
+                BasePageSelections.Clear();
             }
         }
 
@@ -240,7 +247,38 @@ namespace VisionMaster.ViewModels
         /// </summary>
         public ObservableCollection<BasePageOption> BasePageOptions { get; } = new();
 
+        /// <summary>
+        /// 顶栏「基座」多选菜单的候选项：每只已注册基座一行，<see cref="BasePageSelection.IsSelected"/>
+        /// 表示本页是否引用它。勾选/取消直接调文档的引用管理方法（含环检测与一层限制）。
+        /// </summary>
+        public ObservableCollection<BasePageSelection> BasePageSelections { get; } = new();
+
+        /// <summary>顶栏按钮上的摘要：无基座 / 一只基座名 / "名字 等 N 个"。</summary>
+        public string BasePageSummary
+        {
+            get
+            {
+                var bases = SelectedBasePages;
+
+                return bases.Count switch
+                {
+                    0 => "（无基座）",
+                    1 => bases[0].Name,
+                    _ => $"{bases[0].Name} 等 {bases.Count} 个",
+                };
+            }
+        }
+
+        /// <summary>当前页真正生效的基座列表（画布按它逐层叠；顺序 = 文档里的引用顺序）。</summary>
+        public IReadOnlyList<ScadaPage> SelectedBasePages
+            => Document.ResolveBasePages(_selectedPage);
+
+        public DelegateCommand ClearBasePagesCommand { get; }
+
         private ScadaDocument? _optionsDocument;
+
+        /// <summary>上一次重建候选项时当前页的基座引用；撤销/重做只在这份快照真的变了时才重建。</summary>
+        private List<Guid> _lastBasePageIds = new();
 
         /// <summary>重建基座候选项（文档换了 / 基座集合变了都要重建）</summary>
         private void RebuildBasePageOptions()
@@ -265,8 +303,23 @@ namespace VisionMaster.ViewModels
             foreach (var page in document.BasePages)
                 BasePageOptions.Add(new BasePageOption(page));
 
+            // 多选菜单与单选视图同源：都从文档的 BasePages 建，勾选状态取当前页的引用列表。
+            foreach (var selection in BasePageSelections)
+                selection.Detach();
+
+            BasePageSelections.Clear();
+
+            var selectedIds = _selectedPage?.BasePageIds ?? new List<Guid>();
+            _lastBasePageIds = selectedIds.ToList();
+
+            foreach (var page in document.BasePages)
+                BasePageSelections.Add(new BasePageSelection(this, page, selectedIds.Contains(page.PageId)));
+
             RaisePropertyChanged(nameof(SelectedBasePage));
+            RaisePropertyChanged(nameof(SelectedBasePages));
+            RaisePropertyChanged(nameof(BasePageSummary));
             RaisePropertyChanged(nameof(CanSelectBasePage));
+            ClearBasePagesCommand.RaiseCanExecuteChanged();
         }
 
         private void OnBasePagesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -313,6 +366,7 @@ namespace VisionMaster.ViewModels
                 RaisePropertyChanged(nameof(HasPage));
                 RaisePropertyChanged(nameof(SelectedBasePage));
                 RaisePropertyChanged(nameof(CanSelectBasePage));
+                RebuildBasePageOptions();
             }
         }
 
@@ -354,8 +408,57 @@ namespace VisionMaster.ViewModels
                     return;
 
                 Document.TrySetBasePage(page, target, out _);
-                RaisePropertyChanged(nameof(SelectedBasePage));
+                RebuildBasePageOptions();
             }
+        }
+
+        /// <summary>
+        /// 多选菜单里勾/取消一只基座：写文档的引用列表，然后刷新摘要与画布绑定。
+        /// 文档拒绝（比如当前页本身是基座）时重建候选项，把复选框拨回真实状态——
+        /// 让界面自己"弹回去"比静默留在一个假勾选上清楚。
+        /// </summary>
+        internal void OnBasePageSelectionChanged(BasePageSelection selection)
+        {            if (_selectedPage is not { } page || Document.IsBasePage(page))
+            {
+                RebuildBasePageOptions();
+                return;
+            }
+
+            if (selection.IsSelected)
+            {
+                if (!Document.TryAddBasePageReference(page, selection.Page, out _))
+                {
+                    RebuildBasePageOptions();
+                    return;
+                }
+            }
+            else if (!Document.TryRemoveBasePageReference(page, selection.Page, out _))
+            {
+                RebuildBasePageOptions();
+                return;
+            }
+
+            _lastBasePageIds = page.BasePageIds.ToList();
+            RaisePropertyChanged(nameof(SelectedBasePage));
+            RaisePropertyChanged(nameof(SelectedBasePages));
+            RaisePropertyChanged(nameof(BasePageSummary));
+        }
+
+        private void OnClearBasePages()
+        {
+            if (_selectedPage is not { } page)
+                return;
+
+            Document.TrySetBasePage(page, null, out _);
+            RebuildBasePageOptions();
+        }
+
+        /// <summary>基座页改名时刷新顶栏摘要（候选项自己订阅了 Name，摘要读的是同一批对象）。</summary>
+        internal void RaiseBasePageSummaryChanged()
+        {
+            RaisePropertyChanged(nameof(SelectedBasePage));
+            RaisePropertyChanged(nameof(SelectedBasePages));
+            RaisePropertyChanged(nameof(BasePageSummary));
         }
 
         /// <summary>
@@ -564,6 +667,9 @@ namespace VisionMaster.ViewModels
         /// </summary>
         public DelegateCommand AddBasePageCommand { get; }
 
+        /// <summary>新建弹窗页（特殊画面）：建页后立即勾上 <see cref="ScadaPage.IsPopup"/> 并切过去。</summary>
+        public DelegateCommand AddPopupPageCommand { get; }
+
         public DelegateCommand RemovePageCommand { get; }
 
         /// <summary>运行当前方案（弹出全屏运行窗口）</summary>
@@ -770,6 +876,12 @@ namespace VisionMaster.ViewModels
             RedoCommand.RaiseCanExecuteChanged();
             RaisePropertyChanged(nameof(UndoLabel));
             RaisePropertyChanged(nameof(RedoLabel));
+
+            // 撤销/重做可能把 BasePageIds 整个换掉（它是一次标量变更）：候选项、摘要与画布绑定
+            // 都是按当前页算的，不重建就会"模型回去了、画面和勾选还停在旧值"。
+            // 但普通图元编辑的撤销也会走到这里，先比快照，避免每次 Ctrl+Z 都全量重建画布。
+            if (_selectedPage is { } page && !page.BasePageIds.SequenceEqual(_lastBasePageIds))
+                RebuildBasePageOptions();
         }
 
         /// <summary>
@@ -808,8 +920,17 @@ namespace VisionMaster.ViewModels
             // 新画面默认沿用<b>当前页的基座</b>：现场建一批"长得一样"的画面是常态
             // （同一产线的好几个工位都该带同一份报警条与公共图元），
             // 没有基座则不带——新画面从空白开始。
-            var baseId = _selectedPage?.BasePageId ?? Guid.Empty;
-            var page = Document.AddPage(basePageId: baseId);
+            var baseIds = _selectedPage?.BasePageIds.ToList() ?? new List<Guid>();
+            var page = Document.AddPage(basePageId: baseIds.FirstOrDefault());
+
+            // 多基座：第一只由 AddPage 带进去，其余在建页之后补上（低频动作，多一条撤销记录可接受）。
+            if (baseIds.Count > 1)
+            {
+                using (page.BeginEdit("沿用多只基座"))
+                {
+                    page.SetBasePageIds(baseIds);
+                }
+            }
 
             // 新画面立刻成为编辑目标：否则用户点完"新建"看到的还是旧画面，
             // 会以为没生效而连点好几次
@@ -834,6 +955,34 @@ namespace VisionMaster.ViewModels
             }
 
             SelectedPage = page;
+        }
+
+        private void OnAddPopupPage()
+        {
+            ScadaPage page;
+
+            // 建页 + 标记 + 改尺寸合成一次撤销（AddPage 内部的作用域会并入外层）。
+            using (Document.BeginEdit("新建弹窗页"))
+            {
+                page = Document.AddPage(NextPopupPageName());
+                page.IsPopup = true;
+                page.Width = 480;
+                page.Height = 320;
+            }
+
+            SelectedPage = page;
+        }
+
+        private string NextPopupPageName()
+        {
+            var used = new HashSet<string>(
+                Document.Pages.Select(p => p.Name), StringComparer.OrdinalIgnoreCase);
+
+            int index = 1;
+            while (used.Contains($"弹窗_{index}"))
+                index++;
+
+            return $"弹窗_{index}";
         }
 
         /// <summary>取当前未被占用的最小「基座_N」（与 <c>ScadaDocument.NextPageName</c> 同一口径）</summary>
@@ -1200,11 +1349,29 @@ namespace VisionMaster.ViewModels
                     templateRevision: templateRevision).Count > 0;
             }
 
+            // 参数化模板拖入时问一次实例序号：用户想"把 0 换成 1"最自然的入口就是这里，
+            // 不必为了一个实例去开批量插入对话框。
+            int defaultIndex = ScadaTemplateStore.Shared.GetParameterIndex(templateId);
+            var (indexConfirmed, indexText) = EasyDialog.ShowTextInputSync(
+                "插入模板序号（{i} 的值）",
+                defaultIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+            if (!indexConfirmed)
+                return false;
+
+            if (!int.TryParse(indexText.Trim(), System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture, out int instanceIndex)
+                || instanceIndex < 0)
+            {
+                EasyDialog.ShowSync("插入模板失败", "实例序号必须是非负整数");
+                return false;
+            }
+
             var resolver = new ScadaTemplateVariableResolver(_workspace.VariableRegistry);
             var options = new ScadaTemplateExpansionOptions
             {
                 Count = 1,
-                StartIndex = ScadaTemplateStore.Shared.GetParameterIndex(templateId),
+                StartIndex = instanceIndex,
                 Columns = 1,
                 OriginX = originX,
                 OriginY = originY,
@@ -2437,6 +2604,7 @@ namespace VisionMaster.ViewModels
             RebuildBasePageOptions();
             AddPageCommand.RaiseCanExecuteChanged();
             AddBasePageCommand.RaiseCanExecuteChanged();
+            AddPopupPageCommand.RaiseCanExecuteChanged();
             RunPageCommand.RaiseCanExecuteChanged();
 
             var pages = Pages;
@@ -2497,6 +2665,52 @@ namespace VisionMaster.ViewModels
         {
             if (e.PropertyName == nameof(ScadaPage.Name))
                 RaisePropertyChanged(nameof(Name));
+        }
+    }
+
+    /// <summary>
+    /// 顶栏「基座」多选菜单的一行：一只已注册基座 + 本页是否引用它。
+    ///
+    /// 勾选动作直接回写文档（<see cref="ScadaEditorViewModel.OnBasePageSelectionChanged"/>），
+    /// 行本身不持有"本页引用了哪些基座"的第二份状态——真值只有 <see cref="ScadaPage.BasePageIds"/> 一处。
+    /// </summary>
+    public sealed class BasePageSelection : BindableBase
+    {
+        private readonly ScadaEditorViewModel _owner;
+        private bool _isSelected;
+
+        internal BasePageSelection(ScadaEditorViewModel owner, ScadaPage page, bool isSelected)
+        {
+            _owner = owner ?? throw new ArgumentNullException(nameof(owner));
+            Page = page ?? throw new ArgumentNullException(nameof(page));
+            _isSelected = isSelected;
+            Page.PropertyChanged += OnPagePropertyChanged;
+        }
+
+        public ScadaPage Page { get; }
+
+        public string Name => Page.Name;
+
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (SetProperty(ref _isSelected, value))
+                    _owner.OnBasePageSelectionChanged(this);
+            }
+        }
+
+        /// <summary>摘掉对基座页的改名订阅（菜单重建时调用）。</summary>
+        public void Detach() => Page.PropertyChanged -= OnPagePropertyChanged;
+
+        private void OnPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ScadaPage.Name))
+            {
+                RaisePropertyChanged(nameof(Name));
+                _owner.RaiseBasePageSummaryChanged();
+            }
         }
     }
 }

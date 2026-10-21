@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>工具箱拖拽浮层 · 设计基线 v1</title>
+<style>
+  @font-face {
+    font-family: 'FA6Pro';
+    src: url('../../../UI/Controls/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf') format('opentype');
+    font-display: block;
+  }
+
+  :root {
+    --ink: #0F172A;
+    --ink-2: #475569;
+    --ink-3: #64748B;
+    --line: #E2E8F0;
+    --panel: #FFFFFF;
+    --canvas: #F8FAFC;
+    --accent: #0EA5E9;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    width: 1160px;
+    margin: 0 auto;
+    padding: 36px 44px 56px;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1 { margin: 0 0 6px; font-size: 24px; letter-spacing: .2px; }
+  h2 { margin: 40px 0 14px; font-size: 16px; letter-spacing: .3px; }
+  h2 .num { color: var(--accent); margin-right: 8px; font-variant-numeric: tabular-nums; }
+  h3 { margin: 0 0 10px; font-size: 13px; color: var(--ink-2); font-weight: 600; }
+  p { margin: 8px 0; font-size: 13px; line-height: 1.75; color: var(--ink-2); }
+  .muted { color: var(--ink-3); font-size: 12px; }
+
+  .meta { width: 100%; border-collapse: collapse; margin-top: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .meta td { padding: 8px 12px; font-size: 12.5px; border-bottom: 1px solid var(--line); }
+  .meta tr:last-child td { border-bottom: none; }
+  .meta td:first-child { width: 132px; color: var(--ink-3); background: #FBFCFE; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
+  .row { display: flex; gap: 18px; align-items: stretch; }
+  .col { flex: 1; min-width: 0; }
+  .col h3 { display: flex; align-items: center; gap: 8px; }
+  .tag { font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 999px; }
+  .tag.before { color: #B45309; background: #FEF3C7; }
+  .tag.after { color: #0369A1; background: #E0F2FE; }
+
+  /* ---------- 拖拽浮层：现状 ---------- */
+  .ghost-old {
+    display: inline-flex; align-items: center;
+    height: 34px; min-width: 140px; padding: 0 12px;
+    background: #FFFFFF; border: 1px solid var(--accent); border-radius: 8px;
+    box-shadow: 0 4px 18px rgba(15,23,42,.16);
+    white-space: nowrap;
+  }
+  .ghost-old .grip { width: 20px; color: var(--ink-3); font-family: 'FA6Pro'; font-size: 14px; }
+  .ghost-old .icon { margin-left: 8px; color: var(--accent); font-family: 'FA6Pro'; font-size: 14px; }
+  .ghost-old .name { margin-left: 8px; font-size: 12.5px; color: var(--ink); }
+
+  /* ---------- 拖拽浮层：提案 ---------- */
+  .ghost {
+    display: inline-flex; align-items: center;
+    height: 38px; min-width: 148px; max-width: 248px;
+    padding: 0 14px 0 6px;
+    background: rgba(255,255,255,.96);
+    border: 1px solid var(--accent); border-radius: 9px;
+    box-shadow: 0 5px 20px rgba(15,23,42,.18);
+    white-space: nowrap;
+  }
+  .ghost .chip {
+    flex: none; width: 26px; height: 26px; border-radius: 7px;
+    display: grid; place-items: center;
+    background: color-mix(in srgb, var(--cat) 12%, #FFFFFF);
+    border: 1px solid color-mix(in srgb, var(--cat) 35%, #FFFFFF);
+    color: var(--cat); font-family: 'FA6Pro'; font-size: 13px;
+  }
+  .ghost .name {
+    margin-left: 9px; max-width: 170px;
+    overflow: hidden; text-overflow: ellipsis;
+    font-size: 12.5px; font-weight: 600; color: var(--ink);
+  }
+
+  /* ---------- 2× 细节 ---------- */
+  .zoom-row { display: flex; align-items: center; gap: 32px; padding: 10px 0; }
+  .zoom-slot { position: relative; flex: none; width: 470px; height: 84px; }
+  .zoom-inner { position: absolute; left: 0; top: 4px; transform: scale(2); transform-origin: top left; }
+  .zoom-label { font-size: 12px; color: var(--ink-3); }
+  .zoom-label b { color: var(--ink-2); }
+
+  /* ---------- 状态网格 ---------- */
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .state { border: 1px dashed var(--line); border-radius: 10px; padding: 16px 18px 14px; background: #FDFEFE; }
+  .state .label { margin-top: 12px; font-size: 11.5px; color: var(--ink-3); }
+  .state .label b { color: var(--ink-2); font-weight: 600; }
+
+  /* ---------- 指针关系 ---------- */
+  .pointer-stage {
+    position: relative; height: 210px; border-radius: 10px; overflow: hidden;
+    background-color: #F8FAFC;
+    background-image: radial-gradient(#CBD5E1 1px, transparent 1.2px);
+    background-size: 24px 24px;
+    border: 1px solid var(--line);
+  }
+  .pointer-stage .ghost { position: absolute; left: 260px; top: 96px; }
+  .pointer-stage .cursor { position: absolute; left: 246px; top: 86px; width: 18px; height: 26px; }
+  .pointer-stage .note { position: absolute; left: 300px; top: 148px; font-size: 11.5px; color: var(--ink-3); }
+
+  /* ---------- 规格表 ---------- */
+  table.spec { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  table.spec th, table.spec td { padding: 8px 12px; font-size: 12.5px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.spec th { background: #F8FAFC; color: var(--ink-3); font-weight: 600; }
+  table.spec tr:last-child td { border-bottom: none; }
+  code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 11.5px; color: #0F172A; background: #F1F5F9; padding: 1px 5px; border-radius: 4px; }
+
+  ul { margin: 8px 0; padding-left: 20px; }
+  li { font-size: 12.5px; line-height: 1.85; color: var(--ink-2); }
+
+  .divider { height: 1px; background: var(--line); margin: 22px 0; }
+</style>
+</head>
+<body>
+
+  <h1>工具箱拖拽浮层 · 设计基线 v1</h1>
+  <p class="muted">流程画布 / 工具箱：从工具箱拖算子到画布时跟随指针的浮层（gong-wpf-dragdrop 的 DragAdornerTemplate）。</p>
+
+  <table class="meta">
+    <tr><td>版本</td><td>v1（提案）</td></tr>
+    <tr><td>日期</td><td>2026-10-21</td></tr>
+    <tr><td>确认人</td><td><b>待用户确认</b>（未确认前不得改 WPF，R127）</td></tr>
+    <tr><td>覆盖范围</td><td><code>VisionMaster/Views/ToolView.xaml</code> 的 <code>MyDragAdornerTemplate</code> 与拖拽源偏移</td></tr>
+    <tr><td>设计媒介</td><td>本 HTML（自包含，浏览器直接打开；不进入构建、不部署，R126）</td></tr>
+  </table>
+
+  <h2><span class="num">01</span>现状 vs 提案</h2>
+
+  <div class="row">
+    <div class="col card">
+      <h3>现状（v0）<span class="tag before">BEFORE</span></h3>
+      <div class="ghost-old">
+        <span class="grip">&#xf142;</span>
+        <span class="icon">&#xf1c5;</span>
+        <span class="name">图像二值化</span>
+      </div>
+      <p>① <b>“⋮” 没有功能含义</b>，看起来像可拖动的把手，实际只是装饰；<br>
+         ② 图标固定蓝色，<b>丢失分类身份</b>（工具箱条目是分类色）；<br>
+         ③ 名称不截断，长名字会把浮层拉得很宽；<br>
+         ④ 指针偏移 <code>(-4,-4)</code>，<b>箭头压住浮层左上角</b>。</p>
+    </div>
+
+    <div class="col card">
+      <h3>提案（v1）<span class="tag after">AFTER</span></h3>
+      <div class="ghost" style="--cat:#3B82F6">
+        <span class="chip">&#xf1c5;</span>
+        <span class="name">图像二值化</span>
+      </div>
+      <p>① 去掉 “⋮”，换成<b>与工具箱条目同源的分类色图标块</b>（浅底 + 描边 + 强调色字形）；<br>
+         ② 名称加粗、限宽 170px、超出省略；<br>
+         ③ 指针偏移 <code>(14,10)</code>，<b>箭头落在浮层外</b>；<br>
+         ④ 尺寸/圆角/阴影微调，观感更接近“拿起来的一张小卡片”。</p>
+    </div>
+  </div>
+
+  <p class="muted">上图均为 1:1 实际尺寸。下面是 2× 细节（图标块、描边、字重）。</p>
+  <div class="card" style="padding:10px 24px;">
+    <div class="zoom-row">
+      <div class="zoom-slot"><div class="zoom-inner"><div class="ghost" style="--cat:#3B82F6"><span class="chip">&#xf1c5;</span><span class="name">图像二值化</span></div></div></div>
+      <div class="zoom-label"><b>图像处理</b> · 分类色 #3B82F6</div>
+    </div>
+    <div class="zoom-row">
+      <div class="zoom-slot"><div class="zoom-inner"><div class="ghost" style="--cat:#F59E0B"><span class="chip">&#xf545;</span><span class="name">卡尺测量</span></div></div></div>
+      <div class="zoom-label"><b>测量</b> · 分类色 #F59E0B</div>
+    </div>
+    <div class="zoom-row">
+      <div class="zoom-slot"><div class="zoom-inner"><div class="ghost" style="--cat:#EF4444"><span class="chip">&#xf188;</span><span class="name">缺陷检测</span></div></div></div>
+      <div class="zoom-label"><b>缺陷检测</b> · 分类色 #EF4444</div>
+    </div>
+  </div>
+
+  <h2><span class="num">02</span>关键状态</h2>
+
+  <div class="grid">
+    <div class="state">
+      <h3>默认（短名）</h3>
+      <div class="ghost" style="--cat:#3B82F6"><span class="chip">&#xf1c5;</span><span class="name">图像二值化</span></div>
+      <div class="label"><b>高 38 / 最小宽 148</b>：短名时也保持一个稳定的“卡片”体量，不会缩成一条。</div>
+    </div>
+
+    <div class="state">
+      <h3>长名称（截断）</h3>
+      <div class="ghost" style="--cat:#F59E0B"><span class="chip">&#xf545;</span><span class="name">两点距离测量与公差判定（长名字示例）</span></div>
+      <div class="label"><b>名称上限 170px</b>：超出省略；卡片最宽 248，不再随名字无限变宽。</div>
+    </div>
+
+    <div class="state">
+      <h3>不同分类（只换图标块颜色）</h3>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div class="ghost" style="--cat:#6366F1"><span class="chip">&#xf0e8;</span><span class="name">逻辑判断</span></div>
+        <div class="ghost" style="--cat:#10B981"><span class="chip">&#xf140;</span><span class="name">几何工具</span></div>
+      </div>
+      <div class="label"><b>描边/文字保持单一身份色</b>：浮层首先是“拖拽中”，分类信息只在图标块里表达，避免满屏高饱和色。</div>
+    </div>
+
+    <div class="state">
+      <h3>未知分类（回退）</h3>
+      <div class="ghost" style="--cat:#909399"><span class="chip">&#xf1b3;</span><span class="name">第三方算子</span></div>
+      <div class="label"><b>灰 + 通用图标（cubes）</b>：与工具箱条目同一套回退规则，不报错、不空白。</div>
+    </div>
+  </div>
+
+  <h2><span class="num">03</span>指针关系</h2>
+
+  <div class="pointer-stage">
+    <svg class="cursor" viewBox="0 0 18 26" xmlns="http://www.w3.org/2000/svg">
+      <path d="M1 1 L1 20.5 L5.6 16.3 L8.6 23.4 L11.6 22.1 L8.7 15.2 L14.7 14.6 Z"
+            fill="#FFFFFF" stroke="#0F172A" stroke-width="1.4" stroke-linejoin="round"/>
+    </svg>
+    <div class="ghost" style="--cat:#3B82F6"><span class="chip">&#xf1c5;</span><span class="name">图像二值化</span></div>
+    <div class="note">指针热点 → 卡片左上角 = <b>(14, 10)</b>；箭头完整落在卡片外</div>
+  </div>
+
+  <p class="muted">库默认偏移 <code>(-4,-4)</code>：卡片左上角在指针热点的左上方，箭头压在卡片边缘与图标块上（现状截图里最明显的问题）。</p>
+
+  <h2 id="spec"><span class="num">04</span>规格与令牌映射</h2>
+
+  <table class="spec">
+    <tr><th style="width:150px">项</th><th style="width:210px">Web（本稿）</th><th>WPF 资源键 / 实现</th></tr>
+    <tr><td>容器高度</td><td>38px</td><td><code>Border.Height="38"</code></td></tr>
+    <tr><td>最小 / 最大宽</td><td>148 / 248px</td><td><code>MinWidth="148" MaxWidth="248"</code></td></tr>
+    <tr><td>圆角</td><td>9px</td><td><code>CornerRadius="9"</code></td></tr>
+    <tr><td>内边距</td><td>左 6 / 右 14</td><td><code>Padding="6,0,14,0"</code></td></tr>
+    <tr><td>底色</td><td><code>rgba(255,255,255,.96)</code></td><td>白 + <code>Opacity="0.96"</code></td></tr>
+    <tr><td>描边</td><td>1px <code>#0EA5E9</code></td><td><code>PrimaryBrush</code>（模板内本地画刷）</td></tr>
+    <tr><td>阴影</td><td><code>0 5px 20px rgba(15,23,42,.18)</code></td><td><code>DropShadowEffect BlurRadius=20 ShadowDepth=5 Opacity=0.18</code></td></tr>
+    <tr><td>图标块</td><td>26×26 / 圆角 7 / 13px 字形</td><td>Grid 26×26 + <code>CornerRadius="7"</code></td></tr>
+    <tr><td>图标块浅底</td><td>分类色 12% + 白</td><td><code>CategorySoftBrushConverter</code>（88% 白混合）</td></tr>
+    <tr><td>图标块描边</td><td>分类色 35% + 白</td><td><code>CategoryBorderBrushConverter</code>（65% 白混合）</td></tr>
+    <tr><td>图标字形</td><td>分类色</td><td><code>CategoryAccentBrushConverter</code>（与工具箱条目同源）</td></tr>
+    <tr><td>名称</td><td>12.5px / 600 / <code>#0F172A</code></td><td><code>FontSize=12.5 FontWeight=SemiBold</code> + <code>TextPrimaryBrush</code></td></tr>
+    <tr><td>名称限宽</td><td>170px + 省略号</td><td><code>MaxWidth="170" TextTrimming="CharacterEllipsis"</code></td></tr>
+    <tr><td>指针偏移</td><td>(14, 10)</td><td><code>dd:DragDrop.DragAdornerTranslation="14,10"</code></td></tr>
+    <tr><td>动效</td><td>120ms 淡入</td><td>gong 的 <code>PopupAnimation.Fade</code>（不可调时长）</td></tr>
+  </table>
+
+  <h2><span class="num">05</span>交互与边界</h2>
+  <ul>
+    <li><b>跟手</b>：跟随指针移动，不参与命中测试（<code>IsHitTestVisible=false</code>，库内固定），不会挡住放置目标。</li>
+    <li><b>落子即消失</b>：拖放成功/取消/按 Esc 都由 gong 的放置端关闭（本轮已修：画布改为 <code>IsDropTarget</code>）。</li>
+    <li><b>不表达“能不能放”</b>：浮层只表示“正在拖什么”。能不能落由指针处的光标效果与落点闸门决定（例如 Break 只能进 For/While，被拒时状态栏给文案）。</li>
+    <li><b>屏幕边缘</b>：Popup 不自动翻转，靠近右/下边缘时可能被裁切——库行为，本次不改。</li>
+    <li><b>长名字</b>：省略号截断；完整名字可在工具箱条目上悬停查看（现有预览浮层）。</li>
+  </ul>
+
+  <h2><span class="num">06</span>已知偏差（R130 预判）</h2>
+  <ul>
+    <li><b>阴影</b>：WPF Popup 的尺寸等于内容 <code>DesiredSize</code>，不含 Effect 外扩；真机上阴影可能比本稿少一圈。属允许偏差。</li>
+    <li><b>字体度量</b>：本稿用系统 UI 字体，WPF 用应用默认字体；同一名称的截断点可能差 1~2 个字符。属允许偏差。</li>
+    <li><b>图标字形</b>：本稿用仓库内 FA 6 Pro Solid 的码点，与 WPF 同一字体；但浏览器与 WPF 的字形 hinting 不同，像素级会有差异。</li>
+    <li><b>动效</b>：本稿只写 120ms 淡入；WPF 侧时长由库固定，不做自定义动画。</li>
+    <li><b>DPI</b>：本稿按 100% 出图；125%/150% 下 1px 描边与 38 高按 DIP 缩放，不做像素级承诺。</li>
+  </ul>
+
+  <div class="divider"></div>
+  <p class="muted">确认方式：本稿确认后，按 §04 的令牌映射复刻到 <code>ToolView.xaml</code>，再用同一状态出 WPF 截图与本稿逐块对照（R129/R132）。</p>
+
+</body>
+</html>

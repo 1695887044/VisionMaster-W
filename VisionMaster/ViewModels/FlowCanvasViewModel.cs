@@ -243,6 +243,10 @@ namespace VisionMaster.ViewModels
         /// <summary>摘除 Workspace 通知与流程/嵌套集合订阅（幂等）。摘干净后旧 VM 可被 GC</summary>
         public void Deactivate()
         {
+            // 视图离树时拖动浮层/参考线不能留在屏幕上（幂等，放在早退之前）
+            HideDragGhost();
+            HideDragGuides();
+
             if (!_subscribed) return;
             _subscribed = false;
 
@@ -2093,7 +2097,16 @@ namespace VisionMaster.ViewModels
             Point position = parameter is Point p ? p
                 : LastPointerGraphPosition ?? new Point(0, double.MaxValue);   // 无落点信息 → 追加到顶层末尾
 
-            var (owner, insertIndex, targetName) = ResolveInsertTarget(position);
+            var (owner, insertIndex, targetName, targetContainer) = ResolveInsertTarget(position);
+
+            // 循环控制指令的落点闸门（与拖入同一条）：粘贴件整棵子树都要有循环归属
+            var chain = StepFactory.ContainerChainOf(_attachedFlow.Steps, targetContainer);
+            string? misplaced = StepFactory.FindMisplacedLoopControl(new[] { step }, chain);
+            if (misplaced != null)
+            {
+                StatusHint = $"「{misplaced}」{StepFactory.LoopControlPlacementMessage}";
+                return;
+            }
 
             if (insertIndex < 0) insertIndex = 0;
             if (insertIndex > owner.Count) insertIndex = owner.Count;
@@ -2580,10 +2593,69 @@ namespace VisionMaster.ViewModels
             return result;
         }
 
+        // ------------------------------------------------------------------
+        //  拖动浮层（纯视觉）：画布内拖动节点时跟随指针的迷你卡片
+        //
+        //  与工具箱、流程栏共用 VisionMaster\Controls\DragGhostCard（设计基线 v2）。
+        //  Nodify 没有公开的拖动开始事件（只有 ItemsDragStartedCommand），所以状态由
+        //  OnItemsDragStarted / OnItemsDragCompleted 发布；视图只负责按鼠标位置挪 Popup，
+        //  这里不参与改序/跨分支的任何判定。
+        // ------------------------------------------------------------------
+
+        /// <summary>拖动浮层是否可见（视图的 Popup IsOpen）</summary>
+        public bool IsDragGhostVisible
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        }
+
+        /// <summary>浮层主标题（主拖动节点名）</summary>
+        public string? DragGhostTitle
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        }
+
+        /// <summary>浮层副标题（分类名；多选时为"共 N 个模块"）</summary>
+        public string? DragGhostCategory
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        }
+
+        /// <summary>浮层图标码点</summary>
+        public string? DragGhostIcon
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        }
+
+        private void ShowDragGhost(IReadOnlyList<DragSnapshot> snapshot)
+        {
+            var primary = snapshot.Count > 0 ? snapshot[0].Node.Model : null;
+            if (primary == null)
+            {
+                HideDragGhost();
+                return;
+            }
+
+            DragGhostIcon = primary.Icon;
+            DragGhostTitle = primary.StepName;
+            DragGhostCategory = snapshot.Count > 1 ? $"共 {snapshot.Count} 个模块" : primary.Category;
+            IsDragGhostVisible = true;
+        }
+
+        private void HideDragGhost()
+        {
+            if (!IsDragGhostVisible) return;
+            IsDragGhostVisible = false;
+        }
+
         private void OnItemsDragStarted(object? parameter)
         {
             _dragStartedSnapshot = null;
             HideDragGuides();   // 上一次手势若没走到 Completed（异常路径），入场先摘干净
+            HideDragGhost();
 
             if (_attachedFlow == null) return;
 
@@ -2616,13 +2688,17 @@ namespace VisionMaster.ViewModels
                 _guideDragNode = snapshot[0].Node;
                 _guideDragNode.PropertyChanged += OnDragGuideNodeMoved;
                 UpdateDragGuides();
+
+                // 拖动浮层（纯视觉）：卡片内容取主拖动节点；多选时副标题显示数量
+                ShowDragGhost(snapshot);
             }
         }
 
         private void OnItemsDragCompleted(object? parameter)
         {
-            // 参考线是拖动期视觉，抬手即收——放在一切早退之前（含"被运行锁拦下"的路径）
+            // 参考线/浮层是拖动期视觉，抬手即收——放在一切早退之前（含"被运行锁拦下"的路径）
             HideDragGuides();
+            HideDragGhost();
 
             var snapshot = _dragStartedSnapshot;
             _dragStartedSnapshot = null;
@@ -2767,7 +2843,17 @@ namespace VisionMaster.ViewModels
             // 运行锁：拖入是结构编辑，运行中拦下（三视角评审 P0-1）
             if (!EnsureEditable(ModuleEditAction.StructuralEdit)) return false;
 
-            var (owner, insertIndex, targetName) = ResolveInsertTarget(position);
+            var (owner, insertIndex, targetName, targetContainer) = ResolveInsertTarget(position);
+
+            // 循环控制指令的落点闸门：Break/Continue 只能进 For/While（顶层与并行分支里
+            // 运行期会忽略它们——允许落子等于给"看着配好了、其实没生效"的假绿）。
+            if (!StepFactory.AllowsLoopControl(
+                    tool.ModuleTypeName,
+                    StepFactory.ContainerChainOf(_attachedFlow.Steps, targetContainer)))
+            {
+                StatusHint = $"「{tool.Name}」{StepFactory.LoopControlPlacementMessage}";
+                return false;
+            }
 
             string stepName = StepFactory.NextStepName(_attachedFlow, tool);
             var step = StepFactory.CreateFromTool(tool, stepName);
@@ -2791,16 +2877,18 @@ namespace VisionMaster.ViewModels
         /// 落点判定（画布拖入与粘贴共用一条规则，与流程栏 Drop 的可见结果对齐）：
         ///  · 容器框内（取最深）→ 该容器第一条分支末尾；
         ///  · 其余 → 顶层：插入下标 = 顶层步骤里"节点中心 Y 小于落点 Y"的条数（画布坐标）。
+        /// <paramref name="TargetContainer"/> = 落点所在容器（顶层为 null），
+        /// 供 Break/Continue 的循环归属闸门算容器链。
         /// </summary>
-        private (ObservableCollection<StepModel> Owner, int InsertIndex, string TargetName) ResolveInsertTarget(Point position)
+        private (ObservableCollection<StepModel> Owner, int InsertIndex, string TargetName, StepModel? TargetContainer) ResolveInsertTarget(Point position)
         {
             var container = FindDeepestContainerAt(position);
 
             // 畸形容器（模型层构造保证不会出现）没有分支可落：退化按顶层插入，不让落点"无声失败"
             if (container?.Model is IContainerStep target && target.Children is { Count: > 0 })
-                return (target.Children[0].Steps, target.Children[0].Steps.Count, $"「{container.Model.StepName}」");
+                return (target.Children[0].Steps, target.Children[0].Steps.Count, $"「{container.Model.StepName}」", container.Model);
 
-            return (_attachedFlow!.Steps, ComputeInsertIndexByY(_attachedFlow.Steps, position.Y, null), "主流程");
+            return (_attachedFlow!.Steps, ComputeInsertIndexByY(_attachedFlow.Steps, position.Y, null), "主流程", null);
         }
 
         /// <summary>在 owner 内按中心 Y 升序排（含被拖节点），算出被拖节点应处的下标</summary>

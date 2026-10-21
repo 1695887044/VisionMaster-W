@@ -175,4 +175,47 @@ namespace VisionMaster.Helpers
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
             => throw new NotSupportedException();
     }
+
+    /// <summary>
+    /// 分类色 → 图标块渐变底（18% → 7% 分类色，145°），拖拽浮层的迷你卡片用。
+    /// 纯色浅底在分类色字形旁显得"平"，两档渐变给一点体积感；比例与设计基线
+    /// `docs/UI设计基线/toolbox-drag-ghost/design.html` §05 一一对应。
+    /// </summary>
+    public sealed class CategoryChipBrushConverter : IValueConverter
+    {
+        private static readonly Dictionary<string, Brush> Cache = new(StringComparer.Ordinal);
+        private static readonly object Gate = new();
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var category = value as string ?? string.Empty;
+            lock (Gate)
+            {
+                if (Cache.TryGetValue(category, out var cached)) return cached;
+                var brush = CreateGradient(category);
+                Cache[category] = brush;
+                return brush;
+            }
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+
+        private static Brush CreateGradient(string category)
+        {
+            var c = ToolboxCategoryVisuals.ColorFor(category);
+            static Color Blend(Color color, double whiteRatio) => Color.FromRgb(
+                (byte)Math.Round(color.R + (255 - color.R) * whiteRatio),
+                (byte)Math.Round(color.G + (255 - color.G) * whiteRatio),
+                (byte)Math.Round(color.B + (255 - color.B) * whiteRatio));
+
+            var brush = new LinearGradientBrush(
+                Blend(c, 0.82),   // 18% 分类色
+                Blend(c, 0.93),   // 7% 分类色
+                new System.Windows.Point(0, 0),
+                new System.Windows.Point(1, 1));
+            brush.Freeze();
+            return brush;
+        }
+    }
 }

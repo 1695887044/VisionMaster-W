@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>控制台（日志）· 设计基线 v1</title>
+<style>
+  :root {
+    /* ---- 令牌：与 UI/Controls/Themes/Colors.xaml 一一对应 ---- */
+    --accent: #0EA5E9;              /* DialogAccentBrush */
+    --accent-dark: #0284C7;         /* DialogAccentDarkBrush */
+    --accent-light: #E0F2FE;        /* DialogAccentLightBrush */
+    --accent-soft: #F0F9FF;         /* DialogAccentSoftBrush */
+    --accent-border: #BAE6FD;       /* DialogAccentBorderBrush */
+    --accent-text: #0369A1;         /* DialogAccentTextBrush */
+
+    --surface: #FFFFFF;             /* DialogSurfaceBrush */
+    --surface-2: #F8FAFC;           /* DialogRowAlternateBrush */
+    --background: #EEF2F7;          /* DialogBackgroundBrush */
+    --border: #E2E8F0;              /* DialogBorderBrush */
+    --border-light: #EEF2F7;        /* DialogBorderLightBrush */
+    --border-strong: #CBD5E1;       /* DialogBorderStrongBrush */
+
+    --text-1: #0F172A;              /* DialogTextPrimaryBrush */
+    --text-2: #475569;              /* DialogTextSecondaryBrush */
+    --text-3: #64748B;              /* DialogTextTertiaryBrush */
+    --text-4: #94A3B8;              /* DialogTextMutedBrush */
+
+    --success: #22C55E;             /* DialogSuccessBrush */
+    --success-text: #15803D;        /* DialogSuccessTextBrush */
+    --warning: #F59E0B;             /* DialogWarningBrush */
+    --warning-text: #B45309;        /* DialogWarningTextBrush */
+    --danger: #EF4444;              /* DialogDangerBrush */
+    --danger-text: #B91C1C;         /* DialogDangerTextBrush */
+    --info: #0EA5E9;                /* 信息级 = 强调色，与 LogLevel.Info 一致 */
+
+    --row-hover: #F1F5F9;           /* DialogRowHoverBrush */
+
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+
+    --font: -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    padding: 28px;
+    background: var(--background);
+    font-family: var(--font);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-1);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  /* ============ 设计稿外壳（面板在 Shell 里是停靠面板，不是窗口） ============ */
+  .panel {
+    width: 720px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, .10), 0 2px 6px rgba(15, 23, 42, .05);
+  }
+  .panel.narrow { width: 460px; }
+
+  .caption {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .caption h1 { margin: 0; font-size: 13px; font-weight: 600; }
+  .caption .tag {
+    font-size: 11px;
+    color: var(--text-3);
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+  .caption .size { margin-left: auto; font-size: 11px; color: var(--text-4); font-family: var(--mono); }
+
+  /* ============ 过滤工具条 ============ */
+  .filterbar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .filterbar .row { display: flex; align-items: center; gap: 8px; }
+  .filterbar .row.tight { gap: 6px; }
+
+  .field-label {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-3);
+  }
+
+  /* 搜索框：白底 + 1px 描边 + 6px 圆角；聚焦转强调色 + 2px 光环 */
+  .search {
+    position: relative;
+    width: 220px;
+    flex: 0 0 auto;
+  }
+  .search input {
+    width: 100%;
+    height: 32px;
+    padding: 0 28px 0 30px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--text-1);
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+  .search input::placeholder { color: var(--text-4); }
+  .search input:hover { border-color: var(--text-4); }
+  .search input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, .15);
+  }
+  .search .glyph {
+    position: absolute;
+    left: 9px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: var(--text-4);
+    pointer-events: none;
+  }
+  .search .clear {
+    position: absolute;
+    right: 4px; top: 50%;
+    transform: translateY(-50%);
+    width: 22px; height: 22px;
+    display: none;
+    align-items: center; justify-content: center;
+    border: 0; border-radius: 4px;
+    background: transparent;
+    color: var(--text-4);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .search .clear:hover { background: var(--row-hover); color: var(--text-2); }
+  .search.has-value .clear { display: inline-flex; }
+
+  /* 等级筹码：形状在模板里画，容器只管点击 */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 13px;
+    background: var(--surface);
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+  }
+  .chip:hover { border-color: var(--text-4); }
+  .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-4); flex: 0 0 auto; }
+  .chip .n { font-size: 11px; color: var(--text-4); font-variant-numeric: tabular-nums; }
+  .chip[data-level="all"] .dot { display: none; }
+  .chip[data-level="info"] .dot { background: var(--info); }
+  .chip[data-level="success"] .dot { background: var(--success-text); }
+  .chip[data-level="warning"] .dot { background: var(--warning-text); }
+  .chip[data-level="error"] .dot { background: var(--danger-text); }
+
+  .chip[aria-pressed="true"] { color: #fff; border-color: transparent; }
+  .chip[aria-pressed="true"] .n { color: rgba(255,255,255,.78); }
+  .chip[aria-pressed="true"] .dot { background: #fff; }
+  .chip[aria-pressed="true"][data-level="all"] { background: var(--accent-dark); }
+  .chip[aria-pressed="true"][data-level="info"] { background: var(--accent-dark); }
+  .chip[aria-pressed="true"][data-level="success"] { background: var(--success-text); }
+  .chip[aria-pressed="true"][data-level="warning"] { background: var(--warning-text); }
+  .chip[aria-pressed="true"][data-level="error"] { background: var(--danger-text); }
+
+  .spacer { flex: 1 1 auto; }
+
+  /* 跟随最新：CheckBox */
+  .check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-2);
+    cursor: pointer;
+    user-select: none;
+  }
+  .check input { appearance: none; margin: 0; width: 15px; height: 15px; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--surface); position: relative; cursor: pointer; transition: background 150ms ease, border-color 150ms ease; }
+  .check input:checked { background: var(--accent); border-color: var(--accent); }
+  .check input:checked::after {
+    content: "";
+    position: absolute; left: 4px; top: 1px;
+    width: 5px; height: 9px;
+    border: solid #fff; border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  .check input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* 计数徽标：工具条右端"显示 N / 共 M 条" */
+  .counter {
+    font-size: 11px;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .counter b { color: var(--text-1); font-weight: 600; }
+
+  /* ============ 日志表体 ============ */
+  .logbody {
+    height: 380px;
+    overflow: auto;
+    background: var(--surface);
+  }
+  .logbody::-webkit-scrollbar { width: 10px; }
+  .logbody::-webkit-scrollbar-thumb { background: rgba(100,116,139,.35); border-radius: 5px; }
+
+  .logrow {
+    display: grid;
+    grid-template-columns: 3px 84px 78px 1fr;
+    align-items: start;
+    column-gap: 10px;
+    padding: 6px 12px 6px 0;
+    border-bottom: 1px solid var(--border-light);
+    transition: background 120ms ease;
+  }
+  .logrow:nth-child(even) { background: var(--surface-2); }
+  .logrow:hover { background: var(--row-hover); }
+  .logrow .bar { align-self: stretch; width: 3px; border-radius: 0 2px 2px 0; background: var(--text-4); }
+  .logrow .time {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+    padding-top: 1px;
+  }
+  .logrow .src {
+    justify-self: start;
+    padding: 0 6px;
+    border-radius: 4px;
+    background: var(--border-light);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-2);
+    max-width: 78px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .logrow .msg {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-1);
+    word-break: break-word;
+    line-height: 1.55;
+  }
+  .logrow .msg .path { color: var(--accent-text); text-decoration: underline dotted; text-underline-offset: 2px; cursor: pointer; }
+
+  .logrow.lv-info .bar { background: var(--info); }
+  .logrow.lv-success .bar { background: var(--success); }
+  .logrow.lv-success .msg { color: var(--success-text); }
+  .logrow.lv-warning .bar { background: var(--warning); }
+  .logrow.lv-warning .msg { color: var(--warning-text); }
+  .logrow.lv-error .bar { background: var(--danger); }
+  .logrow.lv-error .msg { color: var(--danger-text); font-weight: 600; }
+  .logrow.lv-error { background: #FEF2F2; }
+  .logrow.lv-error:nth-child(even) { background: #FDECEC; }
+
+  /* ============ 空态 / 无结果态 ============ */
+  .state {
+    display: none;
+    padding: 72px 24px;
+    text-align: center;
+  }
+  .state .glyph { font-size: 34px; color: var(--border-strong); line-height: 1; }
+  .state h2 { margin: 12px 0 0; font-size: 13px; font-weight: 600; color: var(--text-3); }
+  .state p { margin: 6px 0 0; font-size: 12px; color: var(--text-4); }
+  .state .hint-btn {
+    margin-top: 12px;
+    height: 28px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--text-2);
+    cursor: pointer;
+  }
+  .state .hint-btn:hover { background: var(--row-hover); border-color: var(--border-strong); }
+
+  .is-empty .logbody { display: none; }
+  .is-empty .state[data-when="empty"] { display: block; }
+  .is-noresult .logbody { display: none; }
+  .is-noresult .state[data-when="noresult"] { display: block; }
+
+  /* ============ 底部状态条（面板级，与 Shell 状态栏不同） ============ */
+  .footbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-2);
+    font-size: 11px;
+    color: var(--text-3);
+  }
+  .footbar .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--text-2); }
+  .footbar .link {
+    border: 0; background: transparent; padding: 0;
+    font-family: inherit; font-size: 11px; color: var(--accent-text);
+    text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+  }
+  .footbar .link:hover { color: var(--accent-dark); }
+  .footbar .link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+  /* ============ 演示控制（不属于设计稿） ============ */
+  .demo {
+    position: fixed;
+    right: 20px; bottom: 20px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(15,23,42,.88);
+    border-radius: var(--radius-md);
+    color: #fff;
+    font-size: 12px;
+  }
+  .demo button {
+    height: 24px; padding: 0 10px;
+    border: 0; border-radius: var(--radius-sm);
+    background: rgba(255,255,255,.16); color: #fff;
+    font-family: inherit; font-size: 12px; cursor: pointer;
+  }
+  .demo button:hover { background: rgba(255,255,255,.28); }
+  .demo button[aria-pressed="true"] { background: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- ================= 主面板：默认态（有日志） ================= -->
+<section class="panel" id="p1">
+  <div class="caption">
+    <h1>控制台</h1>
+    <span class="tag">停靠面板</span>
+    <span class="size">720 × 520</span>
+  </div>
+
+  <div class="filterbar">
+    <div class="row">
+      <span class="field-label">搜索</span>
+      <div class="search has-value" id="search1">
+        <span class="glyph">⌕</span>
+        <input type="text" value="相机" placeholder="正文或来源" aria-label="搜索日志">
+        <button class="clear" aria-label="清空搜索">✕</button>
+      </div>
+      <span class="spacer"></span>
+      <label class="check"><input type="checkbox" checked>跟随最新</label>
+    </div>
+    <div class="row tight">
+      <span class="field-label">等级</span>
+      <div class="chips" role="group" aria-label="按等级筛选">
+        <button class="chip" data-level="all" aria-pressed="false"><span class="dot"></span>全部<span class="n">128</span></button>
+        <button class="chip" data-level="info" aria-pressed="true"><span class="dot"></span>信息<span class="n">96</span></button>
+        <button class="chip" data-level="success" aria-pressed="false"><span class="dot"></span>成功<span class="n">21</span></button>
+        <button class="chip" data-level="warning" aria-pressed="false"><span class="dot"></span>警告<span class="n">7</span></button>
+        <button class="chip" data-level="error" aria-pressed="false"><span class="dot"></span>错误<span class="n">4</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="logbody">
+    <div class="logrow lv-info">
+      <span class="bar"></span><span class="time">19:04:12.318</span><span class="src">相机</span>
+      <span class="msg">相机 camera-01 连接成功，序列号 <span class="path">SN-2024-8842</span></span>
+    </div>
+    <div class="logrow lv-info">
+      <span class="bar"></span><span class="time">19:04:12.402</span><span class="src">流程</span>
+      <span class="msg">流程「主检测」编译通过，共 18 个步骤</span>
+    </div>
+    <div class="logrow lv-success">
+      <span class="bar"></span><span class="time">19:04:13.050</span><span class="src">流程</span>
+      <span class="msg">流程「主检测」执行完成，耗时 128 ms，结果 OK</span>
+    </div>
+    <div class="logrow lv-warning">
+      <span class="bar"></span><span class="time">19:04:15.771</span><span class="src">相机</span>
+      <span class="msg">相机 camera-02 取图超时（500 ms），已跳过本轮采集</span>
+    </div>
+    <div class="logrow lv-error">
+      <span class="bar"></span><span class="time">19:04:16.020</span><span class="src">插件</span>
+      <span class="msg">模板匹配执行失败：未找到模板文件 <span class="path">Templates\bracket.tpl</span></span>
+    </div>
+    <div class="logrow lv-info">
+      <span class="bar"></span><span class="time">19:04:18.664</span><span class="src">变量</span>
+      <span class="msg">全局变量「OKCount」写入 1485（来源：流程 主检测）</span>
+    </div>
+    <div class="logrow lv-success">
+      <span class="bar"></span><span class="time">19:04:19.100</span><span class="src">相机</span>
+      <span class="msg">相机 camera-02 重连成功，恢复采集</span>
+    </div>
+    <div class="logrow lv-info">
+      <span class="bar"></span><span class="time">19:04:21.883</span><span class="src">引擎</span>
+      <span class="msg">流程「主检测」第 149 次循环开始</span>
+    </div>
+  </div>
+
+  <div class="footbar">
+    <span>显示 <b class="mono">96</b> / 共 <b class="mono">128</b> 条</span>
+    <span>·</span>
+    <span>面板保留最近 <b class="mono">2000</b> 条</span>
+    <span class="spacer"></span>
+    <button class="link">打开日志文件夹</button>
+  </div>
+</section>
+
+<!-- ================= 边界态：无结果 / 空态 / 窄面板 ================= -->
+<section class="panel narrow is-noresult" id="p2">
+  <div class="caption">
+    <h1>控制台</h1>
+    <span class="tag">窄面板 · 无结果</span>
+    <span class="size">460</span>
+  </div>
+
+  <div class="filterbar">
+    <div class="row">
+      <div class="search has-value">
+        <span class="glyph">⌕</span>
+        <input type="text" value="相机 camera-99" aria-label="搜索日志">
+        <button class="clear" aria-label="清空搜索">✕</button>
+      </div>
+      <label class="check"><input type="checkbox" checked>跟随最新</label>
+    </div>
+    <div class="row tight">
+      <div class="chips" role="group" aria-label="按等级筛选">
+        <button class="chip" data-level="all" aria-pressed="true"><span class="dot"></span>全部<span class="n">128</span></button>
+        <button class="chip" data-level="info" aria-pressed="false"><span class="dot"></span>信息<span class="n">96</span></button>
+        <button class="chip" data-level="success" aria-pressed="false"><span class="dot"></span>成功<span class="n">21</span></button>
+        <button class="chip" data-level="warning" aria-pressed="false"><span class="dot"></span>警告<span class="n">7</span></button>
+        <button class="chip" data-level="error" aria-pressed="false"><span class="dot"></span>错误<span class="n">4</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="logbody"></div>
+  <div class="state" data-when="noresult">
+    <div class="glyph">⌕</div>
+    <h2>没有匹配的日志</h2>
+    <p>「相机 camera-99」在最近 128 条里没有命中。</p>
+    <button class="hint-btn" onclick="clearFilter()">清空筛选条件</button>
+  </div>
+  <div class="state" data-when="empty">
+    <div class="glyph">▤</div>
+    <h2>还没有日志</h2>
+    <p>软件刚启动或日志已清空；完整历史在 Logs\ 目录。</p>
+  </div>
+
+  <div class="footbar">
+    <span>显示 <b class="mono">0</b> / 共 <b class="mono">128</b> 条</span>
+    <span class="spacer"></span>
+    <button class="link">打开日志文件夹</button>
+  </div>
+</section>
+
+<!-- 演示控制 -->
+<div class="demo">
+  <span>演示控制</span>
+  <button id="btn-empty">空态</button>
+  <button id="btn-noresult" aria-pressed="true">无结果</button>
+  <button id="btn-reset">默认态</button>
+</div>
+
+<script>
+  // 等级筹码单选
+  document.querySelectorAll('.chips').forEach(group => {
+    group.querySelectorAll('.chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        group.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', 'false'));
+        chip.setAttribute('aria-pressed', 'true');
+      });
+    });
+  });
+
+  // 搜索框清空按钮显隐
+  document.querySelectorAll('.search').forEach(box => {
+    const input = box.querySelector('input');
+    const clear = box.querySelector('.clear');
+    const sync = () => box.classList.toggle('has-value', input.value.length > 0);
+    input.addEventListener('input', sync);
+    clear.addEventListener('click', () => { input.value = ''; sync(); input.focus(); });
+    sync();
+  });
+
+  function clearFilter() {
+    const p2 = document.getElementById('p2');
+    p2.classList.remove('is-noresult', 'is-empty');
+  }
+
+  const p2 = document.getElementById('p2');
+  const bEmpty = document.getElementById('btn-empty');
+  const bNoRes = document.getElementById('btn-noresult');
+  const bReset = document.getElementById('btn-reset');
+  function setState(kind) {
+    p2.classList.remove('is-noresult', 'is-empty');
+    if (kind === 'empty') p2.classList.add('is-empty');
+    if (kind === 'noresult') p2.classList.add('is-noresult');
+    bEmpty.setAttribute('aria-pressed', String(kind === 'empty'));
+    bNoRes.setAttribute('aria-pressed', String(kind === 'noresult'));
+    bReset.setAttribute('aria-pressed', String(kind === 'default'));
+  }
+  bEmpty.addEventListener('click', () => setState('empty'));
+  bNoRes.addEventListener('click', () => setState('noresult'));
+  bReset.addEventListener('click', () => setState('default'));
+</script>
+</body>
+</html>

@@ -601,7 +601,6 @@ namespace VisionMaster
 
             Add("全局变量", "命令", "\uf121", () => OnSystemAction(SystemAction.GlobalVariables));
             Add("硬件管理", "命令", "\uf2db", () => OnSystemAction(SystemAction.HardwareSettings));
-            Add("系统健康", "命令", "\uf21e", () => OnSystemAction(SystemAction.SystemHealth));
 
             if (Workspace.CurrentSolution?.Flows != null)
             {
@@ -1071,15 +1070,6 @@ namespace VisionMaster
                     break;
                 case SystemAction.IoSettings:
                     ShowIoSettings();
-                    break;
-                case SystemAction.SystemHealth:
-                    dialogService.ShowDialog("SystemHealthView");
-                    break;
-                case SystemAction.IoHealth:
-                    // 旧枚举值转发：旧布局/脚本仍按 IoHealth 触发，落到系统健康（默认通讯页签）。
-                    // IO 域已随 IO 接入层下线——IO 点位就是网络变量，其采集健康度看通讯域。
-                    // 保留旧值是为了不让已落盘的整数值失效（枚举只能追加）。
-                    dialogService.ShowDialog("SystemHealthView");
                     break;
                 case SystemAction.SystemSettings:
                     // 合并后的唯一入口（运行窗口 / 安全与留档 / 画布三个页签）。

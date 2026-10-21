@@ -734,15 +734,6 @@
                             <Separator />
                             <MenuItem
                                 Command="{Binding SystemCommand}"
-                                CommandParameter="{x:Static local:SystemAction.SystemHealth}"
-                                Header="系统健康"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf21e;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.HardwareSettings}"
                                 Header="硬件管理"
                                  >

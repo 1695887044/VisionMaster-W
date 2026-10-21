@@ -1426,12 +1426,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 GetScanGroupOptions(connection?.ConnectionName),
                 GetAreaOptions(connection),
                 BuildAddressPreview,
-                // 候选走回调：弹窗里切换「所属连接」时，属性网格整表重建、候选按新协议重算
+                // 候选与协议/类型都走回调：弹窗里切换「所属连接」或「数据类型」时，
+                // 属性网格整表重建、候选与互斥字段块（地址参数 / 元素参数）随之重算
                 new NetworkVariableDraftContext
                 {
                     AreaOptionsFor = name => GetAreaOptions(FindConnection(name)),
                     DefaultAreaFor = name => GetDefaultAreaName(FindConnection(name)),
                     ScanGroupsFor = name => GetScanGroupOptions(name),
+                    ProtocolFor = name => FindConnection(name)?.Protocol,
+                    TypeResolver = ResolveType,
                 })
             {
                 TypeName = typeOptions.FirstOrDefault() ?? string.Empty,
@@ -1440,7 +1443,6 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 ScanGroupName = SelectedNewScanGroup,
                 AreaName = connection == null ? string.Empty : GetDefaultAreaName(connection),
                 Offset = "0",
-                BitOffset = 0,
             };
         }
 
@@ -1609,6 +1611,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if ((isArray || isStringScalar) && draft.EnableConversion)
             {
                 EasyDialog.ShowSync("数组与字符串变量暂不支持工程量换算，请关闭「启用工程量换算」。", "提示");
+                return;
+            }
+            if (!isArray && !isStringScalar && draft.EnableConversion && draft.Scale == 0)
+            {
+                EasyDialog.ShowSync("缩放系数不能为 0：工程值无法反算成原始值，请填 1 或实际比例。", "提示");
                 return;
             }
 

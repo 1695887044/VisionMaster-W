@@ -764,9 +764,12 @@ namespace VisionMaster.ScadaWeb
             if (found != null)
                 return found;
 
-            found = runtime.CurrentBasePage?.FindElement(id);
-            if (found != null)
-                return found;
+            foreach (var basePage in runtime.CurrentBasePages)
+            {
+                found = basePage.FindElement(id);
+                if (found != null)
+                    return found;
+            }
 
             error = "该图元不在当前画面上（可能已被删除或已切页）";
             return null;

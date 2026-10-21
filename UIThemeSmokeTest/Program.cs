@@ -1532,9 +1532,11 @@ namespace UIThemeSmokeTest
                     string.Equals(string.Join(",", shellActions), string.Join(",", copyActions), StringComparison.Ordinal),
                     $"Shell.xaml=[{string.Join(",", shellActions)}]；ShellCopy=[{string.Join(",", copyActions)}]");
 
-                var redundantEntries = new[] { "CameraSettings", "MotionBoard", "CommSettings" };
+                // 系统健康也算重复入口：硬件管理左栏那颗按钮打开的是同一个 SystemHealthView
+                //（HardwareManagerViewModel.OpenSystemHealthCommand → ShowDialog("SystemHealthView")）。
+                var redundantEntries = new[] { "CameraSettings", "MotionBoard", "CommSettings", "SystemHealth" };
                 var stillExposed = shellActions.Where(a => redundantEntries.Contains(a, StringComparer.Ordinal)).ToList();
-                Check("系统菜单不再重复暴露相机/运动/通讯入口（统一走硬件管理）",
+                Check("系统菜单不再重复暴露相机/运动/通讯/健康入口（统一走硬件管理）",
                     stillExposed.Count == 0,
                     stillExposed.Count == 0 ? "只保留硬件管理" : "仍在菜单: " + string.Join("，", stillExposed));
 

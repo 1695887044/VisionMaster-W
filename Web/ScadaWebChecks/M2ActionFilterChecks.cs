@@ -70,6 +70,13 @@ namespace ScadaWebChecks
                 TargetPageName = "运行页",
             };
             var navigateBackAction = new ScadaAction { Type = ScadaActionType.NavigateBack };
+            var openPopupAction = new ScadaAction
+            {
+                Type = ScadaActionType.OpenPopup,
+                TargetPageId = pageId,
+                TargetPageName = "参数弹窗",
+            };
+            var closePopupAction = new ScadaAction { Type = ScadaActionType.ClosePopup };
             var writeAction = new ScadaAction
             {
                 Type = ScadaActionType.WriteVariable,
@@ -96,6 +103,8 @@ namespace ScadaWebChecks
             source.Actions.Add(logAction);
             source.Actions.Add(navigateAction);
             source.Actions.Add(navigateBackAction);
+            source.Actions.Add(openPopupAction);
+            source.Actions.Add(closePopupAction);
             source.Actions.Add(writeAction);
             source.Actions.Add(motionAction);
             source.Actions.Add(flowAction);
@@ -110,6 +119,8 @@ namespace ScadaWebChecks
                 ScadaActionType.MotionMoveAbsolute,
                 ScadaActionType.Navigate,
                 ScadaActionType.NavigateBack,
+                ScadaActionType.OpenPopup,
+                ScadaActionType.ClosePopup,
             };
 
             var copy = VisionMaster.ScadaWeb.ScadaWebActionFilter.BuildAllowedCopy(source, allowed, out var skipped);
@@ -138,11 +149,18 @@ namespace ScadaWebChecks
                 && !copyTypes.Contains(ScadaActionType.NavigateBack),
                 $"skipped={Join(skipped)} copyTypes={Join(copyTypes)}（NavigateBack 即使在 allowed 里也必须被剔除）");
 
+            Check("M2-AF2c",
+                skipped.Contains(ScadaActionType.OpenPopup)
+                && !copyTypes.Contains(ScadaActionType.OpenPopup)
+                && skipped.Contains(ScadaActionType.ClosePopup)
+                && !copyTypes.Contains(ScadaActionType.ClosePopup),
+                $"skipped={Join(skipped)} copyTypes={Join(copyTypes)}（弹窗开关是现场动作，web 镜像模式必须剔除）");
+
             Check("M2-AF3",
                 skipped.Contains(ScadaActionType.StartFlow)
                 && !copyTypes.Contains(ScadaActionType.StartFlow)
-                && skipped.Count == 3,
-                $"skipped={Join(skipped)}（期望 切换画面,返回上一页,启动流程；未允许的 StartFlow 被剔除）");
+                && skipped.Count == 5,
+                $"skipped={Join(skipped)}（期望 切换画面,返回上一页,打开弹窗,关闭弹窗,启动流程；未允许的 StartFlow 被剔除）");
 
             var copyLog = At(copyActions, 0);
             var copyWrite = At(copyActions, 1);
@@ -165,14 +183,16 @@ namespace ScadaWebChecks
                 + $" axis={Show(copyMotion?.AxisName)} target={Show(copyMotion?.TargetMm)} speed={Show(copyMotion?.VelocityMmPerS)}");
 
             // 原钩子必须"一个字节都没动"：条数、顺序、对象引用、确认开关、Navigate 都还在。
-            var sourceUnchanged = source.Actions.Count == 6
+            var sourceUnchanged = source.Actions.Count == 8
                 && ReferenceEquals(source.Actions, originalCollection)
                 && ReferenceEquals(source.Actions[0], logAction)
                 && ReferenceEquals(source.Actions[1], navigateAction)
                 && ReferenceEquals(source.Actions[2], navigateBackAction)
-                && ReferenceEquals(source.Actions[3], writeAction)
-                && ReferenceEquals(source.Actions[4], motionAction)
-                && ReferenceEquals(source.Actions[5], flowAction)
+                && ReferenceEquals(source.Actions[3], openPopupAction)
+                && ReferenceEquals(source.Actions[4], closePopupAction)
+                && ReferenceEquals(source.Actions[5], writeAction)
+                && ReferenceEquals(source.Actions[6], motionAction)
+                && ReferenceEquals(source.Actions[7], flowAction)
                 && source.RequireConfirmation
                 && source.ConfirmationMessage == "确认启动？"
                 && source.Event == ScadaEventType.Pressed;
@@ -228,10 +248,10 @@ namespace ScadaWebChecks
             Check("M2-AF9",
                 emptyAllowed != null
                 && emptyAllowed.Actions.Count == 0
-                && emptySkipped.Count == 6,
+                && emptySkipped.Count == 8,
                 emptyAllowed == null
                     ? "副本为 null（空白名单也应返回可执行的空副本）"
-                    : $"actions={emptyAllowed.Actions.Count} skipped={emptySkipped.Count}（期望 0 / 6）");
+                    : $"actions={emptyAllowed.Actions.Count} skipped={emptySkipped.Count}（期望 0 / 8）");
 
             var flowOnly = VisionMaster.ScadaWeb.ScadaWebActionFilter.BuildAllowedCopy(
                 source,
@@ -247,7 +267,7 @@ namespace ScadaWebChecks
                 && copiedFlow.Type == ScadaActionType.StartFlow
                 && copiedFlow.FlowId == flowAction.FlowId
                 && copiedFlow.FlowName == flowAction.FlowName
-                && flowSkipped.Count == 5,
+                && flowSkipped.Count == 7,
                 $"actions={flowOnly?.Actions.Count} skipped={flowSkipped.Count}"
                 + $" flowId={Show(copiedFlow?.FlowId)} flowName={Show(copiedFlow?.FlowName)}");
 

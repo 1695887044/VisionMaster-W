@@ -11,19 +11,14 @@
 
     <!--
         ============================================================================
-        编辑数组（变量管理 → 数组根「编辑数组…」）
+        编辑数组 / 写入数组（变量管理 → 数组根）
         ============================================================================
-        设计基线：docs\UI设计基线\global-variables\design.html（v3 数组编辑弹窗专项优化）
-
-        语义（与旧「强制覆盖集合...」的区别）：
-          ① 装填的是**当前值**，不是 DefaultValue；
-          ② 写入范围默认「只写当前值」；选「同时写初始值」才写基准；
-          ③ 校验在弹窗内完成——出错项标红 + 底部「第 N 项：…」，弹窗不关、编辑不丢。
-
-        v3 信息层级：
-          · 写入范围是分段选择，下方一句话随选择说明后果；
-          · 每行显示「基准：…」与行尾 ↺（仅改过的行）；
-          · 底部汇总「N 项已修改」+「恢复全部为基准」。
+        本地数组：装填当前值、基准是 DefaultValue、可增删/移动、默认只写当前值。
+        网络数组：
+          · 打开时快照 = 「原值」，行内比较出「已修改」；
+          · 默认只写修改项（逐项按元素地址下发，未改动的设备值不被覆盖）；
+          · 整组写入是显式选择（全部下发，超限/冲突在确认前拦住）；
+          · 每个元素一份换算（行内 Σ / 批量换算），地址对象上的整组换算对数组仍禁用。
 
         样式纪律：本视图属于 CollectedDialogViews——禁止本地 keyed Style；
         颜色一律 Dialog* 令牌，视图零十六进制。
@@ -35,9 +30,9 @@
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
             <Setter Property="SizeToContent" Value="Manual" />
             <Setter Property="Width" Value="640" />
-            <Setter Property="Height" Value="660" />
-            <Setter Property="MinWidth" Value="540" />
-            <Setter Property="MinHeight" Value="540" />
+            <Setter Property="Height" Value="680" />
+            <Setter Property="MinWidth" Value="560" />
+            <Setter Property="MinHeight" Value="560" />
         </Style>
     </prism:Dialog.WindowStyle>
 
@@ -105,6 +100,7 @@
                             VerticalAlignment="Center"
                             Command="{Binding CancelCommand}"
                             FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                            IsEnabled="{Binding CanCancel}"
                             Style="{StaticResource DialogIconButton}">
                             <Button.ToolTip>
                                 <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="关闭（Esc）" />
@@ -118,8 +114,8 @@
                     </Grid>
                 </Border>
 
-                <!--  内容区：写入范围 / 列头 / 列表 / 错误条  -->
-                <Grid Grid.Row="1" Margin="18,14,18,14">
+                <!--  内容区：写入范围 / 列头 / 列表 / 错误与提示  -->
+                <Grid Grid.Row="1" Margin="18,14,18,12">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -127,7 +123,7 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <!--  写入范围：分段选择 + 后果说明（网络数组没有基准，整块隐藏）  -->
+                    <!--  ================= 本地数组：写入范围（当前值 / 初始值）  =================  -->
                     <Border
                         Grid.Row="0"
                         Padding="12,10"
@@ -267,12 +263,180 @@
                         </StackPanel>
                     </Border>
 
+                    <!--  ================= 网络数组：写入范围（只写修改项 / 整组写入）  =================  -->
+                    <Border
+                        Grid.Row="0"
+                        Padding="12,10"
+                        Background="{StaticResource DialogSurfaceBrush}"
+                        BorderBrush="{StaticResource DialogBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Visibility="{Binding ShowWriteModeControls, Converter={ui:BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11.5"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="写入范围" />
+
+                                <Border
+                                    Grid.Column="1"
+                                    Margin="10,0,0,0"
+                                    Padding="2"
+                                    VerticalAlignment="Center"
+                                    Background="{StaticResource DialogRowHoverBrush}"
+                                    CornerRadius="8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button
+                                            Height="26"
+                                            Padding="10,0"
+                                            Command="{Binding WriteChangedOnlyCommand}"
+                                            Content="只写修改项"
+                                            Cursor="Hand"
+                                            FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                            FontSize="11"
+                                            IsEnabled="{Binding SupportsElementWrite}">
+                                            <Button.Style>
+                                                <Style TargetType="Button">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                                                    <Setter Property="BorderThickness" Value="0" />
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border
+                                                                    Padding="{TemplateBinding Padding}"
+                                                                    Background="{TemplateBinding Background}"
+                                                                    CornerRadius="6">
+                                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsChangedOnly}" Value="True">
+                                                            <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                                                            <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+
+                                        <Button
+                                            Height="26"
+                                            Padding="10,0"
+                                            Command="{Binding WriteWholeGroupCommand}"
+                                            Content="整组写入"
+                                            Cursor="Hand"
+                                            FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                            FontSize="11">
+                                            <Button.Style>
+                                                <Style TargetType="Button">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                                                    <Setter Property="BorderThickness" Value="0" />
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border
+                                                                    Padding="{TemplateBinding Padding}"
+                                                                    Background="{TemplateBinding Background}"
+                                                                    CornerRadius="6">
+                                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsWholeGroup}" Value="True">
+                                                            <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                                                            <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                    </StackPanel>
+                                </Border>
+
+                                <TextBlock
+                                    Grid.Column="2"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    FontSize="10.5"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text="元素个数由设备点位固定" />
+                            </Grid>
+
+                            <TextBlock
+                                Margin="0,7,0,0"
+                                FontSize="10.5"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                Text="{Binding ScopeHint}"
+                                TextWrapping="Wrap" />
+
+                            <!--  质量预警：镜像是旧值/没读到时，先刷新再写  -->
+                            <Border
+                                Margin="0,7,0,0"
+                                Padding="8,6"
+                                Background="{StaticResource DialogWarningSubtleBrush}"
+                                BorderBrush="{StaticResource DialogWarningBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Visibility="{Binding HasQualityWarning, Converter={ui:BooleanToVisibilityConverter}}">
+                                <TextBlock
+                                    FontSize="10.5"
+                                    Foreground="{StaticResource DialogWarningTextBrush}"
+                                    Text="{Binding QualityWarning}"
+                                    TextWrapping="Wrap" />
+                            </Border>
+
+                            <!--  超长预警：整组写入超过单请求上限（只写修改项不受影响）  -->
+                            <Border
+                                Margin="0,7,0,0"
+                                Padding="8,6"
+                                Background="{StaticResource DialogWarningSubtleBrush}"
+                                BorderBrush="{StaticResource DialogWarningBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Visibility="{Binding HasSizeWarning, Converter={ui:BooleanToVisibilityConverter}}">
+                                <TextBlock
+                                    FontSize="10.5"
+                                    Foreground="{StaticResource DialogWarningTextBrush}"
+                                    Text="{Binding SizeWarning}"
+                                    TextWrapping="Wrap" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
                     <!--  列头  -->
                     <Grid Grid.Row="1" Height="26" Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="44" />
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="108" />
+                            <ColumnDefinition Width="132" />
                         </Grid.ColumnDefinitions>
                         <TextBlock
                             Grid.Column="0"
@@ -294,10 +458,10 @@
                             VerticalAlignment="Center"
                             FontSize="10.5"
                             Foreground="{StaticResource DialogTextMutedBrush}"
-                            Text="操作" />
+                            Text="{Binding OperationHeader}" />
                     </Grid>
 
-                    <!--  列表 + 空态  -->
+                    <!--  列表 + 空态（ListBox 开启虚拟化：大数组不再创建全部行容器）  -->
                     <Border
                         Grid.Row="2"
                         Background="{StaticResource DialogRowAlternateBrush}"
@@ -305,175 +469,245 @@
                         BorderThickness="1"
                         CornerRadius="8">
                         <Grid>
-                            <ScrollViewer
+                            <ListBox
+                                x:Name="ElementList"
                                 Padding="6"
-                                HorizontalScrollBarVisibility="Disabled"
-                                VerticalScrollBarVisibility="Auto">
-                                <ItemsControl ItemsSource="{Binding Elements}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid Height="48">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="44" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="108" />
-                                                </Grid.ColumnDefinitions>
+                                Background="Transparent"
+                                BorderThickness="0"
+                                ItemsSource="{Binding Elements}"
+                                ScrollViewer.CanContentScroll="True"
+                                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                VirtualizingPanel.IsVirtualizing="True"
+                                VirtualizingPanel.ScrollUnit="Pixel"
+                                VirtualizingPanel.VirtualizationMode="Standard">
+                                <ListBox.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel />
+                                    </ItemsPanelTemplate>
+                                </ListBox.ItemsPanel>
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        <Setter Property="Padding" Value="0" />
+                                        <Setter Property="Margin" Value="0" />
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="BorderThickness" Value="0" />
+                                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid MinHeight="34" Margin="0,1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="44" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="132" />
+                                            </Grid.ColumnDefinitions>
 
+                                            <TextBlock
+                                                Grid.Column="0"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                FontFamily="Consolas"
+                                                FontSize="11"
+                                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                                Text="{Binding IndexText}" />
+
+                                            <StackPanel
+                                                Grid.Column="1"
+                                                Margin="8,0,0,0"
+                                                VerticalAlignment="Center">
+                                                <TextBox
+                                                    Height="26"
+                                                    Padding="8,0"
+                                                    VerticalContentAlignment="Center"
+                                                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                                    FontSize="11.5"
+                                                    Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}">
+                                                    <TextBox.Style>
+                                                        <Style TargetType="TextBox" BasedOn="{StaticResource DialogCellInput}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasError}" Value="True">
+                                                                    <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBrush}" />
+                                                                    <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                                                                    <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBox.Style>
+                                                </TextBox>
+
+                                                <!--  对照值：本地=基准；网络=打开时的原值（只在改过的行出现）  -->
+                                                <StackPanel
+                                                    Margin="0,1,0,0"
+                                                    Orientation="Horizontal"
+                                                    Visibility="{Binding IsChanged, Converter={ui:BooleanToVisibilityConverter}}">
+                                                    <Ellipse
+                                                        Width="4"
+                                                        Height="4"
+                                                        Margin="0,0,4,0"
+                                                        VerticalAlignment="Center"
+                                                        Fill="{StaticResource DialogWarningBrush}" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="9.5"
+                                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                                        Text="{Binding BaselineLabel}" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontFamily="Consolas"
+                                                        FontSize="9.5"
+                                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                        Text="{Binding BaselineText}"
+                                                        TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <StackPanel
+                                                Grid.Column="2"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                Orientation="Horizontal">
+                                                <!--  行内 ↺：本地恢复基准 / 网络撤销本行修改  -->
+                                                <Button
+                                                    Width="24"
+                                                    Height="24"
+                                                    MinWidth="0"
+                                                    MinHeight="0"
+                                                    Padding="0"
+                                                    Command="{Binding DataContext.ResetRowCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    CommandParameter="{Binding}"
+                                                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                                    Style="{StaticResource DialogIconButton}"
+                                                    Visibility="{Binding IsChanged, Converter={ui:BooleanToVisibilityConverter}}">
+                                                    <Button.ToolTip>
+                                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="恢复为对照值（本地=基准，网络=打开时的原值）" />
+                                                    </Button.ToolTip>
+                                                    <TextBlock
+                                                        FontFamily="{StaticResource DialogIconFont}"
+                                                        FontSize="11"
+                                                        Foreground="{StaticResource DialogWarningTextBrush}"
+                                                        Text="&#xf0e2;" />
+                                                </Button>
+
+                                                <!--  网络数组：该元素的换算文案 + 行内 Σ  -->
                                                 <TextBlock
-                                                    Grid.Column="0"
-                                                    HorizontalAlignment="Right"
+                                                    MaxWidth="64"
+                                                    Margin="2,0,0,0"
                                                     VerticalAlignment="Center"
                                                     FontFamily="Consolas"
-                                                    FontSize="11"
+                                                    FontSize="9.5"
                                                     Foreground="{StaticResource DialogTextMutedBrush}"
-                                                    Text="{Binding IndexText}" />
-
-                                                <StackPanel
-                                                    Grid.Column="1"
-                                                    Margin="8,0,0,0"
-                                                    VerticalAlignment="Center">
-                                                    <TextBox
-                                                        Height="30"
-                                                        Padding="9,0"
-                                                        VerticalContentAlignment="Center"
-                                                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
-                                                        FontSize="11.5"
-                                                        Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}">
-                                                        <TextBox.Style>
-                                                            <Style TargetType="TextBox" BasedOn="{StaticResource DialogCellInput}">
+                                                    Text="{Binding ConversionText}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    Visibility="{Binding IsNetworkMode, Converter={ui:BooleanToVisibilityConverter}}" />
+                                                <Button
+                                                    Width="24"
+                                                    Height="24"
+                                                    MinWidth="0"
+                                                    MinHeight="0"
+                                                    Margin="2,0,0,0"
+                                                    Padding="0"
+                                                    Command="{Binding DataContext.EditConversionCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    CommandParameter="{Binding}"
+                                                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                                    Style="{StaticResource DialogIconButton}"
+                                                    ToolTip="{Binding ConversionText}"
+                                                    Visibility="{Binding IsNetworkMode, Converter={ui:BooleanToVisibilityConverter}}">
+                                                    <TextBlock FontFamily="{StaticResource DialogIconFont}" FontSize="11" Text="&#xf1ec;">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
                                                                 <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding HasError}" Value="True">
-                                                                        <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBrush}" />
-                                                                        <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
-                                                                        <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                                                                    <DataTrigger Binding="{Binding HasConversion}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
-                                                        </TextBox.Style>
-                                                    </TextBox>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Button>
 
-                                                    <!--  基准行：只在"改过"的行出现  -->
-                                                    <StackPanel
-                                                        Margin="0,2,0,0"
-                                                        Orientation="Horizontal"
-                                                        Visibility="{Binding IsChanged, Converter={ui:BooleanToVisibilityConverter}}">
-                                                        <Ellipse
-                                                            Width="4"
-                                                            Height="4"
-                                                            Margin="0,0,4,0"
-                                                            VerticalAlignment="Center"
-                                                            Fill="{StaticResource DialogWarningBrush}" />
-                                                        <TextBlock
-                                                            VerticalAlignment="Center"
-                                                            FontSize="10"
-                                                            Foreground="{StaticResource DialogTextMutedBrush}"
-                                                            Text="基准：" />
-                                                        <TextBlock
-                                                            VerticalAlignment="Center"
-                                                            FontFamily="Consolas"
-                                                            FontSize="10"
-                                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
-                                                            Text="{Binding BaselineText}"
-                                                            TextTrimming="CharacterEllipsis" />
-                                                    </StackPanel>
-                                                </StackPanel>
-
-                                                <StackPanel
-                                                    Grid.Column="2"
-                                                    HorizontalAlignment="Right"
-                                                    VerticalAlignment="Center"
-                                                    Orientation="Horizontal">
-                                                    <Button
-                                                        Width="24"
-                                                        Height="24"
-                                                        MinWidth="0"
-                                                        MinHeight="0"
-                                                        Padding="0"
-                                                        Command="{Binding DataContext.ResetRowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                        CommandParameter="{Binding}"
-                                                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
-                                                        Style="{StaticResource DialogIconButton}"
-                                                        Visibility="{Binding IsChanged, Converter={ui:BooleanToVisibilityConverter}}">
-                                                        <Button.ToolTip>
-                                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="恢复为基准值" />
-                                                        </Button.ToolTip>
-                                                        <TextBlock
-                                                            FontFamily="{StaticResource DialogIconFont}"
-                                                            FontSize="11"
-                                                            Foreground="{StaticResource DialogWarningTextBrush}"
-                                                            Text="&#xf0e2;" />
-                                                    </Button>
-                                                    <Button
-                                                        Width="24"
-                                                        Height="24"
-                                                        MinWidth="0"
-                                                        MinHeight="0"
-                                                        Margin="2,0,0,0"
-                                                        Padding="0"
-                                                        Command="{Binding DataContext.MoveUpCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                        CommandParameter="{Binding}"
-                                                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
-                                                        IsEnabled="{Binding CanMoveUp}"
-                                                        Style="{StaticResource DialogIconButton}"
-                                                        Visibility="{Binding DataContext.CanEditStructure, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={ui:BooleanToVisibilityConverter}}">
-                                                        <Button.ToolTip>
-                                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="上移" />
-                                                        </Button.ToolTip>
-                                                        <TextBlock
-                                                            FontFamily="{StaticResource DialogIconFont}"
-                                                            FontSize="11"
-                                                            Foreground="{StaticResource DialogTextMutedBrush}"
-                                                            Text="&#xf077;" />
-                                                    </Button>
-                                                    <Button
-                                                        Width="24"
-                                                        Height="24"
-                                                        MinWidth="0"
-                                                        MinHeight="0"
-                                                        Margin="2,0,0,0"
-                                                        Padding="0"
-                                                        Command="{Binding DataContext.MoveDownCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                        CommandParameter="{Binding}"
-                                                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
-                                                        IsEnabled="{Binding CanMoveDown}"
-                                                        Style="{StaticResource DialogIconButton}"
-                                                        Visibility="{Binding DataContext.CanEditStructure, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={ui:BooleanToVisibilityConverter}}">
-                                                        <Button.ToolTip>
-                                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="下移" />
-                                                        </Button.ToolTip>
-                                                        <TextBlock
-                                                            FontFamily="{StaticResource DialogIconFont}"
-                                                            FontSize="11"
-                                                            Foreground="{StaticResource DialogTextMutedBrush}"
-                                                            Text="&#xf078;" />
-                                                    </Button>
-                                                    <Button
-                                                        Width="24"
-                                                        Height="24"
-                                                        MinWidth="0"
-                                                        MinHeight="0"
-                                                        Margin="2,0,0,0"
-                                                        Padding="0"
-                                                        Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                        CommandParameter="{Binding}"
-                                                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
-                                                        Style="{StaticResource DialogIconButton}"
-                                                        Visibility="{Binding DataContext.CanEditStructure, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={ui:BooleanToVisibilityConverter}}">
-                                                        <Button.ToolTip>
-                                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="删除该元素" />
-                                                        </Button.ToolTip>
-                                                        <TextBlock
-                                                            FontFamily="{StaticResource DialogIconFont}"
-                                                            FontSize="11"
-                                                            Foreground="{StaticResource DialogDangerBrush}"
-                                                            Text="&#xf2ed;" />
-                                                    </Button>
-                                                </StackPanel>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </ScrollViewer>
+                                                <!--  本地数组：上移 / 下移 / 删除  -->
+                                                <Button
+                                                    Width="24"
+                                                    Height="24"
+                                                    MinWidth="0"
+                                                    MinHeight="0"
+                                                    Margin="2,0,0,0"
+                                                    Padding="0"
+                                                    Command="{Binding DataContext.MoveUpCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    CommandParameter="{Binding}"
+                                                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                                    IsEnabled="{Binding CanMoveUp}"
+                                                    Style="{StaticResource DialogIconButton}"
+                                                    Visibility="{Binding DataContext.CanEditStructure, RelativeSource={RelativeSource AncestorType=ListBox}, Converter={ui:BooleanToVisibilityConverter}}">
+                                                    <Button.ToolTip>
+                                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="上移" />
+                                                    </Button.ToolTip>
+                                                    <TextBlock
+                                                        FontFamily="{StaticResource DialogIconFont}"
+                                                        FontSize="11"
+                                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                                        Text="&#xf077;" />
+                                                </Button>
+                                                <Button
+                                                    Width="24"
+                                                    Height="24"
+                                                    MinWidth="0"
+                                                    MinHeight="0"
+                                                    Margin="2,0,0,0"
+                                                    Padding="0"
+                                                    Command="{Binding DataContext.MoveDownCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    CommandParameter="{Binding}"
+                                                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                                    IsEnabled="{Binding CanMoveDown}"
+                                                    Style="{StaticResource DialogIconButton}"
+                                                    Visibility="{Binding DataContext.CanEditStructure, RelativeSource={RelativeSource AncestorType=ListBox}, Converter={ui:BooleanToVisibilityConverter}}">
+                                                    <Button.ToolTip>
+                                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="下移" />
+                                                    </Button.ToolTip>
+                                                    <TextBlock
+                                                        FontFamily="{StaticResource DialogIconFont}"
+                                                        FontSize="11"
+                                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                                        Text="&#xf078;" />
+                                                </Button>
+                                                <Button
+                                                    Width="24"
+                                                    Height="24"
+                                                    MinWidth="0"
+                                                    MinHeight="0"
+                                                    Margin="2,0,0,0"
+                                                    Padding="0"
+                                                    Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    CommandParameter="{Binding}"
+                                                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                                    Style="{StaticResource DialogIconButton}"
+                                                    Visibility="{Binding DataContext.CanEditStructure, RelativeSource={RelativeSource AncestorType=ListBox}, Converter={ui:BooleanToVisibilityConverter}}">
+                                                    <Button.ToolTip>
+                                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="删除该元素" />
+                                                    </Button.ToolTip>
+                                                    <TextBlock
+                                                        FontFamily="{StaticResource DialogIconFont}"
+                                                        FontSize="11"
+                                                        Foreground="{StaticResource DialogDangerBrush}"
+                                                        Text="&#xf2ed;" />
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
 
                             <!--  空态：新建数组是 0 项，必须明确告诉用户怎么开始  -->
                             <StackPanel
@@ -506,126 +740,208 @@
                         </Grid>
                     </Border>
 
-                    <!--  校验失败：出错项已在行内标红，这里给完整原因  -->
-                    <Border
-                        Grid.Row="3"
-                        Margin="0,10,0,0"
-                        Padding="10,8"
-                        Background="{StaticResource DialogDangerSubtleBrush}"
-                        BorderBrush="{StaticResource DialogDangerBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Visibility="{Binding HasError, Converter={ui:BooleanToVisibilityConverter}}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
+                    <!--  校验失败 / 提示 / 确认条件说明  -->
+                    <StackPanel Grid.Row="3" Margin="0,8,0,0">
+                        <Border
+                            Padding="10,8"
+                            Background="{StaticResource DialogDangerSubtleBrush}"
+                            BorderBrush="{StaticResource DialogDangerBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Visibility="{Binding HasError, Converter={ui:BooleanToVisibilityConverter}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Margin="0,1,6,0"
+                                    VerticalAlignment="Top"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogDangerTextBrush}"
+                                    Text="&#xf071;" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogDangerTextBrush}"
+                                    Text="{Binding ErrorText}"
+                                    TextWrapping="Wrap" />
+                            </Grid>
+                        </Border>
+
+                        <Border
+                            Margin="0,6,0,0"
+                            Padding="10,7"
+                            Background="{StaticResource DialogSurfaceBrush}"
+                            BorderBrush="{StaticResource DialogBorderLightBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Visibility="{Binding HasInfo, Converter={ui:BooleanToVisibilityConverter}}">
                             <TextBlock
-                                Grid.Column="0"
-                                Margin="0,1,6,0"
-                                VerticalAlignment="Top"
-                                FontFamily="{StaticResource DialogIconFont}"
-                                FontSize="11"
-                                Foreground="{StaticResource DialogDangerTextBrush}"
-                                Text="&#xf071;" />
-                            <TextBlock
-                                Grid.Column="1"
-                                FontSize="11"
-                                Foreground="{StaticResource DialogDangerTextBrush}"
-                                Text="{Binding ErrorText}"
+                                FontSize="10.5"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="{Binding InfoText}"
                                 TextWrapping="Wrap" />
-                        </Grid>
-                    </Border>
+                        </Border>
+
+                        <Border
+                            Margin="0,6,0,0"
+                            Padding="10,7"
+                            Background="{StaticResource DialogSurfaceBrush}"
+                            BorderBrush="{StaticResource DialogBorderLightBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ConfirmHint}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock
+                                FontSize="10.5"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                Text="{Binding ConfirmHint}"
+                                TextWrapping="Wrap" />
+                        </Border>
+                    </StackPanel>
                 </Grid>
 
-                <!--  底部：添加 / 计数 / 修改汇总 / 恢复全部 / 取消 + 确定  -->
+                <!--  底部：添加 / 汇总 / 撤销 / 粘贴 / 换算 / 刷新 / 取消 + 确认  -->
                 <Border
                     Grid.Row="2"
-                    Height="56"
-                    Padding="18,0"
+                    MinHeight="56"
+                    Padding="14,0"
                     Background="{StaticResource DialogRowAlternateBrush}"
                     BorderBrush="{StaticResource DialogBorderLightBrush}"
                     BorderThickness="0,1,0,0">
                     <Grid>
-                        <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal">
                             <Button
-                                Height="32"
-                                Padding="12,0"
+                                Height="30"
+                                Padding="10,0"
                                 Command="{Binding AddCommand}"
                                 FocusVisualStyle="{StaticResource DialogFocusVisual}"
                                 Style="{StaticResource DialogSecondaryButton}"
-                                Visibility="{Binding CanEditStructure, Converter={ui:BooleanToVisibilityConverter}}">
+                                Visibility="{Binding ShowBaselineControls, Converter={ui:BooleanToVisibilityConverter}}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock
-                                        Margin="0,0,6,0"
+                                        Margin="0,0,5,0"
                                         VerticalAlignment="Center"
                                         FontFamily="{StaticResource DialogIconFont}"
-                                        FontSize="11"
+                                        FontSize="10"
                                         Text="&#xf067;" />
                                     <TextBlock VerticalAlignment="Center" Text="添加元素" />
                                 </StackPanel>
                             </Button>
 
                             <TextBlock
-                                Margin="10,0,0,0"
-                                VerticalAlignment="Center"
-                                FontSize="10.5"
-                                Foreground="{StaticResource DialogTextMutedBrush}">
-                                <Run Text="共" />
-                                <Run Text="{Binding Elements.Count, Mode=OneWay}" />
-                                <Run Text="个元素" />
-                            </TextBlock>
-
-                            <TextBlock
                                 Margin="8,0,0,0"
                                 VerticalAlignment="Center"
                                 FontSize="10.5"
-                                Text="{Binding FooterSummary}">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="FontWeight" Value="SemiBold" />
-                                        <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasChanges}" Value="False">
-                                                <Setter Property="FontWeight" Value="Normal" />
-                                                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                Text="{Binding FooterSummary}" />
 
                             <Button
-                                Height="30"
-                                Margin="10,0,0,0"
-                                Padding="10,0"
+                                Height="28"
+                                Margin="8,0,0,0"
+                                Padding="8,0"
                                 Command="{Binding ResetAllCommand}"
-                                Content="恢复全部为基准"
+                                Content="{Binding ResetAllText}"
                                 FocusVisualStyle="{StaticResource DialogFocusVisual}"
-                                FontSize="11"
-                                IsEnabled="{Binding HasChanges}"
-                                Style="{StaticResource DialogSecondaryButton}"
-                                Visibility="{Binding ShowBaselineControls, Converter={ui:BooleanToVisibilityConverter}}" />
+                                FontSize="10.5"
+                                IsEnabled="{Binding HasPendingChanges}"
+                                Style="{StaticResource DialogSecondaryButton}" />
+
+                            <Button
+                                Width="28"
+                                Height="28"
+                                MinWidth="0"
+                                MinHeight="0"
+                                Margin="4,0,0,0"
+                                Padding="0"
+                                Click="OnPasteClick"
+                                FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                Style="{StaticResource DialogIconButton}"
+                                ToolTip="从剪贴板按行粘贴（每行一个元素；Excel 一列可直接粘）">
+                                <TextBlock
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="&#xf0ea;" />
+                            </Button>
+
+                            <Button
+                                Width="28"
+                                Height="28"
+                                MinWidth="0"
+                                MinHeight="0"
+                                Margin="4,0,0,0"
+                                Padding="0"
+                                Command="{Binding BatchConversionCommand}"
+                                FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                Style="{StaticResource DialogIconButton}"
+                                ToolTip="整组换算：同一份缩放/偏移/单位应用到全部元素（个别项再用行内 Σ 调整）"
+                                Visibility="{Binding ShowConversionControls, Converter={ui:BooleanToVisibilityConverter}}">
+                                <TextBlock
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="&#xf1ec;" />
+                            </Button>
                         </StackPanel>
 
                         <StackPanel
-                            HorizontalAlignment="Right"
+                            Grid.Column="1"
                             VerticalAlignment="Center"
                             Orientation="Horizontal">
                             <Button
+                                Width="28"
+                                Height="28"
+                                MinWidth="0"
+                                MinHeight="0"
+                                Margin="0,0,4,0"
+                                Padding="0"
+                                Command="{Binding RefreshCommand}"
+                                FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                IsEnabled="{Binding CanRefresh}"
+                                Style="{StaticResource DialogIconButton}"
+                                ToolTip="从设备立刻读一次（有未写入修改时会拒绝，避免吞掉编辑）"
+                                Visibility="{Binding ShowConversionControls, Converter={ui:BooleanToVisibilityConverter}}">
+                                <TextBlock
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="&#xf021;" />
+                            </Button>
+
+                            <Button
                                 Height="32"
-                                MinWidth="80"
+                                MinWidth="72"
                                 Command="{Binding CancelCommand}"
                                 Content="取消"
                                 FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                IsEnabled="{Binding CanCancel}"
                                 Style="{StaticResource DialogSecondaryButton}" />
                             <Button
                                 Height="32"
-                                MinWidth="88"
+                                MinWidth="96"
                                 Margin="8,0,0,0"
                                 Command="{Binding ConfirmCommand}"
-                                Content="确定"
+                                Content="{Binding ConfirmText}"
                                 FocusVisualStyle="{StaticResource DialogFocusVisual}"
                                 IsEnabled="{Binding CanConfirm}"
                                 Style="{StaticResource DialogPrimaryButton}" />

@@ -536,9 +536,16 @@ namespace FlowCanvasChecks
 
             Check("★弹窗视图：写入范围分段 / 逐行基准 / 修改汇总 / 恢复全部 齐备",
                 editorXaml.Contains("只写当前值") && editorXaml.Contains("同时写初始值")
+                && editorXaml.Contains("只写修改项") && editorXaml.Contains("整组写入")
                 && editorXaml.Contains("ScopeHint") && editorXaml.Contains("BaselineText")
                 && editorXaml.Contains("IsChanged") && editorXaml.Contains("ResetAllCommand")
-                && editorXaml.Contains("恢复全部为基准"),
+                && editorXaml.Contains("ResetAllText") && editorXaml.Contains("ConfirmHint")
+                && editorXaml.Contains("ShowConversionControls") && editorXaml.Contains("ConversionText"),
+                "");
+
+            Check("★弹窗 VM：两种模式的撤销文案齐备（本地=恢复基准 / 网络=撤销修改）",
+                editorVm.Contains("恢复全部为基准") && editorVm.Contains("撤销全部修改")
+                && editorVm.Contains("ElementConversions") && editorVm.Contains("TryWriteElement"),
                 "");
 
             Check("★弹窗 VM：装填当前值 + 确认走 TryBuildArray + 回传 SyncBaseline",
@@ -888,24 +895,122 @@ namespace FlowCanvasChecks
                 visibleDraftProps.Contains(nameof(LocalVariableDraft.InitialValue)),
                 $"草稿可见行 {visibleDraftProps.Count} 个：{string.Join("/", visibleDraftProps)}");
 
-            // 网络草稿多出的设备侧字段同样必须可见（连接/扫描组/存储区/偏移量/位偏移 + 两条只读说明）
+            // 网络草稿：公共字段 + 两块**互斥子对象**（地址参数按协议 / 元素参数按类型）。
+            //
+            // 判据必须按"协议/类型各自的可见集"问，不能只问"整张表有没有这一行"：
+            // 平铺时代 DbNumber 对 Modbus 也可见，而它的值会被下游静默忽略
+            // （TryBuildAddress 的 Modbus 分支根本不传 dbNumber）——2026-10-21 用户真机反馈的正是这条。
+            NetworkVariableDraft NetDraft(CommunicationType protocol, string typeName)
+                => new(null, null, null, null, null, new NetworkVariableDraftContext
+                {
+                    ProtocolFor = _ => protocol,
+                    TypeResolver = GlobalVariableManagerViewModel.ResolveType,
+                })
+                { TypeName = typeName, ConnectionName = "PLC_1" };
+
             var netVisible = UI.CustomControl.PropertyGrid.PropertyGridDefaults
-                .GetVisibleProperties(new NetworkVariableDraft(null, null, null, null))
+                .GetVisibleProperties(NetDraft(CommunicationType.ModbusTcp, "整数 (int)"))
                 .Select(p => p.Name)
                 .ToList();
-            bool netAllShown = new[]
-            {
-                nameof(NetworkVariableDraft.ConnectionName),
-                nameof(NetworkVariableDraft.ScanGroupName),
-                nameof(NetworkVariableDraft.AreaName),
-                nameof(NetworkVariableDraft.Offset),
-                nameof(NetworkVariableDraft.BitOffset),
-                nameof(NetworkVariableDraft.AddressPreview),
-                nameof(NetworkVariableDraft.CoilAreaHint),
-            }.All(netVisible.Contains);
-            Check("★【当前值】网络草稿的设备侧字段全部可见（缺一行 = 弹窗里静默少个输入框）",
-                netAllShown,
+            Check("★【当前值】网络草稿的公共字段全部可见（缺一行 = 弹窗里静默少个输入框）",
+                new[]
+                {
+                    nameof(NetworkVariableDraft.ConnectionName),
+                    nameof(NetworkVariableDraft.ScanGroupName),
+                    nameof(NetworkVariableDraft.AreaName),
+                    nameof(NetworkVariableDraft.Offset),
+                    nameof(NetworkVariableDraft.AddressOffset),
+                    nameof(NetworkVariableDraft.AddressDraft),
+                    nameof(NetworkVariableDraft.Elements),
+                    nameof(NetworkVariableDraft.MergeAdjacentRead),
+                    nameof(NetworkVariableDraft.AddressPreview),
+                    nameof(NetworkVariableDraft.CoilAreaHint),
+                }.All(netVisible.Contains),
                 $"可见 {netVisible.Count} 行：{string.Join("/", netVisible)}");
+
+            // 反向：协议/类型专属字段不许再平铺回外层（平铺 = 选了 Modbus 还看见 S7 的 DB 号）
+            var flatLeaks = new[]
+            {
+                nameof(NetworkVariableDraft.DbNumber),
+                nameof(NetworkVariableDraft.Station),
+                nameof(NetworkVariableDraft.UseLegacyAddress),
+                nameof(NetworkVariableDraft.BitOffset),
+                nameof(NetworkVariableDraft.ElementCount),
+                nameof(NetworkVariableDraft.ElementByteLength),
+            }.Where(netVisible.Contains).ToList();
+            Check("★【当前值】协议/类型专属字段不再平铺在外层（否则 Modbus 会看见 S7 的 DB 号）",
+                flatLeaks.Count == 0,
+                flatLeaks.Count == 0 ? "外层只剩公共字段" : "仍平铺：" + string.Join("/", flatLeaks));
+
+            static List<string> VisibleOf(object o) => UI.CustomControl.PropertyGrid.PropertyGridDefaults
+                .GetVisibleProperties(o).Select(p => p.Name).ToList();
+
+            var modbusFields = VisibleOf(NetDraft(CommunicationType.ModbusTcp, "整数 (int)").AddressDraft);
+            Check("★【当前值】Modbus 地址参数：站号 + 40001 写法，没有 DB 块编号 / 位偏移",
+                modbusFields.Contains(nameof(ModbusAddressDraft.Station))
+                && modbusFields.Contains(nameof(ModbusAddressDraft.UseLegacyAddress))
+                && !modbusFields.Contains(nameof(S7AddressDraft.DbNumber))
+                && !modbusFields.Contains(nameof(S7AddressDraft.BitOffset)),
+                string.Join("/", modbusFields));
+
+            var s7Fields = VisibleOf(NetDraft(CommunicationType.SiemensS7, "整数 (int)").AddressDraft);
+            Check("★【当前值】S7 地址参数：DB 块编号 + 位偏移，没有站号 / 40001 写法",
+                s7Fields.Contains(nameof(S7AddressDraft.DbNumber))
+                && s7Fields.Contains(nameof(S7AddressDraft.BitOffset))
+                && !s7Fields.Contains(nameof(ModbusAddressDraft.Station))
+                && !s7Fields.Contains(nameof(ModbusAddressDraft.UseLegacyAddress)),
+                string.Join("/", s7Fields));
+
+            var finsFields = VisibleOf(NetDraft(CommunicationType.OmronFins, "整数 (int)").AddressDraft);
+            var mcFields = VisibleOf(NetDraft(CommunicationType.MitsubishiMc, "整数 (int)").AddressDraft);
+            Check("★【当前值】FINS 只有位偏移（0-15），MC 没有任何可编辑地址字段",
+                finsFields.Contains(nameof(FinsAddressDraft.BitOffset))
+                && !finsFields.Contains(nameof(ModbusAddressDraft.Station))
+                && !finsFields.Contains(nameof(S7AddressDraft.DbNumber))
+                && !mcFields.Contains(nameof(ModbusAddressDraft.Station))
+                && !mcFields.Contains(nameof(S7AddressDraft.DbNumber))
+                && !mcFields.Contains(nameof(S7AddressDraft.BitOffset)),
+                $"FINS={string.Join("/", finsFields)}；MC={string.Join("/", mcFields)}");
+
+            var scalarFields = VisibleOf(NetDraft(CommunicationType.ModbusTcp, "整数 (int)").Elements);
+            var arrayFields = VisibleOf(NetDraft(CommunicationType.ModbusTcp, "整数数组 (int[])").Elements);
+            var stringFields = VisibleOf(NetDraft(CommunicationType.ModbusTcp, "文本 (string)").Elements);
+            var stringArrayFields = VisibleOf(NetDraft(CommunicationType.ModbusTcp, "文本数组 (string[])").Elements);
+            Check("★【当前值】元素参数按类型换形：标量无可编辑字段 / 数组只有个数 / 字符串只有字节长度 / string[] 两项",
+                !scalarFields.Contains(nameof(ArrayElementDraft.ElementCount))
+                && arrayFields.Contains(nameof(ArrayElementDraft.ElementCount))
+                && !arrayFields.Contains(nameof(StringArrayElementDraft.ElementByteLength))
+                && stringFields.Contains(nameof(StringScalarElementDraft.ByteLength))
+                && !stringFields.Contains(nameof(ArrayElementDraft.ElementCount))
+                && stringArrayFields.Contains(nameof(StringArrayElementDraft.ElementCount))
+                && stringArrayFields.Contains(nameof(StringArrayElementDraft.ElementByteLength)),
+                $"标量={string.Join("/", scalarFields)}；数组={string.Join("/", arrayFields)}；"
+                + $"字符串={string.Join("/", stringFields)}；string[]={string.Join("/", stringArrayFields)}");
+
+            // 草稿保留：切协议 / 切类型不重置已填参数（旧实现是同一个字段被来回改，会互相破坏）
+            var switching = new NetworkVariableDraft(null, new[] { "S7", "MB" }, null, null, null,
+                new NetworkVariableDraftContext
+                {
+                    ProtocolFor = name => name == "MB" ? CommunicationType.ModbusTcp : CommunicationType.SiemensS7,
+                    TypeResolver = GlobalVariableManagerViewModel.ResolveType,
+                })
+            { TypeName = "整数 (int)", ConnectionName = "S7" };
+            ((S7AddressDraft)switching.AddressDraft).DbNumber = 7;
+            switching.ConnectionName = "MB";
+            bool switchedToModbus = switching.AddressDraft is ModbusAddressDraft && switching.DbNumber == 1;
+            switching.ConnectionName = "S7";
+            bool dbKept = ((S7AddressDraft)switching.AddressDraft).DbNumber == 7;
+            Check("【当前值】地址参数草稿按协议保留（S7 填 7 → Modbus → S7 仍是 7）",
+                switchedToModbus && dbKept, $"切到 Modbus={switchedToModbus}；切回 S7 DB={dbKept}");
+
+            var elementSwitching = NetDraft(CommunicationType.ModbusTcp, "整数数组 (int[])");
+            ((ArrayElementDraft)elementSwitching.Elements).ElementCount = 3;
+            elementSwitching.TypeName = "整数 (int)";
+            bool scalarHidesCount = elementSwitching.Elements is ScalarElementDraft && elementSwitching.ElementCount == 1;
+            elementSwitching.TypeName = "整数数组 (int[])";
+            Check("【当前值】元素参数草稿按类型形态保留（int[] 填 3 → int → int[] 仍是 3）",
+                scalarHidesCount && elementSwitching.ElementCount == 3,
+                $"标量隐藏个数={scalarHidesCount}；切回 int[] 个数={elementSwitching.ElementCount}");
             Check("【当前值】VM：写值弹窗死命令清干净（WriteValueCommand/ExecuteWriteValue 零残留）",
                 !vmNoComments.Contains("WriteValueCommand") && !vmNoComments.Contains("ExecuteWriteValue"),
                 "");
@@ -1048,16 +1153,125 @@ namespace FlowCanvasChecks
             {
                 { ArrayEditorViewModel.VariableKey, netArray }
             });
-            Check("[G] 网络数组写入弹窗：隐藏基准面板、固定 3 行、标题为「写入数组」",
-                !editor.ShowBaselineControls && !editor.CanEditStructure
+            Check("[G] 网络数组写入弹窗：隐藏基准面板、固定 3 行、标题为「写入数组」、默认只写修改项",
+                !editor.ShowBaselineControls && !editor.CanEditStructure && editor.ShowWriteModeControls
                 && editor.Elements.Count == 3
                 && editor.Title.Contains("写入数组", StringComparison.Ordinal)
-                && editor.ScopeHint.Contains("整组写入设备", StringComparison.Ordinal),
+                && editor.IsChangedOnly
+                && editor.ScopeHint.Contains("只写入改过的项", StringComparison.Ordinal),
                 $"ShowBaseline={editor.ShowBaselineControls} CanEdit={editor.CanEditStructure} " +
                 $"rows={editor.Elements.Count} title={editor.Title} hint={editor.ScopeHint}");
 
-            Check("[G] 网络数组写入弹窗：当前值已到 → CanConfirm=true",
-                editor.CanConfirm, $"CanConfirm={editor.CanConfirm}");
+            Check("[G] 网络数组：未修改时不能确认（默认只写修改项，不是整组覆盖）",
+                !editor.CanConfirm && !editor.Elements[0].IsChanged
+                && editor.ConfirmHint.Contains("没有修改项", StringComparison.Ordinal),
+                $"CanConfirm={editor.CanConfirm} hint={editor.ConfirmHint}");
+
+            editor.Elements[1].Value = "9";
+            Check("[G] 网络数组：改一行 → 标「原值」、计入已修改、可确认",
+                editor.Elements[1].IsChanged && editor.Elements[1].BaselineLabel == "原值："
+                && editor.Elements[1].BaselineText == "2" && editor.ChangedCount == 1
+                && editor.CanConfirm && editor.ConfirmText == "写入修改项",
+                $"changed={editor.Elements[1].IsChanged} base={editor.Elements[1].BaselineText} " +
+                $"count={editor.ChangedCount} can={editor.CanConfirm} text={editor.ConfirmText}");
+
+            editor.WriteWholeGroupCommand.Execute();
+            Check("[G] 网络数组：整组写入段选中 → 可确认（镜像完整）、按钮文案切换",
+                editor.IsWholeGroup && !editor.IsChangedOnly && editor.CanConfirm
+                && editor.ConfirmText == "整组写入"
+                && editor.ScopeHint.Contains("全部下发", StringComparison.Ordinal),
+                $"mode={editor.IsWholeGroup} can={editor.CanConfirm} text={editor.ConfirmText} hint={editor.ScopeHint}");
+
+            editor.WriteChangedOnlyCommand.Execute();
+            editor.ResetRowCommand.Execute(editor.Elements[1]);
+            Check("[G] 网络数组：行内 ↺ 撤销本行修改 → 回到快照、已修改归零",
+                !editor.Elements[1].IsChanged && editor.ChangedCount == 0 && !editor.CanConfirm,
+                $"changed={editor.Elements[1].IsChanged} count={editor.ChangedCount}");
+
+            int pasted = editor.Paste("10\n11", null);
+            Check("[G] 网络数组：多行粘贴按行铺开（Excel 一列）",
+                pasted == 2 && editor.Elements[0].Value == "10" && editor.Elements[1].Value == "11"
+                && editor.ChangedCount == 2,
+                $"pasted={pasted} v0={editor.Elements[0].Value} v1={editor.Elements[1].Value} count={editor.ChangedCount}");
+
+            int pastedOverflow = editor.Paste("20\n21\n22\n23", null);
+            Check("[G] 网络数组：粘贴多出的行被忽略（长度由设备点位固定）",
+                pastedOverflow == 3 && editor.Elements[2].Value == "22"
+                && editor.InfoText.Contains("多出", StringComparison.Ordinal),
+                $"filled={pastedOverflow} v2={editor.Elements[2].Value} info={editor.InfoText}");
+
+            editor.ResetAllCommand.Execute();
+            Check("[G] 网络数组：撤销全部修改 → 整表回到打开时快照",
+                editor.ChangedCount == 0 && editor.Elements[0].Value == "1"
+                && editor.Elements[1].Value == "2" && editor.Elements[2].Value == "3",
+                $"v=[{string.Join(",", editor.Elements.Select(r => r.Value))}] count={editor.ChangedCount}");
+
+            // —— 逐元素换算：读写互逆 / 文案进弹窗 / Scale=0 拒绝 ——
+            var conversion = new ElementConversion { Scale = 0.1, Offset = 5, DecimalPlaces = 1, Unit = "℃" };
+            object? raw = null;
+            Check("[G] 逐元素换算读写互逆：原始 1000 ×0.1+5 → 105；105 → 1000",
+                ArrayConversion.TryToEngineering(conversion, 1000, typeof(int), out var engineering, out _)
+                && Convert.ToDouble(engineering) == 105.0
+                && ArrayConversion.TryToRaw(conversion, 105.0, typeof(int), out raw, out _)
+                && Convert.ToInt32(raw) == 1000,
+                $"eng={engineering} raw={raw}");
+
+            Check("[G] 逐元素换算：Scale=0 反算明确失败（不静默写 0）",
+                !ArrayConversion.TryToRaw(new ElementConversion { Scale = 0 }, 1.0, typeof(int), out _, out var scaleError)
+                && !string.IsNullOrEmpty(scaleError),
+                scaleError ?? "(没有错误)");
+
+            var badDraft = ArrayConversionDraft.From(null);
+            badDraft.Scale = 0;
+            var identityDraft = ArrayConversionDraft.From(null);
+            Check("[G] 换算草稿：Scale=0 拒绝；identity（×1 +0 无单位）落成 null",
+                !badDraft.TryBuild(out _, out var draftError)
+                && identityDraft.TryBuild(out var identity, out _) && identity == null,
+                draftError ?? "(没有错误)");
+
+            netArray.ElementConversions = new ElementConversion?[]
+            {
+                conversion,
+                null,
+                new ElementConversion { Scale = 2, Offset = 0, DecimalPlaces = 0, Unit = "mm" },
+            };
+            var conversionEditor = new ArrayEditorViewModel();
+            conversionEditor.OnDialogOpened(new DialogParameters
+            {
+                { ArrayEditorViewModel.VariableKey, netArray }
+            });
+            Check("[G] 网络数组弹窗：逐元素换算文案按元素显示（每个元素一份）",
+                conversionEditor.Elements[0].HasConversion
+                && conversionEditor.Elements[0].ConversionText.Contains("×0.1", StringComparison.Ordinal)
+                && conversionEditor.Elements[0].ConversionText.Contains("℃", StringComparison.Ordinal)
+                && !conversionEditor.Elements[1].HasConversion
+                && conversionEditor.Elements[2].ConversionText.Contains("×2", StringComparison.Ordinal),
+                $"c0={conversionEditor.Elements[0].ConversionText} c1={conversionEditor.Elements[1].ConversionText} " +
+                $"c2={conversionEditor.Elements[2].ConversionText}");
+
+            // —— 添加变量：数组类型不再暴露可编辑的换算字段 ——
+            var draftContext = new NetworkVariableDraftContext
+            {
+                TypeResolver = name => name switch
+                {
+                    "Int32" => typeof(int),
+                    "Int32[]" => typeof(int[]),
+                    "String" => typeof(string),
+                    _ => null,
+                }
+            };
+            var networkDraft = new NetworkVariableDraft(
+                new[] { "Int32", "Int32[]", "String" },
+                Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(),
+                context: draftContext);
+            networkDraft.TypeName = "Int32[]";
+            bool arrayConversionIsHint = networkDraft.Conversion is ConversionHintDraft
+                && !networkDraft.EnableConversion;
+            networkDraft.TypeName = "Int32";
+            bool scalarConversionIsEditable = networkDraft.Conversion is ScalarConversionDraft;
+            Check("[G] 添加变量：数组类型给「逐元素配置」说明，数值标量才给可编辑换算字段",
+                arrayConversionIsHint && scalarConversionIsEditable,
+                $"arrayHint={arrayConversionIsHint} scalarEditable={scalarConversionIsEditable}");
 
             var emptyModel = new NetworkVariableModel
             {
@@ -1078,9 +1292,18 @@ namespace FlowCanvasChecks
             {
                 { ArrayEditorViewModel.VariableKey, emptyModel }
             });
-            Check("[G] 网络数组写入弹窗：当前值未到 → CanConfirm=false（防空表写成 0）",
-                !emptyEditor.CanConfirm && emptyEditor.Elements.Count == 3,
-                $"CanConfirm={emptyEditor.CanConfirm} rows={emptyEditor.Elements.Count}");
+            emptyEditor.WriteWholeGroupCommand.Execute();
+            Check("[G] 网络数组写入弹窗：当前值未到 → 整组确认被拒（防空表写成 0）",
+                !emptyEditor.CanConfirm && emptyEditor.Elements.Count == 3
+                && emptyEditor.ConfirmHint.Contains("未读取", StringComparison.Ordinal),
+                $"CanConfirm={emptyEditor.CanConfirm} rows={emptyEditor.Elements.Count} hint={emptyEditor.ConfirmHint}");
+
+            emptyEditor.Elements[0].Value = "1";
+            emptyEditor.Elements[1].Value = "2";
+            emptyEditor.Elements[2].Value = "3";
+            Check("[G] 网络数组写入弹窗：镜像未到时把全部项填满 → 允许整组写入（写的是用户显式给的值）",
+                emptyEditor.CanConfirm,
+                $"CanConfirm={emptyEditor.CanConfirm} hint={emptyEditor.ConfirmHint}");
         }
 
         // ==================================================================
@@ -1273,6 +1496,73 @@ namespace FlowCanvasChecks
                 groupsBack is { Count: 1 } && groupsBack[0].Id == monitor.Id && groupsBack[0].Name == monitor.Name
                 && varsBack is { Count: 1 } && varsBack[0].GroupId == monitor.Id,
                 $"groups={groupsBack?.Count} varGroup={varsBack?.FirstOrDefault()?.GroupId}");
+
+            // 数组逐元素换算 + 区域合并读开关：两者都是"漏存就静默退回默认行为"的配置，
+            // 必须真的走一遍 JSON 往返（只断言 DTO 字段存在测不出序列化丢字段）。
+            var arrayDto = VariableDto.FromNetwork(
+                new NetworkVariableModel
+                {
+                    Name = "Ctrl",
+                    ConnectionName = "PLC1",
+                    DataType = typeof(int[]),
+                    MergeAdjacentRead = false,
+                    ElementConversions = new ElementConversion?[]
+                    {
+                        new() { Scale = 0.1, Offset = 5, DecimalPlaces = 1, Unit = "℃" },
+                        null,
+                    },
+                    AddressConfig = new ModbusAddress
+                    {
+                        Area = ModbusArea.HoldingRegisters,
+                        DataType = DataValueType.Int32,
+                        Offset = "0",
+                        Length = 2
+                    }
+                }, CommunicationType.ModbusTcp);
+            var arrayBack = JsonConvert.DeserializeObject<VariableDto>(
+                JsonConvert.SerializeObject(arrayDto));
+            Check("[G] ★持久化往返：数组逐元素换算与区域合并读开关原样还原",
+                arrayBack?.ElementConversions is { Length: 2 }
+                && arrayBack.ElementConversions[0]?.Scale == 0.1
+                && arrayBack.ElementConversions[0]?.Offset == 5
+                && arrayBack.ElementConversions[0]?.DecimalPlaces == 1
+                && arrayBack.ElementConversions[0]?.Unit == "℃"
+                && arrayBack.ElementConversions[1] == null
+                && !arrayBack.MergeAdjacentRead,
+                arrayBack?.ElementConversions == null
+                    ? "ElementConversions=null"
+                    : $"len={arrayBack.ElementConversions.Length} " +
+                      $"scale={arrayBack.ElementConversions[0]?.Scale} unit={arrayBack.ElementConversions[0]?.Unit} " +
+                      $"merge={arrayBack.MergeAdjacentRead}");
+
+            var scalarDto = VariableDto.FromNetwork(
+                new NetworkVariableModel
+                {
+                    Name = "Temp",
+                    ConnectionName = "PLC1",
+                    DataType = typeof(double),
+                    AddressConfig = new ModbusAddress
+                    {
+                        Area = ModbusArea.HoldingRegisters,
+                        DataType = DataValueType.Float,
+                        Offset = "0",
+                        EnableConversion = true,
+                        Scale = 0.1,
+                        EngineeringOffset = 5,
+                        Unit = "℃"
+                    }
+                }, CommunicationType.ModbusTcp);
+            var scalarBack = JsonConvert.DeserializeObject<VariableDto>(
+                JsonConvert.SerializeObject(scalarDto));
+            var scalarAddress = scalarBack?.BuildAddressConfig();
+            Check("[G] ★持久化往返：标量换算参数（启用/缩放/偏移/单位）原样还原",
+                scalarBack is { EnableConversion: true, Scale: 0.1, EngineeringOffset: 5, Unit: "℃" }
+                && scalarAddress is { EnableConversion: true, Scale: 0.1, EngineeringOffset: 5, Unit: "℃" },
+                scalarBack == null
+                    ? "dto=null"
+                    : $"enabled={scalarBack.EnableConversion} scale={scalarBack.Scale} " +
+                      $"offset={scalarBack.EngineeringOffset} unit={scalarBack.Unit} " +
+                      $"addrScale={scalarAddress?.Scale} addrUnit={scalarAddress?.Unit}");
 
             var legacyDto = JsonConvert.DeserializeObject<VariableDto>(
                 "{\"VarType\":\"Network\",\"Name\":\"Old\",\"ConnectionName\":\"PLC1\"}");

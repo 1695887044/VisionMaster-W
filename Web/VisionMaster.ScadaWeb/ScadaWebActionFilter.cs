@@ -18,12 +18,13 @@ namespace VisionMaster.ScadaWeb
     /// （它只读 <see cref="ScadaEventHook.Event"/>、<see cref="ScadaEventHook.Actions"/>
     /// 与确认开关）。
     ///
-    /// <b>为什么 Navigate / NavigateBack 永远剔除（镜像模式）</b>
+    /// <b>为什么 Navigate / NavigateBack / OpenPopup / ClosePopup 永远剔除（镜像模式）</b>
     /// ---------
-    /// 运行态 Web 是"所有人看同一页"的镜像：切页是<b>现场</b>的动作，不是某个客户端的视图偏好。
-    /// 允许一条 Web 点击把桌面运行窗口切走，会同时改掉所有其它客户端看到的画面。
-    /// 所以即使调用方把 <see cref="ScadaActionType.Navigate"/> 或
-    /// <see cref="ScadaActionType.NavigateBack"/> 放进 allowed，这里也一律剔除，
+    /// 运行态 Web 是"所有人看同一页"的镜像：切页/开关弹窗是<b>现场</b>的动作，不是某个客户端的视图偏好。
+    /// 允许一条 Web 点击把桌面运行窗口切走或弹出遮罩，会同时改掉所有其它客户端看到的画面。
+    /// 所以即使调用方把 <see cref="ScadaActionType.Navigate"/>、
+    /// <see cref="ScadaActionType.NavigateBack"/>、<see cref="ScadaActionType.OpenPopup"/> 或
+    /// <see cref="ScadaActionType.ClosePopup"/> 放进 allowed，这里也一律剔除，
     /// 并把它记进 <c>skipped</c>——命令层据此落审计（动作列写 <c>Skipped/mirror-mode</c>），
     /// 而不是让用户看到"点了没反应"却查不到原因。
     ///
@@ -47,7 +48,10 @@ namespace VisionMaster.ScadaWeb
         /// 过滤器、白名单构建、审计原因三处共用这一份判据，避免口径分叉。
         /// </summary>
         public static bool IsMirrorOnlyPageAction(ScadaActionType type)
-            => type is ScadaActionType.Navigate or ScadaActionType.NavigateBack;
+            => type is ScadaActionType.Navigate
+                or ScadaActionType.NavigateBack
+                or ScadaActionType.OpenPopup
+                or ScadaActionType.ClosePopup;
 
         /// <summary>
         /// 按白名单复制一条钩子。原钩子与原 <see cref="ScadaEventHook.Actions"/> 集合
@@ -55,7 +59,7 @@ namespace VisionMaster.ScadaWeb
         ///
         /// <b>剔除规则（按判定顺序）</b>
         /// <list type="number">
-        /// <item><see cref="ScadaActionType.Navigate"/> / <see cref="ScadaActionType.NavigateBack"/>：无条件剔除（镜像模式，见类注释）；</item>
+        /// <item><see cref="ScadaActionType.Navigate"/> / <see cref="ScadaActionType.NavigateBack"/> / <see cref="ScadaActionType.OpenPopup"/> / <see cref="ScadaActionType.ClosePopup"/>：无条件剔除（镜像模式，见类注释）；</item>
         /// <item>不在 <paramref name="allowed"/> 里的动作类型：剔除；</item>
         /// <item>集合里的 <c>null</c> 项（手工改坏的 <c>.vms</c>）：静默跳过，执行侧本来也会跳过它。</item>
         /// </list>
@@ -64,7 +68,7 @@ namespace VisionMaster.ScadaWeb
         /// </summary>
         /// <param name="source">桌面端的事件钩子；<c>null</c> 返回 <c>null</c>（分发器对空钩子本来就是空操作）</param>
         /// <param name="allowed">本次允许执行的动作类型集合；传 <c>null</c> 按"一条都不放行"处理</param>
-        /// <param name="skipped">被剔除的动作类型（含 Navigate / NavigateBack）；没有剔除时为空列表</param>
+        /// <param name="skipped">被剔除的动作类型（含 Navigate / NavigateBack / OpenPopup / ClosePopup）；没有剔除时为空列表</param>
         /// <returns>
         /// 可被 <see cref="IScadaActionDispatcher.Dispatch"/> 直接执行的副本；
         /// <paramref name="source"/> 为 <c>null</c> 时返回 <c>null</c>。

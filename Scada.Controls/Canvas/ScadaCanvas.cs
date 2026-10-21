@@ -217,6 +217,18 @@ namespace VisionMaster.Scada.Controls
         /// </summary>
         private readonly HashSet<ScadaLayer> _subscribedLayers = new();
 
+        /// <summary>当前挂着订阅的基座（列表里的每一只）。换列表时先全摘再全挂，低频动作。</summary>
+        private readonly HashSet<ScadaPage> _subscribedBasePages = new();
+
+        /// <summary>
+        /// 多基座层序的段宽：每只基座占一个 ZIndex 段，本页占最后一个段。
+        /// 取 1000 万是为了给模型 ZIndex 留出足够余量（编辑器从 0/1 起分配，极端手改值也够用）。
+        /// </summary>
+        private const int LayerZStride = 10_000_000;
+
+        /// <summary>单基座视图与基座列表互相同步时的重入闸（两者写同一个事实，必须防回环）。</summary>
+        private bool _syncingBasePages;
+
         static ScadaCanvas()
         {
             DefaultStyleKeyProperty.OverrideMetadata(typeof(ScadaCanvas), new FrameworkPropertyMetadata(typeof(ScadaCanvas)));
@@ -350,6 +362,17 @@ namespace VisionMaster.Scada.Controls
             nameof(BasePage), typeof(ScadaPage), typeof(ScadaCanvas),
             new FrameworkPropertyMetadata(null, OnBasePageChanged));
 
+        /// <summary>
+        /// 本页引用的<b>全部基座</b>（按列表顺序叠：靠前的在下面）。null/空 = 不引用。
+        ///
+        /// 与 <see cref="BasePageProperty"/> 的关系：后者是单基座兼容视图，
+        /// 设置它会等价于把列表替换成"只有这一只"；设置列表会把单基座视图同步成第一只。
+        /// 新代码一律绑这个属性。
+        /// </summary>
+        public static readonly DependencyProperty BasePagesProperty = DependencyProperty.Register(
+            nameof(BasePages), typeof(IReadOnlyList<ScadaPage>), typeof(ScadaCanvas),
+            new FrameworkPropertyMetadata(null, OnBasePagesChanged));
+
         /// <summary>图元来源集合</summary>
         public IEnumerable? ItemsSource
         {
@@ -375,11 +398,18 @@ namespace VisionMaster.Scada.Controls
             set => SetValue(PageBackgroundProperty, value);
         }
 
-        /// <summary>本页引用的基座画面（null = 不引用）。见 <see cref="BasePageProperty"/>。</summary>
+        /// <summary>本页引用的基座画面（单基座兼容视图；null = 不引用）。见 <see cref="BasePageProperty"/>。</summary>
         public ScadaPage? BasePage
         {
             get => (ScadaPage?)GetValue(BasePageProperty);
             set => SetValue(BasePageProperty, value);
+        }
+
+        /// <summary>本页引用的全部基座（按绘制顺序）。见 <see cref="BasePagesProperty"/>。</summary>
+        public IReadOnlyList<ScadaPage> BasePages
+        {
+            get => (IReadOnlyList<ScadaPage>?)GetValue(BasePagesProperty) ?? Array.Empty<ScadaPage>();
+            set => SetValue(BasePagesProperty, value ?? Array.Empty<ScadaPage>());
         }
 
         public bool ShowGrid
@@ -450,21 +480,73 @@ namespace VisionMaster.Scada.Controls
         private static void OnBasePageChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
             => ((ScadaCanvas)d).OnBasePageChangedCore((ScadaPage?)e.OldValue, (ScadaPage?)e.NewValue);
 
+        private static void OnBasePagesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+            => ((ScadaCanvas)d).OnBasePagesChangedCore(
+                (IReadOnlyList<ScadaPage>?)e.OldValue,
+                (IReadOnlyList<ScadaPage>?)e.NewValue);
+
         /// <summary>
-        /// 基座换人：摘旧基座的订阅，挂新基座的订阅，并把整张画布按"本页 + 新基座"重画一遍。
+        /// 单基座兼容视图换人：等价于把基座列表替换成"只有这一只"（null = 清空）。
+        /// 真正的订阅与重画在 <see cref="OnBasePagesChangedCore"/> 里做，两条入口只有一份实现。
+        /// </summary>
+        private void OnBasePageChangedCore(ScadaPage? oldBase, ScadaPage? newBase)
+        {
+            if (_syncingBasePages)
+                return;
+
+            _syncingBasePages = true;
+
+            try
+            {
+                BasePages = newBase is null
+                    ? Array.Empty<ScadaPage>()
+                    : new[] { newBase };
+            }
+            finally
+            {
+                _syncingBasePages = false;
+            }
+        }
+
+        /// <summary>
+        /// 基座列表换人：摘旧订阅、挂新订阅，并把整张画布按"全部基座 + 本页"重画一遍。
         ///
-        /// 换基座必须<b>全量重建</b>而不是增删那几条：基座图元压在本页之下，
+        /// 换列表必须<b>全量重建</b>而不是增删那几条：基座图元压在本页之下，
         /// 增删会让"本页的某一条"被挤到基座的某一条上面——叠放次序就错了。
         /// 全量重建走 RebuildElements 这条已被反复验证的路径，代价是一次控件重建
         /// （换基座是低频动作，不是每帧）。
         /// </summary>
-        private void OnBasePageChangedCore(ScadaPage? oldBase, ScadaPage? newBase)
+        private void OnBasePagesChangedCore(IReadOnlyList<ScadaPage>? oldBases, IReadOnlyList<ScadaPage>? newBases)
         {
-            if (oldBase != null)
-                oldBase.PropertyChanged -= OnBasePagePropertyChanged;
+            foreach (var basePage in _subscribedBasePages)
+                basePage.PropertyChanged -= OnBasePagePropertyChanged;
 
-            if (newBase != null)
-                newBase.PropertyChanged += OnBasePagePropertyChanged;
+            _subscribedBasePages.Clear();
+
+            if (newBases != null)
+            {
+                foreach (var basePage in newBases)
+                {
+                    if (basePage != null && _subscribedBasePages.Add(basePage))
+                        basePage.PropertyChanged += OnBasePagePropertyChanged;
+                }
+            }
+
+            // 单基座视图同步成第一只（旧代码/旧断言仍可能读它）。用 SetCurrentValue 而不是 SetValue：
+            // 若外部还绑着 BasePage，不把绑定顶掉。重入由 _syncingBasePages 挡住。
+            if (!_syncingBasePages)
+            {
+                _syncingBasePages = true;
+
+                try
+                {
+                    SetCurrentValue(BasePageProperty, newBases is { Count: > 0 } ? newBases[0] : null);
+                }
+                finally
+                {
+                    _syncingBasePages = false;
+                }
+            }
 
             RebuildElements();
         }
@@ -595,7 +677,7 @@ namespace VisionMaster.Scada.Controls
         /// </summary>
         private IReadOnlyList<ScadaElement> TrimForeignBaseElements(IReadOnlyList<ScadaElement> items)
         {
-            if (BasePage == null || items.Count == 0)
+            if (BasePages.Count == 0 || items.Count == 0)
                 return items;
 
             List<ScadaElement>? kept = null;
@@ -1262,6 +1344,10 @@ namespace VisionMaster.Scada.Controls
             if (container is ScadaElementBase control)
             {
                 control.LayerVisibilityResolver = IsElementShown;
+                control.LayerZOffset = ResolveLayerZOffset(element);
+
+                // 控件构造时已经按模型刷过一次几何，那时层偏移还是 0；补一次让 ZIndex 落到正确层段。
+                control.Refresh();
 
                 // 运行态一起带出去：宿主是在 Show() 之前装配的，那时容器一个都还没造，
                 // 全靠这里逐个补发；造完才装配（收场换人）那条路由 RuntimeContext 的 setter 兜。
@@ -1279,6 +1365,11 @@ namespace VisionMaster.Scada.Controls
 
             // 新建/复用的容器必须当场定一次可见性：它可能落在一个正被隐藏的图层上
             container.Visibility = IsElementShown(element) ? Visibility.Visible : Visibility.Collapsed;
+
+            // 占位框不是 ScadaElementBase，没人替它加层偏移；在这里补一次，
+            // 否则基座里的未知图元仍会按自己的 ZIndex 和本页图元抢层。
+            if (container is not ScadaElementBase)
+                Panel.SetZIndex(container, element.ZIndex + ResolveLayerZOffset(element));
 
             // 先挂元素层：立刻可见。父子归属由调用方随后的 RelinkToParents 收敛
             // （单条 Add 走这里，全量重建走完后也统一收敛一次）。
@@ -1302,12 +1393,15 @@ namespace VisionMaster.Scada.Controls
 
         private IEnumerable<ScadaElement> EnumerateItems()
         {
-            // 基座的图元<b>先</b>出：叠放次序由渲染先后天然表达（先画的在下面），
-            // 而画布内部按"先造的是底"的顺序铺进可视树——基座的公共层压在最底。
+            // 基座的图元<b>先</b>出：CreateContainer 会给它们分配各自的层偏移
+            // （基座 0..N-1、本页 N），所以 WPF 的 Panel.ZIndex 比较不会让基座盖住本页。
             // 它走与本页同一条装配路径（CreateContainer → 索引 → 裁剪/联动），
             // 所以运行态数据泵也照常接到它们身上（EnumerateControls 枚举同一批）。
-            if (BasePage is { } basePage)
+            foreach (var basePage in BasePages)
             {
+                if (basePage == null)
+                    continue;
+
                 foreach (var element in basePage.Elements)
                     yield return element;
             }
@@ -1320,6 +1414,25 @@ namespace VisionMaster.Scada.Controls
                 if (item is ScadaElement element)
                     yield return element;
             }
+        }
+
+        /// <summary>
+        /// 图元属于第几层：0..N-1 = 第几只基座，N = 本页。
+        /// 用引用比对（与 IsForeignBaseElement 同一口径）；找不到时按本页处理。
+        /// </summary>
+        private int ResolveLayerZOffset(ScadaElement element)
+        {
+            int layer = 0;
+
+            foreach (var basePage in BasePages)
+            {
+                if (basePage != null && basePage.Elements.Contains(element))
+                    return layer * LayerZStride;
+
+                layer++;
+            }
+
+            return layer * LayerZStride;
         }
 
         private bool Contains(ScadaElement element)
@@ -1579,14 +1692,20 @@ namespace VisionMaster.Scada.Controls
         /// </summary>
         private bool IsForeignBaseElement(ScadaElement? element)
         {
-            if (element == null || BasePage is not { } basePage)
+            if (element == null || BasePages.Count == 0)
                 return false;
 
             // 本页自己的图元当然归本页（同一对象不可能同时属于两页；先判本页让口径自解释）
             if (Page?.Elements.Contains(element) == true)
                 return false;
 
-            return basePage.Elements.Contains(element);
+            foreach (var basePage in BasePages)
+            {
+                if (basePage != null && basePage.Elements.Contains(element))
+                    return true;
+            }
+
+            return false;
         }
 
         /// <summary>

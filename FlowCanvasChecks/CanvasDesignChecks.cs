@@ -193,6 +193,14 @@ namespace FlowCanvasChecks
                 headerText.Length > 0 && hw > 0 && hh > 0
                 && hw < cw && hh <= ch,
                 $"text='{headerText}' w={hw:0.#} h={hh:0.#} card={cw:0.#}×{ch:0.#}");
+
+            // 工具箱拖入的接线（2026-10-21 拖影残留事故）：gong 的拖影 Popup 只在它自己的
+            // DropTargetOnDrop 里关闭，画布必须声明 IsDropTarget 并挂 IDropTarget，
+            // 否则成功落子后胶囊行永久停在落点。改回裸 Drop/DragOver 这条必红。
+            string? dragLine = Line("[measure] dragdrop=");
+            Check("FLC-23 画布是 gong 的拖放目标且挂了 IDropTarget（否则工具箱拖影不消失）",
+                dragLine == "[measure] dragdrop=IsDropTarget=True|IDropTarget=True",
+                dragLine ?? "没有 dragdrop 行");
         }
 
         private static (string Output, string Error, int ExitCode) RunMeasurementProcess()

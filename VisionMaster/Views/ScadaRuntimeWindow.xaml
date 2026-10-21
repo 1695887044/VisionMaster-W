@@ -8,6 +8,7 @@
     Width="1280"
     Height="800"
     Background="#FF16191D"
+    PreviewKeyDown="OnWindowPreviewKeyDown"
     TextOptions.TextFormattingMode="Display"
     UseLayoutRounding="True"
     WindowStartupLocation="CenterScreen">
@@ -363,7 +364,7 @@
         <Grid Grid.Row="1" Margin="16">
             <controls:ScadaCanvas
                 x:Name="Canvas"
-                BasePage="{Binding CurrentBasePage}"
+                BasePages="{Binding CurrentBasePages}"
                 IsReadOnly="True"
                 ItemsSource="{Binding CurrentPage.Elements}"
                 Page="{Binding CurrentPage}"
@@ -373,6 +374,88 @@
                 ShowGrid="False"
                 SizeChanged="OnCanvasSizeChanged"
                 SnapToGrid="False" />
+
+            <!--  ====================  弹窗层（特殊画面）  ====================  -->
+            <!--  盖在画布之上、但不参与画布的测量（与报警历史抽屉同一条纪律：覆盖层不动画布一寸）。  -->
+            <!--  弹窗页仍是普通 ScadaPage，只是 IsPopup=true；关闭后回到原页，CurrentPage 从未变过。  -->
+            <Grid
+                x:Name="PopupLayer"
+                Panel.ZIndex="20"
+                SizeChanged="OnPopupLayerSizeChanged"
+                Visibility="{Binding IsPopupOpen, Converter={StaticResource BoolToVisibility}}">
+                <!--  模态遮罩：挡住背景控件的命中；非模态时收起，主画面仍可操作。  -->
+                <Border
+                    x:Name="PopupBackdrop"
+                    Background="#A603070C"
+                    Visibility="{Binding CurrentPopup.PopupModal, Converter={StaticResource BoolToVisibility}}" />
+
+                <Border
+                    x:Name="PopupFrame"
+                    HorizontalAlignment="Center"
+                    MaxHeight="{Binding ActualHeight, ElementName=PopupLayer}"
+                    MaxWidth="{Binding ActualWidth, ElementName=PopupLayer}"
+                    VerticalAlignment="Center"
+                    Background="#FF151C23"
+                    BorderBrush="#FF3A4A5C"
+                    BorderThickness="1"
+                    ClipToBounds="True"
+                    CornerRadius="8">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="38" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Border
+                            Grid.Row="0"
+                            Background="{StaticResource BarBrush}"
+                            BorderBrush="{StaticResource BarLineBrush}"
+                            BorderThickness="0,0,0,1">
+                            <Grid Margin="12,0">
+                                <TextBlock
+                                    Margin="0,0,36,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="13"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource TextBrush}"
+                                    Text="{Binding CurrentPopup.Name}"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTip="{Binding CurrentPopup.Name}" />
+                                <Button
+                                    x:Name="PopupCloseButton"
+                                    Width="30"
+                                    Height="30"
+                                    HorizontalAlignment="Right"
+                                    Click="OnPopupCloseClick"
+                                    Content="✕"
+                                    FontSize="14"
+                                    Padding="0"
+                                    Style="{StaticResource PageMenuButton}"
+                                    ToolTip="关闭弹窗（Esc）" />
+                            </Grid>
+                        </Border>
+
+                        <Viewbox
+                            Grid.Row="1"
+                            Stretch="Uniform"
+                            StretchDirection="DownOnly">
+                            <controls:ScadaCanvas
+                                x:Name="PopupCanvas"
+                                Width="{Binding CurrentPopup.Width}"
+                                Height="{Binding CurrentPopup.Height}"
+                                BasePages="{Binding CurrentPopupBasePages}"
+                                IsReadOnly="True"
+                                ItemsSource="{Binding CurrentPopup.Elements}"
+                                Page="{Binding CurrentPopup}"
+                                PageBackground="{Binding CurrentPopup.Background}"
+                                PageHeight="{Binding CurrentPopup.Height}"
+                                PageWidth="{Binding CurrentPopup.Width}"
+                                ShowGrid="False"
+                                SnapToGrid="False" />
+                        </Viewbox>
+                    </Grid>
+                </Border>
+            </Grid>
         </Grid>
 
         <!--  ====================  报警历史抽屉（覆盖层）  ====================  -->

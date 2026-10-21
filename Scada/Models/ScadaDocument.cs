@@ -233,7 +233,7 @@ namespace VisionMaster.Scada
         /// 否则把第一页注册成基座之后，一按运行就先看到一张孤零零的基座。
         /// </summary>
         public ScadaPage? ResolveStartupPage()
-            => FindNavigablePage(_startupPageId) ?? _pages.FirstOrDefault(p => !IsBasePage(p));
+            => FindNavigablePage(_startupPageId) ?? _pages.FirstOrDefault(IsNavigable);
 
         /// <summary>按稳定身份找画面（找不到返回 null）</summary>
         public ScadaPage? FindPage(Guid pageId)
@@ -256,7 +256,7 @@ namespace VisionMaster.Scada
         public ScadaPage? FindNavigablePage(Guid pageId)
             => pageId == Guid.Empty
                 ? null
-                : _pages.FirstOrDefault(p => p.PageId == pageId && !IsBasePage(p));
+                : _pages.FirstOrDefault(p => p.PageId == pageId && !IsBasePage(p) && !p.IsPopup);
 
         /// <summary>按名找可导航的画面（口径同 <see cref="FindNavigablePage"/>）</summary>
         public ScadaPage? FindNavigablePageByName(string? name)
@@ -264,11 +264,12 @@ namespace VisionMaster.Scada
                 ? null
                 : _pages.FirstOrDefault(p =>
                     !IsBasePage(p)
+                    && !p.IsPopup
                     && string.Equals(p.Name, name!.Trim(), StringComparison.OrdinalIgnoreCase));
 
-        /// <summary>该画面能不能作为导航目标（在本方案里、且不是基座）</summary>
+        /// <summary>该画面能不能作为导航目标（在本方案里、不是基座、不是弹窗页）</summary>
         public bool IsNavigable(ScadaPage? page)
-            => page != null && _pages.Contains(page) && !IsBasePage(page);
+            => page != null && _pages.Contains(page) && !IsBasePage(page) && !page.IsPopup;
 
         /// <summary>
         /// 可作为基座的画面集合（落盘）。
@@ -348,7 +349,13 @@ namespace VisionMaster.Scada
             if (_basePages.Contains(page))
                 return true; // 幂等：已经注册过了
 
-            if (page.BasePageId != Guid.Empty)
+            if (page.IsPopup)
+            {
+                error = "弹窗页是特殊画面，不能注册为基座";
+                return false;
+            }
+
+            if (page.BasePageIds.Count != 0)
             {
                 error = "该画面已引用别的基座，不能再注册为基座（本版本只支持一层）";
                 return false;
@@ -408,14 +415,15 @@ namespace VisionMaster.Scada
 
             var newBaseId = basePage?.PageId ?? Guid.Empty;
 
-            if (page.BasePageId == newBaseId)
+            if (page.BasePageIds.Count == (basePage is null ? 0 : 1)
+                && (basePage is null || page.BasePageIds[0] == newBaseId))
                 return true; // 幂等：没变化
 
             if (basePage is null)
             {
                 using (page.BeginEdit($"取消基座引用 [{page.Name}]"))
                 {
-                    page.BasePageId = Guid.Empty;
+                    page.SetBasePageIds(Array.Empty<Guid>());
                 }
 
                 return true;
@@ -447,20 +455,166 @@ namespace VisionMaster.Scada
 
             using (page.BeginEdit($"设置基座 [{basePage.Name}]"))
             {
-                page.BasePageId = newBaseId;
+                page.SetBasePageIds(new[] { newBaseId });
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// 把一只基座追加到画面的引用列表末尾（渲染顺序 = 列表顺序，后加的盖在上面）。
+        ///
+        /// 与 <see cref="TrySetBasePage"/> 共用同一套校验：画面在本方案、目标已注册为基座、
+        /// 引用方自己不是基座、不成环。重复添加是幂等空操作（不产生撤销记录）。
+        /// </summary>
+        public bool TryAddBasePageReference(ScadaPage? page, ScadaPage? basePage, out string error)
+        {
+            error = string.Empty;
+
+            if (page is null || !_pages.Contains(page))
+            {
+                error = "画面不在本方案里";
+                return false;
+            }
+
+            if (basePage is null)
+            {
+                error = "基座画面为空";
+                return false;
+            }
+
+            if (ReferenceEquals(page, basePage))
+            {
+                error = "基座不能引用它自己";
+                return false;
+            }
+
+            if (IsBasePage(page))
+            {
+                error = "基座画面不能再引用别的基座（本版本只支持一层）";
+                return false;
+            }
+
+            if (!IsBasePage(basePage))
+            {
+                error = $"「{basePage.Name}」不是已注册的基座画面";
+                return false;
+            }
+
+            if (page.BasePageIds.Contains(basePage.PageId))
+                return true; // 幂等
+
+            if (CreatesCycle(page, basePage))
+            {
+                error = "会形成循环引用（基座不能再套基座）";
+                return false;
+            }
+
+            using (page.BeginEdit($"添加基座 [{basePage.Name}]"))
+            {
+                page.SetBasePageIds(page.BasePageIds.Concat(new[] { basePage.PageId }));
+            }
+
+            return true;
+        }
+
+        /// <summary>从画面的引用列表里摘掉一只基座；本来没引用时幂等返回 true。</summary>
+        public bool TryRemoveBasePageReference(ScadaPage? page, ScadaPage? basePage, out string error)
+        {
+            error = string.Empty;
+
+            if (page is null || !_pages.Contains(page))
+            {
+                error = "画面不在本方案里";
+                return false;
+            }
+
+            if (basePage is null || !page.BasePageIds.Contains(basePage.PageId))
+                return true;
+
+            using (page.BeginEdit($"移除基座 [{basePage.Name}]"))
+            {
+                page.SetBasePageIds(page.BasePageIds.Where(id => id != basePage.PageId));
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 调整一只基座在引用列表里的位置（0 = 最底层）。用于"先画标题栏还是先画底栏"这类层序调整。
+        /// 返回 false 只可能是画面/基座不匹配，正常界面路径不可达。
+        /// </summary>
+        public bool TryMoveBasePageReference(ScadaPage? page, ScadaPage? basePage, int newIndex, out string error)
+        {
+            error = string.Empty;
+
+            if (page is null || !_pages.Contains(page) || basePage is null)
+            {
+                error = "画面或基座为空";
+                return false;
+            }
+
+            var ids = page.BasePageIds.ToList();
+            var oldIndex = ids.IndexOf(basePage.PageId);
+
+            if (oldIndex < 0)
+            {
+                error = $"「{basePage.Name}」不在本页的基座列表里";
+                return false;
+            }
+
+            var target = Math.Clamp(newIndex, 0, ids.Count - 1);
+
+            if (target == oldIndex)
+                return true;
+
+            ids.RemoveAt(oldIndex);
+            ids.Insert(target, basePage.PageId);
+
+            using (page.BeginEdit($"调整基座顺序 [{basePage.Name}]"))
+            {
+                page.SetBasePageIds(ids);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 本页当前真正生效的基座列表：按 <see cref="ScadaPage.BasePageIds"/> 顺序，
+        /// 跳过悬空 Id、自引用与重复项。渲染侧只认这个结果，不自己再写一遍过滤。
+        /// </summary>
+        public IReadOnlyList<ScadaPage> ResolveBasePages(ScadaPage? page)
+        {
+            if (page is null || page.BasePageIds.Count == 0)
+                return Array.Empty<ScadaPage>();
+
+            var result = new List<ScadaPage>(page.BasePageIds.Count);
+
+            foreach (var id in page.BasePageIds)
+            {
+                var basePage = FindBasePage(id);
+
+                if (basePage is null || ReferenceEquals(basePage, page) || result.Contains(basePage))
+                    continue;
+
+                result.Add(basePage);
+            }
+
+            return result;
         }
 
         /// <summary>该画面是不是已注册的基座（直接比引用，不查 Id——对象比 Id 更可靠）</summary>
         public bool IsBasePage(ScadaPage? page)
             => page is not null && _basePages.Contains(page);
 
-        /// <summary>把 page 设成 basePage 的引用方会不会造成循环（A 引 B 且 B 引 A，或更长环）</summary>
+        /// <summary>
+        /// 把 page 设成 basePage 的引用方会不会造成循环（A 引 B 且 B 引 A，或更长环）。
+        ///
+        /// 正常编辑路径到不了这里（基座本身不允许再引用基座），但手改过的 .vms 可能带着链；
+        /// 这里按列表逐层扫，既防直接自引用，也防"畸形数据里的多跳环"。
+        /// </summary>
         private bool CreatesCycle(ScadaPage page, ScadaPage basePage)
         {
-            var seen = new HashSet<Guid>();
             var byId = new Dictionary<Guid, ScadaPage>();
 
             foreach (var p in _pages)
@@ -468,19 +622,25 @@ namespace VisionMaster.Scada
             foreach (var p in _basePages)
                 byId[p.PageId] = p;
 
-            // 顺着引用链往下走：若链上出现了本页自己的 Id，就成环。
-            // 链上的每一步都按 BasePageId 反查——基座与普通页都可能在链上。
-            var currentId = basePage.BasePageId;
+            var stack = new Stack<ScadaPage>();
+            var seen = new HashSet<Guid>();
+            stack.Push(basePage);
 
-            while (currentId != Guid.Empty && byId.TryGetValue(currentId, out var current))
+            while (stack.Count > 0)
             {
+                var current = stack.Pop();
+
                 if (!seen.Add(current.PageId))
                     return true; // 链上有重复 Id = 环
 
                 if (current.PageId == page.PageId)
                     return true;
 
-                currentId = current.BasePageId;
+                foreach (var id in current.BasePageIds)
+                {
+                    if (byId.TryGetValue(id, out var next))
+                        stack.Push(next);
+                }
             }
 
             return false;
@@ -510,7 +670,10 @@ namespace VisionMaster.Scada
             using (BeginEdit($"新建画面 [{pageName}]"))
             {
                 page.Name = pageName;
-                page.BasePageId = basePageId; // 先定引用再进集合：订阅者看到的画面永远是"完整"的
+                // 这里是"新建画面夹具/迁移"入口：basePageId 由调用方保证来自当前页的引用列表。
+                // 用户改引用的路径走 TryAdd/TryRemove/TrySet，那三处才做注册/一层/成环校验。
+                if (basePageId != Guid.Empty)
+                    page.SetBasePageIds(new[] { basePageId }); // 先定引用再进集合：订阅者看到的画面永远是"完整"的
                 page.AddLayer(); // 先建好图层再进集合：让订阅者看到的画面永远是"完整"的
                 _pages.Add(page);
             }
@@ -1043,19 +1206,35 @@ namespace VisionMaster.Scada
                 // 现场看到的是"基座改了没反应"，比加载期直接报错难查得多。
                 for (int i = _basePages.Count - 1; i >= 0; i--)
                 {
-                    if (_pages.Contains(_basePages[i]))
+                    if (_pages.Contains(_basePages[i]) && !_basePages[i].IsPopup)
                         continue;
 
-                    _basePages.RemoveAt(i); // 幽灵条目：Pages 里已经没有它了
+                    _basePages.RemoveAt(i); // 幽灵条目 / 弹窗页误注册：都不该留在基座集合里
                     repaired++;
                 }
 
                 foreach (var basePage in _basePages)
                 {
-                    if (basePage.BasePageId == Guid.Empty)
+                    if (basePage.BasePageIds.Count == 0)
                         continue;
 
-                    basePage.BasePageId = Guid.Empty; // 一层限制：基座不引用任何基座
+                    basePage.SetBasePageIds(Array.Empty<Guid>()); // 一层限制：基座不引用任何基座
+                    repaired++;
+                }
+
+                // 手改过的 .vms 可能带自引用/重复 Id：渲染侧会重复画同一层或把本页当基座。
+                // 这里只清结构性脏数据，悬空 Id 保留（撤销/恢复基座还要靠它）。
+                foreach (var page in _pages)
+                {
+                    var normalized = page.BasePageIds
+                        .Where(id => id != page.PageId)
+                        .Distinct()
+                        .ToList();
+
+                    if (normalized.SequenceEqual(page.BasePageIds))
+                        continue;
+
+                    page.SetBasePageIds(normalized);
                     repaired++;
                 }
             }

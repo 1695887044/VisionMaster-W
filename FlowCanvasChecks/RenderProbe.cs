@@ -88,6 +88,7 @@ namespace FlowCanvasChecks
             RenderScenarioJ(Path.Combine(outDir, "variable-add-popup-render-J.png"));
             RenderScenarioK(Path.Combine(outDir, "array-editor-render-K.png"), withError: false);
             RenderScenarioK(Path.Combine(outDir, "array-editor-error-render-K2.png"), withError: true);
+            RenderScenarioKNetwork(Path.Combine(outDir, "array-editor-network-render-K3.png"));
 
             // 性能量化（2026-10-12 评审清单第三批）：压力图式 300/600 节点，只量化不优化——
             // RebuildInPlace / 整帧毫秒打 [perf] 行（3 次取中位数），结论供评审拍板"第一刀接不接局部刷新"
@@ -189,6 +190,19 @@ namespace FlowCanvasChecks
                     header?.ActualWidth ?? double.NaN,
                     header?.ActualHeight ?? double.NaN));
 
+                // ---- 工具箱拖入的接线（2026-10-21 拖影残留事故）----
+                // gong 的拖影 Popup 只在它自己的 DropTargetOnDrop 里关闭：画布若只挂裸 Drop/DragOver
+                // 而没声明 IsDropTarget，成功落子后胶囊行会永久停在落点。这里钉住"编辑器是拖放目标
+                // 且挂了 IDropTarget"，接线一被改回去就红。
+                var editor = FindDescendant<NodifyEditor>(view);
+                bool isDropTarget = editor != null
+                    && GongSolutions.Wpf.DragDrop.DragDrop.GetIsDropTarget(editor);
+                bool hasDropHandler = editor != null
+                    && GongSolutions.Wpf.DragDrop.DragDrop.GetDropHandler(editor)
+                        is GongSolutions.Wpf.DragDrop.IDropTarget;
+                Console.WriteLine(
+                    $"[measure] dragdrop=IsDropTarget={isDropTarget}|IDropTarget={hasDropHandler}");
+
                 // ---- 小地图：打开态量尺寸，关掉后看 Visibility ----
                 var minimap = FindDescendant<Minimap>(view);
                 var minimapBorder = minimap == null ? null : VisualTreeHelper.GetParent(minimap) as Border;
@@ -223,6 +237,12 @@ namespace FlowCanvasChecks
             catch (Exception ex)
             {
                 Console.WriteLine($"[measure] FAIL: {ex.GetType().Name}: {ex.Message}");
+
+                // XamlParseException 的根因全在 InnerException 里（外层只说"设置属性时引发异常"），
+                // 不把这条链打出来就只能靠猜
+                for (var inner = ex.InnerException; inner != null; inner = inner.InnerException)
+                    Console.WriteLine($"[measure]   inner: {inner.GetType().Name}: {inner.Message}");
+
                 Environment.ExitCode = 1;
             }
             finally
@@ -945,6 +965,27 @@ namespace FlowCanvasChecks
                         && addVisibility == "IsParallelNodeSelected";
                     Console.WriteLine(
                         $"[render][check] 组头菜单「添加分支」={groupMenuOk}（期望 True：命令={CommandPath(addItem)} 靶={ParameterPath(addItem)} 可见性={addVisibility}）");
+
+                    // 拖拽浮层：模板选择器按数据类型分派，卡片取到模型字段。
+                    // gong 一个拖拽源只有一份 DragAdornerTemplate，树里混着 StepModel / StepCollection，
+                    // 写死一种另一种就是空卡片（2026-10-21 设计基线 v2 落地时加的闸）。
+                    var ghostSelector = GongSolutions.Wpf.DragDrop.DragDrop.GetDragAdornerTemplateSelector(tree);
+                    var stepModel = stepText?.DataContext as StepModel;
+                    var branchModel = branchText.DataContext as StepCollection;
+                    var stepGhostTemplate = ghostSelector?.SelectTemplate(stepModel, tree);
+                    var branchGhostTemplate = ghostSelector?.SelectTemplate(branchModel, tree);
+                    bool stepGhostOk = ProbeGhostCard(
+                        stepGhostTemplate, stepModel,
+                        stepModel?.StepName ?? "", stepModel?.Category ?? "");
+                    bool branchGhostOk = ProbeGhostCard(
+                        branchGhostTemplate, branchModel,
+                        branchModel?.DisplayName ?? "", "分支");
+                    Console.WriteLine(
+                        $"[render][check] 流程栏拖拽浮层：步骤卡={stepGhostOk}（期望 True）；分支卡={branchGhostOk}（期望 True）");
+
+                    RenderGhostCards(
+                        Path.Combine(Path.GetDirectoryName(path) ?? ".", "process-tree-drag-ghost.png"),
+                        stepGhostTemplate, stepModel, branchGhostTemplate, branchModel);
                 }
                 else
                 {
@@ -1242,6 +1283,80 @@ namespace FlowCanvasChecks
         }
 
         /// <summary>
+        /// 场景 K3：网络数组「写入数组」弹窗（默认只写修改项 / 逐元素换算 / 质量预警）。
+        /// <para>与 K/K2 的本地编辑是两套语义：这里要看到「写入范围」分段、每行的「原值」、
+        /// 「换算」列（×0.1 +5 ℃ / — / ×2 mm）与质量预警条——这些在本地模式都不出现。</para>
+        /// </summary>
+        private static void RenderScenarioKNetwork(string path)
+        {
+            var theme = new ResourceDictionary
+            {
+                Source = new Uri("pack://application:,,,/UI;component/Themes/Generic.xaml"),
+            };
+            var appInline = LoadAppInlineResources();
+            Application.Current.Resources.MergedDictionaries.Add(theme);
+            if (appInline != null) Application.Current.Resources.MergedDictionaries.Add(appInline);
+
+            try
+            {
+                var model = new NetworkVariableModel
+                {
+                    Name = "State",
+                    DataType = typeof(int[]),
+                    ConnectionName = "PLC1",
+                    AddressConfig = new ModbusAddress
+                    {
+                        Area = ModbusArea.HoldingRegisters,
+                        DataType = DataValueType.Int32,
+                        Offset = "0",
+                        Length = 3
+                    },
+                    Value = new[] { 10, 20, 30 },
+                    ElementConversions = new ElementConversion?[]
+                    {
+                        new() { Scale = 0.1, Offset = 5, DecimalPlaces = 1, Unit = "℃" },
+                        null,
+                        new() { Scale = 2, Offset = 0, DecimalPlaces = 0, Unit = "mm" },
+                    }
+                };
+                // 质量不是 Good：出图要能看到「当前值是旧值，建议先刷新」的预警条
+                model.UpdateQuality(VariableQuality.Uncertain);
+
+                var vm = new ArrayEditorViewModel();
+                vm.OnDialogOpened(new DialogParameters
+                {
+                    { ArrayEditorViewModel.VariableKey, model },
+                });
+                // 改一项：出图要能看到「原值：20」与「已改 1 项」
+                vm.Elements[1].Value = "25";
+
+                var view = new ArrayEditorView { DataContext = vm };
+                var host = new Border
+                {
+                    Width = 640,
+                    Height = 680,
+                    Background = new SolidColorBrush(Color.FromRgb(0xEE, 0xF2, 0xF7)),
+                    Child = view,
+                };
+                host.Measure(new Size(640, 680));
+                host.Arrange(new Rect(0, 0, 640, 680));
+                host.UpdateLayout();
+                PumpFrames(6);
+
+                Console.WriteLine(
+                    $"[render] 场景 K3：网络数组写入弹窗（{model.Name} / {vm.Elements.Count} 项 / "
+                    + $"模式={(vm.IsChangedOnly ? "只写修改项" : "整组写入")} / 已改={vm.ChangedCount} / "
+                    + $"换算={vm.Elements[0].ConversionText}）");
+                SavePng(host, path);
+            }
+            finally
+            {
+                if (appInline != null) Application.Current.Resources.MergedDictionaries.Remove(appInline);
+                Application.Current.Resources.MergedDictionaries.Remove(theme);
+            }
+        }
+
+        /// <summary>
         /// 把 VisionMaster\App.xaml 的**内联资源**（Icon / ExpandToggleButtonTemplate /
         /// LinkButtonStyle）抠出来临时并入——这三支键不在 UI 库的合并链上，
         /// 只在应用级 App.xaml 里。做法与 <c>_ResProbe.AddAppInlineResources</c> 逐字同源
@@ -1310,21 +1425,27 @@ namespace FlowCanvasChecks
             try
             {
                 var draft = new NetworkVariableDraft(
-                    new[] { "整数 (int)", "小数 (double)", "布尔 (bool)" },
+                    new[] { "整数 (int)", "整数数组 (int[])", "小数 (double)", "布尔 (bool)" },
                     new[] { "PLC_01", "PLC_02" },
                     new[] { "默认组", "快组 (50ms)" },
                     new[] { "保持寄存器 (4x, 读写字)", "线圈 (0x, 读写布尔)" },
-                    d => $"x=3;{d.Offset}")
+                    d => $"x=3;{d.Offset}",
+                    // 协议/类型回调：场景 J 要出「地址参数（Modbus 站号/40001）+ 元素参数（数组个数）」
+                    // 两块互斥字段，没有这两个回调就只会看到"先选所属连接"的提示行。
+                    new NetworkVariableDraftContext
+                    {
+                        ProtocolFor = _ => CommunicationType.ModbusTcp,
+                        TypeResolver = GlobalVariableManagerViewModel.ResolveType,
+                    })
                 {
                     VariableName = "Motor1_Speed",
-                    TypeName = "整数 (int)",
+                    TypeName = "整数数组 (int[])",
                     InitialValue = "0",
                     Description = "1 号工位主轴转速",
                     ConnectionName = "PLC_01",
                     ScanGroupName = "快组 (50ms)",
                     AreaName = "保持寄存器 (4x, 读写字)",
                     Offset = "100",
-                    BitOffset = 0,
                 };
 
                 var grid = new UI.CustomControl.FlatPropertyGrid
@@ -1935,6 +2056,77 @@ namespace FlowCanvasChecks
                     DispatcherPriority.ApplicationIdle,
                     new Action(() => frame.Continue = false));
                 Dispatcher.PushFrame(frame);
+            }
+        }
+
+        /// <summary>
+        /// 出图：流程栏两种拖拽浮层（步骤卡 / 分支卡）竖排，留白 24px 让阴影完整入图。
+        /// </summary>
+        private static void RenderGhostCards(
+            string path,
+            DataTemplate? stepTemplate,
+            object? stepModel,
+            DataTemplate? branchTemplate,
+            object? branchModel)
+        {
+            if (stepTemplate == null || branchTemplate == null || stepModel == null || branchModel == null)
+                return;
+
+            var panel = new StackPanel { Margin = new Thickness(24), Orientation = Orientation.Vertical };
+            foreach (var (template, model) in new[] { (stepTemplate, stepModel), (branchTemplate, branchModel) })
+            {
+                var card = (FrameworkElement)template.LoadContent();
+                card.DataContext = model;
+                card.Margin = new Thickness(0, 0, 0, 16);
+                panel.Children.Add(card);
+            }
+
+            var stage = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0xF8, 0xFA, 0xFC)),
+                Child = panel,
+            };
+            stage.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            stage.Arrange(new Rect(0, 0, stage.DesiredSize.Width, stage.DesiredSize.Height));
+            stage.UpdateLayout();
+            PumpFrames(1);
+            SavePng(stage, path);
+        }
+
+        /// <summary>
+        /// 把拖拽浮层的模板实例化出来，核对卡片取到的标题/副标题。
+        ///
+        /// 用 LoadContent 复刻 gong 在独立 Popup 里的物化路径：模板里的 StaticResource
+        /// 找不到会在这里当场抛（与真机"一拖就崩"同源，R173）。
+        /// </summary>
+        private static bool ProbeGhostCard(
+            DataTemplate? template,
+            object? dataContext,
+            string expectedTitle,
+            string expectedCategory)
+        {
+            if (template == null || dataContext == null)
+                return false;
+
+            try
+            {
+                var element = (FrameworkElement)template.LoadContent();
+                element.DataContext = dataContext;
+                element.Measure(new Size(400, 80));
+                element.Arrange(new Rect(0, 0, 400, 80));
+                element.UpdateLayout();
+                PumpFrames(1);
+
+                var card = element as VisionMaster.Controls.DragGhostCard
+                           ?? FindDescendant<VisionMaster.Controls.DragGhostCard>(element, _ => true);
+
+                return card != null
+                       && (card.Title ?? "") == (expectedTitle ?? "")
+                       && (card.Category ?? "") == (expectedCategory ?? "");
+            }
+            catch
+            {
+                return false;
             }
         }
 

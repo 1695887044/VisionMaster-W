@@ -113,6 +113,7 @@ namespace FlowCanvasChecks
             LayoutWriteBackDiscipline();
             OutsideSelectionDrivesCanvas();
             DragReorderAndVersion();
+            DragGhostChecks();
             CrossBranchMoveAndUndo();
             UnbindUndoRedo();
             UndoStackBoundary();
@@ -1339,6 +1340,57 @@ namespace FlowCanvasChecks
         }
 
         // ==================================================================
+        //  [M2] 画布内拖动浮层（纯视觉）：内容取主拖动节点，抬手即收
+        //
+        //  与工具箱 / 流程栏共用 DragGhostCard（设计基线 v2）。Nodify 没有公开的拖动开始
+        //  事件，状态由 ItemsDragStartedCommand / ItemsDragCompletedCommand 发布——这里直接
+        //  驱动两个命令，钉住"显示什么、什么时候收"；Popup 的定位在视图侧，不在这里。
+        // ==================================================================
+        private static void DragGhostChecks()
+        {
+            Section("[M2] 画布拖动浮层");
+
+            var h = new Harness();
+            var a = h.Leaf("A");
+            a.Category = "图像处理";
+            var b = h.Leaf("B");
+            b.Category = "测量";
+            h.Add(a);
+            h.Add(b);
+            var cv = h.Canvas;
+
+            var nodeA = h.Node(a)!;
+            var nodeB = h.Node(b)!;
+
+            Check("M2 初始不显示浮层", !cv.IsDragGhostVisible, "");
+
+            nodeA.IsSelected = true;
+            cv.ItemsDragStartedCommand.Execute(null);
+            Check("★M2 开始拖动 → 浮层显示，标题/图标取主拖动节点",
+                cv.IsDragGhostVisible && cv.DragGhostTitle == a.StepName && cv.DragGhostIcon == a.Icon,
+                $"visible={cv.IsDragGhostVisible} title='{cv.DragGhostTitle}' icon='{cv.DragGhostIcon}'");
+            Check("M2 单拖时副标题 = 分类名", cv.DragGhostCategory == "图像处理", $"'{cv.DragGhostCategory}'");
+
+            cv.ItemsDragCompletedCommand.Execute(null);
+            Check("★M2 抬手 → 浮层立即收起（不等重建）", !cv.IsDragGhostVisible, "");
+
+            // 多选：副标题换成数量（不拿某一个节点的分类冒充整批）
+            nodeA.IsSelected = true;
+            nodeB.IsSelected = true;
+            cv.ItemsDragStartedCommand.Execute(null);
+            Check("M2 多选拖动 → 副标题 = 共 N 个模块",
+                cv.IsDragGhostVisible && cv.DragGhostCategory == "共 2 个模块",
+                $"visible={cv.IsDragGhostVisible} category='{cv.DragGhostCategory}'");
+            cv.ItemsDragCompletedCommand.Execute(null);
+
+            // 视图离树（切面板/换 VM）也要收起，不能把 Popup 留在屏幕上
+            nodeA.IsSelected = true;
+            cv.ItemsDragStartedCommand.Execute(null);
+            cv.Deactivate();
+            Check("M2 Deactivate → 浮层收起", !cv.IsDragGhostVisible, "");
+        }
+
+        // ==================================================================
         //  [O] 跨分支移分支（仅同层）
         // ==================================================================
         private static void CrossBranchMoveAndUndo()
@@ -2142,6 +2194,84 @@ namespace FlowCanvasChecks
             Check("顶层落点：按中心 Y 插到容器之后",
                 h6.Flow.Steps.Count == 2 && h6.Flow.Steps[1] is ActionStep,
                 string.Join(",", h6.Flow.Steps.Select(s => s.StepName)));
+
+            // ---- X7 循环控制指令的落点闸门：Break/Continue 只能进 For/While ----
+            // 运行期对无归属的 Break/Continue 是警告+忽略（B2/B4/P17 钉着），允许落子等于
+            // 给"看着配好了、其实没生效"的假绿；闸门收在 StepFactory，画布/流程栏/粘贴共用。
+            var h7 = new Harness();
+            var for7 = h7.For("外层For");
+            var ifInFor7 = h7.If("循环内If");
+            for7.Children[0].Steps.Add(ifInFor7);
+            var while7 = new WhileStep("\uE700", "桩While", StubPluginProvider.IfPlugin, "外层While");
+            var ifInWhile7 = h7.If("While内If");
+            while7.Children[0].Steps.Add(ifInWhile7);
+            var par7 = h7.Parallel("并行组");
+            var forInPar7 = h7.For("分支内For");
+            par7.Children[0].Steps.Add(forInPar7);
+            var topIf7 = h7.If("顶层If");
+            h7.Add(for7);
+            h7.Add(while7);
+            h7.Add(par7);
+            h7.Add(topIf7);
+            var cv7 = h7.Canvas;
+
+            int topCount7 = h7.Flow.Steps.Count;
+
+            static Point FramePoint(CanvasNodeViewModel node)
+                => new(node.Location.X + node.LaneWidth / 2, node.Location.Y + 30);
+
+            Check("★X7 顶层拖入 Break → 拒绝且图纸不变",
+                !cv7.DropToolAt(NewTool("BuiltIn_Break", container: false), new Point(-5000, -5000))
+                && h7.Flow.Steps.Count == topCount7, $"steps={h7.Flow.Steps.Count}");
+            Check("X7 拒绝时给出循环归属提示（不是静默空跑）",
+                (cv7.StatusHint ?? "").Contains("只能放在"), $"'{cv7.StatusHint}'");
+            Check("X7 顶层拖入 Continue → 同样拒绝",
+                !cv7.DropToolAt(NewTool("BuiltIn_Continue", container: false), new Point(-5000, -5000)), "");
+
+            Check("X7 For 循环体内 → 放行",
+                cv7.DropToolAt(NewTool("BuiltIn_Break", container: false), FramePoint(h7.Node(for7)!)),
+                $"'{cv7.StatusHint}'");
+            Check("X7 If 在 For 内 → 放行（If 只透传控制流）",
+                cv7.DropToolAt(NewTool("BuiltIn_Continue", container: false), FramePoint(h7.Node(ifInFor7)!)),
+                $"'{cv7.StatusHint}'");
+            Check("X7 If 在 While 内 → 放行",
+                cv7.DropToolAt(NewTool("BuiltIn_Break", container: false), FramePoint(h7.Node(ifInWhile7)!)),
+                $"'{cv7.StatusHint}'");
+            Check("★X7 顶层 If 内 → 拒绝（外面没有循环）",
+                !cv7.DropToolAt(NewTool("BuiltIn_Break", container: false), FramePoint(h7.Node(topIf7)!)),
+                $"'{cv7.StatusHint}'");
+            Check("★X7 并行分组分支内 → 拒绝（分支不把控制流传给外层）",
+                !cv7.DropToolAt(NewTool("BuiltIn_Break", container: false), FramePoint(h7.Node(par7)!)),
+                $"'{cv7.StatusHint}'");
+            Check("X7 并行分支内的 For → 放行（最近的循环归属是 For）",
+                cv7.DropToolAt(NewTool("BuiltIn_Break", container: false), FramePoint(h7.Node(forInPar7)!)),
+                $"'{cv7.StatusHint}'");
+            Check("X7 普通算子仍可拖到顶层（闸门只认 Break/Continue）",
+                cv7.DropToolAt(NewTool("VM.CanvasStub.Leaf", container: false), new Point(-5000, -5000)),
+                $"'{cv7.StatusHint}'");
+
+            // 容器链口径：由近及远（粘贴闸门与 DropToolAt 共用同一条）
+            var chain7 = StepFactory.ContainerChainOf(h7.Flow.Steps, h7.Node(ifInFor7)!.Model);
+            Check("X7 ContainerChainOf 由近及远（If 在 For 内 → [If, For]）",
+                chain7.Count == 2 && ReferenceEquals(chain7[0], ifInFor7) && ReferenceEquals(chain7[1], for7),
+                string.Join(" > ", chain7.Select(s => s.StepName)));
+
+            // 流程栏 Drop 的落点参数是 StepCollection（分支），同一条链口径必须认得它
+            var branchChain7 = StepFactory.ContainerChainOf(h7.Flow.Steps, ifInFor7.Children[0]);
+            Check("X7 ContainerChainOf 认分支（If 的第一条分支 → [If, For]）",
+                branchChain7.Count == 2 && ReferenceEquals(branchChain7[0], ifInFor7) && ReferenceEquals(branchChain7[1], for7),
+                string.Join(" > ", branchChain7.Select(s => s.StepName)));
+
+            // 粘贴闸门：整棵子树都要有循环归属（For 带着 Break 一起走 = 合法）
+            var pasteFor7 = new ForStep("\uE700", "粘贴For", "BuiltIn_For", "粘贴For");
+            pasteFor7.Children[0].Steps.Add(new ActionStep("\uE700", "Break", "BuiltIn_Break", "For内Break"));
+            Check("X7 粘贴 For（内含 Break）到顶层 → 放行",
+                StepFactory.FindMisplacedLoopControl(new[] { pasteFor7 }, Array.Empty<StepModel>()) == null, "");
+
+            var pasteIf7 = new ConditionStep("\uE700", "粘贴If", "BuiltIn_If", "粘贴If");
+            pasteIf7.Children[0].Steps.Add(new ActionStep("\uE700", "Break", "BuiltIn_Break", "If内Break"));
+            Check("★X7 粘贴 If（内含 Break）到顶层 → 拒绝（返回命中步骤名）",
+                StepFactory.FindMisplacedLoopControl(new[] { pasteIf7 }, Array.Empty<StepModel>()) == "If内Break", "");
         }
 
         /// <summary>造一个工具箱模板桩（[X] 段工厂/落点断言用）</summary>

@@ -382,7 +382,15 @@ namespace VisionMaster.Scada
                 if (string.IsNullOrWhiteSpace(variableName))
                     return false;
 
-                newName = $"{variableName}[{{i}}]";
+                // 正常数据是"根名 + ArrayIndex"；旧数据/手工编辑可能把下标也写进名字
+                // （Control[0] + ArrayIndex 0），直接拼会得到 Control[0][{i}]。
+                string root = variableName!;
+                string existingSuffix = $"[{index.ToString(CultureInfo.InvariantCulture)}]";
+
+                if (root.EndsWith(existingSuffix, StringComparison.Ordinal))
+                    root = root[..^existingSuffix.Length];
+
+                newName = $"{root}[{{i}}]";
                 newArrayIndex = -1;
                 return true;
             }

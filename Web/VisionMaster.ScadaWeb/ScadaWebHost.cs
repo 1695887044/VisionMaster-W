@@ -2282,6 +2282,16 @@ namespace VisionMaster.ScadaWeb
                 BasePage = page.BasePage == null
                     ? null
                     : ApplyCaps(page.BasePage, session, unacknowledged, online),
+                BasePages = page.BasePages
+                    .Select(b => ApplyCaps(b, session, unacknowledged, online))
+                    .ToList()
+                    .AsReadOnly(),
+                IsPopup = page.IsPopup,
+                PopupAnchor = page.PopupAnchor,
+                PopupModal = page.PopupModal,
+                Popup = page.Popup == null
+                    ? null
+                    : ApplyCaps(page.Popup, session, unacknowledged, online),
                 Elements = elements.AsReadOnly()
             };
         }
@@ -2309,6 +2319,16 @@ namespace VisionMaster.ScadaWeb
                 BasePage = page.BasePage == null
                     ? null
                     : ApplyCaps(page.BasePage, session, unacknowledged, online),
+                BasePages = page.BasePages
+                    .Select(b => ApplyCaps(b, session, unacknowledged, online))
+                    .ToList()
+                    .AsReadOnly(),
+                IsPopup = page.IsPopup,
+                PopupAnchor = page.PopupAnchor,
+                PopupModal = page.PopupModal,
+                Popup = page.Popup == null
+                    ? null
+                    : ApplyCaps(page.Popup, session, unacknowledged, online),
                 Elements = elements.AsReadOnly()
             };
         }

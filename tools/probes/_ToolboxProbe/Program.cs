@@ -30,7 +30,9 @@ namespace ToolboxProbe
     /// </summary>
     internal static class Program
     {
-        private const string OutputDir = @"D:\C#\VM\_ToolboxProbe\out\";
+        // 产物落点按仓库分区约定（R166）：artifacts\render\<yyyyMMdd>\，不落根目录
+        private static readonly string OutputDir =
+            Path.Combine(@"D:\C#\VM\artifacts\render", DateTime.Now.ToString("yyyyMMdd"));
 
         private static int _pass, _fail;
 
@@ -340,6 +342,21 @@ namespace ToolboxProbe
                 Check("拖拽预览模板：Icon / Name 两个绑定都出值",
                     adornerTexts.Contains(leaf.Icon) && adornerTexts.Contains(leaf.Name),
                     string.Join(" | ", adornerTexts));
+
+                // 出图（自然尺寸 + 24px 留白）：留白是为了让阴影完整落在位图里——
+                // 贴着 DesiredSize 裁会把 Effect 外扩整圈切掉，证据图看起来像"没有阴影"
+                var stage = new Border
+                {
+                    Padding = new Thickness(24),
+                    Background = new SolidColorBrush(Color.FromRgb(0xF8, 0xFA, 0xFC)),
+                    Child = adorner,
+                };
+                stage.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                var stageSize = stage.DesiredSize;
+                stage.Arrange(new Rect(0, 0, Math.Max(stageSize.Width, 1), Math.Max(stageSize.Height, 1)));
+                stage.UpdateLayout();
+                Pump(stage);
+                Render(stage, "toolbox-drag-ghost.png", Math.Max(stageSize.Width, 1), Math.Max(stageSize.Height, 1));
             }
 
             // ---- 7. 条目图标的分类色（组 VM 的 AccentBrush 经 ItemsControl 祖先取到） ----

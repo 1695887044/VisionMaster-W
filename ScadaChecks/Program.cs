@@ -174,6 +174,7 @@ namespace ScadaChecks
             if (stress) SoakRuntimeBinder();
 
             Phase2UiChecks();
+            ScadaMultiBasePopupChecks.Run();
 
             Phase1UiChecks();
 
@@ -3258,8 +3259,8 @@ namespace ScadaChecks
             var newMenuButton = FindVisual<Button>(view, b => b.Name == "NewMenuButton");
             var menu = newMenuButton?.ContextMenu;
 
-            Check("「新建」右侧有下拉按钮，菜单里是「新建画面 / 新建基座」两项",
-                menu != null && menu.Items.Count == 2,
+            Check("「新建」右侧有下拉按钮，菜单里是「新建画面 / 新建弹窗页 / 新建基座」三项",
+                menu != null && menu.Items.Count == 3,
                 menu != null
                     ? string.Join("、", menu.Items.OfType<MenuItem>().Select(i => i.Header))
                     : "找不到 NewMenuButton 或它的菜单");
@@ -3298,6 +3299,46 @@ namespace ScadaChecks
             string png = Path.Combine(dir, "scada-editor-toolbar.png");
             SavePng(frame, png);
             Console.WriteLine($"        （顶栏证据：{png}）");
+
+            // ---- 顶栏折行：窄了不许把按钮推出视口 ----
+            // 2026-10-21 真机反馈：面板被拖窄时右侧「适应 / 1:1 / 运行画面 / …」整排被横向滚动条推到视口外
+            // （滚动条在 44px 的顶栏里只剩几个像素高，等于看不见），用户以为这些按钮不存在。
+            // 判据取"最右那颗按钮的右缘 ≤ 顶栏可用宽度"：只看高度会漏掉"折行了但依然溢出"这种半吊子状态。
+            var narrowView = new VisionMaster.Views.ScadaEditorView();
+            var narrowHost = new Border { Width = 700, Height = 200, Child = narrowView };
+            narrowHost.Measure(new Size(700, 200));
+            narrowHost.Arrange(new Rect(0, 0, 700, 200));
+            narrowHost.UpdateLayout();
+            PumpDispatcher(60);
+            narrowHost.UpdateLayout();
+
+            var toolbar = FindVisual<WrapPanel>(narrowView, p => p.Name == "ToolbarPanel");
+
+            Check("顶栏窄到 700 时折行（仍是固定单行 44 的话，右侧一整排按钮会被裁掉）",
+                toolbar != null && toolbar.ActualHeight > 44,
+                toolbar == null ? "找不到 ToolbarPanel" : $"顶栏 {toolbar.ActualWidth:0.#}×{toolbar.ActualHeight:0.#}");
+
+            if (toolbar != null && toolbar.ActualWidth > 0)
+            {
+                // 参照系取"视图"而不是"顶栏自己"：顶栏在横向滚动容器里时，它自己的宽度会跟着内容一起涨
+                // （内容 1051 就量成 1051），拿它当尺子的话"按钮被推到视口外"这种状态照样是绿的。
+                double right = 0;
+                foreach (UIElement child in toolbar.Children)
+                {
+                    var bounds = child.TransformToAncestor(narrowView)
+                        .TransformBounds(new Rect(child.RenderSize));
+                    right = Math.Max(right, bounds.Right);
+                }
+
+                Check("折行后没有任何顶栏元素越过视口右缘（不许再出现「被推到视口外」的按钮）",
+                    right <= narrowView.ActualWidth + 0.5,
+                    $"最右缘={right:0.#} / 视图宽={narrowView.ActualWidth:0.#}");
+            }
+            else
+            {
+                Check("折行后没有任何顶栏元素越过视口右缘（不许再出现「被推到视口外」的按钮）",
+                    false, "顶栏没有量到宽度");
+            }
 
             // ---- 框选落账：多选不许被"主选中回推"压成单选 ----
             // 2026-10-21 真机报障「框选只选中一个」。根因：SetSelection 先写集合、再写主选中，
@@ -5617,7 +5658,7 @@ namespace ScadaChecks
                 && eventRow.ActionTypeChoices.Select(o => o.Type).SequenceEqual(new[]
                 {
                     ScadaActionType.Log, ScadaActionType.WriteVariable, ScadaActionType.Navigate,
-                    ScadaActionType.NavigateBack,
+                    ScadaActionType.NavigateBack, ScadaActionType.OpenPopup, ScadaActionType.ClosePopup,
                     ScadaActionType.StartFlow, ScadaActionType.PauseFlow, ScadaActionType.ResumeFlow,
                     ScadaActionType.StopFlow, ScadaActionType.RunFlowOnce,
                     ScadaActionType.MotionEnable, ScadaActionType.MotionDisable,
@@ -6671,7 +6712,7 @@ namespace ScadaChecks
             var page = editor.SelectedPage!;
 
             Check("没选中图元即长出画面属性行 + 画面事件行，行数与组序全取自两份声明（面板不写死）",
-                Total(panel) == ScadaPageProperties.All.Count + ScadaPageEvents.All.Count
+                Total(panel) == ScadaPageProperties.All.Count(p => p.IsVisibleFor(page)) + ScadaPageEvents.All.Count
                 && string.Join("/", panel.Groups.Select(g => g.Name)) == "基本信息/画布尺寸/背景/设计辅助/运行",
                 $"{Total(panel)} 行 / {string.Join("/", panel.Groups.Select(g => g.Name))}");
 
@@ -6761,10 +6802,27 @@ namespace ScadaChecks
 
             Check("画面事件清单长出的行落在「运行」组（与「启动画面」同处），图元事件另有「事件」组——分组是宿主清单给的，不是写死在行里",
                 panel.Groups.Single(g => g.Name == "运行").Rows.Count
-                    == ScadaPageProperties.All.Count(p => p.Group == ScadaPropertyGroups.PageRun) + ScadaPageEvents.All.Count
+                    == ScadaPageProperties.All.Count(p => p.Group == ScadaPropertyGroups.PageRun && p.IsVisibleFor(page))
+                       + ScadaPageEvents.All.Count
                 && pageLoadedRow.Group == ScadaPageEvents.Group
                 && ScadaEventRow.ElementGroup == ScadaPropertyGroups.Event,
                 string.Join("/", panel.Groups.Select(g => $"{g.Name}:{g.Rows.Count}")));
+
+            // 弹窗页开关会增减四行（模态/位置/偏移 X/偏移 Y）：面板必须当场重建，
+            // 不能等切页或重选才出现（2026-10-21 评审 P1）。
+            page.IsPopup = true;
+            var popupRowsShown = panel.Groups.SelectMany(g => g.Rows).Any(r => r.Key == "PopupModal")
+                && panel.Groups.SelectMany(g => g.Rows).Any(r => r.Key == "PopupAnchor")
+                && panel.Groups.SelectMany(g => g.Rows).Any(r => r.Key == "PopupOffsetX")
+                && panel.Groups.SelectMany(g => g.Rows).Any(r => r.Key == "PopupOffsetY");
+
+            page.IsPopup = false;
+            var popupRowsHidden = panel.Groups.SelectMany(g => g.Rows).All(r => r.Key != "PopupModal")
+                && panel.Groups.SelectMany(g => g.Rows).All(r => r.Key != "PopupAnchor");
+
+            Check("勾选/取消「弹窗页」后属性面板当场增减四行（不用切页或重选）",
+                popupRowsShown && popupRowsHidden,
+                $"shown={popupRowsShown} / hidden={popupRowsHidden}");
 
             Check("画面事件行的宿主是画面本身（不是图元）：同一份行实现靠的正是这个接口，面板这一层没有类型分支",
                 ReferenceEquals(pageLoadedRow.Host, page)
@@ -13765,6 +13823,32 @@ namespace ScadaChecks
                 reason = FailBackReason;
                 return FailBackReason == null;
             }
+
+            public string? FailPopupReason { get; set; }
+
+            public int OpenPopupCalls { get; private set; }
+
+            public int ClosePopupCalls { get; private set; }
+
+            public Guid LastPopupPageId { get; private set; }
+
+            public string? LastPopupPageName { get; private set; }
+
+            public bool OpenPopup(Guid pageId, string? fallbackName, out string? reason)
+            {
+                OpenPopupCalls++;
+                LastPopupPageId = pageId;
+                LastPopupPageName = fallbackName;
+                reason = FailPopupReason;
+                return FailPopupReason == null;
+            }
+
+            public bool ClosePopup(out string? reason)
+            {
+                ClosePopupCalls++;
+                reason = FailPopupReason;
+                return FailPopupReason == null;
+            }
         }
 
         /// <summary>
@@ -16529,6 +16613,59 @@ namespace ScadaChecks
                 multiReplaced
                     ? $"{multiElement.Name} / {multiElement.Properties["Text"]} / {multiChanged}"
                     : multiError ?? "替换失败");
+
+            // 事件动作写数组元素：两个按钮分别写 Control[0] / State[0]
+            var actionPayload = new ScadaClipboardPayload();
+
+            var actionElement1 = new ScadaElementSnapshot
+            {
+                TypeKey = "Hmi.Button",
+                Name = "写 Control",
+                Width = 80,
+                Height = 30,
+            };
+            var actionHook1 = new ScadaEventHookSnapshot { Event = ScadaEventType.Pressed };
+            actionHook1.Actions.Add(new ScadaActionSnapshot
+            {
+                Type = ScadaActionType.WriteVariable,
+                VariableName = "Control[0]",
+                ArrayIndex = -1,
+                Value = "1",
+            });
+            actionElement1.EventHooks.Add(actionHook1);
+            actionPayload.Items.Add(actionElement1);
+
+            var actionElement2 = new ScadaElementSnapshot
+            {
+                TypeKey = "Hmi.Button",
+                Name = "写 State",
+                Width = 80,
+                Height = 30,
+            };
+            var actionHook2 = new ScadaEventHookSnapshot { Event = ScadaEventType.Pressed };
+            actionHook2.Actions.Add(new ScadaActionSnapshot
+            {
+                Type = ScadaActionType.WriteVariable,
+                VariableName = "State",
+                ArrayIndex = 0,
+                Value = "1",
+            });
+            actionElement2.EventHooks.Add(actionHook2);
+            actionPayload.Items.Add(actionElement2);
+
+            bool actionParameterized = ScadaTemplateParameterizer.TryParameterize(
+                actionPayload, 0, out int actionChanged, out string? actionError);
+
+            Check("TP12 事件动作写数组：Control[0] / State[0] 都参数化成 [{i}]",
+                actionParameterized
+                && actionChanged == 2
+                && actionElement1.EventHooks[0].Actions[0].VariableName == "Control[{i}]"
+                && actionElement1.EventHooks[0].Actions[0].ArrayIndex == -1
+                && actionElement2.EventHooks[0].Actions[0].VariableName == "State[{i}]"
+                && actionElement2.EventHooks[0].Actions[0].ArrayIndex == -1,
+                actionParameterized
+                    ? $"{actionElement1.EventHooks[0].Actions[0].VariableName} / {actionElement2.EventHooks[0].Actions[0].VariableName}"
+                    : actionError ?? "参数化失败");
 
             var cylinder0 = VariableFactory.CreateLocal("Cylinder0_Manual", typeof(bool), "", false);
             var cylinder0State = VariableFactory.CreateLocal("Cylinder0_State", typeof(int), "", 0);

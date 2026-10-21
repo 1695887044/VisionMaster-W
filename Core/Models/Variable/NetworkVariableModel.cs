@@ -4,6 +4,7 @@ using VisionMaster.Services;
 using Prism.Mvvm;
 using System.Globalization;
 using System.Text;
+using System.Threading;
 using System.Windows;
 using VisionMaster.Helpers;
 
@@ -120,6 +121,100 @@ namespace VisionMaster.Models
         public string Description { get; set; } = string.Empty;
         public object? DefaultValue { get; set; }
 
+        private ElementConversion?[] _elementConversions = Array.Empty<ElementConversion?>();
+
+        /// <summary>
+        /// 数组逐元素工程量换算档案（下标与数组元素一一对应；null 项 = 该元素不换算）。
+        ///
+        /// <para><b>为什么挂在变量上而不是地址对象上</b>：<see cref="DeviceAddressBase"/> 上的
+        /// Scale/Offset 是"整个变量共用一份"，表达不了"第 0 项温度、第 1 项压力"或逐路标定；
+        /// 地址对象回答"怎么寻址"，元素档案回答"每个元素怎么解释"。</para>
+        ///
+        /// <para><b>为什么用数组 + Volatile</b>：轮询线程每次发布都会读它，UI 在弹窗里编辑后整体替换；
+        /// 引用读写是原子的，轮询不会读到"一半新一半旧"的档案。长度允许短于数组长度
+        /// （缺省项按不换算处理），但 UI 与持久化都会补齐到元素个数。</para>
+        ///
+        /// <para>地址对象上的 <see cref="DeviceAddressBase.EnableConversion"/> 对数组仍然禁用
+        /// （那是标量的"整组统一换算"语义，与逐元素档案并存会双重换算）。</para>
+        /// </summary>
+        public ElementConversion?[] ElementConversions
+        {
+            get => Volatile.Read(ref _elementConversions);
+            set => Volatile.Write(ref _elementConversions, value ?? Array.Empty<ElementConversion?>());
+        }
+
+        /// <summary>是否存在真正生效的逐元素换算（Scale/Offset 非 identity；只看数值元素）</summary>
+        [JsonIgnore]
+        public bool HasElementConversion
+        {
+            get
+            {
+                if (!DataType.IsArray || DataType == typeof(byte[])) return false;
+
+                var conversions = ElementConversions;
+                for (int i = 0; i < conversions.Length; i++)
+                {
+                    var conversion = conversions[i];
+                    if (conversion != null && !conversion.IsIdentity) return true;
+                }
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 读路径的换算入口（由 <c>NetworkVariableBridge</c> 注入 <c>CommunicationVariable.EngineeringConverter</c>）。
+        /// <para>标量走地址对象上的换算（改造前行为）；数组逐元素换算，数值元素返回
+        /// <c>double[]</c>（工程值本来就是小数，与标量换算返回 double 同一口径）。</para>
+        /// </summary>
+        public object? ToEngineeringValue(object? rawValue)
+        {
+            if (rawValue is not Array array)
+                return AddressConfig?.ConvertToEngineering(rawValue) ?? rawValue;
+
+            if (!HasElementConversion) return rawValue;
+
+            Type? elementType = DataType.GetElementType();
+            if (elementType == null || !ArrayConversion.IsNumericElement(elementType)) return rawValue;
+
+            var conversions = ElementConversions;
+            var result = new double[array.Length];
+            for (int i = 0; i < array.Length; i++)
+            {
+                var conversion = i < conversions.Length ? conversions[i] : null;
+                if (!ArrayConversion.TryToEngineering(conversion, array.GetValue(i), elementType, out var value, out _)
+                    || value is not double engineering)
+                {
+                    // 换算失败：该元素退回原始数值（读链路不能因为一条坏档案丢整组数据）
+                    result[i] = TryToDouble(array.GetValue(i));
+                    continue;
+                }
+
+                result[i] = engineering;
+            }
+
+            return result;
+        }
+
+        /// <summary>界面显示一个元素（带单位/小数位）；无档案时按不变文化原样显示</summary>
+        public string FormatElement(int index, object? value)
+        {
+            var conversions = ElementConversions;
+            var conversion = index >= 0 && index < conversions.Length ? conversions[index] : null;
+            return ArrayConversion.Format(conversion, value);
+        }
+
+        private static double TryToDouble(object? value)
+        {
+            try
+            {
+                return value == null ? 0d : Convert.ToDouble(value, CultureInfo.InvariantCulture);
+            }
+            catch
+            {
+                return 0d;
+            }
+        }
+
         /// <summary>
         /// <para>是否允许被多个写入者共享（默认 false = 严格单写者）。</para>
         /// <para>为什么需要它：并行流程的两个分支同时写同一个输出是现实场景（一个伸出、一个缩回），
@@ -158,6 +253,57 @@ namespace VisionMaster.Models
                     WriteToDevice(value);
                 }
             }
+        }
+
+        /// <summary>
+        /// 是否支持"只写修改项"（按元素地址逐项下发）。
+        /// <para>判据直接问地址对象能不能造出元素地址：Modbus/S7 支持；MC/FINS 未实现；
+        /// Modbus 的 byte[]、奇数宽度的 string[] 等会在这里返回 false——
+        /// 不要另写一份"协议 → 支持"的静态表，那必然与 <c>TryCreateElementAddress</c> 漂移。</para>
+        /// </summary>
+        [JsonIgnore]
+        public bool SupportsElementWrite
+        {
+            get
+            {
+                if (!DataType.IsArray || AddressConfig == null) return false;
+                return AddressConfig.TryCreateElementAddress(0, out _, out _);
+            }
+        }
+
+        /// <summary>
+        /// 整组写入的超限预警（null = 未超限/未知协议）。
+        /// <para>只做提示，不在这里拦截：Modbus 120 寄存器 / S7 约 110 字节是单请求上限，
+        /// 超限时整组写会拿到一个协议错误；弹窗据此建议改用「只写修改项」。</para>
+        /// </summary>
+        public string? GetWholeGroupWriteWarning()
+        {
+            if (!DataType.IsArray || AddressConfig == null) return null;
+
+            if (AddressConfig is DeviceAddressBase<ModbusArea> modbus)
+            {
+                if (modbus.Area is ModbusArea.Coils or ModbusArea.DiscreteInputs)
+                {
+                    return modbus.Length > 2000
+                        ? $"整组 {modbus.Length} 位超过 Modbus 单次 2000 位上限，整组写入会失败；请改用「只写修改项」。"
+                        : null;
+                }
+
+                int registers = (modbus.TotalBytes + 1) / 2;
+                return registers > 120
+                    ? $"整组 {registers} 个寄存器超过 Modbus 单次 120 个上限，整组写入会失败；请改用「只写修改项」。"
+                    : null;
+            }
+
+            if (AddressConfig is DeviceAddressBase<S7Area>)
+            {
+                int bytes = AddressConfig.TotalBytes;
+                return bytes > 110
+                    ? $"整组 {bytes} 字节超过 S7 单次约 110 字节上限，整组写入可能失败；请改用「只写修改项」。"
+                    : null;
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -260,6 +406,20 @@ namespace VisionMaster.Models
             if (!TryCoerceElement(value, elementType, out object? converted, out error))
                 return false;
 
+            // 逐元素换算：界面/SCADA 给的是工程值，设备要的是原始值。
+            // 地址对象上的整组换算对数组是禁用的，所以这里只走元素档案；
+            // byte[] 是原始块，不参与换算（即使有人手工塞了档案）。
+            object? deviceElement = converted;
+            var conversions = ElementConversions;
+            var conversion = DataType != typeof(byte[]) && index < conversions.Length
+                ? conversions[index]
+                : null;
+            if (!ArrayConversion.TryToRaw(conversion, converted, elementType, out deviceElement, out var conversionError))
+            {
+                error = $"变量 [{Name}] 的第 {index} 项换算失败：{conversionError}";
+                return false;
+            }
+
             string owner = WriteScope.CurrentOwner?.Trim() is { Length: > 0 } flowOwner
                 ? flowOwner
                 : WriteLeaseRegistry.ManualOwner;
@@ -277,7 +437,7 @@ namespace VisionMaster.Models
 
             try
             {
-                var rawValue = elementAddress.ConvertToRaw(converted);
+                var rawValue = elementAddress.ConvertToRaw(deviceElement);
                 if (rawValue == null)
                 {
                     error = $"变量 [{Name}] 的第 {index} 项无法转换为设备原始值（检查数据类型与地址配置）";
@@ -302,11 +462,21 @@ namespace VisionMaster.Models
 
                 // 设备已确认 → 更新镜像。克隆一份数组再改元素：引用变化才能触发 ValueChanged，
                 // 直接改原数组会被 SetProperty 的同引用短路掉（画面不会刷新）。
+                // 换算生效时镜像是 double[]（工程域），写入的 converted 是声明元素类型——按镜像元素类型转一次。
                 if (Value is Array mirror)
                 {
-                    var copy = (Array)mirror.Clone();
-                    copy.SetValue(converted, index);
-                    UpdateMirrorValue(copy);
+                    try
+                    {
+                        var copy = (Array)mirror.Clone();
+                        copy.SetValue(ToMirrorElement(copy, converted), index);
+                        UpdateMirrorValue(copy);
+                    }
+                    catch (Exception mirrorEx)
+                    {
+                        // 设备已经写成功：镜像更新失败不能反判成"写入失败"，下一拍轮询会刷新。
+                        System.Diagnostics.Debug.WriteLine(
+                            $"[NetworkVariable] 变量 {Name} 第 {index} 项写入成功但镜像更新失败：{mirrorEx.Message}");
+                    }
                 }
 
                 return true;
@@ -415,13 +585,18 @@ namespace VisionMaster.Models
                 return false;
             }
 
+            // 镜像值（工程域）与设备值（原始域）从这一步开始分家：
+            // 数组逐元素换算时，镜像是 double[]（与读路径同一表示），设备侧是反算后的声明元素类型。
+            object? mirrorValue = value;
+            object? deviceValue = value;
+
             // 数组写入：整组替换。长度必须与地址配置一致，元素逐个归一到声明类型；
-            // 数组不做逐元素工程量换算（Scale/Offset 语义未定，静默跳过比猜一个更安全）。
+            // 换算走变量上的逐元素档案（地址对象上的 EnableConversion 对数组仍然禁用）。
             if (DataType.IsArray)
             {
                 if (AddressConfig.EnableConversion)
                 {
-                    error = $"变量 [{Name}] 是数组类型，暂不支持工程量换算（请关闭地址上的「启用转换」）";
+                    error = $"变量 [{Name}] 是数组类型，不支持地址上的整组换算（请关闭「启用转换」，改用数组的逐元素换算）";
                     return false;
                 }
                 if (value is not Array inputArray)
@@ -434,8 +609,17 @@ namespace VisionMaster.Models
                     error = $"变量 [{Name}] 数组写入失败：{normalizeError}";
                     return false;
                 }
+
                 value = normalized;
-                writtenValue = normalized;
+                mirrorValue = ToMirrorArray(normalized);
+                writtenValue = mirrorValue;
+
+                if (!TryToRawArray(normalized, out var rawArray, out var conversionError))
+                {
+                    error = $"变量 [{Name}] 数组换算失败：{conversionError}";
+                    return false;
+                }
+                deviceValue = rawArray;
             }
             // 字符串变量：非文本值按不变文化转成文本（避免把 int 当数值写到字符串区，
             // 那样 HslHelper 会按 4 字节整数下发，字符串区直接错位）。
@@ -443,6 +627,8 @@ namespace VisionMaster.Models
             {
                 value = Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
                 writtenValue = value;
+                mirrorValue = value;
+                deviceValue = value;
             }
             // 文本按声明类型解析一次（R34 宽进严出；只放宽文本）。
             // 界面能产出的只有文本，硬守门会让"给 Int32 变量填 21"永远失败。
@@ -455,6 +641,8 @@ namespace VisionMaster.Models
                 }
                 value = coerced;
                 writtenValue = coerced;
+                mirrorValue = coerced;
+                deviceValue = coerced;
             }
 
             // 写租约：并行分支抢同一个输出时明确拒绝，而不是"最后写入者赢"。
@@ -476,7 +664,7 @@ namespace VisionMaster.Models
 
             try
             {
-                var rawValue = AddressConfig.ConvertToRaw(value);
+                var rawValue = AddressConfig.ConvertToRaw(deviceValue);
                 if (rawValue == null)
                 {
                     error = $"变量 [{Name}] 的值无法转换为设备原始值（检查数据类型与地址配置）";
@@ -511,7 +699,7 @@ namespace VisionMaster.Models
                     {
                         // 插队写（等待）：最高优先级车道，优先于插队读、常规读写与轮询
                         CommunicationManager.WriteVariableNow(ConnectionName, Name, wireValue);
-                        UpdateMirrorValue(value); // 设备已确认 → 镜像同步并通知 UI
+                        UpdateMirrorValue(mirrorValue); // 设备已确认 → 镜像同步并通知 UI
                     }
                     else
                     {
@@ -531,7 +719,7 @@ namespace VisionMaster.Models
                 {
                     // 经 Manager → 连接专属线程下发：与轮询、其他写命令在同一条线程上串行执行
                     CommunicationManager.WriteVariable(ConnectionName, AddressConfig.Address, wireValue);
-                    UpdateMirrorValue(value); // 写确认成功 → 镜像同步并通知 UI
+                    UpdateMirrorValue(mirrorValue); // 写确认成功 → 镜像同步并通知 UI
                 }
 
                 return true;
@@ -606,6 +794,82 @@ namespace VisionMaster.Models
             }
 
             normalized = result;
+            return true;
+        }
+
+        /// <summary>
+        /// 把"声明元素类型"的工程值数组转成镜像表示。
+        /// <para>换算生效时读路径发布的是 <c>double[]</c>（工程值），写成功后镜像必须落到同一表示，
+        /// 否则会出现"写一次镜像变 int[]、下一拍轮询又变 double[]"的类型翻转；
+        /// 更重要的是 <see cref="Array.SetValue(object, int)"/> 不允许把 int 塞进 double[]
+        /// （按元素写成功后更新镜像时会直接抛 InvalidCastException）。</para>
+        /// </summary>
+        private Array ToMirrorArray(Array normalized)
+        {
+            if (!HasElementConversion) return normalized;
+
+            Type? elementType = DataType.GetElementType();
+            if (elementType == null || !ArrayConversion.IsNumericElement(elementType)) return normalized;
+
+            var result = new double[normalized.Length];
+            for (int i = 0; i < normalized.Length; i++)
+                result[i] = TryToDouble(normalized.GetValue(i));
+            return result;
+        }
+
+        /// <summary>把声明元素类型的工程值转成镜像数组的元素类型（int → double[] 镜像时用）</summary>
+        private static object? ToMirrorElement(Array mirror, object? value)
+        {
+            Type? mirrorElement = mirror.GetType().GetElementType();
+            if (mirrorElement == null || value == null) return value;
+
+            Type target = Nullable.GetUnderlyingType(mirrorElement) ?? mirrorElement;
+            if (target.IsInstanceOfType(value)) return value;
+
+            try
+            {
+                return Convert.ChangeType(value, target, CultureInfo.InvariantCulture);
+            }
+            catch
+            {
+                return value;
+            }
+        }
+
+        /// <summary>
+        /// 工程值数组 → 设备原始值数组（逐元素反算）。
+        /// <para>没有生效档案时原样返回（引用不变，不额外分配）；失败时给出"第几项 + 原因"，
+        /// 由调用方在弹窗里标红对应行。</para>
+        /// </summary>
+        private bool TryToRawArray(Array engineering, out Array raw, out string? error)
+        {
+            raw = engineering;
+            error = null;
+
+            if (!HasElementConversion) return true;
+
+            Type? elementType = DataType.GetElementType();
+            if (elementType == null)
+            {
+                error = "数组元素类型无法确定";
+                return false;
+            }
+
+            var conversions = ElementConversions;
+            var result = Array.CreateInstance(elementType, engineering.Length);
+            for (int i = 0; i < engineering.Length; i++)
+            {
+                var conversion = i < conversions.Length ? conversions[i] : null;
+                if (!ArrayConversion.TryToRaw(conversion, engineering.GetValue(i), elementType, out var value, out var itemError))
+                {
+                    error = $"第 {i} 项：{itemError}";
+                    return false;
+                }
+
+                result.SetValue(value, i);
+            }
+
+            raw = result;
             return true;
         }
 

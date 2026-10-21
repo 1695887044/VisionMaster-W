@@ -1,5 +1,7 @@
 using System;
+using System.Collections;
 using System.ComponentModel;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -7,6 +9,9 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using System.Windows.Threading;
+using GongDragDrop = GongSolutions.Wpf.DragDrop.DragDrop;
+using GongDropInfo = GongSolutions.Wpf.DragDrop.IDropInfo;
+using GongDropTarget = GongSolutions.Wpf.DragDrop.IDropTarget;
 using Nodify;
 using Prism.Dialogs;
 using Prism.Ioc;
@@ -34,6 +39,12 @@ namespace VisionMaster.Views
         public FlowCanvasView()
         {
             InitializeComponent();
+
+            // 工具箱拖入：编辑器是 gong 的拖放目标，落点分派交给下面的 CanvasDropTarget。
+            // **不能改回裸 DragOver/Drop**——gong 的拖影 Popup 只在自己 DropTargetOnDrop 里关闭，
+            // 裸 Drop 返回 Copy 时拖影会永久停在落点（2026-10-21 真机：胶囊行"Continue"不消失，
+            // 且后续拖拽的胶囊内容也不刷新）。
+            GongDragDrop.SetDropHandler(Editor, new CanvasDropTarget(this));
 
             // 入树/离树成对挂摘订阅：AvalonDock 切换标签页、隐藏面板都会触发 Unloaded，
             // 所以清理必须可逆（离树摘干净让旧 VM 可 GC，入树重新挂上），不能用一次性 Dispose。
@@ -227,72 +238,101 @@ namespace VisionMaster.Views
             _viewModel?.OpenModuleParameters(node);
         }
 
-        /// <summary>工具箱拖入：只放行 ToolItemModel 负载（Scada 图元/文本等一律显「禁止」）</summary>
-        private void OnEditorDragOver(object sender, DragEventArgs e)
-        {
-            e.Effects = FindDraggedTool(e.Data) != null ? DragDropEffects.Copy : DragDropEffects.None;
-            e.Handled = true;
-        }
-
         /// <summary>
         /// 指针在编辑器内移动：把图坐标回报给画布 VM（粘贴落点用；高频写、无绑定消费）。
-        /// 换算与 Editor.GetLocationInsideEditor(DragEventArgs)（工具箱拖入用的是库内重载）
-        /// 同一条口径：图坐标 = 视口原点 + 屏幕坐标 / 缩放。
+        /// 换算与 <see cref="ToGraphPosition"/>（工具箱拖入的落点）同一条口径。
         /// </summary>
         private void OnEditorPointerMoved(object sender, MouseEventArgs e)
         {
             if (_viewModel == null) return;
 
-            var screen = e.GetPosition(Editor);
-            double zoom = Editor.ViewportZoom;
-            if (zoom <= 0) zoom = 1.0;
+            var position = e.GetPosition(Editor);
+            _viewModel.LastPointerGraphPosition = ToGraphPosition(position);
 
-            _viewModel.LastPointerGraphPosition = new Point(
-                Editor.ViewportLocation.X + screen.X / zoom,
-                Editor.ViewportLocation.Y + screen.Y / zoom);
+            // 画布内拖动节点：浮层跟着指针走（偏移与工具箱的 DragAdornerTranslation 一致）
+            if (_viewModel.IsDragGhostVisible)
+                MoveNodeDragGhost(position);
         }
 
-        private void OnEditorDrop(object sender, DragEventArgs e)
+        /// <summary>拖动浮层相对指针的偏移（与工具箱 dd:DragDrop.DragAdornerTranslation="16,12" 一致）</summary>
+        private const double DragGhostOffsetX = 16;
+        private const double DragGhostOffsetY = 12;
+
+        /// <summary>把画布内拖动浮层挪到指针右下方（纯视觉，不参与命中测试）</summary>
+        private void MoveNodeDragGhost(Point positionInEditor)
         {
-            e.Effects = DragDropEffects.None;
-            e.Handled = true;
-
-            var tool = FindDraggedTool(e.Data);
-            if (tool == null || _viewModel == null) return;
-
-            // 图坐标（与节点 Location / 容器框矩形同一坐标系）：
-            // Nodify 7.3 的 GetLocationInsideEditor(DragEventArgs) 直接做视口→图坐标换算
-            if (_viewModel.DropToolAt(tool, Editor.GetLocationInsideEditor(e)))
-                e.Effects = DragDropEffects.Copy;
+            NodeDragGhost.HorizontalOffset = positionInEditor.X + DragGhostOffsetX;
+            NodeDragGhost.VerticalOffset = positionInEditor.Y + DragGhostOffsetY;
         }
 
         /// <summary>
-        /// 从拖放负载取工具箱模板。Gong 的 IsDragSource 把数据本体按「类型即格式键」投放，
-        /// 但不同版本/自定义 DragSource 可能换格式——先按类型直取，再逐个格式判型兜底
-        ///（延迟呈现的格式取值会抛，跳过继续找；全拿不到就是「不是我们的负载」，显禁止）。
+        /// 编辑器内屏幕坐标 → 图坐标（与节点 Location / 容器框矩形同一坐标系）：
+        /// 图坐标 = 视口原点 + 屏幕坐标 / 缩放。Nodify 7.3 的
+        /// GetLocationInsideEditor(DragEventArgs) 也是这条式子，这里自己算一份是因为
+        /// gong 的 IDropInfo 只给 <see cref="GongDropInfo.DropPosition"/>（相对编辑器）。
         /// </summary>
-        private static ToolItemModel? FindDraggedTool(IDataObject? data)
+        private Point ToGraphPosition(Point positionInEditor)
         {
-            if (data == null) return null;
+            double zoom = Editor.ViewportZoom;
+            if (zoom <= 0) zoom = 1.0;
 
-            if (data.GetDataPresent(typeof(ToolItemModel))
-                && data.GetData(typeof(ToolItemModel)) is ToolItemModel direct)
-                return direct;
+            return new Point(
+                Editor.ViewportLocation.X + positionInEditor.X / zoom,
+                Editor.ViewportLocation.Y + positionInEditor.Y / zoom);
+        }
 
-            foreach (var format in data.GetFormats())
+        /// <summary>
+        /// 工具箱拖入的落点分派（gong IDropTarget）。
+        ///
+        /// 为什么是 gong 的拖放目标而不是裸 Drop 事件：拖影（胶囊行）是 gong 的
+        /// DragDropPreview Popup，只有它自己的 DropTargetOnDrop 会把它关掉；
+        /// 裸 Drop 返回 Copy 时预览被跳过、Popup 永久停在落点（2026-10-21 真机）。
+        /// 顺带修好第二个症状：DragOver 也走 gong 之后，拖影内容才会跟着当前拖的条目刷新
+        ///（此前永远停在第一次拖的那条）。
+        ///
+        /// 只放行 ToolItemModel 负载（Scada 图元/文本/文件等一律显「禁止」）。
+        /// </summary>
+        private sealed class CanvasDropTarget : GongDropTarget
+        {
+            private readonly FlowCanvasView _owner;
+
+            public CanvasDropTarget(FlowCanvasView owner) => _owner = owner;
+
+            public void DragOver(GongDropInfo dropInfo)
             {
-                try
-                {
-                    if (data.GetData(format) is ToolItemModel tool)
-                        return tool;
-                }
-                catch
-                {
-                    // 延迟呈现的提供方可能已经不在场：跳过该格式继续找
-                }
+                dropInfo.Effects = FindDraggedTool(dropInfo) != null && _owner._viewModel != null
+                    ? DragDropEffects.Copy
+                    : DragDropEffects.None;
             }
 
-            return null;
+            public void Drop(GongDropInfo dropInfo)
+            {
+                var tool = FindDraggedTool(dropInfo);
+                if (tool == null || _owner._viewModel == null)
+                {
+                    dropInfo.Effects = DragDropEffects.None;
+                    return;
+                }
+
+                // 落点：DropPosition 是相对编辑器（IsDropTarget 所在元素）的屏幕坐标
+                dropInfo.Effects = _owner._viewModel.DropToolAt(tool, _owner.ToGraphPosition(dropInfo.DropPosition))
+                    ? DragDropEffects.Copy
+                    : DragDropEffects.None;
+            }
+
+            /// <summary>
+            /// 从 gong 的拖放负载取工具箱模板。gong 已按拖拽源的 DataFormat 解出数据本体，
+            /// 这里仍保留"多选时是列表"的兜底——取不到就当作不是我们的负载（显禁止）。
+            /// </summary>
+            private static ToolItemModel? FindDraggedTool(GongDropInfo dropInfo)
+            {
+                if (dropInfo.Data is ToolItemModel direct) return direct;
+
+                if (dropInfo.Data is IEnumerable items and not string)
+                    return items.OfType<ToolItemModel>().FirstOrDefault();
+
+                return null;
+            }
         }
 
         /// <summary>
@@ -345,6 +385,13 @@ namespace VisionMaster.Views
                 or nameof(FlowCanvasViewModel.GuideVisibility))
             {
                 _guidesAdorner?.InvalidateVisual();
+            }
+
+            // 浮层刚打开时鼠标未必移动过：用当前指针位置补一次，避免从 (0,0) 弹出来
+            if (e.PropertyName == nameof(FlowCanvasViewModel.IsDragGhostVisible)
+                && _viewModel?.IsDragGhostVisible == true)
+            {
+                MoveNodeDragGhost(Mouse.GetPosition(Editor));
             }
         }
 

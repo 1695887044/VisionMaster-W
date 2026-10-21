@@ -1,8 +1,11 @@
 using System;
+using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Media;
 using VisionMaster.Models;
 using VisionMaster.Scada;
 using VisionMaster.Scada.Controls;
@@ -39,6 +42,8 @@ namespace VisionMaster.Views
             // DataContext 由宿主交来的会话充当：绑定路径只有一条 CurrentPage.*，
             // 不再套一层视图模型去转发——转一次就得同步一次，多一处漏改的机会。
             DataContext = _session;
+            _session.PropertyChanged += OnSessionPropertyChanged;
+            AttachPopupPlacement();
 
             // 组态事件的接线在宿主（ScadaRuntimeHost）的窗口根上：AddHandler/RemoveHandler
             // 成对收尾，全程序只有一处订阅。这里不再挂第二座桥——
@@ -60,6 +65,9 @@ namespace VisionMaster.Views
         /// 窗口自己不建表、不订阅变量：那属于运行策略，归宿主（见 ScadaRuntimeHost）。
         /// </summary>
         public ScadaCanvas CanvasHost => Canvas;
+
+        /// <summary>弹窗画布（宿主为弹窗建第二张数据泵时取它；没有弹窗时也在可视树里，只是不可见）。</summary>
+        public ScadaCanvas PopupCanvasHost => PopupCanvas;
 
         /// <summary>
         /// 按软件配置（AppConfig.json 的 <c>RunWindowMode</c>）定窗口形态。**必须在 <see cref="Window.Show"/> 之前调用**。
@@ -170,8 +178,126 @@ namespace VisionMaster.Views
                 _pageMenu = null;
             }
 
+            _session.PropertyChanged -= OnSessionPropertyChanged;
+
+            if (_placementPopup != null)
+            {
+                _placementPopup.PropertyChanged -= OnPopupPropertyChanged;
+                _placementPopup = null;
+            }
+
             // 面板先摘订阅（引擎的三个事件 + 节拍），随后宿主的 TeardownAlarms 才去停节拍、拆引擎。
             AlarmHistory.Attach(null);
+        }
+
+        // ---- 弹窗层（特殊画面） ----
+
+        private ScadaPage? _placementPopup;
+
+        private void OnSessionPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(ScadaRuntime.CurrentPopup) or nameof(ScadaRuntime.IsPopupOpen))
+                AttachPopupPlacement();
+        }
+
+        /// <summary>换弹窗时重挂锚点订阅；弹窗页自己的锚点/偏移变了也要重新摆放。</summary>
+        private void AttachPopupPlacement()
+        {
+            if (_placementPopup != null)
+                _placementPopup.PropertyChanged -= OnPopupPropertyChanged;
+
+            _placementPopup = _session.CurrentPopup;
+
+            if (_placementPopup != null)
+                _placementPopup.PropertyChanged += OnPopupPropertyChanged;
+
+            ApplyPopupPlacement();
+        }
+
+        private void OnPopupPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(ScadaPage.PopupAnchor)
+                or nameof(ScadaPage.PopupOffsetX)
+                or nameof(ScadaPage.PopupOffsetY))
+            {
+                ApplyPopupPlacement();
+            }
+        }
+
+        /// <summary>
+        /// 九宫格锚点 → WPF 对齐方式；偏移用 RenderTransform 而不是 Margin。
+        /// 用 Margin 会把"居中 + 偏移"变成"可用空间里重新居中"，偏一点就跳一格；
+        /// TranslateTransform 是相对最终位置的纯平移，九种锚点的行为一致。
+        /// </summary>
+        private void ApplyPopupPlacement()
+        {
+            var popup = _session.CurrentPopup;
+            if (popup == null)
+                return;
+
+            PopupFrame.HorizontalAlignment = popup.PopupAnchor switch
+            {
+                ScadaPopupAnchor.TopLeft or ScadaPopupAnchor.Left or ScadaPopupAnchor.BottomLeft
+                    => HorizontalAlignment.Left,
+                ScadaPopupAnchor.TopRight or ScadaPopupAnchor.Right or ScadaPopupAnchor.BottomRight
+                    => HorizontalAlignment.Right,
+                _ => HorizontalAlignment.Center,
+            };
+
+            PopupFrame.VerticalAlignment = popup.PopupAnchor switch
+            {
+                ScadaPopupAnchor.TopLeft or ScadaPopupAnchor.Top or ScadaPopupAnchor.TopRight
+                    => VerticalAlignment.Top,
+                ScadaPopupAnchor.BottomLeft or ScadaPopupAnchor.Bottom or ScadaPopupAnchor.BottomRight
+                    => VerticalAlignment.Bottom,
+                _ => VerticalAlignment.Center,
+            };
+
+            // 偏移夹回层内：大偏移不能把标题栏/关闭按钮推出窗口（Esc 仍可用，但按钮看不见
+            // 就是"弹窗关不掉"的观感）。可用空间按当前对齐方式算，居中时左右各一半。
+            var availableX = PopupLayer.ActualWidth - PopupFrame.ActualWidth;
+            var availableY = PopupLayer.ActualHeight - PopupFrame.ActualHeight;
+
+            PopupFrame.RenderTransform = new TranslateTransform(
+                ClampOffset(popup.PopupOffsetX, availableX, PopupFrame.HorizontalAlignment),
+                ClampOffset(popup.PopupOffsetY, availableY, PopupFrame.VerticalAlignment));
+        }
+
+        private static double ClampOffset(double value, double available, HorizontalAlignment alignment)
+        {
+            var span = Math.Max(0, available);
+
+            return alignment switch
+            {
+                HorizontalAlignment.Left => Math.Clamp(value, 0, span),
+                HorizontalAlignment.Right => Math.Clamp(value, -span, 0),
+                _ => Math.Clamp(value, -span / 2, span / 2),
+            };
+        }
+
+        private static double ClampOffset(double value, double available, VerticalAlignment alignment)
+        {
+            var span = Math.Max(0, available);
+
+            return alignment switch
+            {
+                VerticalAlignment.Top => Math.Clamp(value, 0, span),
+                VerticalAlignment.Bottom => Math.Clamp(value, -span, 0),
+                _ => Math.Clamp(value, -span / 2, span / 2),
+            };
+        }
+
+        private void OnPopupLayerSizeChanged(object sender, SizeChangedEventArgs e) => ApplyPopupPlacement();
+
+        private void OnPopupCloseClick(object sender, RoutedEventArgs e) => _session.ClosePopup();
+
+        private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape && _session.IsPopupOpen)
+            {
+                _session.ClosePopup();
+                e.Handled = true;
+            }
         }
 
         // ---- 报警历史抽屉 ----

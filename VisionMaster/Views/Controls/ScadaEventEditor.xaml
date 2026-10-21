@@ -234,6 +234,9 @@
                                         <DataTrigger Binding="{Binding Type}" Value="Navigate">
                                             <Setter Property="Visibility" Value="Visible" />
                                         </DataTrigger>
+                                        <DataTrigger Binding="{Binding Type}" Value="OpenPopup">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>

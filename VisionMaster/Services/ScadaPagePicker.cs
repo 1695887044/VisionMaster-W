@@ -19,6 +19,9 @@ namespace VisionMaster.Services
         public const string CurrentIdKey = "CurrentPageId";
         public const string CurrentNameKey = "CurrentPageName";
 
+        /// <summary>入参键：只列弹窗页（「打开弹窗」动作用）</summary>
+        public const string PopupOnlyKey = "PopupOnly";
+
         /// <summary>出参键：用户确认后选中的画面</summary>
         public const string PickedIdKey = "PickedPageId";
         public const string PickedNameKey = "PickedPageName";
@@ -30,6 +33,13 @@ namespace VisionMaster.Services
 
         /// <inheritdoc />
         public void Pick(Guid currentId, string? currentName, Action<Guid, string?> onPicked)
+            => PickCore(currentId, currentName, onPicked, popupOnly: false);
+
+        /// <inheritdoc />
+        public void PickPopup(Guid currentId, string? currentName, Action<Guid, string?> onPicked)
+            => PickCore(currentId, currentName, onPicked, popupOnly: true);
+
+        private void PickCore(Guid currentId, string? currentName, Action<Guid, string?> onPicked, bool popupOnly)
         {
             if (onPicked == null) throw new ArgumentNullException(nameof(onPicked));
 
@@ -37,6 +47,7 @@ namespace VisionMaster.Services
             {
                 { CurrentIdKey, currentId },
                 { CurrentNameKey, currentName },
+                { PopupOnlyKey, popupOnly },
             };
 
             _dialogs.ShowDialog(DialogName, parameters, result =>

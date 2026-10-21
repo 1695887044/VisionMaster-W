@@ -55,6 +55,8 @@ namespace VisionMaster.ViewModels
             ScadaActionType.WriteVariable => 1,
             ScadaActionType.Navigate => 2,
             ScadaActionType.NavigateBack => 3,
+            ScadaActionType.OpenPopup => 4,
+            ScadaActionType.ClosePopup => 5,
             ScadaActionType.StartFlow => 10,
             ScadaActionType.PauseFlow => 11,
             ScadaActionType.ResumeFlow => 12,
@@ -390,13 +392,19 @@ namespace VisionMaster.ViewModels
         {
             if (action == null) return;
 
-            _pagePicker.Pick(action.TargetPageId, action.TargetPageName, (id, name) =>
+            void Picked(Guid id, string? name)
             {
                 using (Host.BeginEdit($"选择目标画面 [{name}]"))
                 {
                     action.BindPage(id, name);
                 }
-            });
+            }
+
+            // 「打开弹窗」只列弹窗页；「切换画面」只列普通页（弹窗页只能由 OpenPopup 打开）。
+            if (action.Type == ScadaActionType.OpenPopup)
+                _pagePicker.PickPopup(action.TargetPageId, action.TargetPageName, Picked);
+            else
+                _pagePicker.Pick(action.TargetPageId, action.TargetPageName, Picked);
         }
 
         /// <summary>

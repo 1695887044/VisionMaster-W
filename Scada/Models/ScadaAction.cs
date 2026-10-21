@@ -337,6 +337,8 @@ namespace VisionMaster.Scada
             ScadaActionType.WriteVariable => $"{ToReference().DisplayText} := {_value}",
             ScadaActionType.Navigate => _targetPageName ?? string.Empty,
             ScadaActionType.NavigateBack => string.Empty,
+            ScadaActionType.OpenPopup => _targetPageName ?? string.Empty,
+            ScadaActionType.ClosePopup => string.Empty,
             // 流程三条与切画面同款：行上显示目标流程名（未选则为空，面板另有占位与警告）
             ScadaActionType.StartFlow => _flowName ?? string.Empty,
             ScadaActionType.StopFlow => _flowName ?? string.Empty,
@@ -483,6 +485,10 @@ namespace VisionMaster.Scada
                 ? "切换画面（未选画面）"
                 : $"切换画面 → {_targetPageName}",
             ScadaActionType.NavigateBack => "返回上一页",
+            ScadaActionType.OpenPopup => HasTargetPage
+                ? $"打开弹窗 → {_targetPageName}"
+                : "打开弹窗（未选画面）",
+            ScadaActionType.ClosePopup => "关闭弹窗",
             // 流程三条的判定口径与 HasFlow 一致（Id 或名字任一非空白即算已选）
             ScadaActionType.StartFlow => !HasFlow
                 ? "启动流程（未选流程）"

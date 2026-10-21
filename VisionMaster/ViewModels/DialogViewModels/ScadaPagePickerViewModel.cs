@@ -138,6 +138,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             var document = _workspace.CurrentSolution?.Scada;
             var startup = document?.ResolveStartupPage();
+            parameters.TryGetValue<bool>(Services.ScadaPagePicker.PopupOnlyKey, out var popupOnly);
 
             _all.Clear();
             if (document != null)
@@ -146,8 +147,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 {
                     // 基座画面不参与跳转（与 ScadaRuntime.Navigate 的寻址口径同源）：
                     // 它是叠在本页下面的公共层，不是终点。列出来只会让人配一条"点了跳到一张空画面"的动作。
-                    if (page != null && !document.IsBasePage(page))
-                        _all.Add(new ScadaPageRow(page, ReferenceEquals(page, startup)));
+                    if (page == null || document.IsBasePage(page))
+                        continue;
+
+                    // 「切换画面」不列弹窗页（弹窗只能由「打开弹窗」打开）；
+                    // 「打开弹窗」只列弹窗页，避免配出一条运行期必被拒的动作。
+                    if (popupOnly != page.IsPopup)
+                        continue;
+
+                    _all.Add(new ScadaPageRow(page, ReferenceEquals(page, startup)));
                 }
             }
 

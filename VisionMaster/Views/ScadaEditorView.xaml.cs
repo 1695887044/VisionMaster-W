@@ -77,6 +77,57 @@ namespace VisionMaster.Views
 
         private void OnActualSize(object sender, RoutedEventArgs e) => Canvas.ZoomToActualSize();
 
+        // ---- 顶栏折行 ----
+        // 顶栏的排布意图只有一句话："宽屏一行、窄屏折行"。WPF 没有"先按自然宽度排、排不下再整组换行"
+        // 的现成面板，所以折行位置由这里现算：
+        //   · ToolbarSpacer 的宽度 = 可用宽度 − 两组自然宽度（撑得开时右组贴右边，与设计稿一致）
+        //   · 撑不开（算出来是 0）= 本行放不下，WrapPanel 自己把右组折到第二行
+        //   · 两组各带 MaxWidth = 可用宽度：连一组都放不下时，组内按钮再各自折行，任何宽度都不裁切
+        // 刻意不用 Grid 的 * 列做这件事：* 列只会把两组挤在同一行里互相压，永远不会折行。
+
+        /// <summary>折行后左右两组之间的竖直间距（像素）</summary>
+        private const double ToolbarRowGap = 8;
+
+        private void OnToolbarSizeChanged(object sender, SizeChangedEventArgs e) => UpdateToolbarLayout();
+
+        /// <summary>
+        /// 按顶栏当前可用宽度重算"撑开宽度 / 组内折行上限 / 折行后的行间距"。
+        ///
+        /// 三处赋值都会再触发一轮布局，所以每个值都带"变了才写"的守卫——
+        /// 无条件写就是"改尺寸 → 布局 → 再改尺寸"的死循环，而它跑在 SizeChanged 里，一旦循环就是卡死。
+        /// </summary>
+        private void UpdateToolbarLayout()
+        {
+            if (ToolbarPanel == null || ToolbarSpacer == null
+                || ToolbarLeftGroup == null || ToolbarRightGroup == null)
+            {
+                return;
+            }
+
+            double available = ToolbarPanel.ActualWidth;
+            if (available <= 0)
+                return;   // 首次测量还没有可用宽度，等 SizeChanged 再来
+
+            if (Math.Abs(ToolbarLeftGroup.MaxWidth - available) > 0.5)
+                ToolbarLeftGroup.MaxWidth = available;
+            if (Math.Abs(ToolbarRightGroup.MaxWidth - available) > 0.5)
+                ToolbarRightGroup.MaxWidth = available;
+
+            // 两组在 WrapPanel 里都是"按无限宽测量"的，DesiredSize 就是各自的自然宽度。
+            // 被上面的 MaxWidth 夹过也不会算错：夹过说明这一组自己就超宽，下面必然判成折行。
+            double needed = ToolbarLeftGroup.DesiredSize.Width + ToolbarRightGroup.DesiredSize.Width;
+            bool wrapped = available - needed < 0.5;
+
+            // 折行时给右组补一条上间距：两行都是 28px 高的按钮，不补就是两排按钮的边框贴在一起
+            Thickness gap = wrapped ? new Thickness(0, ToolbarRowGap, 0, 0) : default;
+            if (ToolbarRightGroup.Margin != gap)
+                ToolbarRightGroup.Margin = gap;
+
+            double spacer = wrapped ? 0 : available - needed;
+            if (Math.Abs(ToolbarSpacer.Width - spacer) > 0.5)
+                ToolbarSpacer.Width = spacer;
+        }
+
         /// <summary>
         /// 首次进入某一页时"适应窗口"，之后不再自动改视角。
         ///

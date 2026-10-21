@@ -906,6 +906,16 @@ namespace VisionMaster.Scada.Controls
         private ScadaElementBase? _parentContainer;
 
         /// <summary>
+        /// 画布分配的<b>层偏移</b>：多基座时每只基座占一个层段，本页占最上面的层段。
+        ///
+        /// 为什么需要它：所有图元共用一个 Canvas，而 WPF 只按 <see cref="Panel.ZIndexProperty"/>
+        /// 排序。若直接把模型 ZIndex 写进面板，基座里 ZIndex=2 的图元会盖住本页 ZIndex=1 的图元，
+        /// 多只基座之间也会按各自 ZIndex 交错，而不是按 BasePageIds 的顺序叠。
+        /// 层偏移由画布按"第几层"赋值（见 ScadaCanvas.CreateContainer），这里只负责相加。
+        /// </summary>
+        internal int LayerZOffset { get; set; }
+
+        /// <summary>
         /// 底板模型变更通知（父控件转发的，不是直接订阅模型——见 <see cref="ElementChanged"/>）。
         ///
         /// <b>任何变更都重算一次几何</b>，而不是只认 X/Y/Rotation 那几项：
@@ -1121,7 +1131,7 @@ namespace VisionMaster.Scada.Controls
             // 叠放次序交给承载面板。装了底板的图元，它的 ZIndex 只在底板内部生效
             // （Panel.ZIndex 是"同一父面板内的次序"），与顶层图元的 ZIndex 不再互相比较——
             // 这正是容器该有的语义：底板本身能在画面上被整体叠放，里面的东西自成一层。
-            SetValue(Panel.ZIndexProperty, Element.ZIndex);
+            SetValue(Panel.ZIndexProperty, Element.ZIndex + LayerZOffset);
 
             ApplyRotation(Element.Rotation);
         }

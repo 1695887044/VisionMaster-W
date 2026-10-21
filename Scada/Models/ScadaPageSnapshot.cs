@@ -21,11 +21,11 @@ namespace VisionMaster.Scada.Snapshots
     // ============================================================================
 
     /// <summary>
-    /// 一张画面的不可变快照：页面元信息 + 基座（一层）+ 本页全部图元。
+    /// 一张画面的不可变快照：页面元信息 + 基座列表（每只只递归一层）+ 本页全部图元。
     ///
-    /// <b>基座只递归一层</b>：<see cref="BasePage"/> 的 <see cref="BasePage"/> 恒为 <c>null</c>
-    /// ——模型侧 <c>ScadaDocument.TrySetBasePage</c> 本就禁止"基座再套基座"，渲染器只按
-    /// "基座压底 + 本页"合成两层即可，不必准备第三层。
+    /// <b>每只基座只递归一层</b>：<see cref="BasePages"/> 里每只快照的 <see cref="BasePages"/> 恒为空
+    /// ——模型侧本就禁止"基座再套基座"，渲染器按"基座列表顺序逐层叠 + 本页"合成即可。
+    /// <see cref="BasePage"/> 保留为第一只基座的单值兼容视图。
     ///
     /// <b>图元一律摊平</b>：容器（<c>Hmi.Panel</c>）的子图元也在同一张 <see cref="Elements"/> 里，
     /// 靠 <see cref="ScadaElementSnapshot.ParentId"/> 表达"装在谁里面"。刻意不在这里再挂一棵树：
@@ -49,15 +49,11 @@ namespace VisionMaster.Scada.Snapshots
         public int PageVersion { get; init; }
 
         /// <summary>
-        /// 基座画面此刻的 <see cref="ScadaPage.Version"/>；<b>无基座（或基座悬空）为 <c>0</c></b>。
+        /// 基座层此刻的合并版本号：所有基座 <see cref="ScadaPage.Version"/> 之和；<b>无基座为 <c>0</c></b>。
         ///
-        /// <b>为什么必须单独一个字段</b>
-        /// ---------
-        /// 基座是"跨页公共层"，它的版本<b>不</b>冒泡进本页的 <see cref="PageVersion"/>
-        /// （基座页与本页是两个 <c>ScadaPage</c>，各有各的变更计数）。只看 <see cref="PageVersion"/>
-        /// 的消费者会把"改了基座图元"当成"本页没变"，于是基座热更新永远发不出去。
-        /// 服务端把两个版本号拼进页键（<c>pageId@pageVersion@basePageVersion</c>）就能在
-        /// "本页没变、基座变了"时照常发一条 <c>page</c>。
+        /// 任一基座内容变化都会让这个值变化，服务端把它拼进页键即可让 web 缓存失效。
+        /// 注意它对"基座顺序变化"不敏感（求和不含位置）——当前没有换序 UI；将来加排序时
+        /// 必须改成顺序敏感的哈希/拼接。
         /// </summary>
         public int BasePageVersion { get; init; }
 
@@ -69,6 +65,29 @@ namespace VisionMaster.Scada.Snapshots
 
         /// <summary>背景色（<c>#AARRGGBB</c> 文本；领域层不解析它，转换交给渲染器）</summary>
         public string Background { get; init; } = string.Empty;
+
+        /// <summary>
+        /// 本页引用的<b>全部基座</b>快照（按渲染顺序：靠前的在下面）。
+        ///
+        /// <see cref="BasePage"/> 是它的第一项（单基座兼容视图）；新渲染器按本列表逐层叠。
+        /// 空列表 = 本页不引用基座，或引用的基座都已被删除/摘除。
+        /// </summary>
+        public IReadOnlyList<ScadaPageSnapshot> BasePages { get; init; } = System.Array.Empty<ScadaPageSnapshot>();
+
+        /// <summary>本页是不是弹窗页（特殊画面）。弹窗页不参与页面菜单/普通导航。</summary>
+        public bool IsPopup { get; init; }
+
+        /// <summary>弹窗九宫格锚点（成员名，如 <c>Center</c>）；非弹窗页为 null。</summary>
+        public string? PopupAnchor { get; init; }
+
+        /// <summary>弹窗是否模态；非弹窗页为 false。</summary>
+        public bool PopupModal { get; init; }
+
+        /// <summary>
+        /// 当前打开的弹窗层（web 镜像用）；<c>null</c> = 没有弹窗。
+        /// 桌面端的弹窗由运行窗口自己的浮层渲染，这个字段只给 web 跟随。
+        /// </summary>
+        public ScadaPageSnapshot? Popup { get; init; }
 
         /// <summary>
         /// 基座画面快照（跨页公共层）；<c>null</c> = 本页不引用基座，或引用的基座已被删除/摘除。

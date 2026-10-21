@@ -464,6 +464,14 @@ namespace VisionMaster.Services
                     ExecuteNavigateBack(action, head, stamp);
                     return;
 
+                case ScadaActionType.OpenPopup:
+                    ExecuteOpenPopup(action, head, stamp);
+                    return;
+
+                case ScadaActionType.ClosePopup:
+                    ExecuteClosePopup(action, head, stamp);
+                    return;
+
             case ScadaActionType.StartFlow:
             case ScadaActionType.StopFlow:
             case ScadaActionType.RunFlowOnce:
@@ -535,6 +543,39 @@ namespace VisionMaster.Services
         private void ExecuteNavigateBack(ScadaAction action, string head, AuditStamp stamp)
         {
             if (!_navigator.GoBack(out var reason))
+            {
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            Ok(stamp, action, $"{head} → {action.Describe()}");
+        }
+
+        /// <summary>
+        /// 执行一条"打开弹窗"动作：目标必须是弹窗页（运行侧校验），不改当前页、不压页栈。
+        /// 没选目标/目标不是弹窗/已有弹窗打开都走 Skipped，原因由导航出口原样带回。
+        /// </summary>
+        private void ExecuteOpenPopup(ScadaAction action, string head, AuditStamp stamp)
+        {
+            if (action.TargetPageId == Guid.Empty && string.IsNullOrWhiteSpace(action.TargetPageName))
+            {
+                Skipped(stamp, action, $"{head} → 打开弹窗：还没选画面，本条未执行", "还没选画面");
+                return;
+            }
+
+            if (!_navigator.OpenPopup(action.TargetPageId, action.TargetPageName, out var reason))
+            {
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            Ok(stamp, action, $"{head} → {action.Describe()}");
+        }
+
+        /// <summary>执行一条"关闭弹窗"动作：没有弹窗时记跳过，不算错误。</summary>
+        private void ExecuteClosePopup(ScadaAction action, string head, AuditStamp stamp)
+        {
+            if (!_navigator.ClosePopup(out var reason))
             {
                 Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
                 return;

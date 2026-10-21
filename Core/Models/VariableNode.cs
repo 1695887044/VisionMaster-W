@@ -443,6 +443,12 @@ namespace VisionMaster.Models
                         ? current.GetValue(ElementIndex)
                         : null)
                     : model.Value;
+
+                // 网络数组：元素行按该元素的换算档案显示（小数位 + 单位），
+                // 与「写入数组」弹窗里的工程值同一口径；本地数组/标量走原样格式化。
+                if (ElementIndex >= 0 && model is NetworkVariableModel network)
+                    return network.FormatElement(ElementIndex, raw);
+
                 return Convert.ToString(raw, System.Globalization.CultureInfo.InvariantCulture) ?? "";
             }
         }

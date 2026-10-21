@@ -9,7 +9,7 @@
 | 设计文件 | `design.html`（v2 复核稿；自包含，无外部依赖；右上角可切换深色运行 / 浅色编辑画面预览） |
 | 归档 | v1 初稿的“新建控件”结论见「v1 → v2：为什么改」；v1 渲染截图归档在 `evidence/v1/` |
 | 证据目录 | `evidence/`（v2 渲染截图；WPF 复刻后的对照截图待补） |
-| 状态 | **P0-1 / P0-2 / P0-3 已实施**（2026-10-21）；弹窗 / 软键盘待做；设计稿 v2 待用户确认 |
+| 状态 | **P0-1 / P0-2 / P0-3 / P1 弹窗 + 每画布多基座已实施**（2026-10-21）；软键盘待做；设计稿 v2 待用户确认 |
 
 ## 实施进度（2026-10-21）
 
@@ -18,8 +18,12 @@
 | P0-1 返回上一页 | **已实施** | `docs/code-changes/2026-10-21-SCADA返回上一页（NavigateBack动作与页栈通知）.md` | `ScadaChecks` 2354/0；`ScadaWebChecks` 110/0 |
 | P0-2 ComboBox 只读显示 | **已实施** | `docs/code-changes/2026-10-21-SCADA下拉框只读显示（ComboBox Presentation-Text）.md` | `ScadaChecks` 专项 2344/0（临时跳过两个本机偶发崩溃段） |
 | P0-3 顶栏页面菜单 | **已实施** | `docs/code-changes/2026-10-21-SCADA顶栏页面菜单（运行窗口导航与页面级角色）.md` | `ScadaChecks` 专项 2382/0（含页面级角色 3 条、菜单接线 1 条、真窗口菜单/返回 3 条；临时跳过两个本机偶发崩溃段） |
-| P1 弹窗 / 子画面 | 未开始 | — | — |
+| P1 弹窗 / 子画面 | **已实施（桌面端）** | `docs/code-changes/2026-10-21-SCADA多基座与弹窗（特殊画面）.md` | `ScadaChecks` 专项 2401/0（含真窗口 3 条、运行态 13 条、动作 2 条；临时跳过两个本机偶发崩溃段）；`ScadaWebChecks` 111/0（弹窗动作按镜像模式剔除）；web 只透传快照、未渲染弹窗层 |
+| 配套：每画布多基座 | **已实施** | 同上 | 模型/文档/运行态/编辑器/画布/层序/旧 .vms 迁移共 20 条专项断言；顶栏基座下拉改为多选菜单 |
 | P1 软键盘 | 未开始 | — | — |
+
+> 弹窗口径：设计稿里的 `Modal/Anchor/Offset` 最终落在**弹窗页**上（`ScadaPage.PopupModal/PopupAnchor/PopupOffsetX/Y`），动作只带目标页——同一页从不同入口打开时呈现一致。理由见记录 §3.2。
+> 多基座：一页可按顺序引用多只基座，顺序 = `BasePageIds` 顺序（靠前的在下面）；顶栏改为多选菜单，暂不做拖拽排序。
 
 > P0-2 的实现口径已按评审调整：`Text` 呈现**恒只读**（`Mode` 在 Text 下隐藏/不生效）；底边线 `#7A7A7A`、字号 14；`ShowSeparator`/`Text`/`TextAlignment` 在 Field 下隐藏，`Mode`/`Fill`/`Stroke`/`StrokeThickness`/`CornerRadius` 在 Text 下隐藏。
 

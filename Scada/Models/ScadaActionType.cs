@@ -82,6 +82,15 @@ namespace VisionMaster.Scada
         /// 与「切换画面」共用同一个导航出口，但语义是“回到进入当前页之前那一页”。
         /// </summary>
         NavigateBack = 18,
+
+        /// <summary>
+        /// 打开弹窗（特殊画面）：目标必须标了 <see cref="ScadaPage.IsPopup"/>；不改当前页、不压页栈。
+        /// 已有弹窗打开时跳过（v1 不支持嵌套）。
+        /// </summary>
+        OpenPopup = 19,
+
+        /// <summary>关闭当前弹窗（没有弹窗时跳过）。</summary>
+        ClosePopup = 20,
     }
 
     /// <summary>
@@ -116,6 +125,8 @@ namespace VisionMaster.Scada
             ScadaActionType.PauseFlow => "暂停流程",
             ScadaActionType.ResumeFlow => "恢复流程",
             ScadaActionType.NavigateBack => "返回上一页",
+            ScadaActionType.OpenPopup => "打开弹窗",
+            ScadaActionType.ClosePopup => "关闭弹窗",
             // 高版本软件存下的动作类型读进低版本会落到这里（Newtonsoft 按数值反序列化，不校验取值范围）。
             // 报出数值而不是抛异常：坏在一条动作上，不该让整张画面打不开。
             _ => $"未知动作({(int)type})",
@@ -176,6 +187,8 @@ namespace VisionMaster.Scada
             ScadaActionType.PauseFlow => null,
             ScadaActionType.ResumeFlow => null,
             ScadaActionType.NavigateBack => null,
+            ScadaActionType.OpenPopup => null,
+            ScadaActionType.ClosePopup => null,
             _ => "本版本不认识该动作",
         };
     }

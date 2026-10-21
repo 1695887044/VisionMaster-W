@@ -1221,6 +1221,17 @@ namespace VisionMaster.ViewModels
             // ==========================================
             if (args.Effects == DragDropEffects.Copy && args.Data is ToolItemModel node)
             {
+                // 循环控制指令的落点闸门（与画布 DropToolAt 同一条）：Break/Continue 只能进
+                // For/While；顶层与并行分支里运行期会忽略它们，允许落子等于制造"看着配好了、
+                // 其实没生效"的假绿。判据在 StepFactory，两处入口共用。
+                if (!StepFactory.AllowsLoopControl(
+                        node.ModuleTypeName,
+                        StepFactory.ContainerChainOf(Workspace.CurrentFlow?.Steps, args.TargetItem)))
+                {
+                    ShowFeedback($"「{node.Name}」{StepFactory.LoopControlPlacementMessage}", false);
+                    return;
+                }
+
                 // 造模型（类型分派）与自动命名统一走 StepFactory —— 画布 Drop 用同一份，
                 // 改口径只改一处；落点命中 / 运行锁 / 版本推进留在本方法（两处落点规则不同）
                 string stepName = StepFactory.NextStepName(Workspace.CurrentFlow, node);

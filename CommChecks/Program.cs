@@ -80,6 +80,7 @@ namespace CommChecks
             NetworkArrayDecodeAndOffset();
             NetworkStringAndBoolArrayDecode();
             NetworkArrayWriteEncoding();
+            ArrayElementConversion();
             WritePriorityAndBackpressure();
             UrgentLanesAndPollYield();
             WaitSchedulingAndLogThrottleKey();
@@ -1755,6 +1756,145 @@ namespace CommChecks
 
         private static string DescribeParams(MethodInfo method)
             => method.Name + "(" + string.Join(", ", method.GetParameters().Select(p => p.ParameterType.Name)) + ")";
+
+        /// <summary>
+        /// C26：数组逐元素工程量换算（读/写互逆、缺失项不换算、读路径注入、超限预警）。
+        /// <para>为什么单独一组：标量换算的 C24 只证明"地址对象上那一份"是通的；
+        /// 数组的档案挂在变量上（每个元素一份），读走 <c>ToEngineeringValue</c>、
+        /// 写走私有的 <c>TryToRawArray</c>，两条路径必须同一套公式，否则"读 105、写回 1000.5"这种错位
+        /// 在界面上完全看不出来。</para>
+        /// </summary>
+        private static void ArrayElementConversion()
+        {
+            Section("C26 数组逐元素工程量换算（读/写互逆 / 缺失项不换算 / 超限预警）");
+
+            var model = new NetworkVariableModel
+            {
+                Name = "Ctrl",
+                DataType = typeof(int[]),
+                ConnectionName = "PLC1",
+                AddressConfig = new ModbusAddress
+                {
+                    Area = ModbusArea.HoldingRegisters,
+                    DataType = DataValueType.Int32,
+                    Offset = "0",
+                    Length = 3
+                },
+                Value = new[] { 1000, 2000, 3000 },
+                ElementConversions = new ElementConversion?[]
+                {
+                    new() { Scale = 0.1, Offset = 5, DecimalPlaces = 1, Unit = "℃" },
+                    null,
+                    new() { Scale = 2, Offset = 0, DecimalPlaces = 0, Unit = "mm" },
+                }
+            };
+
+            var engineering = model.ToEngineeringValue(new[] { 1000, 2000, 3000 }) as double[];
+            Check("C26-1 读路径：1000/2000/3000 → 105.0 / 2000 / 6000（null 项不换算）",
+                engineering is { Length: 3 }
+                && engineering[0] == 105.0 && engineering[1] == 2000.0 && engineering[2] == 6000.0,
+                engineering == null ? "(null)" : string.Join(",", engineering));
+
+            var plain = new NetworkVariableModel
+            {
+                DataType = typeof(int[]),
+                AddressConfig = new ModbusAddress
+                {
+                    Area = ModbusArea.HoldingRegisters,
+                    DataType = DataValueType.Int32,
+                    Offset = "0",
+                    Length = 3
+                }
+            };
+            var original = new[] { 1, 2, 3 };
+            Check("C26-2 无档案：读路径原样返回（引用不变，零分配）",
+                ReferenceEquals(plain.ToEngineeringValue(original), original),
+                "返回值被换成了新数组");
+
+            var toRawArray = typeof(NetworkVariableModel).GetMethod(
+                "TryToRawArray", BindingFlags.NonPublic | BindingFlags.Instance);
+            Check("C26-3 前提：能定位 NetworkVariableModel.TryToRawArray",
+                toRawArray != null, toRawArray?.ToString() ?? "未找到");
+
+            if (toRawArray != null)
+            {
+                object?[] args = { new[] { 105, 2000, 6000 }, null, null };
+                bool ok = (bool)toRawArray.Invoke(model, args)!;
+                var raw = args[1] as int[];
+                Check("C26-3 写路径：工程值 105/2000/6000 → 原始 1000/2000/3000",
+                    ok && raw is { Length: 3 } && raw[0] == 1000 && raw[1] == 2000 && raw[2] == 3000,
+                    ok ? (raw == null ? "null" : string.Join(",", raw)) : args[2] as string ?? "null");
+            }
+
+            // 读路径的注入点：轮询发布 / 立刻读都走 CommunicationVariable.ToEngineering
+            var commVar = new CommunicationVariable
+            {
+                ConnectionName = "PLC1",
+                VariableName = "Ctrl",
+                Address = model.AddressConfig.Address,
+                AddressConfig = model.AddressConfig,
+                EngineeringConverter = model.ToEngineeringValue,
+            };
+            var injected = commVar.ToEngineering(new[] { 1000, 2000, 3000 }) as double[];
+            Check("C26-4 读路径注入：CommunicationVariable.ToEngineering 走变量模型的逐元素换算",
+                injected is { Length: 3 } && injected[0] == 105.0 && injected[2] == 6000.0,
+                injected == null ? "(null)" : string.Join(",", injected));
+
+            model.ElementConversions = new ElementConversion?[]
+            {
+                new() { Scale = 0.1, Offset = 5, DecimalPlaces = 1, Unit = "℃" }
+            };
+            var partial = model.ToEngineeringValue(new[] { 1000, 2000, 3000 }) as double[];
+            Check("C26-5 档案比数组短：缺失项按不换算处理（不整组丢数据）",
+                partial is { Length: 3 } && partial[0] == 105.0 && partial[1] == 2000.0 && partial[2] == 3000.0,
+                partial == null ? "(null)" : string.Join(",", partial));
+
+            var big = new NetworkVariableModel
+            {
+                DataType = typeof(int[]),
+                AddressConfig = new ModbusAddress
+                {
+                    Area = ModbusArea.HoldingRegisters,
+                    DataType = DataValueType.Int32,
+                    Offset = "0",
+                    Length = 100
+                }
+            };
+            Check("C26-6 整组写入超限预警：100×Int32 = 200 个寄存器 > 120 → 建议只写修改项",
+                big.GetWholeGroupWriteWarning()?.Contains("120", StringComparison.Ordinal) == true,
+                big.GetWholeGroupWriteWarning() ?? "(无预警)");
+
+            var s7 = new NetworkVariableModel
+            {
+                DataType = typeof(int[]),
+                AddressConfig = new S7Address
+                {
+                    Area = S7Area.DB,
+                    DbNumber = 1,
+                    DataType = DataValueType.Int32,
+                    Offset = "0",
+                    Length = 50
+                }
+            };
+            Check("C26-7 整组写入超限预警：S7 50×Int32 = 200 字节 > 110 → 建议只写修改项",
+                s7.GetWholeGroupWriteWarning()?.Contains("110", StringComparison.Ordinal) == true,
+                s7.GetWholeGroupWriteWarning() ?? "(无预警)");
+
+            Check("C26-8 按元素写支持判定：Modbus Int32[] 支持；Modbus byte[] 明确不支持",
+                model.SupportsElementWrite
+                && !new NetworkVariableModel
+                {
+                    DataType = typeof(byte[]),
+                    AddressConfig = new ModbusAddress
+                    {
+                        Area = ModbusArea.HoldingRegisters,
+                        DataType = DataValueType.ByteArray,
+                        Offset = "0",
+                        Length = 4
+                    }
+                }.SupportsElementWrite,
+                $"Int32[]={model.SupportsElementWrite}");
+        }
 
         #endregion
 

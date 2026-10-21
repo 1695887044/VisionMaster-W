@@ -26,6 +26,7 @@ namespace FlowCanvasChecks
         {
             Section("[IO] 设备变量表导入/导出（xlsx / 差异计划 / 事务回滚）");
             RunExportRowContract();
+            RunArrayConversionColumnRoundTrip();
             RunXlsxRoundTripIsUnchanged();
             RunPlanValidation();
             RunAutoCreateAndFallback();
@@ -72,6 +73,67 @@ namespace FlowCanvasChecks
             Check("导出：Modbus 站号列有值", Cell(row, DeviceVariableColumns.Station) == "0", Cell(row, DeviceVariableColumns.Station));
             Check("导出：Modbus 的 DB 号列留空", Cell(row, DeviceVariableColumns.DbNumber) == "", Cell(row, DeviceVariableColumns.DbNumber));
             Check("导出：40001 写法列 = 否", Cell(row, DeviceVariableColumns.LegacyAddress) == "否", Cell(row, DeviceVariableColumns.LegacyAddress));
+        }
+
+        // ==================================================================
+        //  ①b 数组逐元素换算列：JSON 落列 + xlsx 往返不漂移
+        // ==================================================================
+
+        private static void RunArrayConversionColumnRoundTrip()
+        {
+            var connection = CreateConnection();
+            var ws = CreateWorkspace(out var solution);
+            var arrayNv = new NetworkVariableModel
+            {
+                Name = "Ctrl",
+                DataType = typeof(int[]),
+                Description = "数组换算",
+                ConnectionName = "PLC-1",
+                AddressConfig = BuildModbusArrayAddress("200", 2),
+                ElementConversions = new ElementConversion?[]
+                {
+                    new() { Scale = 0.1, Offset = 5, DecimalPlaces = 1, Unit = "℃" },
+                    null,
+                }
+            };
+            ws.GlobalVariables.Add(arrayNv);
+            var groups = solution.VariableGroups.ToList();
+
+            var row = DeviceVariableExportService.BuildRow(arrayNv, groups);
+            string json = Cell(row, DeviceVariableColumns.ElementConversions);
+            Check("[IO] 导出：数组逐元素换算以 JSON 落列（含 null 槽位）",
+                json.Contains("\"Scale\":0.1", StringComparison.Ordinal)
+                && json.Contains("\"Unit\":\"℃\"", StringComparison.Ordinal)
+                && json.Contains("null", StringComparison.Ordinal),
+                json);
+
+            var path = TempXlsx();
+            try
+            {
+                DeviceVariableExportService.Export(
+                    path, connection, new[] { arrayNv }, groups,
+                    new DeviceVariableIoOptions { IncludeGuideSheet = false, IncludeAddressPreview = false });
+
+                var rows = DeviceVariableImportService.ReadRows(path);
+                Check("[IO] 往返：xlsx 读回 1 行（数组）", rows.Count == 1, $"实际 {rows.Count} 行");
+                if (rows.Count != 1) return;
+
+                var plan = BuildPlan(connection, ws, rows, new[] { arrayNv }, groups);
+                Check("[IO] 往返：数组逐元素换算 JSON 列读回后计划判无变化",
+                    plan.UnchangedCount == 1 && plan.NewCount == 0 && plan.UpdateCount == 0 && plan.ErrorCount == 0,
+                    $"新增 {plan.NewCount} / 更新 {plan.UpdateCount} / 无变化 {plan.UnchangedCount} / 错误 {plan.ErrorCount} / {plan.Items.FirstOrDefault()?.Note}");
+
+                Check("[IO] 往返：计划带回的逐元素换算与导出前一致（长度/系数/单位/null 槽位）",
+                    plan.Items[0].Definition?.ElementConversions is { Length: 2 }
+                    && plan.Items[0].Definition.ElementConversions[0]?.Scale == 0.1
+                    && plan.Items[0].Definition.ElementConversions[0]?.Unit == "℃"
+                    && plan.Items[0].Definition.ElementConversions[1] == null,
+                    "计划未带回逐元素换算");
+            }
+            finally
+            {
+                try { if (File.Exists(path)) File.Delete(path); } catch { }
+            }
         }
 
         // ==================================================================
@@ -539,6 +601,9 @@ namespace FlowCanvasChecks
                     AreaOptionsFor = name => name == "FINS" ? new[] { "D DM 区" } : new[] { "D 数据寄存器" },
                     DefaultAreaFor = name => name == "FINS" ? "D DM 区" : "D 数据寄存器",
                     ScanGroupsFor = _ => new[] { PollScheduler.DefaultGroupName },
+                    // 协议回调：切换连接时「地址参数」块要跟着换（MC 无专属字段 / FINS 位偏移 0-15）
+                    ProtocolFor = name => name == "FINS" ? CommunicationType.OmronFins : CommunicationType.MitsubishiMc,
+                    TypeResolver = GlobalVariableManagerViewModel.ResolveType,
                 })
             {
                 ConnectionName = "MC",

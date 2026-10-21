@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>运行驾驶舱 · 设计基线 v1</title>
+<style>
+  :root {
+    /* ---- 深色驾驶舱令牌：与 Colors.xaml 的 RunCockpit* 一一对应 ---- */
+    --run-bg: #0E141B;              /* RunCockpitBackgroundBrush */
+    --run-surface: #151D26;         /* RunCockpitSurfaceBrush */
+    --run-chrome: #111820;          /* RunCockpitChromeBrush */
+    --run-border: #26303B;          /* RunCockpitBorderBrush */
+    --run-text: #F1F5F9;            /* RunCockpitTextBrush */
+    --run-text-2: #CBD5E1;          /* RunCockpitTextSecondaryBrush */
+    --run-muted: #94A3B8;           /* RunCockpitTextMutedBrush */
+    --run-faint: #64748B;           /* RunCockpitTextFaintBrush */
+    --run-green: #4ADE80;           /* RunCockpitSuccessBrush */
+    --run-red: #F87171;             /* RunCockpitDangerBrush */
+    --run-amber: #FBBF24;           /* RunCockpitWarningBrush */
+    --run-blue: #7DD3FC;            /* RunCockpitInfoBrush */
+    --run-stop: #C0392B;            /* RunCockpitStopBrush */
+    --run-stop-border: #E05A4A;     /* RunCockpitStopBorderBrush */
+    --run-stop-hover: #D9453A;      /* RunCockpitStopHoverBrush */
+
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 10px;
+
+    --font: -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 28px;
+    background: #0A0F14;
+    font-family: var(--font);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--run-text);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+  }
+
+  .frame {
+    width: 960px;
+    background: var(--run-bg);
+    border: 1px solid var(--run-border);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 18px 48px rgba(0,0,0,.55);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .caption {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 9px 16px;
+    background: #0B1015;
+    border-bottom: 1px solid var(--run-border);
+  }
+  .caption h1 { margin: 0; font-size: 12px; font-weight: 600; color: var(--run-text-2); }
+  .caption .tag {
+    font-size: 10.5px; color: var(--run-faint);
+    padding: 1px 6px; border: 1px solid var(--run-border);
+    border-radius: 10px;
+  }
+  .caption .size { margin-left: auto; font-size: 10.5px; color: var(--run-faint); font-family: var(--mono); }
+
+  /* ============ 顶条 56px ============ */
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 56px;
+    padding: 0 16px;
+    background: var(--run-chrome);
+    border-bottom: 1px solid var(--run-border);
+  }
+  .state { display: flex; align-items: center; gap: 9px; }
+  .state .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--run-green);
+    box-shadow: 0 0 0 4px rgba(74,222,128,.15);
+  }
+  .state .label { font-size: 18px; font-weight: 700; color: var(--run-text); letter-spacing: .01em; }
+
+  .flows {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--run-muted);
+    min-width: 0;
+  }
+  .flows .chip {
+    padding: 1px 7px;
+    border-radius: 9px;
+    background: rgba(125,211,252,.12);
+    border: 1px solid rgba(125,211,252,.28);
+    color: var(--run-blue);
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+  }
+
+  /* 顶条中段：节拍 / OK / NG（本版新增，把"生产健康"放回最上面） */
+  .metrics { display: flex; align-items: center; gap: 18px; margin-left: 8px; }
+  .metric { display: flex; flex-direction: column; gap: 1px; min-width: 52px; }
+  .metric .k { font-size: 10px; color: var(--run-faint); letter-spacing: .04em; }
+  .metric .v {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--run-text);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+  .metric .v .u { font-size: 10px; font-weight: 600; color: var(--run-faint); margin-left: 1px; }
+  .metric.ok .v { color: var(--run-green); }
+  .metric.ng .v { color: var(--run-red); }
+
+  .grow { flex: 1 1 auto; }
+
+  /* 停止按钮 38 高、132 宽、红实底 */
+  .stop {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 7px;
+    height: 38px; min-width: 132px;
+    padding: 0 16px;
+    border: 1px solid var(--run-stop-border);
+    border-radius: var(--radius-md);
+    background: var(--run-stop);
+    color: var(--run-text);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 150ms ease, transform 80ms ease;
+  }
+  .stop:hover { background: var(--run-stop-hover); }
+  .stop:active { transform: translateY(1px); }
+  .stop:focus-visible { outline: 2px solid var(--run-blue); outline-offset: 2px; }
+  .stop[disabled] { opacity: .45; cursor: not-allowed; }
+
+  /* ============ 图像区 ============ */
+  .stage {
+    margin: 12px;
+    background: var(--run-surface);
+    border: 1px solid var(--run-border);
+    border-radius: var(--radius-lg);
+    padding: 10px;
+    min-height: 380px;
+    display: flex;
+    flex-direction: column;
+  }
+  .stage-inner {
+    flex: 1 1 auto;
+    background: var(--run-bg);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* 空态：等宽网格底 + 图标 + 文案 */
+  .stage-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+    z-index: 1;
+  }
+  .stage-empty .glyph { font-size: 40px; color: var(--run-border); line-height: 1; }
+  .stage-empty .title { font-size: 13px; font-weight: 600; color: var(--run-muted); }
+  .stage-empty .hint { font-size: 11.5px; color: var(--run-faint); }
+  .stage-empty .hint code {
+    font-family: var(--mono);
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(148,163,184,.12);
+    color: var(--run-text-2);
+  }
+
+  /* 有图态：模拟相机画面（十字准星 + 标注框） */
+  .canvas {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 50% 45%, rgba(125,211,252,.06), transparent 62%),
+      repeating-linear-gradient(0deg, transparent 0 39px, rgba(38,48,59,.55) 39px 40px),
+      repeating-linear-gradient(90deg, transparent 0 39px, rgba(38,48,59,.55) 39px 40px);
+  }
+  .roi {
+    position: absolute;
+    border: 2px solid var(--run-green);
+    border-radius: 2px;
+  }
+  .roi .tag {
+    position: absolute;
+    top: -20px; left: -2px;
+    padding: 1px 6px;
+    border-radius: 3px 3px 0 0;
+    background: var(--run-green);
+    color: #06120A;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .roi.ng { border-color: var(--run-red); }
+  .roi.ng .tag { background: var(--run-red); color: #1A0505; }
+  .crosshair {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 26px; height: 26px;
+    transform: translate(-50%,-50%);
+    opacity: .35;
+  }
+  .crosshair::before, .crosshair::after {
+    content: ""; position: absolute; background: var(--run-blue);
+  }
+  .crosshair::before { left: 50%; top: 0; width: 1px; height: 100%; }
+  .crosshair::after { top: 50%; left: 0; height: 1px; width: 100%; }
+
+  /* 图像区左下角：帧信息（等宽小字） */
+  .frame-info {
+    position: absolute;
+    left: 10px; bottom: 8px;
+    display: flex; gap: 12px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--run-faint);
+    font-variant-numeric: tabular-nums;
+    z-index: 2;
+  }
+  .frame-info .v { color: var(--run-text-2); }
+
+  /* 图像区右上角：OK/NG 大结果章 */
+  .verdict {
+    position: absolute;
+    right: 12px; top: 10px;
+    display: flex; align-items: center; gap: 6px;
+    padding: 3px 10px;
+    border-radius: var(--radius-sm);
+    background: rgba(74,222,128,.14);
+    border: 1px solid rgba(74,222,128,.4);
+    color: var(--run-green);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    z-index: 2;
+  }
+  .verdict.ng {
+    background: rgba(248,113,113,.14);
+    border-color: rgba(248,113,113,.42);
+    color: var(--run-red);
+  }
+
+  /* ============ KPI 条 96px ============ */
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 0 12px 12px;
+  }
+  .kpi {
+    background: var(--run-surface);
+    border: 1px solid var(--run-border);
+    border-radius: var(--radius-lg);
+    padding: 10px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 88px;
+    position: relative;
+    overflow: hidden;
+  }
+  /* 左侧语义色条：只在有真实数据时出现 */
+  .kpi::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: transparent;
+  }
+  .kpi[data-kind="cycle"]::before { background: var(--run-blue); }
+  .kpi[data-kind="yield"]::before { background: var(--run-green); }
+  .kpi[data-kind="device"]::before { background: var(--run-blue); }
+  .kpi[data-kind="alarm"]::before { background: var(--run-amber); }
+
+  .kpi .label { font-size: 11px; color: var(--run-muted); }
+  .kpi .value {
+    margin-top: 2px;
+    font-family: var(--mono);
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--run-text);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .kpi .unit { font-size: 12px; font-weight: 600; color: var(--run-muted); margin-left: 2px; }
+  .kpi .sub { font-size: 10.5px; color: var(--run-faint); margin-top: 1px; }
+  .kpi.yield .value { color: var(--run-green); }
+  .kpi.alarm .value { color: var(--run-amber); }
+
+  /* KPI 待接入态：值显示 —，底部一行说明 */
+  .kpi.pending::before { background: var(--run-border); }
+  .kpi.pending .value { color: var(--run-faint); }
+
+  /* ============ 故障态变体 ============ */
+  .fault .state .dot {
+    background: var(--run-red);
+    box-shadow: 0 0 0 4px rgba(248,113,113,.18);
+    animation: blink 1s steps(2, start) infinite;
+  }
+  .fault .state .label { color: var(--run-red); }
+  @keyframes blink { 50% { opacity: .35; } }
+
+  .alert {
+    display: flex; align-items: center; gap: 8px;
+    margin: 0 12px 10px;
+    padding: 8px 12px;
+    border-radius: var(--radius-md);
+    background: rgba(248,113,113,.10);
+    border: 1px solid rgba(248,113,113,.34);
+    font-size: 12px;
+    color: var(--run-red);
+  }
+  .alert .glyph { font-size: 13px; }
+  .alert .time { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--run-faint); }
+
+  /* ============ 演示控制 ============ */
+  .demo {
+    position: fixed; right: 20px; bottom: 20px;
+    display: flex; gap: 8px; align-items: center;
+    padding: 8px 12px;
+    background: rgba(241,245,249,.92);
+    border-radius: var(--radius-md);
+    color: #0F172A; font-size: 12px;
+  }
+  .demo button {
+    height: 24px; padding: 0 10px;
+    border: 0; border-radius: var(--radius-sm);
+    background: rgba(15,23,42,.10); color: #0F172A;
+    font-family: inherit; font-size: 12px; cursor: pointer;
+  }
+  .demo button:hover { background: rgba(15,23,42,.18); }
+</style>
+</head>
+<body>
+
+<!-- ================= 场景 A：运行中（有真实数据） ================= -->
+<div class="frame" id="ok">
+  <div class="caption">
+    <h1>运行驾驶舱</h1>
+    <span class="tag">运行场景 · 有数据</span>
+    <span class="size">960 × 720</span>
+  </div>
+
+  <!-- 顶条 -->
+  <div class="topbar">
+    <div class="state">
+      <span class="dot"></span>
+      <span class="label">循环运行中</span>
+    </div>
+    <div class="flows">
+      <span class="chip">主检测</span>
+    </div>
+
+    <div class="metrics">
+      <div class="metric">
+        <span class="k">节拍</span>
+        <span class="v">1.28<span style="font-size:10px;color:var(--run-faint)">s</span></span>
+      </div>
+      <div class="metric ok">
+        <span class="k">OK</span>
+        <span class="v">1485</span>
+      </div>
+      <div class="metric ng">
+        <span class="k">NG</span>
+        <span class="v">12</span>
+      </div>
+    </div>
+
+    <div class="grow"></div>
+    <button class="stop">■ 停止运行</button>
+  </div>
+
+  <!-- 图像区 -->
+  <div class="stage">
+    <div class="stage-inner">
+      <div class="canvas">
+        <div class="crosshair"></div>
+        <div class="roi" style="left:22%; top:30%; width:120px; height:88px;">
+          <span class="tag">匹配 0.94</span>
+        </div>
+        <div class="roi ng" style="left:58%; top:52%; width:96px; height:72px;">
+          <span class="tag">缺陷 · 划伤</span>
+        </div>
+      </div>
+      <div class="verdict ng">NG</div>
+      <div class="frame-info">
+        <span>帧 <span class="v">#014985</span></span>
+        <span>分辨率 <span class="v">2448×2048</span></span>
+        <span>耗时 <span class="v">128 ms</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpis">
+    <div class="kpi" data-kind="cycle">
+      <span class="label">节拍</span>
+      <span class="value">1.28<span class="unit">s</span></span>
+      <span class="sub">最近 100 帧均值</span>
+    </div>
+    <div class="kpi yield" data-kind="yield">
+      <span class="label">良率</span>
+      <span class="value">99.2<span class="unit">%</span></span>
+      <span class="sub">1485 OK / 12 NG</span>
+    </div>
+    <div class="kpi" data-kind="device">
+      <span class="label">设备在线</span>
+      <span class="value">3<span class="unit">/ 3</span></span>
+      <span class="sub">相机 2 · PLC 1</span>
+    </div>
+    <div class="kpi alarm" data-kind="alarm">
+      <span class="label">未确认报警</span>
+      <span class="value">1</span>
+      <span class="sub">最早 19:02:47</span>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 场景 B：待接入（当前真实状态） ================= -->
+<div class="frame" id="pending">
+  <div class="caption">
+    <h1>运行驾驶舱</h1>
+    <span class="tag">运行场景 · 统计未接入（现状）</span>
+    <span class="size">960 × 720</span>
+  </div>
+
+  <div class="topbar">
+    <div class="state">
+      <span class="dot"></span>
+      <span class="label">运行中</span>
+    </div>
+    <div class="flows">
+      <span class="chip">主检测</span>
+    </div>
+    <div class="grow"></div>
+    <button class="stop">■ 停止运行</button>
+  </div>
+
+  <div class="stage">
+    <div class="stage-inner">
+      <div class="stage-empty">
+        <div class="glyph">▣</div>
+        <div class="title">等待图像</div>
+        <div class="hint">流程产出图像后自动显示；也可在 <code>视觉图像</code> 面板查看历史帧。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi pending" data-kind="cycle">
+      <span class="label">节拍</span>
+      <span class="value">—</span>
+      <span class="sub">待接入运行统计</span>
+    </div>
+    <div class="kpi pending" data-kind="yield">
+      <span class="label">良率</span>
+      <span class="value">—</span>
+      <span class="sub">待接入运行统计</span>
+    </div>
+    <div class="kpi pending" data-kind="device">
+      <span class="label">设备在线</span>
+      <span class="value">—</span>
+      <span class="sub">待接入设备状态</span>
+    </div>
+    <div class="kpi pending" data-kind="alarm">
+      <span class="label">未确认报警</span>
+      <span class="value">—</span>
+      <span class="sub">待接入报警统计</span>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 场景 C：故障态 ================= -->
+<div class="frame fault" id="fault">
+  <div class="caption">
+    <h1>运行驾驶舱</h1>
+    <span class="tag">运行场景 · 故障</span>
+    <span class="size">960 × 720</span>
+  </div>
+
+  <div class="topbar">
+    <div class="state">
+      <span class="dot"></span>
+      <span class="label">运行故障</span>
+    </div>
+    <div class="flows">
+      <span class="chip">主检测</span>
+    </div>
+    <div class="metrics">
+      <div class="metric">
+        <span class="k">节拍</span>
+        <span class="v">—</span>
+      </div>
+      <div class="metric ok">
+        <span class="k">OK</span>
+        <span class="v">1485</span>
+      </div>
+      <div class="metric ng">
+        <span class="k">NG</span>
+        <span class="v">13</span>
+      </div>
+    </div>
+    <div class="grow"></div>
+    <button class="stop">■ 停止运行</button>
+  </div>
+
+  <div class="alert">
+    <span class="glyph">⚠</span>
+    <span>相机 camera-02 取图超时（500 ms），流程已暂停</span>
+    <span class="time">19:04:15.771</span>
+  </div>
+
+  <div class="stage">
+    <div class="stage-inner">
+      <div class="canvas">
+        <div class="crosshair"></div>
+        <div class="roi" style="left:22%; top:30%; width:120px; height:88px;">
+          <span class="tag">匹配 0.94</span>
+        </div>
+      </div>
+      <div class="verdict">OK</div>
+      <div class="frame-info">
+        <span>帧 <span class="v">#014984</span></span>
+        <span>分辨率 <span class="v">2448×2048</span></span>
+        <span>耗时 <span class="v">131 ms</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi pending" data-kind="cycle">
+      <span class="label">节拍</span>
+      <span class="value">—</span>
+      <span class="sub">故障中无统计</span>
+    </div>
+    <div class="kpi yield" data-kind="yield">
+      <span class="label">良率</span>
+      <span class="value">99.1<span class="unit">%</span></span>
+      <span class="sub">1485 OK / 13 NG</span>
+    </div>
+    <div class="kpi" data-kind="device">
+      <span class="label">设备在线</span>
+      <span class="value">2<span class="unit">/ 3</span></span>
+      <span class="sub">相机 1 · PLC 1（camera-02 离线）</span>
+    </div>
+    <div class="kpi alarm" data-kind="alarm">
+      <span class="label">未确认报警</span>
+      <span class="value">2</span>
+      <span class="sub">最早 19:02:47</span>
+    </div>
+  </div>
+</div>
+
+<!-- 演示控制 -->
+<div class="demo">
+  <span>演示控制</span>
+  <button onclick="document.getElementById('ok').scrollIntoView({behavior:'smooth'})">运行中</button>
+  <button onclick="document.getElementById('pending').scrollIntoView({behavior:'smooth'})">待接入</button>
+  <button onclick="document.getElementById('fault').scrollIntoView({behavior:'smooth'})">故障</button>
+</div>
+</body>
+</html>

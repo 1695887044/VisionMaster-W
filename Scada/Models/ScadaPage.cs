@@ -156,39 +156,146 @@ namespace VisionMaster.Scada
         }
 
         /// <summary>
-        /// 本页引用的<b>基座画面</b>的稳定身份。<c>Guid.Empty</c> = 不引用任何基座。
+        /// 本页引用的<b>基座画面</b> Id 列表（按渲染顺序：靠前的压在下面，靠后的盖在上面）。
         ///
-        /// <b>基座是什么</b>
+        /// <b>为什么是列表而不是单个</b>
         /// ---------
-        /// 基座是一份<b>普通</b>的 <see cref="ScadaPage"/>（背景、图元、事件钩子都有），
-        /// 被多页共享引用；改基座一次，所有引用它的页面跟着变。
-        /// 它是"跨页的公共层"，与 <c>Hmi.Panel</c>（底板，单页内的区域框）互补：
-        /// 底板管"这一页里的一块区域"，基座管"这一页与其它页共享的那一层"。
+        /// 一个画面经常要同时叠"公共标题栏 + 公共底栏"这类互不相干的两层；合成一个基座
+        /// 会让每种组合都新建一份公共层，改一次公共内容要改 N 份。列表让"一页引多只基座"
+        /// 与"多页引同一只基座"同时成立。
         ///
-        /// <b>为什么是"引用"而不是"继承"</b>
-        /// ---------
-        /// 继承（基类页面）会把 <see cref="ScadaPage"/> 的类型体系变成树：
-        /// 序列化要认派生类、撤销栈要分清"改的是基座还是页面"、属性面板要合并两层的属性。
-        /// 而"页面与基座共享什么"这份关系，本质上是一个<b>指针</b>——与
-        /// <see cref="LayerId"/> / <see cref="GroupId"/> 同一形态（都存 Guid，不存对象）。
+        /// <b>基座不能再套基座</b>：列表里的目标必须来自 <c>ScadaDocument.BasePages</c>，
+        /// 且引用方自身不能是基座（一层限制）。写入走 <c>ScadaDocument.TryAddBasePageReference</c>
+        /// / <c>TryRemoveBasePageReference</c> / <c>TrySetBasePage</c>，由文档统一校验。
         ///
-        /// <b>基座不能再套基座</b>：本字段只允许指向<b>非基座</b>的页面（即"可作为基座的页面"
-        /// 集合 <c>ScadaDocument.BasePages</c> 里的那几份），且它自身不能再引用别的基座。
-        /// 一层限制由 <c>ScadaDocument.TrySetBasePage</c> 在写入时拦。
+        /// <b>悬空不清理</b>：基座被删除后 Id 留在列表里，渲染侧跳过；撤销能把基座找回来
+        /// （与 <c>GroupId</c>/<c>ParentId</c> 同一口径）。
         ///
-        /// <b>悬空不清理</b>：基座被删除后，本字段指向一个不存在的 Id。渲染侧按
-        /// "无基座"降级（画面照常显示本页内容），与 <c>GroupId</c>/<c>ParentId</c> 同一口径——
-        /// 数据不该被悄悄改写，清理会毁掉撤销回来的可能。
-        ///
-        /// 旧 .vms 里没有这个字段，反序列化后自然取 <c>Guid.Empty</c>（无基座），不需要迁移代码。
+        /// <b>旧 .vms 兼容</b>：旧文件里的单值 <c>BasePageId</c> 由
+        /// <see cref="LegacyBasePageId"/> 读入本列表；写出只写 <see cref="BasePageIds"/>。
         /// </summary>
-        public Guid BasePageId
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public List<Guid> BasePageIds
         {
-            get => _basePageId;
-            set => SetProperty(ref _basePageId, value);
+            get => _basePageIds;
+            set
+            {
+                var normalized = NormalizeBasePageIds(value);
+                if (_basePageIds.SequenceEqual(normalized))
+                    return;
+
+                if (SetProperty(ref _basePageIds, normalized))
+                {
+                    RaisePropertyChanged(nameof(BasePageId));
+                    Version++;
+                }
+            }
         }
 
-        private Guid _basePageId;
+        private List<Guid> _basePageIds = new();
+
+        /// <summary>
+        /// 单基座兼容视图：读 = 列表第一项（没有则为 <c>Guid.Empty</c>），写 = 把列表替换成这一项。
+        ///
+        /// 保留它是因为旧代码、旧断言与旧插件还在按单个基座读写；新代码请用
+        /// <see cref="BasePageIds"/> 或文档的引用管理方法。
+        /// </summary>
+        [JsonIgnore]
+        public Guid BasePageId
+        {
+            get => _basePageIds.Count > 0 ? _basePageIds[0] : Guid.Empty;
+            set => BasePageIds = value == Guid.Empty
+                ? new List<Guid>()
+                : new List<Guid> { value };
+        }
+
+        /// <summary>
+        /// 旧 .vms 的单基座字段：只读入、不写出（getter 恒 null + NullValueHandling.Ignore）。
+        /// 新文件写 <see cref="BasePageIds"/>；旧文件没有这个列表，靠这里把单值迁进列表。
+        /// </summary>
+        [JsonProperty("BasePageId", NullValueHandling = NullValueHandling.Ignore)]
+        private Guid? LegacyBasePageId
+        {
+            get => null;
+            set
+            {
+                if (value is { } id && id != Guid.Empty && _basePageIds.Count == 0)
+                    BasePageIds = new List<Guid> { id };
+            }
+        }
+
+        private bool ShouldSerializeLegacyBasePageId() => false;
+
+        /// <summary>替换基座引用列表（去空、去重、保持顺序；走 <see cref="BasePageIds"/> 的变更记账）</summary>
+        public void SetBasePageIds(IEnumerable<Guid>? ids)
+            => BasePageIds = ids?.ToList() ?? new List<Guid>();
+
+        private static List<Guid> NormalizeBasePageIds(IEnumerable<Guid>? ids)
+        {
+            var list = new List<Guid>();
+
+            if (ids == null)
+                return list;
+
+            foreach (var id in ids)
+            {
+                if (id != Guid.Empty && !list.Contains(id))
+                    list.Add(id);
+            }
+
+            return list;
+        }
+
+        /// <summary>
+        /// 本页是不是<b>弹窗页</b>（特殊画面）：运行态以浮层盖在当前页上，不参与页面菜单、
+        /// 不能被「切换画面」当作普通页切走；只能由「打开弹窗」动作打开。
+        ///
+        /// 弹窗页本身仍是普通 <see cref="ScadaPage"/>：图元、绑定、动画、事件钩子都照常，
+        /// 所以编辑体验与普通页完全一致，不需要另一套设计器。
+        /// </summary>
+        public bool IsPopup
+        {
+            get => _isPopup;
+            set => SetProperty(ref _isPopup, value);
+        }
+
+        private bool _isPopup;
+
+        /// <summary>弹窗是否模态（默认 true）：模态 = 遮罩 + 背景不可命中；非模态 = 主画面仍可操作。</summary>
+        public bool PopupModal
+        {
+            get => _popupModal;
+            set => SetProperty(ref _popupModal, value);
+        }
+
+        private bool _popupModal = true;
+
+        /// <summary>弹窗在运行窗口里的九宫格锚点（默认居中）。</summary>
+        public ScadaPopupAnchor PopupAnchor
+        {
+            get => _popupAnchor;
+            set => SetProperty(ref _popupAnchor, value);
+        }
+
+        private ScadaPopupAnchor _popupAnchor = ScadaPopupAnchor.Center;
+
+        /// <summary>弹窗锚点偏移 X（像素，正数向右）。</summary>
+        public double PopupOffsetX
+        {
+            get => _popupOffsetX;
+            set => SetProperty(ref _popupOffsetX, value);
+        }
+
+        private double _popupOffsetX;
+
+        /// <summary>弹窗锚点偏移 Y（像素，正数向下）。</summary>
+        public double PopupOffsetY
+        {
+            get => _popupOffsetY;
+            set => SetProperty(ref _popupOffsetY, value);
+        }
+
+        private double _popupOffsetY;
 
         /// <summary>
         /// 是否启用<b>画面加载事件钩子</b>（<see cref="ScadaEventType.Loaded"/>）。
@@ -536,18 +643,21 @@ namespace VisionMaster.Scada
         }
 
         /// <summary>
-        /// 本页当前引用的基座画面（按 <see cref="BasePageId"/> 在所属文档的
-        /// <see cref="ScadaDocument.BasePages"/> 里反查）。
+        /// 本页当前引用的基座画面列表（按 <see cref="BasePageIds"/> 的顺序反查）。
         ///
-        /// 找不到（基座被删了 / 没引用 / 文档不在手）返回 null——调用方按"无基座"降级，
-        /// 画面照常显示本页内容，不丢图元。
-        ///
-        /// <b>为什么需要文档句柄</b>：基座是"文档级"的对象（被多页共享引用），
-        /// 而 <see cref="ScadaPage"/> 自己不认识文档——它只知道"我是谁"，不知道"我在哪"。
-        /// 所以反查必须由知道文档的那一方（编辑器/运行态宿主/断言）带进来。
+        /// 找不到的 Id（基座被删了 / 没引用 / 文档不在手）直接跳过——调用方按"少一层"降级，
+        /// 画面照常显示本页内容，不丢图元。重复 Id 与自引用由文档的写入校验拦；
+        /// 手改过的 .vms 由 <c>ScadaDocument.EnsureIdentity</c> 清理。
+        /// </summary>
+        public IReadOnlyList<ScadaPage> ResolveBases(ScadaDocument? document)
+            => document == null ? Array.Empty<ScadaPage>() : document.ResolveBasePages(this);
+
+        /// <summary>
+        /// 单基座兼容视图：返回第一只基座（没有则 null）。
+        /// 新代码用 <see cref="ResolveBases"/>——一个画面可以引用多只基座。
         /// </summary>
         public ScadaPage? ResolveBase(ScadaDocument? document)
-            => document?.FindBasePage(BasePageId);
+            => ResolveBases(document).FirstOrDefault();
 
         #endregion
 

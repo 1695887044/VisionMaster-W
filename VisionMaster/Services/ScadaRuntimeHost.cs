@@ -194,6 +194,18 @@ namespace VisionMaster.Services
         private ScadaRuntimeBinder? _binder;
 
         /// <summary>
+        /// 当前弹窗的数据泵（没有弹窗时为 null）。与主页数据泵同一套生命周期：
+        /// 弹窗打开并布局完成后建表、关闭时摘表；它只服务弹窗页，不与主页表混用。
+        /// </summary>
+        private ScadaRuntimeBinder? _popupBinder;
+
+        /// <summary>
+        /// 弹窗建表代次：关闭/重开同一弹窗时，上一轮排队的 Dispatcher 回调必须作废，
+        /// 否则两个回调都会通过"CurrentPopup 还是它"的判据，后一个覆盖前一个却不摘表。
+        /// </summary>
+        private int _popupGeneration;
+
+        /// <summary>
         /// 本轮运行的<b>全画面统一节拍源</b>（没运行 / 还没起表时是 null）。
         /// 一次运行只养一个：报警的延时与断线判定以它为分辨率，报警灯闪烁与它共用相位。
         /// 领域层不自己起定时器（见 <see cref="ScadaAlarmEngine.Tick"/>），所以这一个必须由宿主来养。
@@ -402,6 +414,8 @@ namespace VisionMaster.Services
 
                 stage = "订阅运行会话事件";
                 session.PageLoaded += OnPageLoaded;
+                session.PopupOpened += OnPopupOpened;
+                session.PopupClosed += OnPopupClosed;
                 session.ElementEventRaised += OnElementEventRaised;
                 session.PageEventRaised += OnPageEventRaised;
                 session.ElementAccessDenied += OnElementAccessDenied;
@@ -437,6 +451,7 @@ namespace VisionMaster.Services
                 _monitoring.EnsureStarted(document);
                 window.CanvasHost.RuntimeContext = _monitoring.Context
                     ?? throw new InvalidOperationException("方案监控未启动，无法提供报警/变量事件上下文");
+                window.PopupCanvasHost.RuntimeContext = window.CanvasHost.RuntimeContext;
 
                 stage = "显示运行窗口";
                 window.Show();
@@ -627,6 +642,54 @@ namespace VisionMaster.Services
                 SchedulePageAfterLayout(page);
             else
                 _pendingLoadedPage = page;
+        }
+
+        /// <summary>
+        /// 弹窗打开：等弹窗画布布局跑完再建表、发 Loaded。与切页后半段同一套顺序，
+        /// 只是画布换成 <see cref="ScadaRuntimeWindow.PopupCanvasHost"/>。
+        ///
+        /// 弹窗关闭时 <see cref="OnPopupClosed"/> 摘表；窗口关闭时兜底再摘一次。
+        /// </summary>
+        private void OnPopupOpened(ScadaPage page)
+        {
+            _popupBinder?.Stop();
+            _popupBinder = null;
+
+            var generation = ++_popupGeneration;
+
+            var dispatcher = _window?.Dispatcher;
+            if (dispatcher == null)
+                return;
+
+            dispatcher.BeginInvoke(new Action(() =>
+            {
+                // 回调是异步的：执行时可能已经关了弹窗、或者关了又开了同一页。
+                // 引用比对防前者，代次防后者（同一页重开时引用会相等）。
+                if (generation != _popupGeneration
+                    || !ReferenceEquals(_session?.CurrentPopup, page))
+                    return;
+
+                var canvas = _window?.PopupCanvasHost;
+                if (canvas == null)
+                    return;
+
+                _popupBinder?.Stop();
+                _popupBinder = null;
+
+                var binder = new ScadaRuntimeBinder(canvas, _valueSource, page, OnBindingDiagnostic);
+                binder.Start();
+                _popupBinder = binder;
+
+                _session?.RaisePageEvent(page, ScadaEventType.Loaded);
+            }), DispatcherPriority.Loaded);
+        }
+
+        /// <summary>弹窗关闭：作废排队回调并摘掉弹窗数据泵（控件刷回设计值），不留订阅。</summary>
+        private void OnPopupClosed(ScadaPage page)
+        {
+            _popupGeneration++;
+            _popupBinder?.Stop();
+            _popupBinder = null;
         }
 
         /// <summary>
@@ -1241,6 +1304,9 @@ namespace VisionMaster.Services
             _binder?.Stop();
             _binder = null;
 
+            _popupBinder?.Stop();
+            _popupBinder = null;
+
             // 报警/变量事件引擎不在这里摘：它们是方案级监控（ScadaMonitoringHost），
             // 关窗口只是退视图，监控继续跑。这正是“只跑流程、不开画面也能报警/触发变量事件”的关键。
 
@@ -1255,6 +1321,8 @@ namespace VisionMaster.Services
                 // 先摘订阅再 Stop()：Stop() 之后会话就"不运行"了，理论上不会再广播事件，
                 // 但把顺序写成"先断线后关灯"，将来谁改了 Stop() 的内部实现也不会漏出一次幽灵触发。
                 session.PageLoaded -= OnPageLoaded;
+                session.PopupOpened -= OnPopupOpened;
+                session.PopupClosed -= OnPopupClosed;
                 session.ElementEventRaised -= OnElementEventRaised;
                 session.PageEventRaised -= OnPageEventRaised;
                 session.ElementAccessDenied -= OnElementAccessDenied;
