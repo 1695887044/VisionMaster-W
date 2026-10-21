@@ -216,10 +216,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
             WriteBothCommand = new DelegateCommand(() => SyncBaseline = true);
             WriteChangedOnlyCommand = new DelegateCommand(() => SetWriteMode(ArrayWriteMode.ChangedOnly));
             WriteWholeGroupCommand = new DelegateCommand(() => SetWriteMode(ArrayWriteMode.WholeGroup));
-            RefreshCommand = new DelegateCommand(RefreshFromDevice, () => IsNetwork);
+            RefreshCommand = new DelegateCommand(RefreshFromDevice, () => IsNetwork && !IsBusy);
             EditConversionCommand = new DelegateCommand<object?>(EditConversion);
-            BatchConversionCommand = new DelegateCommand(EditBatchConversion, () => IsNetwork);
-            ClearConversionCommand = new DelegateCommand(ClearConversions, () => IsNetwork);
+            BatchConversionCommand = new DelegateCommand(EditBatchConversion, () => IsNetwork && !IsBusy);
+            ClearConversionCommand = new DelegateCommand(ClearConversions, () => IsNetwork && !IsBusy);
             ConfirmCommand = new DelegateCommand(Confirm);
             CancelCommand = new DelegateCommand(() => RequestClose.Invoke(ButtonResult.Cancel));
         }
@@ -385,6 +385,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 if (!SetProperty(ref _changedCount, value)) return;
                 RaisePropertyChanged(nameof(HasChanges));
                 RaisePropertyChanged(nameof(HasPendingChanges));
+                RaisePropertyChanged(nameof(CanResetAll));
                 RaisePropertyChanged(nameof(ChangedSummary));
                 RaisePropertyChanged(nameof(FooterSummary));
                 RaisePropertyChanged(nameof(CanConfirm));
@@ -400,6 +401,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 if (!SetProperty(ref _conversionChanged, value)) return;
                 RaisePropertyChanged(nameof(HasPendingChanges));
+                RaisePropertyChanged(nameof(CanResetAll));
                 RaisePropertyChanged(nameof(FooterSummary));
                 RaisePropertyChanged(nameof(CanConfirm));
                 RaisePropertyChanged(nameof(ConfirmHint));
@@ -499,8 +501,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 if (!SetProperty(ref _isBusy, value)) return;
                 RaisePropertyChanged(nameof(CanCancel));
+                RaisePropertyChanged(nameof(CanRefresh));
+                RaisePropertyChanged(nameof(CanResetAll));
                 RaisePropertyChanged(nameof(CanConfirm));
                 RaisePropertyChanged(nameof(ConfirmHint));
+                RefreshCommand.RaiseCanExecuteChanged();
+                BatchConversionCommand.RaiseCanExecuteChanged();
+                ClearConversionCommand.RaiseCanExecuteChanged();
             }
         }
 
@@ -516,8 +523,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
         }
 
-        /// <summary>网络数组刷新（立刻读）可用；本地数组无设备可读</summary>
-        public bool CanRefresh => IsNetwork;
+        /// <summary>网络数组刷新（立刻读）可用；写入中禁用（避免读到写了一半的状态）</summary>
+        public bool CanRefresh => IsNetwork && !IsBusy;
+
+        /// <summary>「撤销全部修改」可用：有值/换算待落地，且不在写入中</summary>
+        public bool CanResetAll => !IsBusy && HasPendingChanges;
 
         /// <summary>
         /// 最近一次确认操作产生的异步任务（断言宿主用；本地数组同步完成）。
@@ -1361,6 +1371,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RaisePropertyChanged(nameof(CanConfirm));
             RaisePropertyChanged(nameof(ConfirmHint));
             RaisePropertyChanged(nameof(CanRefresh));
+            RaisePropertyChanged(nameof(CanResetAll));
             RaisePropertyChanged(nameof(CanCancel));
             RaisePropertyChanged(nameof(QualityWarning));
             RaisePropertyChanged(nameof(HasQualityWarning));

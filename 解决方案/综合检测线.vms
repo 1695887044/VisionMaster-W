@@ -704,6 +704,26 @@
                         },
                         {
                           "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                          "StepID": "688a19fd-51d6-7b9c-6f50-f5835d0f5944",
+                          "Icon": "",
+                          "PluginName": "图像采集",
+                          "Category": "常用工具",
+                          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                          "StepName": "采集批号图",
+                          "Description": "图像采集",
+                          "SortId": 0,
+                          "IsDisEnable": false,
+                          "State": 0,
+                          "InputValues": {
+                            "Mode": "SingleFile",
+                            "FilePath": "D:\\C#\\VM\\Image\\images\\ocr\\lot_number_01.png",
+                            "DisplayViewIndex": 0
+                          },
+                          "LinkedSources": {},
+                          "OutputPortDefinitions": []
+                        },
+                        {
+                          "$type": "VisionMaster.Models.ActionStep, VM.Core",
                           "StepID": "86742602-e994-c9d1-9ed5-5b12c8d9c21a",
                           "Icon": "",
                           "PluginName": "OCR 文本识别",
@@ -716,11 +736,11 @@
                           "State": 0,
                           "InputValues": {
                             "RoiParams": [
-                              250.0,
-                              330.0,
+                              272.0,
+                              320.0,
                               0.0,
-                              100.0,
-                              18.0
+                              170.0,
+                              40.0
                             ],
                             "TextIsDark": true,
                             "MinCharHeight": 8,
@@ -740,10 +760,10 @@
                           "LinkedSources": {
                             "Image": {
                               "Kind": 1,
-                              "TargetStepId": "8a277ff7-3294-097e-99c1-95fa63e20dcc",
+                              "TargetStepId": "688a19fd-51d6-7b9c-6f50-f5835d0f5944",
                               "TargetPortName": "Image",
                               "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-                              "DisplayAddress": "采集板卡图.Image"
+                              "DisplayAddress": "采集批号图.Image"
                             }
                           },
                           "OutputPortDefinitions": []
@@ -2654,14 +2674,14 @@
           "IsDisEnable": false,
           "State": 0,
           "InputValues": {
-            "RecipeLibraryJson": "[{\"Name\":\"BeadA\",\"RefImagePath\":\"D:\\\\C#\\\\VM\\\\Image\\\\bead\\\\adhesive_bead_01.png\",\"RefNoBeadImagePath\":\"D:\\\\C#\\\\VM\\\\Image\\\\bead\\\\adhesive_bead_ref.png\",\"RefPointsJson\":\"[[610,330],[520,335],[450,360],[390,400],[350,460],[335,540],[330,620],[340,700],[365,780],[410,850],[470,910],[540,950],[600,975]]\",\"RectifyQuadJson\":\"\",\"TargetWidth\":14.0,\"WidthTolerance\":10.0,\"PositionTolerance\":40.0,\"Polarity\":\"dark\",\"LearnedSignature\":\"\"}]",
+            "RecipeLibraryJson": "[{\"Name\":\"BeadA\",\"RefImagePath\":\"D:\\\\C#\\\\VM\\\\Image\\\\bead\\\\adhesive_bead_01.png\",\"RefNoBeadImagePath\":\"D:\\\\C#\\\\VM\\\\Image\\\\bead\\\\adhesive_bead_ref.png\",\"RefPointsJson\":\"[[610,419],[570,421],[530,425],[490,433],[450,445],[430,454],[394,475],[358,500],[331,525],[309,550],[294,575],[284,600],[277,625],[273,650],[271,675],[269,700],[267,725],[267,750],[274,775],[285,800],[304,825],[323,850],[343,875],[364,900],[388,925],[419,950],[456,975],[470,984],[490,993],[510,997],[530,997]]\",\"RectifyQuadJson\":\"\",\"TargetWidth\":15.0,\"WidthTolerance\":8.0,\"PositionTolerance\":30.0,\"Polarity\":\"dark\",\"LearnedSignature\":\"\"}]",
             "DefaultRecipeName": "BeadA",
             "AlignMode": "None",
             "Polarity": "Dark",
-            "TargetWidth": 14.0,
-            "WidthTolerance": 10.0,
-            "PositionTolerance": 40.0,
-            "MinErrorLength": 20.0,
+            "TargetWidth": 15.0,
+            "WidthTolerance": 8.0,
+            "PositionTolerance": 30.0,
+            "MinErrorLength": 10.0,
             "MinScore": 0.4,
             "DisplayViewIndex": 1,
             "OutputAlignedImage": false,

@@ -474,6 +474,7 @@
                                 Padding="6"
                                 Background="Transparent"
                                 BorderThickness="0"
+                                IsEnabled="{Binding CanCancel}"
                                 ItemsSource="{Binding Elements}"
                                 ScrollViewer.CanContentScroll="True"
                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
