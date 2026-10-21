@@ -99,6 +99,12 @@ namespace VisionMaster.ScadaWeb
         /// </summary>
         private const int MaxRequestIdLength = 64;
 
+        /// <summary>
+        /// 入站命令帧的 UTF-8 上限。WS 整条消息上限已放宽到 4MB（出站快照需要），
+        /// 所以入站必须在这里单独收窄：命令帧最大也就几 KB，64KB 足够。
+        /// </summary>
+        private const int MaxInboundCommandBytes = 64 * 1024;
+
         /// <summary>静态资源白名单（路径 → 文件名同一套名字；白名单本身就是"拒绝 .."的判据）</summary>
         private static readonly string[] StaticFiles =
         {
@@ -357,8 +363,11 @@ namespace VisionMaster.ScadaWeb
                 // Watson 默认 MaxRequestBodySize=0（不限）、MaxMessageSize=16MB，
                 // 一个匿名请求就能把整段 JSON 读进内存再解析（2026-10-21 终审 P1-5）。
                 // 64KB 对 ticket/命令帧绰绰有余；超限由 Watson 直接拒绝，不进入我们的解析器。
+                // WS 的整条消息上限放宽到 4MB：它是**双向**的，出站快照在 3000 图元时约 1.5–1.8MB，
+                // 64KB 会把整份快照卡死。入站命令帧仍由 HandleTextFrame 的 64KB 闸单独限制
+                // （见 MaxInboundCommandBytes），所以放宽不会让匿名连接拿 4MB 命令打内存。
                 serverSettings.IO.MaxRequestBodySize = 64 * 1024;
-                serverSettings.WebSockets.MaxMessageSize = 64 * 1024;
+                serverSettings.WebSockets.MaxMessageSize = 4 * 1024 * 1024;
 
                 server = new Webserver(serverSettings, DefaultRoute);
 
@@ -1496,6 +1505,17 @@ namespace VisionMaster.ScadaWeb
         private void HandleTextFrame(ScadaWebSession session, string? text)
         {
             if (string.IsNullOrWhiteSpace(text)) return;
+
+            if (Encoding.UTF8.GetByteCount(text) > MaxInboundCommandBytes)
+            {
+                session.TrySend(Json(new
+                {
+                    type = "error",
+                    code = ScadaWebErrorCodes.BadRequest,
+                    message = $"命令帧过大（上限 {MaxInboundCommandBytes / 1024}KB）"
+                }));
+                return;
+            }
 
             string? type = null;
             JObject json;
