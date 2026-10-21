@@ -200,7 +200,7 @@ dotnet run --project Web\ScadaWebStress\ScadaWebStress.csproj -c Debug -- ^
 | 分片 | 超大页面 | 未实现；用 4MB WS 上限 + 2MB 快照硬闸替代 |
 | 慢消费者精确丢帧/恢复 | “慢端丢多少、多久收敛” | 只观察到不断连；未逐端统计 Dropped/收敛帧数 |
 | 长稳 >60s | 内存/句柄/GC 长期行为 | 本批最长 60s |
-| ImageView / DataGrid 行 / Axis 实时数据 | 5 个复杂图元的可用性 | ChartTrend 已用 Value 帧实现；其余 4 个仍缺数据通道 |
+| DataGrid 行 / Axis 实时数据 | 3 个复杂图元的可用性 | ChartTrend 已用 Value 帧实现；ImageView 已用 `/img` + imageToken 实现（B51/B51b）；其余 3 个仍缺数据通道 |
 | 默认值一致性视觉 | 两端外观一致 | 未做 catalog 首帧归一化/视觉对照 |
 | 三端一致 / TLS / 反代 / 审计磁盘 I/O | 部署验收 | 未覆盖 |
 
@@ -232,6 +232,7 @@ docs/performance/evidence/
   （`MaxEntries` 65536 → 262144，避免 13.6 分钟静默失效）。
 - 快照分片/resync/控制通道：未实现；用 4MB WS 上限 + 2MB 快照硬闸替代。
 - 24 握手槽：未实现；只做了 16 活跃名额的原子预占。
-- ImageView `/img` + token：未实现；`ScadaWebValueResolver` 尚未跳过图像绑定（下一批必须先修）。
+- ImageView `/img` + token：**已实现**（第三批；`B51/B51b` 验 PNG 字节与坏 token 401）；
+  仍缺浏览器 `<img>` 视觉验收、按显示尺寸降采样/JPEG、`ETag/304` 与 0.5Mbps 令牌桶。
 - DataGrid 行数据 / Axis 实时数据：未实现；ChartTrend 已用 Value 帧实现。
 - 默认值一致性闸：未实现；23 个现有渲染器仍硬编码回退值。
