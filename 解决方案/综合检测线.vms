@@ -155,7 +155,7 @@
             "Axis": "X",
             "Mode": "Absolute",
             "Target": 10.0,
-            "Velocity": 100.0
+            "Velocity": 10.0
           },
           "LinkedSources": {},
           "OutputPortDefinitions": []
@@ -1114,7 +1114,7 @@
                                     "Axis": "X",
                                     "Mode": "Absolute",
                                     "Target": 100.0,
-                                    "Velocity": 80.0
+                                    "Velocity": 20.0
                                   },
                                   "LinkedSources": {},
                                   "OutputPortDefinitions": []
@@ -1155,7 +1155,7 @@
                                     "Axis": "X",
                                     "Mode": "Absolute",
                                     "Target": 0.0,
-                                    "Velocity": 80.0
+                                    "Velocity": 20.0
                                   },
                                   "LinkedSources": {},
                                   "OutputPortDefinitions": []
@@ -3456,7 +3456,7 @@
       "DriverTypeKey": "Plugin.Motion.ZMotion.ZMotionCard, Plugin.Motion.ZMotion, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
       "DisplayName": "ZMotion_Virtual",
       "Address": "127.0.0.1",
-      "CardModel": "",
+      "CardModel": "VPLC532R",
       "AutoConnect": true,
       "Remarks": "正运动虚拟控制器（127.0.0.1:502）",
       "Axes": [
@@ -3465,7 +3465,7 @@
           "LogicalName": "X",
           "PhysicalIndex": 0,
           "Enabled": true,
-          "UnitsPerMm": 1000.0,
+          "UnitsPerMm": 100.0,
           "SoftLimitMinMm": -500.0,
           "SoftLimitMaxMm": 500.0,
           "AxisRemark": "X 轴：检测/取料",
@@ -3481,7 +3481,7 @@
           "LogicalName": "Y",
           "PhysicalIndex": 1,
           "Enabled": true,
-          "UnitsPerMm": 1000.0,
+          "UnitsPerMm": 100.0,
           "SoftLimitMinMm": -500.0,
           "SoftLimitMaxMm": 500.0,
           "AxisRemark": "Y 轴：横移",
@@ -3497,7 +3497,7 @@
           "LogicalName": "Z",
           "PhysicalIndex": 2,
           "Enabled": true,
-          "UnitsPerMm": 1000.0,
+          "UnitsPerMm": 100.0,
           "SoftLimitMinMm": -500.0,
           "SoftLimitMaxMm": 500.0,
           "AxisRemark": "Z 轴：升降",
@@ -3511,8 +3511,8 @@
       ],
       "Points": [],
       "Params": {
-        "DefaultVelocityMmPerS": 50.0,
-        "DefaultAccelMmPerS2": 500.0,
+        "DefaultVelocityMmPerS": 10.0,
+        "DefaultAccelMmPerS2": 100.0,
         "PollIntervalMs": 10,
         "CommandTimeoutMs": 30000,
         "WatchdogTimeoutMs": 3000,

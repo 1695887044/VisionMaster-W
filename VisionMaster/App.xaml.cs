@@ -375,6 +375,12 @@ namespace VisionMaster
             // "要审计每一次手动改值"或"要二次确认弹窗"时，改动点就在这一行上。
             containerRegistry.RegisterSingleton<IScadaValueWriter>(
                 c => new ScadaValueWriter(c.Resolve<ILogService>(), c.Resolve<IScadaValueSource>()));
+
+            // A 范围的安全闸：Web 写变量前判"是不是流程触发器"（变量上升沿会启动流程，
+            // 流程里可以含轴运动）。实现住在宿主（能看见 IWorkspaceManager），
+            // Web 模块只认 VM.Scada 里的接口；解析不到时 Web 命令层 fail closed。
+            containerRegistry.RegisterSingleton<IScadaFlowTriggerQuery>(
+                c => new ScadaFlowTriggerQuery(c.Resolve<IWorkspaceManager>()));
             // 动作分发器同样是单例：它无状态（只往日志/变量/导航出口递话），而每次运行都 new 一份
             // 只会让人误以为"动作的执行状态存在某处"——将来接 S6 写变量时这里换成带状态的实现也不动调用方。
             // 走工厂而不是类型映射：audit 在构造函数上是**可选参数**（默认 null），

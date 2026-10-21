@@ -66,6 +66,7 @@ namespace VisionMaster.ScadaWeb
         private readonly ILogService _log;
         private readonly ScadaWebSettings _settings;
         private readonly HashSet<ScadaActionType> _allowed;
+        private readonly IScadaFlowTriggerQuery? _flowTriggerQuery;
 
         /// <summary>审计出口缺失只记一次 Error（每条命令都记会把日志刷满，真正的原因反而被埋掉）</summary>
         private int _auditMissingLogged;
@@ -97,7 +98,8 @@ namespace VisionMaster.ScadaWeb
             IScadaAuditSink? audit,
             ILogService log,
             ScadaWebSettings settings,
-            IEnumerable<ScadaActionType>? allowedActions = null)
+            IEnumerable<ScadaActionType>? allowedActions = null,
+            IScadaFlowTriggerQuery? flowTriggerQuery = null)
         {
             _hub = hub ?? throw new ArgumentNullException(nameof(hub));
             _policy = policy ?? throw new ArgumentNullException(nameof(policy));
@@ -111,6 +113,7 @@ namespace VisionMaster.ScadaWeb
             _audit = audit;
 
             _allowed = BuildAllowedSet(allowedActions, settings);
+            _flowTriggerQuery = flowTriggerQuery;
             ConfirmTokens = new ScadaWebConfirmTokenStore(
                 settings.ConfirmTokenSeconds,
                 utcNow: null);
@@ -262,6 +265,23 @@ namespace VisionMaster.ScadaWeb
             {
                 return Deny(command, ScadaWebErrorCodes.NotOperable,
                     $"图元「{element.Name}」没有为事件「{eventType}」配置动作",
+                    element.Name, eventType.ToString());
+            }
+
+            // A 范围：事件动作里若有"写流程触发变量"，同样会经变量上升沿启动流程。
+            // 这条判据在动作副本过滤之前——被白名单剔除的 WriteVariable 不该触发拒绝，
+            // 但"能执行"的 WriteVariable 必须先过这一关。
+            if (_flowTriggerQuery == null && HasWriteVariableAction(hooks))
+            {
+                return Deny(command, ScadaWebErrorCodes.Internal,
+                    "流程触发校验未接线，写变量动作已关闭（fail closed）",
+                    element.Name, eventType.ToString());
+            }
+
+            if (_flowTriggerQuery != null && TryFindFlowTriggerWrite(hooks, out var triggerFlow))
+            {
+                return Deny(command, ScadaWebErrorCodes.FlowTrigger,
+                    $"该事件会写流程「{triggerFlow}」的触发变量，Web 不能执行（会间接启动流程）",
                     element.Name, eventType.ToString());
             }
 
@@ -443,7 +463,7 @@ namespace VisionMaster.ScadaWeb
                 return limited;
 
             // "不可输入" = 该属性没有启用的变量绑定。锁（IsLocked）是编辑期概念，运行期不参与。
-            var bound = false;
+            ScadaBinding? targetBinding = null;
             foreach (var binding in element.Bindings)
             {
                 if (binding == null || !binding.IsEnabled)
@@ -451,15 +471,32 @@ namespace VisionMaster.ScadaWeb
 
                 if (string.Equals(binding.TargetProperty, property, StringComparison.Ordinal))
                 {
-                    bound = true;
+                    targetBinding = binding;
                     break;
                 }
             }
 
-            if (!bound)
+            if (targetBinding == null)
             {
                 return Deny(command, ScadaWebErrorCodes.NotOperable,
                     $"图元「{element.Name}」的「{property}」没有启用变量绑定，无法输入",
+                    element.Name, "输入");
+            }
+
+            // A 范围：写"流程触发变量"会经变量上升沿启动流程（流程里可以含轴运动）。
+            // 这条路不经过动作白名单，必须在写入前单独判；guard 未接线时 fail closed。
+            if (_flowTriggerQuery == null)
+            {
+                return Deny(command, ScadaWebErrorCodes.Internal,
+                    "流程触发校验未接线，输入功能已关闭（fail closed）",
+                    element.Name, "输入");
+            }
+
+            if (_flowTriggerQuery.IsFlowTrigger(targetBinding.VariableId, targetBinding.VariableName, out var triggerFlow))
+            {
+                return Deny(command, ScadaWebErrorCodes.FlowTrigger,
+                    $"变量「{targetBinding.VariableName}」是流程「{triggerFlow}」的触发器，"
+                    + "Web 不能写它（会间接启动流程）",
                     element.Name, "输入");
             }
 
@@ -879,6 +916,52 @@ namespace VisionMaster.ScadaWeb
         private static string ActionKindFor(ScadaEventType eventType) => "event:" + eventType;
 
         /// <summary>会改变现场状态的四条命令（缺审计出口时一律不执行，见 <see cref="Handle"/>）</summary>
+        /// <summary>钩子里是否有"写变量"动作（guard 未接线时的 fail-closed 判据）。</summary>
+        private static bool HasWriteVariableAction(IReadOnlyList<ScadaEventHook> hooks)
+        {
+            foreach (var hook in hooks)
+            {
+                foreach (var action in hook.Actions)
+                {
+                    if (action != null
+                        && action.Type == ScadaActionType.WriteVariable
+                        && action.HasVariable)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>钩子里是否有"写流程触发变量"的动作；命中时给出流程名（可直接上屏/进审计）。</summary>
+        private bool TryFindFlowTriggerWrite(IReadOnlyList<ScadaEventHook> hooks, out string? flowName)
+        {
+            flowName = null;
+
+            foreach (var hook in hooks)
+            {
+                foreach (var action in hook.Actions)
+                {
+                    if (action == null
+                        || action.Type != ScadaActionType.WriteVariable
+                        || !action.HasVariable)
+                    {
+                        continue;
+                    }
+
+                    if (_flowTriggerQuery!.IsFlowTrigger(action.VariableId, action.VariableName, out var flow))
+                    {
+                        flowName = flow ?? "<未命名流程>";
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
         private static bool IsWriteKind(string? kind)
             => string.Equals(kind, ScadaWebCommandKinds.Element, StringComparison.Ordinal)
                || string.Equals(kind, ScadaWebCommandKinds.Input, StringComparison.Ordinal)

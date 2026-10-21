@@ -75,8 +75,8 @@ R1/R2/R3 三轮评审（9 + 6 + 3 个角色）核对了交接文档与磁盘代�
 - `Web/VisionMaster.ScadaWeb/ScadaWebCommandRouter.cs`
   - `BuildAllowedSet` 硬排除 `StartFlow/RunFlowOnce/ResumeFlow`（显式 `allowedActions` 也绕不过）；
   - 保留 `StopFlow/PauseFlow`（安全方向）；运动九条仍由 `AllowMotionCommands` 默认关闭。
-- 残余 P0（未封）：`cmd.input` / `WriteVariable` 写“流程触发变量”仍可间接启动流程。
-  见 §6 第 1 项，下一批第一优先。
+- 流程触发闸（追加落地）：见 §2.9。`cmd.input` / `WriteVariable` 写“流程触发变量”
+  现在回 `E_FLOW_TRIGGER`；guard 未接线时 fail closed（`E_INTERNAL`）。
 
 ### 2.6 45 秒死连接
 
@@ -102,6 +102,18 @@ R1/R2/R3 三轮评审（9 + 6 + 3 个角色）核对了交接文档与磁盘代�
     例外清单只许变短；实现一个就红，要求删例外。
 - `ScadaChecks/Program.cs` 接线一行。
 
+### 2.9 流程触发闸（残余 P0 收口）
+
+- `Scada/Models/IScadaFlowTriggerQuery.cs`：只读查询接口（Id 优先、名字兜底）。
+- `VisionMaster/Services/ScadaFlowTriggerQuery.cs`：判据逐字复刻
+  `FlowVariableTriggerService`（启用 + `InvokeType.Variable` + `TriggerVariable.Trim()` 相等）。
+- `App.xaml.cs` 注册实现；`ScadaWebModule` 解析并传给 `ScadaWebHost`；
+  `ScadaWebHost` 传给 `ScadaWebCommandRouter`。
+- 路由：`HandleInput` 在 writer 之前拒绝（`E_FLOW_TRIGGER`）；
+  `HandleElement` 在动作副本过滤前扫 `WriteVariable` 动作并整条拒绝；
+  guard 未接线时 fail closed（`E_INTERNAL`）。
+- 断言：M2-13f（`cmd.element`）、M2-13g（`cmd.input`）。
+
 ## 3. 断言
 
 新增/修改：
@@ -123,7 +135,7 @@ R1/R2/R3 三轮评审（9 + 6 + 3 个角色）核对了交接文档与磁盘代�
 | 命令 | 结果 |
 | --- | --- |
 | `dotnet build VisionMaster.sln -c Debug` | 0 错误 |
-| `dotnet run --project Web\ScadaWebChecks` | **117 PASS / 0 FAIL** |
+| `dotnet run --project Web\ScadaWebChecks` | **119 PASS / 0 FAIL** |
 | `dotnet run --project ScadaChecks` | **2438 PASS / 0 FAIL**（含 WR0-WR4） |
 
 ## 5. 关键设计口径（避免下一批返工）
@@ -137,18 +149,14 @@ R1/R2/R3 三轮评审（9 + 6 + 3 个角色）核对了交接文档与磁盘代�
 
 ## 6. 未做项（下一批，按优先级）
 
-1. **Web 写变量拒绝流程触发变量（残余 P0）**
-   - 设计：`IScadaFlowTriggerQuery.IsTrigger(id, name, out flowName)`；
-     `HandleInput` 在 writer 之前拒绝；`HandleElement` 在派发前扫 `WriteVariable` 动作；
-     新码 `E_FLOW_TRIGGER`；guard 未接线时 `cmd.input`/含写变量的 `cmd.element` 回 `E_INTERNAL`。
-2. **结果查询 `cmd.result`**：WS 线程直接答、`targetRequestId`、`Dedup.TryPeek`（只读不删）；
+1. **结果查询 `cmd.result`**：WS 线程直接答、`targetRequestId`、`Dedup.TryPeek`（只读不删）；
    撤销后不可查。
-3. **快照分片**：`snapshot.chunk{snapshotId,index,total,data,...}`；按 Rune/base64 切；
+2. **快照分片**：`snapshot.chunk{snapshotId,index,total,data,...}`；按 Rune/base64 切；
    客户端 `handleRawMessage` 重组；分片期间暂停 frame；5s 超时/resync。
-4. **24 槽准入**：16 活跃 + 8 握手；ticket 核销预留、入册转活跃、失败释放、5s TTL；
+3. **24 槽准入**：16 活跃 + 8 握手；ticket 核销预留、入册转活跃、失败释放、5s TTL；
    `MaxSessions` 当前仍是 16。
-5. **默认值一致性闸 + 5 个复杂图元渲染器**：
+4. **默认值一致性闸 + 5 个复杂图元渲染器**：
    ChartTrend/DataGrid/ImageView/AxisPanel/AxisConsole；
    复杂图元需要运行态数据通道（表格行/曲线采样/图像 token/轴快照），不是单个渲染器函数能补齐。
-6. **客户端多基座/增量/预算的浏览器级验证**：本批只做协议层与静态扫描；
+5. **客户端多基座/增量/预算的浏览器级验证**：本批只做协议层与静态扫描；
    B33/B34 视觉对照、16 端真实浏览器压测仍属测试矩阵未覆盖项。

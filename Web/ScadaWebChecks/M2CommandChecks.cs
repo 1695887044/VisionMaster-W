@@ -970,6 +970,69 @@ namespace ScadaWebChecks
                     && allowed.Contains(ScadaActionType.PauseFlow),
                     "生效白名单=" + string.Join("、", allowed.OrderBy(a => a)));
             }
+
+            // A 范围：事件动作写"流程触发变量"必须整条拒绝（变量上升沿会启动流程）。
+            {
+                using var world = new World(
+                    allowedActions: new[] { ScadaActionType.Log, ScadaActionType.WriteVariable },
+                    requireConfirmForDangerous: false,
+                    flowTriggerQuery: new FakeFlowTriggerQuery("启动"));
+
+                var hook = new ScadaEventHook { Event = ScadaEventType.Pressed };
+                hook.Actions.Add(new ScadaAction
+                {
+                    Type = ScadaActionType.WriteVariable,
+                    VariableName = "启动",
+                    Value = "1"
+                });
+                world.Element.EventHooks.Add(hook);
+
+                var session = world.RegisterSession("操作员子", ScadaRole.Operator);
+                var result = world.Router.Handle(world.ElementCommand(session, ScadaEventType.Pressed));
+
+                Check("M2-13f",
+                    !result.Ok && result.Code == ScadaWebErrorCodes.FlowTrigger
+                    && world.Dispatcher.Calls.Count == 0,
+                    $"code={result.Code} message={result.Message} 分发={world.Dispatcher.Calls.Count}");
+            }
+
+            // A 范围：cmd.input 写"流程触发变量"必须被拒（不能只封 cmd.element）。
+            {
+                using var world = new World(
+                    allowedActions: new[] { ScadaActionType.Log },
+                    requireConfirmForDangerous: false,
+                    flowTriggerQuery: new FakeFlowTriggerQuery("启动"));
+
+                var input = new ScadaElement { TypeKey = "Hmi.TextField", Name = "输入框" };
+                input.Bindings.Add(new ScadaBinding
+                {
+                    TargetProperty = "Value",
+                    VariableName = "启动",
+                    IsEnabled = true
+                });
+                world.Page.Elements.Add(input);
+
+                var session = world.RegisterSession("操作员丑", ScadaRole.Operator);
+                var command = new ScadaWebCommand
+                {
+                    Kind = ScadaWebCommandKinds.Input,
+                    RequestId = Guid.NewGuid().ToString("N"),
+                    Session = session,
+                    ElementId = input.ElementId.ToString("D"),
+                    Property = "Value",
+                    Value = "1",
+                    PageId = world.Page.PageId.ToString("D"),
+                    PageVersion = world.Page.Version,
+                    RunGeneration = world.Hub.RunGeneration
+                };
+
+                var result = world.Router.Handle(command);
+
+                Check("M2-13g",
+                    !result.Ok && result.Code == ScadaWebErrorCodes.FlowTrigger
+                    && world.Writer.Calls.Count == 0,
+                    $"code={result.Code} message={result.Message} 写入={world.Writer.Calls.Count}");
+            }
         }
 
         // ==================================================================
@@ -988,7 +1051,8 @@ namespace ScadaWebChecks
                 int elementRatePerSecond = 100,
                 bool allowMotionCommands = false,
                 bool requireConfirmForDangerous = true,
-                IEnumerable<ScadaActionType>? allowedActions = null)
+                IEnumerable<ScadaActionType>? allowedActions = null,
+                IScadaFlowTriggerQuery? flowTriggerQuery = null)
             {
                 Settings = new ScadaWebSettings
                 {
@@ -1038,7 +1102,8 @@ namespace ScadaWebChecks
                     Audit,
                     Log,
                     Settings,
-                    allowedActions);
+                    allowedActions,
+                    flowTriggerQuery ?? new FakeFlowTriggerQuery());
             }
 
             public ScadaDocument Document { get; }
@@ -1311,6 +1376,28 @@ namespace ScadaWebChecks
 
                 var total = hook?.Actions.Count ?? 0;
                 return new ScadaActionDispatchResult(total, total, 0, 0);
+            }
+        }
+
+        /// <summary>测试用流程触发查询：默认不命中；传变量名则命中并给出"测试流程"。</summary>
+        private sealed class FakeFlowTriggerQuery : IScadaFlowTriggerQuery
+        {
+            private readonly HashSet<string> _triggers;
+
+            public FakeFlowTriggerQuery(params string[] triggers)
+                => _triggers = new HashSet<string>(
+                    triggers ?? Array.Empty<string>(), StringComparer.Ordinal);
+
+            public bool IsFlowTrigger(Guid variableId, string? variableName, out string? flowName)
+            {
+                if (!string.IsNullOrWhiteSpace(variableName) && _triggers.Contains(variableName!))
+                {
+                    flowName = "测试流程";
+                    return true;
+                }
+
+                flowName = null;
+                return false;
             }
         }
 

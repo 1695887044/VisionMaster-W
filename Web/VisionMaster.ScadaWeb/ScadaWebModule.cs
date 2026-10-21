@@ -139,6 +139,15 @@ namespace VisionMaster.ScadaWeb
             var alarmFeed = TryResolve<IScadaAlarmFeed>(container, log, "IScadaAlarmFeed");
             var audit = TryResolveCommandExit<IScadaAuditSink>(container, log, "IScadaAuditSink", "命令级审计（谁按的）");
 
+            // A 范围的安全闸：Web 写变量前必须能判"它是不是流程触发器"。
+            // 解析不到时命令层 fail closed（cmd.input / 写变量动作回 E_INTERNAL），
+            // 宁可让现场看到"输入不可用"，也不能让一条 Web 写入间接启动含运动步骤的流程。
+            var flowTriggerQuery = TryResolve<IScadaFlowTriggerQuery>(container, log, "IScadaFlowTriggerQuery");
+            if (settings.AllowCommands && flowTriggerQuery == null)
+            {
+                log.Error("[ScadaWeb] 未接入 IScadaFlowTriggerQuery：cmd.input 与写变量动作将回 E_INTERNAL（fail closed）");
+            }
+
             // AllOperators 的监管闸门：缺项不是“少一层”，而是“配置看着放开了、实际没有护栏”。
             // 缺项时拒绝启用该策略，回退 HighestRoleOnly（默认策略，不需要监管项）。
             //
@@ -192,7 +201,8 @@ namespace VisionMaster.ScadaWeb
                 valueWriter,
                 alarmCommands,
                 audit,
-                alarmFeed);
+                alarmFeed,
+                flowTriggerQuery);
 
             Host = host;
 

@@ -170,6 +170,7 @@ namespace VisionMaster.ScadaWeb
         private readonly IScadaAlarmCommands? _alarmCommands;
         private readonly IScadaAlarmFeed? _alarmFeed;
         private readonly IScadaAuditSink? _audit;
+        private readonly IScadaFlowTriggerQuery? _flowTriggerQuery;
         private readonly ScadaWebSecurityGate _securityGate;
         private readonly ScadaWebPresence _presence;
         private readonly ScadaWebAccessPolicy _policy;
@@ -225,7 +226,8 @@ namespace VisionMaster.ScadaWeb
             IScadaValueWriter? valueWriter = null,
             IScadaAlarmCommands? alarmCommands = null,
             IScadaAuditSink? audit = null,
-            IScadaAlarmFeed? alarmFeed = null)
+            IScadaAlarmFeed? alarmFeed = null,
+            IScadaFlowTriggerQuery? flowTriggerQuery = null)
         {
             _hub = hub;
             _authenticator = authenticator;
@@ -257,6 +259,7 @@ namespace VisionMaster.ScadaWeb
             _alarmCommands = alarmCommands;
             _alarmFeed = alarmFeed;
             _audit = audit;
+            _flowTriggerQuery = flowTriggerQuery;
 
             // 票表是身份的唯一来源：安全闸必须委托**同一份**票表（两份 = 撤销一边、放行另一边）。
             _tickets.AllowAnonymousView = _settings.AllowAnonymousView;
@@ -657,7 +660,8 @@ namespace VisionMaster.ScadaWeb
                 _limiter,
                 _audit,
                 _log,
-                _settings);
+                _settings,
+                flowTriggerQuery: _flowTriggerQuery);
 
             _pump = new ScadaWebCommandPump(_router.Handle, _log, _uiDispatcher, capacity);
             _pump.Completed += OnCommandCompleted;

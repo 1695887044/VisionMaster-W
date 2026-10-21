@@ -76,6 +76,12 @@ namespace VisionMaster.ScadaWeb
         /// <summary>写变量失败（原因逐字来自宿主 <see cref="IScadaValueWriter"/>）</summary>
         public const string Value = "E_VALUE";
 
+        /// <summary>
+        /// 目标是流程触发变量：Web 写入会经 <c>FlowVariableTriggerService</c> 的上升沿
+        /// 启动流程（流程里可以含轴运动）。A 范围下 Web 不能走这条间接路径。
+        /// </summary>
+        public const string FlowTrigger = "E_FLOW_TRIGGER";
+
         /// <summary>页不符或页版本不符</summary>
         public const string StalePage = "E_STALE_PAGE";
 
