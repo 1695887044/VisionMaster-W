@@ -35,6 +35,8 @@ namespace VisionMaster.Views.DialogViews
 
             if (e.Key == Key.V && Keyboard.Modifiers == ModifierKeys.Control)
             {
+                if (!vm.CanCancel) return;
+
                 string text = ReadClipboard();
                 if (string.IsNullOrEmpty(text)) return;
 
@@ -49,6 +51,7 @@ namespace VisionMaster.Views.DialogViews
         private void OnPasteClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not ArrayEditorViewModel vm) return;
+            if (!vm.CanCancel) return;
 
             string text = ReadClipboard();
             if (string.IsNullOrEmpty(text)) return;

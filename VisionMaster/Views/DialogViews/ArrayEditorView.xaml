@@ -864,7 +864,7 @@
                                 Content="{Binding ResetAllText}"
                                 FocusVisualStyle="{StaticResource DialogFocusVisual}"
                                 FontSize="10.5"
-                                IsEnabled="{Binding HasPendingChanges}"
+                                IsEnabled="{Binding CanResetAll}"
                                 Style="{StaticResource DialogSecondaryButton}" />
 
                             <Button
@@ -876,6 +876,7 @@
                                 Padding="0"
                                 Click="OnPasteClick"
                                 FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                IsEnabled="{Binding CanCancel}"
                                 Style="{StaticResource DialogIconButton}"
                                 ToolTip="从剪贴板按行粘贴（每行一个元素；Excel 一列可直接粘）">
                                 <TextBlock
