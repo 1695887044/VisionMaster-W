@@ -1,0 +1,73 @@
+{
+  "outDir": "D:\\C#\\VM\\docs\\performance\\evidence\\S3-slow",
+  "clients": 16,
+  "elements": 3000,
+  "variables": 1000,
+  "boundElements": 1000,
+  "changePct": 10,
+  "changeHz": 10,
+  "holdMs": 40000,
+  "maxSessions": 16,
+  "effectiveFrameBudgetBytes": 46484,
+  "effectiveSnapshotMaxBytes": 2097152,
+  "connected": 16,
+  "snapshots": 16,
+  "frames": 6728,
+  "deltaFrames": 6646,
+  "keyframes": 82,
+  "items": 692600,
+  "acks": 80,
+  "errors": 0,
+  "totalBytes": 114035296,
+  "snapshotBytes": 15829893,
+  "meanMbps": 22.807,
+  "peak1sMbps": 56.432,
+  "fps": 10.512,
+  "deltaBytes": {
+    "p50": 10154,
+    "p95": 10154,
+    "p99": 10154,
+    "max": 30098
+  },
+  "keyframeBytes": {
+    "p50": 99963,
+    "p95": 100153,
+    "max": 100153
+  },
+  "ackMs": {
+    "p50": 1,
+    "p95": 118,
+    "max": 347
+  },
+  "firstScreenMs": {
+    "p50": 947,
+    "p95": 1166,
+    "max": 1166
+  },
+  "capacityProbe": {
+    "requested": 0,
+    "rejected": false
+  },
+  "abnormalProbe": {
+    "badJson": true,
+    "unknownType": true,
+    "oversized": true,
+    "aliveAfterErrors": true,
+    "pass": true
+  },
+  "pass": true,
+  "checks": {
+    "connectedAll": true,
+    "acksAll": true,
+    "noErrors": true,
+    "framesSeen": true,
+    "deltaSeen": true,
+    "deltaP95WithinBudget": true,
+    "meanMbpsWithin70": true,
+    "peak1sWithin100": true,
+    "fpsWithin9_5": true,
+    "firstScreenP95Within3s": true,
+    "capacityRejected": true,
+    "abnormalHandled": true
+  }
+}

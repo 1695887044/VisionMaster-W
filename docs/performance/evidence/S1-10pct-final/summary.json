@@ -1,0 +1,67 @@
+{
+  "outDir": "D:\\C#\\VM\\docs\\performance\\evidence\\S1-10pct-final",
+  "clients": 16,
+  "elements": 3000,
+  "variables": 1000,
+  "boundElements": 1000,
+  "changePct": 10,
+  "changeHz": 10,
+  "holdMs": 60000,
+  "maxSessions": 16,
+  "effectiveFrameBudgetBytes": 46484,
+  "effectiveSnapshotMaxBytes": 2097152,
+  "connected": 16,
+  "snapshots": 16,
+  "frames": 9674,
+  "deltaFrames": 9565,
+  "keyframes": 109,
+  "items": 988300,
+  "acks": 80,
+  "errors": 0,
+  "totalBytes": 160693094,
+  "snapshotBytes": 15829893,
+  "meanMbps": 21.426,
+  "peak1sMbps": 40.632,
+  "fps": 10.077,
+  "deltaBytes": {
+    "p50": 10154,
+    "p95": 10154,
+    "p99": 10154,
+    "max": 20154
+  },
+  "keyframeBytes": {
+    "p50": 99963,
+    "p95": 100153,
+    "max": 100153
+  },
+  "ackMs": {
+    "p50": 1,
+    "p95": 90,
+    "max": 194
+  },
+  "firstScreenMs": {
+    "p50": 975,
+    "p95": 1199,
+    "max": 1199
+  },
+  "capacityProbe": {
+    "requested": 17,
+    "rejected": true,
+    "detail": "admitted=16 extraClose=",
+    "bye": "{\"type\":\"bye\",\"reason\":\"at-capacity\",\"closeCode\":1013,\"message\":\"已达最大连接数 16\"}"
+  },
+  "pass": true,
+  "checks": {
+    "connectedAll": true,
+    "acksAll": true,
+    "noErrors": true,
+    "framesSeen": true,
+    "deltaSeen": true,
+    "deltaP95WithinBudget": true,
+    "meanMbpsWithin70": true,
+    "peak1sWithin100": true,
+    "fpsWithin9_5": true,
+    "firstScreenP95Within3s": true,
+    "capacityRejected": true
+  }
+}

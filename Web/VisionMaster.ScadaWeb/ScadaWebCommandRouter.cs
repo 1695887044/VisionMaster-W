@@ -1248,11 +1248,13 @@ namespace VisionMaster.ScadaWeb
         public static readonly TimeSpan Retention = TimeSpan.FromMinutes(30);
 
         /// <summary>
-        /// 表的硬上限。默认 16 会话 × 5 条/秒 × 5 分钟窗口 ≈ 24000 条，取 65536 留足余量。
-        /// <b>绝不为了腾位置淘汰仍在 AckWindow 内的条目</b>——那等于把幂等窗口从 5 分钟
-        /// 偷偷缩短到"表满为止"，重放会再次执行（2026-10-21 终审 P1-4）。
+        /// 表的硬上限。<b>按 30 分钟保留期算</b>：16 会话 × 5 条/秒 × 1800 秒 = 144000 条，
+        /// 取 262144 留足余量。旧值 65536 只够 819 秒（13.6 分钟），表满后 <see cref="Complete"/>
+        /// 会静默不记，命令照执行但重放会被当成新命令——这是 2026-10-22 R3 红队抓到的
+        /// “幂等窗口静默缩短”缺陷。
+        /// <b>绝不为了腾位置淘汰仍在 AckWindow 内的条目</b>（2026-10-21 终审 P1-4）。
         /// </summary>
-        public const int MaxEntries = 65536;
+        public const int MaxEntries = 262144;
 
         private readonly object _gate = new();
         private readonly Dictionary<string, Entry> _entries = new(StringComparer.Ordinal);

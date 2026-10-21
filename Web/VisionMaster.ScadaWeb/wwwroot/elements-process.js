@@ -1881,4 +1881,156 @@
 
         return { node: node, update: update };
     };
+
+    // ----------------------------------------------------------------------
+    //  Hmi.ChartTrend 趋势曲线（只读）
+    //
+    //  数据来自绑定的 Value 值帧——不新增服务端通道。每个点的横坐标是
+    //  “值帧到达时刻”（Web 拿不到变量真实采样时刻），纵坐标是值本身。
+    //  已知偏差：刷新/重连后缓冲从空开始；不支持桌面上的拖动/缩放；
+    //  keyframe 不声明 reset（否则每 10 秒会把曲线清空），靠“同值 100ms 内不重复”
+    //  避免 keyframe 把当前值重复追加成一个假点。
+    // ----------------------------------------------------------------------
+    registry['Hmi.ChartTrend'] = function (el, ctx) {
+        var width = Math.max(1, Number(el.Width) || 320);
+        var height = Math.max(1, Number(el.Height) || 160);
+        var dpr = Math.max(1, Math.min(2, global.devicePixelRatio || 1));
+
+        var node = global.document.createElement('div');
+        node.className = 'hmi-chart-trend';
+        node.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;';
+
+        var canvas = global.document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(width * dpr));
+        canvas.height = Math.max(1, Math.round(height * dpr));
+        canvas.style.cssText = 'width:100%;height:100%;display:block;';
+        node.appendChild(canvas);
+
+        var g = canvas.getContext('2d');
+        var samples = [];
+        var lastValue = null;
+        var lastAt = 0;
+        var maxPoints = 4096;
+
+        function valueOf(values) {
+            var box = values && values['Value'];
+            if (!box) return null;
+            if (typeof box.number === 'number' && isFinite(box.number)) return box.number;
+            if (box.text !== undefined && box.text !== null && box.text !== '') {
+                var n = Number(box.text);
+                return isFinite(n) ? n : null;
+            }
+            return null;
+        }
+
+        function draw() {
+            var w = width, h = height;
+            g.setTransform(dpr, 0, 0, dpr, 0, 0);
+            g.clearRect(0, 0, w, h);
+
+            var axis = cssColor(rawProp(el, 'AxisBrush'), '#3A3A3A');
+            var curve = cssColor(rawProp(el, 'CurveBrush'), '#2D7DD2');
+            var title = rawProp(el, 'Title') || '';
+            var windowSec = Math.max(2, numProp(el, 'TimeWindow', 60));
+            var fixedRange = boolProp(el, 'FixedRange', false);
+            var minCfg = numProp(el, 'Minimum', 0);
+            var maxCfg = numProp(el, 'Maximum', 100);
+
+            var padL = 34, padR = 8, padT = title ? 18 : 8, padB = 16;
+            var plotW = Math.max(1, w - padL - padR);
+            var plotH = Math.max(1, h - padT - padB);
+
+            g.strokeStyle = axis;
+            g.globalAlpha = 0.25;
+            g.lineWidth = 1;
+            for (var i = 0; i <= 4; i++) {
+                var gy = padT + plotH * i / 4;
+                g.beginPath(); g.moveTo(padL, gy); g.lineTo(padL + plotW, gy); g.stroke();
+            }
+            for (var j = 0; j <= 4; j++) {
+                var gx = padL + plotW * j / 4;
+                g.beginPath(); g.moveTo(gx, padT); g.lineTo(gx, padT + plotH); g.stroke();
+            }
+            g.globalAlpha = 1;
+
+            if (title) {
+                g.fillStyle = cssColor(rawProp(el, 'AxisBrush'), '#9AA7B4');
+                g.font = '12px "Microsoft YaHei", sans-serif';
+                g.textBaseline = 'top';
+                g.fillText(title, padL, 2);
+            }
+
+            var now = Date.now();
+            var from = now - windowSec * 1000;
+            var visible = samples.filter(function (s) { return s.t >= from; });
+            if (visible.length === 0) {
+                g.fillStyle = '#7C8A99';
+                g.font = '12px "Microsoft YaHei", sans-serif';
+                g.textAlign = 'center';
+                g.textBaseline = 'middle';
+                g.fillText('等待数据', padL + plotW / 2, padT + plotH / 2);
+                g.textAlign = 'start';
+                return;
+            }
+
+            var lo = minCfg, hi = maxCfg;
+            if (!fixedRange) {
+                lo = Infinity; hi = -Infinity;
+                for (var k = 0; k < visible.length; k++) {
+                    if (visible[k].v < lo) lo = visible[k].v;
+                    if (visible[k].v > hi) hi = visible[k].v;
+                }
+                if (!isFinite(lo) || !isFinite(hi)) { lo = 0; hi = 1; }
+                if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
+                var pad = (hi - lo) * 0.08;
+                lo -= pad; hi += pad;
+            }
+            if (hi - lo < 1e-9) hi = lo + 1;
+
+            function xOf(t) { return padL + (t - from) / Math.max(1, now - from) * plotW; }
+            function yOf(v) { return padT + (hi - v) / (hi - lo) * plotH; }
+
+            g.strokeStyle = curve;
+            g.lineWidth = 1.6;
+            g.beginPath();
+            for (var p = 0; p < visible.length; p++) {
+                var px = xOf(visible[p].t), py = yOf(visible[p].v);
+                if (p === 0) g.moveTo(px, py); else g.lineTo(px, py);
+            }
+            g.stroke();
+
+            var last = visible[visible.length - 1];
+            g.fillStyle = curve;
+            g.beginPath();
+            g.arc(xOf(last.t), yOf(last.v), 2.2, 0, Math.PI * 2);
+            g.fill();
+
+            g.fillStyle = '#9AA7B4';
+            g.font = '10px "Consolas", monospace';
+            g.textBaseline = 'middle';
+            g.fillText(hi.toFixed(2), 2, padT + 4);
+            g.fillText(lo.toFixed(2), 2, padT + plotH - 4);
+            g.textBaseline = 'bottom';
+            g.fillText(last.v.toFixed(3),
+                Math.max(padL, Math.min(w - 48, xOf(last.t) - 18)), h - 1);
+        }
+
+        function update(values) {
+            var v = valueOf(values);
+            if (v === null) return;
+
+            var now = Date.now();
+            // keyframe 会把当前值再发一次；同值 100ms 内不追加，避免假点。
+            if (lastValue === v && now - lastAt < 100) return;
+
+            lastValue = v;
+            lastAt = now;
+            samples.push({ t: now, v: v });
+            if (samples.length > maxPoints) samples.splice(0, samples.length - maxPoints);
+            draw();
+        }
+
+        draw();
+        return { node: node, update: update };
+    };
 })(window);

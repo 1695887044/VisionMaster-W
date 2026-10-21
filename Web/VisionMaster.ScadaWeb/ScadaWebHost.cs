@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -161,6 +162,13 @@ namespace VisionMaster.ScadaWeb
         /// </summary>
         private readonly int _frameBudgetBytes;
 
+        /// <summary>
+        /// 单份快照的硬上限（UTF-8 字节）。取配置与 3.5MB 的较小值：
+        /// Watson 的 WS 整条消息上限是 4MB，留 0.5MB 给信封/转义；默认配置 2MB。
+        /// 超限不发半截、不推进页键，回 E_SNAPSHOT_TOO_LARGE 并按 1009 关闭。
+        /// </summary>
+        private readonly int _effectiveSnapshotMaxBytes;
+
         /// <summary>周期 keyframe：10 秒一次（丢帧/慢消费者的自愈上限）</summary>
         private static readonly TimeSpan KeyframeInterval = TimeSpan.FromSeconds(10);
 
@@ -187,6 +195,13 @@ namespace VisionMaster.ScadaWeb
 
         /// <summary>值帧/快照消息序号（宿主级单调递增；客户端按缺号判断"漏了一帧"）</summary>
         private long _seq;
+
+        /// <summary>
+        /// 已占用的活跃会话名额。用原子预占替代"先数 Count 再 TryAdd"的 TOCTOU：
+        /// 两个并发握手在旧写法下可以同时通过 16 的上限。
+        /// 注意：本批只做 16 活跃名额；8 个握手预留槽尚未实现（见剩余项清单）。
+        /// </summary>
+        private int _admittedSessions;
 
         /// <summary>值帧循环上一拍看到的状态（只由循环线程写；<c>RunStopped</c> 处理器也会清它）</summary>
         private volatile bool _loopSawRunning;
@@ -254,6 +269,17 @@ namespace VisionMaster.ScadaWeb
                     + $"{budgetSessions} 会话 × 10Hz × 70Mbps 目标夹取为 {_frameBudgetBytes} 字节/帧/会话");
             }
 
+            var snapshotLimit = _settings.SnapshotMaxBytes > 0
+                ? _settings.SnapshotMaxBytes
+                : ScadaWebSettings.DefaultSnapshotMaxBytes;
+            _effectiveSnapshotMaxBytes = Math.Clamp(snapshotLimit, 64 * 1024, 3_500_000);
+
+            if (_effectiveSnapshotMaxBytes != snapshotLimit)
+            {
+                _log.Info($"[ScadaWeb] SnapshotMaxBytes={snapshotLimit} 已夹取为 "
+                    + $"{_effectiveSnapshotMaxBytes} 字节（WS 整条消息上限 4MB，留 0.5MB 余量）");
+            }
+
             _actionDispatcher = actionDispatcher;
             _valueWriter = valueWriter;
             _alarmCommands = alarmCommands;
@@ -284,8 +310,21 @@ namespace VisionMaster.ScadaWeb
         /// <summary>当前在线会话数</summary>
         public int OnlineCount => _sessions.Count;
 
+        /// <summary>已占用的活跃名额（诊断/断言用；正常应等于 OnlineCount）</summary>
+        public int AdmittedCount => Math.Max(0, Volatile.Read(ref _admittedSessions));
+
+        /// <summary>释放一个活跃名额；减到负数时夹回 0（停服清表与 finally 的竞争窗口）</summary>
+        private void ReleaseAdmissionSlot()
+        {
+            if (Interlocked.Decrement(ref _admittedSessions) < 0)
+                Interlocked.Exchange(ref _admittedSessions, 0);
+        }
+
         /// <summary>实际生效的每帧每会话字节预算（诊断/断言用；配置值可能被 70Mbps 目标夹小）</summary>
         public int EffectiveFrameBudgetBytes => _frameBudgetBytes;
+
+        /// <summary>实际生效的单份快照硬上限（UTF-8 字节；诊断/断言用）</summary>
+        public int EffectiveSnapshotMaxBytes => _effectiveSnapshotMaxBytes;
 
         /// <summary>结构快照真正重建的次数（诊断/断言用：同页连续两拍不该增加）</summary>
         public long StructureBuildCount => Interlocked.Read(ref _structureBuildCount);
@@ -564,6 +603,7 @@ namespace VisionMaster.ScadaWeb
                 _presenceLoop = null;
                 sessions = _sessions.Values.ToArray();
                 _sessions.Clear();
+                Interlocked.Exchange(ref _admittedSessions, 0);
             }
 
             if (server == null && cts == null) return null;   // 幂等：没启动过 / 已停止
@@ -1352,9 +1392,11 @@ namespace VisionMaster.ScadaWeb
 
             var maxSessions = _settings.MaxSessions > 0 ? _settings.MaxSessions : ScadaWebSettings.DefaultMaxSessions;
 
-            // 容量按"已登记会话数"算：握手鉴权已经过了，这里拒绝不涉及身份泄露
-            if (_sessions.Count >= maxSessions)
+            // 容量按"已占用的活跃名额"算：原子预占，避免 Count 与 TryAdd 之间的 TOCTOU。
+            // 握手鉴权已经过了，这里拒绝不涉及身份泄露。
+            if (Interlocked.Increment(ref _admittedSessions) > maxSessions)
             {
+                ReleaseAdmissionSlot();
                 _log.Warn($"[ScadaWeb] 会话已达上限 {maxSessions}，拒绝新连接");
 
                 // 这条连接的身份在 TryRedeem 里已经核销。只有"本次新签"的令牌才回收；
@@ -1378,7 +1420,9 @@ namespace VisionMaster.ScadaWeb
                     closeCode = 1013,
                     message = $"已达最大连接数 {maxSessions}"
                 })).ConfigureAwait(false);
-                await SafeCloseAsync(socket, WebSocketCloseStatus.EndpointUnavailable, "at capacity").ConfigureAwait(false);
+                // 用 1013（Try Again Later）而不是 1001（EndpointUnavailable）：
+                // 前者是容量语义，客户端能据此显示“稍后重试”；后者会被当成服务端异常。
+                await SafeCloseAsync(socket, (WebSocketCloseStatus)1013, "at capacity").ConfigureAwait(false);
                 return;
             }
 
@@ -1392,6 +1436,7 @@ namespace VisionMaster.ScadaWeb
             {
                 _log.Warn($"[ScadaWeb] 同一连接重复进入 WS handler（{socket.Id}），忽略后到的一次");
                 session.Dispose();
+                ReleaseAdmissionSlot();
                 return;
             }
 
@@ -1402,6 +1447,7 @@ namespace VisionMaster.ScadaWeb
             {
                 _sessions.TryRemove(socket.Id, out _);
                 session.Dispose();
+                ReleaseAdmissionSlot();
                 await SafeCloseAsync(socket, WebSocketCloseStatus.EndpointUnavailable, "server stopping").ConfigureAwait(false);
                 return;
             }
@@ -1443,6 +1489,7 @@ namespace VisionMaster.ScadaWeb
             {
                 session.Dispose();
                 _sessions.TryRemove(socket.Id, out _);
+                ReleaseAdmissionSlot();
 
                 // 在线列表与限速表都要摘掉这条会话：留下就是"幽灵在线"与"每连一次多一个键"。
                 _lease.Release(session);
@@ -2149,16 +2196,31 @@ namespace VisionMaster.ScadaWeb
         /// </summary>
         private async Task RunFrameLoopAsync(CancellationToken token)
         {
+            // 固定节拍：旧写法是“干完活再 Delay(100)”，实际周期 = 100ms + 每拍工作耗时，
+            // 3000 图元/1000 绑定实测只有 9.09Hz。这里按绝对时刻排下一拍，工作耗时被吸收；
+            // 落后超过一拍时只补一拍（不突发追帧），避免把 UI 线程打满。
+            var periodTicks = Math.Max(1, Stopwatch.Frequency / (1000 / FrameIntervalMs));
+            var nextTicks = Stopwatch.GetTimestamp();
+
             while (!token.IsCancellationRequested)
             {
-                try
+                var waitTicks = nextTicks - Stopwatch.GetTimestamp();
+                if (waitTicks > 0)
                 {
-                    await Task.Delay(FrameIntervalMs, token).ConfigureAwait(false);
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds((double)waitTicks / Stopwatch.Frequency), token)
+                            .ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
                 }
-                catch (OperationCanceledException)
-                {
-                    return;
-                }
+
+                nextTicks += periodTicks;
+                if (nextTicks < Stopwatch.GetTimestamp())
+                    nextTicks = Stopwatch.GetTimestamp() + periodTicks;
 
                 try
                 {
@@ -2216,10 +2278,16 @@ namespace VisionMaster.ScadaWeb
 
             var pageKey = state.PageKey;
 
+            // 值帧的 item 每拍只序列化一次（16 个会话共享同一份 JSON）：
+            // 旧写法在 SendFrame 里逐会话 Serialize，16×1000 项 = 1.6 万次/拍，
+            // 实测把 10Hz 压到 7.9Hz（2026-10-22 S1）。结构消息仍按会话序列化（caps 逐会话）。
+            var wireItems = state.Items.Count == 0
+                ? (IReadOnlyList<WireFrameItem>)Array.Empty<WireFrameItem>()
+                : BuildWireItems(state.Items);
+
             // 快照/结构消息<b>按会话序列化</b>：caps（CanOperate/OperateReason）是逐会话算的
             // （角色 + 最高角色策略 + 只读票），共用一份会把"谁能点"广播成同一个答案。
-            // 值帧也改成按会话：增量基线是"每个连接已经成功收到哪些值"，共享一份会让
-            // 慢消费者丢掉的变化在别人的成功里被误记成"已送达"。
+            // 值帧的增量基线仍是每会话：共享序列化结果，但"已送达"状态各记各的。
             foreach (var session in _sessions.Values)
             {
                 var previousKey = session.CurrentPageKey;
@@ -2230,11 +2298,11 @@ namespace VisionMaster.ScadaWeb
                     bool sent;
                     if (previousKey is null)
                     {
-                        sent = session.TrySend(BuildSnapshotMessage(state, session));
+                        sent = SendStructure(session, BuildSnapshotMessage(state, session));
                     }
                     else
                     {
-                        sent = session.TrySend(BuildPageMessage(state, session));
+                        sent = SendStructure(session, BuildPageMessage(state, session));
                     }
 
                     // 只有真的入队成功才推进页键；失败（出站队列满）就保持旧键，下一拍重试。
@@ -2252,7 +2320,7 @@ namespace VisionMaster.ScadaWeb
                 if (state.Items.Count == 0)
                     continue;
 
-                SendFrame(state, session);
+                SendFrame(state, session, wireItems);
             }
         }
 
@@ -2319,7 +2387,7 @@ namespace VisionMaster.ScadaWeb
 
             // 先发、成功才推进页键：失败（出站队列满）时下一拍必须重试整份快照，
             // 先推进会让客户端永远停在"没有结构"的状态上。
-            if (session.TrySend(BuildSnapshotMessage(state, session)))
+            if (SendStructure(session, BuildSnapshotMessage(state, session)))
             {
                 session.CurrentPageKey = state.PageKey;
                 session.ResetDeltaForNewStructure();
@@ -2478,6 +2546,40 @@ namespace VisionMaster.ScadaWeb
         }
 
         /// <summary>
+        /// 发一份结构消息（snapshot/page），并在发送前执行单份快照硬闸。
+        ///
+        /// <b>为什么必须在发送前判字节</b>：超过 Watson 的整条消息上限时，`SendTextAsync`
+        /// 会抛在发送循环里被吞掉，连接变成"还在线但永远收不到结构"的僵尸，只能等 45 秒判死。
+        /// 这里宁可明确回 <c>E_SNAPSHOT_TOO_LARGE</c> 并按 1009 关闭，也不发半截/静默卡住。
+        /// 超限时不推进页键（由调用方根据 false 决定），避免 10Hz 重试风暴。
+        /// </summary>
+        private bool SendStructure(ScadaWebSession session, string json)
+        {
+            var bytes = Encoding.UTF8.GetByteCount(json);
+
+            if (bytes > _effectiveSnapshotMaxBytes)
+            {
+                _log.Error($"[ScadaWeb] 快照超过硬上限：{bytes} 字节 > {_effectiveSnapshotMaxBytes} 字节"
+                    + $"（page={session.CurrentPageKey ?? "<first>"}，ref={session.SessionRef}）；已拒绝发送并按 1009 关闭");
+
+                session.TrySend(Json(new
+                {
+                    type = "error",
+                    code = ScadaWebErrorCodes.SnapshotTooLarge,
+                    message = $"页面结构超过 Web 上限（{bytes} 字节 > {_effectiveSnapshotMaxBytes} 字节），"
+                              + "请拆分页面或减少单页图元",
+                    bytes,
+                    limit = _effectiveSnapshotMaxBytes
+                }));
+
+                _ = session.CloseAsync((WebSocketCloseStatus)1009, "snapshot-too-large");
+                return false;
+            }
+
+            return session.TrySend(json);
+        }
+
+        /// <summary>
         /// 给一个会话发一帧：增量（只含变化项）或整帧（首帧/结构变更后/每 10 秒）。
         ///
         /// <b>基线只在 <c>TrySend</c> 成功之后推进</b>：队列满时这一帧没出去，下一拍必须
@@ -2487,13 +2589,16 @@ namespace VisionMaster.ScadaWeb
         /// 游标轮转让 1000 项全变时尾部不会被永久饿死。整帧（keyframe）不裁预算——
         /// 它每 10 秒才一次，10Hz 的预算不该把"自愈帧"也切成半截。
         /// </summary>
-        private void SendFrame(LiveState state, ScadaWebSession session)
+        private void SendFrame(
+            LiveState state,
+            ScadaWebSession session,
+            IReadOnlyList<WireFrameItem> wireItems)
         {
             var now = DateTime.UtcNow;
             var keyframe = session.NeedsKeyframe
                 || now - session.LastKeyframeUtc >= KeyframeInterval;
 
-            var items = state.Items;
+            var items = wireItems;
             if (items.Count == 0)
                 return;
 
@@ -2521,20 +2626,16 @@ namespace VisionMaster.ScadaWeb
             {
                 var index = (start + n) % count;
                 var item = items[index];
-                if (item is null)
-                    continue;
-
-                var key = item.ElementId + "\u001F" + item.Property;
-                var json = JsonConvert.SerializeObject(item, WireJson);
 
                 if (!keyframe
-                    && session.LastValues.TryGetValue(key, out var previous)
-                    && string.Equals(previous, json, StringComparison.Ordinal))
+                    && session.LastValues.TryGetValue(item.Key, out var previous)
+                    && string.Equals(previous, item.Json, StringComparison.Ordinal))
                 {
                     continue;
                 }
 
-                var bytes = Encoding.UTF8.GetByteCount(json) + (included.Count == 0 ? 0 : 1);
+                var json = item.Json;
+                var bytes = item.Bytes + (included.Count == 0 ? 0 : 1);
 
                 // 增量帧按预算裁；至少放一条（单条超预算也要发，否则这条永远出不去）。
                 if (!keyframe && included.Count > 0 && usedBytes + bytes > _frameBudgetBytes)
@@ -2549,7 +2650,7 @@ namespace VisionMaster.ScadaWeb
 
                 sb.Append(json);
                 usedBytes += bytes;
-                included.Add(new KeyValuePair<string, string>(key, json));
+                included.Add(new KeyValuePair<string, string>(item.Key, json));
             }
 
             // 没有变化也发一条空帧：保持 10Hz 心跳与 frameSeq 连续。
@@ -2671,6 +2772,28 @@ namespace VisionMaster.ScadaWeb
         {
             public static readonly LiveState NotRunning =
                 new(false, 0, null, Array.Empty<ScadaFrameItemDto>(), string.Empty);
+        }
+
+        /// <summary>一拍里已序列化好的一个值项（跨会话共享；Key 用于每会话的增量基线）</summary>
+        private readonly record struct WireFrameItem(string Key, string Json, int Bytes);
+
+        private static List<WireFrameItem> BuildWireItems(IReadOnlyList<ScadaFrameItemDto> items)
+        {
+            var result = new List<WireFrameItem>(items.Count);
+
+            foreach (var item in items)
+            {
+                if (item is null)
+                    continue;
+
+                var json = JsonConvert.SerializeObject(item, WireJson);
+                result.Add(new WireFrameItem(
+                    item.ElementId + "\u001F" + item.Property,
+                    json,
+                    Encoding.UTF8.GetByteCount(json)));
+            }
+
+            return result;
         }
 
         #endregion

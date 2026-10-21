@@ -103,6 +103,9 @@ namespace VisionMaster.ScadaWeb
         /// </summary>
         public const string Duplicate = "E_DUPLICATE";
 
+        /// <summary>快照超过硬上限（不发半截、不推进页键；连接按 1009 关闭）</summary>
+        public const string SnapshotTooLarge = "E_SNAPSHOT_TOO_LARGE";
+
         /// <summary>本版本不认识的命令类型</summary>
         public const string Unsupported = "E_UNSUPPORTED";
 
