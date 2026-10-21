@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -20,6 +21,8 @@ using Core.Halcon.Models;
 using Core.Interfaces;
 using HalconDotNet;
 using VisionMaster.Views.DialogViews;
+using VisionMaster.Views.DialogViews.MotionBoard;
+using UI.AttachedProperties;
 
 namespace UIThemeSmokeTest
 {
@@ -1441,11 +1444,11 @@ namespace UIThemeSmokeTest
                     panelToggles.Count == 0,
                     panelToggles.Count == 0 ? "（无）" : string.Join("，", panelToggles.Select(e => (string)e.Attribute("CommandParameter"))));
 
-                Check("两个全局命令（全局变量/通讯设置）落在停靠区之前的顶栏",
+                Check("两个全局命令（全局变量/硬件管理）落在停靠区之前的顶栏",
                     dockIndex >= 0
                         && IndexOfTopCommand("GlobalVariables") is int g && g >= 0 && g < dockIndex
-                        && IndexOfTopCommand("CommSettings") is int c && c >= 0 && c < dockIndex,
-                    $"停靠区位置={dockIndex}；全局变量={IndexOfTopCommand("GlobalVariables")}，通讯设置={IndexOfTopCommand("CommSettings")}");
+                        && IndexOfTopCommand("HardwareSettings") is int c && c >= 0 && c < dockIndex,
+                    $"停靠区位置={dockIndex}；全局变量={IndexOfTopCommand("GlobalVariables")}，硬件管理={IndexOfTopCommand("HardwareSettings")}");
 
                 // ---- 命令面板 / 状态栏 KPI / 控制台开关（2026-10-20 主界面收口）----
                 // 这些入口都只在 XAML 里接线，绑错/漏绑编译期全绿，必须在结构闸里点名。
@@ -1529,6 +1532,12 @@ namespace UIThemeSmokeTest
                     string.Equals(string.Join(",", shellActions), string.Join(",", copyActions), StringComparison.Ordinal),
                     $"Shell.xaml=[{string.Join(",", shellActions)}]；ShellCopy=[{string.Join(",", copyActions)}]");
 
+                var redundantEntries = new[] { "CameraSettings", "MotionBoard", "CommSettings" };
+                var stillExposed = shellActions.Where(a => redundantEntries.Contains(a, StringComparer.Ordinal)).ToList();
+                Check("系统菜单不再重复暴露相机/运动/通讯入口（统一走硬件管理）",
+                    stillExposed.Count == 0,
+                    stillExposed.Count == 0 ? "只保留硬件管理" : "仍在菜单: " + string.Join("，", stillExposed));
+
                 // 新视图的 XAML 解析闸：静态资源键缺失/模板写错只会在实例化时抛，编译期全绿。
                 try
                 {
@@ -1543,6 +1552,98 @@ namespace UIThemeSmokeTest
                 catch (Exception ex)
                 {
                     Check("硬件管理视图能实例化并完成布局（资源键 / XAML 解析）", false, ex.Message);
+                }
+
+                // 运动「点位列表」窄窗布局闸（2026-10-21）：
+                // 宿主最小宽度 1100 时右表只有 ~552px，7 列会把表头压到互相裁切、
+                // 标题与「当前位置」在同一个 Grid 单元里重叠。判据用实际 Arrange 后的
+                // 元素边界，而不是看 XAML 里写没写 ColumnDefinition。
+                try
+                {
+                    var points = new MotionBoardPointsView
+                    {
+                        DataContext = new
+                        {
+                            AxisRows = new ObservableCollection<object>(),
+                            Points = new ObservableCollection<object>(),
+                            CurveOptions = new ObservableCollection<object>(),
+                            HeaderAxisName = "轴1",
+                            CurrentPositionText = "0.000",
+                        }
+                    };
+                    points.Measure(new Size(660, 600));
+                    points.Arrange(new Rect(0, 0, 660, 600));
+                    points.UpdateLayout();
+
+                    var left = points.FindName("HeaderLeft") as FrameworkElement;
+                    var right = points.FindName("HeaderRight") as FrameworkElement;
+                    var scroll = points.FindName("PointsScroll") as ScrollViewer;
+                    var table = points.FindName("PointsTable") as FrameworkElement;
+
+                    var noOverlap = false;
+                    if (left != null && right != null)
+                    {
+                        var l = left.TransformToAncestor(points).TransformBounds(new Rect(left.RenderSize));
+                        var r = right.TransformToAncestor(points).TransformBounds(new Rect(right.RenderSize));
+                        noOverlap = l.Right <= r.Left + 1;
+                    }
+
+                    Check("运动点位表窄窗：标题与当前位置不重叠，表格铺满可用宽度",
+                        noOverlap
+                        && table != null && table.ActualWidth >= 600
+                        && scroll != null && scroll.ScrollableWidth == 0,
+                        $"重叠={!noOverlap}；表宽={table?.ActualWidth:0}；横向滚动={scroll?.ScrollableWidth ?? 0:0}");
+                }
+                catch (Exception ex)
+                {
+                    Check("运动点位表窄窗：标题与当前位置不重叠，表格铺满可用宽度", false, ex.Message);
+                }
+
+                // 用户登录视图（2026-10-21 双栏改版）：资源键/模板写错只会在实例化时抛。
+                try
+                {
+                    var loginView = new ScadaLoginView();
+                    loginView.Measure(new Size(820, 560));
+                    loginView.Arrange(new Rect(0, 0, 820, 560));
+                    loginView.UpdateLayout();
+                    Check("用户登录视图能实例化并完成布局（双栏 / 资源键 / XAML 解析）",
+                        loginView.ActualWidth > 0 && loginView.ActualHeight > 0,
+                        $"{loginView.ActualWidth:0}x{loginView.ActualHeight:0}");
+                }
+                catch (Exception ex)
+                {
+                    Check("用户登录视图能实例化并完成布局（双栏 / 资源键 / XAML 解析）", false, ex.Message);
+                }
+
+                // 密码框双向绑定：PasswordBoxHelper 若用 SetValue 会顶掉绑定，
+                // 表现是"界面有圆点、VM.Password 还是空"，登录永远报「请输入密码」。
+                try
+                {
+                    var probe = new PasswordProbe();
+                    var passwordBox = new PasswordBox();
+                    PasswordBoxHelper.SetAttach(passwordBox, true);
+                    BindingOperations.SetBinding(
+                        passwordBox,
+                        PasswordBoxHelper.BindablePasswordProperty,
+                        new Binding(nameof(PasswordProbe.Password))
+                        {
+                            Source = probe,
+                            Mode = BindingMode.TwoWay,
+                            UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
+                        });
+
+                    passwordBox.Password = "admin123";
+                    var typedToVm = probe.Password == "admin123";
+                    probe.Password = string.Empty;
+                    var clearedFromVm = passwordBox.Password.Length == 0;
+
+                    Check("PasswordBoxHelper 双向绑定：输入回写 VM、VM 清空回写 UI",
+                        typedToVm && clearedFromVm,
+                        $"输入→VM={typedToVm}；VM→UI={clearedFromVm}");
+                }
+                catch (Exception ex)
+                {
+                    Check("PasswordBoxHelper 双向绑定：输入回写 VM、VM 清空回写 UI", false, ex.Message);
                 }
             }
             catch (Exception ex)
@@ -3604,5 +3705,24 @@ namespace UIThemeSmokeTest
                 cur = cur.InnerException;
             }
         }
+    }
+
+    /// <summary>PasswordBoxHelper 双向绑定探针：只需要一个可通知的 Password。</summary>
+    internal sealed class PasswordProbe : INotifyPropertyChanged
+    {
+        private string _password = string.Empty;
+
+        public string Password
+        {
+            get => _password;
+            set
+            {
+                if (string.Equals(_password, value, StringComparison.Ordinal)) return;
+                _password = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Password)));
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
     }
 }

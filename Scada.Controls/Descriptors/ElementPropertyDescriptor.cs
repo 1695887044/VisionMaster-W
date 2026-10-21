@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Windows;
+using VisionMaster.Scada;
 
 namespace VisionMaster.Scada.Controls
 {
@@ -144,6 +145,35 @@ namespace VisionMaster.Scada.Controls
         /// 同时运行时零反射（用名字查找要过 TypeDescriptor，每次刷新都要查一遍）。
         /// </summary>
         public DependencyProperty? TargetProperty { get; init; }
+
+        /// <summary>
+        /// 条件可见：只有属性袋里的 <see cref="VisibleWhenKey"/> 等于 <see cref="VisibleWhenValue"/> 时，
+        /// 属性面板才显示这一行。空 = 永远显示。
+        ///
+        /// 为什么放在描述符而不是面板里按图元类型写 if：同一个属性在不同呈现下是否有效，
+        /// 是"这类图元的属性契约"，不是面板的显示偏好；放在这里，断言也能直接核对。
+        /// </summary>
+        public string? VisibleWhenKey { get; init; }
+
+        /// <summary>条件可见的期望值（与 <see cref="VisibleWhenKey"/> 配套）</summary>
+        public string? VisibleWhenValue { get; init; }
+
+        /// <summary>按当前属性袋判断这一行是否该出现（无条件是永远出现）</summary>
+        public bool IsVisibleFor(ScadaElement? element)
+        {
+            if (string.IsNullOrEmpty(VisibleWhenKey) || element is null)
+                return true;
+
+            // 必须读“有效值”（属性袋没写就取描述符默认值），不能直接读属性袋：
+            // 新建图元的 Presentation 不在袋里，但它的默认值就是 Field；读袋会得到空串，
+            // 把 Field 该显示的 Mode/Fill 全藏掉。
+            var condition = ElementRegistry.FindProperty(element.TypeKey, VisibleWhenKey);
+            string? value = condition is null
+                ? element.GetProperty(VisibleWhenKey)
+                : ElementValueAccess.Read(element, condition);
+
+            return string.Equals(value, VisibleWhenValue, StringComparison.Ordinal);
+        }
 
         /// <summary>是不是保留几何键（即不落属性袋、直接改模型字段的那种）</summary>
         public bool IsGeometry => ElementValueAccess.IsReservedKey(Key);

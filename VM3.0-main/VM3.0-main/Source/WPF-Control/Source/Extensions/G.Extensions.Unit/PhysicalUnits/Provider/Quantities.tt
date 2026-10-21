@@ -1,5 +1,0 @@
-﻿<#@ include file="GenerateTypes.t4"#>  
-<#
-   GenerateQuantities("Dimensions.xml"); 
-#>
-

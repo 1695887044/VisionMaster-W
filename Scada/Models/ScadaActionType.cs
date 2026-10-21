@@ -76,6 +76,12 @@ namespace VisionMaster.Scada
 
         /// <summary>恢复流程（P0）：把已暂停的连续运行流程从当前步继续。</summary>
         ResumeFlow = 17,
+
+        /// <summary>
+        /// 返回上一页（P0）：运行态页栈回退；不需要目标画面，栈空时跳过。
+        /// 与「切换画面」共用同一个导航出口，但语义是“回到进入当前页之前那一页”。
+        /// </summary>
+        NavigateBack = 18,
     }
 
     /// <summary>
@@ -109,6 +115,7 @@ namespace VisionMaster.Scada
             ScadaActionType.MotionJogStop => "点动结束",
             ScadaActionType.PauseFlow => "暂停流程",
             ScadaActionType.ResumeFlow => "恢复流程",
+            ScadaActionType.NavigateBack => "返回上一页",
             // 高版本软件存下的动作类型读进低版本会落到这里（Newtonsoft 按数值反序列化，不校验取值范围）。
             // 报出数值而不是抛异常：坏在一条动作上，不该让整张画面打不开。
             _ => $"未知动作({(int)type})",
@@ -135,7 +142,7 @@ namespace VisionMaster.Scada
         /// 运行日志里写着另一句话，用户就没法把"我配的那条"和"日志里那条"对上号，
         /// 排查方向直接跑偏。这与 <see cref="DisplayName"/> 只写一份是同一个理由。
         ///
-        /// 十五个动作现在都已接通，所以只剩"本版本不认识"这一档。
+        /// 十八个动作现在都已接通，所以只剩"本版本不认识"这一档。
         /// </summary>
         public static string? PendingReason(this ScadaActionType type) => type switch
         {
@@ -168,6 +175,7 @@ namespace VisionMaster.Scada
             ScadaActionType.MotionJogStop => null,
             ScadaActionType.PauseFlow => null,
             ScadaActionType.ResumeFlow => null,
+            ScadaActionType.NavigateBack => null,
             _ => "本版本不认识该动作",
         };
     }

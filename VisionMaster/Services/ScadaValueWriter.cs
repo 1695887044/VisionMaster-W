@@ -57,6 +57,37 @@ namespace VisionMaster.Services
         }
 
         /// <inheritdoc/>
+        public bool TryReadText(ScadaElement element, string targetProperty, out string? text)
+        {
+            text = null;
+
+            if (element == null)
+                return false;
+
+            var binding = element.FindBinding(targetProperty);
+            if (binding == null || !binding.IsEnabled)
+                return false;
+
+            if (!_values.TryResolve(binding.ToReference(), out var handle, out _) || handle == null)
+                return false;
+
+            try
+            {
+                text = handle.Value == null
+                    ? null
+                    : Convert.ToString(handle.Value, System.Globalization.CultureInfo.InvariantCulture);
+
+                return true;
+            }
+            catch
+            {
+                // 读旧值只是审计/回执的展示字段；值源抛异常不该让整条输入命令在写入前失败。
+                text = null;
+                return false;
+            }
+        }
+
+        /// <inheritdoc/>
         public bool TryWriteText(ScadaElement element, string targetProperty, string? text, out string? error)
         {
             ArgumentNullException.ThrowIfNull(element);
@@ -76,14 +107,17 @@ namespace VisionMaster.Services
             if (!binding.IsEnabled)
             {
                 return Fail(ScadaDiagnosticLevel.Warning, subject,
-                    $"变量「{binding.VariableName}」的绑定已停用，值改不了（在属性面板里启用后再试）", out error);
+                    $"变量「{binding.ToReference().DisplayText}」的绑定已停用，值改不了（在属性面板里启用后再试）", out error);
             }
 
             // ③ 找不到变量：改名或删了（Id 对不上、名字也对不上）。原因由值源给，口径与数据泵一致
-            if (!_values.TryResolve(binding.VariableId, binding.VariableName, out var handle) || handle == null)
+            if (!_values.TryResolve(binding.ToReference(), out var handle, out var resolveError) || handle == null)
             {
                 return Fail(ScadaDiagnosticLevel.Warning, subject,
-                    $"找不到变量「{binding.VariableName}」，值改不了（可能已改名或删除）", out error);
+                    string.IsNullOrWhiteSpace(resolveError)
+                        ? $"找不到变量「{binding.ToReference().DisplayText}」，值改不了（可能已改名或删除）"
+                        : $"{resolveError}，值改不了",
+                    out error);
             }
 
             // 旧值先取快照：写成功之后 handle.Value 已经是新值，而日志要回答的正是"从多少改到多少"

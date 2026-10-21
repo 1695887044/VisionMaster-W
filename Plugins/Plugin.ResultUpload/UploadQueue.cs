@@ -81,8 +81,9 @@ namespace Plugin.ResultUpload
         private const int SpoolBatchSize = 20;        // 每轮空闲最多补传条数（一轮不贪多，实时件随到随发）
         private const int SpoolIdleScanSeconds = 30;  // 空闲多久扫一轮 spool（等价于后台 30s Timer）
         private const int MaxDrainFailures = 50;      // 单条累计补传失败上限（防毒记录无限重试）
-        private static readonly string SpoolDir = Path.Combine(AppContext.BaseDirectory, "ResultUploadSpool");
-        private static readonly string SpoolFilePath = Path.Combine(SpoolDir, "spool.jsonl");
+        // 非 readonly：断言宿主需要把账本指到临时目录，避免污染程序目录（生产路径不变）
+        private static string SpoolDir = Path.Combine(AppContext.BaseDirectory, "ResultUploadSpool");
+        private static string SpoolFilePath = Path.Combine(SpoolDir, "spool.jsonl");
         private static readonly object SpoolLock = new object();   // 文件操作互斥（同步模式失败落盘可能来自流程线程）
         private static int? _spoolCount;                           // 行数缓存（首次访问数一遍，避免每写一条全文扫描）
 
@@ -532,5 +533,26 @@ namespace Plugin.ResultUpload
         {
             lock (RecentLogLock) return new List<UploadLogItem>(RecentLogBuffer);
         }
+
+        #region 断言钩子（仅供 FlowCanvasChecks；生产路径不调用）
+
+        /// <summary>把断网续传账本指到临时目录。必须在任何入队/发送之前调用。</summary>
+        internal static void ConfigureForTests(string spoolDir)
+        {
+            lock (SpoolLock)
+            {
+                SpoolDir = spoolDir;
+                SpoolFilePath = Path.Combine(spoolDir, "spool.jsonl");
+                _spoolCount = null;
+            }
+        }
+
+        /// <summary>当前 spool 账本文件路径（断言直接读文件）。</summary>
+        internal static string SpoolFilePathForTests => SpoolFilePath;
+
+        /// <summary>立即跑一轮补传（生产由空闲巡检触发，断言不等 30 秒）。</summary>
+        internal static void DrainSpoolForTests() => TryDrainSpool();
+
+        #endregion
     }
 }

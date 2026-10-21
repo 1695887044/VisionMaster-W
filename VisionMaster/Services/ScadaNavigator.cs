@@ -4,7 +4,7 @@ using VisionMaster.Scada;
 namespace VisionMaster.Services
 {
     /// <summary>
-    /// <see cref="IScadaNavigator"/> 的默认实现：把"切到哪一页"这句话转交给<b>此刻活着的那一个会话</b>。
+    /// <see cref="IScadaNavigator"/> 的默认实现：把"切到哪一页 / 回退到上一页"这句话转交给<b>此刻活着的那一个会话</b>。
     ///
     /// 为什么需要这一层薄适配
     /// ---------
@@ -48,6 +48,22 @@ namespace VisionMaster.Services
             }
 
             return session.Navigate(pageId, fallbackName, out reason);
+        }
+
+        /// <inheritdoc/>
+        public bool GoBack(out string? reason)
+        {
+            var session = _session;
+
+            if (session == null)
+            {
+                reason = "运行已经结束";
+                return false;
+            }
+
+            // 走接口上的实现而不是公开的无参 GoBack()：原因（栈空/已停）由会话一处给出，
+            // 这里不再复制一套文案。
+            return ((IScadaNavigator)session).GoBack(out reason);
         }
     }
 }

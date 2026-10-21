@@ -858,7 +858,7 @@ namespace VisionMaster.Scada
                     if (!alarm.Matches(variableId, oldName))
                         continue;
 
-                    alarm.Bind(variableId, newName);
+                    alarm.Bind(variableId, newName, alarm.ArrayIndex);
                     changed++;
                 }
 

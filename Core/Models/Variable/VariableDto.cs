@@ -51,6 +51,21 @@ namespace VisionMaster.Models
 
         public int BitOffset { get; set; } = -1;
 
+        /// <summary>
+        /// 数据长度：数值/布尔 = 元素个数（标量 1、数组 N）；String/ByteArray = 总字节数。
+        /// <para>数组变量必须随方案落盘，否则重新打开后 Length 回到默认 1，数组静默变回标量。</para>
+        /// </summary>
+        public int Length { get; set; }
+
+        /// <summary>地址偏移（在基地址上再加 N 个地址单位；0 = 不偏移）</summary>
+        public int AddressOffset { get; set; }
+
+        /// <summary>字符串数组：每个元素的固定字节数（0 = 非字符串数组）</summary>
+        public int ElementByteLength { get; set; }
+
+        /// <summary>Modbus 传统 5 位地址写法开关（40001 → 0 基 0；默认 false，旧数据零影响）</summary>
+        public bool UseLegacyAddress { get; set; }
+
         /// <summary>DataValueType 枚举名（Boolean/Int16/Int32/Float/...）</summary>
         public string? DataValueType { get; set; }
 
@@ -65,6 +80,12 @@ namespace VisionMaster.Models
         /// <para>旧方案文件无此字段 → 反序列化为空串 → 正好等于"默认组"，与改造前行为一致（零回归）。</para>
         /// </summary>
         public string ScanGroup { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 显示分组 Id（仅网络变量使用；Guid.Empty = 未分组）。
+        /// 只用于变量管理的归类与筛选，不参与采集/轮询/写入；旧方案无此字段 → Guid.Empty，零回归。
+        /// </summary>
+        public Guid GroupId { get; set; }
 
         /// <summary>
         /// 从 JSON 令牌/装箱值按目标类型还原值。
@@ -102,6 +123,8 @@ namespace VisionMaster.Models
             {
                 CommunicationType.ModbusTcp => "ModbusAddress",
                 CommunicationType.SiemensS7 => "S7Address",
+                CommunicationType.MitsubishiMc => "McAddress",
+                CommunicationType.OmronFins => "FinsAddress",
                 _ => null
             };
             if (typeName == null) return null;
@@ -125,7 +148,16 @@ namespace VisionMaster.Models
 
             address.Offset = Offset;
             address.BitOffset = BitOffset;
-            address.DataType = dataType;
+            address.DataType = dataType; // 注意：DataType setter 会把 Length 重置为类型默认值
+            if (Length > 0) address.Length = Length; // 旧方案无此字段 → 0 → 保留类型默认值
+            address.AddressOffset = AddressOffset;
+            address.ElementByteLength = ElementByteLength;
+
+            // UseLegacyAddress 只在 ModbusAddress 上（S7 没有 5 位写法）；按反射设置，Core 不反向引用通信程序集。
+            var legacyProp = addressType.GetProperty("UseLegacyAddress");
+            if (legacyProp != null && legacyProp.PropertyType == typeof(bool))
+                legacyProp.SetValue(address, UseLegacyAddress);
+
             return address;
         }
 
@@ -160,9 +192,14 @@ namespace VisionMaster.Models
                 Protocol = protocol.ToString(),
                 Offset = addr?.Offset ?? "0",
                 BitOffset = addr?.BitOffset ?? -1,
+                Length = addr?.Length ?? 0,
+                AddressOffset = addr?.AddressOffset ?? 0,
+                ElementByteLength = addr?.ElementByteLength ?? 0,
                 DataValueType = addr?.DataType.ToString(),
                 // 扫描组随变量落盘（漏拷 = 挂好的快组在下次打开方案时静默退回默认组）
-                ScanGroup = nv.ScanGroup ?? string.Empty
+                ScanGroup = nv.ScanGroup ?? string.Empty,
+                // 显示分组同样随变量落盘（漏拷 = 用户归好的类在下次打开方案时静默回到「未分组」）
+                GroupId = nv.GroupId
             };
 
             // Area/DbNumber 在泛型派生类上（ModbusAddress/S7Address），Core 无法直接转型，反射读取
@@ -174,6 +211,11 @@ namespace VisionMaster.Models
                 var dbProp = addrType.GetProperty("DbNumber");
                 if (dbProp != null && dbProp.PropertyType == typeof(int))
                     dto.DbNumber = (int)dbProp.GetValue(addr)!;
+
+                // 5 位地址写法开关只在 ModbusAddress 上（S7 没有该属性）
+                var legacyProp = addrType.GetProperty("UseLegacyAddress");
+                if (legacyProp != null && legacyProp.PropertyType == typeof(bool))
+                    dto.UseLegacyAddress = (bool)legacyProp.GetValue(addr)!;
             }
             return dto;
         }

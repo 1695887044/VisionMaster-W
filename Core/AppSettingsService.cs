@@ -47,7 +47,14 @@ namespace VisionMaster.Services
                 else
                 {
                     var json = File.ReadAllText(ConfigPath, Encoding.UTF8);
-                    Current = JsonConvert.DeserializeObject<AppConfigModel>(json, JsonOptions) ?? new AppConfigModel();
+
+                    // ★ 原地填充，不替换 Current。
+                    // 可选模块（如 ScadaWeb）在 Initialize 里拿的是 Current.ScadaWeb 这个对象引用，
+                    // 而 ConfigCheck 在模块初始化之后还会再 Load 一次。若这里 Current = 新对象，
+                    // 模块手里的引用就永久停在旧值——运行期改 AllowCommands/AllowAnonymousView
+                    // 对已启动的服务完全不生效（2026-10-21 终审 P0-B）。
+                    // PopulateObject 只覆盖 JSON 里出现的属性，引用身份保持不变。
+                    JsonConvert.PopulateObject(json, Current, JsonOptions);
                 }
             }
             catch (Exception ex)
@@ -56,6 +63,9 @@ namespace VisionMaster.Services
                 Console.WriteLine($"软件配置加载失败，使用默认配置。原因：{ex.Message}");
                 Current = new AppConfigModel();
             }
+
+            // JSON 里显式写 null 的节不能把下游打成 NullReference；缺节时保持默认对象。
+            Current.ScadaWeb ??= new ScadaWebSettings();
 
             SyncParallelConfig();
         }

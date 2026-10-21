@@ -1,6 +1,7 @@
 using Core.Interfaces;
 using VisionMaster.Communications;
 using System;
+using System.Globalization;
 using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,7 +14,7 @@ namespace VisionMaster.Models
     /// 本地变量模型
     /// 实现 IOutputPort 接口，可作为数据端口被其他步骤引用
     /// </summary>
-    public class LocalVariableModel : BindableBase, IVariable, IVariableDisplaySource, IRenameableVariable, IWritableVariable
+    public class LocalVariableModel : BindableBase, IVariable, IVariableDisplaySource, IRenameableVariable, IWritableVariable, IArrayElementWritable, IValueChangeNotifier
     {
         private string _dataTypeString;
         private Type _dataType;
@@ -123,6 +124,96 @@ namespace VisionMaster.Models
         }
 
         /// <summary>
+        /// 就地写数组元素：不替换数组引用，只改这一项，然后显式广播一次
+        /// <see cref="IValueChangeNotifier.NotifyValueChanged"/>。
+        ///
+        /// 为什么不能走 <see cref="TryWrite"/>：数组引用没变，<see cref="Value"/> setter 的
+        /// <c>SetProperty</c> 会短路同引用，订阅方一个事件都收不到——画面上的数值不会刷新。
+        /// </summary>
+        public bool TryWriteElement(int index, object? value, out string? error)
+        {
+            error = null;
+
+            if (Value is not Array array)
+            {
+                error = $"变量 [{Name}] 当前值不是数组，无法按下标写入";
+                return false;
+            }
+
+            if (index < 0 || index >= array.Length)
+            {
+                error = $"下标 {index} 超出数组 [{Name}] 的长度 {array.Length}";
+                return false;
+            }
+
+            Type? elementType = DataType.GetElementType() ?? array.GetType().GetElementType();
+
+            if (elementType == null)
+            {
+                error = $"变量 [{Name}] 的数组元素类型未知，无法写入";
+                return false;
+            }
+
+            if (!TryCoerceElement(value, elementType, out var converted, out error))
+                return false;
+
+            try
+            {
+                array.SetValue(converted, index);
+            }
+            catch (Exception ex)
+            {
+                error = $"变量 [{Name}] 的第 {index} 项写入失败：{ex.Message}";
+                return false;
+            }
+
+            // 引用没变，必须手动广播（见 IValueChangeNotifier 的注释）
+            NotifyValueChanged();
+            return true;
+        }
+
+        /// <summary>
+        /// 元素值归一：文本按元素类型解析（复用 <see cref="VariableValueConverter"/> 的宽进严出规则），
+        /// 已是目标类型的值直通，其余按不变区域性转一次。
+        /// </summary>
+        private static bool TryCoerceElement(object? value, Type elementType, out object? converted, out string? error)
+        {
+            converted = null;
+            error = null;
+
+            if (value == null)
+            {
+                if (elementType.IsValueType && Nullable.GetUnderlyingType(elementType) == null)
+                {
+                    error = $"数组元素类型 {elementType.Name} 不接受空值";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (elementType.IsInstanceOfType(value))
+            {
+                converted = value;
+                return true;
+            }
+
+            if (value is string text)
+                return VariableValueConverter.TryConvert(text, elementType, out converted, out error);
+
+            try
+            {
+                converted = Convert.ChangeType(value, elementType, CultureInfo.InvariantCulture);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = $"「{value}」无法转换为数组元素类型 {elementType.Name}：{ex.Message}";
+                return false;
+            }
+        }
+
+        /// <summary>
         /// 重置为默认值
         /// </summary>
         public void ResetToDefault()
@@ -136,6 +227,12 @@ namespace VisionMaster.Models
                 Value = DefaultValue;
             }
         }
+
+        /// <summary>
+        /// 就地改数组元素后补一次值变更广播（见 <see cref="IValueChangeNotifier"/>）。
+        /// 引用没变，<see cref="Value"/> setter 的 SetProperty 不会触发，只能显式广播。
+        /// </summary>
+        public void NotifyValueChanged() => _valueChanged?.Invoke(this, EventArgs.Empty);
 
         #region IVariableDisplaySource（HMI 画布组态预留，显式实现避免与模型接口冲突）
 

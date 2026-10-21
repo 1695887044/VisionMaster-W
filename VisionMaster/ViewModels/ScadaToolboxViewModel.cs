@@ -53,6 +53,9 @@ namespace VisionMaster.ViewModels
         /// <summary>启动时快照的全量图元（注册表在程序生命周期内不再新增，故只取一次）</summary>
         private readonly IReadOnlyList<ElementDescriptor> _all;
 
+        /// <summary>关联模板更新需要读当前选中；测试可传 null，只测列表/改名/删除。</summary>
+        private readonly ScadaEditorViewModel? _editor;
+
         private string _searchText = string.Empty;
 
         /// <summary>是否已订阅模板库（<see cref="Attach"/> 幂等用：视图的 Loaded 可能来第二次）</summary>
@@ -64,14 +67,17 @@ namespace VisionMaster.ViewModels
         /// <summary>当前显示的模板（受搜索框过滤）</summary>
         private IReadOnlyList<ScadaTemplateInfo> _templates = Array.Empty<ScadaTemplateInfo>();
 
-        public ScadaToolboxViewModel()
+        public ScadaToolboxViewModel(ScadaEditorViewModel? editor = null)
         {
+            _editor = editor;
+
             // ShowInToolbox=false 的是"旧 TypeKey 兼容别名"：注册表里必须留（老方案要能打开），
             // 但工具箱不该再让新用户拖出来一个已被合并/替代的控件。
             _all = ElementRegistry.All.Where(d => d.ShowInToolbox).ToArray();
             Groups = BuildGroups(_all);
             TotalCount = _all.Count;
 
+            UpdateTemplateCommand = new DelegateCommand<ScadaTemplateInfo>(OnUpdateTemplate, CanEditTemplate);
             RenameTemplateCommand = new DelegateCommand<ScadaTemplateInfo>(OnRenameTemplate, CanEditTemplate);
             DeleteTemplateCommand = new DelegateCommand<ScadaTemplateInfo>(OnDeleteTemplate, CanEditTemplate);
         }
@@ -93,6 +99,12 @@ namespace VisionMaster.ViewModels
 
         /// <summary>有没有可显示的模板（没有时那一栏整块收起来——一份都没存过、或搜索词一个都没命中）</summary>
         public bool HasTemplates => _templates.Count > 0;
+
+        /// <summary>
+        /// 用当前选中覆盖这条模板（模板行右键）。成功后模板 Revision +1，
+        /// 编辑器订阅 <see cref="ScadaTemplateStore.TemplateUpdated"/> 自动刷新关联实例。
+        /// </summary>
+        public DelegateCommand<ScadaTemplateInfo> UpdateTemplateCommand { get; }
 
         /// <summary>重命名模板（模板行右键）。重名会被拒绝并给出原因（见 <see cref="ScadaTemplateStore.TryRename"/>）</summary>
         public DelegateCommand<ScadaTemplateInfo> RenameTemplateCommand { get; }
@@ -161,6 +173,26 @@ namespace VisionMaster.ViewModels
         }
 
         private static bool CanEditTemplate(ScadaTemplateInfo? template) => template != null;
+
+        private void OnUpdateTemplate(ScadaTemplateInfo? template)
+        {
+            if (template == null) return;
+
+            if (_editor == null)
+            {
+                EasyDialog.ShowSync("更新模板", "当前没有打开的组态编辑器");
+                return;
+            }
+
+            if (!EasyDialog.ShowSync("更新模板",
+                    $"用当前选中的图元覆盖模板「{template.Name}」？\n"
+                    + "画面里引用这条模板的实例会一起刷新；实例的位置和分组保留。"))
+                return;
+
+            if (!_editor.TryUpdateTemplateFromSelection(template.TemplateId, out string? error)
+                && error != "已取消")
+                EasyDialog.ShowSync("更新模板失败", error ?? "更新失败");
+        }
 
         private void OnRenameTemplate(ScadaTemplateInfo? template)
         {

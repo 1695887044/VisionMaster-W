@@ -13,6 +13,24 @@
     DataContextChanged="OnViewDataContextChanged"
     mc:Ignorable="d">
 
+    <!--
+        ============================================================================
+        组态编辑器宿主面板（design.html v2 · 组态画面）
+        ============================================================================
+
+        版式照 docs/UI设计基线/app-shell/design.html 的 .scada-view：
+          · 顶栏<b>一行 44px</b>：画面/基座 + 新建/删除 + 撤销/重做 ‖ 网格/吸附 + 缩放 + 运行
+            （旧版拆成两行、总高 111px，且把"运行画面"挤到第二行最右——设计稿里它是顶栏唯一的实心主按钮）
+          · <b>没有常驻格式栏</b>：v2 把它改成"选中图元时浮出的上下文工具条"（见 SelectionToolbar），
+            没选中时那 20 多颗灰按钮不该占一排视觉噪音
+          · 画布是<b>浅色工作台</b>（#E9EEF5）+ 居中的画面，不是运行态那层近黑底
+          · 左下角浮一枚"缩放 | 画面尺寸"胶囊
+
+        画布本身仍是"模型 → 可视树"的单向渲染，本面板不持有任何图元副本，
+        画面属性一律直绑 SelectedPage.*，中转一次就要多订阅一次、多一处漏摘。
+        ============================================================================
+    -->
+
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -20,41 +38,175 @@
                       只写 {StaticResource} 而不自合并，在没有 Application 的断言宿主里会在 XAML
                       解析期抛"找不到资源"（本视图 2026-10-18 的顶栏渲染探针就是这么红的）。  -->
                 <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+                <!--  顶栏两个下拉框走弹窗域那支 DialogCombo（带边框的 28px 小下拉），
+                      定义在 Dialog.Input.xaml —— 同一条 R22：用谁就就地合并谁。  -->
+                <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.Input.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <!--  格式工具栏的图标按钮：只显示图标，文字交给 ToolTip。  -->
-            <!--  18 颗按钮若都照顶栏那样写"图标 TextBlock + 文字 TextBlock"，一行绝对放不下；  -->
-            <!--  而格式工具栏本来就是"扫一眼图标就懂"的地方，只挂图标是 Word / VS 一路的通行做法。  -->
-            <!--  Content 里只有 Font Awesome 码点、没有中文，所以可以整串塞进 Content——  -->
-            <!--  顶栏那条"图标与文字必须拆成两个 TextBlock"的规矩，防的是图标字体里没有中文字形。  -->
-            <Style x:Key="FormatToolButton" TargetType="Button">
+            <!--  ============ 顶栏按钮（design.html .scada-btn） ============
+                  28px 高、圆角 6、1px #E2E8F0 描边、白底、12px 字、悬停 #F1F5F9。
+                  必须自带 Template：不带就等于把外观交给应用级隐式 Button 样式
+                  （App.xaml 最后合并 .NET 9 Fluent，实际生效的是 Fluent 那支——
+                   实测 21px 高、渐变描边、圆角 5，与设计稿完全不是一套）。  -->
+            <Style x:Key="ScadaToolButton" TargetType="Button">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="MinWidth" Value="28" />
+                <Setter Property="Padding" Value="9,0" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaToolbarTextBrush}" />
+                <Setter Property="Background" Value="{StaticResource ScadaSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource ScadaToolbarBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border
+                                x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                                <ContentPresenter
+                                    Margin="{TemplateBinding Padding}"
+                                    HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                    VerticalAlignment="Center"
+                                    RecognizesAccessKey="True" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaToolbarHoverBrush}" />
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource ScadaToolbarBorderStrongBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaToolbarPressedBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.4" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  只有图标的按钮：正方形格子，内边距 0（否则字形被格子切掉，见 R68）  -->
+            <Style
+                x:Key="ScadaIconButton"
+                BasedOn="{StaticResource ScadaToolButton}"
+                TargetType="Button">
                 <Setter Property="Width" Value="28" />
-                <Setter Property="Height" Value="24" />
-                <Setter Property="Margin" Value="1,0" />
+                <Setter Property="Padding" Value="0" />
+            </Style>
+
+            <!--  主按钮（运行画面）：实心主色 + 白字，顶栏里唯一的实心块  -->
+            <Style
+                x:Key="ScadaPrimaryButton"
+                BasedOn="{StaticResource ScadaToolButton}"
+                TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource DialogAccentBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaOnAccentTextBrush}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border
+                                x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                                <ContentPresenter
+                                    Margin="{TemplateBinding Padding}"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaPrimaryButtonHoverBrush}" />
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource ScadaPrimaryButtonHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.86" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.4" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  顶栏标签（画面 / 基座）：11px、次要文字色
+                  不用 TextBlock 直接写死字号：顶栏里它出现三次，改一次要改三处  -->
+            <Style x:Key="ScadaToolbarLabel" TargetType="TextBlock">
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaToolbarTextBrush}" />
+            </Style>
+
+            <!--  顶栏分组竖线：1×16，色同描边  -->
+            <Style x:Key="ScadaToolbarSeparator" TargetType="Rectangle">
+                <Setter Property="Width" Value="1" />
+                <Setter Property="Height" Value="16" />
+                <Setter Property="Margin" Value="8,0" />
+                <Setter Property="Fill" Value="{StaticResource ScadaToolbarBorderBrush}" />
+            </Style>
+
+            <!--  顶栏下拉框：DialogCombo 的 28px 版本（设计稿 .scada-select）  -->
+            <Style
+                x:Key="ScadaToolbarCombo"
+                BasedOn="{StaticResource DialogCombo}"
+                TargetType="ComboBox">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Padding" Value="8,0,26,0" />
+            </Style>
+
+            <!--  上下文工具条里的图标按钮：27×27、透明底、无描边（design.html .scada-context-toolbar .fmt-btn）  -->
+            <Style x:Key="ScadaContextButton" TargetType="Button">
+                <Setter Property="Width" Value="27" />
+                <Setter Property="Height" Value="27" />
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
                 <Setter Property="FontSize" Value="13" />
-                <Setter Property="Foreground" Value="#FF303133" />
-                <Setter Property="HorizontalContentAlignment" Value="Center" />
-                <Setter Property="VerticalContentAlignment" Value="Center" />
-            </Style>
-
-            <!--  工具栏分组之间的竖线：宽高色与顶栏那三条一致，两行看着才像同一套东西  -->
-            <Style x:Key="ToolSeparator" TargetType="Rectangle">
-                <Setter Property="Width" Value="1" />
-                <Setter Property="Height" Value="16" />
-                <Setter Property="Margin" Value="6,0" />
-                <Setter Property="Fill" Value="#FFDCE0E6" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaToolbarTextBrush}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border
+                                x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="5"
+                                SnapsToDevicePixels="True">
+                                <ContentPresenter
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaToolbarHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaToolbarPressedBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.32" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
-
-    <!--  ==========================================  -->
-    <!--  SCADA 组态编辑器宿主面板（S3）  -->
-    <!--  这里只做两件事：挑画面（顶栏）+ 把画面的模型交给画布（ScadaCanvas）。  -->
-    <!--  画布是"模型 → 可视树"的单向渲染，因此本面板不持有任何图元的副本，  -->
-    <!--  画面属性也一律直绑 SelectedPage.*，中转一次就要多订阅一次、多一处漏摘。  -->
-    <!--  ==========================================  -->
 
     <!--  Ctrl+Z / Ctrl+Y 挂在这一层：只要焦点还在编辑器里（画布、画面下拉）就生效。  -->
     <!--  刻意不挂到窗口级：属性面板里还有一堆文本框，窗口级热键会把它们的文本撤销抢走。  -->
@@ -84,49 +236,59 @@
             Modifiers="Ctrl" />
     </UserControl.InputBindings>
 
-    <Grid Background="#FFF7F8FA">
+    <Grid Background="{StaticResource ScadaPanelBackgroundBrush}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
+            <!--  顶栏：一行 44px（design.html .scada-top）  -->
+            <RowDefinition Height="44" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!--  ====================  顶栏：画面选择 + 取景工具  ====================  -->
+        <!--  ====================  顶栏：画面/基座 · 编辑 · 取景 · 运行  ====================  -->
         <Border
             Grid.Row="0"
-            Background="#FFF5F7FA"
-            BorderBrush="#FFDCE0E6"
+            Background="{StaticResource ScadaToolbarBackgroundBrush}"
+            BorderBrush="{StaticResource ScadaToolbarBorderBrush}"
             BorderThickness="0,0,0,1">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+            <!--  横向可滚：面板被 AvalonDock 拖窄时宁可出滚动条，也不要把右边的"运行画面"裁掉——
+                  被裁掉的按钮，用户根本不知道它存在过。MinWidth 绑视口宽：够宽时中间那列照常撑开、
+                  右组右对齐；不够宽时内容按自身宽度排，滚动条出现。  -->
+            <ScrollViewer
+                x:Name="ToolbarScroll"
+                HorizontalScrollBarVisibility="Auto"
+                VerticalScrollBarVisibility="Disabled">
+            <Grid MinWidth="{Binding ViewportWidth, ElementName=ToolbarScroll}" Margin="10,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-                <!--  第 1 行：画面/基座 + 新建/删除 + 撤销/重做。
-                      横向可滚：面板被 AvalonDock 拖窄时宁可出滚动条，也不要把按钮裁掉。  -->
-                <ScrollViewer
-                    Grid.Row="0"
-                    HorizontalScrollBarVisibility="Auto"
-                    VerticalScrollBarVisibility="Disabled">
-                <StackPanel Margin="8,4" Orientation="Horizontal">
-                    <TextBlock
-                        Margin="0,0,6,0"
-                        VerticalAlignment="Center"
-                        FontSize="12"
-                        Foreground="#FF606266"
-                        Text="画面" />
+                <!--  左组：画面选择 + 文档级动作  -->
+                <StackPanel
+                    Grid.Column="0"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <TextBlock Margin="0,0,6,0" Style="{StaticResource ScadaToolbarLabel}" Text="画面" />
                     <!--  IsSynchronizedWithCurrentItem=False：选中项只由 SelectedPage 这条绑定决定。  -->
                     <!--  默认值在 ObservableCollection 上会被共享的 CollectionView 当前项牵着走，  -->
                     <!--  换方案时"谁覆盖谁"变得不确定，这里显式关掉，路径只剩一条。  -->
                     <ComboBox
                         x:Name="PageSelector"
-                        Width="160"
+                        Width="150"
                         VerticalAlignment="Center"
-                        DisplayMemberPath="Name"
                         Selector.IsSynchronizedWithCurrentItem="False"
                         ItemsSource="{Binding Pages}"
-                        SelectedItem="{Binding SelectedPage, Mode=TwoWay}" />
+                        SelectedItem="{Binding SelectedPage, Mode=TwoWay}"
+                        Style="{StaticResource ScadaToolbarCombo}">
+                        <!--  用 ItemTemplate 而不是 DisplayMemberPath：DialogCombo 的模板靠
+                              SelectionBoxItemTemplate 渲染收起态，DisplayMemberPath 那条路在这支模板上
+                              不生效（实测收起态显示成类型全名 VisionMaster.Scada.ScadaPage）。  -->
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                     <!--  基座下拉框：带自己的标签（与"画面"同款）。
                           没有标签时两个并排的下拉框看起来像"两个画面选择器"，用户根本分不清哪个是基座。
                           候选是 ScadaDocument.BasePages（已注册的基座），不是全部画面——
@@ -138,38 +300,57 @@
                           编辑基座自己那一页时置灰：基座不能再引用基座（一层限制），
                           先置灰比"选了再弹回"清楚得多。  -->
                     <TextBlock
-                        Margin="12,0,6,0"
-                        VerticalAlignment="Center"
-                        FontSize="12"
-                        Foreground="#FF606266"
+                        Margin="10,0,6,0"
+                        Style="{StaticResource ScadaToolbarLabel}"
                         Text="基座" />
                     <ComboBox
                         x:Name="BasePageSelector"
-                        Width="140"
+                        Width="130"
                         VerticalAlignment="Center"
-                        DisplayMemberPath="Name"
                         IsEnabled="{Binding CanSelectBasePage}"
                         Selector.IsSynchronizedWithCurrentItem="False"
                         ItemsSource="{Binding BasePageOptions}"
                         SelectedItem="{Binding SelectedBasePage, Mode=TwoWay}"
-                        ToolTip="本页引用的基座（公共层）；选「（无基座）」即不引用（基座画面自身不能再引用基座）" />
+                        Style="{StaticResource ScadaToolbarCombo}"
+                        ToolTip="本页引用的基座（公共层）；选「（无基座）」即不引用（基座画面自身不能再引用基座）">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <Rectangle Style="{StaticResource ScadaToolbarSeparator}" />
 
                     <!--  新建：主按钮 = 新建画面（一次点击，现场最常用的动作），
                           右侧 ▾ = 更多新建方式（新建基座）。
                           两个并排的文字按钮（新建 / 新建基座）在顶栏里读起来像"同一件事的两个说法"，
                           而"新建基座"是低频动作，不该占常驻按钮位。  -->
                     <Button
-                        Margin="6,0,0,0"
-                        Padding="8,2"
                         Command="{Binding AddPageCommand}"
-                        Content="＋ 新建"
-                        ToolTip="新建画面（默认沿用当前页的基座）" />
+                        Style="{StaticResource ScadaToolButton}"
+                        ToolTip="新建画面（默认沿用当前页的基座）">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="11"
+                                Text="&#xF067;" />
+                            <TextBlock Margin="5,0,0,0" VerticalAlignment="Center" Text="新建" />
+                        </StackPanel>
+                    </Button>
                     <Button
                         x:Name="NewMenuButton"
-                        Padding="6,2"
-                        Click="OnNewMenuClick"
-                        Content="▾"
+                        Margin="2,0,0,0"
+                        Padding="0"
+                        Click="OnDropDownMenuClick"
+                        Style="{StaticResource ScadaIconButton}"
                         ToolTip="更多新建方式：新建基座（跨页公共层）">
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="10"
+                            Text="&#xF0D7;" />
                         <Button.ContextMenu>
                             <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                                 <MenuItem Command="{Binding AddPageCommand}" Header="新建画面" />
@@ -180,9 +361,9 @@
                     <!--  删除改成图标按钮：顶栏里三个文字按钮（新建 / 新建基座 / 删除）并列，
                           最容易被误点的恰是"删除"，图标 + 悬停说明能把它从视觉重心上降下来。  -->
                     <Button
-                        Margin="4,0,0,0"
-                        Padding="8,2"
+                        Margin="2,0,0,0"
                         Command="{Binding RemovePageCommand}"
+                        Style="{StaticResource ScadaIconButton}"
                         ToolTip="删除当前画面（可撤销）">
                         <TextBlock
                             VerticalAlignment="Center"
@@ -191,18 +372,15 @@
                             Text="&#xF1F8;" />
                     </Button>
 
+                    <Rectangle Style="{StaticResource ScadaToolbarSeparator}" />
+
                     <!--  撤销/重做与"画面"并排而不是挤进取景组：它覆盖的不只是画布上的改动，
                           还包括新建/删除画面、改图元属性——是"文档级"的操作，不是取景工具。
                           图标走 App.xaml 的图标字体（Font Awesome 6 Pro Solid 的旋转箭头），
                           文字单独一个 TextBlock：图标字体里没有中文字形，混在一个 TextBlock 里会掉字。  -->
-                    <Rectangle
-                        Width="1"
-                        Height="16"
-                        Margin="12,0"
-                        Fill="#FFDCE0E6" />
                     <Button
-                        Padding="8,2"
                         Command="{Binding UndoCommand}"
+                        Style="{StaticResource ScadaToolButton}"
                         ToolTip="{Binding UndoLabel}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock
@@ -210,16 +388,13 @@
                                 FontFamily="{StaticResource DialogIconFont}"
                                 FontSize="12"
                                 Text="&#xF0E2;" />
-                            <TextBlock
-                                Margin="4,0,0,0"
-                                VerticalAlignment="Center"
-                                Text="撤销" />
+                            <TextBlock Margin="5,0,0,0" VerticalAlignment="Center" Text="撤销" />
                         </StackPanel>
                     </Button>
                     <Button
-                        Margin="4,0,0,0"
-                        Padding="8,2"
+                        Margin="2,0,0,0"
                         Command="{Binding RedoCommand}"
+                        Style="{StaticResource ScadaToolButton}"
                         ToolTip="{Binding RedoLabel}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock
@@ -227,358 +402,333 @@
                                 FontFamily="{StaticResource DialogIconFont}"
                                 FontSize="12"
                                 Text="&#xF01E;" />
-                            <TextBlock
-                                Margin="4,0,0,0"
-                                VerticalAlignment="Center"
-                                Text="重做" />
+                            <TextBlock Margin="5,0,0,0" VerticalAlignment="Center" Text="重做" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
-                </ScrollViewer>
 
-                <!--  第 2 行：设计辅助（网格/吸附）+ 取景（缩放）+ 运行画面。
-                      与第 1 行分开：单行在 1280 窗口下会被裁掉右半截（运行按钮首当其冲）。  -->
-                <ScrollViewer
-                    Grid.Row="1"
-                    HorizontalScrollBarVisibility="Auto"
-                    VerticalScrollBarVisibility="Disabled">
-                <StackPanel Margin="8,0,8,4" Orientation="Horizontal">
+                <!--  右组：设计辅助 + 取景 + 运行  -->
+                <StackPanel
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
                     <!--  网格与吸附是画面属性（落盘），所以绑到 SelectedPage 上双向写回模型  -->
                     <CheckBox
                         VerticalAlignment="Center"
                         Content="网格"
+                        FontSize="11"
+                        Foreground="{StaticResource ScadaToolbarTextBrush}"
                         IsChecked="{Binding SelectedPage.ShowGrid, Mode=TwoWay}" />
                     <CheckBox
                         Margin="10,0,0,0"
                         VerticalAlignment="Center"
                         Content="吸附"
+                        FontSize="11"
+                        Foreground="{StaticResource ScadaToolbarTextBrush}"
                         IsChecked="{Binding SelectedPage.SnapToGrid, Mode=TwoWay}" />
-                    <Rectangle
-                        Width="1"
-                        Height="16"
-                        Margin="12,0"
-                        Fill="#FFDCE0E6" />
+
+                    <Rectangle Style="{StaticResource ScadaToolbarSeparator}" />
+
                     <Button
-                        Padding="6,2"
                         Click="OnZoomOut"
-                        Content="－"
+                        Content="&#xF068;"
+                        FontFamily="{StaticResource DialogIconFont}"
+                        Style="{StaticResource ScadaIconButton}"
                         ToolTip="缩小" />
                     <!--  缩放倍率只是取景器状态，绑画布自己的 DP，不进视图模型  -->
                     <TextBlock
-                        Width="46"
-                        Margin="4,0"
-                        HorizontalAlignment="Center"
+                        Width="40"
                         VerticalAlignment="Center"
-                        FontSize="12"
-                        Foreground="#FF606266"
+                        FontSize="11"
+                        Foreground="{StaticResource ScadaToolbarTextBrush}"
                         Text="{Binding Zoom, ElementName=Canvas, StringFormat=P0, FallbackValue=100%}"
                         TextAlignment="Center" />
                     <Button
-                        Padding="6,2"
                         Click="OnZoomIn"
-                        Content="＋"
+                        Content="&#xF067;"
+                        FontFamily="{StaticResource DialogIconFont}"
+                        Style="{StaticResource ScadaIconButton}"
                         ToolTip="放大" />
                     <Button
-                        Margin="8,0,0,0"
-                        Padding="6,2"
+                        Margin="6,0,0,0"
                         Click="OnFitToScreen"
                         Content="适应"
+                        Style="{StaticResource ScadaToolButton}"
                         ToolTip="整页缩放到可视范围" />
                     <Button
-                        Margin="4,0,0,0"
-                        Padding="6,2"
+                        Margin="2,0,0,0"
                         Click="OnActualSize"
                         Content="1:1"
+                        Style="{StaticResource ScadaToolButton}"
                         ToolTip="按 100% 显示" />
 
-                    <!--  运行入口与"设计辅助"隔开：前者是交付动作，后者是编辑动作，不该看着像一类  -->
-                    <Rectangle
-                        Width="1"
-                        Height="16"
-                        Margin="12,0"
-                        Fill="#FFDCE0E6" />
-                    <!--  绿色实心三角是组态软件的通用语：跑起来。走命令而不走 code-behind，  -->
-                    <!--  因为置灰条件（有没有可跑的画面）只有视图模型知道  -->
+                    <Rectangle Style="{StaticResource ScadaToolbarSeparator}" />
+
+                    <!--  运行入口：顶栏唯一的实心主按钮。走命令而不走 code-behind，
+                          因为置灰条件（有没有可跑的画面）只有视图模型知道  -->
                     <Button
-                        Padding="8,2"
                         Command="{Binding RunPageCommand}"
-                        Content="▶ 运行画面"
-                        Foreground="#FF1B7F3B"
-                        ToolTip="按启动画面全屏运行当前方案（不存盘，跑的是内存里这份）" />
+                        Style="{StaticResource ScadaPrimaryButton}"
+                        ToolTip="按启动画面全屏运行当前方案（不存盘，跑的是内存里这份）">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="11"
+                                Text="&#xF04B;" />
+                            <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" Text="运行画面" />
+                        </StackPanel>
+                    </Button>
+
+                    <!--  低频动作收进"…"：报警配置是方案级设置、批量插入模板是建页时的批量动作，
+                          都不该与"运行画面"抢常驻按钮位（v2 的减法口径）。  -->
+                    <Button
+                        x:Name="MoreMenuButton"
+                        Margin="6,0,0,0"
+                        Padding="0"
+                        Click="OnDropDownMenuClick"
+                        Style="{StaticResource ScadaIconButton}"
+                        ToolTip="更多：报警配置 / 批量插入模板">
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="12"
+                            Text="&#xF141;" />
+                        <Button.ContextMenu>
+                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                <MenuItem Command="{Binding OpenAlarmConfigCommand}" Header="报警配置…" />
+                                <MenuItem Command="{Binding BatchInsertTemplateCommand}" Header="批量插入模板…" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
                 </StackPanel>
-                </ScrollViewer>
             </Grid>
-        </Border>
-
-        <!--  ====================  格式工具栏（r5）  ====================  -->
-        <!--  排列类动作从右键菜单搬上来：在菜单里用一次要走"选中图元 → 右键 → 展开子菜单"三步，  -->
-        <!--  而对齐 / 等尺寸 / 等间距是编辑时反复来回用的动作，摆成一行才够手快。  -->
-        <!--  这里只搬<b>排列类</b>（对齐分布 / 等尺寸 / 等间距 / 对齐网格 / 叠放次序）：  -->
-        <!--  复制粘贴删除那几项属于"改画面内容"，留在右键菜单与快捷键上，不与"换个摆法"挤一排。  -->
-        <!--  每条命令都带 CanExecute（见 ScadaEditorViewModel.RefreshSelectionCommands），  -->
-        <!--  所以"没选中 / 选得不够多"时按钮自己会灰掉，这里不写任何可用性判断。  -->
-        <Border
-            Grid.Row="1"
-            Background="#FFFAFBFC"
-            BorderBrush="#FFDCE0E6"
-            BorderThickness="0,0,0,1">
-            <!--  横向可滚：面板被 AvalonDock 拖窄时，宁可出现一条滚动条，  -->
-            <!--  也不要让右边那几颗按钮被裁掉——被裁掉的按钮，用户根本不知道它存在过。  -->
-            <ScrollViewer
-                HorizontalScrollBarVisibility="Auto"
-                VerticalScrollBarVisibility="Disabled">
-                <StackPanel Margin="8,4" Orientation="Horizontal">
-
-                    <!--  对齐与分布：六种对齐 + 两种分布，顺序与右键菜单的 AlignOrder 一致。  -->
-                    <!--  CommandParameter 传枚举常量（与 FlowListView 传 FlowAction 同一写法）：  -->
-                    <!--  8 颗按钮共用一条 AlignCommand，靠参数分流，不必在视图模型里开 8 个属性。  -->
-                    <Button
-                        Command="{Binding AlignCommand}"
-                        CommandParameter="{x:Static enums:ScadaAlign.Left}"
-                        Content="&#xF036;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="左对齐" />
-                    <Button
-                        Command="{Binding AlignCommand}"
-                        CommandParameter="{x:Static enums:ScadaAlign.HorizontalCenter}"
-                        Content="&#xF037;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="水平居中" />
-                    <Button
-                        Command="{Binding AlignCommand}"
-                        CommandParameter="{x:Static enums:ScadaAlign.Right}"
-                        Content="&#xF038;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="右对齐" />
-                    <Button
-                        Command="{Binding AlignCommand}"
-                        CommandParameter="{x:Static enums:ScadaAlign.Top}"
-                        Content="&#xF341;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="顶对齐" />
-                    <Button
-                        Command="{Binding AlignCommand}"
-                        CommandParameter="{x:Static enums:ScadaAlign.VerticalCenter}"
-                        Content="&#xF034;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="垂直居中" />
-                    <Button
-                        Command="{Binding AlignCommand}"
-                        CommandParameter="{x:Static enums:ScadaAlign.Bottom}"
-                        Content="&#xF33D;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="底对齐" />
-                    <Button
-                        Command="{Binding AlignCommand}"
-                        CommandParameter="{x:Static enums:ScadaAlign.DistributeHorizontal}"
-                        Content="&#xF337;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="水平等分（两端不动，把间隙摊匀）" />
-                    <Button
-                        Command="{Binding AlignCommand}"
-                        CommandParameter="{x:Static enums:ScadaAlign.DistributeVertical}"
-                        Content="&#xF338;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="垂直等分（两端不动，把间隙摊匀）" />
-
-                    <Rectangle Style="{StaticResource ToolSeparator}" />
-
-                    <!--  等尺寸：基准一律取选中集合里最大的那个（宽高各自取最大），见 ScadaSizeMatch。  -->
-                    <Button
-                        Command="{Binding MatchSizeCommand}"
-                        CommandParameter="{x:Static enums:ScadaSizeMatch.Width}"
-                        Content="&#xE4BA;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="等宽（以最宽的那个为准）" />
-                    <Button
-                        Command="{Binding MatchSizeCommand}"
-                        CommandParameter="{x:Static enums:ScadaSizeMatch.Height}"
-                        Content="&#xF07D;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="等高（以最高的那个为准）" />
-                    <Button
-                        Command="{Binding MatchSizeCommand}"
-                        CommandParameter="{x:Static enums:ScadaSizeMatch.Both}"
-                        Content="&#xF424;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="等大小（宽高各自取最大，等价于先等宽再等高）" />
-
-                    <Rectangle Style="{StaticResource ToolSeparator}" />
-
-                    <!--  等间距：数值框在前、两颗方向按钮在后，读起来就是"按这个间距，水平排 / 垂直排"。  -->
-                    <!--  绑定的 UpdateSourceTrigger 用默认的 LostFocus（这里显式写出来，因为它是要紧事）：  -->
-                    <!--  点按钮时文本框先失焦、值先写回视图模型，命令才执行——所以"改完数字直接点按钮"一定带上新值。  -->
-                    <!--  若改成 PropertyChanged，用户想输 "20" 时敲下 "2" 那一刻就会按 2 像素排一次，画面乱跳。  -->
-                    <TextBlock
-                        Margin="2,0,2,0"
-                        VerticalAlignment="Center"
-                        FontSize="12"
-                        Foreground="#FF606266"
-                        Text="间距" />
-                    <TextBox
-                        Width="46"
-                        Height="22"
-                        Margin="0,0,2,0"
-                        VerticalContentAlignment="Center"
-                        Text="{Binding SpacingGap, UpdateSourceTrigger=LostFocus}"
-                        TextAlignment="Center"
-                        ToolTip="等间距时，相邻两个图元之间留多少像素（可填 0 让它们边贴边）" />
-                    <Button
-                        Command="{Binding SpaceCommand}"
-                        CommandParameter="{x:Static enums:ScadaSpacing.Horizontal}"
-                        Content="&#xF7A5;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="水平等间距（第一个不动，其余按上面的像素值往右排）" />
-                    <Button
-                        Command="{Binding SpaceCommand}"
-                        CommandParameter="{x:Static enums:ScadaSpacing.Vertical}"
-                        Content="&#xF7A4;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="垂直等间距（第一个不动，其余按上面的像素值往下排）" />
-
-                    <Rectangle Style="{StaticResource ToolSeparator}" />
-
-                    <!--  对齐网格：把左上角吸到最近的格点。刻意不看顶栏那个"吸附"开关——  -->
-                    <!--  那个开关管的是"拖动时吸不吸"，而这是一次显式命令（见 TrySnapElementsToGrid）。  -->
-                    <Button
-                        Command="{Binding SnapElementsToGridCommand}"
-                        Content="&#xF84C;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="对齐网格（左上角吸到最近格点，与「吸附」开关无关）" />
-
-                    <Rectangle Style="{StaticResource ToolSeparator}" />
-
-                    <!--  叠放次序：四颗按钮与右键菜单的 ZMoveOrder 同序（从最前到最底）。  -->
-                    <!--  已到端点的那一颗由 CanMoveSelectedZ 判灰，所以"置顶"按到最上会自己灰掉。  -->
-                    <Button
-                        Command="{Binding MoveZCommand}"
-                        CommandParameter="{x:Static enums:ScadaZMove.ToFront}"
-                        Content="&#xF102;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="置于顶层" />
-                    <Button
-                        Command="{Binding MoveZCommand}"
-                        CommandParameter="{x:Static enums:ScadaZMove.Forward}"
-                        Content="&#xF062;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="上移一层" />
-                    <Button
-                        Command="{Binding MoveZCommand}"
-                        CommandParameter="{x:Static enums:ScadaZMove.Backward}"
-                        Content="&#xF063;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="下移一层" />
-                    <Button
-                        Command="{Binding MoveZCommand}"
-                        CommandParameter="{x:Static enums:ScadaZMove.ToBack}"
-                        Content="&#xF103;"
-                        Style="{StaticResource FormatToolButton}"
-                        ToolTip="置于底层" />
-                </StackPanel>
             </ScrollViewer>
         </Border>
 
-        <!--  ====================  画布宿主  ====================  -->
-        <!--  画面底色是落盘的 #AARRGGBB 文本，绑到 Brush 依赖属性上由 WPF 按目标类型的  -->
-        <!--  TypeConverter（BrushConverter）自动换算，无需自写转换器：领域层也因此不必引用 WPF。  -->
-        <!--  Page 是图层上下文：画布只有 ItemsSource 时只知道"一堆图元"，不知道它们属于哪一页，  -->
-        <!--  图层的可见/锁定规则在渲染侧就无从落地。不接这一行，图层开关等于没生效。  -->
-         <controls:ScadaCanvas
-             x:Name="Canvas"
-             Grid.Row="2"
-             AllowDrop="True"
-             BasePage="{Binding SelectedBasePage.Page}"
-             ContextMenuOpening="OnCanvasContextMenuOpening"
-             DragOver="OnCanvasDragOver"
-             Drop="OnCanvasDrop"
-             GridSize="{Binding SelectedPage.GridSize}"
-             ItemsSource="{Binding SelectedPage.Elements}"
-             Page="{Binding SelectedPage}"
-             PageBackground="{Binding SelectedPage.Background}"
-             PageHeight="{Binding SelectedPage.Height}"
-             PageWidth="{Binding SelectedPage.Width}"
-             SelectedElement="{Binding SelectedElement, Mode=TwoWay}"
-             SelectedElements="{Binding SelectedElements, Mode=TwoWay}"
-             ShowGrid="{Binding SelectedPage.ShowGrid}"
-             SnapToGrid="{Binding SelectedPage.SnapToGrid}">
+        <!--  ====================  画布工作台  ====================  -->
+        <!--  浅色工作台 + 居中的画面：设计稿 .scada-canvas-wrap(#E9EEF5) + .scada-page(白纸)。
+              画面自己那块底色仍由 ScadaPage.Background 决定（运行态默认深色），
+              工作台这一层只管"画面浮在什么上面"——两者不是一回事。  -->
+        <Grid
+            x:Name="CanvasHost"
+            Grid.Row="1"
+            Background="{StaticResource ScadaWorkbenchBrush}"
+            ClipToBounds="True">
 
-            <!--  Delete / 方向键挂在画布上：画布在鼠标按下时抢焦点（见 ScadaCanvas.OnPreviewMouseLeftButtonDown），  -->
-            <!--  所以"焦点在画面下拉里按方向键"仍然是在切画面，不会被微调抢走——这条只有挂在画布上才成立。  -->
-            <!--  CanExecute 为假时 WPF 不消费按键，事件照常往下走，不会把别的控件的方向键吞掉。  -->
-            <controls:ScadaCanvas.InputBindings>
-                <KeyBinding Command="{Binding RemoveElementCommand}" Key="Delete" />
-                <KeyBinding
-                    Command="{Binding NudgeCommand}"
-                    CommandParameter="Left"
-                    Key="Left" />
-                <KeyBinding
-                    Command="{Binding NudgeCommand}"
-                    CommandParameter="Right"
-                    Key="Right" />
-                <KeyBinding
-                    Command="{Binding NudgeCommand}"
-                    CommandParameter="Up"
-                    Key="Up" />
-                <KeyBinding
-                    Command="{Binding NudgeCommand}"
-                    CommandParameter="Down"
-                    Key="Down" />
-            </controls:ScadaCanvas.InputBindings>
+            <!--  画面底色是落盘的 #AARRGGBB 文本，绑到 Brush 依赖属性上由 WPF 按目标类型的  -->
+            <!--  TypeConverter（BrushConverter）自动换算，无需自写转换器：领域层也因此不必引用 WPF。  -->
+            <!--  Page 是图层上下文：画布只有 ItemsSource 时只知道"一堆图元"，不知道它们属于哪一页，  -->
+            <!--  图层的可见/锁定规则在渲染侧就无从落地。不接这一行，图层开关等于没生效。  -->
+            <controls:ScadaCanvas
+                x:Name="Canvas"
+                AllowDrop="True"
+                Background="{StaticResource ScadaWorkbenchBrush}"
+                BasePage="{Binding SelectedBasePage.Page}"
+                ContextMenuOpening="OnCanvasContextMenuOpening"
+                DragOver="OnCanvasDragOver"
+                Drop="OnCanvasDrop"
+                GridSize="{Binding SelectedPage.GridSize}"
+                ItemsSource="{Binding SelectedPage.Elements}"
+                Page="{Binding SelectedPage}"
+                PageBackground="{Binding SelectedPage.Background}"
+                PageHeight="{Binding SelectedPage.Height}"
+                PageWidth="{Binding SelectedPage.Width}"
+                SelectedElement="{Binding SelectedElement, Mode=TwoWay}"
+                SelectedElements="{Binding SelectedElements, Mode=TwoWay}"
+                ShowGrid="{Binding SelectedPage.ShowGrid}"
+                SnapToGrid="{Binding SelectedPage.SnapToGrid}">
 
-            <!--  图元右键菜单：图层归属 + 叠放次序 + 对齐与分布。  -->
-            <!--  这里只放一个空壳，菜单项每次弹出时由代码后台按当前选中图元现装（见 OnCanvasContextMenuOpening）——  -->
-            <!--  图层候选、勾选态、端点判灰都随用户操作在变，预先建好就得逐个订阅刷新，而"弹出即重建"天然不会过期。  -->
-            <!--  FontFamily 用 Colors.xaml 里的图标字体令牌（本视图已就地合并）：菜单项的文字是 Font Awesome 码点，  -->
-            <!--  字形从 ContextMenu 往下继承到各 MenuItem（与 FlowListView 的右键菜单同一套写法）。  -->
-            <!--  刻意不用 App.xaml 的 Icon：那一档资源在没有 Application 的断言宿主里取不到，  -->
-            <!--  整个视图会在 XAML 解析期失败（R22 同族，2026-10-18 顶栏渲染探针实测）。  -->
-            <controls:ScadaCanvas.ContextMenu>
-                <ContextMenu FontFamily="{StaticResource DialogIconFont}" />
-            </controls:ScadaCanvas.ContextMenu>
-        </controls:ScadaCanvas>
+                <!--  Delete / 方向键挂在画布上：画布在鼠标按下时抢焦点（见 ScadaCanvas.OnPreviewMouseLeftButtonDown），  -->
+                <!--  所以"焦点在画面下拉里按方向键"仍然是在切画面，不会被微调抢走——这条只有挂在画布上才成立。  -->
+                <!--  CanExecute 为假时 WPF 不消费按键，事件照常往下走，不会把别的控件的方向键吞掉。  -->
+                <controls:ScadaCanvas.InputBindings>
+                    <KeyBinding Command="{Binding RemoveElementCommand}" Key="Delete" />
+                    <KeyBinding
+                        Command="{Binding NudgeCommand}"
+                        CommandParameter="Left"
+                        Key="Left" />
+                    <KeyBinding
+                        Command="{Binding NudgeCommand}"
+                        CommandParameter="Right"
+                        Key="Right" />
+                    <KeyBinding
+                        Command="{Binding NudgeCommand}"
+                        CommandParameter="Up"
+                        Key="Up" />
+                    <KeyBinding
+                        Command="{Binding NudgeCommand}"
+                        CommandParameter="Down"
+                        Key="Down" />
+                </controls:ScadaCanvas.InputBindings>
 
-        <!--  空态：方案已打开但还没有组态画面。没有这块，用户看到的就是一张纯白画布，
-              会误判成“方案没打开/软件坏了”。  -->
-        <Border
-            Grid.Row="2"
-            Panel.ZIndex="10"
-            Background="{StaticResource ScadaPanelBackgroundBrush}">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Null}">
-                            <Setter Property="Visibility" Value="Visible" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-            <StackPanel
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center">
-                <TextBlock
+                <!--  图元右键菜单：图层归属 + 叠放次序 + 对齐与分布 + 等尺寸/等间距 + 剪贴板。  -->
+                <!--  这里只放一个空壳，菜单项每次弹出时由代码后台按当前选中图元现装（见 OnCanvasContextMenuOpening）——  -->
+                <!--  图层候选、勾选态、端点判灰都随用户操作在变，预先建好就得逐个订阅刷新，而"弹出即重建"天然不会过期。  -->
+                <!--  FontFamily 用 Colors.xaml 里的图标字体令牌（本视图已就地合并）：菜单项的文字是 Font Awesome 码点，  -->
+                <!--  字形从 ContextMenu 往下继承到各 MenuItem（与 FlowListView 的右键菜单同一套写法）。  -->
+                <!--  刻意不用 App.xaml 的 Icon：那一档资源在没有 Application 的断言宿主里取不到，  -->
+                <!--  整个视图会在 XAML 解析期失败（R22 同族，2026-10-18 顶栏渲染探针实测）。  -->
+                <controls:ScadaCanvas.ContextMenu>
+                    <ContextMenu FontFamily="{StaticResource DialogIconFont}" />
+                </controls:ScadaCanvas.ContextMenu>
+            </controls:ScadaCanvas>
+
+            <!--  浮层：位置由代码后台按"选中集合的外接框"与取景器状态现算（见 UpdateSelectionToolbar）。
+                  这层 Canvas 自己不参与命中测试（Background 为 null 就不吃鼠标），
+                  只有里面那两枚带底色的 Border 会接住点击——所以画布该收的拖拽/框选一个都不会少。  -->
+            <Canvas x:Name="Overlay">
+                <!--  左下角取景胶囊：缩放倍率 | 画面设计尺寸（design.html .scada-zoom）  -->
+                <Border
+                    Canvas.Left="12"
+                    Canvas.Bottom="10"
+                    Padding="8,4"
+                    Background="{StaticResource ScadaSurfaceBrush}"
+                    BorderBrush="{StaticResource ScadaToolbarBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Opacity="0.94">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock
+                            FontSize="11"
+                            Foreground="{StaticResource ScadaToolbarTextBrush}"
+                            Text="{Binding Zoom, ElementName=Canvas, StringFormat=P0, FallbackValue=100%}" />
+                        <Rectangle
+                            Width="1"
+                            Height="10"
+                            Margin="7,0"
+                            VerticalAlignment="Center"
+                            Fill="{StaticResource ScadaToolbarBorderStrongBrush}" />
+                        <TextBlock
+                            FontSize="11"
+                            Foreground="{StaticResource ScadaToolbarTextBrush}"
+                            Text="{Binding SelectedPage.Width, StringFormat={}{0:0}}" />
+                        <TextBlock
+                            FontSize="11"
+                            Foreground="{StaticResource ScadaToolbarTextBrush}"
+                            Text=" × " />
+                        <TextBlock
+                            FontSize="11"
+                            Foreground="{StaticResource ScadaToolbarTextBrush}"
+                            Text="{Binding SelectedPage.Height, StringFormat={}{0:0}}" />
+                    </StackPanel>
+                </Border>
+
+                <!--  选中图元的上下文格式工具条（design.html .scada-context-toolbar）。
+                      只有 7 颗：对齐三连 + 叠放两连 + "更多"；其余排列命令在"更多"与右键菜单里。
+                      没选中时整条收起——这是 v2 相对 v1 最重要的一处减法。  -->
+                <Border
+                    x:Name="SelectionToolbar"
+                    Padding="3"
+                    Background="{StaticResource ScadaSurfaceBrush}"
+                    BorderBrush="{StaticResource ScadaToolbarBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    IsHitTestVisible="True"
+                    Visibility="Collapsed">
+                    <Border.Effect>
+                        <DropShadowEffect
+                            BlurRadius="18"
+                            Direction="270"
+                            Opacity="0.16"
+                            ShadowDepth="3"
+                            Color="{StaticResource ScadaToolbarShadowColor}" />
+                    </Border.Effect>
+                    <StackPanel Orientation="Horizontal">
+                        <Button
+                            Command="{Binding AlignCommand}"
+                            CommandParameter="{x:Static enums:ScadaAlign.Left}"
+                            Content="&#xF036;"
+                            Style="{StaticResource ScadaContextButton}"
+                            ToolTip="左对齐" />
+                        <Button
+                            Command="{Binding AlignCommand}"
+                            CommandParameter="{x:Static enums:ScadaAlign.HorizontalCenter}"
+                            Content="&#xF037;"
+                            Style="{StaticResource ScadaContextButton}"
+                            ToolTip="水平居中" />
+                        <Button
+                            Command="{Binding AlignCommand}"
+                            CommandParameter="{x:Static enums:ScadaAlign.Right}"
+                            Content="&#xF038;"
+                            Style="{StaticResource ScadaContextButton}"
+                            ToolTip="右对齐" />
+                        <Rectangle
+                            Width="1"
+                            Height="16"
+                            Margin="3,0"
+                            VerticalAlignment="Center"
+                            Fill="{StaticResource ScadaToolbarBorderBrush}" />
+                        <Button
+                            Command="{Binding MoveZCommand}"
+                            CommandParameter="{x:Static enums:ScadaZMove.ToFront}"
+                            Content="&#xF102;"
+                            Style="{StaticResource ScadaContextButton}"
+                            ToolTip="置于顶层" />
+                        <Button
+                            Command="{Binding MoveZCommand}"
+                            CommandParameter="{x:Static enums:ScadaZMove.Forward}"
+                            Content="&#xF062;"
+                            Style="{StaticResource ScadaContextButton}"
+                            ToolTip="上移一层" />
+                        <Rectangle
+                            Width="1"
+                            Height="16"
+                            Margin="3,0"
+                            VerticalAlignment="Center"
+                            Fill="{StaticResource ScadaToolbarBorderBrush}" />
+                        <Button
+                            x:Name="MoreFormatButton"
+                            Click="OnMoreFormatClick"
+                            Content="&#xF141;"
+                            Style="{StaticResource ScadaContextButton}"
+                            ToolTip="更多排列命令（等尺寸 / 等间距 / 对齐网格 / 分布…）" />
+                    </StackPanel>
+                </Border>
+            </Canvas>
+
+            <!--  空态：方案已打开但还没有组态画面。没有这块，用户看到的就是一张纯白画布，
+                  会误判成“方案没打开/软件坏了”。  -->
+            <Border
+                Panel.ZIndex="10"
+                Background="{StaticResource ScadaPanelBackgroundBrush}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel
                     HorizontalAlignment="Center"
-                    FontSize="18"
-                    FontWeight="SemiBold"
-                    Foreground="{StaticResource ScadaTextBrush}"
-                    Text="当前方案还没有组态画面" />
-                <TextBlock
-                    Margin="0,8,0,0"
-                    HorizontalAlignment="Center"
-                    FontSize="12"
-                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
-                    Text="新建一张画面后，就可以拖入图元开始组态。" />
-                <Button
-                    MinWidth="112"
-                    Margin="0,18,0,0"
-                    Padding="16,7"
-                    HorizontalAlignment="Center"
-                    Background="{StaticResource DialogAccentBrush}"
-                    BorderThickness="0"
-                    Command="{Binding AddPageCommand}"
-                    Content="新建画面"
-                    Foreground="{StaticResource ScadaOnAccentTextBrush}" />
-            </StackPanel>
-        </Border>
+                    VerticalAlignment="Center">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        FontSize="18"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource ScadaTextBrush}"
+                        Text="当前方案还没有组态画面" />
+                    <TextBlock
+                        Margin="0,8,0,0"
+                        HorizontalAlignment="Center"
+                        FontSize="12"
+                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                        Text="新建一张画面后，就可以拖入图元开始组态。" />
+                    <Button
+                        MinWidth="112"
+                        Margin="0,18,0,0"
+                        Padding="16,7"
+                        HorizontalAlignment="Center"
+                        Background="{StaticResource DialogAccentBrush}"
+                        BorderThickness="0"
+                        Command="{Binding AddPageCommand}"
+                        Content="新建画面"
+                        Foreground="{StaticResource ScadaOnAccentTextBrush}" />
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>

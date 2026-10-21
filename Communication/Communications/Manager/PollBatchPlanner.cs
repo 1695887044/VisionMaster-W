@@ -47,6 +47,24 @@ namespace VisionMaster.Communications
 
             public bool IsString;
             public bool IsByteArray;
+
+            /// <summary>
+            /// 是否为"元素数组"（int[] / double[] / bool[]…）。
+            /// <para>byte[] 不算：它是原始字节块，走 <see cref="IsByteArray"/> 的整段切片语义。</para>
+            /// </summary>
+            public bool IsArray;
+
+            /// <summary>数组元素类型（<see cref="IsArray"/> 为 true 时有效）</summary>
+            public Type? ElementType;
+
+            /// <summary>数组元素个数（来自地址配置的 <see cref="DeviceAddressBase.Length"/>）</summary>
+            public int ElementCount;
+
+            /// <summary>字符串数组：每元素固定字节数（来自 <see cref="DeviceAddressBase.ElementByteLength"/>）</summary>
+            public int ElementByteLength;
+
+            /// <summary>是否为字符串数组（元素按 ASCII 解码并 TrimEnd('\0')）</summary>
+            public bool IsStringArray;
         }
 
         /// <summary>一次块读覆盖的连续区域 + 区域内所有变量</summary>
@@ -93,7 +111,8 @@ namespace VisionMaster.Communications
             public int SpanUnits => EndUnit - Start;
 
             /// <summary>段内每个单元占用的字节数（Modbus 寄存器区 1 单元 = 2 字节，其余 1:1）</summary>
-            public int BytesPerUnit => Protocol == PollProtocol.Modbus && !IsBitArea ? 2 : 1;
+            public int BytesPerUnit =>
+                Protocol is PollProtocol.Modbus or PollProtocol.Mc or PollProtocol.Fins && !IsBitArea ? 2 : 1;
 
             /// <summary>
             /// 本段"连续失败"的轮数（成功一轮即归零）。
@@ -262,25 +281,68 @@ namespace VisionMaster.Communications
                     continue;
                 }
 
-                // 变长类型：必须有结构化地址配置才知道读多长（旧字符串地址推不出长度）
+                // 变长/数组类型：必须有结构化地址配置才知道读多长（旧字符串地址推不出长度）
                 bool isString = valueType == typeof(string);
                 bool isByteArray = valueType == typeof(byte[]);
-                if (isString || isByteArray)
+                bool isArray = valueType.IsArray && !isByteArray;
+                Type? elementType = isArray ? valueType.GetElementType() : null;
+                bool isStringArray = isArray && elementType == typeof(string);
+                bool isBoolArray = isArray && elementType == typeof(bool);
+
+                if (isString || isByteArray || isArray)
                 {
                     if (variable.AddressConfig == null)
                     {
-                        log?.Invoke($"变量 {variable.ConnectionName}.{variable.VariableName} 是变长类型（{valueType.Name}）但缺少结构化地址配置，无法确定长度，已跳过轮询");
+                        log?.Invoke($"变量 {variable.ConnectionName}.{variable.VariableName} 是变长/数组类型（{valueType.Name}）但缺少结构化地址配置，无法确定长度，已跳过轮询");
                         continue;
                     }
                 }
-                else if (HslHelper.MinByteCount(valueType) == 0)
+
+                if (isArray)
+                {
+                    if (isStringArray)
+                    {
+                        // 字符串数组必须有"每元素固定字节数"：没有它无法知道切分边界，硬解只会得到乱码。
+                        if (variable.AddressConfig!.ElementByteLength < 1)
+                        {
+                            log?.Invoke($"变量 {variable.ConnectionName}.{variable.VariableName} 是字符串数组但未配置每元素字节数，已跳过轮询");
+                            continue;
+                        }
+                    }
+                    else if (elementType == null || HslHelper.MinByteCount(elementType) == 0)
+                    {
+                        log?.Invoke($"变量 {variable.ConnectionName}.{variable.VariableName} 的数组元素类型 {elementType?.Name ?? "null"} 无法按字节流解码，已跳过轮询");
+                        continue;
+                    }
+
+                    // bool[] 只有 Modbus 位区（线圈/离散输入）有唯一语义；S7 的"打包位 vs 每字节一个"没有定论。
+                    if (isBoolArray && !poll.IsBitArea)
+                    {
+                        log?.Invoke($"变量 {variable.ConnectionName}.{variable.VariableName} 是 bool 数组，但地址不是 Modbus 位区（线圈/离散输入），已跳过轮询");
+                        continue;
+                    }
+
+                    if (!isBoolArray && (poll.IsBitArea || poll.IsBitAccess))
+                    {
+                        log?.Invoke($"变量 {variable.ConnectionName}.{variable.VariableName} 是数值数组，但地址是位区/位访问，已跳过轮询");
+                        continue;
+                    }
+
+                    if (variable.AddressConfig!.Length < 1)
+                    {
+                        log?.Invoke($"变量 {variable.ConnectionName}.{variable.VariableName} 的数组元素个数无效（{variable.AddressConfig.Length}），已跳过轮询");
+                        continue;
+                    }
+                }
+                else if (!isString && !isByteArray && HslHelper.MinByteCount(valueType) == 0)
                 {
                     log?.Invoke($"变量 {variable.ConnectionName}.{variable.VariableName} 的类型 {valueType.Name} 无法按字节流解码，已跳过轮询");
                     continue;
                 }
 
-                // 类型所需字节数 > 地址声明的跨度：批量切片必然解错，退回单读保证值正确
-                if (!isString && !isByteArray && !poll.IsBitArea && !poll.IsBitAccess
+                // 类型所需字节数 > 地址声明的跨度：批量切片必然解错，退回单读保证值正确。
+                // 数组的跨度由 Length 元素个数决定，不走这条（上面已按元素类型校验）。
+                if (!isString && !isByteArray && !isArray && !poll.IsBitArea && !poll.IsBitAccess
                     && HslHelper.MinByteCount(valueType) > poll.ValueByteLength)
                 {
                     if (TryCreateSingleRead(variable, valueType, out var single))
@@ -409,6 +471,8 @@ namespace VisionMaster.Communications
                 foreach (var (poll, variable) in seg.Owned)
                 {
                     var clrType = ResolveClrType(variable.ValueType)!;
+                    bool isArray = clrType.IsArray && clrType != typeof(byte[]);
+                    bool isStringArray = isArray && clrType.GetElementType() == typeof(string);
                     seg.Items.Add(new SegmentItem
                     {
                         Variable = variable,
@@ -417,7 +481,12 @@ namespace VisionMaster.Communications
                         BitOffset = poll.BitOffset,
                         ValueType = clrType,
                         IsString = clrType == typeof(string),
-                        IsByteArray = clrType == typeof(byte[])
+                        IsByteArray = clrType == typeof(byte[]),
+                        IsArray = isArray,
+                        ElementType = isArray ? clrType.GetElementType() : null,
+                        ElementCount = isArray ? variable.AddressConfig?.Length ?? 0 : 0,
+                        IsStringArray = isStringArray,
+                        ElementByteLength = isStringArray ? variable.AddressConfig?.ElementByteLength ?? 0 : 0
                     });
                 }
             }
@@ -510,7 +579,7 @@ namespace VisionMaster.Communications
                     if (seg.IsBitArea)
                         ApplyBits(seg, connection.ReadBits(seg.Address, (ushort)seg.SpanUnits));
                     else
-                        ApplyBytes(seg, connection.ReadBytes(seg.Address, (ushort)seg.SpanUnits), byteOrder);
+                        ApplyBytes(seg, ReadSegmentBytes(connection, seg), byteOrder);
 
                     // 读成功即归零：地址修好后诊断面板的"异常段"自然消失，不需要人工复位
                     Volatile.Write(ref seg.ConsecutiveFailures, 0);
@@ -641,7 +710,7 @@ namespace VisionMaster.Communications
                     }
                     else
                     {
-                        var data = connection.ReadBytes(seg.Address, (ushort)seg.SpanUnits);
+                        var data = ReadSegmentBytes(connection, seg);
                         value = DecodeItem(data, seg, seg.Items[0], byteOrder);
                     }
 
@@ -722,6 +791,15 @@ namespace VisionMaster.Communications
                     $"值已更新但下游处理异常 {variable.VariableName}（{variable.Address}）: {ex.Message}");
             }
         }        /// <summary>解码非位区段的字节流（S7 字节段 / Modbus 寄存器段）</summary>
+        /// <summary>
+        /// 读一段：优先走 <see cref="ISegmentReader"/>（MC/FINS 的"字"单位），
+        /// 否则退回 <see cref="ICommunicationConnection.ReadBytes"/>（Modbus/S7 的既有语义）。
+        /// </summary>
+        private static byte[] ReadSegmentBytes(ICommunicationConnection connection, ReadSegment seg)
+            => connection is ISegmentReader reader
+                ? reader.ReadSegment(seg.Address, (ushort)seg.SpanUnits)
+                : connection.ReadBytes(seg.Address, (ushort)seg.SpanUnits);
+
         private void ApplyBytes(ReadSegment seg, byte[] data, ByteOrderFormat order)
         {
             if (data == null) return;
@@ -794,6 +872,19 @@ namespace VisionMaster.Communications
         /// <summary>从位区点数组里取一个变量的值（轮询与立刻读共用）</summary>
         private static object DecodeBitItem(bool[] bits, SegmentItem item)
         {
+            if (item.IsArray)
+            {
+                int end = item.UnitOffset + item.ElementCount;
+                if (item.UnitOffset < 0 || item.ElementCount < 1 || end > bits.Length)
+                    throw new InvalidOperationException(
+                        $"位区段实际返回 {bits.Length} 点，不足解码 {item.Variable.VariableName}（需第 {item.UnitOffset + 1}~{end} 点）");
+
+                var array = Array.CreateInstance(item.ElementType!, item.ElementCount);
+                for (int i = 0; i < item.ElementCount; i++)
+                    array.SetValue(FromBit(bits[item.UnitOffset + i], item.ElementType!), i);
+                return array;
+            }
+
             if (item.UnitOffset < 0 || item.UnitOffset >= bits.Length)
                 throw new InvalidOperationException(
                     $"位区段实际返回 {bits.Length} 点，不足解码 {item.Variable.VariableName}（需第 {item.UnitOffset + 1} 点）");
@@ -809,6 +900,54 @@ namespace VisionMaster.Communications
         private static object? DecodeValue(byte[] data, int offset, int length, SegmentItem item, ByteOrderFormat order)
         {
             var slice = new ReadOnlySpan<byte>(data, offset, length);
+
+            // 字符串数组：按"每元素固定字节数"切分，ASCII 解码并去掉尾部 '\0'。
+            // 宽度必须来自地址配置（ElementByteLength），不能从类型推断——String 本身没有固定宽度。
+            if (item.IsStringArray)
+            {
+                int elementSize = item.ElementByteLength;
+                if (elementSize < 1 || item.ElementCount < 1)
+                    throw new InvalidOperationException(
+                        $"变量 {item.Variable.VariableName} 的字符串数组缺少每元素字节数/元素个数");
+
+                int needed = elementSize * item.ElementCount;
+                if (needed > slice.Length)
+                    throw new InvalidOperationException(
+                        $"段 {item.Variable.Address} 实际返回 {slice.Length} 字节，不足解码 {item.Variable.VariableName}（需 {needed} 字节）");
+
+                var strings = new string[item.ElementCount];
+                for (int i = 0; i < item.ElementCount; i++)
+                {
+                    var element = slice.Slice(i * elementSize, elementSize);
+                    strings[i] = Encoding.ASCII.GetString(element).TrimEnd('\0');
+                }
+                return strings;
+            }
+
+            // 元素数组：按元素大小逐个解码。字序仍按连接配置（每个元素独立套用），
+            // 与标量走同一个 HslHelper.ConvertToByType，保证"标量读得对、数组读错"不会发生。
+            if (item.IsArray)
+            {
+                var elementType = item.ElementType
+                    ?? throw new InvalidOperationException($"变量 {item.Variable.VariableName} 缺少数组元素类型");
+                int elementSize = HslHelper.MinByteCount(elementType);
+                if (elementSize <= 0 || item.ElementCount < 1)
+                    throw new InvalidOperationException(
+                        $"变量 {item.Variable.VariableName} 的数组元素类型/个数无效（{elementType.Name} × {item.ElementCount}）");
+
+                int needed = item.ElementCount * elementSize;
+                if (needed > slice.Length)
+                    throw new InvalidOperationException(
+                        $"段 {item.Variable.Address} 实际返回 {slice.Length} 字节，不足解码 {item.Variable.VariableName}（需 {needed} 字节）");
+
+                var array = Array.CreateInstance(elementType, item.ElementCount);
+                for (int i = 0; i < item.ElementCount; i++)
+                {
+                    var element = slice.Slice(i * elementSize, elementSize);
+                    array.SetValue(HslHelper.ConvertToByType(element, elementType, order), i);
+                }
+                return array;
+            }
 
             if (item.IsByteArray) return slice.ToArray();
             if (item.IsString) return Encoding.ASCII.GetString(slice).TrimEnd('\0'); // 与写链路 ASCII 对称

@@ -42,5 +42,20 @@ namespace VisionMaster.Scada
         /// <param name="text">操作员输入的原样文本（不做 trim、不做预转换，规则由实现方统一走）</param>
         /// <param name="error">失败原因；成功为 null</param>
         bool TryWriteText(ScadaElement element, string targetProperty, string? text, out string? error);
+
+        /// <summary>
+        /// 读取该属性当前绑定的变量值（用于审计/回执里的"旧值 → 新值"）。
+        ///
+        /// 默认实现返回 false：老的/测试的写入器不必为了一个展示字段被迫接值源；
+        /// 调用方在 false 时应把旧值显示为"未知"，而不是拿图元的属性袋冒充运行期变量值。
+        /// </summary>
+        /// <param name="element">图元</param>
+        /// <param name="targetProperty">属性键</param>
+        /// <param name="text">当前值的不变区域性文本；读不到为 null</param>
+        bool TryReadText(ScadaElement element, string targetProperty, out string? text)
+        {
+            text = null;
+            return false;
+        }
     }
 }

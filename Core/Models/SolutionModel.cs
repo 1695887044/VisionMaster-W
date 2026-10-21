@@ -199,6 +199,25 @@ namespace VisionMaster.Models
         [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
         public List<VariableDto> VariableSnapshots { get; set; } = new();
 
+        private List<VariableGroupDescriptor> variableGroups = new();
+
+        /// <summary>
+        /// 变量显示分组表（方案级、纯展示分类，随 .vms 落盘）。
+        ///
+        /// 只服务变量管理的「归类 + 筛选」，不参与采集 / 轮询 / 写入；扫描组是连接级调度资源，
+        /// 存在 <c>CommunicationConfig.ScanGroups</c> 里，与本表互不相干。
+        /// 变量通过 <see cref="NetworkVariableModel.GroupId"/> 引用本表的 <see cref="VariableGroupDescriptor.Id"/>，
+        /// 所以改名不需要级联；旧方案缺本字段 → 空表，变量 GroupId 为空 → 「未分组」。
+        ///
+        /// setter 兜底 null：.vms 是可人工编辑的文件，一句 "VariableGroups": null 不该让变量管理崩。
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public List<VariableGroupDescriptor> VariableGroups
+        {
+            get => variableGroups;
+            set => variableGroups = value ?? new();
+        }
+
         /// <summary>
         /// 动态监视项列表（用于调试时查看变量值）
         /// </summary>

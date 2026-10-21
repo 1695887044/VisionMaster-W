@@ -177,6 +177,24 @@ namespace FlowCanvasChecks
                 && hostVm.Contains("_commPage = null;", StringComparison.Ordinal)
                 && hostVm.Contains("_motionPage = null;", StringComparison.Ordinal),
                 "不假定 RegisterDialog 的生命周期");
+
+            var tabLine = motionVm.Split('\n')
+                .FirstOrDefault(l => l.Contains("TabLabels { get; }", StringComparison.Ordinal)) ?? string.Empty;
+            Program.Check("HW20 电子凸轮不开放 UI（页签与视图都已下线）",
+                tabLine.Length > 0
+                && !tabLine.Contains("电子凸轮", StringComparison.Ordinal)
+                && tabLine.Contains("点位列表", StringComparison.Ordinal)
+                && !motionXaml.Contains("MotionBoardCamView", StringComparison.Ordinal)
+                && !motionVm.Contains("\"cam\" => 3", StringComparison.Ordinal),
+                tabLine.Length == 0 ? "找不到 TabLabels" : tabLine.Trim());
+
+            var paletteBody = MethodBody(shellVm, "private void BuildCommandPalette()");
+            Program.Check("HW21 命令面板不再暴露相机/运动/通讯入口",
+                paletteBody.Contains("硬件管理", StringComparison.Ordinal)
+                && !paletteBody.Contains("相机设置", StringComparison.Ordinal)
+                && !paletteBody.Contains("运动板卡", StringComparison.Ordinal)
+                && !paletteBody.Contains("通讯设置", StringComparison.Ordinal),
+                paletteBody.Length == 0 ? "找不到 BuildCommandPalette" : "命令面板只保留硬件管理");
         }
 
         private static bool Implements(string source, string className)

@@ -64,5 +64,29 @@ namespace VisionMaster.Scada
         /// <param name="fallbackName">兜底名字（旧数据或用户手输）</param>
         /// <param name="handle">解析结果；未命中为 null</param>
         bool TryResolve(Guid variableId, string? fallbackName, out IScadaValueHandle? handle);
+
+        /// <summary>
+        /// 解析一条带数组下标的引用：<see cref="ScadaVariableRef.ArrayIndex"/> = -1 时与上面
+        /// 那个重载等价；≥ 0 时返回该数组变量一个元素的值通道。
+        ///
+        /// 为什么给默认实现：数组元素是新增能力，既有的测试桩/替身只需实现旧方法即可继续跑
+        /// "标量绑定"那批断言；真正支持数组的实现（RegistryScadaValueSource）覆盖本方法。
+        /// 默认实现忽略下标，是为了让旧替身的行为保持"只认变量根"——它没有能力解析元素，
+        /// 静默返回根变量比抛异常更符合"替身只承诺它实现得了的那部分"。
+        /// </summary>
+        bool TryResolve(ScadaVariableRef reference, out IScadaValueHandle? handle, out string? error)
+        {
+            // 旧替身只认变量根；数组元素必须显式不支持，不能静默退化成"绑整个数组"——
+            // 后者在数据泵里会按根 Id 合并订阅，所有元素显示同一个值，属于最难查的静默错绑。
+            if (reference.IsArrayElement)
+            {
+                handle = null;
+                error = $"当前值源不支持数组元素「{reference.DisplayText}」";
+                return false;
+            }
+
+            error = null;
+            return TryResolve(reference.VariableId, reference.VariableName, out handle);
+        }
     }
 }

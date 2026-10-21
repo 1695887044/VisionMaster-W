@@ -4,12 +4,12 @@
 | --- | --- |
 | 版本 | **v1** |
 | 日期 | 2026-10-21 |
-| 确认日期 / 人 | 待用户确认 |
-| 覆盖范围 | ① 事件钩子级「执行前确认」；② 流程「暂停流程 / 恢复流程」两个动作；4 个 UI 面：事件编辑器、确认弹窗、自动页暂停/恢复（模板）、动作编辑器与状态矩阵。自动页是模板，已暂停状态由同钩子 `WriteVariable(Paused=1/0)` 驱动，P0 不新增流程状态源 |
+| 确认日期 / 人 | 2026-10-21 智能体评审（UI + reviewer）；WPF 复刻与同屏截图已完成，待用户最终确认 |
+| 覆盖范围 | ① 事件钩子级「执行前确认」；② 流程「暂停流程 / 恢复流程」两个动作；③ 条件动作「仅在上一条成功时执行」；4 个 UI 面：事件编辑器、确认弹窗、自动页暂停/恢复（模板）、动作编辑器与状态矩阵。自动页是模板，已暂停状态由同钩子 `PauseFlow + WriteVariable(Paused=1)`（勾选条件执行）驱动，P0 不新增流程状态源 |
 | 设计文件 | `design.html`（自包含，无外部依赖；顶部页签切换 4 个 UI 面） |
-| 证据目录 | `evidence/`（4 张设计稿渲染 PNG） |
+| 证据目录 | `evidence/`（4 张设计稿 + 4 张 WPF 同屏截图 `after-*.png`） |
 | 关联基线 | `docs/UI设计基线/message-dialog/`（确认弹窗视觉与键盘契约）、`docs/UI设计基线/scada-controls/`（SCADA 令牌）、`docs/UI设计基线/industry-templates/scada-suite/`（自动页模板） |
-| 状态 | 设计待确认；**未开始 WPF 复刻** |
+| 状态 | **WPF 复刻完成**；ScadaChecks 2286 / FlowCanvasChecks 3055 / UIThemeSmokeTest 86 全绿；待用户最终确认 |
 
 ## 定位
 
@@ -34,7 +34,7 @@
 - 在现有「事件 + 动作表」编辑器的事件勾选框下方新增一行 **执行前确认**：
   - 默认**关闭**；关闭时与现有行为完全一致。
   - 勾选后出现可选文本框「确认提示」，留空走默认提示。
-  - 动作表含 `停止流程` / `轴停止` / `轴失能` 时显示「危险动作」标记。
+  - 动作表含 `启动流程` / `停止流程` / `执行一次` / `轴停止` / `轴失能` / `轴定位` / `轴回零` / `点动开始` 时显示「危险动作」标记（判据在领域层 `IsDangerous()` 单源，视图不硬编码）。
   - 事件未勾选时不出现确认行；勾选确认但动作表为空时显示“不会有任何反应，也不会弹确认框”。
 - 确认挂在**事件钩子**上，不是单条动作上；一次确认覆盖整串动作。
 
@@ -54,9 +54,9 @@
   - 已暂停：「恢复」变主按钮、「暂停」禁用、「启动」禁用、「停止」仍可用、「复位」禁用。
   - 已停止：「启动」可用（许可满足）、「复位」可用。
   - 故障：「停止」可用（安全停止）、「复位」清故障后可用。
-- 暂停在**节点边界**生效，不是立即冻结当前节点；恢复从当前步继续；停止后不能恢复。
-- **只有连续运行可暂停**：单次执行（RunOnce）不支持暂停，动作跳过并记 Warn，不能报“已暂停”假成功。
-- **状态驱动**：推荐在「暂停」钩子里同时放 `PauseFlow` + `WriteVariable(Paused=1)`，「恢复」钩子放 `ResumeFlow` + `WriteVariable(Paused=0)`；页面用该变量 + 可见性/外观动画显示“已暂停”。P0 不新增流程状态源。
+- 暂停在**节点边界**生效，不是立即冻结当前节点；恢复从当前步继续；停止后不能恢复。实现：`FlowSession.DebugGateBeforeNode` 对连续运行（`IsContinuousRun=true`）不再豁免，即使 `DebugEnabled=false` 也会在下一个节点执行前等 `PauseLock`。
+- **只有连续运行可暂停**：单次执行（RunOnce）不支持暂停，动作跳过并记 Warn，不能报“已暂停”假成功。引擎静默收手（状态未变）时，出口也必须返回失败，不许把“引擎什么也没做”报成“已暂停/已恢复”。
+- **状态驱动**：推荐在「暂停」钩子里同时放 `PauseFlow` + `WriteVariable(Paused=1)`，「恢复」钩子放 `ResumeFlow` + `WriteVariable(Paused=0)`；**写变量必须勾选「仅在上一条成功时执行」**，否则暂停/恢复被跳过时仍会把页面写成假状态。页面用该变量 + 可见性/外观动画显示“已暂停”。P0 不新增流程状态源。
 
 ### 4. 动作编辑器
 
@@ -65,8 +65,10 @@
   - `ResumeFlow = 17`（恢复流程）
 - 两者与启动/停止/执行一次共用同一个「目标流程」编辑块（`FlowId` / `FlowName`）。
 - 暂停/恢复语义：
-  - 暂停：流程存在且运行中 → 请求引擎暂停；未运行 → 跳过并记 Warn；已暂停 → 幂等成功。
-  - 恢复：流程存在且运行中 → 请求引擎恢复；未运行 → 跳过并记 Warn；未暂停 → 幂等成功（本就运行）。
+  - 暂停：流程存在且运行中 → 请求引擎暂停；未运行 → 跳过并记 Warn；已暂停 → 幂等成功「本就已暂停」。
+  - 恢复：流程存在且运行中 → 请求引擎恢复；未运行 → 跳过并记 Warn；未暂停 → 幂等成功「本就未暂停」。
+- 写变量动作新增 **「仅在上一条成功时执行」** 复选框（默认不勾）。它解决“暂停失败后仍写 `Paused=1`”的假状态：上一条被跳过/失败时，本条不执行并记一条 Warn + 审计 `Skipped`。
+- 确认框主按钮文案由动作语义给出：`确认停止` / `确认启动` / `确认执行`；标题与按钮必须同义（轴停止/轴失能问“确认停止设备？”，不问“停止流程？”）。
 
 ## 令牌映射
 
@@ -74,7 +76,7 @@
 
 | 区域 | 令牌 |
 | --- | --- |
-| 事件/动作编辑器（亮色） | `ScadaTextBrush`、`ScadaSecondaryTextBrush`、`ScadaWarningBrush`、`ScadaPanelBorderBrush`、`ScadaActionCardBorderBrush`、`ScadaPanelBackgroundBrush`、`ScadaSurfaceBrush`（**没有 `ScadaBorderBrush`**） |
+| 事件/动作编辑器（亮色） | `ScadaTextBrush`、`ScadaSecondaryTextBrush`、`ScadaWarningBrush`（未选提示）、`ScadaDangerBrush`（危险动作标记）、`ScadaPanelBorderBrush`、`ScadaActionCardBorderBrush`、`ScadaPanelBackgroundBrush`、`ScadaSurfaceBrush`（**没有 `ScadaBorderBrush`**） |
 | 确认弹窗 | `Dialog*` 令牌 + `MessageDialog` 既有样式（`DialogMessagePrimaryButton` / `DialogMessageDangerButton` / `DialogMessageSecondaryButton`） |
 | 自动页（暗色） | `HmiSurfaceBrush`、`HmiBorderBrush`、`HmiTextBrush`、`HmiTextSecondaryBrush`、`HmiWarningBrush`（已暂停）、`HmiDangerBrush`（停止） |
 | 按钮五态 | 现有 `ScadaButton` / `DialogButton` / `Hmi` 按钮样式，不新造 |
@@ -109,13 +111,14 @@
 | Web 设计面 | WPF 落点 |
 | --- | --- |
 | 事件编辑器「执行前确认」 | `ScadaEventHook.RequireConfirmation` / `ConfirmationMessage`；`ScadaEventEditor.xaml` + `ScadaEventEditorViewModel`；`ConfirmationMessage` 落 `MessageDialogOptions.Hint` |
-| 确认弹窗 | `IScadaConfirmationService.Confirm(title, message, danger)`（默认接口方法，2 参调用回落 Warning）；`ScadaConfirmationService` → `MessageDialog.Show(options)`（Title/Message/Hint/Question，Warning/Danger，默认焦点取消） |
+| 确认弹窗 | `IScadaConfirmationService.Confirm(ScadaConfirmationRequest)`（Title/Message/Hint/Question/Danger/PrimaryText；2 参旧签名回落 Warning）；`ScadaConfirmationService` → `MessageDialog.Show(options)`（默认焦点取消，确认出口异常按取消处理） |
 | 危险动作判定 | 领域层 `ScadaActionTypeExtensions.IsDangerous()`（`StopFlow` / `MotionStop` / `MotionDisable` 等）；编辑器与分发器共用，不在视图硬编码 |
 | 动作下拉「暂停/恢复流程」 | `ScadaActionType.PauseFlow` / `ResumeFlow`；`DisplayName/PendingReason`；`ActionTypeChoices` **显示顺序按类别分组**（流程类相邻），枚举值仍在末尾 16/17 |
 | 动作行目标流程 | `ScadaAction.Detail/Describe` 增加两条；`ScadaEventEditor.xaml` 流程块增加两个 `DataTrigger` |
 | 动作执行 | `ScadaActionDispatcher.Dispatch` 前置确认闸门；取消时合成一条 `ScadaAuditEntry`（动作「执行前确认：取消」，`Skipped`）；`ExecuteFlowAction` 增加两个 case |
-| 流程暂停/恢复 | `IScadaFlowRunner.Pause/Resume`；`ScadaFlowRunner` 调 `IFlowEngine.PauseSession/ResumeSession`；**仅连续运行**（`FlowSession.IsContinuousRun`），单次执行跳过 + Warn |
-| 自动页状态 | 模板；P0 不提供固定视图/流程状态源；“已暂停”由同钩子 `WriteVariable(Paused=1/0)` + 页面可见性/外观动画驱动 |
+| 流程暂停/恢复 | `IScadaFlowRunner.Pause/Resume`；`ScadaFlowRunner` 调 `IFlowEngine.PauseSession/ResumeSession` 并校验 `State` 真的迁移；**仅连续运行**（`FlowSession.IsContinuousRun`），单次执行跳过 + Warn；节点边界由 `FlowSession.DebugGateBeforeNode` 对连续运行不再豁免实现 |
+| 自动页状态 | 模板；P0 不提供固定视图/流程状态源；“已暂停”由同钩子 `PauseFlow` + `WriteVariable(Paused=1)`（勾选「仅在上一条成功时执行」）+ 页面可见性/外观动画驱动 |
+| 复制粘贴 / 模板 | `ScadaEventHookSnapshot` 搬 `RequireConfirmation/ConfirmationMessage`；`ScadaActionSnapshot` 搬 `FlowId/FlowName/OnlyIfPreviousSucceeded`；`CurrentVersion=4`，老模板缺字段取默认值 |
 | 弹窗键盘 | `EasyDialog` 的 Y 键改为 `RequestDefault()`（危险场景 = 取消）；底栏文案按 `PrimaryTone` 分支，不再把所有“默认焦点在次按钮”都标成危险 |
 
 ## 评审记录（UI-SOP 第 ② 步）
@@ -123,13 +126,14 @@
 | 日期 | 评审 | 结论 | 处置 |
 | --- | --- | --- | --- |
 | 2026-10-21 | `ui` 智能体（只读） | **有条件通过** | 7 条阻断项已在本版收口：B1 自动页状态改为同钩子写变量驱动；B2 确认服务加 danger 重载；B3 弹窗收敛到 Title/Message/Hint/Question；B4 Y 键改走默认焦点、底栏文案按 PrimaryTone；B5 令牌映射改用真实 `ScadaPanelBorderBrush`/`ScadaActionCardBorderBrush`；B6 补字号/圆角映射并抬到 10px 下限；B7 补“权限不足”矩阵行并改 RequiredRole 表述 |
+| 2026-10-21 | `reviewer` 智能体（只读，WPF 符合性） | **FAIL → PASS WITH ISSUES → 已收口** | 8 条阻断项全部处置：① 连续非调试会话补节点级 `PauseLock` 等待（`FlowSession.DebugGateBeforeNode` 不再豁免 `IsContinuousRun`）；② `ScadaFlowRunner.Pause/Resume` 校验 `State` 真迁移，静默收手返回 false；③ 新增 `OnlyIfPreviousSucceeded`，自动页状态变量不再盲写；④ 快照/剪贴板补确认开关、流程目标、条件开关，版本升 4；⑤ 确认标题与主按钮文案同义，轴停止/失能不再问“停止流程”；⑥ 分发器捕获确认出口异常并按取消处理；⑦ 补 WPF 同屏截图与文档索引/code-changes；⑧ 补 20+ 条 P0 断言（含假成功反证、节点门、复制粘贴、旧 .vms）。复审新增 B9（非调试连续运行误食残留断点/单步）与 B10（停止进行中 Pause/Resume 报成功）已一并修复，并补断点/单步/停止中三条反证断言；复审提出的“UC 段计数不进主汇总”与“同步直调节点门可能挂死”也已修复（`LastResult` 并回主汇总、Task+超时） |
 
-> 复刻 WPF 前需再确认：`EasyDialog` 的 Y 键改动与 `MessageDialog` 底栏文案改动属于共享组件，必须补负向断言；轴控台长文案的 480/560 宽度需真机实测。
+> 共享组件负向断言已补：`UIThemeSmokeTest` 的 `MessageDialogSmoke` 覆盖危险默认焦点/底栏文案/`RequestDefault`；`ScadaChecks` 覆盖确认出口异常、危险标题/主按钮、条件动作与节点门。轴控台长文案的 480/560 宽度仍建议真机复核（不影响 P0 逻辑）。
 
 ## 已知偏差
 
 1. **自动页是模板**：WPF 没有固定的“自动页”视图；P0 只保证“暂停流程/恢复流程”动作可用，页面由用户组态。
-2. **“已暂停”由变量驱动**：P0 不新增流程状态源；推荐在同一条钩子里放 `PauseFlow` + `WriteVariable(Paused=1/0)`，页面用变量 + 可见性/外观动画显示“已暂停”。模板演示该配置，真机需用户按现场变量命名落地。
+2. **“已暂停”由变量驱动**：P0 不新增流程状态源；推荐在同一条钩子里放 `PauseFlow` + `WriteVariable(Paused=1)`，并给写变量勾上「仅在上一条成功时执行」，页面用变量 + 可见性/外观动画显示“已暂停”。模板演示该配置，真机需用户按现场变量命名落地。
 3. **确认粒度是钩子级**：一次确认覆盖整串动作；不支持“逐条动作确认”。
 4. **确认弹窗只承诺 MessageDialog 现有槽**：`Title` / `Message` / `Hint` / `Question` / 双按钮；**不承诺副标题、结构化详情、任意富文本**。设计稿已按此收敛。
 5. **确认弹窗替换影响轴控台**：`ScadaConfirmationService` 从 `EasyDialog` 换成 `MessageDialog` 后，轴控台示教/定位的确认外观也会变化；长文案在 480 宽下需实测，不够时用 560 宽档。
@@ -146,16 +150,16 @@
 - 暂停全部流程、急停。
 - 操作审计查看器（现有 `ScadaAuditWriter` 只有写端）。
 
-## 验证计划（复刻后）
+## 验证计划与结果（复刻后）
 
-| 层 | 判据 | 证据 |
+| 层 | 判据 | 证据 / 结果 |
 | --- | --- | --- |
-| 构建 | `dotnet build` 0 错误（既有可空性警告不计）；`Modules` 产物时间戳更新 | 构建日志 |
-| 契约 | `ScadaChecks`：`RequireConfirmation` 默认关闭/旧 .vms 兼容；动作枚举追加；事件编辑器 VM 读写；确认/取消/无服务三条路径；`Confirm(..., danger)` 重载；暂停/恢复幂等与未运行/单次执行分支 | `ScadaChecks` 输出 |
-| 运行 | `FlowCanvasChecks`：动作分发器确认闸门；流程 runner 暂停/恢复；取消不执行任何动作；取消审计条目；`ActionTypeChoices` 显示顺序 | `FlowCanvasChecks` 输出 |
-| UI | `UIThemeSmokeTest`：事件编辑器 XAML 加载、`hex=0`、MessageDialog 可用；**Y 键危险场景不触发主操作**；底栏文案按 PrimaryTone 分支 | 冒烟日志 |
-| 视觉 | WPF 同屏截图：事件编辑器确认行、确认弹窗 Warning/Danger、动作下拉暂停/恢复 | `evidence/after-*.png` |
-| 回归 | `ScadaChecks` / `FlowCanvasChecks` 0 失败 | gate 日志 |
+| 构建 | `dotnet build` 0 错误（既有可空性警告不计）；`Modules` 产物时间戳更新 | 构建日志：ScadaChecks / FlowCanvasChecks / UIThemeSmokeTest 均 0 错误 |
+| 契约 | `ScadaChecks`：`RequireConfirmation` 默认关闭/旧 .vms 兼容；动作枚举 16/17 追加；确认/取消/无服务/确认出口异常四条路径；危险标题与主按钮文案；暂停/恢复幂等、未运行/单次/连续/引擎静默收手；节点门；条件动作；复制粘贴；动作下拉顺序 | **2286 通过 / 0 失败** |
+| 运行 | `FlowCanvasChecks`：引擎暂停/恢复与既有执行链回归（P0 分发器/确认闸门断言在 `ScadaChecks`，不在本宿主） | **3055 通过 / 0 失败** |
+| UI | `UIThemeSmokeTest`：MessageDialog 危险默认焦点/底栏文案/`RequestDefault`；资源与控件模板回归 | **86 PASS / 0 FAIL，退出码 0** |
+| 视觉 | WPF 同屏截图：事件编辑器确认行 + 条件动作、Warning 确认弹窗、Danger 确认弹窗 | `evidence/after-01-editor.png`、`after-02-dialog-warning.png`、`after-03-dialog-danger.png`、`after-04-editor-danger.png` |
+| 回归 | 三条 gate 0 失败 | 同上 |
 
 ## 变更规则
 

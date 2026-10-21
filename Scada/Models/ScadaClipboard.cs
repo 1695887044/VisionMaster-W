@@ -26,8 +26,15 @@ namespace VisionMaster.Scada
         /// 3：图元快照新增 <see cref="ScadaElementSnapshot.ParentSlot"/>（底板父子归属）。
         /// 同样是向后兼容的：老模板读进来取默认值 <c>NoParentSlot</c>（顶层），
         /// 正是"那个版本没有底板"的正确解释。
+        ///
+        /// 4（2026-10-21 P0）：事件钩子快照补 RequireConfirmation/ConfirmationMessage，
+        /// 动作快照补 FlowId/FlowName/OnlyIfPreviousSucceeded。老模板缺字段取默认值
+        /// （不确认 / 没选流程 / 不条件执行），正是"那个版本没有这些配置"的正确解释。
+        ///
+        /// 5（2026-10-21 模板参数化）：绑定/动画/动作快照补 ArrayIndex。老模板缺字段取
+        /// 默认 -1（引用整个变量），正是"那个版本没有数组元素绑定"的正确解释。
         /// </remarks>
-        public const int CurrentVersion = 3;
+        public const int CurrentVersion = 5;
 
         public int Version { get; set; } = CurrentVersion;
 
@@ -197,6 +204,7 @@ namespace VisionMaster.Scada
                     TargetProperty = binding.TargetProperty,
                     VariableId = binding.VariableId,
                     VariableName = binding.VariableName,
+                    ArrayIndex = binding.ArrayIndex,
                     IsEnabled = binding.IsEnabled,
                     DisplayFormat = binding.DisplayFormat,
                 });
@@ -207,7 +215,12 @@ namespace VisionMaster.Scada
                 if (hook == null)
                     continue;
 
-                var hookSnapshot = new ScadaEventHookSnapshot { Event = hook.Event };
+                var hookSnapshot = new ScadaEventHookSnapshot
+                {
+                    Event = hook.Event,
+                    RequireConfirmation = hook.RequireConfirmation,
+                    ConfirmationMessage = hook.ConfirmationMessage,
+                };
 
                 foreach (var action in hook.Actions)
                 {
@@ -220,9 +233,13 @@ namespace VisionMaster.Scada
                         Text = action.Text,
                         VariableId = action.VariableId,
                         VariableName = action.VariableName,
+                        ArrayIndex = action.ArrayIndex,
                         Value = action.Value,
                         TargetPageId = action.TargetPageId,
                         TargetPageName = action.TargetPageName,
+                        FlowId = action.FlowId,
+                        FlowName = action.FlowName,
+                        OnlyIfPreviousSucceeded = action.OnlyIfPreviousSucceeded,
                         AxisId = action.AxisId,
                         AxisName = action.AxisName,
                         TargetMm = action.TargetMm,
@@ -244,6 +261,7 @@ namespace VisionMaster.Scada
                     IsEnabled = animation.IsEnabled,
                     VariableId = animation.VariableId,
                     VariableName = animation.VariableName,
+                    ArrayIndex = animation.ArrayIndex,
                     RangeLow = animation.RangeLow,
                     RangeHigh = animation.RangeHigh,
                     EndX = animation.EndX,
@@ -288,7 +306,7 @@ namespace VisionMaster.Scada
             width = 0;
             height = 0;
 
-            if (payload == null || payload.Items.Count == 0)
+            if (payload == null || payload.Items == null || payload.Items.Count == 0)
                 return;
 
             double minX = double.MaxValue;
@@ -334,12 +352,28 @@ namespace VisionMaster.Scada
             ScadaClipboardPayload? payload,
             double offsetX,
             double offsetY,
-            string label)
+            string label,
+            bool groupAll = false,
+            Guid templateId = default,
+            int templateIndex = -1,
+            int templateRevision = 0,
+            Guid? groupIdOverride = null,
+            int? startZ = null,
+            Guid? layerIdOverride = null)
         {
             var created = new List<ScadaElement>();
 
-            if (page == null || payload == null || payload.Items.Count == 0)
+            if (page == null || payload == null || payload.Items == null || payload.Items.Count == 0)
                 return created;
+
+            // 模板实例要"一拉进来就是一整块"：整批共用一个 GroupId，
+            // 与负载里原有的组槽位不混。粘贴/再制不传这个开关，保持原行为。
+            // 单图元不建组：单控件既不允许存模板，也不允许成组（与 TryGroupElements 至少 2 个同口径）。
+            Guid? forcedGroupId = groupIdOverride is { } existingGroup && existingGroup != Guid.Empty
+                ? existingGroup
+                : groupAll && payload.Items.Count(item => item != null) >= 2
+                    ? Guid.NewGuid()
+                    : null;
 
             // 槽位 → 新 Guid（只给"槽内至少两个成员"的槽位发号，口径与 Capture 那侧对齐）
             var groupCounts = new Dictionary<int, int>();
@@ -359,11 +393,22 @@ namespace VisionMaster.Scada
             // 于是物化顺序有硬要求：父必须排在子前面（见下面的排序）。
             var parentIds = new Dictionary<int, Guid>();
 
-            int topZ = 0;
-            foreach (var existing in page.Elements)
+            int topZ;
+
+            if (startZ is { } requestedZ)
             {
-                if (existing != null && existing.ZIndex > topZ)
-                    topZ = existing.ZIndex;
+                // 刷新关联实例：沿用旧实例的最小 Z，避免整块跳到画面最上层。
+                topZ = requestedZ - 1;
+            }
+            else
+            {
+                topZ = 0;
+
+                foreach (var existing in page.Elements)
+                {
+                    if (existing != null && existing.ZIndex > topZ)
+                        topZ = existing.ZIndex;
+                }
             }
 
             using (page.BeginEdit(label))
@@ -385,14 +430,16 @@ namespace VisionMaster.Scada
                     topZ++;
 
                     int z = topZ;
-                    Guid groupId = ResolveGroupId(snapshot.GroupSlot, groupCounts, groupIds);
+                    Guid groupId = forcedGroupId
+                        ?? ResolveGroupId(snapshot.GroupSlot, groupCounts, groupIds);
                     Guid parentId = ResolveParentId(snapshot.ParentSlot, parentIds);
 
                     // 构造走 Detached：此刻图元还没进文档，给它填初始值既不是"编辑"
                     //（否则撤销栈里会先冒出一串 "Name: '' → '按钮'" 的垃圾记录），
                     // 也不该被严格写守卫拦下。构造与编辑是两件事，这是那条分界线。
                     var element = ScadaChangeScope.Detached(
-                        () => Build(page, snapshot, offsetX, offsetY, z, groupId, parentId));
+                        () => Build(page, snapshot, offsetX, offsetY, z, groupId, parentId,
+                            templateId, templateIndex, templateRevision, layerIdOverride));
 
                     if (page.TryAddElement(element, out _))
                     {
@@ -459,7 +506,11 @@ namespace VisionMaster.Scada
             double offsetY,
             int zIndex,
             Guid groupId,
-            Guid parentId)
+            Guid parentId,
+            Guid templateId,
+            int templateIndex,
+            int templateRevision,
+            Guid? layerIdOverride)
         {
             // ElementId 刻意不赋值：字段初值就是 Guid.NewGuid()，正是"重编身份"想要的语义。
             // 名字在这里就地查重：本方法每造一个就立刻被 TryAddElement 收进画面，
@@ -476,9 +527,12 @@ namespace VisionMaster.Scada
                 ZIndex = zIndex,
                 IsLocked = snapshot.IsLocked,
                 RequiredRole = snapshot.RequiredRole,
-                LayerId = ResolveLayerId(page, snapshot.LayerName),
+                LayerId = layerIdOverride ?? ResolveLayerId(page, snapshot.LayerName),
                 GroupId = groupId,
                 ParentId = parentId,
+                TemplateId = templateId,
+                TemplateIndex = templateIndex,
+                TemplateRevision = templateRevision,
             };
 
             foreach (var pair in snapshot.Properties)
@@ -494,6 +548,7 @@ namespace VisionMaster.Scada
                     TargetProperty = binding.TargetProperty,
                     VariableId = binding.VariableId,
                     VariableName = binding.VariableName,
+                    ArrayIndex = binding.ArrayIndex,
                     IsEnabled = binding.IsEnabled,
                     DisplayFormat = binding.DisplayFormat,
                 });
@@ -504,7 +559,12 @@ namespace VisionMaster.Scada
                 if (hookSnapshot == null)
                     continue;
 
-                var hook = new ScadaEventHook { Event = hookSnapshot.Event };
+                var hook = new ScadaEventHook
+                {
+                    Event = hookSnapshot.Event,
+                    RequireConfirmation = hookSnapshot.RequireConfirmation,
+                    ConfirmationMessage = hookSnapshot.ConfirmationMessage,
+                };
 
                 foreach (var action in hookSnapshot.Actions)
                 {
@@ -517,9 +577,13 @@ namespace VisionMaster.Scada
                         Text = action.Text,
                         VariableId = action.VariableId,
                         VariableName = action.VariableName,
+                        ArrayIndex = action.ArrayIndex,
                         Value = action.Value,
                         TargetPageId = action.TargetPageId,
                         TargetPageName = action.TargetPageName,
+                        FlowId = action.FlowId,
+                        FlowName = action.FlowName,
+                        OnlyIfPreviousSucceeded = action.OnlyIfPreviousSucceeded,
                         AxisId = action.AxisId,
                         AxisName = action.AxisName,
                         TargetMm = action.TargetMm,
@@ -541,6 +605,7 @@ namespace VisionMaster.Scada
                     IsEnabled = animationSnapshot.IsEnabled,
                     VariableId = animationSnapshot.VariableId,
                     VariableName = animationSnapshot.VariableName,
+                    ArrayIndex = animationSnapshot.ArrayIndex,
                     RangeLow = animationSnapshot.RangeLow,
                     RangeHigh = animationSnapshot.RangeHigh,
                     EndX = animationSnapshot.EndX,
@@ -548,7 +613,8 @@ namespace VisionMaster.Scada
                     VisibleInRange = animationSnapshot.VisibleInRange,
                 };
 
-                foreach (var state in animationSnapshot.States)
+                // 模板文件可手工编辑，显式 "States": null 是合法 JSON；拖放/粘贴不能因此 NRE
+                foreach (var state in animationSnapshot.States ?? new List<ScadaAnimationStateSnapshot>())
                 {
                     if (state == null)
                         continue;

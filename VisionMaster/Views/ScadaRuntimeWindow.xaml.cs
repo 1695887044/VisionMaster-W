@@ -1,5 +1,8 @@
 using System;
+using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using VisionMaster.Models;
 using VisionMaster.Scada;
 using VisionMaster.Scada.Controls;
@@ -20,6 +23,13 @@ namespace VisionMaster.Views
     {
         /// <summary>构造后 DataContext 就是这个会话；本窗口只读 <c>CurrentPage</c> 摆画布</summary>
         private readonly ScadaRuntime _session;
+
+        /// <summary>
+        /// 当前打开的页面菜单。必须由窗口持有并在关闭时收掉：
+        /// ContextMenu 在独立 Popup 视觉树里，不随窗口关闭自动消失；它的 Click 处理器
+        /// 又指向本窗口实例——留着就是"菜单反向钉住已关闭的窗口/会话/Document"。
+        /// </summary>
+        private ContextMenu? _pageMenu;
 
         public ScadaRuntimeWindow(ScadaRuntime session)
         {
@@ -153,6 +163,13 @@ namespace VisionMaster.Views
 
         private void OnWindowClosed(object sender, EventArgs e)
         {
+            // 页面菜单在独立 Popup 里，不随窗口关闭自动消失；先收掉再让宿主拆会话。
+            if (_pageMenu != null)
+            {
+                _pageMenu.IsOpen = false;
+                _pageMenu = null;
+            }
+
             // 面板先摘订阅（引擎的三个事件 + 节拍），随后宿主的 TeardownAlarms 才去停节拍、拆引擎。
             AlarmHistory.Attach(null);
         }
@@ -197,6 +214,104 @@ namespace VisionMaster.Views
         public void ReportLoadElapsed(double milliseconds)
         {
             ElapsedText.Text = $"加载耗时 {milliseconds:0} ms";
+        }
+
+        // ---- 页面菜单 ----
+
+        /// <summary>
+        /// 顶栏页面菜单：按运行态文档里的可导航画面生成 ContextMenu。
+        /// 当前页打勾；点一项就走 <see cref="ScadaRuntime.Navigate(ScadaPage?)"/>——
+        /// 与动作表、NavigateBack 同一个出口，不另开一套切页路径。
+        /// 基座页由 <see cref="ScadaDocument.IsNavigable"/> 排除（它是公共层，不是终点）。
+        /// </summary>
+        private void OnPageMenuClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not ScadaRuntime runtime)
+                return;
+
+            // 先收掉上一次的菜单：连点两下不该留下两个 Popup。
+            if (_pageMenu != null)
+            {
+                _pageMenu.IsOpen = false;
+                _pageMenu = null;
+            }
+
+            var menu = new ContextMenu
+            {
+                PlacementTarget = PageMenuButton,
+                Placement = PlacementMode.Bottom,
+            };
+
+            if (FindResource("PageMenuContextStyle") is Style contextStyle)
+                menu.Style = contextStyle;
+
+            var itemStyle = FindResource("PageMenuItemStyle") as Style;
+
+            foreach (var page in runtime.Document.Pages.Where(
+                         p => runtime.Document.IsNavigable(p) && runtime.CanAccess(p, out _)))
+            {
+                var item = new MenuItem
+                {
+                    // 用 TextBlock 而不是裸字符串：默认 MenuItem 模板会把 "_" 当访问键吞掉，
+                    // 页名「01_总览」会显示成「01总览」。
+                    Header = new TextBlock { Text = page.Name },
+                    Tag = page,
+                    IsCheckable = true,
+                    IsChecked = ReferenceEquals(page, runtime.CurrentPage),
+                    FontWeight = ReferenceEquals(page, runtime.CurrentPage)
+                        ? FontWeights.SemiBold
+                        : FontWeights.Normal,
+                };
+
+                if (itemStyle != null)
+                    item.Style = itemStyle;
+
+                item.Click += OnPageMenuItemClick;
+                menu.Items.Add(item);
+            }
+
+            if (menu.Items.Count == 0)
+            {
+                var empty = new MenuItem
+                {
+                    Header = new TextBlock { Text = "（没有可切换的画面）" },
+                    IsEnabled = false,
+                };
+
+                if (itemStyle != null)
+                    empty.Style = itemStyle;
+
+                menu.Items.Add(empty);
+            }
+
+            menu.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_pageMenu, menu))
+                    _pageMenu = null;
+            };
+
+            _pageMenu = menu;
+            menu.IsOpen = true;
+        }
+
+        private void OnPageMenuItemClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is ScadaRuntime runtime
+                && sender is MenuItem { Tag: ScadaPage page })
+            {
+                runtime.Navigate(page);
+            }
+        }
+
+        /// <summary>
+        /// 返回上一页：与 NavigateBack 动作同一个出口（<see cref="ScadaRuntime.GoBack()"/>）。
+        /// 栈空/回退目标已删时静默不动——按钮的 IsEnabled 已按 CanGoBack 置灰，
+        /// 这里再判一次只是防"置灰还没刷新时点了一下"。
+        /// </summary>
+        private void OnPageBackClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is ScadaRuntime runtime)
+                runtime.GoBack();
         }
 
         // ---- 退出 ----

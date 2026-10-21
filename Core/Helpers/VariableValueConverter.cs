@@ -17,6 +17,7 @@ namespace VisionMaster.Helpers
     /// - 布尔：true/false、1/0、是/否、on/off（忽略大小写）都认；其余按"非零数算真"兜底；
     /// - 字符串：原样；
     /// - 数值/日期：交给 <c>Convert.ChangeType</c>（不变文化，避免小数点随区域漂移）；
+    ///   数值**拒绝千分位分隔符**（默认解析会把 "1,000" 读成 1000、"2,5" 读成 25）；
     /// - 数组：不支持（组态动作与界面输入框都是单值场景）；
     /// - 图像：不支持（位图不是一段文本，其值由视觉流程写入，界面这一侧只能报错）。
     /// </summary>
@@ -63,6 +64,14 @@ namespace VisionMaster.Helpers
                 return false;
             }
 
+            // 千分位分隔符：Convert.ChangeType 默认把 "1,000" 读成 1000、"2,5" 读成 25，
+            // 且结果随区域漂移。界面/脚本里的数值按"原样数字"理解，带分隔符就明确拒绝（R34）。
+            if (IsNumericType(target) && raw.IndexOf(',') >= 0)
+            {
+                error = $"「{raw}」含千分位分隔符，请去掉逗号（目标类型 {target.Name}）";
+                return false;
+            }
+
             try
             {
                 value = Convert.ChangeType(raw, target, CultureInfo.InvariantCulture);
@@ -74,6 +83,12 @@ namespace VisionMaster.Helpers
                 return false;
             }
         }
+
+        /// <summary>数值类型（用于千分位守卫；bool/日期不在此列）</summary>
+        private static bool IsNumericType(Type t)
+            => t == typeof(byte) || t == typeof(sbyte) || t == typeof(short) || t == typeof(ushort)
+            || t == typeof(int) || t == typeof(uint) || t == typeof(long) || t == typeof(ulong)
+            || t == typeof(float) || t == typeof(double) || t == typeof(decimal);
 
         private static bool TryConvertBool(string raw, out object? value, out string? error)
         {

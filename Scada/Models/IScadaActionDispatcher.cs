@@ -44,5 +44,21 @@ namespace VisionMaster.Scada
         /// 不必凭空造一个名字出来；空值时按"未登录"落笔，不落一个空白署名。
         /// </param>
         void Dispatch(ScadaEventHook? hook, string? sourceName, string? operatorName = null);
+
+        /// <summary>
+        /// 与 <see cref="Dispatch"/> 相同，但返回逐条动作的成功/跳过/失败计数。
+        ///
+        /// <b>默认实现</b>：调用 <see cref="Dispatch"/> 后返回 <see cref="ScadaActionDispatchResult.Empty"/>。
+        /// 老的/测试的分发器不必被迫实现计数；Web 命令层在拿到空结果时按"分发器未提供明细"处理，
+        /// 不把未知当成成功。
+        /// </summary>
+        ScadaActionDispatchResult DispatchWithResult(
+            ScadaEventHook? hook,
+            string? sourceName,
+            string? operatorName = null)
+        {
+            Dispatch(hook, sourceName, operatorName);
+            return ScadaActionDispatchResult.Empty;
+        }
     }
 }

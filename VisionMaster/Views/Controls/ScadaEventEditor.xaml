@@ -149,9 +149,9 @@
                                     Grid.Column="0"
                                     VerticalAlignment="Center"
                                     FontSize="11"
-                                    Text="{Binding VariableName, TargetNullValue=（还没选变量）}"
+                                    Text="{Binding VariableDisplayName}"
                                     TextTrimming="CharacterEllipsis"
-                                    ToolTip="{Binding VariableName}">
+                                    ToolTip="{Binding VariableDisplayName}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
@@ -201,6 +201,26 @@
                                 </TextBlock.Style>
                             </TextBlock>
                         </StackPanel>
+
+                        <!--  条件动作（P0）：只给写变量用。典型配置是「暂停流程」后面跟一条
+                              WriteVariable(Paused=1)，勾上后暂停失败/被跳过时不会把页面写成“已暂停”。  -->
+                        <CheckBox
+                            Margin="0,4,0,0"
+                            FontSize="11"
+                            Content="仅在上一条成功时执行"
+                            IsChecked="{Binding OnlyIfPreviousSucceeded, Mode=TwoWay}"
+                            ToolTip="上一条动作被跳过或失败时，本条不执行；用于“暂停成功后才写状态变量”这类联动">
+                            <CheckBox.Style>
+                                <Style TargetType="CheckBox">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Type}" Value="WriteVariable">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </CheckBox.Style>
+                        </CheckBox>
 
                         <!--  切换画面：只需选一个目标画面。
                               目标画面存"身份 + 名字"两份，Id 优先、名字只用于显示与兜底寻址，
@@ -275,7 +295,7 @@
                             </TextBlock>
                         </StackPanel>
 
-                        <!--  流程动作（启动 / 停止 / 执行一次）：三者参数形状一模一样（就一个目标流程），
+                        <!--  流程动作（启动 / 暂停 / 恢复 / 停止 / 执行一次）：参数形状一模一样（就一个目标流程），
                               共用这一块面板，按类型三选一显形。目标流程存"身份 + 名字"两份，
                               Id 优先、名字只用于显示与兜底寻址，回填与寻址的口径在 ScadaAction.BindFlow 一处。  -->
                         <StackPanel Margin="0,3,0,0">
@@ -289,9 +309,15 @@
                                         <DataTrigger Binding="{Binding Type}" Value="StopFlow">
                                             <Setter Property="Visibility" Value="Visible" />
                                         </DataTrigger>
-                                        <DataTrigger Binding="{Binding Type}" Value="RunFlowOnce">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
+                    <DataTrigger Binding="{Binding Type}" Value="RunFlowOnce">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Type}" Value="PauseFlow">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Type}" Value="ResumeFlow">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
@@ -626,6 +652,43 @@
         <StackPanel
             Margin="16,3,0,0"
             Visibility="{Binding HasActions, Converter={StaticResource BoolVis}}">
+            <!--  P0：执行前确认。默认关闭；勾上后运行态命中该事件先弹确认框，取消则整串动作都不执行。  -->
+            <StackPanel Orientation="Horizontal">
+                <CheckBox
+                    Content="执行前确认"
+                    FontSize="12"
+                    IsChecked="{Binding RequireConfirmation, Mode=TwoWay}" />
+                <Border
+                    Margin="8,0,0,0"
+                    Padding="5,1"
+                    BorderThickness="1"
+                    BorderBrush="{StaticResource ScadaDangerBrush}"
+                    CornerRadius="4"
+                    Visibility="{Binding IsDangerous, Converter={StaticResource BoolVis}}">
+                    <TextBlock
+                        FontSize="10"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource ScadaDangerBrush}"
+                        Text="危险动作" />
+                </Border>
+            </StackPanel>
+
+            <TextBox
+                Margin="0,4,0,0"
+                Padding="6,3"
+                FontSize="11"
+                Text="{Binding ConfirmationMessage, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                ToolTip="留空则使用默认提示：将执行：动作摘要。"
+                Visibility="{Binding RequireConfirmation, Converter={StaticResource BoolVis}}" />
+
+            <TextBlock
+                Margin="0,2,0,0"
+                FontSize="11"
+                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                Text="运行态命中该事件时先弹确认框；取消则整串动作都不执行。"
+                TextWrapping="Wrap"
+                Visibility="{Binding RequireConfirmation, Converter={StaticResource BoolVis}}" />
+
             <TextBlock
                 FontSize="11"
                 Foreground="{StaticResource ScadaSecondaryTextBrush}"
@@ -639,7 +702,7 @@
                 Margin="0,2,0,0"
                 FontSize="11"
                 Foreground="{StaticResource ScadaWarningBrush}"
-                Text="还没有动作，运行态命中该事件时不会有任何反应。"
+                Text="还没有动作，运行态命中该事件时不会有任何反应，也不会弹确认框。请先添加动作。"
                 TextWrapping="Wrap">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">

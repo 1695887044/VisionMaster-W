@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Prism.Commands;
 using Prism.Mvvm;
 using UI.Attributes;
 
@@ -60,11 +61,18 @@ namespace VisionMaster.Models
         public const string GroupRunWindow = "运行窗口";
         public const string GroupSafety = "安全与留档";
         public const string GroupGallery = "画布";
+        public const string GroupLog = "日志";
+        public const string GroupServices = "服务与启动";
+        public const string GroupParallel = "并行执行";
 
         // 二级分组（卡片式的 Expander）。同一页签里要么都有第二段、要么都没有——
         // 混着写会让没写第二段的那几个落进一个叫"默认分组"的折叠头里。
         private const string SubSession = "会话";
         private const string SubRetention = "历史留档";
+        private const string SubAccount = "账号";
+        private const string SubHttpServer = "HTTP 收图服务";
+        private const string SubCameraServer = "网络相机收图服务";
+        private const string SubStartup = "启动";
 
         private bool _independentWindow;
         private string _monitorLabel = string.Empty;
@@ -79,15 +87,47 @@ namespace VisionMaster.Models
         private bool _gallerySaveOnAlarm;
         private string _galleryTotalLimitText = string.Empty;
         private string _galleryPerFlowLimitText = string.Empty;
+        private string _alarmFrameRetentionText = string.Empty;
+        private string _minPasswordLengthText = string.Empty;
+
+        private string _logRetentionText = string.Empty;
+        private string _logDirectory = string.Empty;
+        private LogFileLevel _logFileLevel = LogFileLevel.Info;
+        private string _logPanelMaxRowsText = string.Empty;
+        private bool _openLogFolder;
+
+        private bool _httpEnabled = true;
+        private string _httpHost = string.Empty;
+        private string _httpPortText = string.Empty;
+        private string _httpToken = string.Empty;
+        private string _httpTimeoutText = string.Empty;
+
+        private bool _cameraEnabled = true;
+        private string _cameraHost = string.Empty;
+        private string _cameraPortText = string.Empty;
+        private string _cameraToken = string.Empty;
+
+        private bool _communicationStartupCheck = true;
+
+        private bool _parallelFailFastByDefault;
+        private bool _parallelForceSequential;
 
         /// <param name="monitors">
         /// 目标屏候选（第一项固定是「跟随主屏」）。由调用方在**打开弹窗这一刻**从
         /// <c>ScadaMonitors.All()</c> 取一次——它是"这台机器现在接着什么"，不是配置；
         /// 为它做实时刷新只会引入一条没人测过的路径。
         /// </param>
-        public SystemSettingsDraft(IEnumerable<ScadaMonitorOption>? monitors)
+        /// <param name="openLogFolder">
+        /// 「打开日志目录」按钮的动作。属性面板的 <c>[Command]</c> 绑的是**绑定对象自己**上的命令
+        /// （<c>CommandProcessor</c> 用 <c>context.BindingSource</c>），所以命令挂在草稿上、
+        /// 真正的动作由宿主注入——草稿不认识 <c>Process.Start</c>，断言里也好替换。
+        /// </param>
+        public SystemSettingsDraft(
+            IEnumerable<ScadaMonitorOption>? monitors,
+            Action? openLogFolder = null)
         {
             Monitors = (monitors ?? Enumerable.Empty<ScadaMonitorOption>()).ToList();
+            OpenLogFolderCommand = openLogFolder == null ? null : new DelegateCommand(openLogFolder);
         }
 
         /// <summary>
@@ -192,6 +232,21 @@ namespace VisionMaster.Models
         {
             get => _alarmRetentionText;
             set => SetProperty(ref _alarmRetentionText, value);
+        }
+
+        /// <summary>账号密码最小长度</summary>
+        [SuperDisplay(
+            Name = "密码最小长度",
+            Group = new[] { GroupSafety, SubAccount },
+            GroupOrder = "2",
+            Order = 0,
+            Description = "新建账号 / 改密码时要求的最少字符数。填 0 或负数按默认值 4 处理"
+                        + "（这条配置的语义是「至少几位」，不是「允许空密码」）")]
+        [RegexValidation(@"^-?\d+$", "请填整数（0 或负数 = 用默认值 4）")]
+        public string MinPasswordLengthText
+        {
+            get => _minPasswordLengthText;
+            set => SetProperty(ref _minPasswordLengthText, value);
         }
 
         // ------------------------------------------------------------------
@@ -303,6 +358,276 @@ namespace VisionMaster.Models
         {
             get => _galleryPerFlowLimitText;
             set => SetProperty(ref _galleryPerFlowLimitText, value);
+        }
+
+        /// <summary>报警图集（AlarmFrames）保留天数。0 或负数 = 永不清理</summary>
+        [SuperDisplay(
+            Name = "报警图集保留天数",
+            Group = new[] { GroupGallery },
+            GroupOrder = "3",
+            Order = 8,
+            Description = "程序目录 AlarmFrames/yyyy-MM-dd 下的报警留存图（每张 ~15MB 量级），"
+                        + "超过保留期的在启动时与保存设置时自动删除。填 0 或负数 = 永不清理（默认 90 天）")]
+        [RegexValidation(@"^-?\d+$", "请填整数（0 或负数 = 永不清理）")]
+        public string AlarmFrameRetentionText
+        {
+            get => _alarmFrameRetentionText;
+            set => SetProperty(ref _alarmFrameRetentionText, value);
+        }
+
+        // ------------------------------------------------------------------
+        //  4. 日志
+        // ------------------------------------------------------------------
+
+        /// <summary>日志文件保留天数。0 或负数 = 永不清理</summary>
+        [SuperDisplay(
+            Name = "日志保留天数",
+            Group = new[] { GroupLog },
+            GroupOrder = "4",
+            Order = 0,
+            Description = "程序目录 Logs 下的 yyyy-MM-dd.log，超过保留期的在启动时与保存设置时自动删除。"
+                        + "填 0 或负数 = 永不清理（默认 30 天）")]
+        [RegexValidation(@"^-?\d+$", "请填整数（0 或负数 = 永不清理）")]
+        public string LogRetentionText
+        {
+            get => _logRetentionText;
+            set => SetProperty(ref _logRetentionText, value);
+        }
+
+        /// <summary>日志目录。空串 = 程序目录下的 Logs</summary>
+        [SuperDisplay(
+            Name = "日志目录",
+            Group = new[] { GroupLog },
+            GroupOrder = "4",
+            Order = 1,
+            Description = "留空 = 程序目录下的 Logs（默认）。保存时会先试建目录并写一个探针文件，"
+                        + "不可写则拒绝保存——否则文件日志会静默消失，只剩日志面板")]
+        public string LogDirectory
+        {
+            get => _logDirectory;
+            set => SetProperty(ref _logDirectory, value);
+        }
+
+        /// <summary>落盘的最小级别（面板不受影响）</summary>
+        [SuperDisplay(
+            Name = "落盘最小级别",
+            Group = new[] { GroupLog },
+            GroupOrder = "4",
+            Order = 2,
+            Description = "磁盘紧张时只落警告与错误。日志面板仍然收全部级别，这一项只影响写进 .log 文件的内容")]
+        public LogFileLevel LogFileLevel
+        {
+            get => _logFileLevel;
+            set => SetProperty(ref _logFileLevel, value);
+        }
+
+        /// <summary>日志面板保留条数。0 或负数 = 不限制</summary>
+        [SuperDisplay(
+            Name = "面板保留条数",
+            Group = new[] { GroupLog },
+            GroupOrder = "4",
+            Order = 3,
+            Description = "日志面板只在内存里留最近多少条，超出按最旧丢弃（文件里的完整历史不受影响）。"
+                        + "填 0 或负数 = 不限制（不推荐：连续跑几天会吃内存；默认 5000）")]
+        [RegexValidation(@"^-?\d+$", "请填整数（0 或负数 = 不限制）")]
+        public string LogPanelMaxRowsText
+        {
+            get => _logPanelMaxRowsText;
+            set => SetProperty(ref _logPanelMaxRowsText, value);
+        }
+
+        /// <summary>
+        /// 「打开日志目录」按钮。值本身没有意义——<see cref="BoolStateGenerator"/> 见到
+        /// <see cref="CommandAttribute"/> 就把这一行渲染成按钮，命令绑到
+        /// <see cref="OpenLogFolderCommand"/>（挂在草稿自己身上，动作由宿主注入）。
+        /// </summary>
+        [SuperDisplay(
+            Name = "打开日志目录",
+            Group = new[] { GroupLog },
+            GroupOrder = "4",
+            Order = 4,
+            Description = "用资源管理器打开当前生效的日志目录（按上方的「日志目录」计算）")]
+        [Command(Command = nameof(OpenLogFolderCommand))]
+        public bool OpenLogFolder
+        {
+            get => _openLogFolder;
+            set => SetProperty(ref _openLogFolder, value);
+        }
+
+        /// <summary>「打开日志目录」的动作（由宿主注入；断言里可为 null）</summary>
+        public DelegateCommand? OpenLogFolderCommand { get; }
+
+        // ------------------------------------------------------------------
+        //  5. 服务与启动
+        // ------------------------------------------------------------------
+
+        /// <summary>是否启用 HTTP 收图服务</summary>
+        [SuperDisplay(
+            Name = "启用",
+            Group = new[] { GroupServices, SubHttpServer },
+            GroupOrder = "5",
+            Order = 0,
+            Description = "网络推送图像 → 跑流程 → 回包。关掉就没有任何入口，等于功能不存在")]
+        public bool HttpServerEnabled
+        {
+            get => _httpEnabled;
+            set => SetProperty(ref _httpEnabled, value);
+        }
+
+        /// <summary>HTTP 收图服务监听地址</summary>
+        [SuperDisplay(
+            Name = "监听地址",
+            Group = new[] { GroupServices, SubHttpServer },
+            GroupOrder = "5",
+            Order = 1,
+            Description = "0.0.0.0 = 所有网卡；127.0.0.1 = 只收本机（调试用，不暴露到局域网）；"
+                        + "双网卡只想让视觉网那侧推图时填该网卡的实际 IP")]
+        public string HttpServerHost
+        {
+            get => _httpHost;
+            set => SetProperty(ref _httpHost, value);
+        }
+
+        /// <summary>HTTP 收图服务监听端口</summary>
+        [SuperDisplay(
+            Name = "监听端口",
+            Group = new[] { GroupServices, SubHttpServer },
+            GroupOrder = "5",
+            Order = 2,
+            Description = "改这个值时客户端（推图的相机 / PLC / 上位机）的 URL 也要跟着改。1~65535")]
+        [RegexValidation(@"^\d+$", "请填 1~65535 的端口号")]
+        public string HttpServerPortText
+        {
+            get => _httpPortText;
+            set => SetProperty(ref _httpPortText, value);
+        }
+
+        /// <summary>HTTP 收图服务访问令牌（Bearer）</summary>
+        [SuperDisplay(
+            Name = "访问令牌",
+            Group = new[] { GroupServices, SubHttpServer },
+            GroupOrder = "5",
+            Order = 3,
+            Description = "客户端必须在 Authorization: Bearer {令牌} 头里带上它。默认值是公开的占位值，"
+                        + "只防误连、不是安全防线；现场投用前请改掉")]
+        public string HttpServerToken
+        {
+            get => _httpToken;
+            set => SetProperty(ref _httpToken, value);
+        }
+
+        /// <summary>单次请求等待流程结束的超时（毫秒）</summary>
+        [SuperDisplay(
+            Name = "请求超时（毫秒）",
+            Group = new[] { GroupServices, SubHttpServer },
+            GroupOrder = "5",
+            Order = 4,
+            Description = "收图后同步等流程跑完再回包，这个值决定客户端最多等多久。"
+                        + "太快会把正常慢流程判成失败；一般取现场最长流程耗时的 2~3 倍（默认 30000）")]
+        [RegexValidation(@"^\d+$", "请填整数毫秒数")]
+        public string HttpServerTimeoutText
+        {
+            get => _httpTimeoutText;
+            set => SetProperty(ref _httpTimeoutText, value);
+        }
+
+        /// <summary>是否启用网络相机收图服务</summary>
+        [SuperDisplay(
+            Name = "启用",
+            Group = new[] { GroupServices, SubCameraServer },
+            GroupOrder = "5",
+            Order = 5,
+            Description = "客户端持续推帧 + 心跳 → 相机帧队列 → 流程消费")]
+        public bool CameraServerEnabled
+        {
+            get => _cameraEnabled;
+            set => SetProperty(ref _cameraEnabled, value);
+        }
+
+        /// <summary>网络相机收图服务监听地址</summary>
+        [SuperDisplay(
+            Name = "监听地址",
+            Group = new[] { GroupServices, SubCameraServer },
+            GroupOrder = "5",
+            Order = 6,
+            Description = "0.0.0.0 = 所有网卡；127.0.0.1 = 只收本机")]
+        public string CameraServerHost
+        {
+            get => _cameraHost;
+            set => SetProperty(ref _cameraHost, value);
+        }
+
+        /// <summary>网络相机收图服务监听端口</summary>
+        [SuperDisplay(
+            Name = "监听端口",
+            Group = new[] { GroupServices, SubCameraServer },
+            GroupOrder = "5",
+            Order = 7,
+            Description = "客户端推帧的 URL 要跟着改。1~65535")]
+        [RegexValidation(@"^\d+$", "请填 1~65535 的端口号")]
+        public string CameraServerPortText
+        {
+            get => _cameraPortText;
+            set => SetProperty(ref _cameraPortText, value);
+        }
+
+        /// <summary>网络相机收图服务访问令牌</summary>
+        [SuperDisplay(
+            Name = "访问令牌",
+            Group = new[] { GroupServices, SubCameraServer },
+            GroupOrder = "5",
+            Order = 8,
+            Description = "客户端在 Authorization: Bearer {令牌} 头里带上它。默认值是公开的占位值，投用前请改掉")]
+        public string CameraServerToken
+        {
+            get => _cameraToken;
+            set => SetProperty(ref _cameraToken, value);
+        }
+
+        /// <summary>启动时是否执行通讯连通性自检</summary>
+        [SuperDisplay(
+            Name = "启动时通讯连通性自检",
+            Group = new[] { GroupServices, SubStartup },
+            GroupOrder = "5",
+            Order = 9,
+            Description = "产线现场可关闭以加快启动。这一项无论开关都只报警告、不拦启动；"
+                        + "关闭后主界面出现时不再自动探测设备在线状态")]
+        public bool CommunicationStartupCheck
+        {
+            get => _communicationStartupCheck;
+            set => SetProperty(ref _communicationStartupCheck, value);
+        }
+
+        // ------------------------------------------------------------------
+        //  6. 并行执行（全局默认）
+        // ------------------------------------------------------------------
+
+        /// <summary>并行组的「继承全局」默认值</summary>
+        [SuperDisplay(
+            Name = "失败聚合默认开启",
+            Group = new[] { GroupParallel },
+            GroupOrder = "6",
+            Order = 0,
+            Description = "并行组选「继承全局」时取这个值：分支业务失败时默认是否取消其余兄弟分支。"
+                        + "默认关（= 历史行为）")]
+        public bool ParallelFailFastByDefault
+        {
+            get => _parallelFailFastByDefault;
+            set => SetProperty(ref _parallelFailFastByDefault, value);
+        }
+
+        /// <summary>进程级总闸：全部并行组退化顺序执行</summary>
+        [SuperDisplay(
+            Name = "强制顺序执行（总闸）",
+            Group = new[] { GroupParallel },
+            GroupOrder = "6",
+            Order = 1,
+            Description = "现场排障用：打开后所有并行组都退化顺序执行，用来判断问题是不是并发引起的。"
+                        + "保存即生效，排障完记得关掉")]
+        public bool ParallelForceSequential
+        {
+            get => _parallelForceSequential;
+            set => SetProperty(ref _parallelForceSequential, value);
         }
     }
 }

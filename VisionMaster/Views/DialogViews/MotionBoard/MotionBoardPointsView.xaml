@@ -19,14 +19,17 @@
     </UserControl.Resources>
 
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="220" />
-            <ColumnDefinition Width="14" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-        <!--  左：轴选择栏  -->
-        <Border Grid.Column="0" Style="{StaticResource MbCard}" Padding="10">
+        <!--  上：轴选择条（横向胶囊；窄窗下不再吃掉表格的宽度）  -->
+        <Border
+            Grid.Row="0"
+            Margin="0,0,0,12"
+            Style="{StaticResource MbCard}"
+            Padding="10">
             <StackPanel>
                 <StackPanel Margin="6,4,0,8" Orientation="Horizontal">
                     <TextBlock
@@ -46,10 +49,17 @@
                     Background="Transparent"
                     BorderThickness="0"
                     ItemsSource="{Binding AxisRows}"
-                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                    ScrollViewer.VerticalScrollBarVisibility="Disabled"
                     SelectedItem="{Binding SelectedAxisRow}">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem">
+                            <Setter Property="Width" Value="190" />
                             <Setter Property="Cursor" Value="Hand" />
                             <Setter Property="Template">
                                 <Setter.Value>
@@ -148,8 +158,8 @@
             </StackPanel>
         </Border>
 
-        <!--  右：选中轴的点位表（标题与左栏选中轴联动）  -->
-        <Border Grid.Column="2" Style="{StaticResource MbCard}">
+        <!--  下：选中轴的点位表（标题与上方选中轴联动）  -->
+        <Border Grid.Row="1" Style="{StaticResource MbCard}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -163,7 +173,15 @@
                     BorderBrush="{StaticResource MbBorderLightBrush}"
                     BorderThickness="0,0,0,1">
                     <Grid>
-                        <StackPanel Orientation="Horizontal">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid x:Name="HeaderLeft" Grid.Column="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
                             <Border
                                 Width="32"
                                 Height="32"
@@ -178,7 +196,10 @@
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center" />
                             </Border>
-                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                            <StackPanel
+                                Grid.Column="1"
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Center">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock
                                         VerticalAlignment="Center"
@@ -193,15 +214,22 @@
                                         FontSize="15"
                                         FontWeight="Bold"
                                         Foreground="{StaticResource MbPrimaryBrush}"
-                                        Text="{Binding HeaderAxisName}" />
+                                        Text="{Binding HeaderAxisName}"
+                                        TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                                 <TextBlock
                                     FontSize="11"
                                     Foreground="{StaticResource MbTextSecondaryBrush}"
-                                    Text="本轴专属 16 点位 · 改完自动保存 · 切换左栏轴即换表" />
+                                    Text="本轴专属 16 点位 · 改完自动保存 · 切换左栏轴即换表"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTip="本轴专属 16 点位 · 改完自动保存 · 切换左栏轴即换表" />
                             </StackPanel>
-                        </StackPanel>
-                        <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center">
+                        </Grid>
+                        <StackPanel
+                            x:Name="HeaderRight"
+                            Grid.Column="1"
+                            Margin="12,0,0,0"
+                            VerticalAlignment="Center">
                             <TextBlock
                                 HorizontalAlignment="Right"
                                 Style="{StaticResource MbEyebrow}"
@@ -224,10 +252,18 @@
                     </Grid>
                 </Border>
 
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <ScrollViewer
+                    x:Name="PointsScroll"
+                    Grid.Row="1"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="16">
-                        <!--  表（主色细描边容器）  -->
+                        <!--  表（主色细描边容器）
+                              轴选择条已移到上方，表格拿到整列宽度；
+                              7 列按比例铺满，不再需要横向滚动。  -->
                         <Border
+                            x:Name="PointsTable"
+                            MinWidth="560"
                             Background="{StaticResource MbCardBrush}"
                             BorderBrush="{StaticResource MbPrimaryBorderBrush}"
                             BorderThickness="1"
@@ -253,10 +289,11 @@
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Margin="12,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="点位" />
                                     <TextBlock Grid.Column="1" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="名称" />
-                                    <TextBlock Grid.Column="2" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="位置(mm)" />
-                                    <TextBlock Grid.Column="3" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="速度(mm/s)" />
-                                    <TextBlock Grid.Column="4" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="加减速(mm/s²)" />
-                                    <TextBlock Grid.Column="5" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="曲线类型" />
+                                    <TextBlock Grid.Column="2" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="位置" ToolTip="位置(mm)" />
+                                    <TextBlock Grid.Column="3" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="速度" ToolTip="速度(mm/s)" />
+                                    <TextBlock Grid.Column="4" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="加减速" ToolTip="加减速(mm/s²)" />
+                                    <TextBlock Grid.Column="5" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="曲线" ToolTip="曲线类型" />
+                                    <TextBlock Grid.Column="6" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="操作" />
                                 </Grid>
 
                                 <ItemsControl
@@ -345,7 +382,7 @@
                                                         Command="{Binding DataContext.WalkPointCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         CommandParameter="{Binding}"
                                                         Style="{StaticResource MbOutlineButton}"
-                                                        Padding="9,4"
+                                                        Padding="6,4"
                                                         FontSize="12">
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock
@@ -364,26 +401,28 @@
                             </Grid>
                         </Border>
 
-                        <!--  图例（逐字两行，规格 S3-3）  -->
-                        <StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+                        <!--  图例（逐字两行，规格 S3-3；窄窗下第二行换行而不是被裁掉）  -->
+                        <StackPanel Margin="0,12,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="12"
+                                    Foreground="{StaticResource MbPrimaryBrush}"
+                                    Text="&#xf112;" />
+                                <TextBlock
+                                    Margin="7,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="12"
+                                    Foreground="{StaticResource MbTextSecondaryBrush}"
+                                    Text="改完即存，「走此点」按该点位的速度、加减速和曲线类型运动" />
+                            </StackPanel>
                             <TextBlock
-                                VerticalAlignment="Center"
-                                FontFamily="{StaticResource Icon}"
-                                FontSize="12"
-                                Foreground="{StaticResource MbPrimaryBrush}"
-                                Text="&#xf112;" />
-                            <TextBlock
-                                Margin="7,0,0,0"
-                                VerticalAlignment="Center"
+                                Margin="0,4,0,0"
                                 FontSize="12"
                                 Foreground="{StaticResource MbTextSecondaryBrush}"
-                                Text="改完即存，「走此点」按该点位的速度、加减速和曲线类型运动" />
-                            <TextBlock
-                                Margin="20,0,0,0"
-                                VerticalAlignment="Center"
-                                FontSize="12"
-                                Foreground="{StaticResource MbTextSecondaryBrush}"
-                                Text="梯形=恒速+末端减速 · S曲线=中段快两端缓 · 匀速=全程恒速" />
+                                Text="梯形=恒速+末端减速 · S曲线=中段快两端缓 · 匀速=全程恒速"
+                                TextWrapping="Wrap" />
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>

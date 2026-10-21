@@ -87,13 +87,15 @@ namespace Plugin.DataRecord
         private static readonly ConcurrentQueue<LogItem> Logs = new ConcurrentQueue<LogItem>();
 
         /// <summary>序列号边车（放在程序目录：全局唯一账本序号，跨步骤实例/跨重启单调）</summary>
-        private static readonly string SeqFilePath = Path.Combine(AppContext.BaseDirectory, "DataRecord_seq.json");
+        private static string SeqFilePath = Path.Combine(AppContext.BaseDirectory, "DataRecord_seq.json");
         private static long _sequence;            // 当前全局序号
         private static long _persistedSeq;        // 上次落盘的序号
         private static int _seqWarned;            // 边车写失败只警告一次
 
         private static int _started;              // 0=线程未启动 1=已启动
         private static volatile bool _stopping;   // 退出信号
+        /// <summary>正在落盘的任务数（断言宿主用它判断"队列空 + 写盘也停了"）</summary>
+        private static int _busy;
 
         private static readonly UTF8Encoding Utf8Bom = new UTF8Encoding(true);
 
@@ -224,8 +226,10 @@ namespace Plugin.DataRecord
 
                     if (batch.Count > 0)
                     {
+                        Interlocked.Increment(ref _busy);
                         try { ProcessBatch(batch, cleanupDone); }
                         catch (Exception ex) { Log("ERROR", "[数据记录] 批量写入异常: " + ex.Message); }
+                        finally { Interlocked.Decrement(ref _busy); }
                         batch.Clear();
                         batches++;
                         if (batches % 20 == 0) PersistSeq();
@@ -243,7 +247,9 @@ namespace Plugin.DataRecord
             while (DataQueue.TryTake(out var rest)) batch.Add(rest);
             if (batch.Count > 0)
             {
+                Interlocked.Increment(ref _busy);
                 try { ProcessBatch(batch, cleanupDone); } catch { }
+                finally { Interlocked.Decrement(ref _busy); }
             }
             PersistSeq(true);
         }
@@ -384,6 +390,7 @@ namespace Plugin.DataRecord
 
         private static void SaveImage(ImageEntry e)
         {
+            Interlocked.Increment(ref _busy);
             try
             {
                 string dir = Path.GetDirectoryName(e.PathNoExt);
@@ -398,6 +405,7 @@ namespace Plugin.DataRecord
             finally
             {
                 try { e.Image.Dispose(); } catch { } // 释放独立副本（入队方已 CopyImage，与上游生命周期无关）
+                Interlocked.Decrement(ref _busy);
             }
         }
 
@@ -408,7 +416,7 @@ namespace Plugin.DataRecord
             if (Volatile.Read(ref _started) == 0) return;
             _stopping = true;
             var deadline = DateTime.Now.AddSeconds(3); // 退出冲刷预算 3 秒，超时放弃不死等
-            while ((DataQueue.Count > 0 || ImageQueue.Count > 0) && DateTime.Now < deadline)
+            while ((DataQueue.Count > 0 || ImageQueue.Count > 0 || Volatile.Read(ref _busy) > 0) && DateTime.Now < deadline)
                 Thread.Sleep(50);
             PersistSeq(true);
         }
@@ -560,6 +568,37 @@ namespace Plugin.DataRecord
                     Log("WARN", $"[数据记录] 序列号边车 {SeqFilePath} 无法写入（{ex.Message}）——重启后序号将从 0 重来，图片可能撞名，请检查程序目录写权限");
             }
         }
+
+        #endregion
+
+        #region 断言钩子（仅供 FlowCanvasChecks；生产路径不调用）
+
+        /// <summary>把序列号边车指到临时目录并复位序号（每个用例独立，避免互相污染）。</summary>
+        internal static void ConfigureForTests(string rootDir)
+        {
+            SeqFilePath = Path.Combine(rootDir, "DataRecord_seq.json");
+            Interlocked.Exchange(ref _sequence, 0);
+            Interlocked.Exchange(ref _persistedSeq, 0);
+            DiskCheckedAt.Clear();
+        }
+
+        /// <summary>
+        /// 等两条队列排空且没有正在落盘的任务。返回 false = 超时（断言据此红，不许静默跳过）。
+        /// </summary>
+        internal static bool FlushForTests(int timeoutMs = 5000)
+        {
+            long deadline = Environment.TickCount64 + timeoutMs;
+            while (Environment.TickCount64 < deadline)
+            {
+                if (DataQueue.Count == 0 && ImageQueue.Count == 0 && Volatile.Read(ref _busy) == 0)
+                    return true;
+                Thread.Sleep(20);
+            }
+            return DataQueue.Count == 0 && ImageQueue.Count == 0 && Volatile.Read(ref _busy) == 0;
+        }
+
+        /// <summary>强制把当前序号写进边车（生产按 50 号步进落盘，断言不等）。</summary>
+        internal static void PersistSequenceForTests() => PersistSeq(true);
 
         #endregion
 

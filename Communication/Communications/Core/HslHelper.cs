@@ -14,7 +14,9 @@ namespace VisionMaster.Communications
     internal enum WriteProtocolFamily
     {
         Modbus,
-        SiemensS7
+        SiemensS7,
+        /// <summary>字编址协议（MC / FINS）：byte/sbyte 按 16 位字写，bool 走位地址重载</summary>
+        Word
     }
 
     /// <summary>
@@ -211,11 +213,11 @@ namespace VisionMaster.Communications
                         result = device.Write(address, b);
                     break;
 
-                case byte by when family == WriteProtocolFamily.Modbus:
+                case byte by when family is WriteProtocolFamily.Modbus or WriteProtocolFamily.Word:
                     result = device.Write(address, (ushort)by);
                     break;
 
-                case sbyte sb when family == WriteProtocolFamily.Modbus:
+                case sbyte sb when family is WriteProtocolFamily.Modbus or WriteProtocolFamily.Word:
                     result = device.Write(address, (short)sb);
                     break;
 
@@ -235,6 +237,29 @@ namespace VisionMaster.Communications
                 case double d: result = device.Write(address, d); break;
                 case long l: result = device.Write(address, l); break;
                 case ulong ul: result = device.Write(address, ul); break;
+
+                // 数值数组：HSL 原生数组重载按设备的 ByteTransform 逐元素编码（字序与标量一致）。
+                case bool[] bools:
+                    // S7 的 bool 数组语义不唯一（打包位 vs 每字节一个），第一期只允许 Modbus 位区。
+                    if (family == WriteProtocolFamily.SiemensS7)
+                        throw new NotSupportedException("S7 bool 数组暂不支持写入");
+                    result = device.Write(address, bools);
+                    break;
+
+                case byte[] bytes: result = device.Write(address, bytes); break;
+                case short[] shorts: result = device.Write(address, shorts); break;
+                case ushort[] ushorts: result = device.Write(address, ushorts); break;
+                case int[] ints: result = device.Write(address, ints); break;
+                case uint[] uints: result = device.Write(address, uints); break;
+                case long[] longs: result = device.Write(address, longs); break;
+                case ulong[] ulongs: result = device.Write(address, ulongs); break;
+                case float[] floats: result = device.Write(address, floats); break;
+                case double[] doubles: result = device.Write(address, doubles); break;
+
+                // string[] 由 NetworkVariableModel 先编码成定长 byte[]（每元素固定宽度）再下发；
+                // 走到这里说明调用方漏了编码步骤，明确报错而不是让兜底把它当数值转。
+                case string[]:
+                    throw new NotSupportedException("字符串数组必须先编码成定长字节块再写入");
 
                 // string/byte[] 等无端序语义的值原样传输
                 default:

@@ -43,6 +43,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private readonly ScadaUserStore _userStore;
         private readonly ScadaAccessPolicy _accessPolicy;
         private readonly IDialogService _dialogService;
+        private readonly IWorkspaceManager _workspace;
 
         private string _userName = string.Empty;
         private string _password = string.Empty;
@@ -59,16 +60,18 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private int _selectedTabIndex;
 
         public ScadaLoginViewModel(ScadaUserStore userStore, ScadaAccessPolicy accessPolicy,
-                                   IDialogService dialogService)
+                                   IDialogService dialogService, IWorkspaceManager workspace)
         {
             _userStore = userStore ?? throw new ArgumentNullException(nameof(userStore));
             _accessPolicy = accessPolicy ?? throw new ArgumentNullException(nameof(accessPolicy));
             _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
+            _workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
 
             LoginCommand = new DelegateCommand(OnLogin);
             LogoutCommand = new DelegateCommand(OnLogout);
             ChangePasswordCommand = new DelegateCommand(OnChangePassword);
             OpenChangePasswordCommand = new DelegateCommand(OnOpenChangePassword);
+            BackToLoginCommand = new DelegateCommand(() => SelectedTabIndex = 0);
             OpenUserManagerCommand = new DelegateCommand(OnOpenUserManager);
             SubmitCommand = new DelegateCommand(OnSubmit);
             CloseCommand = new DelegateCommand(() => RequestClose.Invoke(ButtonResult.Cancel));
@@ -85,7 +88,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public string UserName
         {
             get => _userName;
-            set => SetProperty(ref _userName, value);
+            set
+            {
+                if (!SetProperty(ref _userName, value)) return;
+                // 用户一改输入就撤掉上一次的失败提示：否则"请输入密码"会挂在新输入的内容旁边。
+                if (_loginMessage != null) LoginMessage = null;
+            }
         }
 
         /// <summary>
@@ -95,7 +103,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public string Password
         {
             get => _password;
-            set => SetProperty(ref _password, value);
+            set
+            {
+                if (!SetProperty(ref _password, value)) return;
+                // 与 UserName 同口径：重新输入即视为"正在修正"，旧失败提示立刻撤掉。
+                if (_loginMessage != null) LoginMessage = null;
+            }
         }
 
         /// <summary>登录失败原因（红字）。成功时为 <c>null</c></summary>
@@ -124,6 +137,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>此刻的身份，如"admin（管理员）"/"未登录（操作员）"</summary>
         public string LoginStateText => _accessPolicy.LoginStateText;
+
+        /// <summary>左栏"当前方案"卡片：登录窗也要能看出这次登录的是哪套方案。</summary>
+        public string SolutionName => _workspace.CurrentSolution?.SolutionName ?? "未加载方案";
 
         public bool IsLoggedIn => _accessPolicy.IsLoggedIn;
 
@@ -226,6 +242,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// 用户看到提示时多半还没登录，直接把他送到改密页，省一次"先登录再找页签"。
         /// </summary>
         public DelegateCommand OpenChangePasswordCommand { get; }
+
+        /// <summary>改密页返回登录页（不关窗、不清输入）。</summary>
+        public DelegateCommand BackToLoginCommand { get; }
 
         public DelegateCommand OpenUserManagerCommand { get; }
 
@@ -344,6 +363,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             LoginMessage = null;
             ChangeMessage = null;
             ChangeSucceeded = false;
+            RaisePropertyChanged(nameof(SolutionName));
 
             // ② 已登录就预填当前用户：改自己的密码、或者换个人登录，都不必再打一遍名字。
             //    未登录时刻意<b>不</b>预填任何名字（包括 admin）：一个看起来"已经填好"的

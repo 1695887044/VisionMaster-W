@@ -14,6 +14,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Core.Interfaces;
 using HalconDotNet;
+using MiniExcelLibs;
 using Prism.Dialogs;
 using VisionMaster;
 using VisionMaster.Communications;
@@ -35,6 +36,9 @@ namespace UIThemeSmokeTest
     internal static class GlobalVariableViewSmoke
     {
         private const string RepoRoot = @"d:\C#\VM";
+
+        /// <summary>冒烟夹具里的「监控分组」Id：必须与方案分组表一致，选中标签才不是 fallback。</summary>
+        private static readonly Guid MonitorGroupId = Guid.NewGuid();
 
         public static int RunSmoke()
         {
@@ -80,8 +84,10 @@ namespace UIThemeSmokeTest
                     var sourceList = view.FindName("SourceList") as ListBox;
                     var grid = view.FindName("DetailGrid") as DataGrid;
                     var banner = view.FindName("SystemBanner") as Border;
-                    var manage = view.FindName("ManageGroupsButton") as Button;
+                    var manage = view.FindName("ManageVariableGroupsButton") as Button;
                     var add = view.FindName("AddButton") as Button;
+                    var export = view.FindName("ExportButton") as Button;
+                    var import = view.FindName("ImportButton") as Button;
                     var emptyOverlay = view.FindName("EmptySourceOverlay") as Grid;
                     var searchOverlay = view.FindName("SearchEmptyOverlay") as Grid;
 
@@ -96,20 +102,23 @@ namespace UIThemeSmokeTest
                         && view2.Groups.Count == 2,
                         sourceList == null ? "SourceList=null" : $"items={sourceList.Items.Count} groups={(sourceList.ItemsSource as ICollectionView)?.Groups?.Count}");
 
-                    Check("左栏选中项与 VM 双向一致", ReferenceEquals(sourceList?.SelectedItem, fixture.Vm.SelectedSource),
-                        sourceList?.SelectedItem?.GetType().Name ?? "null");
+                    Check("左栏选中项与 VM 双向一致", ReferenceEquals(sourceList?.SelectedItem, fixture.Vm.SelectedNode),
+                        $"list={(sourceList?.SelectedItem as VariableSourceNode)?.DisplayName ?? "<null>"} vm={(fixture.Vm.SelectedNode as VariableSourceNode)?.DisplayName ?? "<null>"}");
 
-                    Check("本地来源：来源/扫描组/地址三列收起",
+                    Check("本地来源：分组/扫描组/地址三列收起",
                         ColumnVisibility(grid, 2) == Visibility.Collapsed
                         && ColumnVisibility(grid, 3) == Visibility.Collapsed
                         && ColumnVisibility(grid, 4) == Visibility.Collapsed,
                         $"cols={ColumnVisibility(grid, 2)},{ColumnVisibility(grid, 3)},{ColumnVisibility(grid, 4)}");
 
-                    Check("本地来源：系统横幅收起、管理扫描组收起、添加变量可见",
+                    Check("本地来源：系统横幅收起、管理分组可见、添加变量可见、导出/导入收起",
                         !EffectivelyVisible(banner)
-                        && !EffectivelyVisible(manage)
-                        && EffectivelyVisible(add),
-                        $"banner={banner?.Visibility} manage={manage?.Visibility} add={add?.Visibility}");
+                        && EffectivelyVisible(manage)
+                        && EffectivelyVisible(add)
+                        && !EffectivelyVisible(export)
+                        && !EffectivelyVisible(import),
+                        $"banner={banner?.Visibility} manage={manage?.Visibility} add={add?.Visibility} " +
+                        $"export={export?.Visibility} import={import?.Visibility}");
 
                     var okNode = fixture.Vm.FilteredDisplayNodes.First(n => n.Name == "OKCount");
                     var okRow = RowOf(grid, okNode);
@@ -122,9 +131,28 @@ namespace UIThemeSmokeTest
 
                     var arrayNode = fixture.Vm.FilteredDisplayNodes.First(n => n.Name == "DefectFlags");
                     var arrayRow = RowOf(grid, arrayNode);
-                    var arrayButton = arrayRow == null ? null : Descendants<Button>(arrayRow).FirstOrDefault(b => (b.Content as string) == "强制覆盖集合...");
-                    Check("本地数组根：显示「强制覆盖集合...」", arrayButton != null && EffectivelyVisible(arrayButton),
-                        arrayButton == null ? "button=null" : arrayButton.Visibility.ToString());
+                    var arrayEdit = arrayRow == null ? null : Descendants<Button>(arrayRow)
+                        .FirstOrDefault(b => Descendants<TextBlock>(b).Any(t => t.Text == "编辑数组…"));
+                    var arraySummary = arrayRow == null ? null : Descendants<TextBlock>(arrayRow)
+                        .FirstOrDefault(t => t.Text == "True · False …");
+                    var arrayResets = arrayRow == null
+                        ? new List<Button>()
+                        : Descendants<Button>(arrayRow)
+                            .Where(b => CommandPath(b) == "ResetCommand"
+                                && Descendants<TextBlock>(b).Any(t => t.Text == "\uf0e2"))
+                            .ToList();
+                    bool arrayResetVisible = arrayResets.Any(EffectivelyVisible);
+                    Check("本地数组根：摘要 + 「编辑数组…」+ 偏离时的 ↺（v2 数组编辑入口）",
+                        arrayEdit != null && EffectivelyVisible(arrayEdit)
+                        && arraySummary != null && EffectivelyVisible(arraySummary)
+                        && arrayResetVisible,
+                        $"edit={(arrayEdit == null ? "null" : EffectivelyVisible(arrayEdit).ToString())} " +
+                        $"summary={(arraySummary == null ? "null" : EffectivelyVisible(arraySummary).ToString())} " +
+                        $"resetVisible={arrayResetVisible} (candidates={arrayResets.Count})");
+                    Check("本地数组根：旧「强制覆盖集合...」零残留",
+                        arrayRow != null && Descendants<Button>(arrayRow)
+                            .All(b => !((b.Content as string) ?? "").Contains("强制覆盖集合")),
+                        "");
 
                     var imageNode = fixture.Vm.FilteredDisplayNodes.First(n => n.Name == "TemplateImage");
                     var imageRow = RowOf(grid, imageNode);
@@ -140,6 +168,11 @@ namespace UIThemeSmokeTest
                     var childNode = fixture.Vm.FilteredDisplayNodes.First(n => n.Name == "[0]");
                     var childRow = RowOf(grid, childNode);
                     var childHeight = childRow?.ActualHeight ?? 0;
+                    var childReset = childRow == null ? null : Descendants<Button>(childRow)
+                        .FirstOrDefault(b => CommandPath(b) == "ResetElementCommand");
+                    Check("数组元素行：偏离基准时出现逐元素 ↺（只恢复这一项）",
+                        childReset != null && EffectivelyVisible(childReset),
+                        childReset == null ? "button=null" : childReset.Visibility.ToString());
                     Check("行高：根行约 54、数组子行约 40", okHeight >= 52 && okHeight <= 58 && childHeight >= 38 && childHeight <= 44,
                         $"root={okHeight:0.#} child={childHeight:0.#}");
 
@@ -168,15 +201,34 @@ namespace UIThemeSmokeTest
                         && arrayNode.IsExpanded != before,
                         $"toggle={toggle != null} command={toggle?.Command != null} clicked={clicked} before={before} expanded={arrayNode.IsExpanded}");
 
-                    // 网络来源：三列展开、管理扫描组可见、系统横幅收起
+                    // 网络来源：三列展开、管理分组可见、系统横幅收起
                     Populate(fixture.Vm, "network");
                     Pump(host);
-                    Check("网络来源：三列展开 + 管理扫描组可见",
+                    Check("网络来源：三列展开 + 管理分组可见 + 导出/导入可见且有命令",
                         ColumnVisibility(grid, 2) == Visibility.Visible
                         && ColumnVisibility(grid, 3) == Visibility.Visible
                         && ColumnVisibility(grid, 4) == Visibility.Visible
-                        && EffectivelyVisible(manage),
-                        $"cols={ColumnVisibility(grid, 2)},{ColumnVisibility(grid, 3)},{ColumnVisibility(grid, 4)} manage={manage?.Visibility}");
+                        && EffectivelyVisible(manage)
+                        && EffectivelyVisible(export)
+                        && EffectivelyVisible(import)
+                        && export?.Command != null
+                        && import?.Command != null,
+                        $"cols={ColumnVisibility(grid, 2)},{ColumnVisibility(grid, 3)},{ColumnVisibility(grid, 4)} " +
+                        $"manage={manage?.Visibility} export={export?.Visibility}/{export?.Command != null} " +
+                        $"import={import?.Visibility}/{import?.Command != null}");
+
+                    var groupText = Descendants<TextBlock>(sourceList)
+                        .FirstOrDefault(t => t.Text == "监控分组");
+                    var templateSelector = view.Resources["GvSourceNodeSelector"] as VariableSourceNodeTemplateSelector;
+                    var groupTemplate = view.Resources["GvGroupNodeTemplate"] as DataTemplate;
+                    var monitorGroupNode = fixture.Vm.SourceNodes.FirstOrDefault(n => n.IsGroup && n.DisplayName == "监控分组");
+                    var selectedTemplate = templateSelector?.SelectTemplate(monitorGroupNode, sourceList);
+                    Check("左栏分组行按分组模板渲染（选择器返回 GroupTemplate，不是来源卡片）",
+                        groupText != null && groupText.DataContext is VariableSourceNode { IsGroup: true }
+                        && ReferenceEquals(selectedTemplate, groupTemplate),
+                        groupText == null
+                            ? "找不到「监控分组」文本"
+                            : $"data={(groupText.DataContext as VariableSourceNode)?.DisplayName} templateIsGroup={ReferenceEquals(selectedTemplate, groupTemplate)}");
 
                     var speedNode = fixture.Vm.FilteredDisplayNodes.First(n => n.Name == "SpeedSet");
                     var speedRow = RowOf(grid, speedNode);
@@ -195,14 +247,63 @@ namespace UIThemeSmokeTest
                             ? "row=null"
                             : $"text={string.Join("/", Descendants<TextBlock>(partRow).Select(t => t.Text).Where(t => !string.IsNullOrEmpty(t)))} visibleBoxes={Descendants<TextBox>(partRow).Count(t => EffectivelyVisible(t))}");
 
+                    var recipeNode = fixture.Vm.FilteredDisplayNodes.First(n => n.Name == "RecipeBlock");
+                    var recipeRow = RowOf(grid, recipeNode);
+                    var recipeTexts = recipeRow == null
+                        ? new List<string>()
+                        : Descendants<TextBlock>(recipeRow)
+                            .Where(t => EffectivelyVisible(t) && !string.IsNullOrEmpty(t.Text))
+                            .Select(t => t.Text)
+                            .ToList();
+                    Check("网络数组根（可写区）：显示摘要 + 「写入数组…」、无编辑 TextBox",
+                        recipeRow != null
+                        && Descendants<TextBox>(recipeRow).All(t => !EffectivelyVisible(t))
+                        && recipeTexts.Any(t => t.Contains("10", StringComparison.Ordinal) && t.Contains("20", StringComparison.Ordinal))
+                        && recipeTexts.Any(t => t.Contains("写入数组", StringComparison.Ordinal))
+                        && !recipeTexts.Any(t => string.Equals(t, "只读", StringComparison.Ordinal)),
+                        recipeRow == null
+                            ? "row=null"
+                            : $"text={string.Join("/", recipeTexts)} visibleBoxes={Descendants<TextBox>(recipeRow).Count(t => EffectivelyVisible(t))}");
+
+                    var netFlagsNode = fixture.Vm.FilteredDisplayNodes.First(n => n.Name == "NetFlags");
+                    var netFlagsRow = RowOf(grid, netFlagsNode);
+                    var netFlagsTexts = netFlagsRow == null
+                        ? new List<string>()
+                        : Descendants<TextBlock>(netFlagsRow)
+                            .Where(t => EffectivelyVisible(t) && !string.IsNullOrEmpty(t.Text))
+                            .Select(t => t.Text)
+                            .ToList();
+                    Check("网络数组根（只读区）：显示摘要 + 「只读」、无「写入数组…」",
+                        netFlagsRow != null
+                        && Descendants<TextBox>(netFlagsRow).All(t => !EffectivelyVisible(t))
+                        && netFlagsTexts.Any(t => string.Equals(t, "只读", StringComparison.Ordinal))
+                        && !netFlagsTexts.Any(t => t.Contains("写入数组", StringComparison.Ordinal)),
+                        netFlagsRow == null
+                            ? "row=null"
+                            : $"text={string.Join("/", netFlagsTexts)} visibleBoxes={Descendants<TextBox>(netFlagsRow).Count(t => EffectivelyVisible(t))}");
+
+                    var recipeChildNode = fixture.Vm.FilteredDisplayNodes
+                        .First(n => n.Name == "[0]" && ReferenceEquals(n.OriginalModel, recipeNode.OriginalModel));
+                    var recipeChildRow = RowOf(grid, recipeChildNode);
+                    Check("网络数组元素行：只读文本、无编辑 TextBox",
+                        recipeChildRow != null
+                        && Descendants<TextBox>(recipeChildRow).All(t => !EffectivelyVisible(t))
+                        && Descendants<TextBlock>(recipeChildRow).Any(t => string.Equals(t.Text, "10", StringComparison.Ordinal) && EffectivelyVisible(t)),
+                        recipeChildRow == null
+                            ? "row=null"
+                            : $"text={string.Join("/", Descendants<TextBlock>(recipeChildRow).Select(t => t.Text).Where(t => !string.IsNullOrEmpty(t)))} visibleBoxes={Descendants<TextBox>(recipeChildRow).Count(t => EffectivelyVisible(t))}");
+
                     // 系统来源：横幅、只读 chip、复制保留、重命名/删除隐藏
                     Populate(fixture.Vm, "system");
                     Pump(host);
-                    Check("系统来源：只读横幅可见、管理扫描组收起、添加变量仍可见",
+                    Check("系统来源：只读横幅可见、管理分组可见、添加变量仍可见、导出/导入收起",
                         EffectivelyVisible(banner)
-                        && !EffectivelyVisible(manage)
-                        && EffectivelyVisible(add),
-                        $"banner={banner?.Visibility} manage={manage?.Visibility} add={add?.Visibility}");
+                        && EffectivelyVisible(manage)
+                        && EffectivelyVisible(add)
+                        && !EffectivelyVisible(export)
+                        && !EffectivelyVisible(import),
+                        $"banner={banner?.Visibility} manage={manage?.Visibility} add={add?.Visibility} " +
+                        $"export={export?.Visibility} import={import?.Visibility}");
 
                     var systemNode = fixture.Vm.FilteredDisplayNodes.First(n => n.Name == "Motion.X.Position");
                     var systemRow = RowOf(grid, systemNode);
@@ -258,7 +359,7 @@ namespace UIThemeSmokeTest
                     Pump(host);
                     Check("VM.SelectedSource → ListBox 选中（网络节点）",
                         ReferenceEquals(sourceList.SelectedItem, netSource),
-                        sourceList.SelectedItem?.GetType().Name ?? "null");
+                        $"list={(sourceList.SelectedItem as VariableSourceNode)?.DisplayName ?? "<null>"} vm={netSource.DisplayName}");
                     fixture.Vm.SelectedSource = systemSource;
                     Pump(host);
                     Check("网络 → 系统：系统来源保持选中，不被 IsNetworkSource 改回本地",
@@ -270,6 +371,43 @@ namespace UIThemeSmokeTest
                         ReferenceEquals(fixture.Vm.SelectedSource, netSource) && fixture.Vm.IsNetworkSource,
                         fixture.Vm.SelectedSource?.Key ?? "null");
 
+                    // 分组行选中：作用域切到「连接 / 分组」，标签与搜索口径跟随
+                    Populate(fixture.Vm, "network");
+                    Pump(host);
+                    var monitorNode = fixture.Vm.SourceNodes.FirstOrDefault(n => n.IsGroup && n.DisplayName == "监控分组");
+                    if (monitorNode == null)
+                    {
+                        Check("左栏分组行存在（用于选中作用域断言）", false, "找不到「监控分组」行");
+                    }
+                    else
+                    {
+                        sourceList.SelectedItem = monitorNode;
+                        Pump(host);
+                        Check("左栏选中分组行 → VM 作用域切到该分组（SelectedGroupId / 分组标签）",
+                            ReferenceEquals(fixture.Vm.SelectedNode, monitorNode)
+                            && fixture.Vm.SelectedGroupId == monitorNode.GroupId
+                            && fixture.Vm.IsGroupScope
+                            && fixture.Vm.SelectedGroupName == "监控分组",
+                            $"node={fixture.Vm.SelectedNode?.DisplayName} group={fixture.Vm.SelectedGroupId} label={fixture.Vm.SelectedGroupName}");
+                    }
+
+                    // 分组编辑器覆盖层：打开可见 + 分组行渲染；关闭收起
+                    var groupOverlay = view.FindName("GroupEditorOverlay") as Grid;
+                    fixture.Vm.OpenGroupManagerCommand.Execute();
+                    Pump(host);
+                    Check("分组编辑器覆盖层：打开可见 + 分组行渲染",
+                        EffectivelyVisible(groupOverlay)
+                        && Descendants<TextBlock>(groupOverlay).Any(t => t.Text == "管理分组")
+                        && Descendants<TextBlock>(groupOverlay).Any(t => t.Text == "未分组"),
+                        groupOverlay == null
+                            ? "GroupEditorOverlay=null"
+                            : $"visible={EffectivelyVisible(groupOverlay)} ungroupedRows={Descendants<TextBlock>(groupOverlay).Count(t => t.Text == "未分组")}");
+
+                    fixture.Vm.CloseGroupManagerCommand.Execute();
+                    Pump(host);
+                    Check("分组编辑器覆盖层：关闭后收起", !EffectivelyVisible(groupOverlay),
+                        $"visible={EffectivelyVisible(groupOverlay)}");
+
                     // ToolTip 显式样式：统计全部挂载点，不只看第一个按钮
                     var toolTipOwners = Descendants<FrameworkElement>(view)
                         .Where(e => e.ToolTip is ToolTip)
@@ -279,6 +417,57 @@ namespace UIThemeSmokeTest
                     Check("ToolTip 全部显式使用 DialogToolTipStyle",
                         toolTipOwners.Count > 0 && styledTips == toolTipOwners.Count,
                         $"{styledTips}/{toolTipOwners.Count}");
+
+                    // P3-1：网络数组的元素个数被导入改大后，树子行必须按 AddressConfig.Length 显示，
+                    // 不能停在旧 Value/基准的长度（设备离线时永远少显示）。
+                    var addressOk = GlobalVariableManagerViewModel.TryBuildAddress(
+                        CommunicationType.ModbusTcp, ModbusArea.HoldingRegisters, "500", -1, typeof(int[]),
+                        out var arrayAddress, out var addressError, elementCount: 5);
+                    var arrayVar = new NetworkVariableModel
+                    {
+                        Name = "LengthChanged",
+                        DataType = typeof(int[]),
+                        ConnectionName = "PLC_Modbus",
+                        AddressConfig = arrayAddress,
+                        DefaultValue = new[] { 1, 2, 3 },
+                        Value = new[] { 1, 2, 3 },
+                    };
+                    fixture.Workspace.GlobalVariables.Add(arrayVar);
+                    fixture.Vm.OnDialogOpened(new DialogParameters());
+                    // OnDialogOpened 会重建来源树；显式选回真实连接来源，确保明细过滤到该设备。
+                    var realNet = fixture.Vm.SourceNodes.FirstOrDefault(s => s.IsNetwork && s.Key == "PLC_Modbus");
+                    if (realNet != null) fixture.Vm.SelectedSource = realNet;
+                    var arrayRoot = fixture.Vm.FilteredDisplayNodes
+                        .FirstOrDefault(n => ReferenceEquals(n.OriginalModel, arrayVar));
+                    Check("网络数组元素个数改大：子行按 AddressConfig.Length 显示 5 行",
+                        addressOk && arrayRoot != null && arrayRoot.Children.Count == 5,
+                        $"ok={addressOk} err={addressError} root={arrayRoot != null} children={arrayRoot?.Children.Count}");
+
+                    // 反向：5→3 时旧 Value/基准仍长 5，树必须按配置长度缩到 3，摘要也不能还列 5 项。
+                    var shrinkOk = GlobalVariableManagerViewModel.TryBuildAddress(
+                        CommunicationType.ModbusTcp, ModbusArea.HoldingRegisters, "600", -1, typeof(int[]),
+                        out var shrinkAddress, out var shrinkError, elementCount: 3);
+                    var shrinkVar = new NetworkVariableModel
+                    {
+                        Name = "LengthShrink",
+                        DataType = typeof(int[]),
+                        ConnectionName = "PLC_Modbus",
+                        AddressConfig = shrinkAddress,
+                        DefaultValue = new[] { 1, 2, 3, 4, 5 },
+                        Value = new[] { 1, 2, 3, 4, 5 },
+                    };
+                    fixture.Workspace.GlobalVariables.Add(shrinkVar);
+                    fixture.Vm.OnDialogOpened(new DialogParameters());
+                    var realNetShrink = fixture.Vm.SourceNodes.FirstOrDefault(s => s.IsNetwork && s.Key == "PLC_Modbus");
+                    if (realNetShrink != null) fixture.Vm.SelectedSource = realNetShrink;
+                    var shrinkRoot = fixture.Vm.FilteredDisplayNodes
+                        .FirstOrDefault(n => ReferenceEquals(n.OriginalModel, shrinkVar));
+                    Check("网络数组元素个数改小：子行 3 行 + 摘要/工具提示按 3 项",
+                        shrinkOk && shrinkRoot != null
+                        && shrinkRoot.Children.Count == 3
+                        && shrinkRoot.ArraySummaryTooltip == "1 · 2 · 3",
+                        $"ok={shrinkOk} err={shrinkError} root={shrinkRoot != null} " +
+                        $"children={shrinkRoot?.Children.Count} tooltip={shrinkRoot?.ArraySummaryTooltip}");
                 }
                 finally
                 {
@@ -317,9 +506,11 @@ namespace UIThemeSmokeTest
                 var host = CreateHost(view, 1300, 700);
                 try
                 {
-                    foreach (var mode in new[] { "local", "network", "network-offline", "system", "empty", "search", "write-error" })
+                    foreach (var mode in new[] { "local", "network", "network-offline", "system", "empty", "search", "write-error", "group-editor" })
                     {
-                        Populate(fixture.Vm, mode);
+                        Populate(fixture.Vm, mode == "group-editor" ? "network" : mode);
+                        if (mode == "group-editor")
+                            fixture.Vm.OpenGroupManagerCommand.Execute();
                         Pump(host);
                         if (mode == "write-error")
                             MarkWriteError(view);
@@ -327,6 +518,8 @@ namespace UIThemeSmokeTest
                         var path = Path.Combine(outDir, "after-render-v1-" + mode + ".png");
                         RenderElement(host, path);
                         Check("渲染 " + mode, File.Exists(path), path);
+                        if (mode == "group-editor")
+                            fixture.Vm.CloseGroupManagerCommand.Execute();
                     }
 
                     // 1200 窄档（网络来源）：必须显式重新 Measure/Arrange，否则 Border 会沿用上一档 1300 的布局
@@ -339,6 +532,9 @@ namespace UIThemeSmokeTest
                     var narrowPath = Path.Combine(outDir, "after-render-v1-narrow.png");
                     RenderElement(host, narrowPath);
                     Check("渲染 narrow", File.Exists(narrowPath), narrowPath);
+
+                    // 批量导入/导出两个弹窗（独立窗口视图）：导出范围卡 + 导入差异表。
+                    RenderIoDialogs(fixture, outDir, Check);
 
                     // 在线/离线副行必须不同（真实 VM 没有连接时 IsOnline 恒 false，所以 Populate 里显式设 true）
                     var online = fixture.Vm.SourceNodes.First(s => s.Key == "PLC_Modbus");
@@ -385,10 +581,10 @@ namespace UIThemeSmokeTest
             string[] required =
             {
                 "ItemsSource=\"{Binding FilteredDisplayNodes}\"",
-                "SelectedItem=\"{Binding SelectedSource, Mode=TwoWay}\"",
+                "SelectedItem=\"{Binding SelectedNode, Mode=TwoWay}\"",
                 "Text=\"{Binding SearchText, UpdateSourceTrigger=PropertyChanged}\"",
                 "Command=\"{Binding AddCommand}\"",
-                "Command=\"{Binding ManageScanGroupsCommand}\"",
+                "Command=\"{Binding OpenGroupManagerCommand}\"",
                 "Command=\"{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}\"",
                 "Command=\"{Binding DataContext.RenameCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}\"",
                 "Command=\"{Binding DataContext.CopyNameCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}\"",
@@ -399,17 +595,30 @@ namespace UIThemeSmokeTest
                 "ItemsSource=\"{Binding ScanGroupOptions}\"",
                 "SelectedItem=\"{Binding ScanGroupText",
                 "{Binding ShowScanGroup",
+                "ItemsSource=\"{Binding GroupOptions}\"",
+                "SelectedItem=\"{Binding SelectedGroup",
+                "{Binding ShowGroup",
+                "GroupEditor.IsOpen",
+                "GroupEditor.Rows",
                 "CurrentValueText",
                 "IsValueDeviated",
                 "IsValueReadOnly",
                 "IsSystemOwned",
                 "IsEditableNode",
+                "ArraySummary",
+                "IsElementDeviated",
+                "Command=\"{Binding DataContext.ResetElementCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}\"",
                 "x:Name=\"AddButton\"",
-                "x:Name=\"ManageGroupsButton\"",
+                "x:Name=\"ManageVariableGroupsButton\"",
+                "x:Name=\"ExportButton\"",
+                "x:Name=\"ImportButton\"",
+                "Command=\"{Binding ExportCommand}\"",
+                "Command=\"{Binding ImportCommand}\"",
+                "Visibility=\"{Binding IsNetworkSource, Converter={ui:BooleanToVisibilityConverter}}\"",
                 "x:Name=\"SystemBanner\"",
                 "x:Name=\"EmptySourceOverlay\"",
                 "x:Name=\"SearchEmptyOverlay\"",
-                "x:Name=\"SourceColumn\"",
+                "x:Name=\"GroupColumn\"",
                 "x:Name=\"ScanGroupColumn\"",
                 "x:Name=\"AddressColumn\"",
                 "RowHeight=\"{x:Static sys:Double.NaN}\"",
@@ -433,6 +642,81 @@ namespace UIThemeSmokeTest
                 code.Contains("PropertyGroupDescription") && code.Contains("nameof(VariableSourceNode.IsNetwork)"),
                 "");
             check("视图使用 TypeAbbreviationConverter", xaml.Contains("TypeAbbreviationConverter"), "");
+
+            // ================================================================
+            //  批量导入 / 导出两个独立弹窗的静态闸
+            // ================================================================
+            var exportPath = Path.Combine(RepoRoot, @"VisionMaster\Views\DialogViews\DeviceVariableExportView.xaml");
+            var importPath = Path.Combine(RepoRoot, @"VisionMaster\Views\DialogViews\DeviceVariableImportView.xaml");
+            var exportXaml = File.Exists(exportPath) ? File.ReadAllText(exportPath) : string.Empty;
+            var importXaml = File.Exists(importPath) ? File.ReadAllText(importPath) : string.Empty;
+            check("导入/导出弹窗 XAML 可读", exportXaml.Length > 0 && importXaml.Length > 0,
+                $"{exportPath} | {importPath}");
+
+            // 注释里的字符串不能算数：先剥注释再做 Contains / regex 判据。
+            var exportXamlNoComments = Regex.Replace(exportXaml, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+            var importXamlNoComments = Regex.Replace(importXaml, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+
+            string[] exportRequired =
+            {
+                "Command=\"{Binding ExportCommand}\"",
+                "Command=\"{Binding BrowseCommand}\"",
+                "Command=\"{Binding CancelCommand}\"",
+                "IsChecked=\"{Binding IsAllScope, Mode=TwoWay}\"",
+                "IsChecked=\"{Binding IsCurrentGroupScope, Mode=TwoWay}\"",
+                "Text=\"{Binding Subtitle}\"",
+                "Text=\"{Binding ExportPath}\"",
+                "Text=\"{Binding Summary}\"",
+            };
+            var exportMissing = exportRequired.Where(r => !exportXamlNoComments.Contains(r, StringComparison.Ordinal)).ToList();
+            check("导出弹窗关键绑定齐全", exportMissing.Count == 0, string.Join(" | ", exportMissing));
+
+            string[] importRequired =
+            {
+                "ItemsSource=\"{Binding Items}\"",
+                "Command=\"{Binding ApplyCommand}\"",
+                "Command=\"{Binding ReselectFileCommand}\"",
+                "Command=\"{Binding DownloadTemplateCommand}\"",
+                "IsChecked=\"{Binding SkipErrors, Mode=TwoWay}\"",
+                "IsChecked=\"{Binding DeleteMissing, Mode=TwoWay}\"",
+                "IsChecked=\"{Binding AutoCreateDisplayGroups, Mode=TwoWay}\"",
+                "Text=\"{Binding ApplyHint}\"",
+                "Text=\"{Binding ResultSummary}\"",
+                "Text=\"{Binding GlobalError}\"",
+                "services:DeviceVariableImportStatus.New",
+                "services:DeviceVariableImportStatus.Update",
+                "services:DeviceVariableImportStatus.Error",
+            };
+            var importMissing = importRequired.Where(r => !importXamlNoComments.Contains(r, StringComparison.Ordinal)).ToList();
+            check("导入弹窗关键绑定齐全", importMissing.Count == 0, string.Join(" | ", importMissing));
+
+            // DataGrid.RowHeight 是 double：XAML 里写 "Auto" 会在**视图构造期**抛
+            // "Auto is not a valid value for Double"（编译期全绿）。自动行高只能写 NaN。
+            check("导入弹窗 RowHeight 用 NaN（Auto 不是合法 double）",
+                !importXamlNoComments.Contains("RowHeight=\"Auto\"", StringComparison.Ordinal)
+                && importXamlNoComments.Contains("RowHeight=\"{x:Static sys:Double.NaN}\"", StringComparison.Ordinal),
+                "");
+
+            // Run.Text 的默认绑定模式是 TwoWay：绑到只读计数属性会在构造期抛
+            // "无法对只读属性使用 TwoWay 绑定"。**所有**计数 Run 都必须显式 Mode=OneWay
+            // （旧判据只抓"没写 Mode"的形态，写 Mode=TwoWay 会绕过）。
+            var countRunTags = Regex.Matches(
+                importXamlNoComments,
+                @"<Run\b[^>]*Text=""\{Binding\s+(NewCount|UpdateCount|UnchangedCount|ErrorCount|MissingCount)[^}]*\}""");
+            var badCountRun = countRunTags.Cast<Match>()
+                .Any(m => !m.Value.Contains("Mode=OneWay", StringComparison.Ordinal));
+            check("导入弹窗计数 Run 全部显式 OneWay",
+                countRunTags.Count >= 5 && !badCountRun,
+                $"runs={countRunTags.Count} bad={badCountRun}");
+
+            var appPath = Path.Combine(RepoRoot, @"VisionMaster\App.xaml.cs");
+            var app = File.Exists(appPath) ? File.ReadAllText(appPath) : string.Empty;
+            var appNoComments = Regex.Replace(app, @"//.*?$|/\*.*?\*/", string.Empty,
+                RegexOptions.Multiline | RegexOptions.Singleline);
+            check("App 注册导入/导出弹窗（命令打开的名字必须已注册）",
+                appNoComments.Contains("DeviceVariableExportViewModel.DialogName", StringComparison.Ordinal)
+                && appNoComments.Contains("DeviceVariableImportViewModel.DialogName", StringComparison.Ordinal),
+                appPath);
         }
 
         private static void RunConverterChecks(Action<string, bool, string> check)
@@ -487,7 +771,7 @@ namespace UIThemeSmokeTest
 
             var local = new VariableSourceNode { Key = "Local", DisplayName = "本地变量", Icon = "\uf15b", Count = 6, IsOnline = true };
             var system = new VariableSourceNode { Key = GlobalVariableManagerViewModel.SystemSourceKey, DisplayName = "系统变量", Icon = "\uf013", Count = 8, IsOnline = true };
-            var net = new VariableSourceNode { Key = "PLC_Modbus", DisplayName = "PLC_Modbus", Icon = "\uf1eb", IsNetwork = true, ProtocolText = "Modbus TCP", Count = 5, IsOnline = true };
+            var net = new VariableSourceNode { Key = "PLC_Modbus", DisplayName = "PLC_Modbus", Icon = "\uf1eb", IsNetwork = true, ProtocolText = "Modbus TCP", Count = 5, IsOnline = true, IsExpanded = true };
             var netOff = new VariableSourceNode { Key = "PLC_S7_1", DisplayName = "PLC_S7_1", Icon = "\uf1eb", IsNetwork = true, ProtocolText = "Siemens S7", Count = 3, IsOnline = false };
             vm.SourceNodes.Add(local);
             vm.SourceNodes.Add(system);
@@ -502,6 +786,7 @@ namespace UIThemeSmokeTest
                     break;
                 case "network":
                     vm.SelectedSource = net;
+                    AddGroupRows(vm, net);
                     AddNetworkRows(vm, "PLC_Modbus", true);
                     break;
                 case "network-offline":
@@ -523,9 +808,43 @@ namespace UIThemeSmokeTest
                     break;
                 case "write-error":
                     vm.SelectedSource = net;
+                    AddGroupRows(vm, net);
                     AddNetworkRows(vm, "PLC_Modbus", true);
                     break;
             }
+
+            // 夹具直接改写 FilteredDisplayNodes（绕过 DisplayNodes 过滤），
+            // 徽标要显式同步一次，否则渲染出"0 个变量"。
+            vm.RefreshVisibleRootCount();
+        }
+
+        /// <summary>在连接行下面插入「全部 / 监控分组 / 未分组」三个分组行（只用于视图渲染/模板选择器）。</summary>
+        private static void AddGroupRows(GlobalVariableManagerViewModel vm, VariableSourceNode parent)
+        {
+            int index = vm.SourceNodes.IndexOf(parent);
+            if (index < 0) return;
+
+            var rows = new[]
+            {
+                new VariableSourceNode
+                {
+                    Key = parent.Key + "|all", DisplayName = "全部", Icon = "\uf0ca", IsNetwork = true,
+                    Level = 1, ParentKey = parent.Key, GroupId = null, Count = 5, IsOnline = parent.IsOnline
+                },
+                new VariableSourceNode
+                {
+                    Key = parent.Key + "|monitor", DisplayName = "监控分组", Icon = "\uf02b", IsNetwork = true,
+                    Level = 1, ParentKey = parent.Key, GroupId = MonitorGroupId, Count = 3, IsOnline = parent.IsOnline
+                },
+                new VariableSourceNode
+                {
+                    Key = parent.Key + "|ungrouped", DisplayName = "未分组", Icon = "\uf01c", IsNetwork = true,
+                    Level = 1, ParentKey = parent.Key, GroupId = Guid.Empty, Count = 2, IsOnline = parent.IsOnline
+                },
+            };
+
+            for (int i = 0; i < rows.Length; i++)
+                vm.SourceNodes.Insert(index + 1 + i, rows[i]);
         }
 
         private static void AddLocalRows(GlobalVariableManagerViewModel vm)
@@ -535,8 +854,8 @@ namespace UIThemeSmokeTest
             AddRoot(vm, NewVar("YieldRate", typeof(double), 0d, 0.976, "实时良率（OK / 总数）"), false, true, null, null);
             AddRoot(vm, NewVar("LastResult", typeof(string), "", "OK", "最近一次判定结果"), false, true, null, null);
 
-            // 数组根必须用真实 LocalVariableModel：视图的「强制覆盖集合...」分支会检查
-            // OriginalModel is LocalVariableModel（防止系统/网络数组出现死按钮）。
+            // 数组根必须用真实 LocalVariableModel：视图的数组根分支会检查
+            // OriginalModel is LocalVariableModel（防止系统/网络数组出现编辑入口）。
             var flags = new LocalVariableModel
             {
                 Name = "DefectFlags",
@@ -573,6 +892,51 @@ namespace UIThemeSmokeTest
             AddRoot(vm, NewVar("Temperature", typeof(double), 0d, 86.4, "烘箱温度", VariableType.Communication, connection, online ? VariableQuality.Uncertain : VariableQuality.Bad), true, online, "x=3;102", "快组 (20ms)");
             AddRoot(vm, NewVar("AlarmCode", typeof(int), 0, 0, "报警代码", VariableType.Communication, connection, quality), true, online, "x=3;104", "默认组");
             AddRoot(vm, NewVar("PartReady", typeof(bool), false, false, "来料就绪（离散输入）", VariableType.Communication, connection, quality, readOnly: true), true, online, "x=2;10", "默认组");
+
+            // 网络数组：第一期只读。用真实 NetworkVariableModel（视图的 NetworkArrayRoot/
+            // ReadOnlyChild 分支按模型类型判定，FakeVariable 走不到这两支）。
+            var recipe = new NetworkVariableModel
+            {
+                Name = "RecipeBlock",
+                DataType = typeof(int[]),
+                ConnectionName = connection,
+                Description = "配方块（3 个 Int32，只读）",
+                AddressConfig = new ModbusAddress
+                {
+                    Area = ModbusArea.HoldingRegisters,
+                    DataType = DataValueType.Int32,
+                    Offset = "0",
+                    Length = 3
+                },
+                Value = new[] { 10, 20, 30 }
+            };
+            var recipeRoot = Root(recipe, true, online, "x=3;0", "默认组");
+            recipeRoot.IsExpanded = true;
+            vm.FilteredDisplayNodes.Add(recipeRoot);
+            for (int i = 0; i < 3; i++)
+                vm.FilteredDisplayNodes.Add(Child(recipeRoot, i, ((int[])recipe.Value!)[i]));
+
+            // 只读区（离散输入）里的网络数组：根行必须是「只读」徽标，不能出现「写入数组…」。
+            var netFlags = new NetworkVariableModel
+            {
+                Name = "NetFlags",
+                DataType = typeof(bool[]),
+                ConnectionName = connection,
+                Description = "来料标记组（3 点，只读）",
+                AddressConfig = new ModbusAddress
+                {
+                    Area = ModbusArea.DiscreteInputs,
+                    DataType = DataValueType.Boolean,
+                    Offset = "0",
+                    Length = 3
+                },
+                Value = new[] { true, false, true }
+            };
+            var netFlagsRoot = Root(netFlags, true, online, "x=2;0", "默认组");
+            netFlagsRoot.IsExpanded = true;
+            vm.FilteredDisplayNodes.Add(netFlagsRoot);
+            for (int i = 0; i < 3; i++)
+                vm.FilteredDisplayNodes.Add(Child(netFlagsRoot, i, ((bool[])netFlags.Value!)[i]));
         }
 
         private static void AddSystemRows(GlobalVariableManagerViewModel vm)
@@ -613,6 +977,11 @@ namespace UIThemeSmokeTest
                 node.ScanGroupOptions.Add("默认组");
                 node.ScanGroupOptions.Add("快组 (20ms)");
                 node.ScanGroupText = scanGroup ?? "默认组";
+
+                // 显示分组：冒烟夹具不建方案分组表，只给内置「未分组」，
+                // 保证分组列渲染出可选项而不是空下拉。
+                node.GroupOptions.Add(new VariableGroupOption { Id = Guid.Empty, Name = "未分组" });
+                node.SelectedGroup = node.GroupOptions[0];
             }
 
             return node;
@@ -667,7 +1036,144 @@ namespace UIThemeSmokeTest
         //  渲染 / 视觉树工具
         // ==================================================================
 
-        private static Border CreateHost(GlobalVariableView view, double width, double height)
+        /// <summary>
+        /// 批量导入/导出两个独立弹窗的渲染与数据检查。
+        /// <para>为什么放在变量管理渲染里：两者共用同一套 Dialog 皮肤与同一个设备来源，
+        /// 但视图是独立 UserControl，不能靠 GlobalVariableView 的渲染档覆盖。</para>
+        /// </summary>
+        private static void RenderIoDialogs(
+            Fixture fixture, string outDir, Action<string, bool, string> check)
+        {
+            var groups = fixture.Workspace.CurrentSolution.VariableGroups.ToList();
+            var nv1 = CreateNetworkVariable("SpeedSet", "100", MonitorGroupId, "目标速度", typeof(int), 0);
+            var nv2 = CreateNetworkVariable("RecipeBlock", "200", MonitorGroupId, "配方块", typeof(int), 10);
+            var nv3 = CreateNetworkVariable("PartReady", "300", Guid.Empty, "工件就绪", typeof(bool), false);
+            foreach (var nv in new[] { nv1, nv2, nv3 })
+                fixture.Workspace.GlobalVariables.Add(nv);
+
+            // 导出弹窗：全部 3 / 当前分组 2
+            var exportVm = new DeviceVariableExportViewModel(fixture.Workspace, fixture.Manager);
+            exportVm.OnDialogOpened(new DialogParameters
+            {
+                { DeviceVariableExportViewModel.ConnectionNameKey, "PLC_Modbus" },
+                { DeviceVariableExportViewModel.CurrentGroupIdKey, MonitorGroupId },
+                { DeviceVariableExportViewModel.HasCurrentGroupKey, true },
+                { DeviceVariableExportViewModel.CurrentGroupNameKey, "监控分组" },
+            });
+            check("导出弹窗：全部 3 / 当前分组 2",
+                exportVm.AllCount == 3 && exportVm.CurrentGroupCount == 2,
+                $"all={exportVm.AllCount} group={exportVm.CurrentGroupCount}");
+
+            var exportView = new DeviceVariableExportView { DataContext = exportVm };
+            var exportHost = CreateHost(exportView, 620, 560);
+
+            // R160：两张范围卡必须等宽（自定义 RadioButton 内容默认按内容宽收缩）。
+            var scopeRadios = Descendants<RadioButton>(exportView)
+                .Where(r => string.Equals(r.GroupName, "ExportScope", StringComparison.Ordinal))
+                .ToList();
+            check("导出弹窗：两张范围卡等宽（Stretch 生效）",
+                scopeRadios.Count == 2
+                && scopeRadios[0].ActualWidth > 200
+                && Math.Abs(scopeRadios[0].ActualWidth - scopeRadios[1].ActualWidth) < 1,
+                string.Join(" / ", scopeRadios.Select(r => r.ActualWidth.ToString("0.#"))));
+
+            try
+            {
+                var exportPath = Path.Combine(outDir, "after-render-v1-export.png");
+                RenderElement(exportHost, exportPath);
+                check("渲染 export 弹窗", File.Exists(exportPath), exportPath);
+            }
+            finally
+            {
+                exportHost.Child = null;
+            }
+
+            // 导入弹窗：造一份 新增 / 更新 / 无变化 / 错误 都有的文件
+            var rows = new List<Dictionary<string, object?>>
+            {
+                DeviceVariableExportService.BuildRow(nv1, groups),
+                DeviceVariableExportService.BuildRow(nv2, groups),
+                DeviceVariableExportService.BuildRow(nv3, groups),
+            };
+            rows[1][DeviceVariableColumns.Description] = "配方块（改）";
+
+            var newRow = new Dictionary<string, object?>(rows[0], StringComparer.Ordinal);
+            newRow[DeviceVariableColumns.Name] = "NewTemp";
+            newRow[DeviceVariableColumns.DataType] = "小数 (double)";
+            newRow[DeviceVariableColumns.Offset] = "400";
+            newRow[DeviceVariableColumns.DisplayGroup] = "控制分组";
+            newRow[DeviceVariableColumns.ScanGroup] = "不存在的组";
+            rows.Add(newRow);
+
+            var errorRow = new Dictionary<string, object?>(rows[0], StringComparer.Ordinal);
+            errorRow[DeviceVariableColumns.Name] = "BadTemp";
+            errorRow[DeviceVariableColumns.DataType] = "不存在的类型";
+            rows.Add(errorRow);
+
+            var file = Path.Combine(Path.GetTempPath(), "vm_io_render_" + Guid.NewGuid().ToString("N") + ".xlsx");
+            try
+            {
+                MiniExcel.SaveAs(file, new Dictionary<string, object> { ["变量表"] = rows });
+
+                var importVm = new DeviceVariableImportViewModel(fixture.Workspace, fixture.Manager, fixture.Bridge);
+                importVm.OnDialogOpened(new DialogParameters
+                {
+                    { DeviceVariableImportViewModel.FilePathKey, file },
+                    { DeviceVariableImportViewModel.ConnectionNameKey, "PLC_Modbus" },
+                });
+                check("导入弹窗：新增 1 / 更新 1 / 无变化 2 / 错误 1",
+                    importVm.NewCount == 1 && importVm.UpdateCount == 1
+                    && importVm.UnchangedCount == 2 && importVm.ErrorCount == 1,
+                    $"{importVm.NewCount}/{importVm.UpdateCount}/{importVm.UnchangedCount}/{importVm.ErrorCount}");
+
+                var importView = new DeviceVariableImportView { DataContext = importVm };
+                var importHost = CreateHost(importView, 1060, 800);
+                try
+                {
+                    var skipBox = Descendants<CheckBox>(importView)
+                        .FirstOrDefault(c => (c.Content as string)?.StartsWith("跳过错误行", StringComparison.Ordinal) == true);
+                    check("导入弹窗：错误行可勾选跳过、应用按钮在未跳过时禁用",
+                        skipBox != null && skipBox.IsEnabled && !importVm.CanApply,
+                        $"skipEnabled={skipBox?.IsEnabled} canApply={importVm.CanApply}");
+
+                    var importPath = Path.Combine(outDir, "after-render-v1-import.png");
+                    RenderElement(importHost, importPath);
+                    check("渲染 import 弹窗", File.Exists(importPath), importPath);
+                }
+                finally
+                {
+                    importHost.Child = null;
+                }
+            }
+            finally
+            {
+                try { if (File.Exists(file)) File.Delete(file); } catch { }
+            }
+        }
+
+        private static NetworkVariableModel CreateNetworkVariable(
+            string name, string offset, Guid groupId, string description, Type type, object defaultValue)
+        {
+            GlobalVariableManagerViewModel.TryBuildAddress(
+                CommunicationType.ModbusTcp,
+                type == typeof(bool) ? ModbusArea.Coils : ModbusArea.HoldingRegisters,
+                offset, -1, type, out var address, out _);
+
+            return new NetworkVariableModel
+            {
+                Name = name,
+                DataType = type,
+                Description = description,
+                ConnectionName = "PLC_Modbus",
+                AddressConfig = address,
+                ScanGroup = string.Empty,
+                GroupId = groupId,
+                DefaultValue = defaultValue,
+                Value = defaultValue,
+            };
+        }
+
+        private static Border CreateHost(FrameworkElement view, double width, double height)
         {
             var host = new Border
             {
@@ -779,8 +1285,22 @@ namespace UIThemeSmokeTest
             public Fixture()
             {
                 Workspace = new WorkspaceContext();
+                // 变量管理/分组编辑器都读 CurrentSolution.VariableGroups；
+                // 不挂方案时 CurrentSolution 为 null（真实启动早期也是这个状态），
+                // 这里先挂一份空方案，让分组表有一个真实落点。
+                Workspace.SwitchSolution(new SolutionModel());
+                Workspace.CurrentSolution.VariableGroups.Add(
+                    new VariableGroupDescriptor { Id = MonitorGroupId, Name = "监控分组" });
                 Workspace.GlobalVariables.Clear();
                 Manager = new AdvancedCommunicationManager();
+                // 导入/导出入口按连接过滤变量：夹具没有连接时 SelectedConnection 恒 null，
+                // 两个命令永远不可执行（按钮可见但点了没反应）。这里注册一条 Modbus 连接。
+                Manager.AddConnection(new CommunicationConfig
+                {
+                    ConnectionName = "PLC_Modbus",
+                    Protocol = CommunicationType.ModbusTcp,
+                    ReadCycleMs = 1000,
+                });
                 Bridge = new NetworkVariableBridge(Workspace, Manager, new StubLog());
                 Vm = new GlobalVariableManagerViewModel(Workspace, Manager, Bridge, new SilentDialogService());
             }

@@ -12,10 +12,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- 引用主程序即可拿到 Core / Core.Interfaces / Communication 的全部 public 面 -->
+    <!-- 引用主程序即可拿到 Core / Core.Interfaces / Communication 的全部 public 面。
+         VM.Scada.Controls 由 VisionMaster 传递引用：再显式引一次会让它被两条引用链
+         各构建一次，WPF 的 _wpftmp 与主工程抢同一个 obj，报 RG1000「BAML 键重复」。 -->
     <ProjectReference Include="..\VisionMaster\VisionMaster.csproj" />
-    <!-- 图元控件库：S2 起断言描述符/注册表/属性字符串 ↔ 依赖属性的换算 -->
-    <ProjectReference Include="..\Scada.Controls\VM.Scada.Controls.csproj" />
   </ItemGroup>
 
 </Project>

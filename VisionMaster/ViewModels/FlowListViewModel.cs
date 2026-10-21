@@ -254,6 +254,11 @@ namespace VisionMaster.ViewModels
                 case FlowAction.Stop:
                     StopSingleFlow();
                     break;
+                case FlowAction.VariableEvents:
+                    // 方案级变量事件：入口在流程栏，但配置不归属单条流程
+                    // （ScadaDocument.VariableEvents 是一张方案级表）。
+                    dialogService.ShowDialog("ScadaVariableEventDialogView");
+                    break;
             }
         }
 

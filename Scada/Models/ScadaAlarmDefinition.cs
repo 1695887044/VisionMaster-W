@@ -26,6 +26,7 @@ namespace VisionMaster.Scada
         private string _name = string.Empty;
         private Guid _variableId;
         private string? _variableName;
+        private int _arrayIndex = -1;
         private ScadaAlarmKind _kind = ScadaAlarmKind.High;
         private double _threshold;
         private ScadaAlarmSeverity _severity = ScadaAlarmSeverity.Warning;
@@ -76,6 +77,19 @@ namespace VisionMaster.Scada
             get => _variableName;
             set => SetProperty(ref _variableName, value);
         }
+
+        /// <summary>
+        /// 数组元素下标：<c>-1</c> = 监视整个变量，<c>≥ 0</c> = 监视数组元素。
+        /// 旧 .vms 没有这个字段，反序列化后取默认 -1（历史行为）。
+        /// </summary>
+        public int ArrayIndex
+        {
+            get => _arrayIndex;
+            set => SetProperty(ref _arrayIndex, value < 0 ? -1 : value);
+        }
+
+        /// <summary>把报警的变量引用摊成值源认的完整引用</summary>
+        public ScadaVariableRef ToReference() => new(VariableId, VariableName, ArrayIndex);
 
         /// <summary>
         /// 条件种类（高/高高/低/低低/布尔/断线）。
@@ -221,9 +235,14 @@ namespace VisionMaster.Scada
         /// 两种调用场景也相同（用户选了变量 / 加载旧方案后按名解析成功把 Id 补回来）。
         /// </summary>
         public void Bind(Guid variableId, string? variableName)
+            => Bind(variableId, variableName, -1);
+
+        /// <summary>绑定/自愈回填（含数组元素下标）。旧调用点用上面那个重载，等价于 -1。</summary>
+        public void Bind(Guid variableId, string? variableName, int arrayIndex)
         {
             VariableId = variableId;
             VariableName = variableName;
+            ArrayIndex = arrayIndex;
         }
 
         /// <summary>

@@ -184,6 +184,15 @@ namespace VisionMaster.Scada.Controls
         private Rectangle? _rubberBand;
 
         /// <summary>
+        /// <see cref="SetSelection"/> 正在成对写"集合 + 主选中"。
+        ///
+        /// 只用来拦住 <see cref="OnSelectedElementChanged"/> 里那条"主选中不在集合里 ⇒ 展开成集合"的
+        /// 修正分支：那段时间集合的依赖属性读到的还是旧值（双向绑定回推主选中时正好落在
+        /// 集合写入的通知中间），不拦就会把刚写进去的多选压成单选。详见 SetSelection 的注释。
+        /// </summary>
+        private bool _settingSelection;
+
+        /// <summary>
         /// 当前挂着变更订阅的选中图元（与 <see cref="SelectedElements"/> 的当前值可能不同，见 <see cref="SyncSelectedSubscription"/>）。
         ///
         /// 用 <see cref="HashSet{T}"/> 而不是列表：挂/摘都要判"在不在里面"，而这判据必须是<b>引用相等</b>——
@@ -514,6 +523,14 @@ namespace VisionMaster.Scada.Controls
         private static void OnSelectedElementChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             var canvas = (ScadaCanvas)d;
+
+            // SetSelection 自己正在成对写"集合 + 主选中"，这一路上主选中与集合天然一致，
+            // 不需要也不许再做"修正"——见 SetSelection 里对这段重入的说明。
+            if (canvas._settingSelection)
+            {
+                canvas.RefreshSelection();
+                return;
+            }
 
             if (e.NewValue is ScadaElement element)
             {
@@ -1795,6 +1812,17 @@ namespace VisionMaster.Scada.Controls
         ///
         /// 两行必须成对、且集合在前：依赖属性一改就同步通知绑定源，顺序反了会出现一瞬间
         /// "集合还是旧的、主选中已经是新的"，宿主正好在这个瞬间读就会拿到一个自相矛盾的状态。
+        ///
+        /// <b>为什么整段要罩一个重入闸</b>：集合写下去之后，双向绑定会把新的主选中回推回来
+        /// （<c>SelectedElements[0]</c>），而<b>此刻</b>集合那条依赖属性读到的还是旧值
+        /// （实测：写 4 个的过程中 <c>SelectedElements.Count</c> 仍是 0）。于是
+        /// <see cref="OnSelectedElementChanged"/> 会判定"这个图元不在集合里"，走它那条
+        /// "把主选中展开成选中集合"的修正分支，把刚写进去的 4 个覆盖成 1 个。
+        /// 表现就是<b>框选永远只选中最底下那一个</b>（2026-10-21 真机报障）。
+        ///
+        /// 闸门只在这两行之间落下：这段时间里主选中与集合是<b>同一次写入的两个分量</b>，
+        /// 天然一致，修正分支不该参与；之外的任何写入（宿主直接赋 <c>SelectedElement</c>）
+        /// 照常走修正，行为不变。
         /// </summary>
         private void SetSelection(IReadOnlyList<ScadaElement>? items)
         {
@@ -1803,8 +1831,18 @@ namespace VisionMaster.Scada.Controls
             // 放在这里只会覆盖这一条路径，而框选、宿主直接赋值都绕过它。
             var next = items ?? Array.Empty<ScadaElement>();
 
-            SetCurrentValue(SelectedElementsProperty, next);
-            SetCurrentValue(SelectedElementProperty, next.Count > 0 ? next[0] : null);
+            bool previous = _settingSelection;
+            _settingSelection = true;
+
+            try
+            {
+                SetCurrentValue(SelectedElementsProperty, next);
+                SetCurrentValue(SelectedElementProperty, next.Count > 0 ? next[0] : null);
+            }
+            finally
+            {
+                _settingSelection = previous;
+            }
         }
 
         /// <summary>

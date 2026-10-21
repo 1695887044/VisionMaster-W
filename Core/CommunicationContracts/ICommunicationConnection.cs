@@ -64,6 +64,18 @@ namespace VisionMaster.Communications
     }
 
     /// <summary>
+    /// 段读能力（可选）：地址单位不是"字节"的协议（MC/FINS 的字编址）用它读 N 个地址单位，
+    /// 避免把"字"误当"字节"（<see cref="ICommunicationConnection.ReadBytes"/> 的长度语义是
+    /// 各协议自己的地址单位，批量规划器直接传 SpanUnits）。
+    /// <para>未实现该接口的连接仍走 ReadBytes（Modbus/S7 的现有语义不变）。</para>
+    /// </summary>
+    public interface ISegmentReader
+    {
+        /// <summary>按地址单位（MC/FINS=字，Modbus=寄存器，S7=字节）读一段。</summary>
+        byte[] ReadSegment(string address, ushort units);
+    }
+
+    /// <summary>
     /// <para>建连失败分类（可选能力）：让上层（ConnectionWorker / Manager）能区分
     /// 「目标拒绝连接」与「网络超时」，并拿到人类可读的失败原因。</para>
     /// <para>为什么需要它：HSL 的建连失败只返回一句消息（含 OS 本地化文本），无法可靠分类；

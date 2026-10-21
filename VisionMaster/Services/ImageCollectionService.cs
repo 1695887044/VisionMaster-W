@@ -116,6 +116,10 @@ namespace VisionMaster.Services
             // 活不过发布方的下一轮（基类会释放上一轮的输出），循环运行时 UI 落后一轮
             // 就会拷到已释放的图（现场："单次运行正常，循环一开图不会被收纳"）。
             ImagePreviewCaptureHub.Current = this;
+
+            // 报警图集目录在加"保留期"这一项之前只写不删（每张 ~15MB 量级）。
+            // 放到后台跑：启动链上不该多一段磁盘遍历（与 R57/R79 同一口径）。
+            System.Threading.Tasks.Task.Run(() => CleanupExpiredAlarmFrames());
         }
 
         /// <summary>采集到的全部帧（只读视图，UI 直接绑定）</summary>
@@ -153,6 +157,67 @@ namespace VisionMaster.Services
                 TrimToLimits(CurrentSettings());
                 OnChanged();
             });
+
+            // 保留期可能刚被改小：立刻按新值清一次（后台，别占 UI 线程做目录遍历）
+            System.Threading.Tasks.Task.Run(() => CleanupExpiredAlarmFrames());
+        }
+
+        /// <summary>
+        /// 清理超过保留期的报警图集（程序目录 <c>AlarmFrames/yyyy-MM-dd/...</c>）。
+        /// <b>0 或负数 = 永不清理</b>（与审计 / 报警历史 / 日志同一口径）。
+        ///
+        /// 三条边界：
+        /// ① 只认 <c>yyyy-MM-dd</c> 形状的子目录——认不出的目录一律不动（那可能是用户自己放的东西）；
+        /// ② 删除失败只记 Warn，不抛（磁盘被占用 / 权限不足不该让调用方崩）；
+        /// ③ 判据用目录名里的日期而不是文件 mtime——拷来拷去会改 mtime，而目录名是落盘那一刻写死的。
+        /// </summary>
+        /// <param name="rootFolder">
+        /// 报警图集根目录。null = 程序目录下的 <c>AlarmFrames</c>（真机路径）；
+        /// 断言里显式指定临时目录，才不用往测试程序的输出目录里写文件。
+        /// </param>
+        public void CleanupExpiredAlarmFrames(string? rootFolder = null)
+        {
+            var retention = _settings.Current?.AlarmFrameRetentionDays
+                            ?? AppConfigModel.DefaultAlarmFrameRetentionDays;
+
+            CleanupExpiredAlarmFrames(
+                retention,
+                rootFolder ?? Path.Combine(AppContext.BaseDirectory, "AlarmFrames"),
+                _log);
+        }
+
+        /// <summary>
+        /// 清理的**纯函数形态**（公开是为了让断言直接调它，不必造一个会接管预览钩子的服务实例）。
+        /// </summary>
+        public static void CleanupExpiredAlarmFrames(int retentionDays, string rootFolder, ILogService? log = null)
+        {
+            var retention = retentionDays;
+            if (retention <= 0) return;
+
+            var root = rootFolder;
+            if (!Directory.Exists(root)) return;
+
+            var deadline = DateTime.Now.Date.AddDays(-retention);
+            foreach (var dir in Directory.GetDirectories(root))
+            {
+                if (!DateTime.TryParseExact(
+                        Path.GetFileName(dir),
+                        "yyyy-MM-dd",
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None,
+                        out var day))
+                {
+                    continue;
+                }
+
+                if (day >= deadline) continue;
+
+                try { Directory.Delete(dir, recursive: true); }
+                catch (Exception ex)
+                {
+                    log?.Warn($"[图像集] 清理过期报警图集失败（{dir}）：{ex.Message}");
+                }
+            }
         }
 
         /// <summary>

@@ -60,8 +60,19 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public string TypeName
         {
             get => _typeName;
-            set => SetProperty(ref _typeName, value);
+            set
+            {
+                if (SetProperty(ref _typeName, value))
+                    OnTypeNameChanged(value);
+            }
         }
+
+        /// <summary>
+        /// 数据类型变化的钩子：子类可在这里给"类型相关字段"设默认值 / 刷新预览。
+        /// <para>放在基类而不是直接写网络草稿的字段：<see cref="VariableDraft"/> 是本地/网络共用的，
+        /// 基类不能引用子类字段（编译期就炸）。</para>
+        /// </summary>
+        protected virtual void OnTypeNameChanged(string value) { }
 
         /// <summary>
         /// 初始值（选填）：建变量时定基准——明细表 ↺「恢复为初始值」恢复的就是它。
@@ -97,6 +108,25 @@ namespace VisionMaster.ViewModels.DialogViewModels
     }
 
     /// <summary>
+    /// 网络草稿的运行期候选来源（连接 → 存储区 / 扫描组 / 默认存储区）。
+    /// <para>为什么用回调而不是构造时的静态列表：属性网格的 ComboBox 只在建表时取一次候选
+    /// （<c>ComboSourceGenerator</c>），而"所属连接"是弹窗里可切换的。静态列表会让切换后
+    /// 仍显示旧协议的存储区（轻则选不出区、重则"D"在两个协议里同名、静默建错区）。
+    /// 配合 <c>ConnectionName</c> 上的 <c>RequireRefresh</c>，切换后整表重建、候选随之重算。</para>
+    /// </summary>
+    public sealed class NetworkVariableDraftContext
+    {
+        /// <summary>连接名 → 存储区候选（显示名）</summary>
+        public Func<string, IReadOnlyList<string>>? AreaOptionsFor { get; init; }
+
+        /// <summary>连接名 → 该协议的默认存储区显示名</summary>
+        public Func<string, string>? DefaultAreaFor { get; init; }
+
+        /// <summary>连接名 → 扫描组候选</summary>
+        public Func<string, IReadOnlyList<string>>? ScanGroupsFor { get; init; }
+    }
+
+    /// <summary>
     /// 网络变量草稿：公共四项 + 设备侧参数（所属连接 / 扫描组 / 存储区 / 偏移量 / 位偏移）
     /// + 只读说明区（地址预览、线圈区规则）。
     ///
@@ -107,6 +137,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
     public sealed class NetworkVariableDraft : VariableDraft
     {
         private readonly Func<NetworkVariableDraft, string> _addressPreview;
+        private readonly IReadOnlyList<string> _scanGroupOptions;
+        private readonly IReadOnlyList<string> _areaOptions;
+        private readonly NetworkVariableDraftContext? _context;
 
         private string _connectionName = string.Empty;
         private string _scanGroupName = string.Empty;
@@ -119,36 +152,97 @@ namespace VisionMaster.ViewModels.DialogViewModels
             IEnumerable<string>? connectionOptions,
             IEnumerable<string>? scanGroupOptions,
             IEnumerable<string>? areaOptions,
-            Func<NetworkVariableDraft, string>? addressPreview = null)
+            Func<NetworkVariableDraft, string>? addressPreview = null,
+            NetworkVariableDraftContext? context = null)
             : base(typeOptions)
         {
             ConnectionOptions = (connectionOptions ?? Enumerable.Empty<string>()).ToList();
-            ScanGroupOptions = (scanGroupOptions ?? Enumerable.Empty<string>()).ToList();
-            AreaOptions = (areaOptions ?? Enumerable.Empty<string>()).ToList();
+            _scanGroupOptions = (scanGroupOptions ?? Enumerable.Empty<string>()).ToList();
+            _areaOptions = (areaOptions ?? Enumerable.Empty<string>()).ToList();
+            _context = context;
 
             // 默认预览串：协议/存储区都还没填时也能看出"地址由偏移量 + 位偏移拼成"
             _addressPreview = addressPreview ?? (d => $"x={d.Offset}+{d.BitOffset}");
         }
 
+        /// <summary>
+        /// 换类型时给"元素个数 / 每元素字节数"一个可用默认值：
+        /// 字符串标量默认 20 字节（Length 对 String 是总字节数），字符串数组默认 10 项 × 20 字节，
+        /// 数值数组默认 10 项；切回标量时把元素个数复位成 1（否则会被创建校验拦下）。
+        /// </summary>
+        protected override void OnTypeNameChanged(string value)
+        {
+            switch (value)
+            {
+                case "文本 (string)":
+                    if (_elementCount != 20) ElementCount = 20;
+                    if (_elementByteLength != 0) ElementByteLength = 0;
+                    break;
+
+                case "文本数组 (string[])":
+                    if (_elementCount == 1) ElementCount = 10;
+                    if (_elementByteLength < 1) ElementByteLength = 20;
+                    break;
+
+                case "整数 (int)":
+                case "小数 (double)":
+                case "单精度 (float)":
+                case "布尔 (bool)":
+                    if (_elementCount != 1) ElementCount = 1;
+                    if (_elementByteLength != 0) ElementByteLength = 0;
+                    break;
+
+                default: // 数值数组 / bool[]
+                    if (_elementCount == 1) ElementCount = 10;
+                    if (_elementByteLength != 0) ElementByteLength = 0;
+                    break;
+            }
+
+            RaisePropertyChanged(nameof(AddressPreview));
+        }
+
         /// <summary>所属连接候选（当前方案的通信连接名）</summary>
         public IEnumerable<string> ConnectionOptions { get; }
 
-        /// <summary>扫描组候选（所选连接的组表，默认组恒在首位）</summary>
-        public IEnumerable<string> ScanGroupOptions { get; }
+        /// <summary>扫描组候选（所选连接的组表，默认组恒在首位）——有回调时按当前连接实时算</summary>
+        public IEnumerable<string> ScanGroupOptions => _context?.ScanGroupsFor?.Invoke(_connectionName) ?? _scanGroupOptions;
 
-        /// <summary>存储区候选（所选协议的存储区显示名）</summary>
-        public IEnumerable<string> AreaOptions { get; }
+        /// <summary>存储区候选（所选协议/厂商的存储区显示名）——有回调时按当前连接实时算</summary>
+        public IEnumerable<string> AreaOptions => _context?.AreaOptionsFor?.Invoke(_connectionName) ?? _areaOptions;
 
-        /// <summary>所属连接（网络变量的归属；连接名是创建时的寻址键）</summary>
-        [SuperDisplay(Name = "所属连接", Group = new[] { "网络参数" }, Order = 0, GroupOrder = "1")]
+        /// <summary>
+        /// 所属连接（网络变量的归属；连接名是创建时的寻址键）。
+        /// <para><c>RequireRefresh = true</c>：切换连接会换协议，存储区/扫描组候选必须整表重建
+        /// （ComboBox 只在建表时取一次候选，见 <see cref="NetworkVariableDraftContext"/>）。</para>
+        /// </summary>
+        [SuperDisplay(
+            Name = "所属连接",
+            Group = new[] { "网络参数" },
+            Order = 0,
+            GroupOrder = "1",
+            RequireRefresh = true,
+            Description = "切换连接后，存储区 / 扫描组候选会按新协议重建")]
         [ComboSource(nameof(ConnectionOptions))]
         public string ConnectionName
         {
             get => _connectionName;
             set
             {
-                if (SetProperty(ref _connectionName, value))
-                    RaisePropertyChanged(nameof(AddressPreview));
+                if (!SetProperty(ref _connectionName, value)) return;
+
+                // 先重置成新连接/新协议的默认值：保留旧协议的选择只会在两个协议里同名（如 "D"）
+                // 时静默建错区；不同名时则是"预览报先选存储区、候选里却没有可选项"的死路。
+                AreaName = _context?.DefaultAreaFor?.Invoke(value) ?? string.Empty;
+
+                // 扫描组尽量保留用户上次选的（同组名在两个连接里都存在才保留）
+                var groups = ScanGroupOptions.ToList();
+                ScanGroupName = groups.Contains(_scanGroupName, StringComparer.Ordinal)
+                    ? _scanGroupName
+                    : groups.FirstOrDefault() ?? string.Empty;
+
+                RaisePropertyChanged(nameof(AreaOptions));
+                RaisePropertyChanged(nameof(ScanGroupOptions));
+                RaisePropertyChanged(nameof(AddressPreview));
             }
         }
 
@@ -182,8 +276,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
         }
 
-        /// <summary>偏移量（0 基原始地址；地址串里的数字就是它）</summary>
-        [SuperDisplay(Name = "偏移量", Group = new[] { "网络参数" }, Order = 3, GroupOrder = "1")]
+        /// <summary>基地址（0 基偏移；打开「40001 写法」后填 5 位地址）</summary>
+        [SuperDisplay(
+            Name = "偏移量",
+            Group = new[] { "网络参数" },
+            Order = 3,
+            GroupOrder = "1",
+            Description = "0 基原始地址。MC 的 X/Y/B/W 区按十六进制填写（如 1A），其余区按十进制；Modbus 打开「40001 写法」后可直接填 40001")]
         public string Offset
         {
             get => _offset;
@@ -194,17 +293,118 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
         }
 
+        private int _elementCount = 1;
+        private int _elementByteLength;
+        private int _addressOffset;
+        private bool _useLegacyAddress;
+
+        /// <summary>
+        /// 数组元素个数（仅数组类型有效）。标量固定按 1 处理——允许标量填 10 只会让
+        /// "读 10 个元素但只解第一个"的旧隐患重新出现。
+        /// </summary>
+        [SuperDisplay(
+            Name = "元素个数",
+            Group = new[] { "网络参数" },
+            Order = 4,
+            GroupOrder = "1",
+            Description = "数组：元素个数；字符串：字节长度（如 20）；其它标量填 1")]
+        [RangeValidation(1, 65535, "元素个数必须在 1 ~ 65535 之间")]
+        public int ElementCount
+        {
+            get => _elementCount;
+            set
+            {
+                if (SetProperty(ref _elementCount, value))
+                    RaisePropertyChanged(nameof(AddressPreview));
+            }
+        }
+
+        /// <summary>字符串数组：每个元素的固定字节数（0 = 不适用）</summary>
+        [SuperDisplay(
+            Name = "每元素字节数",
+            Group = new[] { "网络参数" },
+            Order = 5,
+            GroupOrder = "1",
+            Description = "仅字符串数组：每个元素的固定字节数（如 20）；其它类型填 0")]
+        [RangeValidation(0, 65535, "每元素字节数必须在 0 ~ 65535 之间")]
+        public int ElementByteLength
+        {
+            get => _elementByteLength;
+            set
+            {
+                if (SetProperty(ref _elementByteLength, value))
+                    RaisePropertyChanged(nameof(AddressPreview));
+            }
+        }
+
+        /// <summary>地址偏移：在基地址上再加 N 个地址单位（Modbus 寄存器/位、S7 字节）</summary>
+        [SuperDisplay(
+            Name = "地址偏移",
+            Group = new[] { "网络参数" },
+            Order = 6,
+            GroupOrder = "1",
+            Description = "在基地址上再加 N 个地址单位（Modbus 寄存器/位、S7 字节）；0 = 不偏移")]
+        public int AddressOffset
+        {
+            get => _addressOffset;
+            set
+            {
+                if (SetProperty(ref _addressOffset, value))
+                    RaisePropertyChanged(nameof(AddressPreview));
+            }
+        }
+
+        private int _dbNumber = 1;
+
+        /// <summary>
+        /// S7 数据块编号（仅「数据块 (DB)」区有效）。
+        /// 旧弹窗没有这个字段，DB 区变量恒落 DB1——现场 DB2 以上的点位根本建不出来。
+        /// </summary>
+        [SuperDisplay(
+            Name = "DB块编号",
+            Group = new[] { "网络参数" },
+            Order = 7,
+            GroupOrder = "1",
+            Description = "仅 S7 的「数据块 (DB)」区有效（DB1~DB65535）；其它协议忽略")]
+        [RangeValidation(1, 65535, "DB 块编号必须在 1 ~ 65535 之间")]
+        public int DbNumber
+        {
+            get => _dbNumber;
+            set
+            {
+                if (SetProperty(ref _dbNumber, value))
+                    RaisePropertyChanged(nameof(AddressPreview));
+            }
+        }
+
+        /// <summary>Modbus 传统 5 位地址写法（仅 Modbus；默认关闭，旧方案零影响）</summary>
+        [SuperDisplay(
+            Name = "40001 写法",
+            Group = new[] { "网络参数" },
+            Order = 8,
+            GroupOrder = "1",
+            Description = "仅 Modbus：打开后按 5 位地址写法解析（保持寄存器 40001~49999）；默认关闭 = 0 基偏移")]
+        public bool UseLegacyAddress
+        {
+            get => _useLegacyAddress;
+            set
+            {
+                if (SetProperty(ref _useLegacyAddress, value))
+                    RaisePropertyChanged(nameof(AddressPreview));
+            }
+        }
+
         /// <summary>
         /// 位偏移（0~7）。只有"布尔 + 非线圈/离散区"才真正进地址（S7 的 M0.0 形态）；
         /// 其余情况创建路径按 -1（无位访问）落库，与旧表单 IsBitMode 判据同源。
         /// </summary>
         [SuperDisplay(
-            Name = "位偏移（0-7）",
+            Name = "位偏移（0-15）",
             Group = new[] { "网络参数" },
-            Order = 4,
+            Order = 9,
             GroupOrder = "1",
-            Description = "布尔量按位访问时用（如 S7 的 M0.0）。线圈/离散输入区不使用位偏移")]
-        [RangeValidation(0, 7, "位偏移必须在 0 ~ 7 之间")]
+            Description = "布尔量按位访问时用：S7 为 M0.0（0-7），FINS 为 D100.0（0-15）；线圈/离散输入区与 MC 不使用位偏移")]
+        [RangeValidation(0, 15, "位偏移必须在 0 ~ 15 之间")]
         public int BitOffset
         {
             get => _bitOffset;
@@ -231,9 +431,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
         [SuperDisplay(
             Name = "站号（0=跟随连接）",
             Group = new[] { "网络参数" },
-            Order = 5,
+            Order = 10,
             GroupOrder = "1",
-            Description = "一条串口挂多个从站时必填（逐帧写进帧头）。S7 不需要")]
+            Description = "一条串口挂多个从站时必填（逐帧写进帧头）。S7 / MC / FINS 不需要")]
         [RangeValidation(0, 255, "站号必须在 0 ~ 255 之间")]
         public int Station
         {
@@ -253,7 +453,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         [SuperDisplay(
             Name = "区域合并读",
             Group = new[] { "网络参数" },
-            Order = 6,
+            Order = 11,
             GroupOrder = "1",
             Description = "关掉 = 只读本变量自己的跨度，不把相邻地址一起读回来")]
         public bool MergeAdjacentRead

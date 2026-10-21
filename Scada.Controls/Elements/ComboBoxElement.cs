@@ -43,6 +43,12 @@ namespace VisionMaster.Scada.Controls
         /// <summary>模式取值：读写（用户选择后写回变量）</summary>
         public const string ModeInputOutput = "InputOutput";
 
+        /// <summary>呈现方式：现有下拉框外观</summary>
+        public const string PresentationField = "Field";
+
+        /// <summary>呈现方式：只读字段（状态读数；隐藏 chevron/原始值/整框，保留底边线）</summary>
+        public const string PresentationText = "Text";
+
         /// <summary><see cref="Value"/> 在描述符里的属性键（写回时按它找绑定）</summary>
         private const string ValueKey = "Value";
 
@@ -69,6 +75,22 @@ namespace VisionMaster.Scada.Controls
                        Description = "InputOutput = 用户选择后写回变量（还需绑了变量、有写通道、权限够）；" +
                                      "Output = 只显示，下拉框不可用")]
         public partial string? Mode { get; set; }
+
+        /// <summary>呈现方式：<see cref="PresentationField"/> 下拉框 / <see cref="PresentationText"/> 只读字段</summary>
+        [ScadaProperty(Key = "Presentation", DisplayName = "呈现方式", Kind = ElementPropertyKind.Choice,
+                       Group = ScadaPropertyGroups.General, DefaultValue = "Field",
+                       Choices = new[] { "Field", "Text" }, AffectsRender = false,
+                       Description = "Field = 现有下拉框；Text = 只读字段（隐藏 chevron / 原始值 / 整框，保留底边线）。" +
+                                     "Text 呈现只读，不写变量；要可写请用 Field。" +
+                                     "Text 呈现只使用 Stroke（底边线）、文字属性与 TextAlignment；" +
+                                     "Fill / CornerRadius / StrokeThickness 不生效")]
+        public partial string? Presentation { get; set; }
+
+        /// <summary>Text 呈现的底边线；Field 模式下无效</summary>
+        [ScadaProperty(Key = "ShowSeparator", DisplayName = "显示底边线", Kind = ElementPropertyKind.Bool,
+                       Group = ScadaPropertyGroups.General, DefaultValue = "True", AffectsRender = false,
+                       Description = "Text 呈现的底边线；关掉就是纯文本档（KPI 卡 / 密集看板）。Field 模式下无效")]
+        public partial bool ShowSeparator { get; set; }
 
         /// <summary>上一次写入失败的原因（运行态内部状态；空串表示没有错误）</summary>
         public static readonly DependencyProperty WriteErrorProperty = DependencyProperty.Register(
@@ -134,9 +156,14 @@ namespace VisionMaster.Scada.Controls
 
         private bool IsOutputMode => string.Equals(Mode, ModeOutput, StringComparison.OrdinalIgnoreCase);
 
-        /// <summary>能不能改：模式允许写、有写通道、Value 真绑了变量且没停用、当前角色够格</summary>
+        /// <summary>是不是“只读字段”呈现（Text）：它不写变量，也不接受下拉交互</summary>
+        private bool IsTextPresentation
+            => string.Equals(Presentation, PresentationText, StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>能不能改：呈现允许写、模式允许写、有写通道、Value 真绑了变量且没停用、当前角色够格</summary>
         private bool CanOperate
-            => !IsOutputMode
+            => !IsTextPresentation
+               && !IsOutputMode
                && RuntimeContext?.Writer is not null
                && Element?.FindBinding(ValueKey) is { IsEnabled: true }
                && (Element?.RequiredRole is not { } required
@@ -218,6 +245,19 @@ namespace VisionMaster.Scada.Controls
         partial void OnValuePropertyChanged() => UpdateSelectedText();
         partial void OnOptionsPropertyChanged() => ReparseOptions();
         partial void OnModePropertyChanged() => UpdateEditable();
+        partial void OnPresentationPropertyChanged()
+        {
+            // 手改 .vms 可能写 "text"/"field" 或别的值：归一成规范值，
+            // 否则 XAML 的 Trigger（大小写敏感）与 IsTextPresentation（忽略大小写）会各说各话。
+            var canonical = string.Equals(Presentation, PresentationText, StringComparison.OrdinalIgnoreCase)
+                ? PresentationText
+                : PresentationField;
+
+            if (!string.Equals(Presentation, canonical, StringComparison.Ordinal))
+                Presentation = canonical; // 第二次进回调时已相等，不会递归
+
+            UpdateEditable();
+        }
 
         private void UpdateEditable()
             => SetValue(IsEditablePropertyKey, CanOperate);

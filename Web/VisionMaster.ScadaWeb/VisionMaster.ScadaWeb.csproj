@@ -1,0 +1,92 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SCADA 运行态 Web 客户端（可选模块，M0 骨架）。
+
+    为什么是独立工程、且只引用 VM.Core / VM.Scada
+    =========
+    Web 运行态要读的是"运行会话 + 组态文档 + 变量值"，这些契约都在 VM.Scada；
+    它需要 IAppModule / ILogService 才能被宿主当模块装配，这两个在 VM.Core / Core.Interfaces。
+    刻意**不引用 VisionMaster.csproj**：那会把宿主变成 Web 的编译期依赖（依赖方向反了），
+    也会让"宿主编译不过 = Web 也编不过"；而本模块的全部意义是"宿主可选加载"。
+
+    为什么输出目录是宿主的 bin\...\Web\ 且只拷 $(TargetPath)
+    =========
+    宿主按 AppContext.BaseDirectory\Web\VisionMaster.ScadaWeb.dll 定位模块（见 ScadaWebModuleLoader）。
+    只拷 TargetPath、**不拷 *.dll**：VM.Core.dll / VM.Scada.dll / Newtonsoft.Json.dll 必须从
+    程序目录那一份解析，多一份副本就是两套类型身份（接口转不过去、静态状态互相看不见）。
+    加载器里有一条硬检查，Web\ 里出现这些副本会直接拒绝加载。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>VisionMaster.ScadaWeb</AssemblyName>
+    <RootNamespace>VisionMaster.ScadaWeb</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 宿主契约：IAppModule / ILogService / 软件级配置 -->
+    <ProjectReference Include="..\..\Core\VM.Core.csproj" />
+    <!-- 领域契约：IScadaRunHub / IScadaAuditSink / IScadaUserAuthenticator / IScadaRenderCatalog -->
+    <ProjectReference Include="..\..\Scada\VM.Scada.csproj" />
+  </ItemGroup>
+
+  <!--
+    Watson 7.2.0：编译期引用、**运行期从宿主目录解析**（Private=false）。
+
+    为什么 Private=false 是硬要求
+    =========
+    Web\ 目录里只能有 VisionMaster.ScadaWeb.dll 一份（加载器 ScadaWebModuleLoader 会把
+    Web\ 里的宿主/契约程序集副本当成致命错误并拒绝加载）。Watson 虽然不在那份黑名单里，
+    但同一条理由适用：两份 WatsonWebserver.dll = 两套静态状态与两套类型身份
+    （"服务端起来了但宿主看不到会话"这种故障极难往程序集副本上想）。
+    宿主（VisionMaster.csproj）已引用同一份 DLL 并投递到程序目录，Web 侧只借它的类型。
+  -->
+  <ItemGroup>
+    <Reference Include="WatsonWebserver">
+      <HintPath>..\..\DLL\Watson\WatsonWebserver.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    静态基础页（M1b）：index.html / app.js / styles.css / elements-process.js / elements-process.css。
+
+    两条投递路径，缺一不可
+    =========
+    ① Content + CopyToOutputDirectory：工程被引用时（探针 _WebProbe6）内容随引用进输出目录，
+       ScadaWebHost 在 AppContext.BaseDirectory\wwwroot 下找得到；
+    ② 下面的 CopyScadaWebAssetsToHost 目标：宿主**不引用**本工程（模块按路径动态加载），
+       所以必须显式投递到宿主 bin\...\Web\wwwroot。
+    宿主布局的硬约束是 Web\ 下只有模块 DLL + wwwroot（见 ScadaWebModuleLoader 的黑名单）。
+  -->
+  <ItemGroup>
+    <Content Include="wwwroot\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!--
+    构建后只把本程序集投递到宿主的 Web\ 目录（加载器认这个路径）。
+    注意 SourceFiles 只有 $(TargetPath) 一项：见上面"只拷 TargetPath"的说明。
+    SkipUnchangedFiles 让增量构建不反复改写文件（被宿主占用时也不会失败）。
+  -->
+  <Target Name="CopyScadaWebModuleToHost" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath)"
+          DestinationFolder="$(MSBuildProjectDirectory)\..\..\VisionMaster\bin\$(Configuration)\net9.0-windows\Web\"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- 静态资源单独投递：目录层级要保留（DestinationFiles + RecursiveDir） -->
+  <Target Name="CopyScadaWebAssetsToHost" AfterTargets="Build">
+    <ItemGroup>
+      <ScadaWebWwwRootFiles Include="$(MSBuildProjectDirectory)\wwwroot\**\*" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(ScadaWebWwwRootFiles)"
+          DestinationFiles="@(ScadaWebWwwRootFiles->'$(MSBuildProjectDirectory)\..\..\VisionMaster\bin\$(Configuration)\net9.0-windows\Web\wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

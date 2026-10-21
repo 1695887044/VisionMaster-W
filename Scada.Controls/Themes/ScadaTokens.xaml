@@ -29,6 +29,8 @@
     <!--  描边  -->
     <SolidColorBrush x:Key="HmiBorderBrush" Color="#2A3745" />
     <SolidColorBrush x:Key="HmiBorderStrongBrush" Color="#3A4A5C" />
+    <!--  只读字段的底边线：与 IOField 只读态的默认 Stroke 同色（#7A7A7A）  -->
+    <SolidColorBrush x:Key="HmiFieldUnderlineBrush" Color="#7A7A7A" />
 
     <!--  文字  -->
     <SolidColorBrush x:Key="HmiTextBrush" Color="#E6EEF7" />

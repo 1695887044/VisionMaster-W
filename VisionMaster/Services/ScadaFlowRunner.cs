@@ -193,6 +193,111 @@ namespace VisionMaster.Services
             return true;
         }
 
+        /// <inheritdoc/>
+        public bool Pause(string flowId, string? fallbackName, out string? reason)
+        {
+            var flow = ResolveFlow(flowId, fallbackName, out reason);
+            if (flow == null)
+                return false;
+
+            var session = _runtime.GetSessionByName(flow.FlowName);
+            if (session == null || !session.IsRunning)
+            {
+                reason = "未在运行，无法暂停";
+                return false;
+            }
+
+            // 停止请求已发出、执行循环还没收尾：此刻 State 仍是 Running，PauseSession 会把
+            // 它置成 Paused 并报成功，但流程马上就会落 Stopped——审计写“已暂停”、实际已停止。
+            if (session.CancellationTokenSource?.IsCancellationRequested == true)
+            {
+                reason = "流程正在停止";
+                return false;
+            }
+
+            // 单次执行没有“下一轮再继续”这回事：引擎的 PauseSession 对它只能置一个
+            // 没人消费的 Paused 状态，操作员看到“已暂停”而流程其实已经跑完/正在收尾。
+            // 所以这里明确拒绝，让分发器记一条 Warn，而不是报假成功。
+            if (!session.IsContinuousRun)
+            {
+                reason = "单次执行不支持暂停";
+                return false;
+            }
+
+            // 幂等：已经暂停的再点一次不算失败，但也不能说成“刚刚暂停成功”
+            if (session.State == SessionState.Paused)
+            {
+                reason = "本就已暂停";
+                return true;
+            }
+
+            if (session.State != SessionState.Running)
+            {
+                reason = $"当前状态（{session.State}）不可暂停";
+                return false;
+            }
+
+            _engine.PauseSession(session);
+
+            // 引擎对“状态已变 / 正在收尾”的请求会静默收手（契约③）；不校验状态就会
+            // 把“引擎什么也没做”报成“已暂停”，操作员据此以为设备停了，是最危险的假成功。
+            if (session.State == SessionState.Paused)
+            {
+                reason = "已暂停";
+                return true;
+            }
+
+            reason = "暂停未生效（引擎未进入暂停状态）";
+            return false;
+        }
+
+        /// <inheritdoc/>
+        public bool Resume(string flowId, string? fallbackName, out string? reason)
+        {
+            var flow = ResolveFlow(flowId, fallbackName, out reason);
+            if (flow == null)
+                return false;
+
+            var session = _runtime.GetSessionByName(flow.FlowName);
+            if (session == null || !session.IsRunning)
+            {
+                reason = "未在运行，无法恢复";
+                return false;
+            }
+
+            // 停止请求已发出：恢复会报“本就未暂停/已恢复”，但流程正在收尾，马上就是 Stopped。
+            if (session.CancellationTokenSource?.IsCancellationRequested == true)
+            {
+                reason = "流程正在停止";
+                return false;
+            }
+
+            // 幂等：本来就在跑（没暂停）的再点一次恢复不算失败，但说清“本就未暂停”
+            if (session.State == SessionState.Running)
+            {
+                reason = "本就未暂停";
+                return true;
+            }
+
+            if (session.State != SessionState.Paused)
+            {
+                reason = $"当前状态（{session.State}）不可恢复";
+                return false;
+            }
+
+            // 未暂停的运行中流程是幂等空操作：引擎的 ResumeSession 自己会守“没有等待门”。
+            _engine.ResumeSession(session);
+
+            if (session.State == SessionState.Running)
+            {
+                reason = "已恢复";
+                return true;
+            }
+
+            reason = "恢复未生效（引擎未回到运行状态）";
+            return false;
+        }
+
         /// <summary>
         /// 在当前方案里解析目标流程：<b>Id 优先、名字兜底</b>（OrdinalIgnoreCase），与
         /// 值源/切页出口同一套寻址口径。找不到时 reason 给出按哪个键找的、没找到谁。

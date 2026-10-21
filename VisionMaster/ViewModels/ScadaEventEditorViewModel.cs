@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using Prism.Commands;
 using Prism.Mvvm;
@@ -37,9 +38,39 @@ namespace VisionMaster.ViewModels
     /// </summary>
     public sealed class ScadaEventEditorViewModel : BindableBase
     {
-        /// <summary>动作类型下拉的全部候选（枚举扩展时自动带上，三种宿主共用同一份静态列表）</summary>
+        /// <summary>
+        /// 动作类型下拉的全部候选（枚举扩展时自动带上，三种宿主共用同一份静态列表）。
+        /// 枚举值按“末尾追加”的落盘纪律排（PauseFlow/ResumeFlow 是 16/17），但下拉里
+        /// 按类别分组显示——流程类排在一起，运动类排在一起；只改显示顺序，不改值。
+        /// </summary>
         private static readonly IReadOnlyList<ScadaActionTypeOption> TypeChoices
-            = Enum.GetValues<ScadaActionType>().Select(t => new ScadaActionTypeOption(t)).ToArray();
+            = Enum.GetValues<ScadaActionType>()
+                .OrderBy(ActionDisplayOrder)
+                .Select(t => new ScadaActionTypeOption(t))
+                .ToArray();
+
+        private static int ActionDisplayOrder(ScadaActionType type) => type switch
+        {
+            ScadaActionType.Log => 0,
+            ScadaActionType.WriteVariable => 1,
+            ScadaActionType.Navigate => 2,
+            ScadaActionType.NavigateBack => 3,
+            ScadaActionType.StartFlow => 10,
+            ScadaActionType.PauseFlow => 11,
+            ScadaActionType.ResumeFlow => 12,
+            ScadaActionType.StopFlow => 13,
+            ScadaActionType.RunFlowOnce => 14,
+            ScadaActionType.MotionEnable => 20,
+            ScadaActionType.MotionDisable => 21,
+            ScadaActionType.MotionMoveAbsolute => 22,
+            ScadaActionType.MotionMoveRelative => 23,
+            ScadaActionType.MotionHome => 24,
+            ScadaActionType.MotionStop => 25,
+            ScadaActionType.MotionClearAlarm => 26,
+            ScadaActionType.MotionJogStart => 27,
+            ScadaActionType.MotionJogStop => 28,
+            _ => 100,
+        };
 
         /// <param name="host">本次编辑的目标宿主：图元 / 画面 / 变量事件，见 <see cref="IScadaEventHost"/></param>
         /// <param name="eventType">本编辑器对应的组态事件</param>
@@ -91,6 +122,9 @@ namespace VisionMaster.ViewModels
 
         /// <summary>「选轴」入口（运动命令族用）；可为 null = 没接（见构造参数说明）</summary>
         private readonly IScadaAxisPicker? _axisPicker;
+
+        /// <summary>当前盯住的钩子（只为刷新危险标记/确认开关，见 <see cref="WatchHook"/>）</summary>
+        private ScadaEventHook? _watchedHook;
 
         /// <summary>本次编辑的目标宿主（接口而不是具体类型，理由见类注释）</summary>
         public IScadaEventHost Host { get; }
@@ -144,6 +178,56 @@ namespace VisionMaster.ViewModels
 
         /// <summary>有动作表可编辑（= 已勾上），驱动动作区的可见性</summary>
         public bool HasActions => Actions != null;
+
+        /// <summary>
+        /// 运行态命中该事件时是否先弹二次确认（P0）。
+        /// 真值从钩子回读；没配钩子时为 false（确认行随动作区一起隐藏）。
+        /// </summary>
+        public bool RequireConfirmation
+        {
+            get => Host.FindEventHook(EventType)?.RequireConfirmation ?? false;
+            set
+            {
+                var hook = Host.FindEventHook(EventType);
+                if (hook == null || hook.RequireConfirmation == value)
+                    return;
+
+                using (Host.BeginEdit($"{(value ? "开启" : "关闭")} [{EventType}] 执行前确认"))
+                    hook.RequireConfirmation = value;
+
+                RaisePropertyChanged();
+            }
+        }
+
+        /// <summary>
+        /// 确认框里的后果提示（P0）；空 = 执行侧用动作摘要。
+        /// 绑定用 LostFocus 提交，避免每敲一个字就进一次撤销栈。
+        /// </summary>
+        public string? ConfirmationMessage
+        {
+            get => Host.FindEventHook(EventType)?.ConfirmationMessage;
+            set
+            {
+                var hook = Host.FindEventHook(EventType);
+                if (hook == null)
+                    return;
+
+                var text = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+                if (string.Equals(hook.ConfirmationMessage, text, StringComparison.Ordinal))
+                    return;
+
+                using (Host.BeginEdit($"修改 [{EventType}] 确认提示"))
+                    hook.ConfirmationMessage = text;
+
+                RaisePropertyChanged();
+            }
+        }
+
+        /// <summary>
+        /// 动作表里是否有危险动作（P0）。只做编辑器上的提示；运行态的红色语气
+        /// 由分发器按同一份 <see cref="ScadaActionTypeExtensions.IsDangerous"/> 判定。
+        /// </summary>
+        public bool IsDangerous => Actions?.Any(a => a != null && a.Type.IsDangerous()) == true;
 
         /// <summary>动作类型下拉的候选（所有事件共用同一份静态列表）</summary>
         public IReadOnlyList<ScadaActionTypeOption> ActionTypeChoices => TypeChoices;
@@ -202,15 +286,48 @@ namespace VisionMaster.ViewModels
 
         private void RaiseConfiguredChanged()
         {
+            WatchHook();
             RaisePropertyChanged(nameof(IsConfigured));
             RaisePropertyChanged(nameof(Actions));
             RaisePropertyChanged(nameof(HasActions));
+            RaisePropertyChanged(nameof(RequireConfirmation));
+            RaisePropertyChanged(nameof(ConfirmationMessage));
+            RaisePropertyChanged(nameof(IsDangerous));
 
             // 上/下/删的可用性取决于"这条动作在表里的位置"，位置一变就得重算——
             // 否则第一条动作的"↑"按钮还亮着，点下去没反应。
             RemoveActionCommand.RaiseCanExecuteChanged();
             MoveActionUpCommand.RaiseCanExecuteChanged();
             MoveActionDownCommand.RaiseCanExecuteChanged();
+        }
+
+        /// <summary>
+        /// 盯住当前钩子的 PropertyChanged：动作增删/改类型会经
+        /// <see cref="ScadaEventHook.Actions"/> 冒上来，确认开关会经
+        /// <see cref="ScadaEventHook.RequireConfirmation"/> 冒上来。
+        /// 只为了把「危险动作」标记与确认行状态刷成最新，不参与任何业务判定。
+        /// </summary>
+        private void WatchHook()
+        {
+            var hook = Host.FindEventHook(EventType);
+            if (ReferenceEquals(_watchedHook, hook))
+                return;
+
+            if (_watchedHook != null)
+                _watchedHook.PropertyChanged -= OnWatchedHookPropertyChanged;
+
+            _watchedHook = hook;
+
+            if (_watchedHook != null)
+                _watchedHook.PropertyChanged += OnWatchedHookPropertyChanged;
+        }
+
+        private void OnWatchedHookPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ScadaEventHook.Actions))
+                RaisePropertyChanged(nameof(IsDangerous));
+            else if (e.PropertyName == nameof(ScadaEventHook.RequireConfirmation))
+                RaisePropertyChanged(nameof(RequireConfirmation));
         }
 
         private void OnAddAction()
@@ -253,11 +370,14 @@ namespace VisionMaster.ViewModels
             if (action == null) return;
 
             // 回填要走作用域：Id 与名字是两次属性写，不包的话"选变量"这个动作压根撤不回来。
-            _picker.Pick(action.VariableId, action.VariableName, (id, name) =>
+            _picker.Pick(action.VariableId, action.VariableName, action.ArrayIndex,
+                (id, name, arrayIndex) =>
             {
-                using (Host.BeginEdit($"选择变量 [{name}]"))
+                string label = new ScadaVariableRef(id, name, arrayIndex).DisplayText;
+
+                using (Host.BeginEdit($"选择变量 [{label}]"))
                 {
-                    action.BindVariable(id, name);
+                    action.BindVariable(id, name, arrayIndex);
                 }
             });
         }

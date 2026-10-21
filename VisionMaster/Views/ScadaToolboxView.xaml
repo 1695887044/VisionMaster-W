@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:helpers="clr-namespace:VisionMaster.Helpers"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
     d:DesignHeight="600"
@@ -12,40 +13,136 @@
     PreviewMouseMove="OnPreviewMouseMove"
     mc:Ignorable="d">
 
-    <!--  ==========================================  -->
-    <!--  图元工具箱（S3-c）  -->
-    <!--  内容全从 ElementRegistry 来：加一类图元 = 注册一条描述符，这里自动多一行。  -->
-    <!--  本面板只负责"起拖"，不负责"放下"——放置要按画布的缩放/平移/吸附换算，  -->
-    <!--  那是画布那边的事（见 ScadaEditorView 的 Drop）。两边靠 ScadaDrag 这一个协议串起来。  -->
-    <!--  ==========================================  -->
+    <!--
+        ============================================================================
+        图元工具箱（design.html · 组态检查器的「图元工具箱」页签）
+        ============================================================================
 
-    <!--  颜色令牌：工具箱里每一处颜色都从这本字典取（值集中在 UI/Controls/Themes/Colors.xaml，  -->
-    <!--  换肤只改那一处）。真 App 里它由 App.xaml 合并进来，这里再合并一次是让工具箱  -->
-    <!--  "自带口粮"：脱离 App 单独量（断言宿主、设计器）也照样渲染，  -->
-    <!--  而不是抛 XamlParseException 说找不到 ScadaPanelBackgroundBrush。  -->
+        版式照 docs/UI设计基线/app-shell/design.html 的 `.toolbox-body[data-toolbox-panel=elements]`：
+
+          · <b>没有内嵌标题</b>——面板头（AvalonDock 那条）已经写着"图元工具箱"，
+            自己再画一遍就是同一句话说两次；总数挪到搜索行右端（10px、次要色）
+          · 搜索行 42px：搜索框（28px、带放大镜）+ 右端"共 N 种"
+          · 分组是<b>扁平的 28px 组头</b>（左侧 chevron + 名称 + 右端计数），不是卡片
+          · 条目 30px：悬停出抓手 → 22×22 分类色图标块 → 名称 → 右端类型键（9px）
+          · 悬停底色统一 surface-3
+
+        为什么不能用默认 Expander：应用级合并的是 .NET 9 Fluent，它自带一支
+        Expander 样式（圆角卡片 + 内边距 + 投影），于是"分组"在屏幕上变成一叠白卡片、
+        行被撑高、分组之间空出十几像素——与设计稿的"扁平分组"完全不是一套。
+        所以这里整支重写模板（与 R68 的按钮同理：不带 Template 就等于把外观交给隐式样式）。
+        ============================================================================
+    -->
+
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
             </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </UserControl.Resources>
 
-    <!-- Border 只负责画右侧 1px 分隔线：Grid 没有 BorderBrush 属性（MC3072），边框必须挂在 Border 上 -->
-    <Border
-        Background="{StaticResource ScadaPanelBackgroundBrush}"
-        BorderBrush="{StaticResource ScadaPanelBorderBrush}"
-        BorderThickness="0,0,1,0">
-        <Grid>
-        <Grid.Resources>
-            <!--  工具箱条目：手型提示可拖；按下只记意，起拖的判断挂在本视图根节点（原因见代码后台）  -->
+            <!--  分类色四件套：图元专属字形 / 分类字形（兜底用）/ 图标前景 / 图标块浅底  -->
+            <helpers:ScadaElementIconConverter x:Key="ElementIcon" />
+            <helpers:ScadaCategoryIconConverter x:Key="CategoryIcon" />
+            <helpers:ScadaCategoryBrushConverter x:Key="CategoryBrush" />
+            <helpers:ScadaCategorySoftBrushConverter x:Key="CategorySoftBrush" />
+
+            <!--  ============ 分组头（28px 扁平行） ============  -->
+            <Style x:Key="ToolSectionHead" TargetType="ToggleButton">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToggleButton">
+                            <Border
+                                x:Name="Bd"
+                                Padding="6,0,10,0"
+                                Background="Transparent"
+                                CornerRadius="6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        VerticalAlignment="Center"
+                                        FontFamily="{StaticResource DialogIconFont}"
+                                        FontSize="10"
+                                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                                        RenderTransformOrigin="0.5,0.5"
+                                        Text="&#xF078;">
+                                        <!--  折叠态把箭头转成"朝右"。整条 RenderTransform 换掉而不是
+                                              给命名过的 RotateTransform 改 Angle：模板里的 Trigger 只能按
+                                              x:Name 打到"控件/元素"，打不到 RenderTransform 里的子对象（MC4111）。  -->
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="RenderTransform">
+                                                    <Setter.Value>
+                                                        <RotateTransform Angle="0" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="False">
+                                                        <Setter Property="RenderTransform">
+                                                            <Setter.Value>
+                                                                <RotateTransform Angle="-90" />
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <ContentPresenter
+                                        Grid.Column="1"
+                                        Margin="5,0,0,0"
+                                        VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaToolbarHoverBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  分组：整支模板换成"组头 + 可折叠内容"，避开 Fluent 的卡片 Expander  -->
+            <Style x:Key="ToolSection" TargetType="Expander">
+                <Setter Property="IsExpanded" Value="True" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Expander">
+                            <StackPanel>
+                                <ToggleButton
+                                    x:Name="Head"
+                                    Content="{TemplateBinding Header}"
+                                    ContentTemplate="{TemplateBinding HeaderTemplate}"
+                                    IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                    Style="{StaticResource ToolSectionHead}" />
+                                <ContentPresenter x:Name="Body" Visibility="Collapsed" />
+                            </StackPanel>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsExpanded" Value="True">
+                                    <Setter TargetName="Body" Property="Visibility" Value="Visible" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  ============ 图元条目（30px） ============  -->
             <DataTemplate x:Key="ItemTemplate">
                 <Border
-                    Height="28"
+                    Height="30"
                     Margin="0,1"
-                    Padding="8,0"
+                    Padding="6,0,10,0"
                     Background="Transparent"
-                    CornerRadius="3"
+                    CornerRadius="6"
                     Cursor="Hand"
                     PreviewMouseLeftButtonDown="OnItemPreviewMouseLeftButtonDown"
                     ToolTip="{Binding Description}">
@@ -53,27 +150,83 @@
                         <Style TargetType="Border">
                             <Style.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="{StaticResource ScadaHoverBrush}" />
+                                    <Setter Property="Background" Value="{StaticResource ScadaToolbarHoverBrush}" />
                                 </Trigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <StackPanel Orientation="Horizontal">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!--  抓手：只在悬停时出现。它的作用是"提示这一行可以拖"，
+                              常驻会跟图标抢视线，而拖动本来就不是这里的唯一动作（还有单击预览说明）。  -->
                         <TextBlock
+                            Grid.Column="0"
+                            Width="10"
                             VerticalAlignment="Center"
-                            FontSize="12.5"
-                            Foreground="{StaticResource ScadaTextBrush}"
-                            Text="{Binding DisplayName}" />
-                        <!--  类型键是调试时要看的东西（画布上出了个不认识的框，第一个问题就是"它到底注册的谁"），  -->
-                        <!--  所以摆出来，但压成次要色，不跟名字抢视线  -->
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="9"
+                            Foreground="{StaticResource ScadaDisabledTextBrush}"
+                            Text="&#xF142;">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Opacity" Value="0" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                                            <Setter Property="Opacity" Value="1" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!--  分类色图标块：22×22、圆角 6、分类浅底 + 分类色字形。
+                              颜色来自 ScadaCategoryVisuals（按 Category 查表，未知分类回落灰 + cubes）。  -->
+                        <Border
+                            Grid.Column="1"
+                            Width="22"
+                            Height="22"
+                            VerticalAlignment="Center"
+                            Background="{Binding Category, Converter={StaticResource CategorySoftBrush}}"
+                            CornerRadius="6">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="10"
+                                Foreground="{Binding Category, Converter={StaticResource CategoryBrush}}"
+                                Text="{Binding Converter={StaticResource ElementIcon}}" />
+                        </Border>
+
                         <TextBlock
+                            Grid.Column="2"
                             Margin="6,0,0,0"
                             VerticalAlignment="Center"
-                            FontSize="11"
+                            FontSize="11.5"
+                            Foreground="{StaticResource ScadaTextBrush}"
+                            Text="{Binding DisplayName}"
+                            TextTrimming="CharacterEllipsis" />
+
+                        <!--  类型键：调试时要看的东西（画布上冒出个不认识的框，第一个问题就是"它注册的谁"），
+                              所以摆出来，但压成 9px 次要色、靠右对齐，不跟名字抢视线。
+                              MaxWidth 是给窄面板留的：Auto 列不设上限时，"Hmi.AlarmBanner" 这种长键
+                              会把整行顶出可视区（面板 260 宽时直接压到滚动条底下）。  -->
+                        <TextBlock
+                            Grid.Column="3"
+                            MaxWidth="74"
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="9"
                             Foreground="{StaticResource ScadaFaintTextBrush}"
                             Text="{Binding TypeKey}"
-                            TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
+                            TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding TypeKey}" />
+                    </Grid>
                 </Border>
             </DataTemplate>
 
@@ -82,20 +235,20 @@
             <!--  右键菜单放重命名 / 删除：模板库是工具箱自己的知识，画布那边的编辑器视图模型不必认识它。  -->
             <DataTemplate x:Key="TemplateItemTemplate">
                 <Border
-                    Height="28"
+                    Height="30"
                     Margin="0,1"
-                    Padding="8,0"
+                    Padding="6,0,10,0"
                     Background="Transparent"
-                    CornerRadius="3"
+                    CornerRadius="6"
                     Cursor="Hand"
                     PreviewMouseLeftButtonDown="OnTemplatePreviewMouseLeftButtonDown"
                     Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                    ToolTip="{Binding ItemCount, StringFormat='包含 {0} 个图元。拖到画面即可放入；右键可重命名 / 删除'}">
+                    ToolTip="{Binding ItemCount, StringFormat='包含 {0} 个图元。拖到画面即可放入；右键可用当前选中更新 / 重命名 / 删除'}">
                     <Border.Style>
                         <Style TargetType="Border">
                             <Style.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="{StaticResource ScadaHoverBrush}" />
+                                    <Setter Property="Background" Value="{StaticResource ScadaToolbarHoverBrush}" />
                                 </Trigger>
                             </Style.Triggers>
                         </Style>
@@ -107,6 +260,11 @@
                           少了这一步，菜单能弹出来但点了没反应（ScanGroupEditorView 里同一坑的注释）。  -->
                     <Border.ContextMenu>
                         <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Tag="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+                            <MenuItem
+                                Command="{Binding Tag.UpdateTemplateCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                CommandParameter="{Binding}"
+                                Header="用当前选中更新模板…" />
+                            <Separator />
                             <MenuItem
                                 Command="{Binding Tag.RenameTemplateCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                 CommandParameter="{Binding}"
@@ -120,168 +278,247 @@
 
                     <Grid>
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
+
                         <TextBlock
                             Grid.Column="0"
+                            Width="10"
                             VerticalAlignment="Center"
-                            FontSize="12.5"
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="9"
+                            Foreground="{StaticResource ScadaDisabledTextBrush}"
+                            Text="&#xF142;">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Opacity" Value="0" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                                            <Setter Property="Opacity" Value="1" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <Border
+                            Grid.Column="1"
+                            Width="22"
+                            Height="22"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource ScadaAccentSoftBrush}"
+                            CornerRadius="6">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="10"
+                                Foreground="{StaticResource ScadaAccentBrush}"
+                                Text="&#xF1C0;" />
+                        </Border>
+
+                        <TextBlock
+                            Grid.Column="2"
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="11.5"
                             Foreground="{StaticResource ScadaTextBrush}"
                             Text="{Binding Name}"
                             TextTrimming="CharacterEllipsis" />
+
                         <!--  图元数：模板是一整块内容，光看名字分不出"阀门"和"阀门+指示灯"，
                               摆出来才知道这份模板里到底有几个东西  -->
                         <TextBlock
-                            Grid.Column="1"
+                            Grid.Column="3"
                             Margin="6,0,0,0"
                             VerticalAlignment="Center"
-                            FontSize="11"
+                            FontSize="9"
                             Foreground="{StaticResource ScadaFaintTextBrush}"
                             Text="{Binding ItemCount, StringFormat={}{0} 项}" />
                     </Grid>
                 </Border>
             </DataTemplate>
-        </Grid.Resources>
+        </ResourceDictionary>
+    </UserControl.Resources>
 
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+    <!--  Border 只负责画右侧 1px 分隔线：Grid 没有 BorderBrush 属性（MC3072），边框必须挂在 Border 上  -->
+    <Border
+        Background="{StaticResource ScadaPanelBackgroundBrush}"
+        BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+        BorderThickness="0,0,1,0">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="42" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-        <!--  ====================  标题  ====================  -->
-        <Grid Grid.Row="0" Margin="10,10,10,6">
-            <TextBlock
-                VerticalAlignment="Center"
-                FontSize="13"
-                FontWeight="SemiBold"
-                Foreground="{StaticResource ScadaTextBrush}"
-                Text="图元工具箱" />
-            <TextBlock
-                HorizontalAlignment="Right"
-                VerticalAlignment="Center"
-                FontSize="11"
-                Foreground="{StaticResource ScadaSecondaryTextBrush}"
-                Text="{Binding TotalCount, StringFormat='共 {0} 种'}" />
-        </Grid>
+            <!--  ====================  搜索行  ====================  -->
+            <Grid
+                Grid.Row="0"
+                Margin="10,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-        <!--  ====================  搜索  ====================  -->
-        <Grid
-            Grid.Row="1"
-            Margin="10,0,10,8">
-            <TextBox
-                x:Name="SearchBox"
-                Padding="6,4"
-                VerticalContentAlignment="Center"
-                FontSize="12"
-                Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
-                ToolTip="图元按名称 / 类型键 / 分类 / 说明匹配；模板按名称匹配" />
-            <!--  占位提示：WPF 的 TextBox 没有原生水印，就盖一个 TextBlock 上去，有字就藏。  -->
-            <!--  IsHitTestVisible=False 是必须的，不然这层会把点击吃掉，搜索框永远聚不了焦。  -->
-            <TextBlock
-                Margin="7,0,0,0"
-                VerticalAlignment="Center"
-                FontSize="12"
-                Foreground="{StaticResource ScadaDisabledTextBrush}"
-                IsHitTestVisible="False"
-                Text="搜索图元 / 模板">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-        </Grid>
+                <Border
+                    Grid.Column="0"
+                    Height="28"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource ScadaSurfaceBrush}"
+                    BorderBrush="{StaticResource ScadaToolbarBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Grid.Column="0"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="10"
+                            Foreground="{StaticResource ScadaFaintTextBrush}"
+                            Text="&#xF002;" />
+                        <TextBox
+                            x:Name="SearchBox"
+                            Grid.Column="1"
+                            Padding="6,0,10,0"
+                            VerticalContentAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            FontSize="11"
+                            Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
+                            ToolTip="图元按名称 / 类型键 / 分类 / 说明匹配；模板按名称匹配" />
+                        <!--  占位提示：WPF 的 TextBox 没有原生水印，就盖一个 TextBlock 上去，有字就藏。  -->
+                        <!--  IsHitTestVisible=False 是必须的，不然这层会把点击吃掉，搜索框永远聚不了焦。  -->
+                        <TextBlock
+                            Grid.Column="1"
+                            Margin="7,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="11"
+                            Foreground="{StaticResource ScadaDisabledTextBrush}"
+                            IsHitTestVisible="False"
+                            Text="搜索图元 / 模板">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                </Border>
 
-        <!--  ====================  我的模板 + 图元分组  ====================  -->
-        <ScrollViewer
-            Grid.Row="2"
-            Margin="6,0,6,8"
-            HorizontalScrollBarVisibility="Disabled"
-            VerticalScrollBarVisibility="Auto">
-            <StackPanel>
-                <!--  ====================  我的模板  ====================  -->
-                <!--  整块（含底下那条分隔线）随 HasTemplates 显隐：一份模板都没有时这里一个字都不占，
-                      工具箱保持"只有图元库"的原样；存下第一份模板，它才出现在最上面。
-                      搜索词一个模板都没命中时同样收起来（与图元分组同一口径：空组不占位）。
-                      摆最上面是因为它比图元库用得勤——常用的东西不该压在长列表底下等滚动。  -->
+                <TextBlock
+                    Grid.Column="1"
+                    Margin="8,0,0,0"
+                    VerticalAlignment="Center"
+                    FontSize="10"
+                    Foreground="{StaticResource ScadaFaintTextBrush}"
+                    Text="{Binding TotalCount, StringFormat='共 {0} 种'}" />
+            </Grid>
+
+            <!--  ====================  我的模板 + 图元分组  ====================  -->
+            <ScrollViewer
+                Grid.Row="1"
+                Margin="4,0,14,8"
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <StackPanel.Style>
-                        <Style TargetType="StackPanel">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding HasTemplates}" Value="True">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </StackPanel.Style>
+                    <!--  ====================  我的模板  ====================  -->
+                    <!--  整块（含底下那条分隔线）随 HasTemplates 显隐：一份模板都没有时这里一个字都不占，
+                          工具箱保持"只有图元库"的原样；存下第一份模板，它才出现在最上面。
+                          搜索词一个模板都没命中时同样收起来（与图元分组同一口径：空组不占位）。
+                          摆最上面是因为它比图元库用得勤——常用的东西不该压在长列表底下等滚动。  -->
+                    <StackPanel>
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasTemplates}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
 
-                    <Expander
-                        Margin="0,2"
-                        FontSize="12"
-                        IsExpanded="True">
-                        <Expander.Header>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock
-                                    FontWeight="SemiBold"
-                                    Foreground="{StaticResource ScadaLabelTextBrush}"
-                                    Text="我的模板" />
-                                <TextBlock
-                                    Margin="6,0,0,0"
-                                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
-                                    Text="{Binding TemplateCount, StringFormat=({0})}" />
-                            </StackPanel>
-                        </Expander.Header>
-                        <ItemsControl
-                            Margin="14,2,0,2"
-                            ItemTemplate="{StaticResource TemplateItemTemplate}"
-                            ItemsSource="{Binding Templates}" />
-                    </Expander>
+                        <Expander Margin="0,1" Style="{StaticResource ToolSection}">
+                            <Expander.Header>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        FontSize="11"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource ScadaLabelTextBrush}"
+                                        Text="我的模板"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Margin="6,0,0,0"
+                                        FontSize="10"
+                                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                                        Text="{Binding TemplateCount}" />
+                                </Grid>
+                            </Expander.Header>
+                            <ItemsControl
+                                Margin="0,1,0,3"
+                                ItemTemplate="{StaticResource TemplateItemTemplate}"
+                                ItemsSource="{Binding Templates}" />
+                        </Expander>
 
-                    <!--  分隔线：把"自己攒的"和"注册表里带的"分开，扫一眼就知道上半截是私有的  -->
-                    <Border
-                        Height="1"
-                        Margin="0,4,0,2"
-                        Background="{StaticResource ScadaActionCardBorderBrush}" />
+                        <!--  分隔线：把"自己攒的"和"注册表里带的"分开，扫一眼就知道上半截是私有的  -->
+                        <Border
+                            Height="1"
+                            Margin="6,3,6,2"
+                            Background="{StaticResource ScadaActionCardBorderBrush}" />
+                    </StackPanel>
+
+                    <ItemsControl ItemsSource="{Binding Groups}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Expander Margin="0,1" Style="{StaticResource ToolSection}">
+                                    <Expander.Header>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock
+                                                Grid.Column="0"
+                                                FontSize="11"
+                                                FontWeight="SemiBold"
+                                                Foreground="{StaticResource ScadaLabelTextBrush}"
+                                                Text="{Binding Name}"
+                                                TextTrimming="CharacterEllipsis" />
+                                            <TextBlock
+                                                Grid.Column="1"
+                                                Margin="6,0,0,0"
+                                                FontSize="10"
+                                                Foreground="{StaticResource ScadaFaintTextBrush}"
+                                                Text="{Binding Items.Count}" />
+                                        </Grid>
+                                    </Expander.Header>
+                                    <ItemsControl ItemTemplate="{StaticResource ItemTemplate}" ItemsSource="{Binding Items}" />
+                                </Expander>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
-
-                <ItemsControl ItemsSource="{Binding Groups}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Expander
-                                Margin="0,2"
-                                FontSize="12"
-                                IsExpanded="True">
-                                <Expander.Header>
-                                    <!--  分类名 + 数量：一眼能看出这组有没有被搜索词过滤掉  -->
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock
-                                            FontWeight="SemiBold"
-                                            Foreground="{StaticResource ScadaLabelTextBrush}"
-                                            Text="{Binding Name}" />
-                                        <TextBlock
-                                            Margin="6,0,0,0"
-                                            Foreground="{StaticResource ScadaSecondaryTextBrush}"
-                                            Text="{Binding Items.Count, StringFormat=({0})}" />
-                                    </StackPanel>
-                                </Expander.Header>
-                                <ItemsControl
-                                    Margin="14,2,0,2"
-                                    ItemTemplate="{StaticResource ItemTemplate}"
-                                    ItemsSource="{Binding Items}" />
-                            </Expander>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
-        </ScrollViewer>
+            </ScrollViewer>
         </Grid>
     </Border>
 </UserControl>

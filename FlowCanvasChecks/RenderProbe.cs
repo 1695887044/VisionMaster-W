@@ -86,6 +86,8 @@ namespace FlowCanvasChecks
             RenderScenarioH(Path.Combine(outDir, "flowcanvas-render-H-parallel-nested.png"));
             RenderScenarioI(Path.Combine(outDir, "variable-manager-render-I.png"));
             RenderScenarioJ(Path.Combine(outDir, "variable-add-popup-render-J.png"));
+            RenderScenarioK(Path.Combine(outDir, "array-editor-render-K.png"), withError: false);
+            RenderScenarioK(Path.Combine(outDir, "array-editor-error-render-K2.png"), withError: true);
 
             // 性能量化（2026-10-12 评审清单第三批）：压力图式 300/600 节点，只量化不优化——
             // RebuildInPlace / 整帧毫秒打 [perf] 行（3 次取中位数），结论供评审拍板"第一刀接不接局部刷新"
@@ -1127,7 +1129,7 @@ namespace FlowCanvasChecks
                 Source = new Uri("pack://application:,,,/UI;component/Themes/Generic.xaml"),
             };
             // 但 **ExpandToggleButtonTemplate**（变量名列的展开箭头）与 **LinkButtonStyle**
-            // （"强制覆盖集合..."）只定义在 VisionMaster\App.xaml 的**内联资源**里，
+            // （应用级链接按钮样式；数组入口 v2 已不再用它，但 App 内联资源里仍可能被其它视图引用）只定义在 VisionMaster\App.xaml 的**内联资源**里，
             // UI 库的合并链上没有——首次出图实测：缺 ExpandToggleButtonTemplate 会让视图
             // 在解析期抛 XamlParseException（整个场景出不了图）。
             // 这里按 _ResProbe.AddAppInlineResources 的同一套做法抠出那段内联资源临时并入
@@ -1169,6 +1171,71 @@ namespace FlowCanvasChecks
             finally
             {
                 stub?.DisposeProbe();
+                if (appInline != null) Application.Current.Resources.MergedDictionaries.Remove(appInline);
+                Application.Current.Resources.MergedDictionaries.Remove(theme);
+            }
+        }
+
+        /// <summary>
+        /// 场景 K：数组编辑弹窗（设计基线 global-variables v2 的第二个面）。
+        ///
+        /// 弹窗自身是 Prism Dialog（无系统边框的 Window），RenderTargetBitmap 出不了 Window，
+        /// 这里直接渲染视图内容（与场景 J 渲染 FlatPropertyGrid 同款做法）。
+        /// 正常态与校验失败态各出一张：失败态要能看出"出错项红框 + 底部错误条、弹窗没关"。
+        /// </summary>
+        private static void RenderScenarioK(string path, bool withError)
+        {
+            var theme = new ResourceDictionary
+            {
+                Source = new Uri("pack://application:,,,/UI;component/Themes/Generic.xaml"),
+            };
+            var appInline = LoadAppInlineResources();
+            Application.Current.Resources.MergedDictionaries.Add(theme);
+            if (appInline != null) Application.Current.Resources.MergedDictionaries.Add(appInline);
+
+            try
+            {
+                var model = new LocalVariableModel
+                {
+                    Name = "HoleCoordinates",
+                    DataType = typeof(double[]),
+                    // 基准与当前值故意差一项：出图要能看到「基准：33」与行内 ↺ / 1 项已修改
+                    DefaultValue = new[] { 12.5, 18.0, 33.0, 40.25 },
+                    Value = new[] { 12.5, 18.0, 35.0, 40.25 },
+                };
+
+                var vm = new ArrayEditorViewModel();
+                vm.OnDialogOpened(new DialogParameters
+                {
+                    { ArrayEditorViewModel.VariableKey, model },
+                });
+
+                if (withError)
+                {
+                    vm.Elements[1].Value = "abc";
+                    vm.ConfirmCommand.Execute();   // 失败只标红 + 出错误条，不关窗
+                }
+
+                var view = new ArrayEditorView { DataContext = vm };
+                var host = new Border
+                {
+                    Width = 620,
+                    Height = 640,
+                    Background = new SolidColorBrush(Color.FromRgb(0xEE, 0xF2, 0xF7)),
+                    Child = view,
+                };
+                host.Measure(new Size(620, 640));
+                host.Arrange(new Rect(0, 0, 620, 640));
+                host.UpdateLayout();
+                PumpFrames(6);
+
+                Console.WriteLine(
+                    $"[render] 场景 K：数组编辑弹窗（{(withError ? "校验失败" : "正常")}，"
+                    + $"{model.Name} / {vm.Elements.Count} 项 / 基准提示 = {vm.BaselineHint}）");
+                SavePng(host, path);
+            }
+            finally
+            {
                 if (appInline != null) Application.Current.Resources.MergedDictionaries.Remove(appInline);
                 Application.Current.Resources.MergedDictionaries.Remove(theme);
             }

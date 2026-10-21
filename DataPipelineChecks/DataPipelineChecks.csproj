@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    数据链路（P0-B）独立断言宿主：只引用 VM.Core + 三个数据插件，不引用 VisionMaster 宿主。
+    为什么单独一个工程：宿主主程序包含 SCADA/UI 等大量无关依赖，宿主一旦有半成品改动，
+    数据链路的断言就跟着构建不了；本工程只依赖"插件 + 契约 + Core"，能独立跑、也能在 CI 里单独跑。
+    检查源码与 FlowCanvasChecks 共用同一份（Compile Include 链接），不维护两份判据。
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\VM.Core.csproj" />
+    <ProjectReference Include="..\Plugins\Plugin.ResultUpload\Plugin.ResultUpload.csproj" />
+    <ProjectReference Include="..\Plugins\Plugin.DataRecord\Plugin.DataRecord.csproj" />
+    <ProjectReference Include="..\Plugins\Plugin.ExcelExport\Plugin.ExcelExport.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 断言 Excel 报表要读回 xlsx；与插件同一版本 -->
+    <PackageReference Include="MiniExcel" Version="1.46.0" />
+    <Reference Include="halcondotnet">
+      <HintPath>..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 同一份检查源码，两个宿主共用（FlowCanvasChecks 常规 gate / 本工程独立 gate） -->
+    <Compile Include="..\FlowCanvasChecks\DataPipelineCheckSupport.cs" Link="DataPipelineCheckSupport.cs" />
+    <Compile Include="..\FlowCanvasChecks\ResultUploadChecks.cs" Link="ResultUploadChecks.cs" />
+    <Compile Include="..\FlowCanvasChecks\DataRecordChecks.cs" Link="DataRecordChecks.cs" />
+    <Compile Include="..\FlowCanvasChecks\ExcelExportChecks.cs" Link="ExcelExportChecks.cs" />
+  </ItemGroup>
+
+</Project>

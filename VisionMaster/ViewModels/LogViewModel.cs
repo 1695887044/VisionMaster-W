@@ -7,6 +7,7 @@ using System.Linq;
 using System.Windows;
 using UI.Models;
 using VisionMaster.Helpers;
+using VisionMaster.Models;
 using VisionMaster.Services;
 
 namespace VisionMaster.ViewModels
@@ -76,8 +77,9 @@ namespace VisionMaster.ViewModels
             set => SetProperty(ref _autoScroll, value);
         }
 
-        public LogViewModel(ILogService _logService)
+        public LogViewModel(ILogService _logService, AppSettingsService? settings = null)
         {
+            _settings = settings;
             _allOption = LevelOptions[0];
             _levelOption = _allOption;   // 默认「全部」
             SystemLogs.CollectionChanged += OnSystemLogsChanged;
@@ -88,10 +90,41 @@ namespace VisionMaster.ViewModels
                 // ① 同步 Invoke 让每条日志的产出线程（流程/引擎）干等 UI，关闭软件时
                 //    Dispatcher 取消挂起操作 → TaskCanceledException 沿调用栈抛回插件层崩溃；
                 // ② SafeDispatch 在 Dispatcher 关门阶段静默丢弃——日志不丢（文件通道独立），只是不再刷 UI
-                logService.OnLogReceived += (log) => SafeDispatch.BeginInvoke(() => SystemLogs.Add(log));
+                logService.OnLogReceived += (log) => SafeDispatch.BeginInvoke(() => AppendWithCap(log));
                 _logService.Success("软件加载成功");
             }
 
+        }
+
+        private readonly AppSettingsService? _settings;
+
+        /// <summary>
+        /// 收一条日志并维持面板上限（<see cref="AppConfigModel.LogPanelMaxRows"/>，0/负数 = 不限制）。
+        ///
+        /// 为什么要有上限：这个集合在加这一项之前只增不减，连续跑几天就是几十万条
+        /// （每条都带着消息文本），面板本身会吃掉可观内存，而屏幕上最多只看得到几十行。
+        /// 超过上限按最旧丢弃——日志文件的完整历史不受影响（文件通道是独立的）。
+        /// </summary>
+        private void AppendWithCap(LogItem log)
+            => AppendWithCap(
+                SystemLogs,
+                log,
+                _settings?.Current?.LogPanelMaxRows ?? AppConfigModel.DefaultLogPanelMaxRows);
+
+        /// <summary>
+        /// 上限裁剪的**纯函数**形态（公开是为了让断言能直接钉住它）：
+        /// 追加一条后把超出 <paramref name="maxRows"/> 的最旧项丢掉。
+        /// </summary>
+        public static void AppendWithCap(ObservableCollection<LogItem>? target, LogItem? log, int maxRows)
+        {
+            if (target == null || log == null) return;
+
+            target.Add(log);
+
+            if (maxRows <= 0) return;   // 0 / 负数 = 不限制
+
+            while (target.Count > maxRows)
+                target.RemoveAt(0);
         }
 
         /// <summary>

@@ -15,10 +15,14 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Core.Interfaces;
 using Prism.Dialogs;
+using UI.CustomControl;
 using VisionMaster.Models;
+using VisionMaster.Scada;
 using VisionMaster.Services;
 using VisionMaster.Services.Help;
+using VisionMaster.ViewModels;
 using VisionMaster.ViewModels.DialogViewModels;
+using VisionMaster.Views.Controls;
 using VisionMaster.Views.DialogViews;
 
 namespace HelpProbe
@@ -42,6 +46,19 @@ namespace HelpProbe
             var repoRoot = FindRepoRoot();
             var outputDir = args.Length > 0 ? args[0] : Path.Combine(repoRoot, "_help_preview");
             Directory.CreateDirectory(outputDir);
+
+            // P0 设计验收：只渲染事件编辑器确认行 + Warning/Danger 确认弹窗，不跑帮助目录扫描。
+            // 用法：HelpProbe.exe --p0-render [输出目录]
+            if (args.Length > 0 && args[0] == "--p0-render")
+            {
+                var p0Dir = args.Length > 1 ? args[1] : Path.Combine(repoRoot, "_p0_preview");
+                Directory.CreateDirectory(p0Dir);
+                var p0App = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+                MergeAppResources(p0App, repoRoot);
+                Prism.Mvvm.ViewModelLocationProvider.SetDefaultViewModelFactory(_ => null);
+                RenderP0(p0Dir);
+                return 0;
+            }
 
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             MergeAppResources(app, repoRoot);
@@ -928,6 +945,136 @@ namespace HelpProbe
                     "Prism.Dialogs.DialogCloseListener", ".ctor(Action<IDialogResult>)");
 
             return (DialogCloseListener)ctor.Invoke(new object[] { onClosed });
+        }
+
+        // ==================================================================
+        //  P0 设计验收渲染（UI-SOP 第 ④ 步）
+        // ==================================================================
+
+        /// <summary>
+        /// 渲染 P0 的三个 WPF 面：事件编辑器确认行、Warning 确认弹窗、Danger 确认弹窗。
+        /// 只做视觉证据，不做断言（断言在 ScadaChecks / UIThemeSmokeTest 里）。
+        /// </summary>
+        private static void RenderP0(string dir)
+        {
+            var host = new ScadaElement { TypeKey = "Hmi.Button", Name = "暂停按钮" };
+            var hook = host.GetOrAddEventHook(ScadaEventType.Pressed);
+            hook.RequireConfirmation = true;
+            hook.ConfirmationMessage = "停机前请确认现场无人";
+            hook.Actions.Add(new ScadaAction
+            {
+                Type = ScadaActionType.PauseFlow,
+                FlowName = "主检测",
+            });
+            hook.Actions.Add(new ScadaAction
+            {
+                Type = ScadaActionType.WriteVariable,
+                VariableName = "Paused",
+                Value = "1",
+                OnlyIfPreviousSucceeded = true,
+            });
+
+            var vm = new ScadaEventEditorViewModel(
+                host, ScadaEventType.Pressed, "按下", "鼠标左键按下",
+                new NoopVariablePicker(), new NoopPagePicker(), new NoopFlowPicker(), null);
+            var editor = new ScadaEventEditor { DataContext = vm, Width = 320 };
+            RenderSized(editor, Path.Combine(dir, "after-01-editor.png"), 360, 640);
+
+            // 危险动作标记：单独一张，避免把“暂停/写变量”的示例搅成停止流程
+            var dangerHost = new ScadaElement { TypeKey = "Hmi.Button", Name = "急停按钮" };
+            var dangerHook = dangerHost.GetOrAddEventHook(ScadaEventType.Pressed);
+            dangerHook.RequireConfirmation = true;
+            dangerHook.Actions.Add(new ScadaAction
+            {
+                Type = ScadaActionType.StopFlow,
+                FlowName = "主检测",
+            });
+            var dangerVm = new ScadaEventEditorViewModel(
+                dangerHost, ScadaEventType.Pressed, "按下", "鼠标左键按下",
+                new NoopVariablePicker(), new NoopPagePicker(), new NoopFlowPicker(), null);
+            var dangerEditor = new ScadaEventEditor { DataContext = dangerVm, Width = 320 };
+            RenderSized(dangerEditor, Path.Combine(dir, "after-04-editor-danger.png"), 360, 460);
+
+            var warning = new MessageDialogView
+            {
+                Options = new MessageDialogOptions
+                {
+                    Severity = MessageSeverity.Warning,
+                    Title = "确认操作",
+                    Message = "暂停按钮 · 按下",
+                    Hint = "将执行：暂停流程 主检测、写变量 Paused := 1。",
+                    Question = "是否继续？",
+                    PrimaryText = "确认执行",
+                    SecondaryText = "取消",
+                    PrimaryTone = MessageTone.Primary,
+                    DefaultFocus = MessageResult.Secondary,
+                    ShowClose = true,
+                    Width = 480,
+                },
+            };
+            RenderSized(warning, Path.Combine(dir, "after-02-dialog-warning.png"), 560, 380);
+
+            var danger = new MessageDialogView
+            {
+                Options = new MessageDialogOptions
+                {
+                    Severity = MessageSeverity.Danger,
+                    Title = "确认停止流程？",
+                    Message = "急停按钮 · 按下",
+                    Hint = "停机前请确认现场无人",
+                    Question = "是否继续？",
+                    PrimaryText = "确认停止",
+                    SecondaryText = "取消",
+                    PrimaryTone = MessageTone.Danger,
+                    DefaultFocus = MessageResult.Secondary,
+                    ShowClose = true,
+                    Width = 560,
+                },
+            };
+            RenderSized(danger, Path.Combine(dir, "after-03-dialog-danger.png"), 620, 400);
+            Console.WriteLine("[probe] danger foot: " + (danger.FindName("FootHint") as TextBlock)?.Text);
+
+            Console.WriteLine("[probe] P0 截图完成：" + dir);
+        }
+
+        private static void RenderSized(FrameworkElement view, string path, int width, int height)
+        {
+            var host = new Border
+            {
+                Width = width,
+                Height = height,
+                Background = Brushes.White,
+                Child = view,
+            };
+            host.Measure(new Size(width, height));
+            host.Arrange(new Rect(0, 0, width, height));
+            host.UpdateLayout();
+            host.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            host.UpdateLayout();
+
+            var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(host);
+
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using var stream = File.Create(path);
+            encoder.Save(stream);
+            Console.WriteLine("[probe] 截图：" + path);
+        }
+
+        private sealed class NoopVariablePicker : IScadaVariablePicker
+        {
+            public void Pick(Guid currentId, string? currentName, Action<Guid, string?> onPicked) { }
+        }
+
+        private sealed class NoopPagePicker : IScadaPagePicker
+        {
+            public void Pick(Guid currentId, string? currentName, Action<Guid, string?> onPicked) { }
+        }
+
+        private sealed class NoopFlowPicker : IScadaFlowPicker
+        {
+            public void Pick(string? currentFlowId, string? currentName, Action<string, string?> onPicked) { }
         }
 
         // ==================================================================

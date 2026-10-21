@@ -29,7 +29,7 @@ function New-RoundedRectGeometry([double]$x, [double]$y, [double]$w, [double]$h,
     return $g
 }
 
-# Shared tile background: sky-blue family, same accent the dialogs use (#0EA5E9).
+# Help tile background: sky-blue family, same accent the dialogs use (#0EA5E9).
 function New-TileBackground {
     $grad = New-Object System.Windows.Media.LinearGradientBrush
     $grad.StartPoint = New-Object System.Windows.Point(0, 0)
@@ -48,29 +48,130 @@ function New-TileBackground {
     return $d
 }
 
-# App mark: a viewport frame with a lens dot -- machine vision, readable at 16px.
+# App tile: deep teal -> ink (not the dialog sky blue) so the cyan focal dot reads as the accent.
+function New-AppTileBackground {
+    $grad = New-Object System.Windows.Media.LinearGradientBrush
+    $grad.StartPoint = New-Object System.Windows.Point(0.1, 0)
+    $grad.EndPoint = New-Object System.Windows.Point(0.9, 1)
+    $stops = @(
+        @(0.0, 0x0C, 0x73, 0x96),
+        @(0.55, 0x08, 0x53, 0x6F),
+        @(1.0, 0x05, 0x22, 0x34)
+    )
+    foreach ($s in $stops) {
+        $g = New-Object System.Windows.Media.GradientStop
+        $g.Color = [System.Windows.Media.Color]::FromRgb($s[1], $s[2], $s[3])
+        $g.Offset = $s[0]
+        [void]$grad.GradientStops.Add($g)
+    }
+    $d = New-Object System.Windows.Media.GeometryDrawing
+    $d.Brush = $grad
+    $d.Geometry = New-RoundedRectGeometry 0 0 $Unit $Unit 5.4
+    return $d
+}
+
+# App mark: four open corner brackets + a cyan focal dot (a vision registration mark).
+# Corner arcs are quarter circles (r=2.6), so the gaps survive the 16px raster.
 function New-AppDrawing {
     $group = New-Object System.Windows.Media.DrawingGroup
-    [void]$group.Children.Add((New-TileBackground))
+    [void]$group.Children.Add((New-AppTileBackground))
 
+    $glow = New-Object System.Windows.Media.RadialGradientBrush
+    $glow.Center = New-Object System.Windows.Point(0.5, 0.5)
+    $glow.GradientOrigin = New-Object System.Windows.Point(0.5, 0.5)
+    $glow.RadiusX = 0.5
+    $glow.RadiusY = 0.5
+    $glowStops = @(
+        @(0.0, 128),
+        @(0.6, 33),
+        @(1.0, 0)
+    )
+    foreach ($s in $glowStops) {
+        $g = New-Object System.Windows.Media.GradientStop
+        $g.Color = [System.Windows.Media.Color]::FromArgb($s[1], 0x38, 0xBD, 0xF8)
+        $g.Offset = $s[0]
+        [void]$glow.GradientStops.Add($g)
+    }
+    $glowGeo = New-Object System.Windows.Media.EllipseGeometry
+    $glowGeo.Center = New-Object System.Windows.Point(12, 12)
+    $glowGeo.RadiusX = 7.8
+    $glowGeo.RadiusY = 7.8
+    $glowDrawing = New-Object System.Windows.Media.GeometryDrawing
+    $glowDrawing.Brush = $glow
+    $glowDrawing.Geometry = $glowGeo
+    [void]$group.Children.Add($glowDrawing)
+
+    $inkBrush = New-Object System.Windows.Media.SolidColorBrush
+    $inkBrush.Color = [System.Windows.Media.Color]::FromRgb(0xF8, 0xFA, 0xFC)
     $pen = New-Object System.Windows.Media.Pen
-    $pen.Brush = [System.Windows.Media.Brushes]::White
-    $pen.Thickness = 1.9
+    $pen.Brush = $inkBrush
+    $pen.Thickness = 2.3
+    $pen.StartLineCap = [System.Windows.Media.PenLineCap]::Round
+    $pen.EndLineCap = [System.Windows.Media.PenLineCap]::Round
     $pen.LineJoin = [System.Windows.Media.PenLineJoin]::Round
+
+    $path = New-Object System.Windows.Media.PathGeometry
+    $corners = @(
+        @(4.5, 9.1, 4.5, 7.1, 7.1, 4.5, 9.1, 4.5),
+        @(14.9, 4.5, 16.9, 4.5, 19.5, 7.1, 19.5, 9.1),
+        @(19.5, 14.9, 19.5, 16.9, 16.9, 19.5, 14.9, 19.5),
+        @(9.1, 19.5, 7.1, 19.5, 4.5, 16.9, 4.5, 14.9)
+    )
+    foreach ($c in $corners) {
+        $fig = New-Object System.Windows.Media.PathFigure
+        $fig.StartPoint = New-Object System.Windows.Point($c[0], $c[1])
+        $fig.IsFilled = $false
+        $fig.IsClosed = $false
+
+        $l1 = New-Object System.Windows.Media.LineSegment
+        $l1.Point = New-Object System.Windows.Point($c[2], $c[3])
+        $l1.IsStroked = $true
+        [void]$fig.Segments.Add($l1)
+
+        $arc = New-Object System.Windows.Media.ArcSegment
+        $arc.Point = New-Object System.Windows.Point($c[4], $c[5])
+        $arc.Size = New-Object System.Windows.Size(2.6, 2.6)
+        $arc.RotationAngle = 0
+        $arc.IsLargeArc = $false
+        $arc.SweepDirection = [System.Windows.Media.SweepDirection]::Clockwise
+        $arc.IsStroked = $true
+        [void]$fig.Segments.Add($arc)
+
+        $l2 = New-Object System.Windows.Media.LineSegment
+        $l2.Point = New-Object System.Windows.Point($c[6], $c[7])
+        $l2.IsStroked = $true
+        [void]$fig.Segments.Add($l2)
+
+        [void]$path.Figures.Add($fig)
+    }
 
     $frame = New-Object System.Windows.Media.GeometryDrawing
     $frame.Pen = $pen
-    $frame.Geometry = New-RoundedRectGeometry 4.6 6.2 14.8 11.6 2.4
+    $frame.Geometry = $path
     [void]$group.Children.Add($frame)
 
+    $dotBrush = New-Object System.Windows.Media.SolidColorBrush
+    $dotBrush.Color = [System.Windows.Media.Color]::FromRgb(0x38, 0xBD, 0xF8)
     $dot = New-Object System.Windows.Media.GeometryDrawing
-    $dot.Brush = [System.Windows.Media.Brushes]::White
-    $lens = New-Object System.Windows.Media.EllipseGeometry
-    $lens.Center = New-Object System.Windows.Point(12, 12)
-    $lens.RadiusX = 2.7
-    $lens.RadiusY = 2.7
-    $dot.Geometry = $lens
+    $dot.Brush = $dotBrush
+    $dotGeo = New-Object System.Windows.Media.EllipseGeometry
+    $dotGeo.Center = New-Object System.Windows.Point(12, 12)
+    $dotGeo.RadiusX = 2.9
+    $dotGeo.RadiusY = 2.9
+    $dot.Geometry = $dotGeo
     [void]$group.Children.Add($dot)
+
+    $coreBrush = New-Object System.Windows.Media.SolidColorBrush
+    $coreBrush.Color = [System.Windows.Media.Color]::FromRgb(0xE6, 0xFA, 0xFF)
+    $core = New-Object System.Windows.Media.GeometryDrawing
+    $core.Brush = $coreBrush
+    $coreGeo = New-Object System.Windows.Media.EllipseGeometry
+    $coreGeo.Center = New-Object System.Windows.Point(12, 12)
+    $coreGeo.RadiusX = 1.15
+    $coreGeo.RadiusY = 1.15
+    $core.Geometry = $coreGeo
+    [void]$group.Children.Add($core)
+
     return $group
 }
 

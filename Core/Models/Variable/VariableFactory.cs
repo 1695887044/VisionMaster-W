@@ -19,7 +19,10 @@ namespace VisionMaster.Models
                 VariableId = variableId ?? Guid.NewGuid(),
                 DataType = dataType,
                 Description = description,
-                DefaultValue = defaultValue,
+                // 数组必须给基准一份独立副本：DefaultValue 与 Value 指向同一个数组时，
+                // 元素就地编辑（变量管理的 [i] 行）会同时改掉基准——"恢复初始值"再也回不到原值，
+                // 而且逐元素比较会因 ReferenceEquals 直接判"未偏离"（2026-10-21 审查抓出）。
+                DefaultValue = defaultValue is Array array ? array.Clone() : defaultValue,
                 Value = defaultValue
             };
         }

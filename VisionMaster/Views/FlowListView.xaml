@@ -181,6 +181,11 @@
                                     CommandParameter="{x:Static enums:FlowAction.Manager}"
                                     Header="流程管理"
                                     Icon="&#xf09c;" />
+                                <MenuItem
+                                    Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                    CommandParameter="{x:Static enums:FlowAction.VariableEvents}"
+                                    Header="变量事件（方案级）"
+                                    Icon="&#xf0f3;" />
                             </ContextMenu>
                         </Grid.ContextMenu>
                     </Grid>

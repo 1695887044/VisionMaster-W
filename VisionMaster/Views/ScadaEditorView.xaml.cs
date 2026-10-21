@@ -1,7 +1,11 @@
+using System;
+using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
+using System.Windows.Threading;
 using VisionMaster.Scada;
 using VisionMaster.Scada.Controls;
 using VisionMaster.Services;
@@ -16,6 +20,19 @@ namespace VisionMaster.Views
     {
         /// <summary>工具栏缩放一档的倍率，与滚轮那一档取值一致（见 <c>ScadaCanvas.Interaction</c>）</summary>
         private const double ZoomStep = 1.1;
+
+        /// <summary>上下文工具条与选中框之间的间距（像素）</summary>
+        private const double ToolbarGap = 8;
+
+        /// <summary>上下文工具条离视口边缘的最小留白</summary>
+        private const double ToolbarMargin = 4;
+
+        /// <summary>已经"适应窗口"过一次的画面。同一页再次入树不再重新取景，免得切标签回来视角被重置</summary>
+        private ScadaPage? _fittedPage;
+
+        private DependencyPropertyDescriptor? _selectionWatch;
+        private DependencyPropertyDescriptor? _zoomWatch;
+        private DependencyPropertyDescriptor? _offsetWatch;
 
         public ScadaEditorView()
         {
@@ -36,33 +53,21 @@ namespace VisionMaster.Views
         }
 
         private void OnViewLoaded(object sender, RoutedEventArgs e)
-            => (DataContext as ScadaEditorViewModel)?.Activate();
-
-        /// <summary>
-        /// 「新建」右侧的 ▾：把挂在该按钮上的菜单从下方弹出来。
-        ///
-        /// 为什么走 code-behind 而不是给按钮再挂一个命令：WPF 没有内建的"分裂按钮"，
-        /// 而"点一下弹菜单"是纯视图动作（菜单本身的位置由控件决定），放进视图模型只会多一层转发。
-        /// 菜单里的两项仍是命令绑定（`AddPageCommand` / `AddBasePageCommand`），
-        /// 业务判断一条都不在这里。
-        /// </summary>
-        private void OnNewMenuClick(object sender, RoutedEventArgs e)
         {
-            if (sender is not Button { ContextMenu: { } menu } button)
-                return;
-
-            menu.PlacementTarget = button;
-            menu.Placement = PlacementMode.Bottom;
-            menu.IsOpen = true;
+            (DataContext as ScadaEditorViewModel)?.Activate();
+            AttachCanvasWatchers();
+            FitCanvasIfNeeded();
         }
 
         private void OnViewUnloaded(object sender, RoutedEventArgs e)
-            => (DataContext as ScadaEditorViewModel)?.Deactivate();
+        {
+            DetachCanvasWatchers();
+            (DataContext as ScadaEditorViewModel)?.Deactivate();
+        }
 
-        // ---- 取景按钮 ----
-        // 这四个动作刻意写在代码后台而不是视图模型的命令里：缩放/平移是"这台机器这一次的视角"，
-        // 既不落盘也不该被别的对象查询。做成命令就得让 VM 反过来持有画布实例，
-        // 那是拿可测试性换一个用不上的抽象。
+        // ---- 取景 ----
+        // 缩放/平移是"这台机器这一次的视角"，既不落盘也不该被别的对象查询，
+        // 所以这几个动作刻意写在代码后台而不是视图模型的命令里（做成命令就得让 VM 反过来持有画布实例）。
 
         private void OnZoomIn(object sender, RoutedEventArgs e) => Canvas.ZoomBy(ZoomStep);
 
@@ -72,12 +77,182 @@ namespace VisionMaster.Views
 
         private void OnActualSize(object sender, RoutedEventArgs e) => Canvas.ZoomToActualSize();
 
+        /// <summary>
+        /// 首次进入某一页时"适应窗口"，之后不再自动改视角。
+        ///
+        /// 为什么要自动取景：画面默认 1920×1080 而文档区通常只有 1000 上下，
+        /// 100% 打开等于"只看得见左上角一块"，用户既看不出画面边界，也看不出整页布局。
+        /// 只做一次（按页记）是给"切标签回来"留余地——那时用户往往已经调过视角。
+        /// </summary>
+        private void FitCanvasIfNeeded()
+        {
+            if (DataContext is not ScadaEditorViewModel viewModel)
+                return;
+
+            var page = viewModel.SelectedPage;
+            if (page == null || ReferenceEquals(page, _fittedPage))
+                return;
+
+            _fittedPage = page;
+
+            // 面板刚切出来时 ActualWidth 还是 0，FitToScreen 会自己跳过；排到布局之后再试一次。
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                Canvas.FitToScreen();
+                UpdateSelectionToolbar();
+            }), DispatcherPriority.Loaded);
+        }
+
+        // ---- 浮出的上下文格式工具条 ----
+
+        private void AttachCanvasWatchers()
+        {
+            if (_selectionWatch != null)
+                return;
+
+            _selectionWatch = DependencyPropertyDescriptor.FromProperty(
+                ScadaCanvas.SelectedElementsProperty, typeof(ScadaCanvas));
+            _selectionWatch?.AddValueChanged(Canvas, OnCanvasSelectionChanged);
+
+            _zoomWatch = DependencyPropertyDescriptor.FromProperty(
+                ScadaCanvas.ZoomProperty, typeof(ScadaCanvas));
+            _zoomWatch?.AddValueChanged(Canvas, OnCanvasViewportChanged);
+
+            _offsetWatch = DependencyPropertyDescriptor.FromProperty(
+                ScadaCanvas.OffsetProperty, typeof(ScadaCanvas));
+            _offsetWatch?.AddValueChanged(Canvas, OnCanvasViewportChanged);
+
+            Canvas.SizeChanged += OnCanvasSizeChanged;
+            UpdateSelectionToolbar();
+        }
+
+        private void DetachCanvasWatchers()
+        {
+            _selectionWatch?.RemoveValueChanged(Canvas, OnCanvasSelectionChanged);
+            _zoomWatch?.RemoveValueChanged(Canvas, OnCanvasViewportChanged);
+            _offsetWatch?.RemoveValueChanged(Canvas, OnCanvasViewportChanged);
+            _selectionWatch = null;
+            _zoomWatch = null;
+            _offsetWatch = null;
+
+            Canvas.SizeChanged -= OnCanvasSizeChanged;
+        }
+
+        private void OnCanvasSelectionChanged(object? sender, EventArgs e) => UpdateSelectionToolbar();
+
+        private void OnCanvasViewportChanged(object? sender, EventArgs e) => UpdateSelectionToolbar();
+
+        private void OnCanvasSizeChanged(object sender, SizeChangedEventArgs e) => UpdateSelectionToolbar();
+
+        /// <summary>
+        /// 把上下文工具条摆到"选中集合外接框"的正上方；上方放不下就翻到下方，最后夹进视口。
+        ///
+        /// 位置必须现算：工具条是浮层，而选中框在画面坐标系里跟着缩放平移走——
+        /// 写死一个位置的话，一缩放它就飘到别处去了。
+        /// 外接框按<b>轴对齐</b>算（不按旋转后的包围盒）：工具条只需要一个大致锚点，
+        /// 为它再算一遍旋转包围盒不值得。
+        /// </summary>
+        private void UpdateSelectionToolbar()
+        {
+            if (SelectionToolbar == null || Canvas == null)
+                return;
+
+            var selected = Canvas.SelectedElements;
+
+            if (selected == null || selected.Count == 0 || Canvas.ActualWidth <= 0 || Canvas.ActualHeight <= 0)
+            {
+                SelectionToolbar.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            double left = double.MaxValue, top = double.MaxValue;
+            double right = double.MinValue, bottom = double.MinValue;
+
+            foreach (var element in selected)
+            {
+                left = Math.Min(left, element.X);
+                top = Math.Min(top, element.Y);
+                right = Math.Max(right, element.X + Math.Max(1, element.Width));
+                bottom = Math.Max(bottom, element.Y + Math.Max(1, element.Height));
+            }
+
+            SelectionToolbar.Visibility = Visibility.Visible;
+            SelectionToolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+
+            var size = SelectionToolbar.DesiredSize;
+            if (size.Width <= 0)
+                size = new Size(SelectionToolbar.ActualWidth, SelectionToolbar.ActualHeight);
+
+            var anchor = Canvas.ToViewportPoint(new Point(left, top));
+
+            double x = anchor.X;
+            double y = anchor.Y - size.Height - ToolbarGap;
+
+            if (y < ToolbarMargin)
+            {
+                // 上方放不下（选中框贴着视口顶边）就翻到下面，宁可压住一点内容也不许飘出视口
+                y = Canvas.ToViewportPoint(new Point(left, bottom)).Y + ToolbarGap;
+            }
+
+            double maxX = Math.Max(ToolbarMargin, Canvas.ActualWidth - size.Width - ToolbarMargin);
+            double maxY = Math.Max(ToolbarMargin, Canvas.ActualHeight - size.Height - ToolbarMargin);
+
+            x = Math.Clamp(x, ToolbarMargin, maxX);
+            y = Math.Clamp(y, ToolbarMargin, maxY);
+
+            System.Windows.Controls.Canvas.SetLeft(SelectionToolbar, x);
+            System.Windows.Controls.Canvas.SetTop(SelectionToolbar, y);
+        }
+
+        // ---- 顶栏下拉菜单 ----
+        // WPF 没有内建的"分裂按钮"，而"点一下把挂在自己身上的菜单弹出来"是纯视图动作
+        // （菜单位置由控件决定），放进视图模型只会多一层转发。菜单里的项仍是命令绑定，业务判断一条都不在这里。
+
+        private void OnDropDownMenuClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button { ContextMenu: { } menu } button)
+                return;
+
+            menu.PlacementTarget = button;
+            menu.Placement = PlacementMode.Bottom;
+            menu.IsOpen = true;
+        }
+
+        /// <summary>
+        /// 上下文工具条的"更多"：把完整的排列菜单（分布 / 等尺寸 / 等间距 / 对齐网格 / 叠放 / 图层）
+        /// 弹在按钮下面。
+        ///
+        /// 复用 <see cref="ScadaEditorViewModel.BuildElementContextMenu"/> 与 <see cref="ToMenuItem"/>：
+        /// 右键菜单与这里必须是<b>同一份</b>命令集，各写一份就会出现"右键有、工具条没有"的错位。
+        /// </summary>
+        private void OnMoreFormatClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || DataContext is not ScadaEditorViewModel editor)
+                return;
+
+            var items = editor.BuildElementContextMenu();
+            if (items.Count == 0)
+                return;
+
+            var menu = new ContextMenu
+            {
+                FontFamily = (System.Windows.Media.FontFamily)FindResource("DialogIconFont"),
+                PlacementTarget = button,
+                Placement = PlacementMode.Bottom,
+            };
+
+            foreach (var item in items)
+                menu.Items.Add(ToMenuItem(item));
+
+            menu.IsOpen = true;
+        }
+
         // ---- 从工具箱放置图元 ----
         // 落点换算交给画布（ToDropOrigin：视口→设计、以落点为中心、吸网格、夹进画面），
         // 造模型交给视图模型（AddElement：去重命名、抬 ZIndex、Add 进集合后由画布自己长控件）。
         // 这一层只做"把鼠标位置和数据递过去"，两段知识都不属于它。
 
-        private void OnCanvasDragOver(object sender, DragEventArgs e)
+        private void OnCanvasDragOver(object sender, System.Windows.DragEventArgs e)
         {
             // Effects 决定光标长相：不是本协议的负载就显"禁止"，别让用户对一个放不下的东西
             // 反复试。这里不兜底当纯文本读——否则从记事本拖几个字进画布也会生图元。
@@ -85,7 +260,7 @@ namespace VisionMaster.Views
             e.Handled = true;
         }
 
-        private void OnCanvasDrop(object sender, DragEventArgs e)
+        private void OnCanvasDrop(object sender, System.Windows.DragEventArgs e)
         {
             e.Effects = DragDropEffects.None;
 
@@ -113,18 +288,13 @@ namespace VisionMaster.Views
                 && ScadaTemplateStore.Shared.GetPayload(templateId) is { IsEmpty: false } payload)
             {
                 // 模板是一整块内容，落点要的是"这一块的左上角落在鼠标处"：所以先量出快照的外接框，
-                // 拿外接框的宽高去换落点（ToDropOrigin 是"以落点为心"），再反推相对原坐标的偏移——
-                // 物化那一步只认偏移，它不认识鼠标，也不该认识。
-                ScadaClipboard.GetBounds(payload, out double left, out double top, out double width, out double height);
+                // 拿外接框的宽高去换落点（ToDropOrigin 是"以落点为心"）。
+                // 参数化模板的展开/校验由视图模型统一处理（与批量插入同一套），这里只递落点。
+                ScadaClipboard.GetBounds(payload, out _, out _, out double width, out double height);
 
                 Point origin = Canvas.ToDropOrigin(e.GetPosition(Canvas), width, height);
 
-                string label = ScadaTemplateStore.Shared.Templates.FirstOrDefault(t => t.TemplateId == templateId)
-                    is { } info
-                    ? $"插入模板 [{info.Name}]"
-                    : $"插入模板 {payload.Items.Count} 个图元";
-
-                if (viewModel.PlacePayload(payload, origin.X - left, origin.Y - top, label).Count > 0)
+                if (viewModel.InsertTemplateAt(templateId, origin.X, origin.Y))
                     e.Effects = DragDropEffects.Copy;
 
                 e.Handled = true;

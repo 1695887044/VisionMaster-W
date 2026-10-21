@@ -33,6 +33,9 @@ namespace VisionMaster.Scada
         private Guid _layerId;
         private Guid _groupId;
         private Guid _parentId;
+        private Guid _templateId;
+        private int _templateIndex = -1;
+        private int _templateRevision;
         private string _name = string.Empty;
         private string _typeKey = string.Empty;
         private double _x;
@@ -175,6 +178,34 @@ namespace VisionMaster.Scada
         {
             get => _parentId;
             set => SetProperty(ref _parentId, value);
+        }
+
+        /// <summary>
+        /// 关联模板身份（<see cref="Guid.Empty"/> = 不是模板实例，而是手画图元或已断开关联）。
+        ///
+        /// 同一实例的所有图元共用 <see cref="GroupId"/> 与同一个 <see cref="TemplateId"/>；
+        /// <see cref="TemplateIndex"/> 是展开时用的 <c>{i}</c> 值。模板库更新后，
+        /// 刷新器按这两个字段找到实例并整块替换，实例自己的位置/组/选中保留。
+        /// 旧 .vms 没有这三个字段，反序列化后 TemplateId 为空、Index 为 -1，按普通图元处理。
+        /// </summary>
+        public Guid TemplateId
+        {
+            get => _templateId;
+            set => SetProperty(ref _templateId, value);
+        }
+
+        /// <summary>关联模板实例的 <c>{i}</c> 值；-1 = 未参数化/非模板实例。</summary>
+        public int TemplateIndex
+        {
+            get => _templateIndex;
+            set => SetProperty(ref _templateIndex, value);
+        }
+
+        /// <summary>插入时模板的 Revision；小于模板库当前 Revision 时说明实例可刷新。</summary>
+        public int TemplateRevision
+        {
+            get => _templateRevision;
+            set => SetProperty(ref _templateRevision, value);
         }
 
         /// <summary>
@@ -505,7 +536,7 @@ namespace VisionMaster.Scada
                 // 自愈：这条是"按名"存下来的旧绑定，既然此刻按名命中了，就把稳定身份补齐。
                 // 与 VariableRegistry.ResolveGlobalLink 是同一套思路——迁移只发生一次，
                 // 落盘后该绑定改为按 Id 寻址，此后再改名同样不会断。
-                binding.Bind(variableId, newName);
+                binding.Bind(variableId, newName, binding.ArrayIndex);
                 changed++;
             }
 
@@ -520,7 +551,7 @@ namespace VisionMaster.Scada
                 if (animation == null || !animation.Matches(variableId, oldName))
                     continue;
 
-                animation.BindVariable(variableId, newName);
+                animation.BindVariable(variableId, newName, animation.ArrayIndex);
                 changed++;
             }
 

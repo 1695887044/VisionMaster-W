@@ -73,6 +73,63 @@ namespace VisionMaster.Scada.Controls
         }
 
         /// <summary>
+        /// 复制一组描述符并给其中若干条加上**条件可见**（返回新数组，不改缓存里的实例）。
+        ///
+        /// 用途：同一个属性在不同呈现/模式下是否有效（如 ComboBox 的 ShowSeparator 只在 Text 呈现有效、
+        /// Mode 只在 Field 呈现有效）。属性面板按 <see cref="ElementPropertyDescriptor.IsVisibleFor"/>
+        /// 过滤，避免"改了没反应"的死开关。
+        /// </summary>
+        public static IReadOnlyList<ElementPropertyDescriptor> WithVisibility(
+            IReadOnlyList<ElementPropertyDescriptor> source,
+            params (string Key, string WhenKey, string WhenValue)[] conditions)
+        {
+            if (source is null || source.Count == 0 || conditions is null || conditions.Length == 0)
+                return source ?? Array.Empty<ElementPropertyDescriptor>();
+
+            var result = new ElementPropertyDescriptor[source.Count];
+
+            for (var i = 0; i < source.Count; i++)
+            {
+                var descriptor = source[i];
+                var found = false;
+                var whenKey = string.Empty;
+                var whenValue = string.Empty;
+
+                foreach (var condition in conditions)
+                {
+                    if (!string.Equals(condition.Key, descriptor.Key, StringComparison.Ordinal))
+                        continue;
+
+                    found = true;
+                    whenKey = condition.WhenKey;
+                    whenValue = condition.WhenValue;
+                    break;
+                }
+
+                result[i] = !found
+                    ? descriptor
+                    : new ElementPropertyDescriptor
+                    {
+                        Key = descriptor.Key,
+                        DisplayName = descriptor.DisplayName,
+                        Kind = descriptor.Kind,
+                        DefaultValue = descriptor.DefaultValue,
+                        Group = descriptor.Group,
+                        Description = descriptor.Description,
+                        IsBindable = descriptor.IsBindable,
+                        Min = descriptor.Min,
+                        Max = descriptor.Max,
+                        Choices = descriptor.Choices,
+                        TargetProperty = descriptor.TargetProperty,
+                        VisibleWhenKey = whenKey,
+                        VisibleWhenValue = whenValue,
+                    };
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// 复制一组描述符并替换其中若干条的**默认值**（返回新数组，不改缓存里的实例）。
         ///
         /// 为什么需要它：同一个控件类可以以不同"预设"注册成多个 TypeKey

@@ -13,6 +13,13 @@ namespace VisionMaster.Services
     /// <summary>
     /// <see cref="IScadaRuntimeHost"/> 的默认实现：一次只允许一个运行会话 + 一个运行窗口。
     ///
+    /// 同时实现 <see cref="IScadaRunHub"/>：把"当前这一轮"的会话/文档/轮次号与启停信号
+    /// 交给只引用 <c>VM.Scada</c> 的可选模块（Web 运行态等）。启停信号的门禁全部落在
+    /// <see cref="ScadaRunHubState"/> 上——本类只决定"什么时候调它"，不另写一套"发没发过"的判据。
+    /// 两条硬口径：① 启动失败（无画面 / 起报警或 Show 抛异常）<b>不发</b> RunStarted，
+    /// 收场时也不会补发 RunStopped；② RunStopped 一律在清理<b>之后</b>发，
+    /// 订阅方在处理器里读 <see cref="Session"/>/<see cref="Document"/> 必须已经是 null。
+    ///
     /// 一次"运行"的完整生命周期
     /// ---------
     /// <code>
@@ -69,7 +76,7 @@ namespace VisionMaster.Services
     /// <c>ContentRendered</c> 知道。所以领域层只交出一个事实（该显示这一页），
     /// 由宿主把"什么时候真画出来了"补上——两边都不越界。
     /// </summary>
-    public sealed class ScadaRuntimeHost : IScadaRuntimeHost
+    public sealed class ScadaRuntimeHost : IScadaRuntimeHost, IScadaRunHub, IScadaAlarmCommands, IScadaAlarmFeed
     {
         private readonly ILogService _log;
         private readonly IUserNotifier _notifier;
@@ -77,8 +84,23 @@ namespace VisionMaster.Services
         /// <summary>工作区（弱依赖：拿不到通知就不做"切方案自动停止"，但运行本身照样能用）</summary>
         private readonly INotifyPropertyChanged? _workspace;
 
+        /// <summary>工作区强引用：报警历史要按当前方案的 .vms 路径定位 <c>Alarms</c> 目录</summary>
+        private readonly IWorkspaceManager _workspaceManager;
+
+        /// <summary>报警历史快照（方案目录 <c>Alarms\AlarmHistory.json</c>）；没运行/收场后为 null</summary>
+        private ScadaAlarmHistoryStore? _alarmStore;
+
+        /// <summary>本轮开始前从方案目录读回的历史记录；每次写快照都要与本轮记录合并，不能覆盖掉</summary>
+        private IReadOnlyList<ScadaAlarmRecord> _priorAlarms = Array.Empty<ScadaAlarmRecord>();
+
+        /// <summary>CSV 追加与 JSON 快照写入的串行闸：报警事件可能来自变量轮询线程</summary>
+        private readonly object _alarmPersistGate = new();
+
         private ScadaRuntime? _session;
         private ScadaRuntimeWindow? _window;
+
+        /// <summary>方案级监控（报警/变量事件/节拍）。窗口只是它的消费者，关窗不停它。</summary>
+        private readonly ScadaMonitoringHost _monitoring;
 
         /// <summary>命中钩子之后干活的人（单例，见 App 里的注册）</summary>
         private readonly IScadaActionDispatcher _dispatcher;
@@ -100,7 +122,7 @@ namespace VisionMaster.Services
         /// 轴控台「示教/定位」的二次确认出口。无窗口宿主（断言/离线）返回 false，
         /// 图元侧会把"需要确认但确认不了"如实拒绝，而不是静默跳过确认。
         /// </summary>
-        private readonly IScadaConfirmationService _confirmations = new ScadaConfirmationService();
+        private readonly IScadaConfirmationService _confirmations;
 
         /// <summary>
         /// 软件级配置（AppConfig.json）。这里只用它两件事：读"运行窗口该长什么样"
@@ -132,6 +154,13 @@ namespace VisionMaster.Services
         /// （它才是执行侧），宿主不重复记一遍——同一件事记两处，早晚变成两条对不上的记录。
         /// </summary>
         private readonly ScadaAuditWriter _audit;
+
+        /// <summary>
+        /// 运行轮次状态机（"这一轮起没起 / 第几轮"）。抽在领域层是为了让断言能对<b>同一份实现</b>
+        /// 跑满启停序列（见 ScadaRunHubState 的类注释）；本类只负责"什么时候调它、调到了发什么信号"。
+        /// 线程：与 <see cref="_session"/> 同一条口径——只在 UI 线程上读写。
+        /// </summary>
+        private readonly ScadaRunHubState _hubState = new();
 
         /// <summary>
         /// 窗口根上接组态事件的那个委托。存成字段只为 <c>AddHandler</c> 与 <c>RemoveHandler</c>
@@ -231,7 +260,9 @@ namespace VisionMaster.Services
             ScadaAuditWriter audit,
             AppSettingsService appSettings,
             IScadaAxisSource? axisSource = null,
-            IScadaAxisCommandSink? axisCommands = null)
+            IScadaAxisCommandSink? axisCommands = null,
+            IScadaConfirmationService? confirmations = null,
+            ScadaMonitoringHost? monitoring = null)
         {
             _log = log ?? throw new ArgumentNullException(nameof(log));
             _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
@@ -244,6 +275,17 @@ namespace VisionMaster.Services
             _appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
             _axisSource = axisSource;
             _axisCommands = axisCommands;
+            _confirmations = confirmations ?? new ScadaConfirmationService();
+            _workspaceManager = workspace ?? throw new ArgumentNullException(nameof(workspace));
+            _monitoring = monitoring ?? (System.Windows.Application.Current == null
+                // 断言/设计器：没有容器，自己搭一份（不会与 DI 单例并存）。
+                ? new ScadaMonitoringHost(
+                    log, workspace, valueSource, valueWriter, accessPolicy,
+                    axisSource, axisCommands, _confirmations, dispatcher, appSettings)
+                // 生产：必须由容器注入同一个单例；缺了就是装配错误，宁可启动当场炸，
+                // 也不要偷偷再 new 一份（两份引擎会把报警/变量事件各执行两遍）。
+                : throw new InvalidOperationException(
+                    "ScadaRuntimeHost 缺少 ScadaMonitoringHost 注入：方案级监控必须与宿主共用同一实例。"));
             _onScadaEvent = OnScadaEvent;
 
             // 三个都是单例，这条订阅不会把谁钉住（不存在"宿主早于工作区被回收"的情况），
@@ -256,6 +298,43 @@ namespace VisionMaster.Services
         /// <inheritdoc/>
         public bool IsRunning => _window != null;
 
+        // ---- IScadaRunHub：把"当前这一轮运行"的事实与启停信号交给可选模块 ----
+
+        /// <inheritdoc/>
+        public ScadaRuntime? Session => _session;
+
+        /// <inheritdoc/>
+        public ScadaDocument? Document => _session?.Document;
+
+        /// <inheritdoc/>
+        public long RunGeneration => _hubState.Generation;
+
+        /// <inheritdoc/>
+        public bool TryGetCurrent(out ScadaRuntime? session, out ScadaDocument? document, out long generation)
+        {
+            // 判据与 IsRunning 同源（窗口在 = 这一轮活着）。字段只在 Show() 成功之后才落地，
+            // 所以"启动半路失败"不会让晚订阅者拿到一个从没显示过的会话。
+            var current = _session;
+            if (current == null || _window == null)
+            {
+                session = null;
+                document = null;
+                generation = 0;
+                return false;
+            }
+
+            session = current;
+            document = current.Document;
+            generation = _hubState.Generation;
+            return true;
+        }
+
+        /// <inheritdoc/>
+        public event Action<ScadaRuntime, ScadaDocument, long>? RunStarted;
+
+        /// <inheritdoc/>
+        public event Action<long>? RunStopped;
+
         /// <inheritdoc/>
         public void Start(ScadaDocument document)
         {
@@ -263,79 +342,122 @@ namespace VisionMaster.Services
 
             // 单实例。重复点"运行"在现场太常见：真开出两份会话，就是两份运行态各自往
             // 同一批变量上写，出问题时分不清是谁写的。所以第二次只是把窗口带到前台。
+            // 这里刻意不动状态机：没有新的一轮，就不该有新的 generation、也不该再发 RunStarted。
             if (_window != null)
             {
                 _window.Activate();
                 return;
             }
 
-            var session = new ScadaRuntime(document, _accessPolicy);
-            var window = new ScadaRuntimeWindow(session);
+            // 上一轮若在收场半路抛了（OnWindowClosed 还没走到发 RunStopped 那一步），状态机会停在"已启动"。
+            // 这里先把那一轮补发结束：否则下面的 TryStarted 会被状态机挡掉，订阅方永远等不到下一次 Started。
+            if (_hubState.IsStarted && _hubState.TryStopped(out var orphanedGeneration))
+                PublishStopped(orphanedGeneration);
 
-            // 形态必须在 Show() 之前定死：WindowStyle/WindowState 这类属性在窗口显示之后再改，
-            // WPF 会重建非客户区，表现为闪一下、尺寸跳一格（依附形态下更明显）。
-            //
-            // 这里一次把"长什么样"和"落在哪块屏"都现读出来：两者都来自软件级配置，
-            // 都只在这一次 Start 上生效（改完不必重启，下一次点「运行」就是新样子）。
-            var config = _appSettings.Current;
-            var monitor = ScadaMonitors.Resolve(config.RunWindowMonitor, out var monitorFellBack);
-            if (monitorFellBack)
-            {
-                // 配置指着一块现在不在的屏（拔线 / 换了视频口 / 在别的机器上打开同一份配置）。
-                // 落屏已经回落主屏（见 ScadaMonitors.Resolve），这里只负责留个证据——
-                // 没有这条日志，现场看到"运行画面跑到主屏去了"就只能靠猜。
-                _log.Warn($"[Scada] 运行窗口指定的显示器「{config.RunWindowMonitor}」当前不在线，本次已回落主屏。");
-            }
-            window.ApplyRunWindowMode(config.RunWindowMode, monitor);
+            // 会话与窗口先落在局部变量上，_session/_window 只在 Show() 成功之后才赋值。
+            // 这条纪律是"点了运行没反应"那类故障的根：任何一步失败（建窗口、定形态、Start 会话、
+            // 起报警/变量事件、Show）若已经把字段填上，就会留下"窗口非空但从未显示"的状态——
+            // Activate() 对未显示的窗口是静默 no-op，之后每次「运行」都早退在那里，
+            // IsRunning 与 IScadaRunHub 也会一直谎报在跑。
+            ScadaRuntime? session = null;
+            ScadaRuntimeWindow? window = null;
+            var stage = "创建运行会话";
 
-            if (config.RunWindowMode == ScadaRunWindowMode.AttachedToMainWindow)
+            try
             {
-                // 挂在主界面之下：关主界面时运行窗口跟着关（"关编辑器自动停止"这条不用自己写代码，
-                // 也就不会出现漏摘的订阅）。注意副作用——最小化主界面会连带最小化运行窗口，
-                // 对"设计完看一眼效果"这个用途正是想要的行为。
+                session = new ScadaRuntime(document, _accessPolicy);
+
+                stage = "创建运行窗口";
+                window = new ScadaRuntimeWindow(session);
+
+                // 形态必须在 Show() 之前定死：WindowStyle/WindowState 这类属性在窗口显示之后再改，
+                // WPF 会重建非客户区，表现为闪一下、尺寸跳一格（依附形态下更明显）。
                 //
-                // 独立形态刻意<b>不</b>挂 Owner：挂上就永远压在主界面之上、还会跟着一起最小化，
-                // "和视觉图像窗口一起显示"就落空了（形态的取舍见 ScadaRuntimeWindow.ApplyRunWindowMode）。
-                var owner = System.Windows.Application.Current?.MainWindow;
-                if (owner != null && owner.IsLoaded)
-                    window.Owner = owner;
+                // 这里一次把"长什么样"和"落在哪块屏"都现读出来：两者都来自软件级配置，
+                // 都只在这一次 Start 上生效（改完不必重启，下一次点「运行」就是新样子）。
+                stage = "应用运行窗口形态";
+                var config = _appSettings.Current;
+                var monitor = ScadaMonitors.Resolve(config.RunWindowMonitor, out var monitorFellBack);
+                if (monitorFellBack)
+                {
+                    // 配置指着一块现在不在的屏（拔线 / 换了视频口 / 在别的机器上打开同一份配置）。
+                    // 落屏已经回落主屏（见 ScadaMonitors.Resolve），这里只负责留个证据——
+                    // 没有这条日志，现场看到"运行画面跑到主屏去了"就只能靠猜。
+                    _log.Warn($"[Scada] 运行窗口指定的显示器「{config.RunWindowMonitor}」当前不在线，本次已回落主屏。");
+                }
+                window.ApplyRunWindowMode(config.RunWindowMode, monitor);
+
+                if (config.RunWindowMode == ScadaRunWindowMode.AttachedToMainWindow)
+                {
+                    // 挂在主界面之下：关主界面时运行窗口跟着关（"关编辑器自动停止"这条不用自己写代码，
+                    // 也就不会出现漏摘的订阅）。注意副作用——最小化主界面会连带最小化运行窗口，
+                    // 对"设计完看一眼效果"这个用途正是想要的行为。
+                    //
+                    // 独立形态刻意<b>不</b>挂 Owner：挂上就永远压在主界面之上、还会跟着一起最小化，
+                    // "和视觉图像窗口一起显示"就落空了（形态的取舍见 ScadaRuntimeWindow.ApplyRunWindowMode）。
+                    var owner = System.Windows.Application.Current?.MainWindow;
+                    if (owner != null && owner.IsLoaded)
+                        window.Owner = owner;
+                }
+
+                stage = "订阅运行会话事件";
+                session.PageLoaded += OnPageLoaded;
+                session.ElementEventRaised += OnElementEventRaised;
+                session.PageEventRaised += OnPageEventRaised;
+                session.ElementAccessDenied += OnElementAccessDenied;
+                window.ContentRendered += OnFirstFrameRendered;
+                window.Closed += OnWindowClosed;
+                // 在窗口根上接住所有图元冒泡上来的组态事件：一处接线，中间的可视树层级不用管
+                window.AddHandler(ScadaElementBase.ScadaEventEvent, _onScadaEvent);
+
+                // 把"此刻活着的是哪一个会话"告诉切页出口。放在 Start() 之前：Start() 里就会发出
+                // 第一页的 PageLoaded，那一刻若有钩子要切页，动作也得找得到会话（虽然正常配不出来）。
+                // 摘掉在 OnWindowClosed 的收尾里，与这里成对。
+                _navigator.Attach(session);
+
+                // 计时从这一刻起：包含了 Start() 里的选页、建窗口、布局、首帧渲染。
+                // 用 Stopwatch 而不是 DateTime.Now：墙上时钟会被 NTP/手工调整跳一下，
+                // 差值就变成负数或几百秒，现场看到只会怀疑代码。
+                _watch = Stopwatch.StartNew();
+
+                stage = "启动运行会话";
+                if (!session.Start())
+                {
+                    // 方案里一页都没有：不弹空白全屏（那比什么都不发生更让人慌），给一句人话。
+                    // 收场同样走 AbortStart：只 Close() 的话，一旦 Close 自己失败或没触发 Closed，
+                    // 半截启动的订阅与字段就会留在原地（下一次点运行就是"没反应"）。
+                    _notifier.ShowWarn("当前方案里没有可运行的画面，请先新建画面并指定启动画面。");
+                    AbortStart(window, session, "启动运行会话（当前方案里没有可运行的画面）", null);
+                    return;
+                }
+
+                // 报警/变量事件由方案级监控宿主负责，窗口只是消费者：
+                // 先确保监控已启动，再把同一份上下文交给画布（历史面板也从这里拿）。
+                stage = "启动方案监控";
+                _monitoring.EnsureStarted(document);
+                window.CanvasHost.RuntimeContext = _monitoring.Context
+                    ?? throw new InvalidOperationException("方案监控未启动，无法提供报警/变量事件上下文");
+
+                stage = "显示运行窗口";
+                window.Show();
+                // 窗口在 = 有人能点确认；关窗后监控仍跑，但确认框必须退回“按取消处理”。
+                ScadaConfirmationService.InteractiveAllowed = true;
+
+                // Show() 成功之后才认下这一轮：字段一落地，IsRunning / TryGetCurrent 才算"在跑"。
+                _session = session;
+                _window = window;
+
+                // 到这里才是一轮真的起来了：先落 generation，再发事件。
+                // 顺序不能反——订阅方在 RunStarted 里读 hub.RunGeneration，必须已经拿到本轮号。
+                if (_hubState.TryStarted(out var generation))
+                    PublishStarted(session, document, generation);
             }
-
-            session.PageLoaded += OnPageLoaded;
-            session.ElementEventRaised += OnElementEventRaised;
-            session.PageEventRaised += OnPageEventRaised;
-            session.ElementAccessDenied += OnElementAccessDenied;
-            window.ContentRendered += OnFirstFrameRendered;
-            window.Closed += OnWindowClosed;
-            // 在窗口根上接住所有图元冒泡上来的组态事件：一处接线，中间的可视树层级不用管
-            window.AddHandler(ScadaElementBase.ScadaEventEvent, _onScadaEvent);
-
-            _session = session;
-            _window = window;
-
-            // 把"此刻活着的是哪一个会话"告诉切页出口。放在 Start() 之前：Start() 里就会发出
-            // 第一页的 PageLoaded，那一刻若有钩子要切页，动作也得找得到会话（虽然正常配不出来）。
-            // 摘掉在 OnWindowClosed 的收尾里，与这里成对。
-            _navigator.Attach(session);
-
-            // 计时从这一刻起：包含了 Start() 里的选页、建窗口、布局、首帧渲染。
-            // 用 Stopwatch 而不是 DateTime.Now：墙上时钟会被 NTP/手工调整跳一下，
-            // 差值就变成负数或几百秒，现场看到只会怀疑代码。
-            _watch = Stopwatch.StartNew();
-
-            if (!session.Start())
+            catch (Exception ex)
             {
-                // 方案里一页都没有：不弹空白全屏（那比什么都不发生更让人慌），给一句人话。
-                // 收场走 Close()，让 OnWindowClosed 那一处负责全部清理，不留第二条清理路径。
-                _notifier.ShowWarn("当前方案里没有可运行的画面，请先新建画面并指定启动画面。");
-                window.Close();
-                return;
+                // 任何一步抛出来都走同一条收场：留一个"非空但没显示"的窗口，
+                // 之后每一次「运行」都会早退到一个 Activate() 静默失败的窗口上。
+                AbortStart(window, session, stage, ex);
             }
-
-            StartAlarms(document, window);
-            StartVariableEvents(document, window);
-
-            window.Show();
         }
 
         /// <inheritdoc/>
@@ -350,11 +472,140 @@ namespace VisionMaster.Services
 
             // 窗口不在就顺手把会话状态也归零：正常路径走不到这里，
             // 但"会话活着而窗口没了"是最难复现的一类脏状态，宁可在这里兜住。
-            // 报警引擎、变量事件引擎与节拍同理——它们比窗口先起，也必须在同一处收干净。
-            TeardownAlarms();
-            TeardownVariableEvents();
+            // 报警/变量事件引擎归 ScadaMonitoringHost（方案级），不随窗口收场。
+            _navigator.Attach(null);   // 与 OnWindowClosed 成对：会话没了，导航器不能还攥着一个停掉的会话
             _session?.Stop();
             _session = null;
+
+            // 收尾之后才发（订阅方在处理器里读 hub.Session/Document 必须已经是 null）。
+            // 只有确实起过一轮才发：未启动 / 启动失败的那条路 TryStopped 返回 false，重复 Stop 也不会重复发。
+            if (_hubState.TryStopped(out var generation))
+                PublishStopped(generation);
+        }
+
+        // ---- 运行态启停广播（IScadaRunHub） ----
+
+        /// <summary>
+        /// 发 <see cref="RunStarted"/>。
+        ///
+        /// <b>逐个订阅方 try/catch</b>：多播委托里一个处理器抛异常会打断后面所有处理器，
+        /// 而"某个可选模块没接好"绝不该让另一个模块收不到信号，更不该冒回 <see cref="Start"/>
+        /// 把已经显示出来的运行窗口带下去。记 Warn 而不是 Error：这不是软件坏了，
+        /// 是外部模块的处理逻辑出了问题（与 <see cref="OnElementAccessDenied"/> 同一条口径）。
+        /// </summary>
+        private void PublishStarted(ScadaRuntime session, ScadaDocument document, long generation)
+        {
+            var handlers = RunStarted;
+            if (handlers == null)
+                return;
+
+            foreach (Action<ScadaRuntime, ScadaDocument, long> handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler(session, document, generation);
+                }
+                catch (Exception ex)
+                {
+                    _log.Warn($"[运行] RunStarted 订阅方处理失败（不影响本次运行）：{ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// 发 <see cref="RunStopped"/>。逐个订阅方 try/catch 的理由同 <see cref="PublishStarted"/>。
+        /// 调用点必须已经清空 <see cref="_session"/> / <see cref="_window"/>：
+        /// 订阅方在处理器里读 <see cref="Session"/> / <see cref="Document"/> 要看到 null。
+        /// </summary>
+        private void PublishStopped(long generation)
+        {
+            var handlers = RunStopped;
+            if (handlers == null)
+                return;
+
+            foreach (Action<long> handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler(generation);
+                }
+                catch (Exception ex)
+                {
+                    _log.Warn($"[运行] RunStopped 订阅方处理失败：{ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// 启动半路失败的统一收场：建会话/建窗口/定形态/会话 <c>Start()</c>（含返回 false）/
+        /// 起报警/起变量事件/<c>Show()</c> 任何一步出问题，都只走这一条路。
+        ///
+        /// 为什么不能只 <c>Close()</c> 了事：<c>Close()</c> 自己也可能抛（窗口状态已经坏了），
+        /// 而那条路上 <see cref="_window"/> 会一直非空——之后每一次「运行」都在
+        /// <see cref="Start"/> 开头早退到一个<b>根本没显示出来</b>的窗口上，界面上就是"点了运行没反应"。
+        /// 所以这里无论 Close 成没成都确认一次"Closed 收尾到底跑没跑"，没跑就手动跑一遍，
+        /// 最后把两个字段与本轮标志<b>强制</b>归零：下一轮 Start 必须能从同一条失败路径重来。
+        ///
+        /// 为什么字段要在这里临时指一下：收尾只有 <see cref="OnWindowClosed"/> 一条实现，
+        /// 它按字段取会话与窗口。临时指过去、结束后强制清空——全程在 UI 线程同一次调用里，
+        /// 外面看不到这个中间态（<see cref="IsRunning"/> 只在 Show() 成功后才该为 true）。
+        /// </summary>
+        private void AbortStart(ScadaRuntimeWindow? window, ScadaRuntime? session, string stage, Exception? error)
+        {
+            if (error == null)
+                _log.Warn($"[运行] {stage}失败，本次运行已取消。");
+            else
+                _log.Warn($"[运行] {stage}失败，本次运行已取消：{error.Message}");
+
+            if (window != null)
+            {
+                _session = session;
+                _window = window;
+
+                try
+                {
+                    // 正常会同步触发 Closed → OnWindowClosed，收尾只在那一处做。
+                    window.Close();
+                }
+                catch (Exception closeError)
+                {
+                    _log.Warn($"[运行] 启动失败后关闭运行窗口也失败：{closeError.Message}");
+                }
+
+                if (ReferenceEquals(_window, window))
+                {
+                    try
+                    {
+                        OnWindowClosed(window, EventArgs.Empty);
+                    }
+                    catch (Exception teardownError)
+                    {
+                        _log.Warn($"[运行] 启动失败后收场出错：{teardownError.Message}");
+                    }
+                }
+            }
+            else if (session != null)
+            {
+                // 窗口都没造出来（<c>new ScadaRuntimeWindow</c> 抛了）：会话可能已经挂上导航器，
+                // 这里按 OnWindowClosed 的后半段收一遍，免得留下一条指向半成品的引用。
+                try
+                {
+                    _navigator.Attach(null);
+                    session.Stop();
+                }
+                catch (Exception teardownError)
+                {
+                    _log.Warn($"[运行] 启动失败后收场出错：{teardownError.Message}");
+                }
+            }
+
+            // 兜底：任何一步没收干净都不许把半成品留在字段上——留下的非空引用会让
+            // 下一次 Start 早退（IsRunning 谎报在跑），现场表现就是"之后每次点运行都没反应"。
+            _session = null;
+            _window = null;
+            _watch = null;
+            _pendingLoadedPage = null;
+            _firstFrameDone = false;
         }
 
         // ---- 会话侧 ----
@@ -467,8 +718,17 @@ namespace VisionMaster.Services
         {
             // 先赋值再挂载：Attach() 里就会做初判并可能立刻抛 AlarmRaised，
             // 那一刻 _alarmWriter / _alarms 必须已经是活的，否则第一条报警会被吞掉。
+            // 报警历史跟着方案走：<方案目录>\Alarms。CSV 是给人看的流水，JSON 是给历史面板恢复的快照。
+            // 方案还没保存过（SolutionFilePath 为空）时回落到软件目录，至少不丢数据。
+            var alarmDirectory = ScadaAlarmHistoryStore.ResolveDirectory(_workspaceManager.CurrentSolution);
+            _alarmStore = new ScadaAlarmHistoryStore(alarmDirectory, OnBindingDiagnostic);
+            _priorAlarms = _alarmStore.Load();
+            var priorAlarms = _priorAlarms;
+            if (priorAlarms.Count > 0)
+                _log.Info($"[报警] 已从方案目录恢复历史 {priorAlarms.Count} 条：{alarmDirectory}");
+
             _alarmWriter = new ScadaAlarmHistoryWriter(
-                ScadaAlarmHistoryWriter.DefaultDirectory,
+                alarmDirectory,
                 // 诊断口复用数据泵那一个：日志里"落盘失败"和"绑定没接上"应该长得一样，
                 // 现场排查时才不用先想"这条是哪个子系统报的"。
                 OnBindingDiagnostic,
@@ -479,6 +739,9 @@ namespace VisionMaster.Services
 
             var engine = new ScadaAlarmEngine(document, _valueSource);
             engine.AlarmRaised += OnAlarmRaised;
+            // 状态迁移（确认/恢复/清除）也要进 CSV 与 JSON：只订阅 AlarmRaised 的话，
+            // 历史文件永远停在“激活”那一行，操作员确认过没有、什么时候恢复的都查不到。
+            engine.AlarmChanged += OnAlarmChanged;
             _alarms = engine;
 
             var beat = new ScadaBeatSource(window.Dispatcher, AlarmBeatInterval, OnBindingDiagnostic);
@@ -502,7 +765,8 @@ namespace VisionMaster.Services
             // 值通道（第八个）：数据表格这类"列定义里写的是变量名"的图元要按名字解析句柄。
             // 数据泵虽然拿着同一个值源，但它只按 ScadaBinding 推属性，帮不了"按名字取数"。
             window.CanvasHost.RuntimeContext = new ScadaRuntimeContext(
-                engine, beat, _valueWriter, _accessPolicy, _axisSource, _axisCommands, _confirmations, _valueSource);
+                engine, beat, _valueWriter, _accessPolicy, _axisSource, _axisCommands, _confirmations, _valueSource,
+                priorAlarms);
 
             engine.Attach();
             beat.Start();
@@ -532,6 +796,128 @@ namespace VisionMaster.Services
             _variableEvents?.Tick();
         }
 
+        // ---- 报警命令出口（M2：Web 命令层的「确认报警」） ----
+
+        /// <summary>
+        /// 当前活着的报警引擎。报警引擎是<b>方案级</b>的（归 <see cref="ScadaMonitoringHost"/>），
+        /// 不是运行窗口的附属品——所以先取监控上下文，本类的 <c>_alarms</c> 只作窗口级旧路径的兜底。
+        ///
+        /// <b>顺序不能反</b>：只认 <c>_alarms</c> 的话，Web 在运行中确认报警会永远得到"未运行"，
+        /// 因为那条路径现在已不建引擎（<c>StartAlarms</c> 只保留着未接线的旧实现）。
+        /// </summary>
+        private ScadaAlarmEngine? CurrentAlarmEngine => _monitoring.Context?.Alarms ?? _alarms;
+
+        /// <inheritdoc/>
+        public ScadaAlarmFeedSnapshot Snapshot()
+        {
+            var engine = CurrentAlarmEngine;
+            if (engine == null)
+                return ScadaAlarmFeedSnapshot.Empty;
+
+            var active = engine.ActiveAlarms;
+            var alarms = new List<ScadaAlarmInfo>(active.Count);
+
+            foreach (var record in active)
+            {
+                alarms.Add(new ScadaAlarmInfo(
+                    record.AlarmId,
+                    record.Name ?? string.Empty,
+                    record.Message ?? string.Empty,
+                    record.Severity,
+                    record.ActivatedAtUtc,
+                    record.AcknowledgedAtUtc != null));
+            }
+
+            return new ScadaAlarmFeedSnapshot(alarms, engine.UnacknowledgedCount);
+        }
+
+        /// <inheritdoc/>
+        public bool TryAcknowledge(Guid alarmId, out string? error)
+        {
+            error = null;
+
+            if (!IsRunning)
+            {
+                error = "未运行";
+                return false;
+            }
+
+            var engine = CurrentAlarmEngine;
+            if (engine == null)
+            {
+                error = "未运行";
+                return false;
+            }
+
+            if (alarmId == Guid.Empty)
+            {
+                error = "报警 Id 为空";
+                return false;
+            }
+
+            try
+            {
+                // 先记下"确认之前"它在不在实时列表上、处于哪个态：引擎返回 0 时，
+                // 这两种情况要给出不同的原因（见 IScadaAlarmCommands.TryAcknowledge 的注释）。
+                ScadaAlarmRecord? record = null;
+                foreach (var item in engine.ActiveAlarms)
+                {
+                    if (item.AlarmId == alarmId)
+                    {
+                        record = item;
+                        break;
+                    }
+                }
+
+                if (engine.Acknowledge(alarmId) > 0)
+                    return true;
+
+                error = record == null
+                    ? "报警不在当前实时列表上（可能已恢复清除，或不属于本轮运行）"
+                    : record.State == ScadaAlarmState.Acknowledged
+                        ? "该报警已经确认过"
+                        : $"该报警当前状态为「{record.State.DisplayName()}」，确认未生效";
+                return false;
+            }
+            catch (Exception ex)
+            {
+                // 引擎本身不抛业务异常，但确认会同步触发 AlarmChanged（宿主落盘订阅方）。
+                // Web 命令不许把异常冒到网络线程/进程顶层，按"这次没成"如实回一句话。
+                error = $"确认报警失败：{ex.Message}";
+                return false;
+            }
+        }
+
+        /// <inheritdoc/>
+        public int AcknowledgeAll(out string? error)
+        {
+            error = null;
+
+            if (!IsRunning)
+            {
+                error = "未运行";
+                return 0;
+            }
+
+            var engine = CurrentAlarmEngine;
+            if (engine == null)
+            {
+                error = "未运行";
+                return 0;
+            }
+
+            try
+            {
+                // 0 = 没有可确认的（已确认过的不计入），不是失败，所以 error 保持 null。
+                return engine.AcknowledgeAll();
+            }
+            catch (Exception ex)
+            {
+                error = $"全部确认失败：{ex.Message}";
+                return 0;
+            }
+        }
+
         /// <summary>
         /// 一条报警刚被激活：落一行历史，再记一条运行日志。
         ///
@@ -541,9 +927,6 @@ namespace VisionMaster.Services
         /// </summary>
         private void OnAlarmRaised(ScadaAlarmRecord record)
         {
-            // 落盘失败不抛、只报诊断（见 ScadaAlarmHistoryWriter）：丢几行历史远好过报警系统崩掉
-            _alarmWriter?.Append(record);
-
             // 报警是运行观测里最该留痕的一类：配没配报警面板，日志里都得能查到"当时报了什么"。
             // 严重度决定记 Error 还是 Warn——把"严重"降级成 Warn，复盘时会看不出当时有多急。
             var text = $"[报警] {record.Severity.DisplayName()}｜{record.Name}：{record.Message}"
@@ -559,6 +942,30 @@ namespace VisionMaster.Services
             // 而这是个默认关闭的可选能力，不该为它改动 ScadaRuntimeHost 的构造契约。
             try { ImageCollectionService.Instance?.SaveSnapshot("报警_" + record.Name); }
             catch (Exception ex) { _log.Warn($"[报警留存] 图像集留存失败：{ex.Message}"); }
+        }
+
+        /// <summary>
+        /// 报警态迁移（激活 / 确认 / 恢复 / 清除）的统一落盘点。
+        ///
+        /// 为什么挂 <see cref="ScadaAlarmEngine.AlarmChanged"/> 而不是 <c>AlarmRaised</c>：
+        /// 后者只在"从正常进入激活"时抛一次；只挂它，CSV 与 JSON 会永远停在激活态，
+        /// 操作员确认/恢复/清除的时间线全丢。AlarmChanged 在激活时也会抛（引擎保证），
+        /// 所以这里一条事件覆盖完整生命周期，不会漏也不会重复。
+        /// </summary>
+        private void OnAlarmChanged(ScadaAlarmRecord record)
+        {
+            lock (_alarmPersistGate)
+            {
+                // CSV：一行一次状态迁移（BuildRow 写的是迁移后的态，顺着文件读就是时间线）
+                _alarmWriter?.Append(record);
+
+                // JSON：整体快照，供下次打开方案时历史面板恢复“上次看到的报警”。
+                // 必须把本轮开始前读回的 prior 一起写回：只写本轮 engine.History 会把
+                // 上一次运行的记录在第一次报警时整批覆盖掉（“这次加载又看不到上次的”）。
+                var recent = _alarms?.RecentRecords(ScadaAlarmHistoryStore.MaxRecords);
+                if (recent != null)
+                    _alarmStore?.Save(ScadaAlarmHistoryStore.Merge(_priorAlarms, recent));
+            }
         }
 
         /// <summary>
@@ -587,11 +994,24 @@ namespace VisionMaster.Services
             if (_alarms != null)
             {
                 _alarms.AlarmRaised -= OnAlarmRaised;
+                _alarms.AlarmChanged -= OnAlarmChanged;
+
+                // 收场前再落一次快照：最后一次状态迁移可能刚发生、事件还没跑完，
+                // 或者用户直接关窗口（没有下一次 AlarmChanged 可等）。
+                lock (_alarmPersistGate)
+                {
+                    var recent = _alarms.RecentRecords(ScadaAlarmHistoryStore.MaxRecords);
+                    if (recent.Count > 0)
+                        _alarmStore?.Save(ScadaAlarmHistoryStore.Merge(_priorAlarms, recent));
+                }
+
                 _alarms.Detach();   // 历史保留在引擎里；这里只是退订阅、丢槽
                 _alarms = null;
             }
 
             _alarmWriter = null;
+            _alarmStore = null;
+            _priorAlarms = Array.Empty<ScadaAlarmRecord>();
         }
 
         // ---- 变量事件侧 ----
@@ -821,13 +1241,8 @@ namespace VisionMaster.Services
             _binder?.Stop();
             _binder = null;
 
-            // 报警引擎第二个摘：它和数据泵一样攥着变量订阅（只是不攥控件），
-            // 而变量注册表比窗口活得久得多。摘槽时顺带把节拍停掉——见 TeardownAlarms。
-            TeardownAlarms();
-
-            // 变量事件引擎第三个摘：它同样攥着变量订阅。排在 TeardownAlarms 之后，
-            // 是因为它搭报警那一拍做 Tick（见 OnBeat）——节拍先停，就绝不会有一拍落到正在收场的引擎上。
-            TeardownVariableEvents();
+            // 报警/变量事件引擎不在这里摘：它们是方案级监控（ScadaMonitoringHost），
+            // 关窗口只是退视图，监控继续跑。这正是“只跑流程、不开画面也能报警/触发变量事件”的关键。
 
             // 摘掉切页出口上的会话：分发器是长命单例，留着这根线头会让一条迟到的"切换画面"动作
             // 去操作一个已经停掉的会话（见 ScadaNavigator 的类注释）。排在 session.Stop() 之前，
@@ -860,6 +1275,14 @@ namespace VisionMaster.Services
             _watch = null;
             _pendingLoadedPage = null;
             _firstFrameDone = false;
+            ScadaConfirmationService.InteractiveAllowed = false;
+
+            // 发 RunStopped 必须排在上面那些清理之后：订阅方在处理器里读 hub.Session/Document
+            // 必须已经是 null（"最后一帧"要自己缓存，见 IScadaRunHub.RunStopped 的注释）。
+            // 只有确实发过 RunStarted 的一轮才会发——启动失败那条路（session.Start() 返回 false、
+            // 或 Show() 抛异常）从未调过 TryStarted，所以这里 TryStopped 返回 false，不会漏发一次 Stopped。
+            if (_hubState.TryStopped(out var generation))
+                PublishStopped(generation);
         }
 
         private void OnWorkspacePropertyChanged(object? sender, PropertyChangedEventArgs e)

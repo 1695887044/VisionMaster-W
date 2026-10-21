@@ -7,11 +7,13 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 using Prism.Commands;
+using Prism.Dialogs;
 using Prism.Mvvm;
 using UI.CustomControl;
 using VisionMaster.Scada;
 using VisionMaster.Scada.Controls;
 using VisionMaster.Services;
+using VisionMaster.Views.Controls;
 
 namespace VisionMaster.ViewModels
 {
@@ -57,6 +59,12 @@ namespace VisionMaster.ViewModels
         /// </summary>
         private readonly IScadaRuntimeHost? _runtime;
 
+        /// <summary>
+        /// 方案级弹窗出口。可选：断言工程只验画面管理，不构造 Prism 容器；
+        /// 为 null 时「报警配置」按钮保持可用性判断（不静默空跑）。
+        /// </summary>
+        private readonly IDialogService? _dialogService;
+
         private ScadaPage? _selectedPage;
         private ScadaElement? _selectedElement;
 
@@ -78,16 +86,18 @@ namespace VisionMaster.ViewModels
         /// <summary>等间距动作的"相邻留多少像素"（见 <see cref="SpacingGap"/>）；一次操作的参数，不落盘</summary>
         private double _spacingGap = 20;
 
-        public ScadaEditorViewModel(IWorkspaceManager workspace, IScadaRuntimeHost runtime)
+        public ScadaEditorViewModel(IWorkspaceManager workspace, IScadaRuntimeHost runtime, IDialogService? dialogService = null)
         {
             _workspace = workspace;
             _runtime = runtime;
+            _dialogService = dialogService;
             _workspaceChanged = workspace as INotifyPropertyChanged;
 
             AddPageCommand = new DelegateCommand(OnAddPage, () => Document != _fallback);
             AddBasePageCommand = new DelegateCommand(OnAddBasePage, () => Document != _fallback);
             RemovePageCommand = new DelegateCommand(OnRemovePage, CanRemovePage);
             RunPageCommand = new DelegateCommand(OnRunPage, CanRunPage);
+            OpenAlarmConfigCommand = new DelegateCommand(OnOpenAlarmConfig, CanOpenAlarmConfig);
             UndoCommand = new DelegateCommand(OnUndo, () => ScadaEditHistory.CanUndo);
             RedoCommand = new DelegateCommand(OnRedo, () => ScadaEditHistory.CanRedo);
 
@@ -125,6 +135,7 @@ namespace VisionMaster.ViewModels
             // 存为模板要弹输入框问名字，但它仍然走命令：判灰条件（有没有选中）是视图模型的知识，
             // 摆在视图里就又出现第二份"谁能被复制"的判定——与上面那三条同一条理由。
             SaveTemplateCommand = new DelegateCommand(OnSaveTemplate, CanCopySelection);
+            BatchInsertTemplateCommand = new DelegateCommand(OnBatchInsertTemplate, () => _selectedPage != null);
 
             // 格式工具栏（r5）。上面那一批命令的入口都只有"右键菜单 + 快捷键"，
             // 而右键菜单里那些项是<b>每次弹出就地 new 一条命令</b>（所以它们的灰亮天然是最新的）；
@@ -166,6 +177,7 @@ namespace VisionMaster.ViewModels
             // 撤销栈是静态的（全局一份），订阅必须在入树时挂、离树时摘：
             // 漏摘就会让这个 VM 被静态事件钉住，切几次标签就攒几个"影子编辑器"。
             ScadaEditHistory.Changed += OnHistoryChanged;
+            ScadaTemplateStore.Shared.TemplateUpdated += OnTemplateUpdated;
 
             OnDocumentChanged();
         }
@@ -180,6 +192,7 @@ namespace VisionMaster.ViewModels
                 _workspaceChanged.PropertyChanged -= OnWorkspacePropertyChanged;
 
             ScadaEditHistory.Changed -= OnHistoryChanged;
+            ScadaTemplateStore.Shared.TemplateUpdated -= OnTemplateUpdated;
 
             // 候选项订阅的是文档的集合：离树时摘掉，避免"切几次标签攒几个影子编辑器"（与上面同一条理由）
             if (_optionsDocument != null)
@@ -294,6 +307,7 @@ namespace VisionMaster.ViewModels
                 // 后一半只能在这里刷。少了这一行，"在 A 画面复制、切到 B 画面"之后粘贴项会是灰的，
                 // 而用户手上明明有东西可粘——这种"看着像坏了"的灰是最难被报上来的。
                 PasteCommand.RaiseCanExecuteChanged();
+                BatchInsertTemplateCommand.RaiseCanExecuteChanged();
 
                 // 基座下拉框跟着当前页走：换页时它要显示"这一页引用的是哪只基座"
                 RaisePropertyChanged(nameof(HasPage));
@@ -555,6 +569,12 @@ namespace VisionMaster.ViewModels
         /// <summary>运行当前方案（弹出全屏运行窗口）</summary>
         public DelegateCommand RunPageCommand { get; }
 
+        /// <summary>
+        /// 打开方案级报警配置。报警是多张画面共用的方案内容，不是当前页属性，
+        /// 所以入口放在组态工具栏、数据仍落 <see cref="ScadaDocument.Alarms"/>。
+        /// </summary>
+        public DelegateCommand OpenAlarmConfigCommand { get; }
+
         /// <summary>撤销一步编辑（Ctrl+Z）。可用性直接问 <see cref="ScadaEditHistory"/>，本类不自己记栈深</summary>
         public DelegateCommand UndoCommand { get; }
 
@@ -603,6 +623,13 @@ namespace VisionMaster.ViewModels
         /// 会弹一个输入框问名字，故不是"一键完成"的动作——菜单标题带省略号就是这件事的预告。
         /// </summary>
         public DelegateCommand SaveTemplateCommand { get; }
+
+        /// <summary>
+        /// 从「我的模板」批量生成实例（参数化模板的入口）。
+        /// 与「存为模板」同族，但它是"一次生成一批"，所以放在编辑器工具栏而不是图元右键菜单——
+        /// 右键菜单只在有选中项时出现，而批量插入不需要先选中任何东西。
+        /// </summary>
+        public DelegateCommand BatchInsertTemplateCommand { get; }
 
         /// <summary>
         /// 方向键微调选中图元；参数是 <c>"Left"</c>/<c>"Right"</c>/<c>"Up"</c>/<c>"Down"</c>。
@@ -758,6 +785,16 @@ namespace VisionMaster.ViewModels
             // 交出去的是内存里的当前文档，不是磁盘上那份方案：用户刚拖完图元点运行，
             // 看到的就该是他刚改完的样子。要不要先存盘不由这里决定。
             _runtime?.Start(Document);
+        }
+
+        private bool CanOpenAlarmConfig()
+            => _dialogService != null && _workspace.CurrentSolution != null;
+
+        private void OnOpenAlarmConfig()
+        {
+            // 报警是方案级配置（ScadaDocument.Alarms），不是当前页属性；
+            // 弹窗自己从当前方案现读，这里不传文档副本。
+            _dialogService?.ShowDialog("ScadaAlarmConfigDialogView");
         }
 
         /// <summary>
@@ -1107,7 +1144,11 @@ namespace VisionMaster.ViewModels
         /// <param name="label">撤销按钮上显示的操作名</param>
         /// <returns>真正进了画面的图元（顺序即物化顺序）；没画面或负载为空时是空表</returns>
         public IReadOnlyList<ScadaElement> PlacePayload(
-            ScadaClipboardPayload? payload, double offsetX, double offsetY, string label)
+            ScadaClipboardPayload? payload, double offsetX, double offsetY, string label,
+            bool groupAll = false,
+            Guid templateId = default,
+            int templateIndex = -1,
+            int templateRevision = 0)
         {
             if (_selectedPage is not { } page)
                 return Array.Empty<ScadaElement>();
@@ -1115,12 +1156,85 @@ namespace VisionMaster.ViewModels
             if (payload is not { IsEmpty: false })
                 return Array.Empty<ScadaElement>();
 
-            var created = ScadaClipboard.Materialize(page, payload, offsetX, offsetY, label);
+            var created = ScadaClipboard.Materialize(
+                page, payload, offsetX, offsetY, label, groupAll,
+                templateId, templateIndex, templateRevision);
 
             if (created.Count > 0)
                 ApplySelection(created);
 
             return created;
+        }
+
+        /// <summary>
+        /// 从工具箱拖入一个模板到画布指定位置（单实例）。
+        ///
+        /// 参数化模板（含 <c>{i}</c>）必须走与批量插入同一套展开/校验；否则拖进去的是
+        /// 字面量 <c>Control[{i}]</c>，同项目内按 Id 静默绑回原变量、跨项目直接失效。
+        /// 非参数化模板保持旧行为（原样物化），避免老模板因为"变量暂时找不到"而拖不进来。
+        /// </summary>
+        public bool InsertTemplateAt(Guid templateId, double originX, double originY)
+        {
+            if (_selectedPage is not { } page)
+                return false;
+
+            var payload = ScadaTemplateStore.Shared.GetPayload(templateId);
+
+            if (payload is not { IsEmpty: false })
+                return false;
+
+            string name = ScadaTemplateStore.Shared.Templates
+                .FirstOrDefault(t => t.TemplateId == templateId)?.Name ?? "模板";
+
+            int templateRevision = ScadaTemplateStore.Shared.GetRevision(templateId);
+
+            if (!ScadaTemplateTokens.ContainsIndexToken(payload))
+            {
+                ScadaClipboard.GetBounds(payload, out double left, out double top, out _, out _);
+
+                return PlacePayload(
+                    payload, originX - left, originY - top,
+                    $"插入模板 [{name}]", groupAll: true,
+                    templateId: templateId,
+                    templateIndex: ScadaTemplateStore.Shared.GetParameterIndex(templateId),
+                    templateRevision: templateRevision).Count > 0;
+            }
+
+            var resolver = new ScadaTemplateVariableResolver(_workspace.VariableRegistry);
+            var options = new ScadaTemplateExpansionOptions
+            {
+                Count = 1,
+                StartIndex = ScadaTemplateStore.Shared.GetParameterIndex(templateId),
+                Columns = 1,
+                OriginX = originX,
+                OriginY = originY,
+            };
+
+            if (!ScadaTemplateExpansion.TryPlan(payload, options, resolver,
+                    out var plan, out var errors, out var warnings))
+            {
+                EasyDialog.ShowSync("插入模板失败", FormatBatchErrors(errors));
+                return false;
+            }
+
+            if (warnings.Count > 0
+                && !EasyDialog.ShowSync("模板提示",
+                    string.Join(Environment.NewLine, warnings.Select(w => "• " + w))
+                    + Environment.NewLine + Environment.NewLine + "仍要插入吗？"))
+                return false;
+
+            if (!ScadaTemplateBatchInserter.TryInsert(
+                    page, plan, options, name, out var created, out string? error,
+                    templateId, templateRevision))
+            {
+                EasyDialog.ShowSync("插入模板失败", error ?? "插入模板失败");
+                return false;
+            }
+
+            if (created.Count > 0)
+                ApplySelection(created);
+
+            return created.Count > 0;
         }
 
         /// <summary>
@@ -1140,8 +1254,11 @@ namespace VisionMaster.ViewModels
 
             var targets = CollectPresent(page);
 
-            if (targets.Count == 0)
+            if (targets.Count < 2)
+            {
+                EasyDialog.ShowSync("存为模板", "至少选中 2 个图元才能存为模板。");
                 return false;
+            }
 
             var payload = ScadaClipboard.Capture(page, targets);
 
@@ -1153,13 +1270,244 @@ namespace VisionMaster.ViewModels
             if (!confirmed)
                 return false;
 
-            if (!ScadaTemplateStore.Shared.TrySave(value, payload, out _, out string? error))
+            // 真实绑定存的是具体下标/具体变量名，不会自己变成 {i}。
+            // 这里让用户选：数组下标参数化、名称/界面文字查找替换，或都留空按原样存。
+            if (!TryParameterizePayload(payload, out int parameterIndex))
+                return false;
+
+            if (!ScadaTemplateStore.Shared.TrySave(value, payload, parameterIndex, out _, out string? error))
             {
                 EasyDialog.ShowSync("存为模板失败", error ?? "模板保存失败");
                 return false;
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// 存/更新模板前的参数化确认：数组下标 + 多行名称/文字替换。
+        /// 返回 false 表示用户取消或参数化失败；成功时 <paramref name="parameterIndex"/> 是落库的默认起始序号。
+        /// </summary>
+        private bool TryParameterizePayload(ScadaClipboardPayload payload, out int parameterIndex)
+        {
+            parameterIndex = 0;
+
+            int? detected = DetectTemplateIndex(payload);
+            var parameterizeEditor = new ScadaTemplateParameterizeEditor(detected);
+
+            if (!EasyDialog.ShowSync("参数化模板", parameterizeEditor))
+                return false;
+
+            if (!parameterizeEditor.TryApply(
+                    payload, out int changed, out var changes,
+                    out parameterIndex, out string? parameterError))
+            {
+                EasyDialog.ShowSync("参数化失败", parameterError ?? "参数化失败");
+                return false;
+            }
+
+            // 参数化会改写模板快照：让用户看见"改了哪些"再落库，
+            // 避免把 Temp_0 这类恰好以数字结尾的标量误当家族成员。
+            if (changed > 0)
+            {
+                string preview = string.Join(Environment.NewLine, changes.Take(8).Select(c => "• " + c));
+                string more = changed > 8 ? $"{Environment.NewLine}……另有 {changed - 8} 条" : string.Empty;
+
+                if (!EasyDialog.ShowSync("参数化确认",
+                        $"将改写 {changed} 处：{Environment.NewLine}{preview}{more}{Environment.NewLine}{Environment.NewLine}仍要继续吗？"))
+                    return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 用当前选中覆盖已有模板（关联模板的"改模板"入口）。
+        /// 成功后 <see cref="ScadaTemplateStore.TemplateUpdated"/> 会同步触发关联实例刷新。
+        /// </summary>
+        public bool TryUpdateTemplateFromSelection(Guid templateId, out string? error)
+        {
+            error = null;
+
+            if (_selectedPage is not { } page)
+            {
+                error = "当前没有可编辑的画面";
+                return false;
+            }
+
+            var targets = CollectPresent(page);
+
+            if (targets.Count < 2)
+            {
+                error = "至少选中 2 个图元才能更新模板";
+                return false;
+            }
+
+            var payload = ScadaClipboard.Capture(page, targets);
+
+            if (payload.IsEmpty)
+            {
+                error = "没有可保存的图元";
+                return false;
+            }
+
+            // 与"存为模板"共用同一套参数化编辑器：直接 capture 当前选中会把实例上的
+            // 具体名字（Cylinder1_Manual）写回模板定义，下一次展开就全绑同一个变量。
+            if (!TryParameterizePayload(payload, out int parameterIndex))
+            {
+                error = "已取消";
+                return false;
+            }
+
+            // 当前模板是参数化的、这次捕获却没有令牌：很可能是直接选中了展开后的实例，
+            // 又没在编辑器里重填规则。写回去会让以后所有实例都绑同一组变量，必须让用户明确确认。
+            var currentPayload = ScadaTemplateStore.Shared.GetPayload(templateId);
+
+            if (ScadaTemplateTokens.ContainsIndexToken(currentPayload)
+                && !ScadaTemplateTokens.ContainsIndexToken(payload)
+                && !EasyDialog.ShowSync("更新模板警告",
+                    "当前选中的内容里没有 {i} 令牌，而这条模板原来是参数化的。\n"
+                    + "继续更新会让以后插入的实例全部绑同一组变量。\n\n仍要更新吗？"))
+            {
+                error = "已取消";
+                return false;
+            }
+
+            return ScadaTemplateStore.Shared.TryUpdate(
+                templateId, payload, parameterIndex, out _, out error);
+        }
+
+        /// <summary>
+        /// 把画面上的关联实例刷新到模板的当前定义。返回刷新/失败统计；
+        /// 旧选中与新图元有交集时，自动恢复选中。
+        /// </summary>
+        public ScadaTemplateRefreshResult RefreshTemplateInstances(Guid templateId, int? revision = null)
+        {
+            var payload = ScadaTemplateStore.Shared.GetPayload(templateId);
+
+            if (payload == null)
+            {
+                return new ScadaTemplateRefreshResult(
+                    0, 0, new[] { "模板不存在，关联实例保持原样" },
+                    Array.Empty<ScadaTemplateRefreshInstance>());
+            }
+
+            var selectedIds = SelectedElements
+                .Where(e => e != null)
+                .Select(e => e.ElementId)
+                .ToHashSet();
+
+            var resolver = new ScadaTemplateVariableResolver(_workspace.VariableRegistry);
+            var result = ScadaTemplateInstanceRefresher.Refresh(
+                Document, templateId, payload,
+                revision ?? ScadaTemplateStore.Shared.GetRevision(templateId),
+                resolver);
+
+            if (result.Instances.Count > 0 && selectedIds.Count > 0)
+            {
+                var reselect = result.Instances
+                    .Where(i => i.OldElementIds.Any(selectedIds.Contains))
+                    .SelectMany(i => i.NewElements)
+                    .ToList();
+
+                if (reselect.Count > 0)
+                    ApplySelection(reselect);
+            }
+
+            return result;
+        }
+
+        private void OnTemplateUpdated(object? sender, ScadaTemplateUpdatedEventArgs e)
+        {
+            var result = RefreshTemplateInstances(e.TemplateId, e.Revision);
+
+            if (result.Failed > 0)
+            {
+                EasyDialog.ShowSync("关联模板刷新",
+                    string.Join(Environment.NewLine, result.Warnings));
+            }
+        }
+
+        /// <summary>
+        /// 猜一个"要参数化的下标"给输入框做默认值：优先取显式 ArrayIndex，
+        /// 其次取变量名末尾的 <c>[n]</c> 或 <c>_n</c>。猜不到返回 null（用户可手填）。
+        /// </summary>
+        private static int? DetectTemplateIndex(ScadaClipboardPayload payload)
+        {
+            foreach (var element in payload.Items)
+            {
+                if (element == null)
+                    continue;
+
+                foreach (var binding in element.Bindings)
+                {
+                    if (binding == null)
+                        continue;
+
+                    if (binding.ArrayIndex >= 0)
+                        return binding.ArrayIndex;
+
+                    if (TryParseTrailingIndex(binding.VariableName, out int parsed))
+                        return parsed;
+                }
+
+                foreach (var animation in element.Animations)
+                {
+                    if (animation == null)
+                        continue;
+
+                    if (animation.ArrayIndex >= 0)
+                        return animation.ArrayIndex;
+
+                    if (TryParseTrailingIndex(animation.VariableName, out int parsed))
+                        return parsed;
+                }
+
+                foreach (var hook in element.EventHooks)
+                {
+                    if (hook == null)
+                        continue;
+
+                    foreach (var action in hook.Actions)
+                    {
+                        if (action == null || action.Type != ScadaActionType.WriteVariable)
+                            continue;
+
+                        if (action.ArrayIndex >= 0)
+                            return action.ArrayIndex;
+
+                        if (TryParseTrailingIndex(action.VariableName, out int parsed))
+                            return parsed;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>解析变量名末尾的 <c>[12]</c> 或 <c>_12</c>；没有则返回 false。</summary>
+        private static bool TryParseTrailingIndex(string? variableName, out int index)
+        {
+            index = -1;
+
+            if (string.IsNullOrWhiteSpace(variableName))
+                return false;
+
+            string name = variableName!;
+
+            if (name.EndsWith("]", StringComparison.Ordinal))
+            {
+                int open = name.LastIndexOf('[');
+
+                if (open >= 0 && name.Length - open >= 3
+                    && int.TryParse(name.AsSpan(open + 1, name.Length - open - 2),
+                        System.Globalization.NumberStyles.None,
+                        System.Globalization.CultureInfo.InvariantCulture, out index))
+                    return true;
+            }
+
+            // 下划线后缀（Temp_0）不再猜测：它分不清"家族成员"和"恰好以数字结尾的标量"。
+            return false;
         }
 
         private void OnCopy() => CopySelection();
@@ -1169,6 +1517,83 @@ namespace VisionMaster.ViewModels
         private void OnDuplicate() => DuplicateSelection();
 
         private void OnSaveTemplate() => SaveSelectionAsTemplate();
+
+        /// <summary>
+        /// 批量插入模板：弹参数框 → 展开计划（全量校验）→ 原子插入。
+        ///
+        /// 校验与插入分两段：校验阶段把"哪条变量解析不到"一次列全，插入阶段只做
+        /// "按计划物化"；这样失败时画面与撤销栈都是零变化，不会出现半批实例。
+        /// </summary>
+        private void OnBatchInsertTemplate()
+        {
+            if (_selectedPage is not { } page)
+                return;
+
+            var resolver = new ScadaTemplateVariableResolver(_workspace.VariableRegistry);
+            var editor = new ScadaBatchInsertTemplateEditor(resolver);
+
+            // 校验失败时留在同一份编辑器上（用户改完参数直接重试），不重新构造丢输入。
+            while (true)
+            {
+                if (!EasyDialog.ShowSync("批量插入模板", editor))
+                    return;
+
+                if (!editor.TryBuildPlan(out var plan, out var options, out var errors, out var warnings))
+                {
+                    EasyDialog.ShowSync("模板校验失败", FormatBatchErrors(errors));
+                    continue;
+                }
+
+                if (plan == null || options == null)
+                    return;
+
+                // 警告必须让用户看见：半参数化模板（文字有 {i}、变量没有）会生成
+                // 一批"看起来各不相同、实际绑同一个变量"的实例，这是最难查的静默错绑。
+                if (warnings.Count > 0
+                    && !EasyDialog.ShowSync("模板提示",
+                        string.Join(Environment.NewLine, warnings.Select(w => "• " + w))
+                        + Environment.NewLine + Environment.NewLine + "仍要插入吗？"))
+                    return;
+
+                if (!ScadaTemplateBatchInserter.TryInsert(
+                        page, plan, options, editor.SelectedTemplateName,
+                        out var created, out string? insertError))
+                {
+                    EasyDialog.ShowSync("批量插入失败", insertError ?? "批量插入失败");
+                    return;
+                }
+
+                // 100 个实例 × 多个图元全选会让属性面板一次展开上千行；超过阈值只选第一个实例。
+                if (created.Count <= 200)
+                {
+                    ApplySelection(created);
+                }
+                else
+                {
+                    int firstInstanceCount = plan.Instances[0].Items.Count(item => item != null);
+                    ApplySelection(created.Take(firstInstanceCount).ToArray());
+                }
+
+                return;
+            }
+        }
+
+        /// <summary>把展开错误压成一段可读文本（最多列 8 条，其余只报数量）。</summary>
+        private static string FormatBatchErrors(IReadOnlyList<ScadaTemplateExpansionError> errors)
+        {
+            if (errors.Count == 0)
+                return "模板展开失败";
+
+            var lines = errors.Take(8).Select(e =>
+                $"实例 {e.InstanceIndex} / 图元「{e.ElementName}」 / {e.Reference}：{e.Reason}");
+
+            string text = string.Join(Environment.NewLine, lines);
+
+            if (errors.Count > 8)
+                text += Environment.NewLine + $"……另有 {errors.Count - 8} 条错误";
+
+            return text;
+        }
 
         /// <summary>
         /// 复制 / 再制 / 存为模板三条命令共用的判据：选中集合里得有"确实在本画面上"的图元。

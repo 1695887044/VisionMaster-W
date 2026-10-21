@@ -1,1 +1,0 @@
-﻿namespace G.Controls.Diagram;

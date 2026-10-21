@@ -64,7 +64,7 @@ namespace VisionMaster.ViewModels
             State = record.State;
             StateText = record.State.DisplayName();
             IsAcknowledged = record.State == ScadaAlarmState.Acknowledged;
-            CanAcknowledge = record.NeedsAcknowledge;
+            CanAcknowledge = record.NeedsAcknowledge && !record.IsHistorical;
 
             _durationText = record.DurationText;
         }

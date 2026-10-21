@@ -75,4 +75,23 @@ namespace VisionMaster.Models
         /// </summary>
         bool TryWrite(object? value, out string? error);
     }
+
+    /// <summary>
+    /// 值就地变更通知口。
+    ///
+    /// 为什么需要它：数组元素的就地编辑（变量管理弹窗的 [i] 行、元素级复位）改的是
+    /// <c>Value</c> 里那个数组对象的某一项，<b>引用没变</b>——<c>Value</c> setter 的
+    /// <c>SetProperty</c> 会短路同引用，<c>ValueChanged</c> 因此不会触发。
+    /// 订阅方（VariableSubscription / SCADA 绑定 / 监视栏 / 变量触发服务）都靠那个事件刷新，
+    /// 不补一次通知就是"值变了、界面和联锁都不知道"。
+    ///
+    /// 谁实现：支持就地改数组元素的模型（当前只有 <c>LocalVariableModel</c>，数组只允许本地变量）。
+    /// 谁调用：<c>VariableNode.CommitChildElementEdit</c> / <c>VariableNode.ResetElementValue</c>。
+    /// 刻意不放进 <see cref="IVariable"/>：那会让所有实现者（含测试桩）被迫实现一个与它们无关的口子。
+    /// </summary>
+    public interface IValueChangeNotifier
+    {
+        /// <summary>手动广播一次 ValueChanged（引用未变、内容已变时用）</summary>
+        void NotifyValueChanged();
+    }
 }

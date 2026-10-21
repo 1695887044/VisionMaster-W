@@ -100,7 +100,7 @@ namespace VisionMaster.Services.Health
             string name = config.ConnectionName ?? "";
             var link = config.Config;
 
-            string protocol = config.Protocol.ToString();
+            string protocol = CommunicationProtocols.DisplayName(config.Protocol);
             var (endpointText, endpointKey) = DescribeEndpoint(link);
 
             var state = _manager.GetConnectionState(name);

@@ -25,6 +25,9 @@ namespace VisionMaster.Communications
         /// <returns>配置副本</returns>
         public override ConnectionConfigBase Clone() => new ModbusTcpConfig
         {
+            // 与其它协议保持同一口径：Type 必须显式拷贝（ModbusTcp 恰好是枚举默认值 0，
+            // 但"恰好对"不能当成约定——哪天枚举顺序变了，这里就是下一个静默失效点）
+            Type = Type,
             TimeoutMs = TimeoutMs, 
             RetryCount = RetryCount, 
             RetryIntervalMs = RetryIntervalMs,

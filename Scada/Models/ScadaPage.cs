@@ -140,6 +140,21 @@ namespace VisionMaster.Scada
             set => SetProperty(ref _snapToGrid, value);
         }
 
+        private ScadaRole? _requiredRole;
+
+        /// <summary>
+        /// 进入这一页所需的最低角色；<c>null</c> = 不限制（默认，保持旧方案行为）。
+        ///
+        /// 闸门在 <see cref="ScadaRuntime.CanAccess"/> / <see cref="ScadaRuntime.Navigate(ScadaPage?)"/> /
+        /// <see cref="ScadaRuntime.GoBack"/>：只在领域层判一次，页面菜单与动作表都走同一个出口。
+        /// 非法值（<see cref="ScadaRole.Undefined"/>）由 <see cref="IScadaAccessPolicy"/> fail-safe 拒绝。
+        /// </summary>
+        public ScadaRole? RequiredRole
+        {
+            get => _requiredRole;
+            set => SetProperty(ref _requiredRole, value);
+        }
+
         /// <summary>
         /// 本页引用的<b>基座画面</b>的稳定身份。<c>Guid.Empty</c> = 不引用任何基座。
         ///
@@ -404,6 +419,13 @@ namespace VisionMaster.Scada
         [JsonConstructor]
         public ScadaPage()
         {
+            // 版本基线从 1 起，而不是 0。
+            // Version 带 [JsonIgnore]，落盘不保存；从 .vms 打开的画面字段初值就是 0。
+            // Web 命令的三闸把 0 当"缺省"拒绝（ScadaWebCommandRouter.TryResolveContext），
+            // 于是"刚打开、还没编辑过的画面"所有按钮都回 E_BAD_REQUEST（2026-10-21 终审 P0-1）。
+            // 基线设 1 后：未编辑页 = 1，第一次编辑 = 2，旧快照的 1 会被正确判为过期。
+            _version = 1;
+
             _elements.CollectionChanged += OnElementsChanged;
             _layers.CollectionChanged += OnLayersChanged;
             _eventHooks.CollectionChanged += OnEventHooksChanged;
@@ -1004,7 +1026,7 @@ namespace VisionMaster.Scada
         /// <b>不支持嵌套</b>：把两个已有的组再组合，结果是<b>合并成一个新组</b>（旧组 Id 就此消失，
         /// 可撤销），而不是套一层。理由见 <see cref="ScadaElement.GroupId"/> 的注释。
         ///
-        /// 少于 2 个目标一律拒绝：一个成员的组与未分组没有任何行为差别，
+        /// 少于 2 个目标一律拒绝：一个成员的组与未分组没有行为差别，
         /// 允许它只会让用户以为自己建了个组。
         /// </summary>
         /// <param name="elements">要组合的图元（可以含重复项与不属于本画面的项，内部会过滤）</param>
@@ -1930,6 +1952,14 @@ namespace VisionMaster.Scada
         /// </summary>
         public bool TrySetBinding(ScadaElement? element, string? targetProperty,
             Guid variableId, string? variableName, out string error)
+            => TrySetBinding(element, targetProperty, variableId, variableName, -1, out error);
+
+        /// <summary>
+        /// 把属性挂到变量（含数组元素下标）。<paramref name="arrayIndex"/> = -1 表示引用整个变量；
+        /// ≥ 0 表示引用该数组变量的一个元素。旧调用点走上一个重载，等价于 -1。
+        /// </summary>
+        public bool TrySetBinding(ScadaElement? element, string? targetProperty,
+            Guid variableId, string? variableName, int arrayIndex, out string error)
         {
             error = string.Empty;
 
@@ -1955,7 +1985,7 @@ namespace VisionMaster.Scada
 
             using (BeginEdit($"绑定 {targetProperty}"))
             {
-                element.GetOrAddBinding(targetProperty!).Bind(variableId, variableName);
+                element.GetOrAddBinding(targetProperty!).Bind(variableId, variableName, arrayIndex);
             }
 
             return true;

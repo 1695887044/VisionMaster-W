@@ -66,7 +66,9 @@ namespace UI.AttachedProperties
         {
             PasswordBox passwordBox = sender as PasswordBox;
             SetIsUpdating(passwordBox, true);
-            SetBindablePassword(passwordBox, passwordBox.Password);
+            // 必须用 SetCurrentValue：SetValue 会把 BindablePassword 上的 Binding 顶掉，
+            // 结果是"界面有圆点、ViewModel.Password 还是空"，登录永远报「请输入密码」。
+            passwordBox.SetCurrentValue(BindablePasswordProperty, passwordBox.Password);
             SetIsUpdating(passwordBox, false);
         }
 

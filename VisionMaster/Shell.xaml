@@ -476,15 +476,6 @@
                                 <TextBlock Text="&#xf0c7;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
-                            <MenuItem
-                                Command="{Binding SolutionCommand}"
-                                CommandParameter="{x:Static local:SolutionAction.AlarmConfig}"
-                                Header="报警配置(A)"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf0f3;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
                         </MenuItem>
 
                         <MenuItem Header="视图(V)">
@@ -743,33 +734,6 @@
                             <Separator />
                             <MenuItem
                                 Command="{Binding SystemCommand}"
-                                CommandParameter="{x:Static local:SystemAction.CameraSettings}"
-                                Header="相机设置"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf030;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                Command="{Binding SystemCommand}"
-                                CommandParameter="{x:Static local:SystemAction.MotionBoard}"
-                                Header="运动板卡"
-                                 >
-                                <MenuItem.Icon>
-                                    <TextBlock Text="&#xf085;" FontFamily="{StaticResource Icon}" />
-                                </MenuItem.Icon>
-                            </MenuItem>
-                            <MenuItem
-                                Command="{Binding SystemCommand}"
-                                CommandParameter="{x:Static local:SystemAction.CommSettings}"
-                                Header="通讯设置"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf6ff;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.SystemHealth}"
                                 Header="系统健康"
                                  >
@@ -793,15 +757,6 @@
                                  >
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf1de;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                Command="{Binding SystemCommand}"
-                                CommandParameter="{x:Static local:SystemAction.VariableEvents}"
-                                Header="变量事件"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf0f3;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
                             <MenuItem
@@ -915,10 +870,10 @@
                     ToolTip="全局变量" />
                 <Button
                     Command="{Binding SystemCommand}"
-                    CommandParameter="{x:Static local:SystemAction.CommSettings}"
-                    Content="&#xf6ff;"
+                    CommandParameter="{x:Static local:SystemAction.HardwareSettings}"
+                    Content="&#xf2db;"
                     Style="{StaticResource TitleButton}"
-                    ToolTip="通讯设置" />
+                    ToolTip="硬件管理" />
             </StackPanel>
 
             <!--  居中：当前方案名  -->

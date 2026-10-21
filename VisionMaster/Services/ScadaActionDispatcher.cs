@@ -1,8 +1,10 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using Core.Interfaces;
 using VisionMaster.Helpers;
 using VisionMaster.Scada;
+using VisionMaster.Scada.Controls;
 using VisionMaster.Services.Motion;
 
 namespace VisionMaster.Services
@@ -12,11 +14,13 @@ namespace VisionMaster.Services
     ///
     /// 现在接通了哪些动作
     /// ---------
-    /// 十五个动作<b>都已真执行</b>：「记录日志」写一行运行日志；「写变量」走
+    /// 十八个动作<b>都已真执行</b>：「记录日志」写一行运行日志；「写变量」走
     /// <see cref="IScadaValueSource"/> 解析后落 <c>IWritableVariable.TryWrite</c>（S6 接入）；
     /// 「切换画面」走 <see cref="IScadaNavigator"/> 找画面并换 <c>CurrentPage</c>（S8 接入）；
-    /// 「启动流程 / 停止流程 / 执行一次」走 <see cref="IScadaFlowRunner"/> 启停目标流程（Id 优先、
-    /// 名字兜底；连续幂等、单次不幂等、停止最宽——语义由契约说了算，本类不做二次解释）；
+    /// 「返回上一页」走同一个出口的 <see cref="IScadaNavigator.GoBack"/>（页栈回退，P0 接入）；
+    /// 「启动流程 / 暂停流程 / 恢复流程 / 停止流程 / 执行一次」走 <see cref="IScadaFlowRunner"/>
+    /// 启停目标流程（Id 优先、名字兜底；连续幂等、单次不幂等、停止最宽——语义由契约说了算，
+    /// 本类不做二次解释）；
     /// 运动九条（轴使能 / 失能 / 绝对定位 / 相对定位 / 回零 / 停止 / 清报警 / 点动开始 / 点动结束）
     /// 走 <see cref="MotionActionExecutor"/>（取轴、门禁、下发全在那一层，见其类注释）。
     ///
@@ -141,13 +145,30 @@ namespace VisionMaster.Services
         /// </summary>
         private readonly MotionActionExecutor? _motions;
 
+        /// <summary>
+        /// 执行前二次确认出口（P0）。可为 null——没接线时按“取消”处理，
+        /// 绝不静默放行；断言工程/离线场景可以注入一个假实现。
+        /// </summary>
+        private readonly IScadaConfirmationService? _confirmations;
+
+        /// <summary>
+        /// 上一条动作是否成功（P0 条件动作）。只在 UI 线程上用，不跨线程。
+        /// 由 <see cref="Ok"/> / <see cref="Skipped"/> / <see cref="Failed"/> 统一置位，
+        /// 循环里据此决定“仅在上一条成功时执行”的动作跑不跑。
+        /// </summary>
+        private bool _lastActionSucceeded = true;
+
+        /// <summary>上一条动作的最终归档（Ok/Skipped/Failed 各自写一次，供计数使用）</summary>
+        private ScadaAuditOutcome _lastActionOutcome = ScadaAuditOutcome.Success;
+
         public ScadaActionDispatcher(
             ILogService log,
             IScadaValueSource values,
             IScadaNavigator navigator,
             ScadaAuditWriter? audit = null,
             IScadaFlowRunner? flows = null,
-            MotionActionExecutor? motions = null)
+            MotionActionExecutor? motions = null,
+            IScadaConfirmationService? confirmations = null)
         {
             _log = log ?? throw new ArgumentNullException(nameof(log));
             _values = values ?? throw new ArgumentNullException(nameof(values));
@@ -155,15 +176,28 @@ namespace VisionMaster.Services
             _audit = audit;
             _flows = flows;
             _motions = motions;
+            _confirmations = confirmations;
         }
 
         /// <inheritdoc/>
         public void Dispatch(ScadaEventHook? hook, string? sourceName, string? operatorName = null)
+            => _ = DispatchWithResult(hook, sourceName, operatorName);
+
+        /// <inheritdoc/>
+        public ScadaActionDispatchResult DispatchWithResult(
+            ScadaEventHook? hook,
+            string? sourceName,
+            string? operatorName = null)
         {
             // 空钩子/空动作表直接收手：没配动作不是错误，日志里也不该留一行"什么都没干"，
             // 审计同理——一次什么都没干的点击不该在凭证里留一行
             if (hook == null || hook.Actions.Count == 0)
-                return;
+                return ScadaActionDispatchResult.Empty;
+
+            var total = hook.Actions.Count;
+            var succeeded = 0;
+            var skipped = 0;
+            var failed = 0;
 
             var subject = string.IsNullOrWhiteSpace(sourceName) ? "未命名对象" : sourceName;
             // 署名排在最前：现场翻日志是"先看谁干的、再看干了什么"，
@@ -177,24 +211,170 @@ namespace VisionMaster.Services
             // 逐条去拼容易在某一条上拼错（比如漏了署名），而错的那一条正是要查的那一条
             var stamp = new AuditStamp(actor, subject, eventText);
 
+            // 执行前二次确认（P0）：挂在钩子上，一次确认覆盖整串动作。
+            // 取消 / 没接线 / 无 WPF 上下文 / 确认出口抛异常一律“一条动作都不执行”，
+            // 并落一条 Warn + 审计 Skipped。
+            if (hook.RequireConfirmation)
+            {
+                var danger = hook.Actions.Any(a => a != null && a.Type.IsDangerous());
+                var request = new ScadaConfirmationRequest(
+                    BuildConfirmationTitle(hook, danger),
+                    $"{subject} · {eventText}",
+                    BuildConfirmationHint(hook, danger),
+                    "是否继续？",
+                    danger,
+                    BuildConfirmationPrimaryText(hook, danger));
+
+                bool confirmed;
+                try
+                {
+                    confirmed = _confirmations?.Confirm(request) ?? false;
+                }
+                catch (Exception ex)
+                {
+                    // 契约要求确认出口不抛异常，但窗口关闭 / Dispatcher 停摆等边缘情况仍可能抛。
+                    // 异常绝不能沿 UI 线程冒出去（本仓没有进程级兜底），按取消处理是失败安全。
+                    _log.Warn($"{head} → 执行前确认：确认出口异常（{ex.Message}），按取消处理");
+                    _audit?.Append(new ScadaAuditEntry(
+                        actor, subject, eventText,
+                        "执行前确认：取消", ScadaAuditOutcome.Skipped,
+                        $"确认出口异常：{ex.Message}"));
+                    return new ScadaActionDispatchResult(total, 0, total, 0);
+                }
+
+                if (!confirmed)
+                {
+                    _log.Warn($"{head} → 执行前确认：已取消，本次未执行任何动作");
+                    _audit?.Append(new ScadaAuditEntry(
+                        actor, subject, eventText,
+                        "执行前确认：取消", ScadaAuditOutcome.Skipped,
+                        "用户取消或没有可用的确认出口"));
+                    return new ScadaActionDispatchResult(total, 0, total, 0);
+                }
+            }
+
+            _lastActionSucceeded = true;
             foreach (var action in hook.Actions)
             {
                 // 集合里的 null 只可能来自手工改坏的 .vms（反序列化会把 null 原样塞进 List），
-                // 跳过它，不要因为一条坏数据把整串动作和这次点击一起废掉
+                // 跳过它，不要因为一条坏数据把整串动作和这次点击一起废掉。
+                // 但条件动作必须把它当成“上一条没成功”：一条坏数据不该成为写状态变量的放行条。
                 if (action == null)
+                {
+                    _lastActionSucceeded = false;
+                    skipped++;
                     continue;
+                }
+
+                if (action.OnlyIfPreviousSucceeded && !_lastActionSucceeded)
+                {
+                    Skipped(stamp, action,
+                        $"{head} → {action.Describe()}：上一条未成功，本条跳过",
+                        "上一条未成功");
+                    skipped++;
+                    continue;
+                }
 
                 try
                 {
+                    // Execute 内部通过 Ok/Skipped/Failed 落归档；先置一个保守值，
+                    // 万一某个分支什么都没落，也按"未执行"而不是"成功"计数。
+                    _lastActionOutcome = ScadaAuditOutcome.Skipped;
                     Execute(action, head, stamp);
+
+                    switch (_lastActionOutcome)
+                    {
+                        case ScadaAuditOutcome.Success:
+                            succeeded++;
+                            break;
+                        case ScadaAuditOutcome.Skipped:
+                            skipped++;
+                            break;
+                        default:
+                            failed++;
+                            break;
+                    }
                 }
                 catch (Exception ex)
                 {
                     // 接口契约②：一条失败不中断后面的动作。吞掉异常是这里的选择，
                     // 但必须留下带动作原文的一行，否则就成了查不到的哑失败。
                     Failed(stamp, action, $"{head} → {action.Describe()} 执行失败：{ex.Message}", ex.Message);
+                    failed++;
                 }
             }
+
+            return new ScadaActionDispatchResult(total, succeeded, skipped, failed);
+        }
+
+        /// <summary>
+        /// 确认框标题：普通动作「确认操作」；含停止类动作「确认停止流程？」/
+        /// 「确认停止设备？」；含启动类动作「确认启动流程？」；其余危险动作「确认危险操作？」。
+        /// </summary>
+        private static string BuildConfirmationTitle(ScadaEventHook hook, bool danger)
+        {
+            if (!danger)
+                return "确认操作";
+
+            if (hook.Actions.Any(a => a != null && a.Type == ScadaActionType.StopFlow))
+                return "确认停止流程？";
+
+            // 轴停止 / 轴失能没有“流程”可停，别把设备动作问成流程动作
+            if (hook.Actions.Any(a => a != null && a.Type is
+                    ScadaActionType.MotionStop or ScadaActionType.MotionDisable))
+                return "确认停止设备？";
+
+            if (hook.Actions.Any(a => a != null && a.Type is
+                    ScadaActionType.StartFlow or ScadaActionType.RunFlowOnce))
+                return "确认启动流程？";
+
+            return "确认危险操作？";
+        }
+
+        /// <summary>
+        /// 确认框主按钮文案：必须与标题说的是同一件事。
+        /// “确认启动流程？”配一颗“确认停止”的按钮，操作员在紧急场景下会按错。
+        /// </summary>
+        private static string BuildConfirmationPrimaryText(ScadaEventHook hook, bool danger)
+        {
+            if (!danger)
+                return "确认执行";
+
+            if (hook.Actions.Any(a => a != null && a.Type is
+                    ScadaActionType.StopFlow or ScadaActionType.MotionStop or ScadaActionType.MotionDisable))
+                return "确认停止";
+
+            if (hook.Actions.Any(a => a != null && a.Type is
+                    ScadaActionType.StartFlow or ScadaActionType.RunFlowOnce))
+                return "确认启动";
+
+            return "确认执行";
+        }
+
+        /// <summary>
+        /// 确认框提示：优先用用户在事件编辑器里填的后果提示；留空则用动作摘要。
+        /// 这段落在 <c>MessageDialogOptions.Hint</c>，正文由调用方拼“对象 · 事件”。
+        /// </summary>
+        private static string BuildConfirmationHint(ScadaEventHook hook, bool danger)
+        {
+            if (!string.IsNullOrWhiteSpace(hook.ConfirmationMessage))
+                return hook.ConfirmationMessage!.Trim();
+
+            var descriptions = hook.Actions
+                .Where(a => a != null)
+                .Select(a => a!.Describe())
+                .ToArray();
+
+            var summary = descriptions.Length == 0
+                ? "无动作"
+                : string.Join("、", descriptions.Take(3));
+
+            if (descriptions.Length > 3)
+                summary += $" 等 {descriptions.Length} 条";
+
+            return danger
+                ? $"将执行：{summary}。这是危险动作，请确认现场安全。"
+                : $"将执行：{summary}。";
         }
 
         /// <summary>
@@ -212,6 +392,8 @@ namespace VisionMaster.Services
         /// </param>
         private void Ok(AuditStamp stamp, ScadaAction action, string message, string? detail = null)
         {
+            _lastActionSucceeded = true;
+            _lastActionOutcome = ScadaAuditOutcome.Success;
             _log.Info(message);
             Audit(stamp, action, ScadaAuditOutcome.Success, detail);
         }
@@ -222,6 +404,8 @@ namespace VisionMaster.Services
         /// </summary>
         private void Skipped(AuditStamp stamp, ScadaAction action, string message, string? detail = null)
         {
+            _lastActionSucceeded = false;
+            _lastActionOutcome = ScadaAuditOutcome.Skipped;
             _log.Warn(message);
             Audit(stamp, action, ScadaAuditOutcome.Skipped, detail);
         }
@@ -231,6 +415,8 @@ namespace VisionMaster.Services
         /// </summary>
         private void Failed(AuditStamp stamp, ScadaAction action, string message, string? detail = null)
         {
+            _lastActionSucceeded = false;
+            _lastActionOutcome = ScadaAuditOutcome.Failed;
             _log.Error(message);
             Audit(stamp, action, ScadaAuditOutcome.Failed, detail);
         }
@@ -274,11 +460,17 @@ namespace VisionMaster.Services
                     ExecuteNavigate(action, head, stamp);
                     return;
 
-                case ScadaActionType.StartFlow:
-                case ScadaActionType.StopFlow:
-                case ScadaActionType.RunFlowOnce:
-                    ExecuteFlowAction(action, head, stamp);
+                case ScadaActionType.NavigateBack:
+                    ExecuteNavigateBack(action, head, stamp);
                     return;
+
+            case ScadaActionType.StartFlow:
+            case ScadaActionType.StopFlow:
+            case ScadaActionType.RunFlowOnce:
+            case ScadaActionType.PauseFlow:
+            case ScadaActionType.ResumeFlow:
+                ExecuteFlowAction(action, head, stamp);
+                return;
 
                 // 运动九条：取轴、门禁、下发全在 executor 里（那层认识 IMotionDevice 与门禁，
                 // 本类只认识"动作语义"）。这里只做"接没接运动模块"与"成没成"两档交代。
@@ -336,6 +528,22 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
+        /// 执行一条“返回上一页”动作：不需要目标画面，交给导航出口的 GoBack。
+        /// 失败只有“栈空 / 会话已停 / 回退目标已被删或改成基座”几种，全是“此刻没得退”，
+        /// 记 Warn 不记 Error——软件没坏，下次有得退就好。
+        /// </summary>
+        private void ExecuteNavigateBack(ScadaAction action, string head, AuditStamp stamp)
+        {
+            if (!_navigator.GoBack(out var reason))
+            {
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            Ok(stamp, action, $"{head} → {action.Describe()}");
+        }
+
+        /// <summary>
         /// 执行一条流程动作（启动 / 停止 / 执行一次）：把目标交给 <see cref="IScadaFlowRunner"/>。
         ///
         /// 为什么解析与启停都走出口、本类不碰引擎：与写变量/切画面走同一条分工——
@@ -380,6 +588,12 @@ namespace VisionMaster.Services
                     break;
                 case ScadaActionType.RunFlowOnce:
                     accepted = _flows.RunOnce(action.FlowId ?? string.Empty, action.FlowName, out reason);
+                    break;
+                case ScadaActionType.PauseFlow:
+                    accepted = _flows.Pause(action.FlowId ?? string.Empty, action.FlowName, out reason);
+                    break;
+                case ScadaActionType.ResumeFlow:
+                    accepted = _flows.Resume(action.FlowId ?? string.Empty, action.FlowName, out reason);
                     break;
                 default:
                     // 编译期不可达（上面 Execute 的 switch 已按类型分派）；留着防将来加类型漏改
@@ -434,9 +648,13 @@ namespace VisionMaster.Services
                 return;
             }
 
-            // 静默档：执行器约定"false + 空 message"表示这次拒绝不该留痕（见 TryExecute 的说明）
+            // 静默档：执行器约定"false + 空 message"表示这次拒绝不该留痕（见 TryExecute 的说明）。
+            // 但条件动作仍要把它当“上一条没成功”：静默的是日志，不是事实。
             if (string.IsNullOrEmpty(message))
+            {
+                _lastActionSucceeded = false;
                 return;
+            }
 
             Skipped(stamp, action, $"{head} → {message}", message);
         }
@@ -463,11 +681,15 @@ namespace VisionMaster.Services
             }
 
             // ② 找不到变量：改名或删了（Id 对不上、名字也对不上）
-            if (!_values.TryResolve(action.VariableId, action.VariableName, out var handle) || handle == null)
+            if (!_values.TryResolve(action.ToReference(), out var handle, out var resolveError) || handle == null)
             {
+                string reason = string.IsNullOrWhiteSpace(resolveError)
+                    ? $"找不到变量「{action.ToReference().DisplayText}」"
+                    : resolveError!;
+
                 Skipped(stamp, action,
-                    $"{head} → {action.Describe()}：找不到变量「{action.VariableName}」，本条未执行",
-                    $"找不到变量「{action.VariableName}」");
+                    $"{head} → {action.Describe()}：{reason}，本条未执行",
+                    reason);
                 return;
             }
 

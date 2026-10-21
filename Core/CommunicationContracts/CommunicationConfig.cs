@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using Newtonsoft.Json;
 using System.ComponentModel.DataAnnotations;
 using System.Runtime.InteropServices;
@@ -23,7 +24,8 @@ namespace VisionMaster.Communications
             Group = new string[] { "1. 基本设置" },
             Order = 2,
             ColSpan = 12,
-            RequireRefresh = true
+            RequireRefresh = true,
+            Description = "下拉框会列出全部枚举值；只有「已实现协议」里的才能保存（未实现协议会被 Validate 拒绝，不会静默连错）"
         )]
         public CommunicationType Protocol
         {
@@ -33,8 +35,25 @@ namespace VisionMaster.Communications
                 OnChanged(value);
                 field = value;
                 RaisePropertyChanged();
+                RaisePropertyChanged(nameof(ProtocolText));
             }
         }
+
+        /// <summary>
+        /// 协议的中文显示名（通讯列表「通讯类型」列、搜索、系统健康面板共用）。
+        /// 显示名来自枚举上的 <c>[Description]</c>——与属性面板下拉同一份事实来源。
+        /// </summary>
+        [JsonIgnore]
+        public string ProtocolText => CommunicationProtocols.DisplayName(Protocol);
+
+        /// <summary>
+        /// 已实现协议清单（只读，动态跟随工厂注册表）。
+        /// 放在面板上是为了解决"下拉框全列、用户不知道哪个能用"：选中未实现协议时
+        /// 这里能一眼看到当前真正可用的清单，不用保存失败后再猜。
+        /// </summary>
+        [SuperDisplay(Name = "已实现协议", Group = new string[] { "1. 基本设置" }, Order = 4, ColSpan = 12, IsReadOnly = true)]
+        [JsonIgnore]
+        public string ImplementedProtocolsText => CommunicationProtocols.ImplementedText;
 
         private void OnChanged(CommunicationType communication)
         {
@@ -215,6 +234,9 @@ namespace VisionMaster.Communications
                 CommunicationType.ModbusTcp => new ModbusTcpConfig { Type = protocol },
                 CommunicationType.ModbusRtu => new SerialConfig { Type = protocol },
                 CommunicationType.SiemensS7 => new SiemensS7Config { Type = protocol },
+                CommunicationType.MitsubishiMc => new MitsubishiMcConfig { Type = protocol },
+                CommunicationType.OmronFins => new OmronFinsConfig { Type = protocol },
+                CommunicationType.FreeProtocol => new FreeProtocolConfig { Type = protocol },
                 _ => null,
             };
             return config != null;
@@ -339,13 +361,31 @@ namespace VisionMaster.Communications
             CommunicationType.ModbusTcp,
             CommunicationType.ModbusRtu,
             CommunicationType.SiemensS7,
+            CommunicationType.MitsubishiMc,
+            CommunicationType.OmronFins,
+            CommunicationType.FreeProtocol,
         };
 
         /// <summary>该协议是否已有可用的连接实现</summary>
         public static bool IsImplemented(CommunicationType type) => Array.IndexOf(Implemented, type) >= 0;
 
+        /// <summary>
+        /// 协议的中文显示名（**唯一来源**：枚举成员上的 <c>[Description]</c>，缺失才回退成员名）。
+        /// 与属性面板下拉（FlatPropertyGrid 的 EnumGenerator）读同一个特性，避免
+        /// "面板叫三菱 MC、列表叫 MitsubishiMc" 的两套文案。
+        /// </summary>
+        public static string DisplayName(CommunicationType type)
+        {
+            var field = typeof(CommunicationType).GetField(type.ToString());
+            var description = field?
+                .GetCustomAttributes(typeof(System.ComponentModel.DescriptionAttribute), false)
+                .OfType<System.ComponentModel.DescriptionAttribute>()
+                .FirstOrDefault();
+            return string.IsNullOrWhiteSpace(description?.Description) ? type.ToString() : description!.Description!;
+        }
+
         /// <summary>给用户看的可用协议文案（Validate 的错误信息里要用它）</summary>
-        public static string ImplementedText => string.Join(" / ", Implemented);
+        public static string ImplementedText => string.Join(" / ", Implemented.Select(DisplayName));
     }
 }
 

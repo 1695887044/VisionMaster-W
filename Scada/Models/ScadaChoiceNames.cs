@@ -90,6 +90,15 @@ namespace VisionMaster.Scada
                 ["Output"] = "只读",
                 ["InputOutput"] = "读写",
 
+                // ---- ComboBox 呈现方式（P0-2：只读显示） ----
+                ["Field"] = "字段",
+                ["Text"] = "文本",
+
+                // ---- 页面 / 图元角色 ----
+                ["Operator"] = "操作员",
+                ["Engineer"] = "工程师",
+                ["Administrator"] = "管理员",
+
                 // ---- IO 域：格式类型 ----
                 ["Decimal"] = "十进制",
                 ["Hex"] = "十六进制",

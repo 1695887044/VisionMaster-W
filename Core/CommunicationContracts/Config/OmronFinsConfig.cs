@@ -59,10 +59,13 @@ namespace VisionMaster.Communications
 
         /// <summary>
         /// <para>克隆当前配置对象。</para>
+        /// <para>⚠ 必须拷贝基类 <see cref="ConnectionConfigBase.Type"/>（默认 0 = ModbusTcp）：
+        /// 漏拷会让编辑弹窗保存时报"协议类型不匹配"。</para>
         /// </summary>
         /// <returns>配置副本</returns>
         public override ConnectionConfigBase Clone() => new OmronFinsConfig
         {
+            Type = Type,
             TimeoutMs = TimeoutMs,
             RetryCount = RetryCount,
             RetryIntervalMs = RetryIntervalMs,

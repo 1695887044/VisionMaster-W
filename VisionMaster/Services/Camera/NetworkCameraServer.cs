@@ -108,7 +108,15 @@ namespace VisionMaster.Services
         {
             if (_disposed) return;
             _disposed = true;
+            Stop();
+        }
 
+        /// <summary>
+        /// 停止监听。与 <see cref="Dispose"/> 的区别：这里**不置 disposed 标志**，
+        /// 所以之后还能再 <see cref="Start"/>（设置弹窗改端口/令牌后靠这条重开）。
+        /// </summary>
+        public void Stop()
+        {
             try
             {
                 if (_server?.IsListening == true)
@@ -129,6 +137,17 @@ namespace VisionMaster.Services
             }
 
             _server = null;
+        }
+
+        /// <summary>
+        /// 按最新配置重开监听（设置弹窗保存后调用）。Host/Port 是绑定期决定的，
+        /// 不重开就换不了端口；新端口被占用时 <see cref="Start"/> 会抛，
+        /// 由调用方把原因写回设置弹窗（服务保持停止状态）。
+        /// </summary>
+        public void Restart()
+        {
+            Stop();
+            Start();
         }
 
         #endregion

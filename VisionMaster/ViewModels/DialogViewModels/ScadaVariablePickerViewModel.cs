@@ -40,13 +40,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         private string _keyword = string.Empty;
         private ScadaVariableRow? _selectedVariable;
+        private string _arrayIndexText = "0";
+        private int _currentArrayIndex = -1;
 
         public ScadaVariablePickerViewModel(IWorkspaceManager workspace)
         {
             _workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
 
-            ConfirmCommand = new DelegateCommand(OnConfirm, () => SelectedVariable != null)
-                .ObservesProperty(() => SelectedVariable);
+            ConfirmCommand = new DelegateCommand(OnConfirm, CanConfirm)
+                .ObservesProperty(() => SelectedVariable)
+                .ObservesProperty(() => ArrayIndexText);
             CancelCommand = new DelegateCommand(() => RequestClose.Invoke(ButtonResult.Cancel));
         }
 
@@ -72,7 +75,76 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public ScadaVariableRow? SelectedVariable
         {
             get => _selectedVariable;
-            set => SetProperty(ref _selectedVariable, value);
+            set
+            {
+                if (!SetProperty(ref _selectedVariable, value))
+                    return;
+
+                RaisePropertyChanged(nameof(IsArraySelected));
+                RaisePropertyChanged(nameof(ArrayLength));
+                RaisePropertyChanged(nameof(ArrayIndexHint));
+                RaisePropertyChanged(nameof(ArrayIndexError));
+
+                // 选中数组变量时，默认落到当前绑定下标；没有当前值就落 0。
+                if (IsArraySelected)
+                    ArrayIndexText = _currentArrayIndex >= 0
+                        ? _currentArrayIndex.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                        : "0";
+
+                ConfirmCommand.RaiseCanExecuteChanged();
+            }
+        }
+
+        /// <summary>当前选中的变量是不是数组（决定"数组下标"那一行显不显示）</summary>
+        public bool IsArraySelected => SelectedVariable?.IsArray == true;
+
+        /// <summary>选中数组的长度；-1 = 未知（运行时由值源按实际值再校验）</summary>
+        public int ArrayLength => SelectedVariable?.ArrayLength ?? -1;
+
+        /// <summary>数组下标输入框的文本（保留用户打了一半的形态，解析推迟到确认）</summary>
+        public string ArrayIndexText
+        {
+            get => _arrayIndexText;
+            set
+            {
+                if (!SetProperty(ref _arrayIndexText, value ?? string.Empty))
+                    return;
+
+                RaisePropertyChanged(nameof(ArrayIndexError));
+                ConfirmCommand.RaiseCanExecuteChanged();
+            }
+        }
+
+        /// <summary>下标输入提示：长度已知时给出 0..N-1，未知时只要求非负整数</summary>
+        public string ArrayIndexHint
+        {
+            get
+            {
+                if (!IsArraySelected)
+                    return string.Empty;
+
+                return ArrayLength >= 0
+                    ? $"数组长度 {ArrayLength}，可填 0 ~ {ArrayLength - 1}"
+                    : "数组长度未知；请填一个非负整数，运行态会按实际长度校验";
+            }
+        }
+
+        /// <summary>下标输入错误（空串 = 没有错误）</summary>
+        public string ArrayIndexError
+        {
+            get
+            {
+                if (!IsArraySelected)
+                    return string.Empty;
+
+                if (!TryParseArrayIndex(out int index, out string error))
+                    return error;
+
+                if (ArrayLength >= 0 && index >= ArrayLength)
+                    return $"下标 {index} 超出数组长度 {ArrayLength}";
+
+                return string.Empty;
+            }
         }
 
         /// <summary>列表为空时的提示文案（有内容时为空串）</summary>
@@ -115,19 +187,70 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RaisePropertyChanged(nameof(HasVariables));
         }
 
-        /// <summary>确认：回传 (Id, 名字)。Id 拿不到就什么也不做（不许退化成"按名字猜一个"）</summary>
+        /// <summary>确认键可用性：选了变量、Id 有效、数组下标（若适用）合法</summary>
+        private bool CanConfirm()
+        {
+            var row = SelectedVariable;
+            if (row == null || row.VariableId == Guid.Empty)
+                return false;
+
+            // 不能只判"是不是非负整数"：越界下标也会在运行态解析失败，
+            // 这里必须用与界面上红字同一个判据（ArrayIndexError）。
+            return !IsArraySelected || string.IsNullOrEmpty(ArrayIndexError);
+        }
+
+        /// <summary>确认：回传 (Id, 名字, 下标)。Id 拿不到就什么也不做（不许退化成"按名字猜一个"）</summary>
         private void OnConfirm()
         {
             var row = SelectedVariable;
             if (row == null || row.VariableId == Guid.Empty)
                 return;
 
+            int index = -1;
+
+            if (IsArraySelected)
+            {
+                if (!TryParseArrayIndex(out index, out _) || !string.IsNullOrEmpty(ArrayIndexError))
+                    return; // 按钮本该已置灰；这里再挡一次，避免回车绕过
+            }
+
             var parameters = new DialogParameters
             {
                 { ScadaVariablePicker.PickedIdKey, row.VariableId },
                 { ScadaVariablePicker.PickedNameKey, row.Name },
+                { ScadaVariablePicker.PickedArrayIndexKey, index },
             };
             RequestClose.Invoke(parameters, ButtonResult.OK);
+        }
+
+        /// <summary>解析下标文本（不变区域性；空串/负数/非数字都拒绝）</summary>
+        private bool TryParseArrayIndex(out int index, out string error)
+        {
+            index = -1;
+            error = string.Empty;
+
+            string text = (_arrayIndexText ?? string.Empty).Trim();
+
+            if (text.Length == 0)
+            {
+                error = "数组下标不能为空";
+                return false;
+            }
+
+            if (!int.TryParse(text, System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture, out index))
+            {
+                error = $"「{text}」不是有效的整数下标";
+                return false;
+            }
+
+            if (index < 0)
+            {
+                error = "数组下标不能为负数";
+                return false;
+            }
+
+            return true;
         }
 
         #region IDialogAware
@@ -165,15 +288,23 @@ namespace VisionMaster.ViewModels.DialogViewModels
             // _keyword 本来就是空串，SetProperty 判定"值没变"会直接返回，ApplyFilter 压根不跑，
             // 于是 _all 装满了变量而 Variables 恒空、界面显示"当前方案里还没有变量"（真机踩过）。
             // 把"清单投影"从 setter 的副作用里解耦出来，是这一段的唯一要点。
+            // 当前下标必须在 ApplyFilter 之前就位：ApplyFilter 会自动选中第一行，
+            // 若当前数组变量恰好是第一行，之后再赋同一个对象会被 SetProperty 短路，
+            // SelectedVariable 的 setter 不会再跑，下标就停在 "0"（打开直接确定会改绑元素 0）。
+            parameters.TryGetValue<Guid>(ScadaVariablePicker.CurrentIdKey, out var currentId);
+            parameters.TryGetValue<string>(ScadaVariablePicker.CurrentNameKey, out var currentName);
+            _currentArrayIndex =
+                parameters.TryGetValue<int>(ScadaVariablePicker.CurrentArrayIndexKey, out var currentArrayIndex)
+                && currentArrayIndex >= 0
+                    ? currentArrayIndex
+                    : -1;
+
             if (_keyword.Length != 0)
             {
                 _keyword = string.Empty;
                 RaisePropertyChanged(nameof(Keyword));
             }
             ApplyFilter();
-
-            parameters.TryGetValue<Guid>(ScadaVariablePicker.CurrentIdKey, out var currentId);
-            parameters.TryGetValue<string>(ScadaVariablePicker.CurrentNameKey, out var currentName);
 
             SelectedVariable =
                 currentId != Guid.Empty
@@ -183,6 +314,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 ? null
                 : _all.FirstOrDefault(r =>
                     string.Equals(r.Name, currentName, StringComparison.OrdinalIgnoreCase));
+
+            // 双保险：即使上面的赋值被短路，当前是数组元素时也把下标回填到输入框。
+            if (IsArraySelected && _currentArrayIndex >= 0)
+            {
+                ArrayIndexText = _currentArrayIndex.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture);
+            }
         }
 
         #endregion
@@ -245,6 +383,30 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>数据类型（XAML 侧经 TypeNameToFriendlyNameConverter 转成"整数 (Int)"这类友好名）</summary>
         public Type DataType => Model.DataType;
+
+        /// <summary>是不是数组变量（决定选变量弹窗里"数组下标"那一行显不显示）</summary>
+        public bool IsArray => DataType.IsArray;
+
+        /// <summary>
+        /// 数组长度：当前值/默认值里的数组优先，其次地址配置的 Length；都拿不到返回 -1。
+        /// 这里只用于弹窗提示与即时校验，运行态以值源的实际解析为准。
+        /// </summary>
+        public int ArrayLength
+        {
+            get
+            {
+                if (Model.Value is Array current)
+                    return current.Length;
+
+                if (Model.DefaultValue is Array fallback)
+                    return fallback.Length;
+
+                if (Model.AddressConfig is { Length: > 0 } address)
+                    return address.Length;
+
+                return -1;
+            }
+        }
 
         /// <summary>
         /// 是否只读（系统变量恒 true）。

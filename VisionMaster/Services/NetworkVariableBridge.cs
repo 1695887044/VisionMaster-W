@@ -68,10 +68,10 @@ namespace VisionMaster.Services
         /// 变量归哪个组是注册那一刻抄进 <see cref="CommunicationVariable"/> 的快照，
         /// 光改 <c>NetworkVariableModel.ScanGroup</c> 不会让轮询换节拍。</para>
         /// </summary>
-        public void ReRegister(NetworkVariableModel nv)
+        public bool ReRegister(NetworkVariableModel nv)
         {
-            if (nv == null) return;
-            Register(nv);
+            if (nv == null) return false;
+            return Register(nv);
         }
 
         private void OnGlobalVariablesChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -94,13 +94,13 @@ namespace VisionMaster.Services
                     Register(nv);
         }
 
-        private void Register(NetworkVariableModel nv)
+        private bool Register(NetworkVariableModel nv)
         {
             if (nv.AddressConfig == null || string.IsNullOrEmpty(nv.ConnectionName))
             {
                 // 静默不注册是"当前值永远空"的头号暗坑——出声：变量存在但不轮询，必须留痕
                 _logger.Warn($"[NetVar] 变量 [{nv.Name}] 缺少地址配置或连接名，未接入轮询（当前值不会刷新）");
-                return;
+                return false;
             }
 
             nv.Bind(_manager); // 打通写通道
@@ -129,11 +129,14 @@ namespace VisionMaster.Services
             try
             {
                 _manager.RegisterVariable(commVar);
+                return true;
             }
             catch (Exception ex)
             {
-                // 注册失败（如连接不存在）不阻断：变量仍在列表，连接后 RebindAll 恢复——但必须可见
+                // 注册失败（如连接不存在）不阻断：变量仍在列表，连接后 RebindAll 恢复——但必须可见。
+                // 返回 false 让导入事务能感知"模型改了但轮询没接上"并回滚，而不是静默报成功。
                 _logger.Warn($"[NetVar] 变量 [{nv.Name}] 接入轮询失败：{ex.Message}");
+                return false;
             }
         }
 

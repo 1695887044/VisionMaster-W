@@ -1,9 +1,11 @@
 using System;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
 using VisionMaster.Models;
+using VisionMaster.ViewModels.DialogViewModels;
 
 namespace VisionMaster.Views.DialogViews
 {
@@ -68,9 +70,11 @@ namespace VisionMaster.Views.DialogViews
     }
 
     /// <summary>
-    /// 当前值单元格六态互斥选择器。
-    /// 优先级：系统 > 图像 > 只读存储区 > 本地数组根 > 子行 > 可编辑根。
+    /// 当前值单元格互斥选择器。
+    /// 优先级：系统 > 图像 > 网络数组根 > 网络数组元素 > 只读存储区 > 本地数组根 > 子行 > 可编辑根。
     /// 输出 Visibility；parameter 是目标态名。
+    /// <para>网络数组根（NetworkArrayRoot）与元素行（ReadOnlyChild）是本批新增：
+    /// 数组第一期只读，元素由设备轮询提供，不能走本地数组的"就地编辑"路径。</para>
     /// </summary>
     public sealed class GlobalVariableValueModeConverter : IMultiValueConverter
     {
@@ -87,19 +91,29 @@ namespace VisionMaster.Views.DialogViews
             bool isImage = string.Equals(typeName, "HImage", StringComparison.Ordinal);
             bool isLocalArrayRoot = isArrayRoot && originalModel is LocalVariableModel;
 
+            // 网络数组：根行显示摘要（只读），元素行显示元素值（只读）。
+            // 必须在 isReadOnly 之前判定——只读存储区（离散输入等）里的网络数组
+            // 若落到 ReadOnlyRoot，会把 CurrentValueText 的 "System.Int32[]" 直接上屏。
+            bool isNetworkArrayRoot = isArrayRoot && originalModel is NetworkVariableModel;
+            bool isNetworkArrayElement = isChild && originalModel is NetworkVariableModel;
+
             string mode = isSystemOwned
                 ? "ReadOnlyRoot"
                 : isImage
                     ? "Image"
-                    : isReadOnly
-                        ? "ReadOnlyRoot"
-                        : isLocalArrayRoot
-                            ? "ArrayRoot"
-                            : isChild
-                                ? "EditableChild"
-                                : isEditable && !isReadOnly
-                                    ? "EditableRoot"
-                                    : "None";
+                    : isNetworkArrayRoot
+                        ? "NetworkArrayRoot"
+                        : isNetworkArrayElement
+                            ? "ReadOnlyChild"
+                            : isReadOnly
+                                ? "ReadOnlyRoot"
+                                : isLocalArrayRoot
+                                    ? "ArrayRoot"
+                                    : isChild
+                                        ? "EditableChild"
+                                        : isEditable && !isReadOnly
+                                            ? "EditableRoot"
+                                            : "None";
 
             return string.Equals(mode, parameter as string, StringComparison.Ordinal)
                 ? Visibility.Visible
@@ -146,5 +160,20 @@ namespace VisionMaster.Views.DialogViews
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
             => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// 左栏节点模板选择器：来源行（Level=0）用来源卡片，分组行（Level=1）用缩进的分组行。
+    /// 左栏是同一个 ListBox（按 IsNetwork 分节），用模板切换而不是再套一层 TreeView——
+    /// 这样选中态、键盘导航与既有 GroupStyle 全都不动。
+    /// </summary>
+    public sealed class VariableSourceNodeTemplateSelector : DataTemplateSelector
+    {
+        public DataTemplate? SourceTemplate { get; set; }
+
+        public DataTemplate? GroupTemplate { get; set; }
+
+        public override DataTemplate? SelectTemplate(object item, DependencyObject container)
+            => item is VariableSourceNode { IsGroup: true } ? GroupTemplate : SourceTemplate;
     }
 }

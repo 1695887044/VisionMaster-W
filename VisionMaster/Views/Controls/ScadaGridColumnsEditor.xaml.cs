@@ -38,6 +38,14 @@ namespace VisionMaster.Views.Controls
         /// <summary>确认后的规范 JSON（变量名为空的行由 codec 丢掉）</summary>
         public string ResultJson => ScadaGridColumnsCodec.Format(Rows.Select(row => row.ToColumn()));
 
+        /// <summary>
+        /// 会被丢掉的行数（变量名为空）。
+        ///
+        /// 为什么要单独数出来：codec 丢空列是"配置容错"，但用户点「确定」时得知道
+        /// "我刚才填的那行没生效"，否则就是静默丢配置。
+        /// </summary>
+        public int DroppedCount => Rows.Count(row => !row.HasVariable);
+
         private void OnAdd(object sender, RoutedEventArgs e) => Rows.Add(new ColumnEditRow());
 
         private void OnRemove(object sender, RoutedEventArgs e)
@@ -102,8 +110,15 @@ namespace VisionMaster.Views.Controls
         public string Variable
         {
             get => _variable;
-            set => SetProperty(ref _variable, value ?? string.Empty);
+            set
+            {
+                if (SetProperty(ref _variable, value ?? string.Empty))
+                    RaisePropertyChanged(nameof(HasVariable));
+            }
         }
+
+        /// <summary>变量名填了没有（空 = 这一列还没配完，弹窗里标红、确认时被丢掉）</summary>
+        public bool HasVariable => !string.IsNullOrWhiteSpace(_variable);
 
         public string WidthText
         {

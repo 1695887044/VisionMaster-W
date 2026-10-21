@@ -137,6 +137,9 @@ namespace VisionMaster.Scada
 
         public string? VariableName { get; set; }
 
+        /// <summary>数组元素下标；-1 = 引用整个变量（旧模板默认值，语义正好是"那个版本没有元素绑定"）</summary>
+        public int ArrayIndex { get; set; } = -1;
+
         public bool IsEnabled { get; set; } = true;
 
         public string? DisplayFormat { get; set; }
@@ -149,6 +152,11 @@ namespace VisionMaster.Scada
     public sealed class ScadaEventHookSnapshot
     {
         public ScadaEventType Event { get; set; }
+
+        /// <summary>执行前二次确认（P0）；旧模板/旧剪贴板缺这两个字段时按 false/null 处理</summary>
+        public bool RequireConfirmation { get; set; }
+
+        public string? ConfirmationMessage { get; set; }
 
         public List<ScadaActionSnapshot> Actions { get; set; } = new();
     }
@@ -169,11 +177,27 @@ namespace VisionMaster.Scada
 
         public string? VariableName { get; set; }
 
+        /// <summary>数组元素下标；-1 = 引用整个变量（旧模板默认值）</summary>
+        public int ArrayIndex { get; set; } = -1;
+
         public string? Value { get; set; }
 
         public Guid TargetPageId { get; set; }
 
         public string? TargetPageName { get; set; }
+
+        // —— 流程动作（2026-10-21 补）——
+        // 复制粘贴/模板必须连目标流程一起搬：少了它们，粘贴出来的“启动/暂停/恢复”
+        // 按钮会变成一条“没选流程”的空动作——界面上看着还在、运行时必然跳过。
+
+        /// <summary>目标流程稳定身份（Id 优先，见 <see cref="ScadaAction.FlowId"/>）</summary>
+        public string? FlowId { get; set; }
+
+        /// <summary>目标流程名（展示 + 旧数据兜底）</summary>
+        public string? FlowName { get; set; }
+
+        /// <summary>仅在上一条动作成功时执行（P0 条件动作）</summary>
+        public bool OnlyIfPreviousSucceeded { get; set; }
 
         // —— 运动命令族（2026-10-18 追加）——
         // 复制粘贴/模板必须连这几个字段一起搬：少了它们，粘贴出来的"轴定位"按钮
@@ -209,6 +233,9 @@ namespace VisionMaster.Scada
         public Guid VariableId { get; set; }
 
         public string? VariableName { get; set; }
+
+        /// <summary>数组元素下标；-1 = 引用整个变量（旧模板默认值）</summary>
+        public int ArrayIndex { get; set; } = -1;
 
         public string RangeLow { get; set; } = "0";
 

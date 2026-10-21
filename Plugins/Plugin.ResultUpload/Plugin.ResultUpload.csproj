@@ -20,4 +20,10 @@
   <ItemGroup>
     <EmbeddedResource Include="Help\**\*" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- 断言宿主要直调 UploadQueue 的 spool 钩子（内部类型，不扩大 public 面） -->
+    <InternalsVisibleTo Include="FlowCanvasChecks" />
+    <InternalsVisibleTo Include="DataPipelineChecks" />
+  </ItemGroup>
 </Project>

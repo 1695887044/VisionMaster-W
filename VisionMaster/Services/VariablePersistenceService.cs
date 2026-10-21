@@ -139,6 +139,12 @@ namespace VisionMaster.Services
                     if (address == null)
                         System.Diagnostics.Debug.WriteLine($"[VariablePersistence] 网络变量 {dto.Name} 地址重建失败，按无地址离线变量恢复");
 
+                    // 悬空分组 Id（分组表里没有它）归一成「未分组」：界面本来就这么显示，
+                    // 不归一的话脏 Id 会一直随方案存下去。
+                    var groupId = dto.GroupId;
+                    if (groupId != Guid.Empty && solution.VariableGroups.All(g => g.Id != groupId))
+                        groupId = Guid.Empty;
+
                     workspace.GlobalVariables.Add(new NetworkVariableModel
                     {
                         Name = dto.Name,
@@ -151,7 +157,9 @@ namespace VisionMaster.Services
                         AddressConfig = address,
                         // 扫描组随方案还原：漏它的后果是"挂好的快组在下次打开方案时静默退回默认组"，
                         // 而桥接器 Register 时会把这里的值抄进 CommunicationVariable，故必须在接线之前填好
-                        ScanGroup = dto.ScanGroup ?? string.Empty
+                        ScanGroup = dto.ScanGroup ?? string.Empty,
+                        // 显示分组随方案还原：漏它 = 用户归好的类在下次打开方案时静默回到「未分组」
+                        GroupId = groupId
                     });
                 }
                 else

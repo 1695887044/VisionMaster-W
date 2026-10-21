@@ -1,0 +1,80 @@
+=== WatsonWebserver WebSocket/Auth probe (v7.2.0) ===
+dotnet: 9.0.20
+
+[defaults] WebSockets.Enable           = False
+[defaults] WebSockets.EnableHttp1      = True
+[defaults] WebSockets.AllowClientSuppliedGuid = False
+[defaults] WebSockets.MaxMessageSize   = 16777216
+
+[server] listening http://127.0.0.1:18080
+[server] routes: WS /ws-auth (auth:true), WS /ws-open (auth:false), WS /ws-burst (auth:false), GET /asset (raw), GET /asset-api (ApiRequest)
+
+---- Phase 1: AuthenticateApiRequest returns Success ----
+   [AUTH #1] GET /ws-auth  Authorization=Bearer test  decision=Success/Permitted
+   [WS] handler START path=/ws-auth session=1230652c-a340-4e89-aa7c-d8b30215c866 Authorization=Bearer test
+   [WS] handler END session=1230652c-a340-4e89-aa7c-d8b30215c866
+   [CLIENT] A1 auth:true + Bearer -> connected, recv="hello"
+   >>> [PASS] A1 auth:true WS WITH token -> connects, receives hello :: connected, recv="hello" | authCalls +1
+   [AUTH #2] GET /ws-auth  Authorization=<none>  decision=Success/Permitted
+   [WS] handler START path=/ws-auth session=dd6c2744-93d0-4964-b1ae-1337d503bae1 Authorization=<none>
+   [WS] handler END session=dd6c2744-93d0-4964-b1ae-1337d503bae1
+   [CLIENT] A2 auth:true no token -> connected, recv="hello"
+   >>> [PASS] A2 auth:true WS WITHOUT token -> connects (authenticator says Success) :: connected, recv="hello" | authCalls +1
+   [WS] handler START path=/ws-open session=fa41d26c-8642-45df-9103-7c15576ec08b Authorization=<none>
+   [WS] handler END session=fa41d26c-8642-45df-9103-7c15576ec08b
+   [CLIENT] B1 auth:false no token -> connected, recv="hello"
+   >>> [PASS] B1 auth:false WS WITHOUT token -> connects, authCalls delta MUST be 0 :: connected, recv="hello" | authCalls +0
+   [WS] handler START path=/ws-open session=3b61fb78-3a1c-4b6e-83ea-59a94fab4c4b Authorization=Bearer test
+   [WS] handler END session=3b61fb78-3a1c-4b6e-83ea-59a94fab4c4b
+   [CLIENT] B2 auth:false + Bearer -> connected, recv="hello"
+   >>> [PASS] B2 auth:false WS WITH token -> connects, authCalls delta MUST be 0 :: connected, recv="hello" | authCalls +0
+
+---- Phase 2: AuthenticateApiRequest returns NotFound/DeniedImplicit ----
+   [AUTH #3] GET /ws-auth  Authorization=Bearer test  decision=NotFound/DeniedImplicit
+   [CLIENT] D1 auth:true + Bearer, auth DENIED -> connect FAILED: System.Net.WebSockets.WebSocketException: The server returned status code '401' when status code '101' was expected. | WebSocketErrorCode=NotAWebSocket
+   >>> [PASS] D1 auth:true WS with DENIED authenticator -> handshake rejected :: connect FAILED: System.Net.WebSockets.WebSocketException: The server returned status code '401' when status code '101' was expected. | WebSocketErrorCode=NotAWebSocket | authCalls +1
+   [WS] handler START path=/ws-open session=5488c334-801d-4b36-a8a8-195eacba8d83 Authorization=<none>
+   [CLIENT] D2 auth:false, auth DENIED -> connected, recv="hello"
+   [WS] handler END session=5488c334-801d-4b36-a8a8-195eacba8d83
+   >>> [PASS] D2 auth:false WS still connects while authenticator DENIES (default is unsafe) :: connected, recv="hello" | authCalls +0
+   [AUTH #4] GET /ws-auth  Authorization=<none>  decision=NotFound/DeniedImplicit
+   [NOTE] denied handshake raw response: status=401 authCalls +1 body="{"Error":"NotAuthorized","StatusCode":401,"Description":"Authentication is required or has failed."}"
+   [WS] handler START path=/ws-auth session=ab82fdda-384c-477f-9e59-2266f5781eba Authorization=<none>
+   [WS] handler END session=ab82fdda-384c-477f-9e59-2266f5781eba
+   [CLIENT] auth:true, AuthenticateApiRequest = null -> connected, recv="hello"
+   [NOTE] auth:true with AuthenticateApiRequest=null -> connected, recv="hello"
+
+---- Phase 3: embedded byte array over HTTP ----
+   [HTTP] raw /asset handler
+   [CLIENT] GET /asset -> status=200 len=1024 contentType=application/octet-stream head="VM-ASSET-BEGINov}???" exactMatch=True
+   >>> [PASS] E1 GET /asset returns embedded bytes verbatim :: status=200 len=1024 ct=application/octet-stream head="VM-ASSET-BEGINov}???" | authCalls +0
+   [HTTP] api /asset-api handler
+   [CLIENT] GET /asset-api -> status=200 len=1370 contentType=application/octet-stream rawMatch=False head=""Vk0tQVNTRVQtQkVHSU5vdn2Ei5KZoKeutbzDytHY3+bt9PsCCRAXHiUsMzp"
+   >>> [PASS] E2 ApiRequest route serializes byte[] to JSON/base64 (NOT raw) -> raw serving must use Static route :: status=200 len=1370 rawMatch=False head=""Vk0tQVNTRVQtQkVHSU5vdn2Ei5KZoKeutbzDytHY3+bt9PsCCRAXHiUsMzp" | authCalls +0
+   [AUTH #5] GET /asset-auth  Authorization=<none>  decision=NotFound/DeniedImplicit
+   [NOTE] GET /asset-auth (PostAuthentication.Static) with DENY -> status=401 len=100 authCalls +1
+   [AUTH #6] GET /asset-auth  Authorization=<none>  decision=Success/Permitted
+   [HTTP] raw /asset handler
+   [NOTE] GET /asset-auth with ALLOW -> status=200 len=1024 exactMatch=True authCalls +1
+
+---- Phase 4: 4 threads x 250 SendTextAsync on one session ----
+   [WS] burst handler START session=f14cd02e-88dd-4794-b7f1-b96c06cae119
+   [WS] WebSocketSession private fields: Guid <Id>k__BackingField, WebSocketRequestDescriptor <Request>k__BackingField, Object <Metadata>k__BackingField, WebSocketSessionStatistics <Statistics>k__BackingField, Action`1 SessionClosed, WebSocket _Socket, Int32 _ReceiveBufferSize, Int32 _MaxMessageSize, Int32 _CloseHandshakeTimeoutMs, SemaphoreSlim _SendLock, CancellationTokenSource _Lifetime, Int32 _ReceiveState, Int32 _Disposed, Int32 _CloseStateSet, Nullable`1 _CloseStatus, String _CloseStatusDescription, WebSocketState _TrackedState, Boolean _HasTrackedState
+   [WS] burst handler sends done errors=0 in 16 ms
+   [WS] burst handler END session=f14cd02e-88dd-4794-b7f1-b96c06cae119
+   [SERVER] burst errors=0 elapsed=16 ms
+   [CLIENT] burst -> clientReceived=1000/1000 serverSendErrors=0 elapsed=16ms clientError=""
+   >>> [PASS] F concurrent SendTextAsync on one session is safe (4 threads x 250 msgs, all 1000 delivered, no server exception) :: serverSendErrors=0 clientReceived=1000/1000 elapsed=16ms | see [SERVER] lines above for exception text
+
+================ SUMMARY ================
+[PASS] A1 auth:true WS WITH token -> connects, receives hello :: connected, recv="hello" | authCalls +1
+[PASS] A2 auth:true WS WITHOUT token -> connects (authenticator says Success) :: connected, recv="hello" | authCalls +1
+[PASS] B1 auth:false WS WITHOUT token -> connects, authCalls delta MUST be 0 :: connected, recv="hello" | authCalls +0
+[PASS] B2 auth:false WS WITH token -> connects, authCalls delta MUST be 0 :: connected, recv="hello" | authCalls +0
+[PASS] D1 auth:true WS with DENIED authenticator -> handshake rejected :: connect FAILED: System.Net.WebSockets.WebSocketException: The server returned status code '401' when status code '101' was expected. | WebSocketErrorCode=NotAWebSocket | authCalls +1
+[PASS] D2 auth:false WS still connects while authenticator DENIES (default is unsafe) :: connected, recv="hello" | authCalls +0
+[PASS] E1 GET /asset returns embedded bytes verbatim :: status=200 len=1024 ct=application/octet-stream head="VM-ASSET-BEGINov}???" | authCalls +0
+[PASS] E2 ApiRequest route serializes byte[] to JSON/base64 (NOT raw) -> raw serving must use Static route :: status=200 len=1370 rawMatch=False head=""Vk0tQVNTRVQtQkVHSU5vdn2Ei5KZoKeutbzDytHY3+bt9PsCCRAXHiUsMzp" | authCalls +0
+[PASS] F concurrent SendTextAsync on one session is safe (4 threads x 250 msgs, all 1000 delivered, no server exception) :: serverSendErrors=0 clientReceived=1000/1000 elapsed=16ms | see [SERVER] lines above for exception text
+
+RESULT: 9 PASS / 0 FAIL   (authCalls total = 6)

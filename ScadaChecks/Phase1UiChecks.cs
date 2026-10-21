@@ -509,11 +509,15 @@ namespace ScadaChecks
 
         private static void Host(FrameworkElement element, double width, double height)
         {
+            // 先套模板再量：模板里的 DataTrigger 会改 Grid.Column/ColumnSpan，
+            // 反过来的话量到的是改之前的列布局（SelectorSwitch 的 2 档等宽断言踩过）。
+            element.ApplyTemplate();
+
             var host = new Border { Width = width, Height = height, Child = element };
             host.Measure(new Size(width, height));
             host.Arrange(new Rect(0, 0, width, height));
             host.UpdateLayout();
-            element.ApplyTemplate();
+            element.UpdateLayout();
 
             // 把控件从临时宿主摘下来：后面还要把它放进证据图的 Canvas，
             // 一个 FrameworkElement 不能同时有两个逻辑父级。

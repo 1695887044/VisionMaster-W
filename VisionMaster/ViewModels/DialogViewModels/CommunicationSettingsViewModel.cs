@@ -231,6 +231,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if (string.IsNullOrEmpty(query)) return true;
             return config.ConnectionName.Contains(query, StringComparison.OrdinalIgnoreCase)
                 || (config.Config.ToString()?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false)
+                || config.ProtocolText.Contains(query, StringComparison.OrdinalIgnoreCase)
                 || config.Protocol.ToString().Contains(query, StringComparison.OrdinalIgnoreCase);
         }
 

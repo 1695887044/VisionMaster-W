@@ -54,6 +54,9 @@ namespace VisionMaster.Scada
 
         private bool _disposed;
 
+        /// <summary>最外层是否已被要求放弃本次记录（批量插入失败回滚用）</summary>
+        private bool _aborted;
+
         public string Label { get; }
 
         private ScadaChangeScope(string label, ScadaChangeScope? parent)
@@ -79,6 +82,29 @@ namespace VisionMaster.Scada
             _current = scope;
             ScadaWriteGuard.EnterScope();
             return scope;
+        }
+
+        /// <summary>
+        /// 放弃当前最外层作用域已记录的全部变更，并让它在 Dispose 时不压入撤销栈。
+        ///
+        /// <b>只用于"一次操作要么全成、要么全不成"的批量动作</b>：调用方必须先把已经
+        /// 落进模型的副作用自己撤掉（例如逆序删除批量插入出来的图元），再调本方法；
+        /// 本方法只清账本，不会替调用方回滚模型。
+        ///
+        /// 为什么不在内层调用就只清内层：嵌套作用域共享同一个 <c>_sink</c>（见类注释），
+        /// 内层根本没有独立账本可清；所以这里一路上溯到最外层，语义是"整次操作作废"。
+        /// </summary>
+        public static void AbortCurrent()
+        {
+            var root = _current;
+            if (root == null)
+                return;
+
+            while (root._parent != null)
+                root = root._parent;
+
+            root._sink.Clear();
+            root._aborted = true;
         }
 
         /// <summary>
@@ -127,6 +153,11 @@ namespace VisionMaster.Scada
 
             // 内层作用域：只退栈，不产记录（改动已经在共享的 _sink 里，留给最外层收口）
             if (_parent != null)
+                return;
+
+            // 被 AbortCurrent 作废的批量操作：模型副作用已由调用方回滚，账本也清空了，
+            // 不许再压一条"什么都没发生"的记录（否则用户要按一次 Ctrl+Z 才回到原位）。
+            if (_aborted)
                 return;
 
             // 空作用域不产记录：对齐"同值不刷 Version"的既有口径——

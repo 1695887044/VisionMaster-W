@@ -18,7 +18,27 @@ namespace VisionMaster.Services
     /// <param name="Name">显示名</param>
     /// <param name="ItemCount">模板里有几个图元</param>
     /// <param name="CreatedUtc">保存时刻（UTC）</param>
-    public sealed record ScadaTemplateInfo(Guid TemplateId, string Name, int ItemCount, DateTime CreatedUtc);
+    public sealed record ScadaTemplateInfo(
+        Guid TemplateId,
+        string Name,
+        int ItemCount,
+        DateTime CreatedUtc,
+        int ParameterIndex = 0,
+        int Revision = 0);
+
+    /// <summary>模板被"用当前选中更新"后广播：关联实例刷新器按 Id 找实例。</summary>
+    public sealed class ScadaTemplateUpdatedEventArgs : EventArgs
+    {
+        public ScadaTemplateUpdatedEventArgs(Guid templateId, int revision)
+        {
+            TemplateId = templateId;
+            Revision = revision;
+        }
+
+        public Guid TemplateId { get; }
+
+        public int Revision { get; }
+    }
 
     /// <summary>
     /// "我的模板"存储：<b>本机模板库的唯一一份数据</b>。
@@ -66,8 +86,14 @@ namespace VisionMaster.Services
         /// <summary>模板文件名（与 <c>ScadaUsers.json</c> 同级：程序目录）</summary>
         public const string DefaultFileName = "ScadaTemplates.json";
 
-        /// <summary>文件结构版本。改动 <c>ScadaTemplateRecord</c> / 文件头形状时 +1</summary>
-        public const int CurrentVersion = 1;
+        /// <summary>
+        /// 文件结构版本。改动 <c>ScadaTemplateRecord</c> / 文件头形状时 +1。
+        ///
+        /// 2（2026-10-21 模板参数化）：负载格式升到 v5（绑定/动画/动作带数组下标）。
+        /// 旧版本软件读到 v2 文件会按 <see cref="IsReadOnly"/> 只读，避免它把 v5 模板
+        /// 当成"不可用记录"跳过、再存一次就整批抹掉。
+        /// </summary>
+        public const int CurrentVersion = 2;
 
         /// <summary>模板名长度上限（与账号名同口径：够长到能写清用途，短到不会撑破工具箱那一列）</summary>
         public const int MaxNameLength = 32;
@@ -138,11 +164,19 @@ namespace VisionMaster.Services
         /// </summary>
         public event EventHandler? Changed;
 
+        /// <summary>
+        /// 模板<b>定义</b>被更新（用当前选中覆盖了某条模板的负载）。
+        /// 与 <see cref="Changed"/> 分开：工具箱只需重读清单，关联实例刷新器需要知道"是哪一条"。
+        /// </summary>
+        public event EventHandler<ScadaTemplateUpdatedEventArgs>? TemplateUpdated;
+
         /// <summary>模板清单（脱敏视图，按名字排序，工具箱直接绑）</summary>
         public IReadOnlyList<ScadaTemplateInfo> Templates
             => _templates
                 .OrderBy(t => t.Name, NameComparer)
-                .Select(t => new ScadaTemplateInfo(t.TemplateId, t.Name, t.Payload?.Items.Count ?? 0, t.CreatedUtc))
+                .Select(t => new ScadaTemplateInfo(
+                    t.TemplateId, t.Name, t.Payload?.Items.Count ?? 0, t.CreatedUtc,
+                    t.ParameterIndex, t.Revision))
                 .ToArray();
 
         /// <summary>
@@ -155,6 +189,12 @@ namespace VisionMaster.Services
         public ScadaClipboardPayload? GetPayload(Guid templateId) => Find(templateId)?.Payload;
 
         /// <summary>
+        /// 取模板保存时选定的参数化下标（单实例拖入 / 批量对话框的默认起始序号）。
+        /// 旧模板没有这个字段，默认 0。
+        /// </summary>
+        public int GetParameterIndex(Guid templateId) => Find(templateId)?.ParameterIndex ?? 0;
+
+        /// <summary>
         /// 存一个新模板（图元右键「存为模板」走这里）。重名自动避让成 <c>名字_2</c>。
         /// </summary>
         /// <param name="name">用户输入的名字（首尾空格会被去掉）</param>
@@ -162,6 +202,14 @@ namespace VisionMaster.Services
         /// <param name="saved">成功时给出落库后的那一行（名字可能与输入不同，见重名口径）</param>
         /// <param name="error">失败原因（直接可展示给用户的中文文案）</param>
         public bool TrySave(string? name, ScadaClipboardPayload? payload,
+                            out ScadaTemplateInfo? saved, out string? error)
+            => TrySave(name, payload, 0, out saved, out error);
+
+        /// <summary>
+        /// 存模板（含参数化下标）。<paramref name="parameterIndex"/> 是"存模板时选的那个序号"，
+        /// 批量对话框与单实例拖入拿它当默认起始序号；0 是历史行为。
+        /// </summary>
+        public bool TrySave(string? name, ScadaClipboardPayload? payload, int parameterIndex,
                             out ScadaTemplateInfo? saved, out string? error)
         {
             saved = null;
@@ -176,6 +224,12 @@ namespace VisionMaster.Services
                 return false;
             }
 
+            if (parameterIndex < 0)
+            {
+                error = "参数化下标不能为负数";
+                return false;
+            }
+
             if (!CheckWritable(out error)) return false;
 
             clean = MakeUniqueName(clean);
@@ -185,6 +239,8 @@ namespace VisionMaster.Services
                 TemplateId = Guid.NewGuid(),
                 Name = clean,
                 CreatedUtc = DateTime.UtcNow,
+                ParameterIndex = parameterIndex,
+                Revision = 1,
                 Payload = payload,
             };
 
@@ -193,11 +249,61 @@ namespace VisionMaster.Services
             // 写盘失败时 Persist 已经把内存态退回磁盘上的样子（见其注释），这里不必再摘记录
             if (!Persist(out error)) return false;
 
-            saved = new ScadaTemplateInfo(record.TemplateId, record.Name, record.Payload.Items.Count, record.CreatedUtc);
+            saved = new ScadaTemplateInfo(
+                record.TemplateId, record.Name, record.Payload.Items.Count, record.CreatedUtc,
+                record.ParameterIndex, record.Revision);
 
             RaiseChanged();
             return true;
         }
+
+        /// <summary>
+        /// 用当前选中覆盖已有模板的定义（关联模板的"改模板"入口）。
+        /// 名字与 Id 不变，Revision +1；随后广播 <see cref="TemplateUpdated"/>，
+        /// 由编辑器把画面上的关联实例整块刷新。
+        /// </summary>
+        public bool TryUpdate(Guid templateId, ScadaClipboardPayload? payload, int parameterIndex,
+                              out int revision, out string? error)
+        {
+            revision = 0;
+
+            var record = Find(templateId);
+
+            if (record == null)
+            {
+                error = "模板不存在，可能已被删除";
+                return false;
+            }
+
+            if (payload == null || payload.IsEmpty)
+            {
+                error = "没有可保存的图元";
+                return false;
+            }
+
+            if (parameterIndex < 0)
+            {
+                error = "参数化下标不能为负数";
+                return false;
+            }
+
+            if (!CheckWritable(out error)) return false;
+
+            record.Payload = payload;
+            record.ParameterIndex = parameterIndex;
+            record.Revision++;
+
+            if (!Persist(out error)) return false;
+
+            revision = record.Revision;
+
+            RaiseChanged();
+            TemplateUpdated?.Invoke(this, new ScadaTemplateUpdatedEventArgs(templateId, revision));
+            return true;
+        }
+
+        /// <summary>取模板当前 Revision（旧文件缺字段按 0）。</summary>
+        public int GetRevision(Guid templateId) => Find(templateId)?.Revision ?? 0;
 
         /// <summary>重命名模板。重名<b>拒绝</b>而不是避让（理由见类注释）。</summary>
         public bool TryRename(Guid templateId, string? newName, out string? error)
@@ -448,6 +554,12 @@ namespace VisionMaster.Services
             public string Name { get; set; } = string.Empty;
 
             public DateTime CreatedUtc { get; set; }
+
+            /// <summary>保存时选定的参数化下标（旧模板缺字段默认 0）</summary>
+            public int ParameterIndex { get; set; }
+
+            /// <summary>定义版本：每次"用当前选中更新模板" +1；旧文件缺字段按 0。</summary>
+            public int Revision { get; set; }
 
             public ScadaClipboardPayload? Payload { get; set; }
         }

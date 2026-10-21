@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows;
@@ -250,8 +251,11 @@ namespace ScadaChecks
                 && opt3?.Visibility != Visibility.Visible,
                 $"count={selector.EffectiveOptionCount} vis={opt2?.Visibility}/{opt3?.Visibility}");
             Check("SelectorSwitch：2 档等分整宽（12 列网格，不是只占左半边）",
-                Math.Abs((opt0?.ActualWidth ?? 0) - (opt1?.ActualWidth ?? 0)) < 1
-                && (opt0?.ActualWidth ?? 0) > selector.ActualWidth * 0.45,
+                // 文字的最小期望宽会让跨列 Grid 的星号列有几像素偏差（手动/自动字形宽度不同）；
+                // 8px 以内仍算等分，关键是两档都接近半宽、不是只占左半边。
+                Math.Abs((opt0?.ActualWidth ?? 0) - (opt1?.ActualWidth ?? 0)) < 8
+                && (opt0?.ActualWidth ?? 0) > selector.ActualWidth * 0.45
+                && (opt1?.ActualWidth ?? 0) > selector.ActualWidth * 0.45,
                 $"opt0={opt0?.ActualWidth:0.#} opt1={opt1?.ActualWidth:0.#} control={selector.ActualWidth:0.#}");
 
             selector.OptionCount = 4;
@@ -414,6 +418,74 @@ namespace ScadaChecks
                 !combo.IsEditable && partCombo?.IsEnabled == false,
                 $"editable={combo.IsEditable} enabled={partCombo?.IsEnabled}");
 
+            // P0-2：Presentation=Text 只读字段（同一模板两段可见性，不换模板）
+            var presDesc = ElementRegistry.FindProperty("Hmi.ComboBox", "Presentation");
+            comboModel.SetProperty("Presentation", "Text");
+            comboModel.SetProperty("Value", "7");
+            var presBag = comboModel.GetProperty("Presentation");
+            comboModel.SetProperty("Text", "设备状态");
+            combo.Refresh();
+            PumpDispatcher(30);
+            Check("ComboBox：Presentation 属性已注册、模型袋与控件 DP 同步（生成器/描述符/刷新三处都通）",
+                presDesc != null && presBag == "Text" && combo.Presentation == "Text",
+                $"desc={(presDesc == null ? "null" : presDesc.Key)} bag={presBag} control={combo.Presentation}");
+
+            var textFrame = combo.Template?.FindName("PART_TextFrame", combo) as Border;
+            var textLabel = combo.Template?.FindName("PART_TextLabel", combo) as TextBlock;
+            var textValue = combo.Template?.FindName("PART_TextValue", combo) as TextBlock;
+
+            Check("ComboBox：Presentation=Text → 下拉框收起、只读字段露面（同一模板，不换模板）",
+                partCombo?.Visibility == Visibility.Collapsed
+                && textFrame?.Visibility == Visibility.Visible,
+                $"combo={partCombo?.Visibility} frame={textFrame?.Visibility}");
+            Check("ComboBox：Text 呈现的标签来自基类 Text、值来自 SelectedText（未知值仍是 #7）",
+                textLabel?.Text == "设备状态" && textValue?.Text == "#7",
+                $"label={textLabel?.Text} value={textValue?.Text}");
+            Check("ComboBox：Text 呈现的标签/值字号 = 14、值左对齐（基类默认 Center 被覆盖为 Left）",
+                textLabel?.FontSize == 14 && textValue?.FontSize == 14
+                && textValue?.TextAlignment == TextAlignment.Left,
+                $"labelFs={textLabel?.FontSize} valueFs={textValue?.FontSize} align={textValue?.TextAlignment}");
+
+            Check("ComboBox：Text 呈现的底边线 = 1px #7A7A7A（与 IOField 只读态同色）",
+                textFrame?.BorderThickness == new Thickness(0, 0, 0, 1)
+                && textFrame?.BorderBrush is SolidColorBrush tb
+                && tb.Color == Color.FromRgb(0x7A, 0x7A, 0x7A),
+                $"border={textFrame?.BorderThickness} brush={textFrame?.BorderBrush}");
+
+            comboModel.SetProperty("TextAlignment", "Right");
+            combo.Refresh();
+            PumpDispatcher(30);
+            Check("ComboBox：Text 呈现的 TextAlignment 生效（Right → 值右对齐）",
+                textValue?.TextAlignment == TextAlignment.Right,
+                textValue?.TextAlignment.ToString() ?? "null");
+
+            comboModel.SetProperty("Text", "");
+            combo.Refresh();
+            PumpDispatcher(30);
+            Check("ComboBox：标签留空 → PART_TextLabel 收起（值独占整行）",
+                textLabel?.Visibility == Visibility.Collapsed,
+                textLabel?.Visibility.ToString() ?? "null");
+
+            comboModel.SetProperty("ShowSeparator", "False");
+            combo.Refresh();
+            PumpDispatcher(30);
+            Check("ComboBox：ShowSeparator=false → 底边线收起、Padding 归零（纯文本档）",
+                textFrame?.BorderThickness == new Thickness(0)
+                && textFrame?.Padding == new Thickness(0),
+                $"border={textFrame?.BorderThickness} padding={textFrame?.Padding}");
+
+            Check("ComboBox：Text 呈现即使有绑定也保持只读（PART_Combo 禁用）",
+                !combo.IsEditable && partCombo?.IsEnabled == false,
+                $"editable={combo.IsEditable} enabled={partCombo?.IsEnabled}");
+
+            // 还原到 Field：后面的“有写通道 + 绑定 → 可写”断言依赖它
+            comboModel.SetProperty("Presentation", "Field");
+            comboModel.SetProperty("ShowSeparator", "True");
+            comboModel.SetProperty("Text", "设备状态");
+            comboModel.SetProperty("TextAlignment", "Left");
+            combo.Refresh();
+            PumpDispatcher(30);
+
             var comboBeat = new ScadaBeatSource(System.Windows.Threading.Dispatcher.CurrentDispatcher, TimeSpan.FromMilliseconds(20));
             combo.RuntimeContext = new ScadaRuntimeContext(
                 new ScadaAlarmEngine(new ScadaDocument(), new FakeValueSource(), () => DateTime.UtcNow),
@@ -424,6 +496,73 @@ namespace ScadaChecks
             Check("ComboBox：有写通道 + 绑定 → IsEditable=true、PART_Combo 启用",
                 combo.IsEditable && partCombo?.IsEnabled == true,
                 $"editable={combo.IsEditable} enabled={partCombo?.IsEnabled}");
+
+            // P0-3：运行窗口顶栏页面菜单（静态接线；运行态切页/页栈语义由 ScadaRuntime 的 [W] 段覆盖）
+            var runtimeWindowXamlPath = Path.Combine(repoRoot, "VisionMaster", "Views", "ScadaRuntimeWindow.xaml");
+            var runtimeWindowCodePath = Path.Combine(repoRoot, "VisionMaster", "Views", "ScadaRuntimeWindow.xaml.cs");
+            var runtimeWindowXaml = File.Exists(runtimeWindowXamlPath) ? File.ReadAllText(runtimeWindowXamlPath) : string.Empty;
+            var runtimeWindowCode = File.Exists(runtimeWindowCodePath) ? File.ReadAllText(runtimeWindowCodePath) : string.Empty;
+
+            Check("P0-3 顶栏页面菜单：PageMenuButton/返回按钮接线齐全，页面清单走 IsNavigable + CanAccess，切页走 Navigate/GoBack，菜单关闭时收掉",
+                runtimeWindowXaml.Contains("x:Name=\"PageMenuButton\"", StringComparison.Ordinal)
+                && runtimeWindowXaml.Contains("Click=\"OnPageMenuClick\"", StringComparison.Ordinal)
+                && runtimeWindowXaml.Contains("x:Name=\"PageBackButton\"", StringComparison.Ordinal)
+                && runtimeWindowXaml.Contains("Click=\"OnPageBackClick\"", StringComparison.Ordinal)
+                && runtimeWindowXaml.Contains("IsEnabled=\"{Binding CanGoBack}\"", StringComparison.Ordinal)
+                && runtimeWindowXaml.Contains("x:Key=\"PageMenuItemStyle\"", StringComparison.Ordinal)
+                && runtimeWindowCode.Contains("runtime.Document.IsNavigable", StringComparison.Ordinal)
+                && runtimeWindowCode.Contains("runtime.CanAccess(p, out _)", StringComparison.Ordinal)
+                && runtimeWindowCode.Contains("runtime.Navigate(page)", StringComparison.Ordinal)
+                && runtimeWindowCode.Contains("runtime.GoBack()", StringComparison.Ordinal)
+                && runtimeWindowCode.Contains("Header = new TextBlock", StringComparison.Ordinal)
+                && runtimeWindowCode.Contains("_pageMenu.IsOpen = false", StringComparison.Ordinal),
+                $"xaml={runtimeWindowXaml.Length} code={runtimeWindowCode.Length}");
+
+            // P0-3 真窗口：菜单项点击 / 返回按钮绑定（不是静态字符串烟测）
+            var menuDoc = new ScadaDocument();
+            var menuHome = menuDoc.AddPage("01_总览");
+            var menuDetail = menuDoc.AddPage("02_实时监控");
+            menuDoc.SetStartupPage(menuHome);
+            var menuRuntime = new ScadaRuntime(menuDoc);
+            menuRuntime.Start();
+
+            var runtimeWindow = new VisionMaster.Views.ScadaRuntimeWindow(menuRuntime);
+            var menuButton = runtimeWindow.FindName("PageMenuButton") as Button;
+            var backButton = runtimeWindow.FindName("PageBackButton") as Button;
+            var openMenu = typeof(VisionMaster.Views.ScadaRuntimeWindow).GetMethod(
+                "OnPageMenuClick", BindingFlags.Instance | BindingFlags.NonPublic);
+            openMenu!.Invoke(runtimeWindow, new object?[] { menuButton, new RoutedEventArgs() });
+
+            var pageMenu = typeof(VisionMaster.Views.ScadaRuntimeWindow).GetField(
+                "_pageMenu", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(runtimeWindow) as ContextMenu;
+
+            var menuItems = pageMenu?.Items.OfType<MenuItem>().ToList() ?? new List<MenuItem>();
+            Check("P0-3 真窗口：页面菜单列出两张普通页、当前页打勾、下划线原样保留",
+                menuItems.Count == 2
+                && menuItems[0].Header is TextBlock { Text: "01_总览" }
+                && menuItems[0].IsChecked
+                && menuItems[1].Header is TextBlock { Text: "02_实时监控" }
+                && !menuItems[1].IsChecked,
+                $"items={menuItems.Count} headers={string.Join("/", menuItems.Select(i => (i.Header as TextBlock)?.Text ?? "?"))}");
+
+            menuItems[1].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            PumpDispatcher(30);
+            Check("P0-3 真窗口：点菜单项切到目标页、页栈压一层、返回按钮从置灰变可点",
+                ReferenceEquals(menuRuntime.CurrentPage, menuDetail)
+                && menuRuntime.PageStackDepth == 1
+                && backButton?.IsEnabled == true,
+                $"{menuRuntime.CurrentPage?.Name ?? "null"} / 栈 {menuRuntime.PageStackDepth} / back={backButton?.IsEnabled}");
+
+            backButton?.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            PumpDispatcher(30);
+            Check("P0-3 真窗口：点返回回到上一页、栈清空、返回按钮重新置灰",
+                ReferenceEquals(menuRuntime.CurrentPage, menuHome)
+                && menuRuntime.PageStackDepth == 0
+                && backButton?.IsEnabled == false,
+                $"{menuRuntime.CurrentPage?.Name ?? "null"} / 栈 {menuRuntime.PageStackDepth} / back={backButton?.IsEnabled}");
+
+            if (pageMenu != null)
+                pageMenu.IsOpen = false;
 
             // ---------------- ⑥ AckButton：禁用 / 计数 chip / 消息 ----------------
             var ack = new AckButtonElement

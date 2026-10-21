@@ -278,7 +278,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if (row == null)
                 return;
 
-            _picker.Pick(row.Model.VariableId, row.VariableName, (id, name) =>
+            _picker.Pick(row.Model.VariableId, row.VariableName, row.Model.ArrayIndex,
+                (id, name, arrayIndex) =>
             {
                 var document = Document;
                 if (document == null)
@@ -287,15 +288,17 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     return;
                 }
 
-                // Bind 是两次属性写（Id + 名字），必须包作用域，否则撤销只回退一半
-                using (document.BeginEdit($"报警 [{row.Name}] 选择变量 [{name}]"))
+                string label = new ScadaVariableRef(id, name, arrayIndex).DisplayText;
+
+                // Bind 是三次属性写（Id + 名字 + 下标），必须包作用域，否则撤销只回退一半
+                using (document.BeginEdit($"报警 [{row.Name}] 选择变量 [{label}]"))
                 {
-                    row.Model.Bind(id, name);
+                    row.Model.Bind(id, name, arrayIndex);
                 }
 
                 row.NotifyVariableChanged();
                 ReportError(null);
-                Audit(AuditActionBind, true, $"报警 [{row.Name}] 监视变量 → {name}", null, row.Name);
+                Audit(AuditActionBind, true, $"报警 [{row.Name}] 监视变量 → {label}", null, row.Name);
             });
         }
 
@@ -564,7 +567,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>变量列的显示文本（没绑定时的兜底提示）</summary>
         public string VariableDisplay
-            => string.IsNullOrWhiteSpace(_model.VariableName) ? "未选变量" : _model.VariableName!;
+            => string.IsNullOrWhiteSpace(_model.VariableName) ? "未选变量" : _model.ToReference().DisplayText;
 
         /// <summary>有没有绑定监视变量（变量列的空值样式靠它切换）</summary>
         public bool HasVariable => !string.IsNullOrWhiteSpace(_model.VariableName);

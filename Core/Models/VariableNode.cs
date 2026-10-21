@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -91,6 +91,44 @@ namespace VisionMaster.Models
         /// 是否显示「扫描组」列内容（仅网络变量的根节点；数组子节点不显示）
         /// </summary>
         public bool ShowScanGroup => IsRootNode && IsNetwork;
+
+        // ==================================================================
+        //  显示分组（方案级分类；只做归类与筛选，不参与采集/轮询/写入）
+        // ==================================================================
+
+        /// <summary>显示分组 Id（与网络变量模型的 GroupId 同步；Guid.Empty = 未分组）</summary>
+        public Guid GroupId { get; set; }
+
+        /// <summary>
+        /// 该变量可选的分组（「未分组」恒在首位）。本地/系统变量为空集合 → 列上不渲染下拉框。
+        /// </summary>
+        public ObservableCollection<VariableGroupOption> GroupOptions { get; } = new();
+
+        private VariableGroupOption? _selectedGroup;
+
+        /// <summary>
+        /// 当前选中的显示分组。setter 触发 <see cref="GroupChanged"/>，由 VM 回写模型并刷新计数。
+        /// </summary>
+        public VariableGroupOption? SelectedGroup
+        {
+            get => _selectedGroup;
+            set
+            {
+                if (SetProperty(ref _selectedGroup, value))
+                    GroupChanged?.Invoke(this);
+            }
+        }
+
+        /// <summary>
+        /// 显示分组变更回调：由 VM 注入。节点在 Core 工程、不认识方案模型，
+        /// "回写模型 + 刷新来源计数"只能由上层做。
+        /// </summary>
+        public Action<VariableNode>? GroupChanged { get; set; }
+
+        /// <summary>
+        /// 是否显示「分组」列内容（仅网络变量的根节点；数组子节点不显示）
+        /// </summary>
+        public bool ShowGroup => IsRootNode && IsNetwork;
 
         /// <summary>
         /// 变量名称
@@ -191,6 +229,13 @@ namespace VisionMaster.Models
         public bool IsArrayRootNode => Level == 0 && DataType != null && DataType.IsArray;
 
         /// <summary>
+        /// 网络数组是否可整组写入：只读存储区（离散输入 / S7 输入映像 I）不给入口。
+        /// <para>元素行始终只读——整组写是唯一写语义，单元素写会与"固定跨度"的配置脱节。</para>
+        /// </summary>
+        public bool CanWriteNetworkArray =>
+            IsArrayRootNode && OriginalModel is NetworkVariableModel && !IsValueReadOnly;
+
+        /// <summary>
         /// "初始值"列的类型安全代理（A1）：
         /// 旧绑定直写 IVariable.DefaultValue(object)，任何字符串都被原样塞进模型——
         /// 给 int 变量填 "abc" 也"保存成功"，恢复初始值时污染值流入算子端口才爆炸。
@@ -245,6 +290,14 @@ namespace VisionMaster.Models
         /// <summary>是否处于单元格编辑态：为 true 时模型值推送暂停（防止轮询冲掉输入中的草稿）</summary>
         public bool IsEditingValue { get; private set; }
 
+        /// <summary>
+        /// 编辑结束（提交成功或 Esc 取消）后触发。
+        /// <para>为什么需要：编辑期间模型值推送会跳过"数组长度变化 → 重建子行"，
+        /// 若外部在编辑中换了数组长度、用户又按 Esc 取消，就没有任何模型事件能把那次重建补上。
+        /// VM 收到本事件后按 <c>ShouldRebuildArrayRows</c> 复查一次。</para>
+        /// </summary>
+        public event Action<VariableNode>? ValueEditCompleted;
+
         /// <summary>进入编辑态（由单元格行为在获得键盘焦点时调用；幂等）</summary>
         public void BeginEditValue()
         {
@@ -258,6 +311,7 @@ namespace VisionMaster.Models
             if (!IsEditingValue) return;
             IsEditingValue = false;
             RaisePropertyChanged(nameof(CurrentValueText));
+            ValueEditCompleted?.Invoke(this);
         }
 
         /// <summary>
@@ -289,13 +343,20 @@ namespace VisionMaster.Models
 
         /// <summary>
         /// 数组元素行的提交：就地写父数组【当前值】的第 <see cref="ElementIndex"/> 项，只动 Value、不碰 DefaultValue——
-        /// 基准随父行「强制覆盖集合...」整体维护（那里DefaultValue 与 Value 一起换）。元素级只写当前值。
+        /// 基准由父行的「编辑数组…」弹窗按需维护（勾选「同时写入初始值」才写）。
         /// 数组只有本地变量（网络侧创建时已过滤数组），无设备 I/O 语义，直接写内存数组。
+        /// <para>引用未变 → Value setter 的 SetProperty 短路 → 必须显式广播一次 ValueChanged，
+        /// 否则监视栏 / SCADA 绑定 / 触发服务都看不到这次修改（见 IValueChangeNotifier）。</para>
         /// </summary>
         private string? CommitChildElementEdit(IVariable model, string? text)
         {
+            // 网络数组的元素是设备轮询镜像，不是本地内存数组：在这里改只会改镜像，
+            // 下一拍就被设备值覆盖（"改了但没进设备"的典型假象）。只读，写入走后续版本的整组写。
+            if (model is NetworkVariableModel)
+                return "网络数组的元素由设备轮询提供，不能在此修改";
+
             if (model.Value is not Array current || ElementIndex >= current.Length)
-                return "当前值数组不可用（请用父行的「强制覆盖集合...」重建）";
+                return "当前值数组不可用（请用父行的「编辑数组…」重建）";
 
             if (!VariableValueConverter.TryConvert(text, DataType, out var converted, out var convertError))
                 return convertError;
@@ -304,7 +365,36 @@ namespace VisionMaster.Models
             ChildValue = converted;
             EndEditValue();
             RaisePropertyChanged(nameof(ChildValue));
+            RaisePropertyChanged(nameof(IsElementDeviated));
+            (model as IValueChangeNotifier)?.NotifyValueChanged();
             return null;
+        }
+
+        /// <summary>
+        /// 把本元素恢复为基准数组（DefaultValue）对应下标的值（元素行 ↺ 的模型路径）。
+        /// 只写当前值；基准比本元素短（例如流程写入了更长的数组）时无事可做，返回 false。
+        /// </summary>
+        public bool ResetElementValue()
+        {
+            var model = OriginalModel;
+            if (model == null || ElementIndex < 0) return false;
+            if (model is NetworkVariableModel) return false; // 网络数组只读，没有"元素级恢复基准"
+            if (model.DefaultValue is not Array baseline || ElementIndex >= baseline.Length) return false;
+            if (model.Value is not Array current || ElementIndex >= current.Length) return false;
+
+            // 提交失败会保持编辑态并标红；点 ↺ 时先把那次草稿放弃掉，
+            // 否则编辑态与红框会残留，后续值推送继续被暂停（2026-10-21 审查抓出）。
+            CancelEditValue();
+
+            object? restored = baseline.GetValue(ElementIndex);
+            current.SetValue(restored, ElementIndex);
+            ChildValue = restored;
+            RaisePropertyChanged(nameof(ChildValue));
+            RaisePropertyChanged(nameof(CurrentValueText));
+            RaisePropertyChanged(nameof(IsElementDeviated));
+            RaisePropertyChanged(nameof(IsValueDeviated));
+            (model as IValueChangeNotifier)?.NotifyValueChanged();
+            return true;
         }
 
         private void EndEditValue()
@@ -312,6 +402,8 @@ namespace VisionMaster.Models
             IsEditingValue = false;
             RaisePropertyChanged(nameof(CurrentValueText));
             RaisePropertyChanged(nameof(IsValueDeviated));
+            RaisePropertyChanged(nameof(IsElementDeviated));
+            ValueEditCompleted?.Invoke(this);
         }
 
         /// <summary>
@@ -323,6 +415,9 @@ namespace VisionMaster.Models
             if (!IsEditingValue)
                 RaisePropertyChanged(nameof(CurrentValueText));
             RaisePropertyChanged(nameof(IsValueDeviated));
+            RaisePropertyChanged(nameof(IsElementDeviated));
+            RaisePropertyChanged(nameof(ArraySummary));
+            RaisePropertyChanged(nameof(ArraySummaryTooltip));
 
             if (ElementIndex >= 0 && OriginalModel?.Value is Array current && ElementIndex < current.Length)
             {
@@ -352,15 +447,104 @@ namespace VisionMaster.Models
             }
         }
 
-        /// <summary>当前值是否偏离初始值：决定单元格内 ↺（回到基准）是否出现</summary>
+        /// <summary>
+        /// 当前值是否偏离初始值：决定单元格内 ↺（回到基准）是否出现。
+        /// 数组必须逐元素比较——数组是引用类型，<see cref="object.Equals(object,object)"/> 比的是引用：
+        /// 「编辑数组」弹窗写的是新数组实例，按引用比会让内容一致的两组也永远显示"已偏离"；
+        /// 反过来，新建数组时 DefaultValue 与 Value 曾是同一实例，按引用比又永远判"未偏离"。
+        /// </summary>
         public bool IsValueDeviated
         {
             get
             {
                 var model = OriginalModel;
                 if (model == null) return false;
+
+                if (model.Value is Array || model.DefaultValue is Array)
+                    return !ArrayContentEquals(model.Value as Array, model.DefaultValue as Array);
+
                 return !Equals(model.Value, model.DefaultValue);
             }
+        }
+
+        /// <summary>
+        /// 数组元素行是否偏离基准（该下标在基准与当前值里都存在、且值不同才为真）。
+        /// 基准比当前值短（典型：流程写入的条码数组，基准是 0 项）时不给 ↺——
+        /// 那种"恢复"会把元素清空，不是用户想要的动作；
+        /// 当前值比基准短（基准更长）时多出来的行同样不给 ↺：复位需要写当前值的该下标，
+        /// 写不进去的按钮就是"点了没反应"的死按钮（2026-10-21 审查抓出）。
+        /// </summary>
+        public bool IsElementDeviated
+        {
+            get
+            {
+                var model = OriginalModel;
+                if (model == null || ElementIndex < 0) return false;
+                if (model.Value is not Array current || ElementIndex >= current.Length) return false;
+                if (model.DefaultValue is not Array baseline || ElementIndex >= baseline.Length) return false;
+
+                return !Equals(current.GetValue(ElementIndex), baseline.GetValue(ElementIndex));
+            }
+        }
+
+        /// <summary>
+        /// 数组根行的当前值摘要（不展开也能看出这组值是什么）：
+        /// 前 2 项用 " · " 连接，超过 2 项补 " …"；空集合显示"空集合"，无值显示"（无值）"。
+        /// 数值一律不变文化格式化，与 <see cref="CurrentValueText"/> 同口径。
+        /// </summary>
+        public string ArraySummary
+        {
+            get
+            {
+                var model = OriginalModel;
+                if (model?.Value is not Array current) return "（无值）";
+
+                // 网络数组的配置长度是唯一真相源（导入可改大/改小）；旧值可能更长，
+                // 摘要与子行必须按配置长度显示，否则 5→3 时摘要/工具提示还列着 5 项。
+                int length = (model as NetworkVariableModel)?.AddressConfig?.Length ?? current.Length;
+                if (length == 0) return current.Length == 0 ? "空集合" : "（无值）";
+
+                var parts = new List<string>(Math.Min(2, length));
+                for (int i = 0; i < Math.Min(2, length); i++)
+                    parts.Add(i < current.Length
+                        ? Convert.ToString(current.GetValue(i), System.Globalization.CultureInfo.InvariantCulture) ?? ""
+                        : "—");
+
+                return string.Join(" · ", parts) + (length > 2 ? " …" : "");
+            }
+        }
+
+        /// <summary>摘要的完整版本（ToolTip 用）：全部元素一行</summary>
+        public string ArraySummaryTooltip
+        {
+            get
+            {
+                var model = OriginalModel;
+                if (model?.Value is not Array current) return "";
+                int length = (model as NetworkVariableModel)?.AddressConfig?.Length ?? current.Length;
+                if (length == 0) return current.Length == 0 ? "空集合" : "";
+
+                var parts = new string[length];
+                for (int i = 0; i < length; i++)
+                    parts[i] = i < current.Length
+                        ? Convert.ToString(current.GetValue(i), System.Globalization.CultureInfo.InvariantCulture) ?? ""
+                        : "—";
+                return string.Join(" · ", parts);
+            }
+        }
+
+        /// <summary>逐元素比较两个数组的内容（null 与空数组视为不同；长度不同直接判不同）</summary>
+        private static bool ArrayContentEquals(Array? left, Array? right)
+        {
+            if (ReferenceEquals(left, right)) return true;
+            if (left == null || right == null) return false;
+            if (left.Length != right.Length) return false;
+
+            for (int i = 0; i < left.Length; i++)
+            {
+                if (!Equals(left.GetValue(i), right.GetValue(i))) return false;
+            }
+            return true;
         }
 
         /// <summary>
@@ -387,51 +571,18 @@ namespace VisionMaster.Models
         /// 在这里靠 Name（"[3]"）反解字符串是把展示格式当数据用，改名格式就崩。
         /// </summary>
         public int ElementIndex { get; set; } = -1;
+    }
 
-        /// <summary>
-        /// 数组元素初始值的可编辑代理（A2）：让"初始值"列能在表格里直接改单个元素，
-        /// 不必为了改一个数字打开整个"编辑集合"弹窗。
-        ///
-        /// 写回路径与 DefaultValueText 同一套类型安全转换（合法才落地，非法抛异常给绑定引擎标红），
-        /// 区别只在落点是父数组的第 <see cref="ElementIndex"/> 项 —— 数组是引用类型，
-        /// SetValue 就地改的就是模型里那一份，不需要再给 Variable.DefaultValue 重新赋值。
-        ///
-        /// DefaultValue（初始值）与 Value（当前值）一起改：这与"编辑集合"弹窗
-        /// （它整体 gv.Value = newArray.Clone()）保持同一语义，免得出现
-        /// "表格里改了初始值、当前值还是旧的"这种两处不一致。
-        /// </summary>
-        public string ChildDefaultValueText
-        {
-            get => ChildDefaultValue?.ToString() ?? "";
-            set
-            {
-                var model = OriginalModel;
-                if (model == null || ElementIndex < 0 || DataType == null) return;
+    /// <summary>
+    /// 变量显示分组的候选项（ComboBox 用）：Id 是落库引用，Name 是显示文案。
+    /// 「未分组」是内置项（Id = Guid.Empty），不可改名/删除。
+    /// </summary>
+    public sealed class VariableGroupOption
+    {
+        public Guid Id { get; init; }
 
-                Type t = Nullable.GetUnderlyingType(DataType) ?? DataType;
+        public string Name { get; init; } = string.Empty;
 
-                object? converted;
-                if (string.IsNullOrWhiteSpace(value))
-                    converted = t.IsValueType ? Activator.CreateInstance(t) : null;
-                else
-                {
-                    try { converted = Convert.ChangeType(value, t); }
-                    catch (Exception ex)
-                    {
-                        throw new ArgumentException($"'{value}' 不是有效的 {t.Name} 值：{ex.Message}");
-                    }
-                }
-
-                if (model.DefaultValue is Array def && ElementIndex < def.Length)
-                    def.SetValue(converted, ElementIndex);
-                if (model.Value is Array cur && ElementIndex < cur.Length)
-                    cur.SetValue(converted, ElementIndex);
-
-                ChildDefaultValue = converted;
-                ChildValue = converted;
-                RaisePropertyChanged(nameof(ChildDefaultValue));
-                RaisePropertyChanged(nameof(ChildValue));
-            }
-        }
+        public override string ToString() => Name;
     }
 }

@@ -171,9 +171,21 @@ namespace Plugin.Comm
         {
             null => string.Empty,
             byte[] bytes => BitConverter.ToString(bytes).Replace('-', ' '),
+            Array array => FormatArray(array),
             bool b => b ? "True" : "False",
             _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty,
         };
+
+        /// <summary>数组展开成不变区域性文本；空数组返回 "[]"，避免日志里只剩一个类型名。</summary>
+        private static string FormatArray(Array array)
+        {
+            if (array.Length == 0) return "[]";
+
+            var parts = new string[array.Length];
+            for (int i = 0; i < array.Length; i++)
+                parts[i] = Convert.ToString(array.GetValue(i), CultureInfo.InvariantCulture) ?? string.Empty;
+            return string.Join(", ", parts);
+        }
 
         public override void Initialize() { }
         public override void Dispose() { }

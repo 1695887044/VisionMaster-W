@@ -49,10 +49,61 @@ namespace VisionMaster.Scada
             ActivatedAtUtc = activatedAtUtc;
             TriggerValue = triggerValue;
             _state = ScadaAlarmState.Active;
+            IsHistorical = false;
+        }
+
+        /// <summary>
+        /// 从方案目录里的历史快照恢复一条记录（P0：报警历史跟着方案走）。
+        /// 与运行态记录的差别只有 <see cref="IsHistorical"/>：历史行不许点“确认”——
+        /// 那一轮运行的引擎早就没了，按 AlarmId 找回去只会得到“找不到”。
+        /// </summary>
+        internal ScadaAlarmRecord(
+            Guid recordId,
+            Guid alarmId,
+            string name,
+            string message,
+            ScadaAlarmSeverity severity,
+            ScadaAlarmKind kind,
+            string? variableName,
+            string conditionText,
+            string? alarmGroup,
+            string? cause,
+            string? remedy,
+            string? extraInfo,
+            DateTime activatedAtUtc,
+            string? triggerValue,
+            ScadaAlarmState state,
+            DateTime? acknowledgedAtUtc,
+            DateTime? recoveredAtUtc,
+            DateTime? clearedAtUtc)
+        {
+            RecordId = recordId == Guid.Empty ? Guid.NewGuid() : recordId;
+            AlarmId = alarmId;
+            Name = name;
+            Message = message;
+            Severity = severity;
+            Kind = kind;
+            VariableName = variableName;
+            ConditionText = conditionText;
+            AlarmGroup = alarmGroup;
+            Cause = cause;
+            Remedy = remedy;
+            ExtraInfo = extraInfo;
+            ActivatedAtUtc = activatedAtUtc;
+            TriggerValue = triggerValue;
+            _state = state;
+            _acknowledgedAtUtc = acknowledgedAtUtc;
+            _recoveredAtUtc = recoveredAtUtc;
+            _clearedAtUtc = clearedAtUtc;
+            IsHistorical = true;
         }
 
         /// <summary>本条记录的身份（同一条报警定义可以产生很多条记录，实时列表按它认行）</summary>
         public Guid RecordId { get; }
+
+        /// <summary>是否从方案目录的历史快照恢复（历史行只读，不许点确认）</summary>
+        [JsonIgnore]
+        public bool IsHistorical { get; }
 
         /// <summary>来源定义的身份（点"确认"时按它找回去）</summary>
         public Guid AlarmId { get; }
@@ -220,5 +271,100 @@ namespace VisionMaster.Scada
                 return string.Join(Environment.NewLine, lines);
             }
         }
+    }
+
+    /// <summary>
+    /// 报警记录的可落盘快照（方案目录 <c>Alarms\AlarmHistory.json</c>）。
+    ///
+    /// 为什么不直接序列化 <see cref="ScadaAlarmRecord"/>：它的构造函数要一条
+    /// <see cref="ScadaAlarmDefinition"/>，而历史记录必须独立于“现在这条报警定义还在不在”
+    /// （定义改名/删除后，历史里那一条仍要按当时的快照显示）。快照把全部展示字段摊平，
+    /// 反序列化不需要回头查方案。
+    /// </summary>
+    public sealed class ScadaAlarmRecordSnapshot
+    {
+        public Guid RecordId { get; set; }
+
+        public Guid AlarmId { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public string Message { get; set; } = string.Empty;
+
+        public ScadaAlarmSeverity Severity { get; set; }
+
+        public ScadaAlarmKind Kind { get; set; }
+
+        public string? VariableName { get; set; }
+
+        public string ConditionText { get; set; } = string.Empty;
+
+        public string? AlarmGroup { get; set; }
+
+        public string? Cause { get; set; }
+
+        public string? Remedy { get; set; }
+
+        public string? ExtraInfo { get; set; }
+
+        public DateTime ActivatedAtUtc { get; set; }
+
+        public string? TriggerValue { get; set; }
+
+        public ScadaAlarmState State { get; set; }
+
+        public DateTime? AcknowledgedAtUtc { get; set; }
+
+        public DateTime? RecoveredAtUtc { get; set; }
+
+        public DateTime? ClearedAtUtc { get; set; }
+
+        public static ScadaAlarmRecordSnapshot FromRecord(ScadaAlarmRecord record)
+        {
+            if (record == null) throw new ArgumentNullException(nameof(record));
+
+            return new ScadaAlarmRecordSnapshot
+            {
+                RecordId = record.RecordId,
+                AlarmId = record.AlarmId,
+                Name = record.Name,
+                Message = record.Message,
+                Severity = record.Severity,
+                Kind = record.Kind,
+                VariableName = record.VariableName,
+                ConditionText = record.ConditionText,
+                AlarmGroup = record.AlarmGroup,
+                Cause = record.Cause,
+                Remedy = record.Remedy,
+                ExtraInfo = record.ExtraInfo,
+                ActivatedAtUtc = record.ActivatedAtUtc,
+                TriggerValue = record.TriggerValue,
+                State = record.State,
+                AcknowledgedAtUtc = record.AcknowledgedAtUtc,
+                RecoveredAtUtc = record.RecoveredAtUtc,
+                ClearedAtUtc = record.ClearedAtUtc,
+            };
+        }
+
+        public ScadaAlarmRecord ToRecord()
+            => new(
+                RecordId,
+                AlarmId,
+                Name ?? string.Empty,
+                Message ?? string.Empty,
+                Severity,
+                Kind,
+                VariableName,
+                ConditionText ?? string.Empty,
+                AlarmGroup,
+                Cause,
+                Remedy,
+                ExtraInfo,
+                ActivatedAtUtc,
+                TriggerValue,
+                State,
+                AcknowledgedAtUtc,
+                RecoveredAtUtc,
+                ClearedAtUtc);
     }
 }

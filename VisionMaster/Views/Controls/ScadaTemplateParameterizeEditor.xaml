@@ -1,0 +1,224 @@
+<UserControl
+    x:Class="VisionMaster.Views.Controls.ScadaTemplateParameterizeEditor"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Width="620"
+    MinHeight="470"
+    d:DesignHeight="520"
+    d:DesignWidth="620"
+    mc:Ignorable="d">
+
+    <!--
+        存模板时的参数化编辑器：
+        - 数组下标：把 Control[0] / 数组根+ArrayIndex 0 改成 Control[{i}]；
+        - 名称/变量名替换规则：图元名、绑定/动画/动作变量名，多行；
+        - 界面文字替换规则：属性文字、动作文本/值、确认消息，多行。
+        三类可以同时用；都留空 = 按原样保存。
+    -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="FieldLabel" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,0,10,0" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
+            </Style>
+
+            <Style x:Key="FieldBox" TargetType="TextBox">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="8,3" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
+
+            <Style x:Key="SectionTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12.5" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="4">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="130" />
+                <ColumnDefinition Width="90" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="数组下标（可空）" />
+            <TextBox Grid.Column="1" Style="{StaticResource FieldBox}" Text="{Binding IndexText, UpdateSourceTrigger=PropertyChanged}" />
+            <TextBlock
+                Grid.Column="2"
+                Margin="10,0,0,0"
+                VerticalAlignment="Center"
+                FontSize="11"
+                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                Text="填 0 = 把 Control[0] 改成 Control[{i}]；留空=不按数组下标参数化" />
+        </Grid>
+
+        <Grid Grid.Row="1" Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Style="{StaticResource SectionTitle}" Text="名称/变量名替换规则" />
+            <Button
+                Grid.Column="1"
+                Padding="8,3"
+                Command="{Binding AddNameRuleCommand}"
+                Content="+ 添加规则"
+                FontSize="11" />
+        </Grid>
+
+        <Border
+            Grid.Row="2"
+            MaxHeight="132"
+            Margin="0,0,0,10"
+            Padding="8,6"
+            Background="{StaticResource ScadaPanelBackgroundBrush}"
+            BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="4">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding NameRules}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox
+                                    Grid.Column="0"
+                                    Style="{StaticResource FieldBox}"
+                                    Text="{Binding Find, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="要查找的名称片段，例如 Cylinder1" />
+                                <TextBox
+                                    Grid.Column="2"
+                                    Style="{StaticResource FieldBox}"
+                                    Text="{Binding Replace, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="替换成什么，通常含 {i}，例如 Cylinder{i}" />
+                                <Button
+                                    Grid.Column="3"
+                                    Width="26"
+                                    Height="26"
+                                    Margin="6,0,0,0"
+                                    Padding="0"
+                                    Command="{Binding DataContext.RemoveNameRuleCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}"
+                                    Content="×"
+                                    FontSize="13"
+                                    ToolTip="删除这条规则" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <Grid Grid.Row="3" Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Style="{StaticResource SectionTitle}" Text="界面文字替换规则" />
+            <Button
+                Grid.Column="1"
+                Padding="8,3"
+                Command="{Binding AddTextRuleCommand}"
+                Content="+ 添加规则"
+                FontSize="11" />
+        </Grid>
+
+        <Border
+            Grid.Row="4"
+            MaxHeight="132"
+            Margin="0,0,0,10"
+            Padding="8,6"
+            Background="{StaticResource ScadaPanelBackgroundBrush}"
+            BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="4">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding TextRules}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox
+                                    Grid.Column="0"
+                                    Style="{StaticResource FieldBox}"
+                                    Text="{Binding Find, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="要查找的界面文字片段，例如 手动 1" />
+                                <TextBox
+                                    Grid.Column="2"
+                                    Style="{StaticResource FieldBox}"
+                                    Text="{Binding Replace, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="替换成什么，通常含 {i}，例如 手动 {i}" />
+                                <Button
+                                    Grid.Column="3"
+                                    Width="26"
+                                    Height="26"
+                                    Margin="6,0,0,0"
+                                    Padding="0"
+                                    Command="{Binding DataContext.RemoveTextRuleCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}"
+                                    Content="×"
+                                    FontSize="13"
+                                    ToolTip="删除这条规则" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <TextBlock
+            Grid.Row="5"
+            Margin="0,0,0,10"
+            FontSize="11"
+            Foreground="{StaticResource ScadaWarningBrush}"
+            Text="提示：查找串包含前缀时，替换串也要带前缀（Cylinder1 → Cylinder{i}）；多条规则按从上到下的顺序执行。"
+            TextWrapping="Wrap" />
+
+        <Border
+            Grid.Row="6"
+            Padding="10"
+            Background="{StaticResource ScadaPanelBackgroundBrush}"
+            BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="4">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBlock
+                    FontSize="11.5"
+                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                    Text="{Binding StatusText}"
+                    TextWrapping="Wrap" />
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>

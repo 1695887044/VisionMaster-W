@@ -500,6 +500,7 @@ namespace FlowCanvasChecks
         private static readonly string[] CollectedDialogViews =
         {
             "VariableBindingView.xaml", "GlobalVariableView.xaml",
+            "ArrayEditorView.xaml",
             "CameraSettingsView.xaml", "CommunicationSettingsView.xaml",
             "FlowManagerView.xaml", "ConditionEditorView.xaml",
             "SolutionListView.xaml",

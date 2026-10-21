@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    化工装置多画面暴力测试夹具（M3 复杂档）。
+
+    为什么单独一个工程、而不是往 ScadaWebE2E 里加参数
+    =========
+    E2E 那个夹具的用途是"六个交互图元的浏览器联调"（一页、六个图元、两个账号），
+    结构上刻意保持最小。本夹具要的是**现场量级**：6 张画面 + 跨页基座 + 上百个图元 +
+    实时刷新的工艺量 + 报警 + 画面跳转，用它去压 Web 端的快照、值帧、切页与命令四条路径。
+    两者用途不同、失败时该看的东西也不同，混在一个 Program.cs 里会让两边都读不清。
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>ScadaWebChemicalDemo</AssemblyName>
+    <RootNamespace>ScadaWebChemicalDemo</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <NoWarn>$(NoWarn);CS0067</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VisionMaster.ScadaWeb\VisionMaster.ScadaWeb.csproj" />
+    <ProjectReference Include="..\..\Core\VM.Core.csproj" />
+    <ProjectReference Include="..\..\Scada\VM.Scada.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="WatsonWebserver">
+      <HintPath>..\..\DLL\Watson\WatsonWebserver.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="IpMatcher">
+      <HintPath>..\..\DLL\Watson\IpMatcher.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="RegexMatcher">
+      <HintPath>..\..\DLL\Watson\RegexMatcher.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Timestamps">
+      <HintPath>..\..\DLL\Watson\Timestamps.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UrlMatcher">
+      <HintPath>..\..\DLL\Watson\UrlMatcher.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    静态资源随工程投递：ScadaWebHost 在 AppContext.BaseDirectory\wwwroot 下找它们。
+    与 ScadaWebE2E 同一条做法（Content 拷贝到输出根），不依赖宿主 Web\ 布局。
+  -->
+  <ItemGroup>
+    <Content Include="..\VisionMaster.ScadaWeb\wwwroot\**\*"
+             Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

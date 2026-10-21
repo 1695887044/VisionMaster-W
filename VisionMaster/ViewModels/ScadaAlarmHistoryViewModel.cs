@@ -17,11 +17,10 @@ namespace VisionMaster.ViewModels
     ///
     /// 数据从哪来
     /// ---------
-    /// <see cref="ScadaRuntimeContext.Alarms"/>——本轮运行那个活着的 <see cref="ScadaAlarmEngine"/>。
-    /// 面板不自己存历史：引擎的 <c>_history</c> 才是唯一真相（它同时喂着落盘端），
-    /// 面板再存一份就必然出现"两份历史对不上"的问题。
-    /// 取的是 <see cref="ScadaAlarmEngine.RecentRecords"/>（<b>最新在前</b>），
-    /// 现场翻开面板第一眼要看到的是"刚刚又报了什么"，不是三小时前那条。
+    /// <see cref="ScadaRuntimeContext.Alarms"/>——本轮运行那个活着的 <see cref="ScadaAlarmEngine"/>；
+    /// 外加 <see cref="ScadaRuntimeContext.PriorAlarms"/>——本轮开始前从方案目录
+    /// <c>Alarms\AlarmHistory.json</c> 读回的上次记录。两份合并后按激活时间最新在前，
+    /// 所以关掉运行窗口再打开同一份方案，上次的报警仍在表里；历史行只读（不许点确认）。
     ///
     /// 为什么整表重建，而不是增量维护
     /// ---------
@@ -65,6 +64,12 @@ namespace VisionMaster.ViewModels
 
         /// <summary>本次运行的全部记录（已按最新在前）；<see cref="Rows"/> 是它在筛选下的投影</summary>
         private readonly List<ScadaAlarmHistoryRow> _all = new();
+
+        /// <summary>
+        /// 本轮开始前从方案目录读回的历史记录（最新在前）。与 <see cref="_context"/> 的本轮记录合并显示：
+        /// 用户关掉运行窗口再打开同一份方案，上次的报警仍在这张表里。
+        /// </summary>
+        private IReadOnlyList<ScadaAlarmRecord> _priorRecords = Array.Empty<ScadaAlarmRecord>();
 
         private ScadaRuntimeContext? _context;
 
@@ -208,6 +213,7 @@ namespace VisionMaster.ViewModels
             Detach();
 
             _context = context;
+            _priorRecords = context?.PriorAlarms ?? Array.Empty<ScadaAlarmRecord>();
 
             if (context == null)
             {
@@ -230,14 +236,22 @@ namespace VisionMaster.ViewModels
         {
             _all.Clear();
 
-            var records = _context?.Alarms.RecentRecords(MaxRows);
-            if (records != null)
+            // 方案历史 + 本轮运行记录合并：先按 RecordId 去重（同一轮里 Attach 可能被调多次），
+            // 再按激活时间最新在前。历史记录来自 <ScadaRuntimeContext.PriorAlarms>，
+            // 本轮记录来自引擎内存流水；两者是两次运行的事实，不能互相覆盖。
+            var merged = new List<ScadaAlarmRecord>(_priorRecords);
+            var live = _context?.Alarms.RecentRecords(MaxRows);
+            if (live != null)
+                merged.AddRange(live);
+
+            foreach (var record in merged
+                         .Where(r => r != null)
+                         .GroupBy(r => r.RecordId)
+                         .Select(g => g.First())
+                         .OrderByDescending(r => r.ActivatedAtUtc)
+                         .Take(MaxRows))
             {
-                foreach (var record in records)
-                {
-                    if (record != null)
-                        _all.Add(new ScadaAlarmHistoryRow(record));
-                }
+                _all.Add(new ScadaAlarmHistoryRow(record));
             }
 
             ApplyFilter();

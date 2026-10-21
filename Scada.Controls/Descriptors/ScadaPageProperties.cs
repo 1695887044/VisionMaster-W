@@ -113,6 +113,17 @@ namespace VisionMaster.Scada.Controls
                 Description = "网格线间距，同时是吸附步距（设计像素）",
                 Read = (p, _) => Format(p.GridSize), Write = (p, _, v) => { if (TryNumber(v, out var d)) p.GridSize = d; },
             },
+            // ---- 页面级角色：进入这一页所需的最低角色 ----
+            new ScadaPagePropertySpec
+            {
+                Key = "RequiredRole", DisplayName = "所需角色", Kind = ElementPropertyKind.Choice,
+                Group = ScadaPropertyGroups.PageRun,
+                Choices = new[] { "None", "Operator", "Engineer", "Administrator" },
+                Description = "进入这一页所需的最低角色；None = 不限制。运行态切页、返回与页面菜单都按它过滤",
+                Read = (p, _) => p.RequiredRole?.ToString() ?? "None",
+                Write = (p, _, v) => p.RequiredRole = ParseRole(v),
+            },
+
             // ---- 基座：这一页引用哪只公共层 ----
             new ScadaPagePropertySpec
             {
@@ -146,6 +157,21 @@ namespace VisionMaster.Scada.Controls
                 },
             },
         };
+
+        /// <summary>
+        /// 把面板提交的文本解析成角色；"None"/空 = 不限制，非法值保持 null（不把坏数据写成权限）。
+        /// </summary>
+        private static ScadaRole? ParseRole(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)
+                || string.Equals(text.Trim(), "None", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            return Enum.TryParse<ScadaRole>(text.Trim(), ignoreCase: true, out var role)
+                   && role.IsDefined()
+                ? role
+                : null;
+        }
 
         /// <summary>按不变文化格式化——和图元几何值同一个口径，否则 .vms 在中文系统上会写成 "1,5"</summary>
         private static string Format(double value)

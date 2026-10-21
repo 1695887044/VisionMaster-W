@@ -91,6 +91,24 @@ namespace VisionMaster.Scada
         /// </summary>
         public IScadaAccessPolicy AccessPolicy => _accessPolicy;
 
+        /// <summary>
+        /// 当前登录角色能不能进入这一页（页面级 <see cref="ScadaPage.RequiredRole"/>；null = 不限制）。
+        /// 与图元事件走同一个 <see cref="IScadaAccessPolicy"/>；拒绝原因可直接上屏/写日志。
+        ///
+        /// 页面菜单、动作表「切换画面」、返回上一页都从这里判——只在领域层判一次，
+        /// 不让界面自己按角色过滤（那样会漏掉动作表/回退两条入口）。
+        /// </summary>
+        public bool CanAccess(ScadaPage? page, out string? reason)
+        {
+            if (page == null)
+            {
+                reason = "目标画面为空";
+                return false;
+            }
+
+            return _accessPolicy.CanOperate(page.RequiredRole, out reason);
+        }
+
         /// <summary>会话是否活着（决定"停止运行"该不该置灰，也挡住连点运行）</summary>
         public bool IsRunning => _running;
 
@@ -281,6 +299,24 @@ namespace VisionMaster.Scada
             var page = _document.ResolveStartupPage();
             if (page == null) return false;
 
+            // 启动页也可能被页面级角色挡住（例如上一次是管理员登录、这次开机无人登录）。
+            // 不能把会话开在一张"看得见但进不去"的页上：按画面顺序找第一张当前角色可进入的可导航页。
+            if (!CanAccess(page, out _))
+            {
+                ScadaPage? fallback = null;
+                foreach (var candidate in _document.Pages)
+                {
+                    if (_document.IsNavigable(candidate) && CanAccess(candidate, out _))
+                    {
+                        fallback = candidate;
+                        break;
+                    }
+                }
+
+                page = fallback;
+                if (page == null) return false;
+            }
+
             _running = true;
             CurrentPage = page;
             RaisePropertyChanged(nameof(CurrentBasePage)); // 跟着页走：画布按这两个值重新装配
@@ -317,6 +353,8 @@ namespace VisionMaster.Scada
             CurrentPage = null;
             RaisePropertyChanged(nameof(CurrentBasePage));
             _pageStack.Clear();
+            RaisePropertyChanged(nameof(CanGoBack));
+            RaisePropertyChanged(nameof(PageStackDepth));
         }
 
         // ── 画面导航（S8）──────────────────────────────────────────────────────────
@@ -370,6 +408,9 @@ namespace VisionMaster.Scada
                 return false;
             }
 
+            if (!CanAccess(page, out reason))
+                return false;
+
             reason = null;
             return Navigate(page);
         }
@@ -392,6 +433,8 @@ namespace VisionMaster.Scada
             if (!_running || page == null) return false;
             // IsNavigable 比"在本方案里"多拦一条：基座不能当导航终点（见 ScadaDocument.FindNavigablePage）。
             if (!_document.IsNavigable(page)) return false;
+            // 页面级角色：与动作表、返回、页面菜单共用同一个判定（界面不自己过滤）。
+            if (!CanAccess(page, out _)) return false;
             if (ReferenceEquals(page, _currentPage)) return true;
 
             PushPage(_currentPage);
@@ -416,10 +459,28 @@ namespace VisionMaster.Scada
                 // 运行中也能改方案：压栈之后这一页可能被删了、也可能被注册成基座。
                 // 两种都不该成为回退目标——否则回退按钮会把人送到一张"没有本页内容"的画面上。
                 if (!_document.IsNavigable(page)) continue;
+                // 回退目标也可能被页面级角色挡住：跳过它继续往下找，而不是把用户送回一张进不去的页。
+                if (!CanAccess(page, out _)) continue;
 
                 return SwitchTo(page);
             }
 
+            return false;
+        }
+
+        /// <summary>
+        /// <see cref="IScadaNavigator.GoBack"/> 的显式实现：把“栈空 / 已停”翻译成可直接写日志的原因。
+        /// 保留公开的无参 <see cref="GoBack()"/> 不动——既有断言与调用点按它写。
+        /// </summary>
+        bool IScadaNavigator.GoBack(out string? reason)
+        {
+            if (GoBack())
+            {
+                reason = null;
+                return true;
+            }
+
+            reason = _running ? "没有可返回的画面" : "运行已经结束";
             return false;
         }
 
@@ -458,6 +519,9 @@ namespace VisionMaster.Scada
 
             if (_pageStack.Count > MaxPageStackDepth)
                 _pageStack.RemoveAt(0);
+
+            RaisePropertyChanged(nameof(CanGoBack));
+            RaisePropertyChanged(nameof(PageStackDepth));
         }
 
         private ScadaPage? PopPage()
@@ -467,6 +531,9 @@ namespace VisionMaster.Scada
             int last = _pageStack.Count - 1;
             var page = _pageStack[last];
             _pageStack.RemoveAt(last);
+
+            RaisePropertyChanged(nameof(CanGoBack));
+            RaisePropertyChanged(nameof(PageStackDepth));
             return page;
         }
     }

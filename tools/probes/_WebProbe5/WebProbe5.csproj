@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>WebProbe5</AssemblyName>
+    <RootNamespace>WebProbe5</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS0618</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 被测对象：M1a 的 HTTP + WS 骨架 -->
+    <ProjectReference Include="..\..\..\Web\VisionMaster.ScadaWeb\VisionMaster.ScadaWeb.csproj" />
+  </ItemGroup>
+
+  <!--
+    Watson 在 Web 工程里是 Private=false（运行期从宿主目录解析），所以探针必须自己带一份，
+    否则探针进程启动时找不到 WatsonWebserver.dll。五个引用与宿主 VisionMaster.csproj 同源。
+  -->
+  <ItemGroup>
+    <Reference Include="WatsonWebserver">
+      <HintPath>..\..\..\DLL\Watson\WatsonWebserver.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="IpMatcher">
+      <HintPath>..\..\..\DLL\Watson\IpMatcher.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="RegexMatcher">
+      <HintPath>..\..\..\DLL\Watson\RegexMatcher.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Timestamps">
+      <HintPath>..\..\..\DLL\Watson\Timestamps.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UrlMatcher">
+      <HintPath>..\..\..\DLL\Watson\UrlMatcher.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

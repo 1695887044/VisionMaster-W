@@ -125,6 +125,19 @@
          必须让编译期拿到类型、运行时程序集在 AppDomain 里（不走 Modules\\ 反射加载）。 -->
     <ProjectReference Include="..\Plugins\Plugin.CSharpScript\Plugin.CSharpScript.csproj" />
     <ProjectReference Include="..\Plugins\Plugin.ImageScript\Plugin.ImageScript.csproj" />
+    <!--
+      数据链路三件套（P0-B）：直接引用插件工程（不走 Modules\ 反射加载）。
+      断言的是"结果落地"这一层——字段表类型保真、CSV 转义、断网续传、Excel 超链接。
+      引用它们也让构建顺带把三个 DLL 刷新到 Modules。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.ResultUpload\Plugin.ResultUpload.csproj" />
+    <ProjectReference Include="..\Plugins\Plugin.DataRecord\Plugin.DataRecord.csproj" />
+    <ProjectReference Include="..\Plugins\Plugin.ExcelExport\Plugin.ExcelExport.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 断言 Excel 报表要读回 xlsx；与插件用同一版本，避免"自己写 XML 自己读"的同源假绿 -->
+    <PackageReference Include="MiniExcel" Version="1.46.0" />
   </ItemGroup>
 
   <ItemGroup>

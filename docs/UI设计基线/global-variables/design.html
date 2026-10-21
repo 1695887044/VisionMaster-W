@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>变量管理 · 设计基线 v1</title>
+<title>变量管理 · 设计基线 v3</title>
 <style>
   :root { color-scheme: light; }
   html, body { margin: 0; padding: 0; background: #EEF2F7; }
@@ -338,6 +338,73 @@
     #gv-design-root .gv-link{border:0;background:transparent;padding:0;color:var(--gv-primary-text);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;}
     #gv-design-root .gv-link:hover{color:var(--gv-primary-strong);text-decoration:underline;}
 
+    /* ---- 数组（v2）：摘要 + 编辑入口 + 逐元素复位 ---- */
+    #gv-design-root .gv-array-summary{min-width:0;flex:1;font-family:var(--gv-mono);font-size:11px;color:var(--gv-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums;}
+    #gv-design-root .gv-array-summary.is-empty{color:var(--gv-text-3);font-style:normal;}
+    #gv-design-root .gv-array-edit{flex:none;display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 9px;border:1px solid var(--gv-primary-border);border-radius:6px;background:var(--gv-primary-soft);color:var(--gv-primary-text);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease;}
+    #gv-design-root .gv-array-edit:hover{background:var(--gv-primary-light);border-color:var(--gv-primary);}
+    #gv-design-root .gv-array-edit svg{width:11px;height:11px;}
+    #gv-design-root .gv-element-reset{width:22px;height:22px;flex:none;padding:0;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--gv-warning-text);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background 150ms ease,border-color 150ms ease;}
+    #gv-design-root .gv-element-reset svg{width:11px;height:11px;}
+    #gv-design-root .gv-element-reset:hover{background:var(--gv-warning-soft);border-color:var(--gv-warning-border);}
+
+    /* ---- 数组编辑弹窗（v2） ---- */
+    #gv-design-root .gv-modal{position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.44);}
+    #gv-design-root .gv-modal-card{width:620px;max-width:calc(100% - 48px);max-height:calc(100% - 48px);display:flex;flex-direction:column;overflow:hidden;background:var(--gv-surface);border-radius:var(--gv-radius-xl);box-shadow:var(--gv-shadow-window);}
+    #gv-design-root .gv-modal-head{height:64px;flex:none;display:flex;align-items:center;gap:12px;padding:0 18px;border-bottom:1px solid var(--gv-border-soft);}
+    #gv-design-root .gv-modal-icon{width:34px;height:34px;flex:none;border-radius:9px;display:flex;align-items:center;justify-content:center;background:var(--gv-cyan-soft);color:var(--gv-cyan-text);}
+    #gv-design-root .gv-modal-icon svg{width:17px;height:17px;}
+    #gv-design-root .gv-modal-title{min-width:0;flex:1;}
+    #gv-design-root .gv-modal-title b{display:block;font-size:14.5px;font-weight:600;line-height:1.3;color:var(--gv-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #gv-design-root .gv-modal-title small{display:block;margin-top:2px;font-size:11px;line-height:1.3;color:var(--gv-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #gv-design-root .gv-modal-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;padding:14px 18px;}
+    #gv-design-root .gv-array-hint{display:flex;align-items:flex-start;gap:6px;padding:8px 10px;border:1px solid var(--gv-primary-border);border-radius:8px;background:var(--gv-primary-soft);color:var(--gv-primary-text);font-size:11px;line-height:1.5;}
+    #gv-design-root .gv-array-hint svg{width:12px;height:12px;flex:none;margin-top:1px;}
+    #gv-design-root .gv-array-hint b{font-weight:600;}
+    #gv-design-root .gv-array-sync{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--gv-text-2);cursor:pointer;}
+    #gv-design-root .gv-array-sync input{width:14px;height:14px;margin:0;accent-color:var(--gv-primary);cursor:pointer;}
+    #gv-design-root .gv-array-sync small{margin-left:auto;font-size:10.5px;color:var(--gv-text-3);}
+    #gv-design-root .gv-array-list{flex:1;min-height:180px;max-height:320px;overflow:auto;border:1px solid var(--gv-border-soft);border-radius:8px;background:var(--gv-surface-2);padding:6px;scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+    #gv-design-root .gv-array-list::-webkit-scrollbar{width:8px;}
+    #gv-design-root .gv-array-list::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+    #gv-design-root .gv-array-row{display:grid;grid-template-columns:44px minmax(0,1fr) 108px;align-items:center;gap:8px;min-height:48px;padding:2px 4px;border-radius:6px;}
+    #gv-design-root .gv-array-row:hover{background:#FFFFFF;}
+    #gv-design-root .gv-array-index{font-family:var(--gv-mono);font-size:11px;color:var(--gv-text-3);text-align:right;font-variant-numeric:tabular-nums;}
+    #gv-design-root .gv-array-input{width:100%;height:30px;padding:0 9px;border:1px solid var(--gv-border);border-radius:6px;background:var(--gv-surface);color:var(--gv-text);font-size:11.5px;line-height:1;outline:none;transition:border-color 150ms ease,box-shadow 150ms ease;}
+    #gv-design-root .gv-array-input:focus{border-color:var(--gv-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+    #gv-design-root .gv-array-input.is-error{border-color:var(--gv-danger);background:var(--gv-danger-soft);color:var(--gv-danger-text);box-shadow:0 0 0 3px rgba(239,68,68,.10);}
+    #gv-design-root .gv-array-actions{display:flex;align-items:center;justify-content:flex-end;gap:2px;}
+    #gv-design-root .gv-array-action{width:26px;height:26px;flex:none;padding:0;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--gv-text-3);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;}
+    #gv-design-root .gv-array-action svg{width:12px;height:12px;}
+    #gv-design-root .gv-array-action:hover{background:var(--gv-surface-3);border-color:var(--gv-border);color:var(--gv-text-2);}
+    #gv-design-root .gv-array-action:disabled{opacity:.35;cursor:not-allowed;}
+    #gv-design-root .gv-array-action.is-danger:hover{background:var(--gv-danger-soft);border-color:var(--gv-danger-border);color:var(--gv-danger-text);}
+    #gv-design-root .gv-array-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:160px;color:var(--gv-text-3);font-size:11.5px;text-align:center;}
+    #gv-design-root .gv-array-empty svg{width:22px;height:22px;}
+    #gv-design-root .gv-array-error{display:flex;align-items:flex-start;gap:6px;padding:8px 10px;border:1px solid var(--gv-danger-border);border-radius:8px;background:var(--gv-danger-soft);color:var(--gv-danger-text);font-size:11px;line-height:1.5;}
+    #gv-design-root .gv-array-error svg{width:12px;height:12px;flex:none;margin-top:1px;}
+    #gv-design-root .gv-modal-foot{flex:none;display:flex;align-items:center;gap:10px;height:56px;padding:0 18px;border-top:1px solid var(--gv-border-soft);background:var(--gv-surface-2);}
+    #gv-design-root .gv-array-count{font-size:10.5px;color:var(--gv-text-3);font-variant-numeric:tabular-nums;}
+    #gv-design-root .gv-modal-actions{margin-left:auto;display:flex;align-items:center;gap:8px;}
+
+    /* ---- 数组编辑弹窗 v3：写入范围 / 基准行 / 修改标记 ---- */
+    #gv-design-root .gv-scope-card{padding:10px 12px;border:1px solid var(--gv-border);border-radius:8px;background:var(--gv-surface);}
+    #gv-design-root .gv-scope-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #gv-design-root .gv-scope-label{font-size:11.5px;font-weight:600;color:var(--gv-text-2);}
+    #gv-design-root .gv-scope-right{margin-left:auto;font-size:10.5px;color:var(--gv-text-3);white-space:nowrap;}
+    #gv-design-root .gv-scope-hint{margin-top:7px;font-size:10.5px;line-height:1.5;color:var(--gv-text-3);}
+    #gv-design-root .gv-scope-hint b{color:var(--gv-text-2);font-weight:600;}
+    #gv-design-root .gv-array-listhead{display:grid;grid-template-columns:44px minmax(0,1fr) 108px;align-items:center;gap:8px;height:26px;padding:0 10px;font-size:10.5px;color:var(--gv-text-3);}
+    #gv-design-root .gv-array-cell{display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0;}
+    #gv-design-root .gv-array-baseline{display:flex;align-items:center;gap:4px;min-width:0;font-size:10px;color:var(--gv-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #gv-design-root .gv-array-baseline i{width:4px;height:4px;flex:none;border-radius:50%;background:var(--gv-warning);}
+    #gv-design-root .gv-array-baseline b{font-family:var(--gv-mono);font-weight:400;color:var(--gv-text-2);overflow:hidden;text-overflow:ellipsis;}
+    #gv-design-root .gv-array-changed{font-size:10.5px;font-weight:600;color:var(--gv-warning-text);white-space:nowrap;}
+    #gv-design-root .gv-array-changed.is-zero{color:var(--gv-text-3);font-weight:400;}
+    #gv-design-root .gv-array-reset-all{height:30px;padding:0 10px;border:1px solid var(--gv-border);border-radius:6px;background:var(--gv-surface);color:var(--gv-text-2);font-size:11px;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;}
+    #gv-design-root .gv-array-reset-all:hover{background:var(--gv-warning-soft);border-color:var(--gv-warning-border);color:var(--gv-warning-text);}
+    #gv-design-root .gv-array-reset-all:disabled{opacity:.45;cursor:not-allowed;}
+
     /* 操作 */
     #gv-design-root .gv-actions{display:flex;align-items:center;justify-content:flex-end;gap:2px;width:100%;}
     #gv-design-root .gv-action{width:28px;height:28px;flex:none;padding:0;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--gv-text-3);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;}
@@ -417,6 +484,9 @@
     <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path><path d="M16 16h5v5"></path></symbol>
     <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-5-5L5 21"></path></symbol>
     <symbol id="i-array" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h1"></path><path d="M16 3h1a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-1"></path><path d="M12 8v8"></path></symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"></path></symbol>
+    <symbol id="i-arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><path d="M12 9v4M12 17h.01"></path></symbol>
     <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"></path></symbol>
   </svg>
 
@@ -424,12 +494,13 @@
     <header class="gv-page-head">
       <div class="gv-page-title-row">
         <h1>变量管理 · 变量中心</h1>
-        <span class="gv-ver">v1</span>
+        <span class="gv-ver">v3</span>
       </div>
       <p class="gv-page-sub">
-        Web 设计基线 v1 · <b>只做纯 UI 重构</b>：保留现有两栏主从结构、全部绑定与命令；
-        不改变量模型、通信桥接、持久化与「添加变量」框架弹窗。窗口 <b>1300 × 700</b>（最小 1200），
-        左栏来源 <b>232px</b>，右栏明细自适应。
+        Web 设计基线 v3 · <b>v1 主结构 + v2 数组编辑，v3 专项优化数组编辑弹窗</b>：
+        写入范围从复选框升级为<b>分段选择</b>（只写当前值 / 同时写初始值），逐行显示<b>基准值</b>与「已修改」标记，
+        每行可单独 ↺、也可「恢复全部为基准」；底部汇总已修改项数。窗口 <b>1300 × 700</b>（最小 1200），
+        左栏来源 <b>232px</b>，数组编辑弹窗 <b>640 × 660</b>（最小 540 × 540）。
       </p>
       <div class="gv-demo-bar">
         <div class="gv-demo-group" role="group" aria-label="变量来源">
@@ -455,6 +526,14 @@
             <button type="button" data-rowstate="write-error" aria-pressed="false">写入失败</button>
           </div>
         </div>
+        <div class="gv-demo-group" role="group" aria-label="数组编辑">
+          <span class="gv-demo-label">数组</span>
+          <div class="gv-seg" id="gv-array-seg">
+            <button type="button" data-array="closed" class="is-on" aria-pressed="true">关闭</button>
+            <button type="button" data-array="open" aria-pressed="false">编辑弹窗</button>
+            <button type="button" data-array="error" aria-pressed="false">校验失败</button>
+          </div>
+        </div>
         <div class="gv-demo-group" role="group" aria-label="窗口宽度">
           <span class="gv-demo-label">窗口</span>
           <div class="gv-seg" id="gv-width-seg">
@@ -465,7 +544,7 @@
       </div>
       <div class="gv-scope">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
-        <span><b>v1 未纳入（需新增功能或契约）：</b>「添加变量」属性网格弹窗改版、列选择 / 密度切换 / 排序、多选批量删除、变量详情检查器、导入导出、历史趋势。主窗口只保留现有入口；1200 最小宽度下网络来源表格允许横向滚动。</span>
+        <span><b>v3 数组编辑弹窗优化（本页新增）：</b>写入范围分段选择（只写当前值 / 同时写初始值）、逐行基准值与「已修改」标记、每行 ↺ 与「恢复全部为基准」、底部已修改项数汇总。仍不纳入：数组排序的拖拽、CSV 批量粘贴、多选批量删除、导入导出。</span>
       </div>
     </header>
 
@@ -567,6 +646,56 @@
         </section>
       </div>
 
+      <!--  ============ 数组编辑弹窗（v2）  ============  -->
+      <div class="gv-modal" id="gv-array-modal" hidden>
+        <div class="gv-modal-card" role="dialog" aria-modal="true" aria-labelledby="gv-array-title">
+          <div class="gv-modal-head">
+            <span class="gv-modal-icon"><svg><use href="#i-array"></use></svg></span>
+            <div class="gv-modal-title">
+              <b id="gv-array-title">编辑数组</b>
+              <small id="gv-array-sub">String[] · 当前 3 项</small>
+            </div>
+            <button type="button" class="gv-icon-btn is-danger" id="gv-array-close" title="关闭" aria-label="关闭"><svg><use href="#i-close"></use></svg></button>
+          </div>
+
+          <div class="gv-modal-body">
+            <div class="gv-scope-card">
+              <div class="gv-scope-row">
+                <span class="gv-scope-label">写入范围</span>
+                <div class="gv-seg" id="gv-array-scope">
+                  <button type="button" data-scope="current" class="is-on" aria-pressed="true">只写当前值</button>
+                  <button type="button" data-scope="both" aria-pressed="false">同时写初始值</button>
+                </div>
+                <span class="gv-scope-right" id="gv-array-baseline">基准 3 项</span>
+              </div>
+              <div class="gv-scope-hint" id="gv-array-scope-hint">初始值（基准）保持不变；「恢复初始值」仍回到原基准。</div>
+            </div>
+
+            <div class="gv-array-listhead">
+              <span>序号</span>
+              <span>元素值</span>
+              <span style="text-align:right">操作</span>
+            </div>
+
+            <div class="gv-array-list" id="gv-array-list"></div>
+            <div class="gv-array-error" id="gv-array-error" hidden>
+              <svg><use href="#i-alert"></use></svg><span id="gv-array-error-text"></span>
+            </div>
+          </div>
+
+          <div class="gv-modal-foot">
+            <button type="button" class="gv-btn gv-btn-soft gv-btn-sm" id="gv-array-add"><svg><use href="#i-plus"></use></svg>添加元素</button>
+            <span class="gv-array-count" id="gv-array-count">共 3 个元素</span>
+            <span class="gv-array-changed is-zero" id="gv-array-changed">未修改</span>
+            <button type="button" class="gv-array-reset-all" id="gv-array-reset-all" disabled>恢复全部为基准</button>
+            <div class="gv-modal-actions">
+              <button type="button" class="gv-btn gv-btn-sm" id="gv-array-cancel">取消</button>
+              <button type="button" class="gv-btn gv-btn-primary gv-btn-sm" id="gv-array-ok">确定</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="gv-toast" id="gv-toast"></div>
     </div>
 
@@ -575,11 +704,23 @@
       <div class="gv-note"><div class="gv-note-num">01</div><div><b>左栏变成真正的来源导航</b><span>按「本地与系统 / 通信连接」分组；节点显示图标、名称、状态副行与计数；选中态为白卡 + 左侧主色条。系统变量用锁图标与「只读」副行，和本地变量分开。</span></div></div>
       <div class="gv-note"><div class="gv-note-num">02</div><div><b>右栏卡片头建立来源上下文</b><span>标题 + 变量数 + 当前来源 chip + 一句副标题；搜索、管理扫描组、添加变量固定右对齐。仍绑 <code>SelectedSource</code> / <code>SelectedSource.Count</code> / <code>IsNetworkSource</code>。</span></div></div>
       <div class="gv-note"><div class="gv-note-num">03</div><div><b>明细行改为两行式</b><span>变量名 12.5px + 描述 10.5px；类型是中性 chip + 类型色点；数组根显示「N 项」，子行缩进 24px、40px 行高，仍走 <code>Level</code> / <code>IsContainer</code> / <code>ToggleNodeCommand</code>。</span></div></div>
-      <div class="gv-note"><div class="gv-note-num">04</div><div><b>当前值单元格是编辑主入口</b><span>质量点 + 提交式输入框 + 偏离时的 ↺；数组根保留「强制覆盖集合...」；图像与只读存储区显示只读提示。行为仍由 <code>CellValueEditBehavior</code> / <code>CurrentValueText</code> / <code>IsValueDeviated</code> 驱动。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">04</div><div><b>当前值单元格是编辑主入口</b><span>质量点 + 提交式输入框 + 偏离时的 ↺；数组根是「摘要 + 编辑数组… + ↺」（v2）；图像与只读存储区显示只读提示。行为仍由 <code>CellValueEditBehavior</code> / <code>CurrentValueText</code> / <code>IsValueDeviated</code> 驱动。</span></div></div>
       <div class="gv-note"><div class="gv-note-num">05</div><div><b>空态与搜索无结果分开</b><span>空来源显示「还没有变量 + 添加变量」；搜索无结果显示「没有匹配 + 清空搜索提示」。不再用一张空白表格冒充加载失败。</span></div></div>
       <div class="gv-note"><div class="gv-note-num">06</div><div><b>系统变量只读语义前置</b><span>系统来源顶部常驻只读横幅；行内操作列只保留「复制变量名」+「只读」chip，不再显示点了只会弹提示的删除 / 重命名按钮。判据仍走 <code>IsSystemOwned</code>。</span></div></div>
       <div class="gv-note"><div class="gv-note-num">07</div><div><b>底部提示改成状态条</b><span>左侧「N 个变量 · 来源 · 轮询/内存」；右侧键盘提示 <code>Enter</code> 提交 / <code>Esc</code> 取消 / <code>↺</code> 恢复初始值。原长段落说明移入 README 与 ToolTip。</span></div></div>
       <div class="gv-note"><div class="gv-note-num">08</div><div><b>全令牌化与可达性</b><span>视图零十六进制；类型色复用既有语义族；图标按钮 30×30 + <code>Padding=0</code>（R68）；焦点走 <code>DialogFocusVisual</code>；表格横向滚动保留 Auto，星号列 MinWidth 不低于 80。</span></div></div>
+
+      <div class="gv-notes-head" style="margin-top:20px;">v2 数组编辑（本页新增）</div>
+      <div class="gv-note"><div class="gv-note-num">09</div><div><b>数组根不再是「强制覆盖集合...」</b><span>当前值格改成「等宽摘要（前 2 项 + …）+ 编辑数组… + 偏离时的 ↺」。摘要让用户不展开也能看出这组值是什么；入口文案说明它编辑的是当前值，不再是"强制覆盖"这种听不出后果的词。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">10</div><div><b>元素行：就地改当前值 + 逐元素 ↺</b><span>元素行仍走 <code>CellValueEditBehavior</code> 提交（只写 <code>Value[i]</code>）；偏离基准时该行出现 ↺，只恢复这一项。长度 / 增删这类结构改动不进表格，避免误点一下就整组错位。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">11</div><div><b>数组编辑弹窗：默认只写当前值</b><span>弹窗装填的是<b>当前值</b>（屏幕上看到的那组）。写入范围默认「只写当前值」；选「同时写初始值」才把新数组同时写进 <code>DefaultValue</code>。旧的「强制覆盖」是两者一起写且弹窗显示基准，用户点确定等于把运行值换掉——这条语义在 v2 被拆开，v3 把选择做成显式分段。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">12</div><div><b>校验失败就地标红，不丢编辑</b><span>点确定先逐项校验：出错的项红框 + 列表下方给「第 N 项「abc」无法转换为 Double」；弹窗保持打开，其余编辑原样保留。转换规则与当前值就地编辑同源（<code>VariableValueConverter</code>：不变文化、布尔认 1/0/是/否、拒绝千分位）。</span></div></div>
+
+      <div class="gv-notes-head" style="margin-top:20px;">v3 数组编辑弹窗优化（本页新增）</div>
+      <div class="gv-note"><div class="gv-note-num">13</div><div><b>写入范围升级为分段选择</b><span>「只写当前值 / 同时写初始值」两段放在一张范围卡里，右侧显示基准项数；下方一句话随选择变化——「初始值保持不变，↺ 仍回到原基准」/「新数组同时成为初始值」。比一个孤零零的复选框更容易在点确定前看清后果。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">14</div><div><b>逐行基准值与「已修改」标记</b><span>改过的行在输入框下方显示「● 基准：原值」（等宽字体 + ToolTip 全量）；行尾多一颗 ↺，只恢复这一项。没改过的行不显示基准行，保持列表安静。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">15</div><div><b>修改量汇总与一键恢复</b><span>底部显示「N 项已修改」（未修改时灰色「未修改」），旁边「恢复全部为基准」在有修改时才可点；标题副行同时给出「当前 N 项 · 基准 M 项」，长度不同一眼可见。</span></div></div>
+      <div class="gv-note"><div class="gv-note-num">16</div><div><b>校验语义不变</b><span>v2 的「弹窗内校验、失败不关窗」保持不变；v3 只重排信息层级与操作密度，不改回传契约（<code>Array</code> / <code>Variable</code> / <code>SyncBaseline</code>）。</span></div></div>
 
       <div class="gv-notes-head" style="margin-top:20px;">契约保留（一个都不能改）</div>
       <div class="gv-note"><div class="gv-note-num">C1</div><div><b>DataContext = GlobalVariableManagerViewModel</b><span>Prism <code>AutoWireViewModel</code> 与宿主 <code>RegisterDialog</code> 的绑定不变；不引入独立 VM。</span></div></div>
@@ -628,7 +769,7 @@
       var sources = {
         local: {
           key: 'local', name: '本地变量', icon: 'i-database', sub: '内存变量 · 可编辑',
-          online: true, count: 6, mode: 'local',
+          online: true, count: 7, mode: 'local',
           chip: '本地变量', headSub: '内存变量 · 当前值直接写入内存', statusNote: '当前值写入内存',
           vars: [
             { name: 'OKCount', type: 'Int32', typeKey: 'int', icon: 'int', desc: '本班 OK 计数', value: '128', quality: 'local', deviated: true },
@@ -636,11 +777,22 @@
             { name: 'YieldRate', type: 'Double', typeKey: 'double', icon: 'double', desc: '实时良率（OK / 总数）', value: '0.976', quality: 'local', deviated: true },
             { name: 'LastResult', type: 'String', typeKey: 'string', icon: 'string', desc: '最近一次判定结果', value: 'OK', quality: 'local', deviated: false },
             {
-              name: 'DefectFlags', type: 'Boolean[]', typeKey: 'array', icon: 'array', desc: '四工位缺陷标记', array: true, expanded: true,
+              name: 'BarcodeResults', type: 'String[]', typeKey: 'array', icon: 'array', desc: '单次触发读取到的条码', array: true, expanded: true,
+              baseline: [],
               children: [
-                { name: '[0]', type: 'Boolean', value: 'true' },
-                { name: '[1]', type: 'Boolean', value: 'false' },
-                { name: '[2]', type: 'Boolean', value: 'true' }
+                { name: '[0]', type: 'String', value: 'SN2026-A01', parent: 'BarcodeResults' },
+                { name: '[1]', type: 'String', value: 'SN2026-A02', parent: 'BarcodeResults' },
+                { name: '[2]', type: 'String', value: 'SN2026-B03', parent: 'BarcodeResults' }
+              ]
+            },
+            {
+              name: 'HoleCoordinates', type: 'Double[]', typeKey: 'array', icon: 'array', desc: '所有定位孔的 X 坐标', array: true,
+              baseline: ['12.5', '18', '33', '40.25'],
+              children: [
+                { name: '[0]', type: 'Double', value: '12.5', baseline: '12.5', parent: 'HoleCoordinates' },
+                { name: '[1]', type: 'Double', value: '18', baseline: '18', parent: 'HoleCoordinates' },
+                { name: '[2]', type: 'Double', value: '35', baseline: '33', parent: 'HoleCoordinates' },
+                { name: '[3]', type: 'Double', value: '40.25', baseline: '40.25', parent: 'HoleCoordinates' }
               ]
             },
             { name: 'TemplateImage', type: 'HImage', typeKey: 'image', icon: 'image', desc: '模板图像（由流程写入）', image: true }
@@ -684,7 +836,7 @@
         }
       };
 
-      var state = { source: 'local', query: '', boundary: 'normal', rowState: 'normal', width: 1300, expanded: { DefectFlags: true } };
+      var state = { source: 'local', query: '', boundary: 'normal', rowState: 'normal', width: 1300, expanded: { BarcodeResults: true } };
 
       function esc(s) {
         return String(s == null ? '' : s)
@@ -743,9 +895,40 @@
         return '<span class="gv-src is-local"><i></i>本地</span>';
       }
 
+      function arrayValues(v) {
+        return (v.children || []).map(function (c) { return String(c.value == null ? '' : c.value); });
+      }
+
+      function arrayBaseline(v) {
+        return (v.baseline || []).map(function (x) { return String(x == null ? '' : x); });
+      }
+
+      function arrayDeviated(v) {
+        var cur = arrayValues(v);
+        var base = arrayBaseline(v);
+        var n = Math.max(cur.length, base.length);
+        for (var i = 0; i < n; i++) {
+          if ((cur[i] || '') !== (base[i] || '')) return true;
+        }
+        return false;
+      }
+
+      function arraySummary(v) {
+        var items = arrayValues(v);
+        if (!items.length) return '<span class="gv-array-summary is-empty">空集合</span>';
+        var head = items.slice(0, 2).join(' · ');
+        var text = head + (items.length > 2 ? ' …' : '');
+        return '<span class="gv-array-summary" title="' + esc(items.join(' · ')) + '">' + esc(text) + '</span>';
+      }
+
       function valueCell(v) {
         if (v.array) {
-          return '<div class="gv-value"><span class="gv-quality is-local"></span><button type="button" class="gv-link" data-toast="强制覆盖集合：增删元素并整体覆盖当前值（设计稿）">强制覆盖集合...</button></div>';
+          var arrayReset = arrayDeviated(v)
+            ? '<button type="button" class="gv-reset" data-array-reset="' + esc(v.name) + '" title="当前值与初始值（基准）不同：恢复为基准" aria-label="恢复初始值">' + icon('i-reset') + '</button>'
+            : '';
+          return '<div class="gv-value"><span class="gv-quality is-local"></span>' + arraySummary(v) +
+            '<button type="button" class="gv-array-edit" data-array-open="' + esc(v.name) + '" title="编辑当前值：增删元素、批量修改；可勾选同时写入初始值">' + icon('i-edit') + '编辑数组…</button>' +
+            arrayReset + '</div>';
         }
         if (v.image) {
           return '<div class="gv-value"><span class="gv-value-readonly">' + icon('i-image') + '图像由流程写入</span></div>';
@@ -761,7 +944,10 @@
           ? '<input class="' + inputCls + '" value="' + esc(v.value) + '" disabled title="只读存储区：离散输入 / 输入映像区不可写">'
           : '<input class="' + inputCls + '" value="' + esc(v.value) + '" title="' + esc(inputTitle) + '">';
         var reset = v.deviated ? '<button type="button" class="gv-reset" title="当前值已偏离初始值：恢复为创建时设定的初始值" aria-label="恢复初始值">' + icon('i-reset') + '</button>' : '';
-        return '<div class="gv-value"><span class="gv-quality ' + q + '" title="' + esc(qTitle) + '"></span>' + input + reset + '</div>';
+        var elementReset = (v.parent !== undefined && v.baseline !== undefined && String(v.value == null ? '' : v.value) !== String(v.baseline == null ? '' : v.baseline))
+          ? '<button type="button" class="gv-element-reset" data-element-reset="' + esc(v.name) + '" data-parent="' + esc(v.parent) + '" title="该元素偏离初始值：恢复为基准中的对应项" aria-label="恢复该元素初始值">' + icon('i-reset') + '</button>'
+          : '';
+        return '<div class="gv-value"><span class="gv-quality ' + q + '" title="' + esc(qTitle) + '"></span>' + input + reset + elementReset + '</div>';
       }
 
       function actionsCell(v) {
@@ -928,6 +1114,236 @@
         toastTimer = setTimeout(function () { toast.classList.remove('is-on'); }, 2400);
       }
 
+      var arrayDialog = { open: false, name: '', values: [], sync: false, error: '', errorIndex: -1 };
+
+      function findArrayVar(name) {
+        var s = sources[state.source];
+        if (!s) return null;
+        for (var i = 0; i < s.vars.length; i++) {
+          if (s.vars[i].name === name) return s.vars[i];
+        }
+        return null;
+      }
+
+      function openArrayDialog(name) {
+        var v = findArrayVar(name);
+        if (!v || !v.array) return;
+        arrayDialog.open = true;
+        arrayDialog.name = name;
+        arrayDialog.values = arrayValues(v);
+        arrayDialog.sync = false;
+        arrayDialog.error = '';
+        arrayDialog.errorIndex = -1;
+        renderArrayDialog();
+        syncSeg('#gv-array-seg', 'array', 'open');
+      }
+
+      function closeArrayDialog() {
+        arrayDialog.open = false;
+        arrayDialog.error = '';
+        arrayDialog.errorIndex = -1;
+        renderArrayDialog();
+      }
+
+      function arrayChangedCount(v) {
+        var base = arrayBaseline(v);
+        var n = 0;
+        for (var i = 0; i < arrayDialog.values.length; i++) {
+          if (i < base.length && String(arrayDialog.values[i]) !== String(base[i])) n++;
+        }
+        return n;
+      }
+
+      function refreshChangedState(v) {
+        var changed = arrayChangedCount(v);
+        var changedEl = root.querySelector('#gv-array-changed');
+        changedEl.textContent = changed ? changed + ' 项已修改' : '未修改';
+        changedEl.classList.toggle('is-zero', changed === 0);
+        root.querySelector('#gv-array-reset-all').disabled = changed === 0;
+      }
+
+      function refreshRowChanged(v, i) {
+        var base = arrayBaseline(v);
+        var baseValue = i < base.length ? base[i] : null;
+        var isChanged = baseValue !== null && String(arrayDialog.values[i]) !== String(baseValue);
+
+        var list = root.querySelector('#gv-array-list');
+        var row = list.children[i];
+        if (!row) return;
+
+        var cell = row.querySelector('.gv-array-cell');
+        var existing = cell ? cell.querySelector('.gv-array-baseline') : null;
+        if (isChanged && cell && !existing) {
+          var span = document.createElement('span');
+          span.className = 'gv-array-baseline';
+          span.title = '基准值：' + baseValue;
+          span.innerHTML = '<i></i>基准：<b></b>';
+          span.querySelector('b').textContent = baseValue;
+          cell.appendChild(span);
+        } else if (!isChanged && existing) {
+          existing.remove();
+        }
+
+        var actions = row.querySelector('.gv-array-actions');
+        var resetBtn = actions ? actions.querySelector('[data-row-reset]') : null;
+        if (isChanged && actions && !resetBtn) {
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'gv-array-action';
+          btn.setAttribute('data-row-reset', String(i));
+          btn.title = '恢复为基准值';
+          btn.innerHTML = icon('i-reset');
+          actions.insertBefore(btn, actions.firstChild);
+        } else if (!isChanged && resetBtn) {
+          resetBtn.remove();
+        }
+
+        refreshChangedState(v);
+      }
+
+      function renderArrayDialog() {
+        var modal = root.querySelector('#gv-array-modal');
+        modal.hidden = !arrayDialog.open;
+        if (!arrayDialog.open) return;
+
+        var v = findArrayVar(arrayDialog.name);
+        if (!v) { closeArrayDialog(); return; }
+
+        var base = arrayBaseline(v);
+        root.querySelector('#gv-array-title').textContent = '编辑数组 · ' + v.name;
+        root.querySelector('#gv-array-sub').textContent =
+          v.type + ' · 当前 ' + arrayDialog.values.length + ' 项 · 基准 ' + base.length + ' 项';
+        root.querySelector('#gv-array-baseline').textContent = base.length === arrayDialog.values.length
+          ? '基准 ' + base.length + ' 项'
+          : '基准 ' + base.length + ' 项（长度不同）';
+        root.querySelector('#gv-array-scope-hint').innerHTML = arrayDialog.sync
+          ? '新数组会同时成为<b>初始值</b>；此后「恢复初始值」回到这组值。'
+          : '初始值（基准）保持不变；「恢复初始值」仍回到原基准。';
+        syncSeg('#gv-array-scope', 'scope', arrayDialog.sync ? 'both' : 'current');
+        root.querySelector('#gv-array-count').textContent = '共 ' + arrayDialog.values.length + ' 个元素';
+
+        var list = root.querySelector('#gv-array-list');
+        if (!arrayDialog.values.length) {
+          list.innerHTML = '<div class="gv-array-empty">' + icon('i-array') + '<b>还没有元素</b><span>点下方「添加元素」开始</span></div>';
+        } else {
+          list.innerHTML = arrayDialog.values.map(function (value, i) {
+            var err = arrayDialog.errorIndex === i ? ' is-error' : '';
+            var baseValue = i < base.length ? base[i] : null;
+            var isChanged = baseValue !== null && String(value) !== String(baseValue);
+            var baseline = isChanged
+              ? '<span class="gv-array-baseline" title="基准值：' + esc(baseValue) + '"><i></i>基准：<b>' + esc(baseValue) + '</b></span>'
+              : '';
+            var reset = isChanged
+              ? '<button type="button" class="gv-array-action" data-row-reset="' + i + '" title="恢复为基准值">' + icon('i-reset') + '</button>'
+              : '';
+            return '<div class="gv-array-row">' +
+              '<span class="gv-array-index">[' + i + ']</span>' +
+              '<span class="gv-array-cell">' +
+                '<input class="gv-array-input' + err + '" data-array-input="' + i + '" value="' + esc(value) + '" spellcheck="false" autocomplete="off">' +
+                baseline +
+              '</span>' +
+              '<div class="gv-array-actions">' +
+                reset +
+                '<button type="button" class="gv-array-action" data-array-up="' + i + '"' + (i === 0 ? ' disabled' : '') + ' title="上移">' + icon('i-arrow-up') + '</button>' +
+                '<button type="button" class="gv-array-action" data-array-down="' + i + '"' + (i === arrayDialog.values.length - 1 ? ' disabled' : '') + ' title="下移">' + icon('i-arrow-down') + '</button>' +
+                '<button type="button" class="gv-array-action is-danger" data-array-del="' + i + '" title="删除该元素">' + icon('i-trash') + '</button>' +
+              '</div></div>';
+          }).join('');
+        }
+
+        refreshChangedState(v);
+
+        root.querySelector('#gv-array-error').hidden = !arrayDialog.error;
+        root.querySelector('#gv-array-error-text').textContent = arrayDialog.error;
+      }
+
+      function validateArray(v, values) {
+        var numeric = /Int32|Double/.test(v.type);
+        for (var i = 0; i < values.length; i++) {
+          var text = String(values[i] == null ? '' : values[i]).trim();
+          if (!text) continue; // 留空 = 类型默认值
+          if (numeric && (!isFinite(Number(text)) || isNaN(Number(text)))) {
+            return {
+              index: i,
+              message: '第 ' + (i + 1) + ' 项「' + text + '」无法转换为 ' + v.type.replace('[]', '') + '；留空表示使用默认值 0。'
+            };
+          }
+        }
+        return null;
+      }
+
+      function moveArrayItem(i, delta) {
+        var to = i + delta;
+        if (i < 0 || to < 0 || to >= arrayDialog.values.length) return;
+        var tmp = arrayDialog.values[i];
+        arrayDialog.values[i] = arrayDialog.values[to];
+        arrayDialog.values[to] = tmp;
+        renderArrayDialog();
+      }
+
+      function removeArrayItem(i) {
+        if (i < 0 || i >= arrayDialog.values.length) return;
+        arrayDialog.values.splice(i, 1);
+        arrayDialog.error = '';
+        arrayDialog.errorIndex = -1;
+        renderArrayDialog();
+      }
+
+      function applyArrayDialog() {
+        var v = findArrayVar(arrayDialog.name);
+        if (!v) { closeArrayDialog(); return; }
+
+        var problem = validateArray(v, arrayDialog.values);
+        if (problem) {
+          arrayDialog.error = problem.message;
+          arrayDialog.errorIndex = problem.index;
+          renderArrayDialog();
+          return;
+        }
+
+        var elementType = v.type.replace('[]', '');
+        var oldBase = arrayBaseline(v);
+        var nextValues = arrayDialog.values.slice();
+        v.children = nextValues.map(function (value, i) {
+          return {
+            name: '[' + i + ']', type: elementType, value: value,
+            baseline: i < oldBase.length ? oldBase[i] : undefined,
+            parent: v.name
+          };
+        });
+        if (arrayDialog.sync) {
+          v.baseline = nextValues.slice();
+          v.children.forEach(function (c, i) { c.baseline = v.baseline[i] || ''; });
+        }
+        state.expanded[v.name] = true;
+        closeArrayDialog();
+        render();
+        showToast(arrayDialog.sync
+          ? '已写入当前值与初始值（' + nextValues.length + ' 项）'
+          : '已写入当前值（' + nextValues.length + ' 项）；初始值保持不变');
+      }
+
+      function resetArrayToBaseline(name) {
+        var v = findArrayVar(name);
+        if (!v || !v.array) return;
+        var base = arrayBaseline(v);
+        v.children = base.map(function (value, i) {
+          return { name: '[' + i + ']', type: v.type.replace('[]', ''), value: value, baseline: value, parent: v.name };
+        });
+        state.expanded[v.name] = true;
+        render();
+        showToast('已恢复初始值（' + base.length + ' 项）');
+      }
+
+      function resetArrayElement(parentName, index) {
+        var v = findArrayVar(parentName);
+        if (!v || !v.children || index < 0 || index >= v.children.length) return;
+        var base = arrayBaseline(v);
+        v.children[index].value = base[index] == null ? '' : base[index];
+        render();
+        showToast('元素 ' + v.children[index].name + ' 已恢复为初始值');
+      }
+
       // 事件：来源
       root.addEventListener('click', function (e) {
         var src = e.target.closest ? e.target.closest('[data-source]') : null;
@@ -941,6 +1357,36 @@
         }
         var t = e.target.closest ? e.target.closest('[data-toast]') : null;
         if (t) { showToast(t.getAttribute('data-toast')); return; }
+        var arrayOpen = e.target.closest ? e.target.closest('[data-array-open]') : null;
+        if (arrayOpen) { openArrayDialog(arrayOpen.getAttribute('data-array-open')); return; }
+        var rowReset = e.target.closest ? e.target.closest('[data-row-reset]') : null;
+        if (rowReset) {
+          var rowIndex = Number(rowReset.getAttribute('data-row-reset'));
+          var rowVar = findArrayVar(arrayDialog.name);
+          var rowBase = rowVar ? arrayBaseline(rowVar) : [];
+          if (rowIndex >= 0 && rowIndex < arrayDialog.values.length && rowIndex < rowBase.length) {
+            arrayDialog.values[rowIndex] = rowBase[rowIndex];
+            arrayDialog.error = '';
+            arrayDialog.errorIndex = -1;
+            renderArrayDialog();
+          }
+          return;
+        }
+        var arrayReset = e.target.closest ? e.target.closest('[data-array-reset]') : null;
+        if (arrayReset) { resetArrayToBaseline(arrayReset.getAttribute('data-array-reset')); return; }
+        var elementReset = e.target.closest ? e.target.closest('[data-element-reset]') : null;
+        if (elementReset) {
+          resetArrayElement(
+            elementReset.getAttribute('data-parent'),
+            Number(elementReset.getAttribute('data-element-reset').replace(/[\[\]]/g, '')));
+          return;
+        }
+        var rowUp = e.target.closest ? e.target.closest('[data-array-up]') : null;
+        if (rowUp) { moveArrayItem(Number(rowUp.getAttribute('data-array-up')), -1); return; }
+        var rowDown = e.target.closest ? e.target.closest('[data-array-down]') : null;
+        if (rowDown) { moveArrayItem(Number(rowDown.getAttribute('data-array-down')), 1); return; }
+        var rowDel = e.target.closest ? e.target.closest('[data-array-del]') : null;
+        if (rowDel) { removeArrayItem(Number(rowDel.getAttribute('data-array-del'))); return; }
       });
 
       search.addEventListener('input', function () {
@@ -953,6 +1399,71 @@
       addBtn.addEventListener('click', function () { showToast('设计稿：打开「添加变量」属性网格弹窗（本批不改结构）'); });
       emptyAdd.addEventListener('click', function () { showToast('设计稿：打开「添加变量」属性网格弹窗（本批不改结构）'); });
       manageGroups.addEventListener('click', function () { showToast('设计稿：打开「管理扫描组」弹窗（作用对象 = 左栏选中的连接）'); });
+
+      // 数组编辑弹窗（v2）
+      root.querySelector('#gv-array-add').addEventListener('click', function () {
+        arrayDialog.values.push('');
+        arrayDialog.error = '';
+        arrayDialog.errorIndex = -1;
+        renderArrayDialog();
+        var inputs = root.querySelectorAll('#gv-array-list [data-array-input]');
+        if (inputs.length) inputs[inputs.length - 1].focus();
+      });
+      root.querySelector('#gv-array-ok').addEventListener('click', applyArrayDialog);
+      root.querySelector('#gv-array-cancel').addEventListener('click', function () {
+        closeArrayDialog();
+        syncSeg('#gv-array-seg', 'array', 'closed');
+      });
+      root.querySelector('#gv-array-close').addEventListener('click', function () {
+        closeArrayDialog();
+        syncSeg('#gv-array-seg', 'array', 'closed');
+      });
+      root.querySelectorAll('#gv-array-scope button').forEach(function (b) {
+        b.addEventListener('click', function () {
+          arrayDialog.sync = b.getAttribute('data-scope') === 'both';
+          renderArrayDialog();
+        });
+      });
+      root.querySelector('#gv-array-reset-all').addEventListener('click', function () {
+        var v = findArrayVar(arrayDialog.name);
+        if (!v) return;
+        arrayDialog.values = arrayBaseline(v).slice();
+        arrayDialog.error = '';
+        arrayDialog.errorIndex = -1;
+        renderArrayDialog();
+      });
+      root.querySelector('#gv-array-list').addEventListener('input', function (e) {
+        var input = e.target.closest ? e.target.closest('[data-array-input]') : null;
+        if (!input) return;
+        var i = Number(input.getAttribute('data-array-input'));
+        arrayDialog.values[i] = input.value;
+        var v = findArrayVar(arrayDialog.name);
+        if (v) refreshRowChanged(v, i);
+        if (arrayDialog.error) {
+          arrayDialog.error = '';
+          arrayDialog.errorIndex = -1;
+          root.querySelector('#gv-array-error').hidden = true;
+          input.classList.remove('is-error');
+        }
+      });
+      root.querySelectorAll('#gv-array-seg button').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var mode = b.getAttribute('data-array');
+          if (mode === 'closed') {
+            closeArrayDialog();
+          } else if (mode === 'open') {
+            // 用 HoleCoordinates 演示：基准 4 项、当前第 3 项已改 → 能看到基准行与逐行 ↺
+            openArrayDialog('HoleCoordinates');
+          } else {
+            openArrayDialog('HoleCoordinates');
+            arrayDialog.values[1] = 'abc';
+            arrayDialog.error = '第 2 项「abc」无法转换为 Double；留空表示使用默认值 0。';
+            arrayDialog.errorIndex = 1;
+            renderArrayDialog();
+          }
+          syncSeg('#gv-array-seg', 'array', mode);
+        });
+      });
 
       root.querySelectorAll('#gv-boundary-seg button').forEach(function (b) {
         b.addEventListener('click', function () { setBoundary(b.getAttribute('data-boundary')); });
@@ -1011,6 +1522,21 @@
         state.query = 'XYZ';
         search.value = 'XYZ';
         syncSeg('#gv-boundary-seg', 'boundary', 'search');
+      }
+
+      if (params.get('array') === 'open') {
+        state.source = 'local';
+        syncSeg('#gv-source-seg', 'source', 'local');
+        openArrayDialog('HoleCoordinates');
+      } else if (params.get('array') === 'error') {
+        state.source = 'local';
+        syncSeg('#gv-source-seg', 'source', 'local');
+        openArrayDialog('HoleCoordinates');
+        arrayDialog.values[1] = 'abc';
+        arrayDialog.error = '第 2 项「abc」无法转换为 Double；留空表示使用默认值 0。';
+        arrayDialog.errorIndex = 1;
+        renderArrayDialog();
+        syncSeg('#gv-array-seg', 'array', 'error');
       }
 
       render();

@@ -1,0 +1,498 @@
+/*!
+ * elements-interactive.css — M2 交互图元样式（Button / BitButton / TextField / ComboBox / SelectorSwitch / AckButton）
+ *
+ * 只做版面与主题；颜色、尺寸、选中态全部由 elements-interactive.js 按快照属性写进内联样式
+ * （与 elements-process.css 同一条纪律：图元属性是数据，不能提前固化进 CSS）。
+ *
+ * 主题令牌来自 styles.css（--text / --surface / --border / --accent / --danger / --font-mono）；
+ * 每个令牌都带兜底值，兜底值取自 Scada.Controls/Themes/ScadaTokens.xaml。
+ *
+ * 交互五态：
+ *   Normal / Hover（白色覆盖 0.12）/ Pressed（黑色覆盖 0.16）/ Focus（2px accent 外框）/ Disabled（0.45~0.5 + not-allowed）
+ */
+
+/* ============================ 公共骨架 ============================ */
+
+.hmi-interactive {
+    position: relative;
+    box-sizing: border-box;
+    font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", system-ui, sans-serif;
+    color: var(--text, #E6EEF7);
+    line-height: 1.2;
+    -webkit-user-select: none;
+    user-select: none;
+    outline: none;
+}
+
+.hmi-interactive *,
+.hmi-interactive *::before,
+.hmi-interactive *::after {
+    box-sizing: border-box;
+}
+
+/* 键盘焦点必须可见（不允许 outline:0） */
+.hmi-interactive:focus-visible {
+    outline: 2px solid var(--accent, #38BDF8);
+    outline-offset: 2px;
+}
+
+.hmi-interactive.is-disabled {
+    cursor: not-allowed;
+}
+
+/* ============================ 按钮 / 位按钮 ============================ */
+
+.hmi-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    isolation: isolate;
+    cursor: pointer;
+    touch-action: none;
+    transition: background-color 150ms ease, border-color 150ms ease, opacity 150ms ease;
+}
+
+/* 两层明暗覆盖：::before 悬停提亮、::after 按下压暗（与 WPF 模板同口径） */
+.hmi-btn::before,
+.hmi-btn::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 150ms ease;
+}
+
+.hmi-btn::before {
+    background: #FFFFFF;
+}
+
+.hmi-btn::after {
+    background: #000000;
+}
+
+.hmi-btn:hover::before {
+    opacity: 0.12;
+}
+
+.hmi-btn.is-pressed::after {
+    opacity: 0.16;
+}
+
+.hmi-btn.is-disabled::before,
+.hmi-btn.is-disabled::after {
+    opacity: 0;
+}
+
+.hmi-btn-label {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    padding: 0 6px;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+}
+
+/* 位按钮与按钮共用骨架，只多一个按下态（.is-pressed 已由 JS 维护） */
+.hmi-bitbutton {
+    /* 与 .hmi-btn 同形；保留独立类名便于调试与后续换肤 */
+}
+
+/* ============================ 文本输入域 ============================ */
+
+.hmi-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow: visible;
+    cursor: default;
+}
+
+.hmi-field.is-editable {
+    cursor: text;
+}
+
+.hmi-field-label {
+    flex: 0 0 auto;
+    max-width: 42%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hmi-field-frame {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    overflow: hidden;
+    transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.hmi-field-display {
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono, "Cascadia Mono", Consolas, "Courier New", monospace);
+}
+
+.hmi-field-placeholder {
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    overflow: hidden;
+    color: var(--text-muted, #7C8A99);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.hmi-field-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0 6px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-family: var(--font-mono, "Cascadia Mono", Consolas, "Courier New", monospace);
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+/* 行内错误：绝对定位在控件下方，不占控件高度（元素可能只有 32px 高） */
+.hmi-field-error {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 20;
+    display: none;
+    padding: 4px 6px;
+    border: 1px solid rgba(239, 68, 68, 0.55);
+    border-radius: 4px;
+    background: rgba(30, 15, 18, 0.96);
+    color: #FCA5A5;
+    font-size: 11px;
+    line-height: 1.35;
+    text-align: left;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.hmi-field-error.is-visible {
+    display: block;
+}
+
+/* ============================ 枚举下拉 ============================ */
+
+.hmi-combo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    overflow: visible;
+    cursor: pointer;
+    transition: border-color 150ms ease, opacity 150ms ease;
+}
+
+.hmi-combo-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hmi-combo-raw {
+    flex: 0 0 auto;
+    font-family: var(--font-mono, "Cascadia Mono", Consolas, "Courier New", monospace);
+    font-size: 0.78em;
+    color: var(--text-muted, #7C8A99);
+}
+
+.hmi-combo-chevron {
+    flex: 0 0 auto;
+    width: 6px;
+    height: 6px;
+    border-right: 1.4px solid currentColor;
+    border-bottom: 1.4px solid currentColor;
+    transform: rotate(45deg) translateY(-2px);
+    opacity: 0.85;
+}
+
+.hmi-combo-error {
+    /* 与文本输入域共用 .hmi-field-error 的定位与配色 */
+}
+
+/* 弹层挂在 document.body 上（position:fixed），避免被 Panel 的 overflow:hidden 裁掉 */
+.hmi-combo-pop {
+    position: fixed;
+    z-index: 300;
+    max-height: 220px;
+    padding: 4px;
+    overflow: auto;
+    border: 1px solid var(--border, #2A3745);
+    border-radius: 6px;
+    background: var(--surface-raised, #1B242D);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.hmi-combo-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    color: var(--text, #E6EEF7);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 120ms ease;
+}
+
+.hmi-combo-option:hover,
+.hmi-combo-option.is-highlight {
+    background: var(--border, #2A3745);
+}
+
+.hmi-combo-option.is-selected {
+    background: var(--border-strong, #3A4A5C);
+}
+
+.hmi-combo-option-value {
+    font-family: var(--font-mono, "Cascadia Mono", Consolas, "Courier New", monospace);
+    font-size: 0.8em;
+    color: var(--text-muted, #7C8A99);
+}
+
+.hmi-combo-empty {
+    padding: 8px;
+    color: var(--text-muted, #7C8A99);
+    font-size: 0.9em;
+}
+
+/* ============================ 多档旋钮 ============================ */
+
+.hmi-selector {
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+}
+
+.hmi-selector-track {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: stretch;
+    min-height: 0;
+    padding: 3px;
+    overflow: hidden;
+    transition: border-color 150ms ease, opacity 150ms ease;
+}
+
+.hmi-selector-opt {
+    position: relative;
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    margin: 0;
+    padding: 0 10px;
+    overflow: hidden;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    touch-action: none;
+    transition: background-color 150ms ease, color 150ms ease, opacity 150ms ease;
+}
+
+/* 悬停提亮：独立覆盖层，不改选中态背景 */
+.hmi-selector-opt::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: #FFFFFF;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms ease;
+}
+
+.hmi-selector-opt:hover::after {
+    opacity: 0.08;
+}
+
+.hmi-selector-opt.is-selected::after {
+    opacity: 0;
+}
+
+.hmi-selector-opt:focus-visible {
+    outline: 2px solid var(--accent, #38BDF8);
+    outline-offset: -2px;
+}
+
+.hmi-selector-text {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hmi-selector-opt:not(.is-selected) .hmi-selector-text {
+    opacity: 0.62;
+}
+
+.hmi-selector.is-disabled {
+    opacity: 0.42;
+}
+
+.hmi-selector.is-disabled .hmi-selector-opt {
+    cursor: not-allowed;
+}
+
+.hmi-selector.is-disabled .hmi-selector-opt::after {
+    opacity: 0;
+}
+
+/* ============================ 报警确认 ============================ */
+
+.hmi-ack {
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+}
+
+.hmi-ack-button {
+    position: relative;
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 28px;
+    width: 100%;
+    padding: 0 12px;
+    overflow: hidden;
+    border: 1px solid transparent;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    touch-action: none;
+    transition: background-color 150ms ease, border-color 150ms ease, opacity 150ms ease;
+}
+
+/* 五态：悬停提亮 0.10 / 按下压暗 0.18 / 禁用 0.45 */
+.hmi-ack-button::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: #FFFFFF;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms ease;
+}
+
+.hmi-ack-button:hover::after {
+    opacity: 0.10;
+}
+
+.hmi-ack-button:active::after {
+    background: #000000;
+    opacity: 0.18;
+}
+
+.hmi-ack-button:focus-visible {
+    outline: 2px solid var(--accent, #38BDF8);
+    outline-offset: 2px;
+}
+
+.hmi-ack-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+/* 无权限：保留可点击（点了给原因），视觉与 disabled 同档 */
+.hmi-ack-button.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.hmi-ack-button:disabled::after,
+.hmi-ack-button.is-disabled::after {
+    opacity: 0;
+}
+
+.hmi-ack-check {
+    position: relative;
+    z-index: 1;
+    flex: 0 0 auto;
+    width: 13px;
+    height: 13px;
+    display: block;
+}
+
+.hmi-ack-label {
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hmi-ack-count {
+    position: relative;
+    z-index: 1;
+    flex: 0 0 auto;
+    margin-left: 4px;
+    padding: 1px 6px;
+    border: 1px solid var(--border-strong, #3A4A5C);
+    border-radius: 9px;
+    background: var(--surface-raised, #1B242D);
+    color: var(--text, #E6EEF7);
+    font-family: var(--font-mono, "Cascadia Mono", Consolas, "Courier New", monospace);
+    font-size: 10.5px;
+    line-height: 1.35;
+}
+
+.hmi-ack-count[hidden] {
+    display: none !important;
+}
+
+.hmi-ack-message {
+    flex: 0 0 auto;
+    margin: 3px 2px 0;
+    overflow: hidden;
+    color: var(--text-secondary, #A9B7C6);
+    font-size: 10.5px;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hmi-ack-message.is-error {
+    color: #FCA5A5;
+}

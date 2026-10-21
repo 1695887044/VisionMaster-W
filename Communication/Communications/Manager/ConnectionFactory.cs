@@ -70,6 +70,63 @@ namespace VisionMaster.Communications
     }
 
     /// <summary>
+    /// 三菱 MC（QnA 3E 帧）连接工厂
+    /// </summary>
+    public class MitsubishiMcConnectionFactory : IConnectionFactory
+    {
+        public CommunicationType SupportedType => CommunicationType.MitsubishiMc;
+        public string Description => "三菱 MC（QnA 3E 帧，含基恩士/松下变体）连接工厂";
+
+        public ICommunicationConnection Create(CommunicationConfig config)
+        {
+            return new MitsubishiMcConnection((MitsubishiMcConfig)config.Config);
+        }
+
+        public bool Supports(ConnectionConfigBase config)
+        {
+            return config is MitsubishiMcConfig;
+        }
+    }
+
+    /// <summary>
+    /// 欧姆龙 FINS/TCP 连接工厂
+    /// </summary>
+    public class OmronFinsConnectionFactory : IConnectionFactory
+    {
+        public CommunicationType SupportedType => CommunicationType.OmronFins;
+        public string Description => "欧姆龙 FINS/TCP 连接工厂";
+
+        public ICommunicationConnection Create(CommunicationConfig config)
+        {
+            return new OmronFinsConnection((OmronFinsConfig)config.Config);
+        }
+
+        public bool Supports(ConnectionConfigBase config)
+        {
+            return config is OmronFinsConfig;
+        }
+    }
+
+    /// <summary>
+    /// 自由协议（通用 TCP 文本命令）连接工厂
+    /// </summary>
+    public class FreeProtocolConnectionFactory : IConnectionFactory
+    {
+        public CommunicationType SupportedType => CommunicationType.FreeProtocol;
+        public string Description => "自由协议（通用 TCP 文本命令）连接工厂";
+
+        public ICommunicationConnection Create(CommunicationConfig config)
+        {
+            return new FreeProtocolConnection((FreeProtocolConfig)config.Config);
+        }
+
+        public bool Supports(ConnectionConfigBase config)
+        {
+            return config is FreeProtocolConfig;
+        }
+    }
+
+    /// <summary>
     /// Modbus RTU (串口) 连接工厂
     /// </summary>
     public class ModbusRtuConnectionFactory : IConnectionFactory
@@ -126,6 +183,42 @@ namespace VisionMaster.Communications
             => new SiemensS7Connection((SiemensS7Config)config);
     }
 
+    /// <summary>三菱 MC 驱动：一个 PLC 一条 TCP（二进制/ASCII 3E 帧）。</summary>
+    public sealed class MitsubishiMcDriverFactory : ICommunicationDriverFactory
+    {
+        public string DriverId => "mitsubishi.mc";
+        public string DisplayName => "三菱 MC";
+        public string Description => "三菱 Q/L/FX 系列 MC 3E 帧（二进制/ASCII；含基恩士/松下变体）";
+        public Type? ConfigType => typeof(MitsubishiMcConfig);
+
+        public ICommunicationConnection Create(ConnectionConfigBase config)
+            => new MitsubishiMcConnection((MitsubishiMcConfig)config);
+    }
+
+    /// <summary>欧姆龙 FINS 驱动：一个 PLC 一条 TCP。</summary>
+    public sealed class OmronFinsDriverFactory : ICommunicationDriverFactory
+    {
+        public string DriverId => "omron.fins";
+        public string DisplayName => "欧姆龙 FINS";
+        public string Description => "欧姆龙 CP/CJ/NJ/NX 系列 FINS/TCP（默认端口 9600）";
+        public Type? ConfigType => typeof(OmronFinsConfig);
+
+        public ICommunicationConnection Create(ConnectionConfigBase config)
+            => new OmronFinsConnection((OmronFinsConfig)config);
+    }
+
+    /// <summary>自由协议驱动：一条 TCP，按帧结束符收发文本命令。</summary>
+    public sealed class FreeProtocolDriverFactory : ICommunicationDriverFactory
+    {
+        public string DriverId => "free.protocol";
+        public string DisplayName => "自由协议";
+        public string Description => "通用 TCP 文本命令（自定义帧结束符；适合条码枪/称重仪/扭矩枪等）";
+        public Type? ConfigType => typeof(FreeProtocolConfig);
+
+        public ICommunicationConnection Create(ConnectionConfigBase config)
+            => new FreeProtocolConnection((FreeProtocolConfig)config);
+    }
+
     #endregion
 
     /// <summary>
@@ -156,12 +249,18 @@ namespace VisionMaster.Communications
             Register(new ModbusTcpConnectionFactory());
             Register(new SiemensS7ConnectionFactory());
             Register(new ModbusRtuConnectionFactory());
+            Register(new MitsubishiMcConnectionFactory());
+            Register(new OmronFinsConnectionFactory());
+            Register(new FreeProtocolConnectionFactory());
 
             // 同一批协议再以字符串 Id 注册一遍：外部驱动走这张表，内建驱动也必须在里面，
             // 否则"可用协议清单"会出现两套（枚举一份、驱动一份），迟早不一致。
             Drivers.Register(new ModbusTcpDriverFactory());
             Drivers.Register(new ModbusRtuDriverFactory());
             Drivers.Register(new SiemensS7DriverFactory());
+            Drivers.Register(new MitsubishiMcDriverFactory());
+            Drivers.Register(new OmronFinsDriverFactory());
+            Drivers.Register(new FreeProtocolDriverFactory());
         }
 
         public void Register(IConnectionFactory factory)

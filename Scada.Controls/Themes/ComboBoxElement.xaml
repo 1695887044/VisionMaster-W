@@ -185,7 +185,7 @@
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Focusable" Value="False" />
         <Setter Property="FontFamily" Value="Microsoft YaHei" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="14" />
         <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
         <Setter Property="Fill" Value="{StaticResource HmiSurfaceBrush}" />
         <Setter Property="Stroke" Value="{StaticResource HmiBorderStrongBrush}" />
@@ -195,23 +195,99 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type local:ComboBoxElement}">
-                    <ComboBox
-                        x:Name="PART_Combo"
-                        Background="{TemplateBinding Fill}"
-                        BorderBrush="{TemplateBinding Stroke}"
-                        BorderThickness="{TemplateBinding StrokeThickness}"
-                        DisplayMemberPath="Display"
-                        FocusVisualStyle="{StaticResource HmiFocusVisual}"
-                        FontFamily="{TemplateBinding FontFamily}"
-                        FontSize="{TemplateBinding FontSize}"
-                        FontWeight="{TemplateBinding FontWeight}"
-                        Foreground="{TemplateBinding Foreground}"
-                        IsEnabled="{TemplateBinding IsEditable}"
-                        ItemsSource="{TemplateBinding OptionList}"
-                        SelectedValue="{Binding Value, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
-                        SelectedValuePath="Value"
-                        Style="{StaticResource HmiComboBoxStyle}"
-                        Tag="{TemplateBinding SelectedText}" />
+                    <Grid>
+                        <ComboBox
+                            x:Name="PART_Combo"
+                            Background="{TemplateBinding Fill}"
+                            BorderBrush="{TemplateBinding Stroke}"
+                            BorderThickness="{TemplateBinding StrokeThickness}"
+                            DisplayMemberPath="Display"
+                            FocusVisualStyle="{StaticResource HmiFocusVisual}"
+                            FontFamily="{TemplateBinding FontFamily}"
+                            FontSize="{TemplateBinding FontSize}"
+                            FontWeight="{TemplateBinding FontWeight}"
+                            Foreground="{TemplateBinding Foreground}"
+                            IsEnabled="{TemplateBinding IsEditable}"
+                            ItemsSource="{TemplateBinding OptionList}"
+                            SelectedValue="{Binding Value, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                            SelectedValuePath="Value"
+                            Style="{StaticResource HmiComboBoxStyle}"
+                            Tag="{TemplateBinding SelectedText}" />
+
+                        <!--
+                            Text 呈现：只读字段（与 IOField 只读态同族）。
+                            与下拉框共用同一个模板、同一套 Value/Options/SelectedText；
+                            只切两段可见性，不换模板——换模板会丢 PART_Combo 与写回订阅。
+                        -->
+                        <Border
+                            x:Name="PART_TextFrame"
+                            Background="Transparent"
+                            BorderBrush="{StaticResource HmiFieldUnderlineBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="0,0,0,8"
+                            SnapsToDevicePixels="True">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    x:Name="PART_TextLabel"
+                                    Grid.Column="0"
+                                    Margin="0,0,8,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{TemplateBinding FontFamily}"
+                                    FontSize="{TemplateBinding FontSize}"
+                                    Foreground="{TemplateBinding Foreground}"
+                                    Opacity="0.72"
+                                    Text="{TemplateBinding Text}"
+                                    TextTrimming="CharacterEllipsis">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <!--  标签留空时整列收起：不靠 TemplatedParent 绑定（在 Style 触发器里不可靠）  -->
+                                                <Trigger Property="Text" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <TextBlock
+                                    x:Name="PART_TextValue"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{TemplateBinding FontFamily}"
+                                    FontSize="{TemplateBinding FontSize}"
+                                    FontWeight="{TemplateBinding FontWeight}"
+                                    Foreground="{TemplateBinding Foreground}"
+                                    Text="{TemplateBinding SelectedText}"
+                                    TextAlignment="{TemplateBinding TextAlignment}"
+                                    TextTrimming="CharacterEllipsis" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <!--
+                            Trigger 而不是 DataTrigger：ControlTemplate.Triggers 里的 Trigger 直接盯模板化控件的属性，
+                            不需要 RelativeSource TemplatedParent（在部分 WPF 版本/触发器位置里不可靠）。
+                        -->
+                        <Trigger Property="Presentation" Value="Field">
+                            <Setter TargetName="PART_Combo" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="PART_TextFrame" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="Presentation" Value="Text">
+                            <Setter TargetName="PART_Combo" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="PART_TextFrame" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="ShowSeparator" Value="False">
+                            <Setter TargetName="PART_TextFrame" Property="BorderThickness" Value="0" />
+                            <Setter TargetName="PART_TextFrame" Property="Padding" Value="0" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

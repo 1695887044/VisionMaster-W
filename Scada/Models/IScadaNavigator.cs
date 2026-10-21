@@ -50,5 +50,14 @@ namespace VisionMaster.Scada
         /// </param>
         /// <returns>目标状态是否已达成（目标页正在显示，或刚刚切成）</returns>
         bool Navigate(Guid pageId, string? fallbackName, out string? reason);
+
+        /// <summary>
+        /// 返回上一页（页栈弹一层）。栈空、目标页已被删除/改成基座、会话已结束时返回 false，
+        /// <paramref name="reason"/> 是一句能直接写进日志的原因。
+        ///
+        /// 与 <see cref="Navigate"/> 同一套契约：不许抛异常；无会话时安静返回 false。
+        /// 单独开这个方法而不是让分发器去拿会话：分发器只认识本接口（它拿不到会话，也不该拿到）。
+        /// </summary>
+        bool GoBack(out string? reason);
     }
 }

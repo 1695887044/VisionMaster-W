@@ -149,6 +149,103 @@ if (-not (Test-Path $modulesSrc)) {
     if ($pluginCount -eq 0) { $problems.Add("Modules\ 里没有任何 Plugin.*.dll，主程序启动会一个算子都没有") }
 }
 
+# ---------- 3b. 补可选模块目录 Web\ ----------
+# SCADA 运行态 Web 客户端是**可选模块**：宿主按 AppContext.BaseDirectory\Web\VisionMaster.ScadaWeb.dll
+# 定位它（见 ScadaWebModuleLoader）。它不属于主程序发布项（VisionMaster 不引用该工程），
+# 所以要像 Modules\ 一样单独拷。整目录拷：将来 Web 侧加静态资源不用回来改脚本。
+Write-Step "3b/6 补可选模块目录 Web\"
+
+$webSrc = Join-Path $repoRoot "VisionMaster\bin\$Configuration\net9.0-windows\Web"
+$webDst = Join-Path $OutputDir 'Web'
+if (Test-Path $webSrc) {
+    New-Item -ItemType Directory -Path $webDst -Force | Out-Null
+    Copy-Item "$webSrc\*" $webDst -Recurse -Force
+    Write-Ok "已拷入 Web\（$(@(Get-ChildItem $webDst -Recurse -File).Count) 个文件）"
+} else {
+    Write-Host "  [-] 未找到 $webSrc，跳过（若现场要用 SCADA Web 运行态，先构建 Web\VisionMaster.ScadaWeb）" -ForegroundColor Yellow
+}
+
+# 启用了却没有 DLL = 现场打开网页必然失败，这种缺口必须在打包时拦下来（直接 throw，不只是记一条问题）。
+# 读配置用 [IO.File]::ReadAllText + 显式 UTF8：不依赖控制台代码页（R2/R4 同口径）。
+$webEnabled = $false
+$appConfigPath = Join-Path $OutputDir 'AppConfig.json'
+if (Test-Path $appConfigPath) {
+    try {
+        $cfgText = [System.IO.File]::ReadAllText($appConfigPath, [System.Text.Encoding]::UTF8)
+        $cfg = $cfgText | ConvertFrom-Json
+        if ($null -ne $cfg.ScadaWeb -and $cfg.ScadaWeb.Enabled -eq $true) { $webEnabled = $true }
+    } catch {
+        # AppConfig.json 允许注释/尾逗号（宿主用 Newtonsoft 读）。标准 JSON 解析失败时既不能判"未启用"，
+        # 也不能判缺口——只提示一句，交给现场确认。
+        Write-Host "  [!] AppConfig.json 不是严格 JSON（可能含注释），跳过 ScadaWeb.Enabled 校验" -ForegroundColor Yellow
+    }
+}
+if ($webEnabled) {
+    $webDll = Join-Path $OutputDir 'Web\VisionMaster.ScadaWeb.dll'
+    if (Test-Path $webDll) {
+        Write-Ok "ScadaWeb.Enabled=true，且 Web\VisionMaster.ScadaWeb.dll 已就位"
+    } else {
+        throw "AppConfig.json 里 ScadaWeb.Enabled=true，但交付目录缺少 Web\VisionMaster.ScadaWeb.dll——网页入口会打不开。先构建 Web\VisionMaster.ScadaWeb 再打包。"
+    }
+}
+
+# ---------- 3c. Validate Web\ and Modules\ assembly ownership ----------
+# Only checks, never copies. Four hard rules (all throw, not just recorded as problems):
+#   1) Web\ must not carry host/contract assembly copies (two copies = two type identities);
+#   2) Modules\ must not carry VisionMaster.ScadaWeb.dll (Modules\ is scanned as operator plugins);
+#   3) Modules\ must not carry VM.*.dll / Core.*.dll contract copies (public contracts exist once);
+#   4) Web\ must not carry Prism*.dll (same prefix rule as ScadaWebModuleLoader).
+# The loader rejects these at runtime (ScadaWebModuleLoader); this block turns a silent
+# "module did not load on site" into a packaging failure.
+Write-Step "3c/6 validate Web\ and Modules\ assembly ownership"
+
+$contractAssemblyNames = @(
+    'VM.Core.dll',
+    'VM.Scada.dll',
+    'Core.Interfaces.dll',
+    'Core.Controls.dll',
+    'VM.Scada.Controls.dll',
+    'Newtonsoft.Json.dll',
+    'VisionMaster.dll',
+    'halcondotnet.dll'
+)
+
+function Test-IsContractAssemblyCopy([string]$FileName) {
+    if ($FileName.StartsWith('Prism', [StringComparison]::OrdinalIgnoreCase)) {
+        return $FileName.EndsWith('.dll', [StringComparison]::OrdinalIgnoreCase)
+    }
+    foreach ($name in $contractAssemblyNames) {
+        if ([string]::Equals($name, $FileName, [StringComparison]::OrdinalIgnoreCase)) { return $true }
+    }
+    return $false
+}
+
+$webOutDir = Join-Path $OutputDir 'Web'
+if (Test-Path $webOutDir) {
+    $webCopies = @(Get-ChildItem $webOutDir -Filter '*.dll' -File |
+        Where-Object { Test-IsContractAssemblyCopy $_.Name } |
+        ForEach-Object { $_.Name })
+    if ($webCopies.Count -gt 0) {
+        throw "Web\ contains host/contract assembly copies: $($webCopies -join ', '). Two copies = two type identities (interfaces cannot be cast, static state diverges). Web\ must only carry VisionMaster.ScadaWeb.dll."
+    }
+    Write-Ok "Web\ assembly ownership check passed (no host/contract copies)"
+}
+
+$modulesOutDir = Join-Path $OutputDir 'Modules'
+if (Test-Path $modulesOutDir) {
+    $webModuleInModules = Join-Path $modulesOutDir 'VisionMaster.ScadaWeb.dll'
+    if (Test-Path $webModuleInModules) {
+        throw "Modules\ contains VisionMaster.ScadaWeb.dll. The optional Web module belongs to Web\ only; Modules\ is scanned as operator plugins (Plugin*.dll)."
+    }
+    $moduleCopies = @(Get-ChildItem $modulesOutDir -File |
+        Where-Object { $_.Name -like 'VM.*.dll' -or $_.Name -like 'Core.*.dll' } |
+        ForEach-Object { $_.Name })
+    if ($moduleCopies.Count -gt 0) {
+        throw "Modules\ contains contract assembly copies: $($moduleCopies -join ', '). Public contracts must exist only once, in the host directory."
+    }
+    Write-Ok "Modules\ assembly ownership check passed (no Web module, no contract copies)"
+}
+
 # ---------- 4. 补 ScriptAssets ----------
 Write-Step "4/6 补 ScriptAssets（插件运行期资源）"
 

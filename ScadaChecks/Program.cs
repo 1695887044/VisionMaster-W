@@ -113,6 +113,18 @@ namespace ScadaChecks
             ElementControlChecks();
             AxisPanelChecks();
             TankKpiChecks.Run();
+            RunHubChecks.Run();
+            ModuleLoaderChecks.Run();
+            RenderCatalogChecks.Run();
+            PageSnapshotChecks.Run();
+            UserStoreConcurrencyChecks.Run();
+            // 并发段有自己的计数与汇总（顶层 public 类），必须把它的结果并回主汇总：
+            // 否则 UC16~UC18 的红条只出现在日志里，最终 Finish 仍报 0 失败。
+            var ucResult = UserStoreConcurrencyChecks.LastResult;
+            _pass += ucResult.Pass;
+            _fail += ucResult.Fail;
+            ScadaAlarmHistoryChecks();
+            ScadaMonitoringChecks();
             ChoiceControlChecks.Run();
             DragDropChecks();
             PropertyPanelChecks();
@@ -121,6 +133,7 @@ namespace ScadaChecks
             ViewportRenderChecks();
             EventHookDispatchChecks();
             FlowActionDispatchChecks();
+            P0ConfirmationAndPauseChecks();
             RuntimeBinderChecks();
             AnimationChecks();
             VariableEventChecks();
@@ -137,14 +150,19 @@ namespace ScadaChecks
             RunningFlowIndicatorChecks();
             DataGridChecks();
             ClipboardAndTemplateChecks();
+            TemplateExpansionChecks();
             AlarmChecks();
             AlarmHistoryChecks();
             AlarmBannerChecks();
             AlarmHistoryPanelChecks();
             UserStoreChecks();
             AuditWriterChecks();
+            M2AuditRegressionChecks.Run();
+            _pass += M2AuditRegressionChecks.Pass;
+            _fail += M2AuditRegressionChecks.Fail;
             SystemParametersChecks();
             SystemSettingsPanelChecks();
+            SystemSettingsExtendedChecks();
             SolutionListAuditChecks();
             PackagingChecks();
             VariableEventDialogChecks();
@@ -989,7 +1007,9 @@ namespace ScadaChecks
 
             var page = new ScadaPage();
             int v0 = page.Version;
-            Check("新建画面的版本号从 0 起", v0 == 0, $"Version={v0}");
+            // 2026-10-21 终审 P0-1：Version 基线从 1 起（0 被 Web 命令闸当"缺省"拒绝），
+            // 所以这里断言 1，后续递增口径仍是 +1。
+            Check("新建画面的版本号基线从 1 起（0 被 Web 命令闸当缺省拒绝）", v0 == 1, $"Version={v0}");
 
             var element = new ScadaElement { TypeKey = "Basic.Rectangle", Name = "矩形1" };
             page.Elements.Add(element);
@@ -3279,6 +3299,40 @@ namespace ScadaChecks
             SavePng(frame, png);
             Console.WriteLine($"        （顶栏证据：{png}）");
 
+            // ---- 框选落账：多选不许被"主选中回推"压成单选 ----
+            // 2026-10-21 真机报障「框选只选中一个」。根因：SetSelection 先写集合、再写主选中，
+            // 而集合那条依赖属性在写主选中那一刻读到的还是旧值（双向绑定回推主选中正好落在
+            // 集合写入的通知中间），OnSelectedElementChanged 于是判定"这个图元不在集合里"，
+            // 把它自己展开成单选，把刚写进去的 4 个覆盖成 1 个。
+            // 这条断言走的就是那条路：真视图 + 真编辑器视图模型（SelectedElement 有"不在集合里就展开"的修正），
+            // 用反射调画布的 SetSelection（框选落账的唯一入口）。
+            var canvas = FindVisual<ScadaCanvas>(view, _ => true);
+
+            if (canvas != null)
+            {
+                foreach (var typeKey in new[] { "Hmi.Rectangle", "Hmi.Ellipse", "Hmi.Text" })
+                    vm.AddElement(typeKey, new Point(40, 40));
+
+                var targets = page.Elements.Take(3).ToList();
+                var setSelection = typeof(ScadaCanvas).GetMethod("SetSelection",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+
+                setSelection!.Invoke(canvas, new object[] { targets });
+
+                Check("框选落账后多选原样保留（不被主选中回推压成单选）",
+                    canvas.SelectedElements.Count == 3 && vm.SelectedElements.Count == 3,
+                    $"画布={canvas.SelectedElements.Count} 视图模型={vm.SelectedElements.Count}（期望 3）");
+
+                Check("框选落账后主选中是集合首项（不变式仍然成立）",
+                    ReferenceEquals(canvas.SelectedElement, targets[0])
+                    && ReferenceEquals(vm.SelectedElement, targets[0]),
+                    $"画布主选中={canvas.SelectedElement?.Name ?? "<null>"} 视图模型主选中={vm.SelectedElement?.Name ?? "<null>"}");
+            }
+            else
+            {
+                Check("框选落账：找到画布", false, "视图里没有 ScadaCanvas");
+            }
+
             // 必须摘干净：`Activate()` 订阅了**静态**的 ScadaEditHistory.Changed，
             // 而本探针跑在自己的 STA 线程上。不摘的话，后面任何一段改模型都会回调到这里，
             // 顺着 WPF 绑定摸到一条已经没人泵的 Dispatcher —— 后面几段会集体抛
@@ -5390,8 +5444,14 @@ namespace ScadaChecks
             {
                 editor.SelectedElement = Named(descriptor.TypeKey, "临时");
 
-                // 行账本 = 属性行 + 事件行 + 动画行 + 通用关系行：声明了几个事件就多几行，面板一行不多一行不少
-                if (Total(panel) != descriptor.Properties.Count + descriptor.Events.Count + AnimationRows + UniversalRows) rowMismatch++;
+                // 行账本 = 可见属性行 + 事件行 + 动画行 + 通用关系行。
+                // 条件可见（VisibleWhenKey/Value）的行按当前属性袋过滤：ComboBox 默认 Field 时
+                // Text/TextAlignment/ShowSeparator 三行不出现，不能拿原始声明数当期望值。
+                int visibleProperties = 0;
+                foreach (var property in descriptor.Properties)
+                    if (property.IsVisibleFor(editor.SelectedElement)) visibleProperties++;
+
+                if (Total(panel) != visibleProperties + descriptor.Events.Count + AnimationRows + UniversalRows) rowMismatch++;
 
                 // 可绑性只有描述符一个来源：按钮上的 ƒx 该不该亮，不由面板自己猜
                 foreach (var row in panel.Groups.SelectMany(g => g.Rows))
@@ -5550,14 +5610,25 @@ namespace ScadaChecks
                 eventRow.Actions!.Count == 1 && eventRow.Actions[0].Text == "甲",
                 $"{eventRow.Actions.Count} 条 / 剩「{eventRow.Actions[0].Text}」");
 
-            Check("类型下拉与枚举显示名同源：下拉里选的「写变量」和运行日志里的「写变量」是同一句话",
+            Check("类型下拉与枚举显示名同源：下拉里选的「写变量」和运行日志里的「写变量」是同一句话；流程五项按 启动→暂停→恢复→停止→执行一次 相邻排列",
                 eventRow.ActionTypeChoices.Count == Enum.GetValues<ScadaActionType>().Length
                 && eventRow.ActionTypeChoices.Select(o => o.Type).Distinct().Count() == eventRow.ActionTypeChoices.Count
-                && eventRow.ActionTypeChoices.Select(o => o.DisplayName).SequenceEqual(
-                    Enum.GetValues<ScadaActionType>().Select(t => t.DisplayName())),
+                && eventRow.ActionTypeChoices.All(o => o.DisplayName == o.Type.DisplayName())
+                && eventRow.ActionTypeChoices.Select(o => o.Type).SequenceEqual(new[]
+                {
+                    ScadaActionType.Log, ScadaActionType.WriteVariable, ScadaActionType.Navigate,
+                    ScadaActionType.NavigateBack,
+                    ScadaActionType.StartFlow, ScadaActionType.PauseFlow, ScadaActionType.ResumeFlow,
+                    ScadaActionType.StopFlow, ScadaActionType.RunFlowOnce,
+                    ScadaActionType.MotionEnable, ScadaActionType.MotionDisable,
+                    ScadaActionType.MotionMoveAbsolute, ScadaActionType.MotionMoveRelative,
+                    ScadaActionType.MotionHome, ScadaActionType.MotionStop,
+                    ScadaActionType.MotionClearAlarm, ScadaActionType.MotionJogStart,
+                    ScadaActionType.MotionJogStop,
+                }),
                 string.Join("/", eventRow.ActionTypeChoices.Select(o => o.DisplayName)));
 
-            Check("十五条动作现在都已接通（含 2026-10-18 追加的九条运动命令），PendingReason 只剩「本版本不认识」这一档；面板那行橙色提示与运行日志仍逐字同源",
+            Check("十八条动作现在都已接通（含 2026-10-18 追加的九条运动命令、2026-10-21 追加的暂停/恢复与返回上一页），PendingReason 只剩「本版本不认识」这一档；面板那行橙色提示与运行日志仍逐字同源",
                 Enum.GetValues<ScadaActionType>().All(t => new ScadaAction { Type = t }.PendingReason == null)
                 && new ScadaAction { Type = (ScadaActionType)99 }.PendingReason == "本版本不认识该动作",
                 new ScadaAction { Type = ScadaActionType.Navigate }.PendingReason ?? "null");
@@ -6689,7 +6760,8 @@ namespace ScadaChecks
             var pageUnloadRow = (ScadaEventRow)Row("Event.1");
 
             Check("画面事件清单长出的行落在「运行」组（与「启动画面」同处），图元事件另有「事件」组——分组是宿主清单给的，不是写死在行里",
-                panel.Groups.Single(g => g.Name == "运行").Rows.Count == 2 + ScadaPageEvents.All.Count
+                panel.Groups.Single(g => g.Name == "运行").Rows.Count
+                    == ScadaPageProperties.All.Count(p => p.Group == ScadaPropertyGroups.PageRun) + ScadaPageEvents.All.Count
                 && pageLoadedRow.Group == ScadaPageEvents.Group
                 && ScadaEventRow.ElementGroup == ScadaPropertyGroups.Event,
                 string.Join("/", panel.Groups.Select(g => $"{g.Name}:{g.Rows.Count}")));
@@ -8207,10 +8279,14 @@ namespace ScadaChecks
             navRt.PageEventRaised += (p, h) =>
                 navOrder.Add($"{(h.Event == ScadaEventType.Unloaded ? "U" : "L")}:{p.Name}");
 
+            var navProps = new List<string>();
+            navRt.PropertyChanged += (_, e) => navProps.Add(e.PropertyName ?? "<null>");
+
             Check("会话就是那个切页出口：分发器只认领域层的接口，不认具体的会话类型",
                 navRt is IScadaNavigator, navRt.GetType().Name);
 
             navRt.Start();
+            navProps.Clear(); // Start 的 CurrentPage/CurrentBasePage 通知不属于“页栈变化”这一组
             Check("起步：当前页是启动画面、页栈空（刚进来没地方可回退）",
                 ReferenceEquals(navRt.CurrentPage, pA) && navRt.PageStackDepth == 0 && !navRt.CanGoBack,
                 $"{navRt.CurrentPage?.Name ?? "null"} / 栈 {navRt.PageStackDepth}");
@@ -8220,6 +8296,11 @@ namespace ScadaChecks
                 navRt.Navigate(pB) && ReferenceEquals(navRt.CurrentPage, pB)
                 && navRt.PageStackDepth == 1 && navRt.CanGoBack,
                 $"{navRt.CurrentPage?.Name ?? "null"} / 栈 {navRt.PageStackDepth}");
+            Check("切页后广播 CanGoBack/PageStackDepth：顶栏返回按钮与页栈读数能跟着变（只改属性不发通知 = 按钮永远停在初始态）",
+                navProps.Contains(nameof(ScadaRuntime.CanGoBack))
+                && navProps.Contains(nameof(ScadaRuntime.PageStackDepth)),
+                string.Join("/", navProps));
+            navProps.Clear();
             Check("换页顺序是「旧页 Unloaded → 新页 Loaded」：两条钩子写同一个变量时，顺序反了最终值就是错的",
                 string.Join("|", navOrder) == "U:A 主页|L:B 列表", string.Join("|", navOrder));
 
@@ -8249,6 +8330,11 @@ namespace ScadaChecks
 
             Check("GoBack 回到刚离开的那一页（栈顶就是它）",
                 navRt.GoBack() && ReferenceEquals(navRt.CurrentPage, pC), navRt.CurrentPage?.Name ?? "null");
+            Check("GoBack 后广播 CanGoBack/PageStackDepth：回退按钮的置灰状态跟着栈走",
+                navProps.Contains(nameof(ScadaRuntime.CanGoBack))
+                && navProps.Contains(nameof(ScadaRuntime.PageStackDepth)),
+                string.Join("/", navProps));
+            navProps.Clear();
             Check("GoBack 第二次继续往下回退，栈随之变浅",
                 navRt.GoBack() && ReferenceEquals(navRt.CurrentPage, pB) && navRt.PageStackDepth == 1,
                 $"{navRt.CurrentPage?.Name ?? "null"} / 栈 {navRt.PageStackDepth}");
@@ -8269,11 +8355,16 @@ namespace ScadaChecks
                 navRt.PageStackDepth == 32, $"栈 {navRt.PageStackDepth}");
 
             navOrder.Clear();
+            navProps.Clear();
             navRt.Stop();
             Check("Stop 补发当前页的 Unloaded：用户配在卸载事件上的收尾动作不会被静默丢掉",
                 navOrder.Count == 1 && navOrder[0] == "U:B 列表", string.Join("|", navOrder));
             Check("Stop 之后页栈清空（下次运行是干净的一轮，不带着上一轮的回退历史）",
                 navRt.PageStackDepth == 0 && !navRt.CanGoBack, $"栈 {navRt.PageStackDepth}");
+            Check("Stop 清栈后广播 CanGoBack/PageStackDepth：下次运行按钮从置灰态恢复",
+                navProps.Contains(nameof(ScadaRuntime.CanGoBack))
+                && navProps.Contains(nameof(ScadaRuntime.PageStackDepth)),
+                string.Join("/", navProps));
 
             Check("运行结束后的迟到切页：返回 false 且原因是「运行已经结束」，当前页保持为空",
                 !navRt.Navigate(pB.PageId, null, out var lateReason)
@@ -8285,6 +8376,10 @@ namespace ScadaChecks
                 !navPort.Navigate(pB.PageId, "B 列表", out var portReason)
                 && portReason == "运行已经结束" && navPort.Session == null,
                 portReason ?? "null");
+            Check("回退出口没挂会话时同样安静返回 false（与切页同一口径）",
+                !navPort.GoBack(out var portBackReason)
+                && portBackReason == "运行已经结束",
+                portBackReason ?? "null");
 
             // 出口是"长命的分发器"与"一次性的会话"之间唯一那根线头：宿主 Start() 挂上、关窗口摘掉。
             // 上面那条只验了"没挂"这一档，挂上之后到底转不转发、摘掉之后是不是立刻失效，得另起一个干净的会话来钉。
@@ -8302,6 +8397,11 @@ namespace ScadaChecks
                 && fwdOk && ReferenceEquals(portSession.CurrentPage, portB) && fwdReason == null,
                 $"{portSession.CurrentPage?.Name ?? "null"} / {fwdReason ?? "null"}");
 
+            Check("出口挂上会话后：回退也转发到会话，当前页真的退回去（不是只在出口里返回 true）",
+                navPort.GoBack(out var fwdBackReason)
+                && ReferenceEquals(portSession.CurrentPage, portA) && fwdBackReason == null,
+                $"{portSession.CurrentPage?.Name ?? "null"} / {fwdBackReason ?? "null"}");
+
             Check("会话报的失败原因原样透传（出口只转交，不另立一套措辞）",
                 !navPort.Navigate(Guid.Empty, "不存在的画面", out var passReason)
                 && passReason == "方案里没有叫「不存在的画面」的画面",
@@ -8312,8 +8412,621 @@ namespace ScadaChecks
             Check("摘掉会话后立刻回到「运行已经结束」：关窗口的收尾与迟到的动作撞上也不出事",
                 navPort.Session == null && !detachedOk && afterDetach == "运行已经结束",
                 afterDetach ?? "null");
+            Check("摘掉会话后回退同样立刻失效（关窗口的收尾与迟到的回退动作撞上也不出事）",
+                !navPort.GoBack(out var afterDetachBack) && afterDetachBack == "运行已经结束",
+                afterDetachBack ?? "null");
 
             portSession.Stop();
+
+            // 页面级角色（P0-3）：默认策略未登录 = 操作员；管理员页应被拒绝，
+            // 启动页被挡住时 Start 要落到第一张可进入的可导航页；清掉 RequiredRole 后放行。
+            var roleDoc = new ScadaDocument();
+            var roleHome = roleDoc.AddPage("首页");
+            var roleAdmin = roleDoc.AddPage("管理员页");
+            roleAdmin.RequiredRole = ScadaRole.Administrator;
+            roleDoc.SetStartupPage(roleAdmin);
+
+            var roleRt = new ScadaRuntime(roleDoc);
+            roleRt.Start();
+
+            Check("页面级角色：启动页被角色挡住时，Start 落到第一张可进入的可导航页（不把会话开在进不去的页上）",
+                ReferenceEquals(roleRt.CurrentPage, roleHome), roleRt.CurrentPage?.Name ?? "null");
+
+            Check("页面级角色：未登录（操作员）进入管理员页被拒，原因可直接上屏；当前页不动",
+                !roleRt.CanAccess(roleAdmin, out var roleReason)
+                && !roleRt.Navigate(roleAdmin)
+                && ReferenceEquals(roleRt.CurrentPage, roleHome)
+                && !string.IsNullOrWhiteSpace(roleReason),
+                roleReason ?? "null");
+
+            roleAdmin.RequiredRole = null;
+            Check("页面级角色：清掉 RequiredRole 后同一页可进入（旧方案默认不限制）",
+                roleRt.CanAccess(roleAdmin, out _)
+                && roleRt.Navigate(roleAdmin)
+                && ReferenceEquals(roleRt.CurrentPage, roleAdmin),
+                roleRt.CurrentPage?.Name ?? "null");
+        }
+
+        // ==================================================================
+        //  [P0] 执行前确认 + 流程暂停/恢复（2026-10-21）
+        //
+        //  确认闸门挂在钩子上、一次覆盖整串动作；暂停/恢复是两条新的流程动作。
+        //  这里用生产分发器 + 假出口，把"确认/取消/未接线/危险分级"与
+        //  "未运行/单次/连续"两侧都钉住。
+        // ==================================================================
+        private static void P0ConfirmationAndPauseChecks()
+        {
+            Section("[P0] 执行前确认闸门 + 流程暂停/恢复");
+
+            var auditDir = Path.Combine(Path.GetTempPath(), "ScadaChecks",
+                "p0-confirm-" + Guid.NewGuid().ToString("N")[..8]);
+            var audit = new ScadaAuditWriter(auditDir);
+            string AuditTail()
+            {
+                var path = Path.Combine(auditDir, ScadaAuditWriter.SuggestFileName(DateTime.Now));
+                return File.Exists(path) ? File.ReadAllLines(path).LastOrDefault() ?? "" : "";
+            }
+
+            // ① 旧 .vms 兼容：缺字段 = false
+            Check("P0 确认①旧钩子默认不确认（.vms 缺 RequireConfirmation 字段 = false，老方案行为不变）",
+                !new ScadaEventHook().RequireConfirmation,
+                new ScadaEventHook().RequireConfirmation.ToString());
+
+            // ② 确认后整串照跑 + 请求内容
+            var confirm = new P0ConfirmationSpy();
+            var runner = new FakeFlowRunner();
+            var hook = new ScadaEventHook
+            {
+                Event = ScadaEventType.Pressed,
+                RequireConfirmation = true,
+                ConfirmationMessage = "停机前请确认现场无人",
+            };
+            hook.Actions.Add(new ScadaAction { Type = ScadaActionType.Log, Text = "第一条" });
+            hook.Actions.Add(new ScadaAction { Type = ScadaActionType.StopFlow, FlowName = "主检测" });
+            hook.Actions.Add(new ScadaAction { Type = ScadaActionType.Log, Text = "第三条" });
+
+            var log = new LoggerStub();
+            var dispatcher = new ScadaActionDispatcher(
+                log, new FakeValueSource(), new FakeNavigator(), audit, runner, null, confirm);
+            dispatcher.Dispatch(hook, "急停按钮", "张三");
+
+            Check("P0 确认②点「确认」后整串动作按原顺序执行（确认不是只放行第一条）",
+                log.Lines.Count == 3
+                && log.Lines[0].EndsWith("→ 第一条")
+                && log.Lines[1].EndsWith("→ 停止流程 主检测")
+                && log.Lines[2].EndsWith("→ 第三条")
+                && runner.StopCalls == 1,
+                string.Join(" ⏎ ", log.Lines));
+
+            var req = confirm.Requests.LastOrDefault();
+            Check("P0 确认③请求带对象/事件、用户填的后果提示与危险标记",
+                req != null
+                && req.Message == "急停按钮 · 按下"
+                && req.Hint == "停机前请确认现场无人"
+                && req.Question == "是否继续？"
+                && req.Danger,
+                req == null ? "无请求" : $"{req.Title} / {req.Message} / {req.Hint} / danger={req.Danger}");
+
+            Check("P0 确认④含停止类动作 → 标题「确认停止流程？」+ 主按钮「确认停止」（文案与动作同义）",
+                req?.Title == "确认停止流程？" && req?.PrimaryText == "确认停止",
+                $"{req?.Title ?? "null"} / {req?.PrimaryText ?? "null"}");
+
+            var startHook = new ScadaEventHook
+            {
+                Event = ScadaEventType.Pressed,
+                RequireConfirmation = true,
+            };
+            startHook.Actions.Add(new ScadaAction { Type = ScadaActionType.StartFlow, FlowName = "主检测" });
+            confirm = new P0ConfirmationSpy();
+            log = new LoggerStub();
+            dispatcher = new ScadaActionDispatcher(
+                log, new FakeValueSource(), new FakeNavigator(), null, null, null, confirm);
+            dispatcher.Dispatch(startHook, "启动按钮");
+            var startReq = confirm.Requests.LastOrDefault();
+            Check("P0 确认④b 启动类动作 → 标题「确认启动流程？」+ 主按钮「确认启动」（不能配成“确认停止”）",
+                startReq?.Title == "确认启动流程？" && startReq?.PrimaryText == "确认启动" && startReq.Danger,
+                $"{startReq?.Title ?? "null"} / {startReq?.PrimaryText ?? "null"} / danger={startReq?.Danger}");
+
+            var motionHook = new ScadaEventHook
+            {
+                Event = ScadaEventType.Pressed,
+                RequireConfirmation = true,
+            };
+            motionHook.Actions.Add(new ScadaAction
+            {
+                Type = ScadaActionType.MotionStop,
+                AxisName = "X 轴",
+            });
+            confirm = new P0ConfirmationSpy();
+            log = new LoggerStub();
+            dispatcher = new ScadaActionDispatcher(
+                log, new FakeValueSource(), new FakeNavigator(), null, null, null, confirm);
+            dispatcher.Dispatch(motionHook, "轴停止按钮");
+            var motionReq = confirm.Requests.LastOrDefault();
+            Check("P0 确认④c 轴停止 → 标题「确认停止设备？」（没有流程可停，不许问成“停止流程”）",
+                motionReq?.Title == "确认停止设备？" && motionReq?.PrimaryText == "确认停止" && motionReq.Danger,
+                $"{motionReq?.Title ?? "null"} / {motionReq?.PrimaryText ?? "null"}");
+
+            // ③ 取消：一条都不执行
+            confirm = new P0ConfirmationSpy { Result = false };
+            runner = new FakeFlowRunner();
+            log = new LoggerStub();
+            dispatcher = new ScadaActionDispatcher(
+                log, new FakeValueSource(), new FakeNavigator(), audit, runner, null, confirm);
+            dispatcher.Dispatch(hook, "急停按钮", "张三");
+
+            Check("P0 确认⑤点「取消」：一条动作都不执行（包括前面的普通日志动作）",
+                runner.StopCalls == 0 && log.Lines.Count == 1
+                && log.Lines[0].StartsWith("W ")
+                && log.Lines[0].EndsWith("执行前确认：已取消，本次未执行任何动作"),
+                $"{runner.StopCalls} 次停止 / {string.Join(" ⏎ ", log.Lines)}");
+
+            Check("P0 确认⑥取消也落审计「未执行」，说明列写清是用户取消/无出口",
+                AuditTail().Contains("执行前确认：取消")
+                && AuditTail().Contains("未执行")
+                && AuditTail().Contains("用户取消或没有可用的确认出口"),
+                AuditTail());
+
+            // ④ 没接线：按取消处理，绝不静默放行
+            runner = new FakeFlowRunner();
+            log = new LoggerStub();
+            dispatcher = new ScadaActionDispatcher(
+                log, new FakeValueSource(), new FakeNavigator(), audit, runner);
+            dispatcher.Dispatch(hook, "急停按钮");
+            Check("P0 确认⑦没接确认出口：按取消处理（宁可不动，不许静默放行危险动作）",
+                runner.StopCalls == 0 && log.Lines.Count == 1
+                && log.Lines[0].Contains("执行前确认：已取消"),
+                log.Lines.FirstOrDefault() ?? "无");
+
+            // ⑦b 确认出口自己抛异常（窗口关闭 / Dispatcher 停摆）：按取消处理，不许冒到 UI 线程
+            runner = new FakeFlowRunner();
+            log = new LoggerStub();
+            var throwingConfirm = new P0ConfirmationSpy { Throw = new InvalidOperationException("弹窗已关闭") };
+            dispatcher = new ScadaActionDispatcher(
+                log, new FakeValueSource(), new FakeNavigator(), audit, runner, null, throwingConfirm);
+            dispatcher.Dispatch(hook, "急停按钮");
+            Check("P0 确认⑦b 确认出口抛异常：按取消处理（一条都不执行），Warn 带异常原因，不冒泡",
+                runner.StopCalls == 0 && log.Lines.Count == 1 && log.Lines[0].StartsWith("W ")
+                && log.Lines[0].Contains("确认出口异常") && log.Lines[0].Contains("弹窗已关闭")
+                && AuditTail().Contains("确认出口异常"),
+                $"{runner.StopCalls} 次 / {log.Lines.FirstOrDefault() ?? "无"} / {AuditTail()}");
+
+            // ⑤ 不勾选就不打扰
+            var plain = new ScadaEventHook { Event = ScadaEventType.Pressed };
+            plain.Actions.Add(new ScadaAction { Type = ScadaActionType.Log, Text = "安全动作" });
+            confirm = new P0ConfirmationSpy();
+            log = new LoggerStub();
+            dispatcher = new ScadaActionDispatcher(
+                log, new FakeValueSource(), new FakeNavigator(), null, null, null, confirm);
+            dispatcher.Dispatch(plain, "普通按钮");
+            Check("P0 确认⑧没勾「执行前确认」：一次都不问（普通按钮不该被弹窗打断）",
+                confirm.Requests.Count == 0 && log.Lines.Count == 1,
+                $"请求 {confirm.Requests.Count} 次 / 日志 {log.Lines.Count} 行");
+
+            // ⑥ 非危险动作：标题/提示不带危险措辞
+            confirm = new P0ConfirmationSpy();
+            log = new LoggerStub();
+            dispatcher = new ScadaActionDispatcher(
+                log, new FakeValueSource(), new FakeNavigator(), null, null, null, confirm);
+            var safeHook = new ScadaEventHook { Event = ScadaEventType.Pressed, RequireConfirmation = true };
+            safeHook.Actions.Add(new ScadaAction { Type = ScadaActionType.Log, Text = "安全动作" });
+            dispatcher.Dispatch(safeHook, "普通按钮");
+            var safeReq = confirm.Requests.LastOrDefault();
+            Check("P0 确认⑨非危险动作：标题「确认操作」、提示只列动作，不冒充危险操作",
+                safeReq != null && !safeReq.Danger && safeReq.Title == "确认操作"
+                && safeReq.Hint == "将执行：记录日志「安全动作」。",
+                safeReq == null ? "无请求" : $"{safeReq.Title} / {safeReq.Hint} / danger={safeReq.Danger}");
+
+            // ⑦ 暂停/恢复动作分派
+            runner = new FakeFlowRunner { PauseResult = true, PauseReason = "已暂停" };
+            log = new LoggerStub();
+            dispatcher = new ScadaActionDispatcher(
+                log, new FakeValueSource(), new FakeNavigator(), audit, runner);
+            var pauseHook = new ScadaEventHook { Event = ScadaEventType.Pressed };
+            pauseHook.Actions.Add(new ScadaAction { Type = ScadaActionType.PauseFlow, FlowName = "主检测" });
+            dispatcher.Dispatch(pauseHook, "暂停按钮");
+            Check("P0 暂停①分发器把「暂停流程」递给出口，成功记 Info + 审计净效果「已暂停」",
+                runner.PauseCalls == 1 && runner.LastFlowName == "主检测"
+                && log.Lines.Count == 1 && log.Lines[0].StartsWith("I ")
+                && log.Lines[0].EndsWith("→ 暂停流程 主检测")
+                && AuditTail().Contains("已暂停"),
+                $"{runner.PauseCalls} 次 / {log.Lines.FirstOrDefault()} / {AuditTail()}");
+
+            runner = new FakeFlowRunner { PauseResult = false, PauseReason = "单次执行不支持暂停" };
+            log = new LoggerStub();
+            dispatcher = new ScadaActionDispatcher(
+                log, new FakeValueSource(), new FakeNavigator(), audit, runner);
+            dispatcher.Dispatch(pauseHook, "暂停按钮");
+            Check("P0 暂停②出口拒绝：Warn 原样带原因 + 「本条未执行」（不把没暂停包装成成功）",
+                log.Lines.Count == 1 && log.Lines[0].StartsWith("W ")
+                && log.Lines[0].EndsWith("暂停流程 主检测：单次执行不支持暂停，本条未执行"),
+                log.Lines.FirstOrDefault() ?? "无");
+
+            runner = new FakeFlowRunner { ResumeResult = true, ResumeReason = "已恢复" };
+            log = new LoggerStub();
+            dispatcher = new ScadaActionDispatcher(
+                log, new FakeValueSource(), new FakeNavigator(), audit, runner);
+            var resumeHook = new ScadaEventHook { Event = ScadaEventType.Pressed };
+            resumeHook.Actions.Add(new ScadaAction { Type = ScadaActionType.ResumeFlow, FlowName = "主检测" });
+            dispatcher.Dispatch(resumeHook, "恢复按钮");
+            Check("P0 恢复①分发器把「恢复流程」递给出口，成功记 Info + 审计净效果「已恢复」",
+                runner.ResumeCalls == 1 && runner.LastFlowName == "主检测"
+                && log.Lines.Count == 1 && log.Lines[0].StartsWith("I ")
+                && log.Lines[0].EndsWith("→ 恢复流程 主检测")
+                && AuditTail().Contains("已恢复"),
+                $"{runner.ResumeCalls} 次 / {log.Lines.FirstOrDefault()} / {AuditTail()}");
+
+            // ⑧ 生产出口：未运行 / 单次 / 连续三档
+            var ws = new WorkspaceContext();
+            var sol = new SolutionModel();
+            sol.Flows.Clear();
+            ws.SwitchSolution(sol);
+            sol.Flows.Add(new FlowModel { FlowName = "连续流程", IsEnabled = true });
+            sol.Flows.Add(new FlowModel { FlowName = "单次流程", IsEnabled = true });
+            sol.Flows.Add(new FlowModel { FlowName = "假暂停流程", IsEnabled = true });
+            sol.Flows.Add(new FlowModel { FlowName = "状态不对流程", IsEnabled = true });
+            sol.Flows.Add(new FlowModel { FlowName = "停止中流程", IsEnabled = true });
+            var runtime = new StubRuntimeManager();
+            var engine = new StubFlowEngine();
+            var flowRunner = new ScadaFlowRunner(
+                runtime, engine, new FlowCompiler(ws), ws, new LoggerStub());
+
+            var pauseIdle = flowRunner.Pause(string.Empty, "连续流程", out var pauseIdleReason);
+            Check("P0 暂停③未运行 → false + 「未在运行，无法暂停」（不往引擎递空会话）",
+                !pauseIdle && pauseIdleReason == "未在运行，无法暂停" && engine.PauseSessionCalls == 0,
+                pauseIdleReason ?? "null");
+
+            runtime.SessionsByName["单次流程"] = new FlowSession
+            {
+                FlowName = "单次流程",
+                IsRunning = true,
+                IsContinuousRun = false,
+                State = SessionState.Running,
+            };
+            var pauseOnce = flowRunner.Pause(string.Empty, "单次流程", out var pauseOnceReason);
+            Check("P0 暂停④单次执行 → false + 「单次执行不支持暂停」（不报假成功）",
+                !pauseOnce && pauseOnceReason == "单次执行不支持暂停" && engine.PauseSessionCalls == 0,
+                pauseOnceReason ?? "null");
+
+            runtime.SessionsByName["连续流程"] = new FlowSession
+            {
+                FlowName = "连续流程",
+                IsRunning = true,
+                IsContinuousRun = true,
+                State = SessionState.Running,
+            };
+            var pauseOk = flowRunner.Pause(string.Empty, "连续流程", out var pauseOkReason);
+            Check("P0 暂停⑤连续运行 → true + 「已暂停」，真递到引擎且会话状态真的变成 Paused",
+                pauseOk && pauseOkReason == "已暂停"
+                && engine.PauseSessionCalls == 1 && engine.LastPausedFlow == "连续流程"
+                && runtime.SessionsByName["连续流程"].State == SessionState.Paused,
+                $"{pauseOk} / {pauseOkReason} / {engine.PauseSessionCalls} 次（{engine.LastPausedFlow}）/ {runtime.SessionsByName["连续流程"].State}");
+
+            var pauseAgain = flowRunner.Pause(string.Empty, "连续流程", out var pauseAgainReason);
+            Check("P0 暂停⑥已暂停再点暂停：幂等成功「本就已暂停」，不再重复调用引擎",
+                pauseAgain && pauseAgainReason == "本就已暂停" && engine.PauseSessionCalls == 1,
+                $"{pauseAgain} / {pauseAgainReason} / {engine.PauseSessionCalls} 次");
+
+            var resumeIdle = flowRunner.Resume(string.Empty, "不存在的流程", out var resumeIdleReason);
+            Check("P0 恢复②找不到流程 → false + 「找不到流程…」（存在性门仍在）",
+                !resumeIdle && resumeIdleReason == "找不到流程「不存在的流程」",
+                resumeIdleReason ?? "null");
+
+            var resumeOk = flowRunner.Resume(string.Empty, "连续流程", out var resumeOkReason);
+            Check("P0 恢复③运行中且已暂停 → true + 「已恢复」，真递到引擎且会话状态真的回到 Running",
+                resumeOk && resumeOkReason == "已恢复"
+                && engine.ResumeSessionCalls == 1 && engine.LastResumedFlow == "连续流程"
+                && runtime.SessionsByName["连续流程"].State == SessionState.Running,
+                $"{resumeOk} / {resumeOkReason} / {engine.ResumeSessionCalls} 次（{engine.LastResumedFlow}）/ {runtime.SessionsByName["连续流程"].State}");
+
+            var resumeAgain = flowRunner.Resume(string.Empty, "连续流程", out var resumeAgainReason);
+            Check("P0 恢复③b 未暂停再点恢复：幂等成功「本就未暂停」，不再重复调用引擎",
+                resumeAgain && resumeAgainReason == "本就未暂停" && engine.ResumeSessionCalls == 1,
+                $"{resumeAgain} / {resumeAgainReason} / {engine.ResumeSessionCalls} 次");
+
+            runtime.SessionsByName["连续流程"].IsRunning = false;
+            var resumeStopped = flowRunner.Resume(string.Empty, "连续流程", out var resumeStoppedReason);
+            Check("P0 恢复④未运行 → false + 「未在运行，无法恢复」（恢复不是幂等启动）",
+                !resumeStopped && resumeStoppedReason == "未在运行，无法恢复"
+                && engine.ResumeSessionCalls == 1,
+                resumeStoppedReason ?? "null");
+
+            // ⑨ 假成功反证：引擎静默收手（状态不变）时，出口必须说“没生效”，不能说“已暂停/已恢复”
+            runtime.SessionsByName["假暂停流程"] = new FlowSession
+            {
+                FlowName = "假暂停流程",
+                IsRunning = true,
+                IsContinuousRun = true,
+                State = SessionState.Running,
+            };
+            var noOpEngine = new StubFlowEngine { NoOpPause = true, NoOpResume = true };
+            var noOpRunner = new ScadaFlowRunner(
+                runtime, noOpEngine, new FlowCompiler(ws), ws, new LoggerStub());
+            var fakePause = noOpRunner.Pause(string.Empty, "假暂停流程", out var fakePauseReason);
+            Check("P0 暂停⑦引擎静默收手（状态没变）→ false + 「暂停未生效」，不许报“已暂停”假成功",
+                !fakePause && fakePauseReason == "暂停未生效（引擎未进入暂停状态）"
+                && runtime.SessionsByName["假暂停流程"].State == SessionState.Running,
+                $"{fakePause} / {fakePauseReason} / {runtime.SessionsByName["假暂停流程"].State}");
+
+            runtime.SessionsByName["假暂停流程"].State = SessionState.Paused;
+            var fakeResume = noOpRunner.Resume(string.Empty, "假暂停流程", out var fakeResumeReason);
+            Check("P0 恢复⑤引擎静默收手（状态没变）→ false + 「恢复未生效」，不许报“已恢复”假成功",
+                !fakeResume && fakeResumeReason == "恢复未生效（引擎未回到运行状态）"
+                && runtime.SessionsByName["假暂停流程"].State == SessionState.Paused,
+                $"{fakeResume} / {fakeResumeReason} / {runtime.SessionsByName["假暂停流程"].State}");
+
+            runtime.SessionsByName["状态不对流程"] = new FlowSession
+            {
+                FlowName = "状态不对流程",
+                IsRunning = true,
+                IsContinuousRun = true,
+                State = SessionState.Idle,
+            };
+            var idleStatePause = flowRunner.Pause(string.Empty, "状态不对流程", out var idleStateReason);
+            Check("P0 暂停⑧状态不是 Running → false + 原因带当前状态，连引擎都不调用",
+                !idleStatePause && idleStateReason == "当前状态（Idle）不可暂停"
+                && engine.PauseSessionCalls == 1,
+                $"{idleStatePause} / {idleStateReason} / 引擎累计 {engine.PauseSessionCalls} 次");
+
+            // ⑧b 停止进行中（CTS 已取消、State 还没落 Stopped）：Pause/Resume 必须拒绝
+            var stoppingSession = new FlowSession
+            {
+                FlowName = "停止中流程",
+                IsRunning = true,
+                IsContinuousRun = true,
+                State = SessionState.Running,
+                CancellationTokenSource = new System.Threading.CancellationTokenSource(),
+            };
+            stoppingSession.CancellationTokenSource.Cancel();
+            runtime.SessionsByName["停止中流程"] = stoppingSession;
+
+            var pauseCallsBeforeStop = engine.PauseSessionCalls;
+            var stopPause = flowRunner.Pause(string.Empty, "停止中流程", out var stopPauseReason);
+            Check("P0 暂停⑧b 停止请求已发出 → false + 「流程正在停止」，不再把即将停止的会话置成 Paused",
+                !stopPause && stopPauseReason == "流程正在停止"
+                && engine.PauseSessionCalls == pauseCallsBeforeStop
+                && stoppingSession.State == SessionState.Running,
+                $"{stopPause} / {stopPauseReason} / State={stoppingSession.State} / 引擎 {engine.PauseSessionCalls} 次");
+
+            var resumeCallsBeforeStop = engine.ResumeSessionCalls;
+            var stopResume = flowRunner.Resume(string.Empty, "停止中流程", out var stopResumeReason);
+            Check("P0 恢复⑧b 停止请求已发出 → false + 「流程正在停止」，不报“本就未暂停/已恢复”",
+                !stopResume && stopResumeReason == "流程正在停止"
+                && engine.ResumeSessionCalls == resumeCallsBeforeStop,
+                $"{stopResume} / {stopResumeReason} / 引擎 {engine.ResumeSessionCalls} 次");
+
+            // ⑨ 节点门：连续非调试会话必须真的在节点边界等 PauseLock（B1 的机制证据）
+            var gateSession = new FlowSession
+            {
+                FlowName = "节点门",
+                IsContinuousRun = true,
+                DebugEnabled = false,
+            };
+            gateSession.PauseLock.Set();
+            gateSession.PauseLock.Reset(); // 模拟 PauseSession 已合锁
+
+            var gateStarted = new System.Threading.ManualResetEventSlim(false);
+            var gateFinished = new System.Threading.ManualResetEventSlim(false);
+            var gateTask = System.Threading.Tasks.Task.Run(() =>
+            {
+                gateStarted.Set();
+                gateSession.DebugGateBeforeNode(null, System.Threading.CancellationToken.None);
+                gateFinished.Set();
+            });
+
+            gateStarted.Wait(2000);
+            var blockedAtNode = !gateFinished.Wait(150);
+            gateSession.PauseLock.Set();
+            var releasedFromNode = gateFinished.Wait(2000);
+            gateTask.Wait(2000);
+
+            Check("P0 暂停⑨连续非调试会话：节点门真的被 PauseLock 按住（暂停在节点边界生效，不是轮边界）",
+                blockedAtNode, blockedAtNode ? "150ms 内未放行" : "直接穿过了节点门");
+
+            Check("P0 暂停⑩放行后节点门返回（恢复从当前节点继续，不是下一轮从第 1 步重来）",
+                releasedFromNode, releasedFromNode ? "放行后正常返回" : "2 秒内仍未返回");
+
+            var singleGate = new FlowSession
+            {
+                FlowName = "单次节点门",
+                IsContinuousRun = false,
+                DebugEnabled = false,
+            };
+            singleGate.PauseLock.Reset();
+            var singleGateWatch = Stopwatch.StartNew();
+            singleGate.DebugGateBeforeNode(null, System.Threading.CancellationToken.None);
+            singleGateWatch.Stop();
+            Check("P0 暂停⑪非连续非调试会话不受节点门影响（单次执行仍不支持暂停）",
+                singleGateWatch.ElapsedMilliseconds < 200,
+                $"{singleGateWatch.ElapsedMilliseconds}ms");
+
+            // ⑪b 连续非调试运行即使 Blueprint 上残留断点标记，也不能被节点门停住
+            var breakpointSession = new FlowSession
+            {
+                FlowName = "连续非调试带断点",
+                IsContinuousRun = true,
+                DebugEnabled = false,
+            };
+            breakpointSession.PauseLock.Set();
+            var breakpointNode = new CompiledBreakNode
+            {
+                Blueprint = new ActionStep("", "测试插件", "Test.Plugin", "断点") { IsBreakpoint = true },
+            };
+            var breakpointTask = System.Threading.Tasks.Task.Run(
+                () => breakpointSession.DebugGateBeforeNode(
+                    breakpointNode, System.Threading.CancellationToken.None));
+            var breakpointReturned = breakpointTask.Wait(300);
+            if (!breakpointReturned) breakpointSession.PauseLock.Set(); // 回归时先放行，别把断言宿主挂死
+            breakpointTask.Wait(1000);
+            Check("P0 暂停⑫连续非调试运行不因残留断点停住（断点/单步仍只对调试会话生效）",
+                breakpointReturned,
+                breakpointReturned ? "立即返回" : "300ms 内未返回（被断点按住）");
+
+            var stepSession = new FlowSession
+            {
+                FlowName = "连续非调试带单步",
+                IsContinuousRun = true,
+                DebugEnabled = false,
+                DebugStepPending = true,
+            };
+            stepSession.PauseLock.Set();
+            var stepTask = System.Threading.Tasks.Task.Run(
+                () => stepSession.DebugGateBeforeNode(null, System.Threading.CancellationToken.None));
+            var stepReturned = stepTask.Wait(300);
+            if (!stepReturned) stepSession.PauseLock.Set();
+            stepTask.Wait(1000);
+            Check("P0 暂停⑬连续非调试运行不因残留单步标记停住（DebugStepPending 也只对调试会话生效）",
+                stepReturned,
+                stepReturned ? "立即返回" : "300ms 内未返回（被单步按住）");
+
+            // ⑩ 条件动作：暂停失败时，带“仅在上一条成功时执行”的状态变量不许写
+            var condValues = new FakeValueSource();
+            var pausedFlag = new FakeValueHandle { Name = "Paused", DataType = typeof(int), Value = 0 };
+            condValues.ByName["Paused"] = pausedFlag;
+            runner = new FakeFlowRunner { PauseResult = false, PauseReason = "未在运行，无法暂停" };
+            log = new LoggerStub();
+            dispatcher = new ScadaActionDispatcher(
+                log, condValues, new FakeNavigator(), audit, runner);
+            var conditionalHook = new ScadaEventHook { Event = ScadaEventType.Pressed };
+            conditionalHook.Actions.Add(new ScadaAction
+            {
+                Type = ScadaActionType.PauseFlow,
+                FlowName = "主检测",
+            });
+            conditionalHook.Actions.Add(new ScadaAction
+            {
+                Type = ScadaActionType.WriteVariable,
+                VariableName = "Paused",
+                Value = "1",
+                OnlyIfPreviousSucceeded = true,
+            });
+            dispatcher.Dispatch(conditionalHook, "暂停按钮");
+            Check("P0 条件动作①暂停失败 → 带条件的 WriteVariable 不执行（页面不会被写成“已暂停”）",
+                Convert.ToInt32(pausedFlag.Value) == 0
+                && log.Lines.Count == 2
+                && log.Lines[0].Contains("未在运行，无法暂停")
+                && log.Lines[1].Contains("上一条未成功，本条跳过")
+                && AuditTail().Contains("上一条未成功"),
+                $"Paused={pausedFlag.Value} / {string.Join(" ⏎ ", log.Lines)} / {AuditTail()}");
+
+            var condValues2 = new FakeValueSource();
+            var pausedFlag2 = new FakeValueHandle { Name = "Paused", DataType = typeof(int), Value = 0 };
+            condValues2.ByName["Paused"] = pausedFlag2;
+            runner = new FakeFlowRunner { PauseResult = false, PauseReason = "未在运行，无法暂停" };
+            log = new LoggerStub();
+            dispatcher = new ScadaActionDispatcher(
+                log, condValues2, new FakeNavigator(), audit, runner);
+            var unconditionalHook = new ScadaEventHook { Event = ScadaEventType.Pressed };
+            unconditionalHook.Actions.Add(new ScadaAction
+            {
+                Type = ScadaActionType.PauseFlow,
+                FlowName = "主检测",
+            });
+            unconditionalHook.Actions.Add(new ScadaAction
+            {
+                Type = ScadaActionType.WriteVariable,
+                VariableName = "Paused",
+                Value = "1",
+            });
+            dispatcher.Dispatch(unconditionalHook, "暂停按钮");
+            Check("P0 条件动作②不勾条件时照旧独立执行（证明①的跳过是开关造成的，不是写变量本身失败）",
+                Convert.ToInt32(pausedFlag2.Value) == 1 && log.Lines.Count == 2,
+                $"Paused={pausedFlag2.Value} / {string.Join(" ⏎ ", log.Lines)}");
+
+            // ⑪ 复制粘贴：确认开关、流程目标、条件开关必须一起搬
+            var clipPage = new ScadaPage();
+            var clipElement = new ScadaElement { TypeKey = "Hmi.Button", Name = "暂停按钮" };
+            var clipHook = clipElement.GetOrAddEventHook(ScadaEventType.Pressed);
+            clipHook.RequireConfirmation = true;
+            clipHook.ConfirmationMessage = "确认暂停";
+            clipHook.Actions.Add(new ScadaAction
+            {
+                Type = ScadaActionType.PauseFlow,
+                FlowId = "flow-1",
+                FlowName = "主检测",
+                OnlyIfPreviousSucceeded = true,
+            });
+            clipPage.Elements.Add(clipElement);
+
+            var payload = ScadaClipboard.Capture(clipPage, new[] { clipElement });
+            var hookSnap = payload.Items[0].EventHooks[0];
+            Check("P0 复制①快照带上确认开关/提示、流程目标与条件开关（少一项，粘贴后安全门就静默失效）",
+                hookSnap.RequireConfirmation && hookSnap.ConfirmationMessage == "确认暂停"
+                && hookSnap.Actions[0].FlowId == "flow-1"
+                && hookSnap.Actions[0].FlowName == "主检测"
+                && hookSnap.Actions[0].OnlyIfPreviousSucceeded,
+                $"{hookSnap.RequireConfirmation} / {hookSnap.ConfirmationMessage} / {hookSnap.Actions[0].FlowId} / {hookSnap.Actions[0].FlowName} / {hookSnap.Actions[0].OnlyIfPreviousSucceeded}");
+
+            var clipTarget = new ScadaPage();
+            var made = ScadaClipboard.Materialize(clipTarget, payload, 0, 0, "粘贴暂停按钮");
+            var madeHook = made.Count == 1 ? made[0].FindEventHook(ScadaEventType.Pressed) : null;
+            Check("P0 粘贴①确认开关/提示、流程目标与条件开关原样回到新图元",
+                madeHook != null && madeHook.RequireConfirmation
+                && madeHook.ConfirmationMessage == "确认暂停"
+                && madeHook.Actions.Count == 1
+                && madeHook.Actions[0].FlowId == "flow-1"
+                && madeHook.Actions[0].FlowName == "主检测"
+                && madeHook.Actions[0].OnlyIfPreviousSucceeded,
+                madeHook == null ? "没粘出钩子"
+                    : $"{madeHook.RequireConfirmation} / {madeHook.ConfirmationMessage} / {madeHook.Actions[0].FlowId} / {madeHook.Actions[0].FlowName} / {madeHook.Actions[0].OnlyIfPreviousSucceeded}");
+
+            // ⑫ 旧 .vms：缺字段按默认值读，枚举尾部追加不破坏旧文件
+            var legacyHook = JsonConvert.DeserializeObject<ScadaEventHook>(
+                "{\"Event\":0,\"Actions\":[]}");
+            Check("P0 兼容①旧 .vms 钩子缺 RequireConfirmation/ConfirmationMessage：默认 false/null（老方案行为不变）",
+                legacyHook != null && !legacyHook.RequireConfirmation
+                && legacyHook.ConfirmationMessage == null,
+                legacyHook == null ? "反序列化为 null" : $"{legacyHook.RequireConfirmation} / {legacyHook.ConfirmationMessage ?? "null"}");
+
+            var legacyPause = JsonConvert.DeserializeObject<ScadaAction>(
+                "{\"Type\":16,\"FlowName\":\"主检测\"}");
+            var legacyResume = JsonConvert.DeserializeObject<ScadaAction>(
+                "{\"Type\":17,\"FlowName\":\"主检测\"}");
+            Check("P0 兼容②PauseFlow=16 / ResumeFlow=17 在枚举尾部，旧文件按数值读回仍是这两条动作",
+                legacyPause?.Type == ScadaActionType.PauseFlow
+                && legacyResume?.Type == ScadaActionType.ResumeFlow
+                && legacyPause.FlowName == "主检测",
+                $"{legacyPause?.Type} / {legacyResume?.Type}");
+
+            // ⑬ 共享弹窗组件：Y 键与危险底栏文案（源码级闸门；运行期行为由 UIThemeSmokeTest 覆盖）
+            var root = FindRepoRoot();
+            var easyDialogPath = root == null
+                ? null
+                : Path.Combine(root, @"UI\Controls\CustomControl\Message\EasyDialog.cs");
+            var easyDialogText = easyDialogPath != null && File.Exists(easyDialogPath)
+                ? File.ReadAllText(easyDialogPath)
+                : string.Empty;
+            Check("P0 弹窗①EasyDialog 的 Y 键走 RequestDefault（危险场景 Y=取消，不再无条件触发主操作）",
+                easyDialogText.Contains("messageView.RequestDefault()")
+                && !easyDialogText.Contains("messageView.RequestPrimary()"),
+                easyDialogText.Length == 0 ? "没读到 EasyDialog.cs" : "Y → RequestDefault");
+
+            var footHintPath = root == null
+                ? null
+                : Path.Combine(root, @"UI\Controls\CustomControl\Message\MessageDialogView.xaml.cs");
+            var footHintText = footHintPath != null && File.Exists(footHintPath)
+                ? File.ReadAllText(footHintPath)
+                : string.Empty;
+            Check("P0 弹窗②危险底栏同时给出 Enter 取消 / Esc 取消与主按钮指引",
+                footHintText.Contains("options.PrimaryTone == MessageTone.Danger")
+                && footHintText.Contains("Enter {secondary} · Esc {secondary}"),
+                footHintText.Length == 0 ? "没读到 MessageDialogView.xaml.cs" : "危险底栏含 Enter/Esc 取消");
+
+            // ⑭ 权限门顺序：RequiredRole 判断必须在 RaiseHooks 之前（权限不足不弹确认、不执行）
+            var runtimePath = root == null ? null : Path.Combine(root, @"Scada\Models\ScadaRuntime.cs");
+            var runtimeText = runtimePath != null && File.Exists(runtimePath)
+                ? File.ReadAllText(runtimePath)
+                : string.Empty;
+            var roleIndex = runtimeText.IndexOf("RequiredRole is", StringComparison.Ordinal);
+            var hooksIndex = runtimeText.IndexOf("return RaiseHooks", StringComparison.Ordinal);
+            Check("P0 权限①权限闸门先于钩子扫描（权限不足时连确认框都不弹，更不会执行动作）",
+                roleIndex >= 0 && hooksIndex > roleIndex,
+                roleIndex < 0 || hooksIndex < 0
+                    ? "没读到 ScadaRuntime.cs 的关键行"
+                    : $"RequiredRole@{roleIndex} / RaiseHooks@{hooksIndex}");
+
+            try { if (Directory.Exists(auditDir)) Directory.Delete(auditDir, true); }
+            catch { /* 临时目录删不掉不影响断言结论 */ }
         }
 
         // ==================================================================
@@ -8755,6 +9468,32 @@ namespace ScadaChecks
                 log.Lines.Count == 1 && log.Lines[0] == "I [组态事件] 未登录 · 按钮 · 按下 → 切换画面 → 参数页"
                 && nav.LastPageId == targetPageId && nav.LastPageName == "参数页",
                 log.Lines.FirstOrDefault() ?? "无");
+
+            // 返回上一页：不需要目标画面，走同一个导航出口的 GoBack。
+            // 这两条是“动作类型加了、分发器没接”的守门人：只加枚举不接分支时，日志会落进
+            // default 的“本版本不认识该动作”，②的 Warn 断言当场变红。
+            var backCallsBefore = nav.GoBackCalls;
+            var backHook = new ScadaEventHook { Event = ScadaEventType.Pressed };
+            backHook.Actions.Add(new ScadaAction { Type = ScadaActionType.NavigateBack });
+            log = new LoggerStub();
+            dispatcher = new ScadaActionDispatcher(log, values, nav);
+            dispatcher.Dispatch(backHook, "按钮");
+            Check("返回上一页①栈里有页：Info 一行，出口收到一次 GoBack（不需要目标画面）",
+                log.Lines.Count == 1 && log.Lines[0] == "I [组态事件] 未登录 · 按钮 · 按下 → 返回上一页"
+                && nav.GoBackCalls == backCallsBefore + 1,
+                log.Lines.FirstOrDefault() ?? "无");
+
+            nav.FailBackReason = "没有可返回的画面";
+            var backEmpty = new ScadaEventHook { Event = ScadaEventType.Pressed };
+            backEmpty.Actions.Add(new ScadaAction { Type = ScadaActionType.NavigateBack });
+            log = new LoggerStub();
+            dispatcher = new ScadaActionDispatcher(log, values, nav);
+            dispatcher.Dispatch(backEmpty, "按钮");
+            Check("返回上一页②栈空：Warn 带出口给的原因，本条未执行",
+                log.Lines.Count == 1 && log.Lines[0].StartsWith("W ")
+                && log.Lines[0].EndsWith("返回上一页：没有可返回的画面，本条未执行"),
+                log.Lines.FirstOrDefault() ?? "无");
+            nav.FailBackReason = null;
 
             // ---------------- ② 三种"什么都不该发生"的情况 ----------------
 
@@ -10083,8 +10822,8 @@ namespace ScadaChecks
 
             var payload = ScadaClipboard.Capture(clipPage, new[] { clipSource });
 
-            Check("剪贴板负载版本升到 3（v2 加动画、v3 加底板父子槽位；老负载缺哪一段都照样读）",
-                payload.Version == ScadaClipboardPayload.CurrentVersion && ScadaClipboardPayload.CurrentVersion == 3,
+            Check("剪贴板负载版本升到 5（v2 加动画、v3 加底板父子槽位、v4 加确认/流程/条件字段、v5 加数组下标；老负载缺哪一段都照样读）",
+                payload.Version == ScadaClipboardPayload.CurrentVersion && ScadaClipboardPayload.CurrentVersion == 5,
                 $"v{payload.Version}");
 
             var snapshot = payload.Items[0];
@@ -10782,6 +11521,40 @@ namespace ScadaChecks
             Check("工作区真的为空时才提示「还没有变量」",
                 emptyVm.Variables.Count == 0 && !string.IsNullOrEmpty(emptyVm.EmptyHint),
                 $"EmptyHint=「{emptyVm.EmptyHint}」");
+
+            // ---------------- 数组变量：下标行 / 预选 / 越界 ----------------
+            var arrayWorkspace = new WorkspaceContext();
+            arrayWorkspace.GlobalVariables.Clear();
+            var arrayVariable = VariableFactory.CreateLocal(
+                "Control", typeof(int[]), "数组", new[] { 10, 20, 30 });
+            arrayWorkspace.GlobalVariables.Add(arrayVariable);
+
+            var arrayVm = new ScadaVariablePickerVM(arrayWorkspace);
+            arrayVm.OnDialogOpened(new DialogParameters
+            {
+                { ScadaVariablePicker.CurrentIdKey, arrayVariable.VariableId },
+                { ScadaVariablePicker.CurrentNameKey, "Control" },
+                { ScadaVariablePicker.CurrentArrayIndexKey, 2 },
+            });
+
+            Check("AA-array 数组变量打开时显示下标行并预选当前下标 2",
+                arrayVm.IsArraySelected
+                && arrayVm.ArrayIndexText == "2"
+                && arrayVm.ConfirmCommand.CanExecute(),
+                $"array={arrayVm.IsArraySelected} / index={arrayVm.ArrayIndexText} / error={arrayVm.ArrayIndexError}");
+
+            arrayVm.ArrayIndexText = "3";
+
+            Check("AA-array 越界下标禁用确认并给出原因",
+                !arrayVm.ConfirmCommand.CanExecute()
+                && !string.IsNullOrEmpty(arrayVm.ArrayIndexError),
+                $"can={arrayVm.ConfirmCommand.CanExecute()} / error={arrayVm.ArrayIndexError}");
+
+            arrayVm.ArrayIndexText = "1";
+
+            Check("AA-array 合法下标恢复确认",
+                arrayVm.ConfirmCommand.CanExecute() && string.IsNullOrEmpty(arrayVm.ArrayIndexError),
+                $"can={arrayVm.ConfirmCommand.CanExecute()} / error={arrayVm.ArrayIndexError}");
 
             // ---------------- ⑫ 弹窗的"长相"：真渲染一遍，钉住列渲染器 ----------------
             //
@@ -12966,6 +13739,12 @@ namespace ScadaChecks
             /// <summary>被调了几次（用来证明"没选画面"那一档根本没走到导航出口）</summary>
             public int NavigateCalls { get; private set; }
 
+            /// <summary>预置的下一次 GoBack 回报原因；<c>null</c> = 回退成功</summary>
+            public string? FailBackReason { get; set; }
+
+            /// <summary>GoBack 被调了几次（用来证明"返回上一页"动作真的走到了出口）</summary>
+            public int GoBackCalls { get; private set; }
+
             public Guid LastPageId { get; private set; }
 
             public string? LastPageName { get; private set; }
@@ -12978,6 +13757,13 @@ namespace ScadaChecks
 
                 reason = FailReason;
                 return FailReason == null;
+            }
+
+            public bool GoBack(out string? reason)
+            {
+                GoBackCalls++;
+                reason = FailBackReason;
+                return FailBackReason == null;
             }
         }
 
@@ -13107,32 +13893,76 @@ namespace ScadaChecks
         }
 
         /// <summary>
+        /// 假的执行前确认出口：记账每次请求、按 <see cref="Result"/> 回答。
+        /// 断言工程是控制台进程，真出口会弹模态窗卡住整个测试；而分发器只认
+        /// <see cref="IScadaConfirmationService"/>，所以这里给一个最笨的实现就够。
+        /// </summary>
+        private sealed class P0ConfirmationSpy : IScadaConfirmationService
+        {
+            public bool Result { get; set; } = true;
+
+            /// <summary>非 null 时：模拟确认弹窗自身抛异常（窗口关闭 / Dispatcher 停摆）</summary>
+            public Exception? Throw { get; set; }
+
+            public List<ScadaConfirmationRequest> Requests { get; } = new();
+
+            public bool Confirm(string title, string message)
+            {
+                if (Throw != null) throw Throw;
+                Requests.Add(new ScadaConfirmationRequest(title, message));
+                return Result;
+            }
+
+            public bool Confirm(string title, string message, bool danger)
+            {
+                if (Throw != null) throw Throw;
+                Requests.Add(new ScadaConfirmationRequest(title, message, Danger: danger));
+                return Result;
+            }
+
+            public bool Confirm(ScadaConfirmationRequest request)
+            {
+                if (Throw != null) throw Throw;
+                Requests.Add(request);
+                return Result;
+            }
+        }
+
+        /// <summary>
         /// 假的「流程启停」出口：不碰任何引擎对象，按方法各自的预置结果回报并记账。
         ///
-        /// 分发器只认 <see cref="IScadaFlowRunner"/> 三个方法（它拿不到引擎，也不该拿到），
-        /// 所以断言工程能在控制台里把"启动/停止/执行一次"这条动作整条走完——
+        /// 分发器只认 <see cref="IScadaFlowRunner"/> 的流程方法（它拿不到引擎，也不该拿到），
+        /// 所以断言工程能在控制台里把"启动/暂停/恢复/停止/执行一次"这条动作整条走完——
         /// 与 <see cref="FakeNavigator"/> 同一个角色。真机那条链上换的是
         /// <c>ScadaFlowRunner</c>（转发到流程引擎），分发器一行不动。
         /// </summary>
         private sealed class FakeFlowRunner : IScadaFlowRunner
         {
-            /// <summary>三个方法各自的预置结果与原因（null 原因 + true = 干净成功）</summary>
+            /// <summary>各方法各自的预置结果与原因（null 原因 + true = 干净成功）</summary>
             public bool StartResult = true;
             public string? StartReason;
             public bool OnceResult = true;
             public string? OnceReason;
             public bool StopResult = true;
             public string? StopReason;
+            public bool PauseResult = true;
+            public string? PauseReason;
+            public bool ResumeResult = true;
+            public string? ResumeReason;
 
             /// <summary>非 null 时：下一次对应方法调用直接抛这个异常（契约①：分发器必须接住）</summary>
             public Exception? ThrowOnStart;
             public Exception? ThrowOnOnce;
             public Exception? ThrowOnStop;
+            public Exception? ThrowOnPause;
+            public Exception? ThrowOnResume;
 
             /// <summary>各方法被调了几次 + 最后一次收到的寻址参数（核对"该不该走到出口"）</summary>
             public int StartCalls { get; private set; }
             public int OnceCalls { get; private set; }
             public int StopCalls { get; private set; }
+            public int PauseCalls { get; private set; }
+            public int ResumeCalls { get; private set; }
             public string? LastFlowId { get; private set; }
             public string? LastFlowName { get; private set; }
 
@@ -13161,6 +13991,24 @@ namespace ScadaChecks
                 if (ThrowOnStop != null) throw ThrowOnStop;
                 reason = StopReason;
                 return StopResult;
+            }
+
+            public bool Pause(string flowId, string? fallbackName, out string? reason)
+            {
+                PauseCalls++;
+                Record(flowId, fallbackName);
+                if (ThrowOnPause != null) throw ThrowOnPause;
+                reason = PauseReason;
+                return PauseResult;
+            }
+
+            public bool Resume(string flowId, string? fallbackName, out string? reason)
+            {
+                ResumeCalls++;
+                Record(flowId, fallbackName);
+                if (ThrowOnResume != null) throw ThrowOnResume;
+                reason = ResumeReason;
+                return ResumeResult;
             }
 
             private void Record(string? flowId, string? fallbackName)
@@ -13211,6 +14059,20 @@ namespace ScadaChecks
 
             public string? LastStoppedFlow { get; private set; }
 
+            public int PauseSessionCalls { get; private set; }
+
+            public string? LastPausedFlow { get; private set; }
+
+            public int ResumeSessionCalls { get; private set; }
+
+            public string? LastResumedFlow { get; private set; }
+
+            /// <summary>模拟引擎静默收手（状态不变）：用来反证出口不会报假成功</summary>
+            public bool NoOpPause { get; set; }
+
+            /// <summary>模拟引擎静默收手（状态不变）：用来反证出口不会报假成功</summary>
+            public bool NoOpResume { get; set; }
+
             public int ActiveSessionCount => 0;
 
             public Task RunSessionAsync(FlowSession session, bool debugSession = false) => Task.CompletedTask;
@@ -13227,9 +14089,21 @@ namespace ScadaChecks
 
             public void StopAll() { }
 
-            public void PauseSession(FlowSession session) { }
+            public void PauseSession(FlowSession session)
+            {
+                PauseSessionCalls++;
+                LastPausedFlow = session?.FlowName;
+                if (!NoOpPause && session != null && session.State == SessionState.Running)
+                    session.State = SessionState.Paused;
+            }
 
-            public void ResumeSession(FlowSession session) { }
+            public void ResumeSession(FlowSession session)
+            {
+                ResumeSessionCalls++;
+                LastResumedFlow = session?.FlowName;
+                if (!NoOpResume && session != null && session.State == SessionState.Paused)
+                    session.State = SessionState.Running;
+            }
 
             public void StepSession(FlowSession session) { }
         }
@@ -14797,11 +15671,13 @@ namespace ScadaChecks
 
                 ScadaEditHistory.Clear();
 
-                bool tooFew = guardPage.TryGroupElements(new[] { g1 }, out var fewError);
+                bool singleGrouped = guardPage.TryGroupElements(new[] { g1 }, out var fewError);
 
                 Check("只给 1 个：拒绝并给出「至少要选中 2 个图元才能组合」"
-                    + "（一个成员的组与未分组没有任何行为差别，允许它只会让用户以为自己建了个组）",
-                    !tooFew && fewError.Contains("至少") && fewError.Contains("2"), fewError);
+                    + "（单控件不允许成组）",
+                    !singleGrouped && fewError.Contains("至少") && fewError.Contains("2"), fewError);
+
+                ScadaEditHistory.Clear();
 
                 bool nullInput = guardPage.TryGroupElements(null, out var nullError);
 
@@ -14827,6 +15703,8 @@ namespace ScadaChecks
 
                 Check("同一个图元传三次只算一个 → 去重后不足 2 个，照样拒绝（数量口径按去重后算）",
                     !duplicated && dupError.Contains("不足"), dupError);
+
+                ScadaEditHistory.Clear();
 
                 bool onlyForeign = guardPage.TryGroupElements(new[] { foreign, foreign }, out var onlyForeignError);
 
@@ -15083,6 +15961,893 @@ namespace ScadaChecks
                 ScadaEditHistory.Clear();
             }
         }
+
+        // ==================================================================
+        //  [TP] 模板参数化：{i} 令牌 / 独立变量 / 数组元素 / 深拷贝 / 一次撤销
+        // ==================================================================
+        private static void TemplateExpansionChecks()
+        {
+            Section("[TP] 模板参数化：{i} 令牌 / 独立变量 / 数组元素 / 深拷贝 / 一次撤销");
+
+            // ---------------- 令牌替换 ----------------
+            Check("TP1 {i} → 实例序号", ScadaTemplateTokens.Substitute("设备 {i}", 2) == "设备 2",
+                ScadaTemplateTokens.Substitute("设备 {i}", 2));
+            Check("TP1 {i+1} → 偏移", ScadaTemplateTokens.Substitute("Control[{i+1}]", 2) == "Control[3]",
+                ScadaTemplateTokens.Substitute("Control[{i+1}]", 2));
+            Check("TP1 {i:000} → 不变区域性补零", ScadaTemplateTokens.Substitute("Tag_{i:000}", 7) == "Tag_007",
+                ScadaTemplateTokens.Substitute("Tag_{i:000}", 7));
+            Check("TP1 字面花括号转义", ScadaTemplateTokens.Substitute("{{i}}", 2) == "{i}",
+                ScadaTemplateTokens.Substitute("{{i}}", 2));
+            Check("TP1 未知令牌原样保留", ScadaTemplateTokens.Substitute("{x}", 2) == "{x}",
+                ScadaTemplateTokens.Substitute("{x}", 2));
+
+            // ---------------- A 形态：100 个独立变量 ----------------
+            var controlVars = new IVariable[3];
+            var stateVars = new IVariable[3];
+
+            for (int i = 0; i < 3; i++)
+            {
+                controlVars[i] = VariableFactory.CreateLocal($"Control[{i}]", typeof(int), "", i * 10);
+                stateVars[i] = VariableFactory.CreateLocal($"State[{i}]", typeof(int), "", i);
+            }
+
+            var independentRegistry = BuildRegistry(
+                controlVars.Concat(stateVars).ToArray());
+            var independentResolver = new ScadaTemplateVariableResolver(independentRegistry);
+            var independentTemplate = BuildParameterizedTemplate("Control[{i}]", "State[{i}]");
+
+            bool independentOk = ScadaTemplateExpansion.TryPlan(
+                independentTemplate,
+                new ScadaTemplateExpansionOptions { Count = 3, StartIndex = 0, Columns = 3 },
+                independentResolver,
+                out var independentPlan,
+                out var independentErrors,
+                out _);
+
+            Check("TP2 独立变量：3 个实例全部展开", independentOk && independentPlan?.Count == 3,
+                independentOk ? $"count={independentPlan?.Count}" : DescribeErrors(independentErrors));
+
+            var independentBinding0 = independentPlan!.Instances[0].Items[0].Bindings[0];
+            var independentBinding1 = independentPlan.Instances[1].Items[0].Bindings[0];
+
+            Check("TP2 独立变量：实例 0 绑 Control[0]（无数组下标）",
+                independentBinding0.VariableName == "Control[0]"
+                && independentBinding0.ArrayIndex == -1
+                && independentBinding0.VariableId == controlVars[0].VariableId,
+                $"{independentBinding0.VariableName} / {independentBinding0.ArrayIndex} / {independentBinding0.VariableId}");
+
+            Check("TP2 独立变量：实例 1 绑 Control[1]",
+                independentBinding1.VariableName == "Control[1]"
+                && independentBinding1.ArrayIndex == -1
+                && independentBinding1.VariableId == controlVars[1].VariableId,
+                $"{independentBinding1.VariableName} / {independentBinding1.ArrayIndex} / {independentBinding1.VariableId}");
+
+            Check("TP2 文字令牌替换", independentPlan.Instances[1].Items[0].Properties["Text"] == "设备 1",
+                independentPlan.Instances[1].Items[0].Properties["Text"]);
+
+            Check("TP2 动画令牌替换",
+                independentPlan.Instances[1].Items[0].Animations[0].VariableName == "State[1]"
+                && independentPlan.Instances[1].Items[0].Animations[0].ArrayIndex == -1,
+                independentPlan.Instances[1].Items[0].Animations[0].VariableName);
+
+            Check("TP2 写变量动作令牌替换",
+                independentPlan.Instances[1].Items[0].EventHooks[0].Actions[0].VariableName == "Control[1]"
+                && independentPlan.Instances[1].Items[0].EventHooks[0].Actions[0].ArrayIndex == -1,
+                independentPlan.Instances[1].Items[0].EventHooks[0].Actions[0].VariableName);
+
+            Check("TP2 模板原文未被就地修改（深拷贝）",
+                independentTemplate.Items[0].Bindings[0].VariableName == "Control[{i}]"
+                && independentTemplate.Items[0].Properties["Text"] == "设备 {i}",
+                independentTemplate.Items[0].Bindings[0].VariableName);
+
+            // ---------------- B 形态：一个数组变量 ----------------
+            var controlArray = VariableFactory.CreateLocal("Control", typeof(int[]), "", new[] { 10, 20, 30 });
+            var stateArray = VariableFactory.CreateLocal("State", typeof(int[]), "", new[] { 0, 1, 2 });
+            var arrayRegistry = BuildRegistry(controlArray, stateArray);
+            var arrayResolver = new ScadaTemplateVariableResolver(arrayRegistry);
+            var arrayTemplate = BuildParameterizedTemplate("Control[{i}]", "State[{i}]");
+
+            bool arrayOk = ScadaTemplateExpansion.TryPlan(
+                arrayTemplate,
+                new ScadaTemplateExpansionOptions { Count = 3, StartIndex = 0, Columns = 3 },
+                arrayResolver,
+                out var arrayPlan,
+                out var arrayErrors,
+                out _);
+
+            Check("TP3 数组变量：3 个实例全部展开", arrayOk && arrayPlan?.Count == 3,
+                arrayOk ? $"count={arrayPlan?.Count}" : DescribeErrors(arrayErrors));
+
+            var arrayBinding1 = arrayPlan!.Instances[1].Items[0].Bindings[0];
+
+            Check("TP3 数组变量：实例 1 绑 Control 根 + 下标 1",
+                arrayBinding1.VariableName == "Control"
+                && arrayBinding1.ArrayIndex == 1
+                && arrayBinding1.VariableId == controlArray.VariableId,
+                $"{arrayBinding1.VariableName} / {arrayBinding1.ArrayIndex} / {arrayBinding1.VariableId}");
+
+            Check("TP3 数组变量：动画绑 State 根 + 下标 1",
+                arrayPlan.Instances[1].Items[0].Animations[0].VariableName == "State"
+                && arrayPlan.Instances[1].Items[0].Animations[0].ArrayIndex == 1,
+                $"{arrayPlan.Instances[1].Items[0].Animations[0].VariableName} / {arrayPlan.Instances[1].Items[0].Animations[0].ArrayIndex}");
+
+            // ---------------- 解析优先级 / 失败原子性 ----------------
+            Check("TP4 精确名优先于数组根：Control[0] 是独立变量时绑独立变量",
+                independentResolver.TryResolve("Control[0]", out var exact, out _)
+                && exact.VariableId == controlVars[0].VariableId
+                && exact.ArrayIndex == -1,
+                $"{exact.VariableName} / {exact.ArrayIndex}");
+
+            Check("TP4 数组形态解析：Control[1] → 根 + 下标 1",
+                arrayResolver.TryResolve("Control[1]", out var element, out _)
+                && element.VariableId == controlArray.VariableId
+                && element.ArrayIndex == 1
+                && element.DataType == typeof(int),
+                $"{element.VariableName} / {element.ArrayIndex} / {element.DataType.Name}");
+
+            var missingTemplate = BuildParameterizedTemplate("Missing[{i}]", "State[{i}]");
+            bool missingOk = ScadaTemplateExpansion.TryPlan(
+                missingTemplate,
+                new ScadaTemplateExpansionOptions { Count = 3 },
+                arrayResolver,
+                out var missingPlan,
+                out var missingErrors,
+                out _);
+
+            Check("TP5 任一变量解析失败 → 整批不产出计划",
+                !missingOk && missingPlan == null && missingErrors.Count > 0
+                && missingErrors.Any(e => e.Reference.Contains("Missing")),
+                DescribeErrors(missingErrors));
+
+            // ---------------- 真实绑定 → 存模板参数化 → 展开 ----------------
+            var authorPage = new ScadaPage();
+
+            var authorA = new ScadaElement
+            {
+                TypeKey = "Hmi.Text",
+                Name = "A 形态作者模板",
+                Width = 100,
+                Height = 30,
+            };
+            authorA.Properties["Text"] = "设备 0";
+            authorA.Bindings.Add(new ScadaBinding
+            {
+                TargetProperty = "Value",
+                VariableName = "Control[0]",
+            });
+
+            var authorB = new ScadaElement
+            {
+                TypeKey = "Hmi.Text",
+                Name = "B 形态作者模板",
+                Width = 100,
+                Height = 30,
+            };
+            authorB.Bindings.Add(new ScadaBinding
+            {
+                TargetProperty = "Value",
+                VariableName = "Control",
+                ArrayIndex = 0,
+            });
+
+            var authorAPayload = ScadaClipboard.Capture(authorPage, new[] { authorA });
+            var authorBPayload = ScadaClipboard.Capture(authorPage, new[] { authorB });
+
+            bool parameterizedA = ScadaTemplateParameterizer.TryParameterize(
+                authorAPayload, 0, out int changedA, out string? parameterErrorA);
+            bool parameterizedB = ScadaTemplateParameterizer.TryParameterize(
+                authorBPayload, 0, out int changedB, out string? parameterErrorB);
+
+            Check("TP8 真实 A 形态绑定（Control[0]）→ 存模板时参数化为 Control[{i}]",
+                parameterizedA && changedA == 1
+                && authorAPayload.Items[0].Bindings[0].VariableName == "Control[{i}]"
+                && authorAPayload.Items[0].Bindings[0].ArrayIndex == -1,
+                parameterizedA
+                    ? $"{authorAPayload.Items[0].Bindings[0].VariableName} / {authorAPayload.Items[0].Bindings[0].ArrayIndex}"
+                    : parameterErrorA ?? "参数化失败");
+
+            Check("TP8 真实 B 形态绑定（数组根 + 下标 0）→ 存模板时参数化为 Control[{i}]",
+                parameterizedB && changedB == 1
+                && authorBPayload.Items[0].Bindings[0].VariableName == "Control[{i}]"
+                && authorBPayload.Items[0].Bindings[0].ArrayIndex == -1,
+                parameterizedB
+                    ? $"{authorBPayload.Items[0].Bindings[0].VariableName} / {authorBPayload.Items[0].Bindings[0].ArrayIndex}"
+                    : parameterErrorB ?? "参数化失败");
+
+            Check("TP8 文字不猜数字：设备 0 保持原样（要按实例变请写 {i}）",
+                authorAPayload.Items[0].Properties["Text"] == "设备 0",
+                authorAPayload.Items[0].Properties["Text"]);
+
+            bool authorAExpanded = ScadaTemplateExpansion.TryPlan(
+                authorAPayload,
+                new ScadaTemplateExpansionOptions { Count = 2 },
+                independentResolver,
+                out var authorAPlan,
+                out var authorAErrors,
+                out _);
+
+            Check("TP8 A 形态参数化模板展开：实例 1 绑 Control[1]",
+                authorAExpanded
+                && authorAPlan!.Instances[1].Items[0].Bindings[0].VariableName == "Control[1]"
+                && authorAPlan.Instances[1].Items[0].Bindings[0].VariableId == controlVars[1].VariableId,
+                authorAExpanded
+                    ? $"{authorAPlan!.Instances[1].Items[0].Bindings[0].VariableName}"
+                    : DescribeErrors(authorAErrors));
+
+            bool authorBExpanded = ScadaTemplateExpansion.TryPlan(
+                authorBPayload,
+                new ScadaTemplateExpansionOptions { Count = 2 },
+                arrayResolver,
+                out var authorBPlan,
+                out var authorBErrors,
+                out _);
+
+            Check("TP8 B 形态参数化模板展开：实例 1 绑数组根 + 下标 1",
+                authorBExpanded
+                && authorBPlan!.Instances[1].Items[0].Bindings[0].VariableName == "Control"
+                && authorBPlan.Instances[1].Items[0].Bindings[0].ArrayIndex == 1
+                && authorBPlan.Instances[1].Items[0].Bindings[0].VariableId == controlArray.VariableId,
+                authorBExpanded
+                    ? $"{authorBPlan!.Instances[1].Items[0].Bindings[0].VariableName} / {authorBPlan.Instances[1].Items[0].Bindings[0].ArrayIndex}"
+                    : DescribeErrors(authorBErrors));
+
+            Check("TP8 没有命中下标的参数化明确失败（不静默存一份没参数化的模板）",
+                !ScadaTemplateParameterizer.TryParameterize(authorAPayload, 9, out _, out string? noMatchError)
+                && (noMatchError?.Contains("没有找到", StringComparison.Ordinal) ?? false),
+                noMatchError ?? "没有错误原因");
+
+            // ---------------- 未参数化模板 + 变量改名：Id 兜底 ----------------
+            var renamePayload = new ScadaClipboardPayload();
+            var renameElement = new ScadaElementSnapshot
+            {
+                TypeKey = "Hmi.Text",
+                Name = "改名兜底",
+                Width = 100,
+                Height = 30,
+            };
+            renameElement.Bindings.Add(new ScadaBindingSnapshot
+            {
+                TargetProperty = "Value",
+                VariableId = controlVars[0].VariableId,
+                VariableName = "Control[0]",
+            });
+            renamePayload.Items.Add(renameElement);
+
+            independentRegistry.TryRename(controlVars[0], "Ctrl[0]", out _);
+
+            bool renameExpanded = ScadaTemplateExpansion.TryPlan(
+                renamePayload,
+                new ScadaTemplateExpansionOptions { Count = 1 },
+                independentResolver,
+                out var renamePlan,
+                out var renameErrors,
+                out _);
+
+            Check("TP9 未参数化模板在变量改名后按 Id 兜底解析",
+                renameExpanded
+                && renamePlan!.Instances[0].Items[0].Bindings[0].VariableName == "Ctrl[0]"
+                && renamePlan.Instances[0].Items[0].Bindings[0].VariableId == controlVars[0].VariableId,
+                renameExpanded
+                    ? $"{renamePlan!.Instances[0].Items[0].Bindings[0].VariableName}"
+                    : DescribeErrors(renameErrors));
+
+            // ---------------- 报警改名保留数组下标 ----------------
+            var alarmDoc = new ScadaDocument();
+            var arrayAlarm = alarmDoc.AddAlarm("数组元素报警");
+            arrayAlarm.Bind(controlArray.VariableId, "Control", 1);
+
+            int alarmRenamed = alarmDoc.RefreshVariableReferences(
+                controlArray.VariableId, "Control", "Ctrl");
+
+            Check("TP10 报警改名保留 ArrayIndex（不会退化成监视整个数组）",
+                alarmRenamed == 1
+                && arrayAlarm.VariableName == "Ctrl"
+                && arrayAlarm.ArrayIndex == 1,
+                $"changed={alarmRenamed} / {arrayAlarm.VariableName} / {arrayAlarm.ArrayIndex}");
+
+            // ---------------- 数组元素值源 ----------------
+            var valueSource = new RegistryScadaValueSource(arrayRegistry);
+            int valueChanged = 0;
+            controlArray.ValueChanged += (_, _) => valueChanged++;
+
+            bool resolved = valueSource.TryResolve(
+                new ScadaVariableRef(controlArray.VariableId, "Control", 1),
+                out var elementHandle,
+                out string? resolveError);
+
+            Check("TP6 数组元素值源：读到 Control[1] == 20",
+                resolved && elementHandle != null && elementHandle.Value is int value && value == 20,
+                resolved ? $"{elementHandle?.Value}" : resolveError ?? "解析失败");
+
+            Check("TP6 数组元素值源：Name/DataType 是元素口径",
+                elementHandle?.Name == "Control[1]" && elementHandle?.DataType == typeof(int),
+                $"{elementHandle?.Name} / {elementHandle?.DataType.Name}");
+
+            valueSource.TryResolve(new ScadaVariableRef(controlArray.VariableId, "Control", 0),
+                out var elementHandle0, out _);
+            valueSource.TryResolve(new ScadaVariableRef(controlArray.VariableId, "Control", 1),
+                out var elementHandle1, out _);
+            valueSource.TryResolve(new ScadaVariableRef(controlArray.VariableId, "Control", 1),
+                out var elementHandle1Again, out _);
+
+            // 数据泵按句柄 VariableId 建订阅键；若元素句柄共用根 Id，100 个元素会被合并成一份订阅，
+            // 所有控件拿同一个值——这条就是"不能退化成根 Id"的反证。
+            Check("TP6 元素身份：不同下标不同 Id、同下标同 Id、且都不等于根 Id",
+                elementHandle0 != null && elementHandle1 != null && elementHandle1Again != null
+                && elementHandle0.VariableId != elementHandle1.VariableId
+                && elementHandle1.VariableId == elementHandle1Again.VariableId
+                && elementHandle1.VariableId != controlArray.VariableId,
+                $"{elementHandle0?.VariableId} / {elementHandle1?.VariableId} / root={controlArray.VariableId}");
+
+            bool wrote = elementHandle!.TryWrite(99, out string? writeError);
+
+            Check("TP6 本地数组元素就地写：值变 99 且广播一次",
+                wrote && ((int[])controlArray.Value!)[1] == 99 && valueChanged == 1,
+                wrote ? $"value={((int[])controlArray.Value!)[1]} / events={valueChanged}" : writeError ?? "写入失败");
+
+            // 元素 1 的订阅不能被"元素 0 变化"续命（否则断线报警永远不触发）
+            int element1Events = 0;
+            elementHandle1!.ValueChanged += (_, _) => element1Events++;
+
+            ((IArrayElementWritable)controlArray).TryWriteElement(0, 11, out _);
+            Check("TP6 写元素 0 不触发元素 1 的 ValueChanged",
+                element1Events == 0, $"events={element1Events}");
+
+            ((IArrayElementWritable)controlArray).TryWriteElement(1, 77, out _);
+            Check("TP6 写元素 1 触发元素 1 的 ValueChanged",
+                element1Events == 1, $"events={element1Events}");
+
+            Check("TP6 越界下标被拒且原因可读",
+                !valueSource.TryResolve(new ScadaVariableRef(controlArray.VariableId, "Control", 3),
+                    out _, out string? boundsError)
+                && (boundsError?.Contains("超出", StringComparison.Ordinal) ?? false),
+                boundsError ?? "没有错误原因");
+
+            var independentValueSource = new RegistryScadaValueSource(independentRegistry);
+
+            Check("TP6 非数组变量按下标解析被拒",
+                !independentValueSource.TryResolve(new ScadaVariableRef(controlVars[0].VariableId, "Control[0]", 0),
+                    out _, out string? notArrayError)
+                && (notArrayError?.Contains("不是数组", StringComparison.Ordinal) ?? false),
+                notArrayError ?? "没有错误原因");
+
+            // ---------------- 网络数组单元素地址 ----------------
+            var modbusArrayAddress = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                Offset = "100",
+                DataType = DataValueType.Int32,
+                Length = 10,
+            };
+
+            bool modbusElementOk = modbusArrayAddress.TryCreateElementAddress(
+                3, out var modbusElement, out string? modbusElementError);
+
+            Check("TP11 Modbus 数组元素地址：Int32[3] → 基址 100 + 3×2 寄存器",
+                modbusElementOk
+                && modbusElement?.Address == "x=3;106"
+                && modbusElement.Length == 1,
+                modbusElementOk ? modbusElement?.Address ?? "null" : modbusElementError ?? "生成失败");
+
+            var s7ArrayAddress = new S7Address
+            {
+                Area = S7Area.DB,
+                DbNumber = 1,
+                Offset = "0",
+                DataType = DataValueType.Int32,
+                Length = 10,
+            };
+
+            bool s7ElementOk = s7ArrayAddress.TryCreateElementAddress(
+                3, out var s7Element, out string? s7ElementError);
+
+            Check("TP11 S7 数组元素地址：Int32[3] → DB1.DBD12",
+                s7ElementOk
+                && s7Element?.Address == "DB1.DBD12"
+                && s7Element.Length == 1,
+                s7ElementOk ? s7Element?.Address ?? "null" : s7ElementError ?? "生成失败");
+
+            Check("TP11 网络数组变量声明为可单元素写（模板写 Control[3] 不会退回整组写）",
+                new NetworkVariableModel() is IArrayElementWritable,
+                "NetworkVariableModel 未实现 IArrayElementWritable");
+
+            // byte[]：S7 字节寻址可写单字节；Modbus 16 位寄存器粒度必须拒绝
+            var s7Bytes = new S7Address
+            {
+                Area = S7Area.DB,
+                DbNumber = 1,
+                Offset = "0",
+                DataType = DataValueType.ByteArray,
+                Length = 10,
+            };
+
+            bool s7ByteOk = s7Bytes.TryCreateElementAddress(3, out var s7ByteElement, out string? s7ByteError);
+
+            Check("TP11 S7 byte[3] → DB1.DBB3（单字节地址）",
+                s7ByteOk
+                && s7ByteElement?.Address == "DB1.DBB3"
+                && s7ByteElement.Length == 1,
+                s7ByteOk ? s7ByteElement?.Address ?? "null" : s7ByteError ?? "生成失败");
+
+            var modbusBytes = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                Offset = "100",
+                DataType = DataValueType.ByteArray,
+                Length = 10,
+            };
+
+            Check("TP11 Modbus byte[3] 明确拒绝（按字节写会覆盖同寄存器另一半）",
+                !modbusBytes.TryCreateElementAddress(3, out _, out string? modbusByteError)
+                && (modbusByteError?.Contains("16 位", StringComparison.Ordinal) ?? false),
+                modbusByteError ?? "没有错误原因");
+
+            // string[]：按每元素固定字节块对齐
+            var s7Strings = new S7Address
+            {
+                Area = S7Area.DB,
+                DbNumber = 1,
+                Offset = "0",
+                DataType = DataValueType.String,
+                Length = 10,
+                ElementByteLength = 8,
+            };
+
+            bool s7StringOk = s7Strings.TryCreateElementAddress(3, out var s7StringElement, out string? s7StringError);
+
+            Check("TP11 S7 string[3] → DB1.DBB24（每元素 8 字节）",
+                s7StringOk
+                && s7StringElement?.Address == "DB1.DBB24"
+                && s7StringElement.Length == 8,
+                s7StringOk ? $"{s7StringElement?.Address} / {s7StringElement?.Length}" : s7StringError ?? "生成失败");
+
+            var modbusStrings = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                Offset = "100",
+                DataType = DataValueType.String,
+                Length = 10,
+                ElementByteLength = 8,
+            };
+
+            bool modbusStringOk = modbusStrings.TryCreateElementAddress(
+                3, out var modbusStringElement, out string? modbusStringError);
+
+            Check("TP11 Modbus string[3] → x=3;112（每元素 8 字节 = 4 寄存器）",
+                modbusStringOk
+                && modbusStringElement?.Address == "x=3;112"
+                && modbusStringElement.Length == 8,
+                modbusStringOk ? $"{modbusStringElement?.Address} / {modbusStringElement?.Length}" : modbusStringError ?? "生成失败");
+
+            var modbusOddStrings = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                Offset = "100",
+                DataType = DataValueType.String,
+                Length = 10,
+                ElementByteLength = 7,
+            };
+
+            Check("TP11 Modbus 奇数字符串元素宽度明确拒绝（无法按寄存器对齐）",
+                !modbusOddStrings.TryCreateElementAddress(3, out _, out string? modbusOddError)
+                && (modbusOddError?.Contains("2 的倍数", StringComparison.Ordinal) ?? false),
+                modbusOddError ?? "没有错误原因");
+
+            // ---------------- 名称/死文字替换 + 模板自动成组 ----------------
+            var namePayload = new ScadaClipboardPayload();
+            var nameElement = new ScadaElementSnapshot
+            {
+                TypeKey = "Hmi.Text",
+                Name = "Cylinder1_Manual",
+                Width = 100,
+                Height = 30,
+            };
+            nameElement.Properties["Text"] = "手动 1";
+            nameElement.Bindings.Add(new ScadaBindingSnapshot
+            {
+                TargetProperty = "Value",
+                VariableId = Guid.NewGuid(),
+                VariableName = "Cylinder1_Manual",
+            });
+            nameElement.Animations.Add(new ScadaAnimationSnapshot
+            {
+                VariableId = Guid.NewGuid(),
+                VariableName = "Cylinder1_State",
+            });
+
+            var nameHook = new ScadaEventHookSnapshot();
+            nameHook.Actions.Add(new ScadaActionSnapshot
+            {
+                Type = ScadaActionType.WriteVariable,
+                VariableId = Guid.NewGuid(),
+                VariableName = "Cylinder1_Manual",
+                Text = "手动 1",
+                Value = "1",
+            });
+            nameElement.EventHooks.Add(nameHook);
+            namePayload.Items.Add(nameElement);
+
+            bool replaced = ScadaTemplateParameterizer.TryReplace(
+                namePayload, "Cylinder1", "手动 1", "Cylinder{i}", "手动 {i}",
+                out int replacedCount, out var replaceChanges, out string? replaceError);
+
+            Check("TP12 名称/死文字替换：变量名、图元名、文字、动画、动作一起改",
+                replaced
+                && replacedCount >= 5
+                && nameElement.Name == "Cylinder{i}_Manual"
+                && nameElement.Properties["Text"] == "手动 {i}"
+                && nameElement.Bindings[0].VariableName == "Cylinder{i}_Manual"
+                && nameElement.Animations[0].VariableName == "Cylinder{i}_State"
+                && nameElement.EventHooks[0].Actions[0].VariableName == "Cylinder{i}_Manual"
+                && nameElement.EventHooks[0].Actions[0].Text == "手动 {i}"
+                && nameElement.Bindings[0].VariableId == Guid.Empty
+                && nameElement.Animations[0].VariableId == Guid.Empty
+                && nameElement.EventHooks[0].Actions[0].VariableId == Guid.Empty,
+                replaced
+                    ? $"{nameElement.Name} / {nameElement.Properties["Text"]} / {nameElement.Bindings[0].VariableName} / {replacedCount}"
+                    : replaceError ?? "替换失败");
+
+            Check("TP12 替换预览给出改动清单", replaceChanges.Count > 0,
+                $"{replaceChanges.Count} 条");
+
+            var multiPayload = new ScadaClipboardPayload();
+            var multiElement = new ScadaElementSnapshot
+            {
+                TypeKey = "Hmi.Text",
+                Name = "Cylinder1_Manual_Valve1",
+                Width = 100,
+                Height = 30,
+            };
+            multiElement.Properties["Text"] = "手动 1 / 阀门1";
+            multiElement.Bindings.Add(new ScadaBindingSnapshot
+            {
+                TargetProperty = "Value",
+                VariableName = "Cylinder1_Manual",
+            });
+            multiPayload.Items.Add(multiElement);
+
+            bool multiReplaced = ScadaTemplateParameterizer.TryReplace(
+                multiPayload,
+                new[]
+                {
+                    new ScadaTemplateReplaceRule("Cylinder1", "Cylinder{i}"),
+                    new ScadaTemplateReplaceRule("Valve1", "Valve{i}"),
+                },
+                new[]
+                {
+                    new ScadaTemplateReplaceRule("手动 1", "手动 {i}"),
+                    new ScadaTemplateReplaceRule("阀门1", "阀门{i}"),
+                },
+                out int multiChanged, out _, out string? multiError);
+
+            Check("TP12 多行替换表：名称两条 + 文字两条按顺序全部生效",
+                multiReplaced
+                && multiChanged >= 3
+                && multiElement.Name == "Cylinder{i}_Manual_Valve{i}"
+                && multiElement.Properties["Text"] == "手动 {i} / 阀门{i}"
+                && multiElement.Bindings[0].VariableName == "Cylinder{i}_Manual",
+                multiReplaced
+                    ? $"{multiElement.Name} / {multiElement.Properties["Text"]} / {multiChanged}"
+                    : multiError ?? "替换失败");
+
+            var cylinder0 = VariableFactory.CreateLocal("Cylinder0_Manual", typeof(bool), "", false);
+            var cylinder0State = VariableFactory.CreateLocal("Cylinder0_State", typeof(int), "", 0);
+            var cylinder1 = VariableFactory.CreateLocal("Cylinder1_Manual", typeof(bool), "", false);
+            var cylinder1State = VariableFactory.CreateLocal("Cylinder1_State", typeof(int), "", 0);
+            var cylinderResolver = new ScadaTemplateVariableResolver(
+                BuildRegistry(cylinder0, cylinder0State, cylinder1, cylinder1State));
+
+            bool nameExpanded = ScadaTemplateExpansion.TryPlan(
+                namePayload,
+                new ScadaTemplateExpansionOptions { Count = 2 },
+                cylinderResolver,
+                out var namePlan,
+                out var nameErrors,
+                out _);
+
+            Check("TP12 名称替换模板展开：实例 1 绑 Cylinder1_Manual",
+                nameExpanded
+                && namePlan!.Instances[1].Items[0].Bindings[0].VariableName == "Cylinder1_Manual"
+                && namePlan.Instances[1].Items[0].Bindings[0].VariableId == cylinder1.VariableId
+                && namePlan.Instances[1].Items[0].Properties["Text"] == "手动 1",
+                nameExpanded
+                    ? $"{namePlan!.Instances[1].Items[0].Bindings[0].VariableName}"
+                    : DescribeErrors(nameErrors));
+
+            ScadaEditHistory.Clear();
+            var groupPage = new ScadaPage();
+            groupPage.AddLayer();
+            ScadaEditHistory.Clear();
+
+            var groupPayload = new ScadaClipboardPayload();
+            groupPayload.Items.Add(new ScadaElementSnapshot
+            {
+                TypeKey = "Hmi.Text",
+                Name = "G1",
+                Width = 50,
+                Height = 20,
+            });
+            groupPayload.Items.Add(new ScadaElementSnapshot
+            {
+                TypeKey = "Hmi.Text",
+                Name = "G2",
+                Width = 50,
+                Height = 20,
+            });
+
+            var grouped = ScadaClipboard.Materialize(
+                groupPage, groupPayload, 0, 0, "模板成组", groupAll: true);
+
+            Check("TP12 模板物化自动成组：同一实例的图元共用一个非空 GroupId",
+                grouped.Count == 2
+                && grouped[0].GroupId != Guid.Empty
+                && grouped[0].GroupId == grouped[1].GroupId,
+                grouped.Count == 2 ? $"{grouped[0].GroupId} / {grouped[1].GroupId}" : $"count={grouped.Count}");
+
+            var expandedGroup = grouped.Count == 2
+                ? groupPage.ExpandSelectionCluster(grouped[0])
+                : Array.Empty<ScadaElement>();
+
+            Check("TP12 点中组内任一图元 → 整组被选中（不是只选一个）",
+                expandedGroup.Count == 2
+                && expandedGroup.Contains(grouped[0])
+                && expandedGroup.Contains(grouped[1]),
+                $"expanded={expandedGroup.Count}");
+
+            var singlePayload = new ScadaClipboardPayload();
+            singlePayload.Items.Add(new ScadaElementSnapshot
+            {
+                TypeKey = "Hmi.Text",
+                Name = "G3",
+                Width = 50,
+                Height = 20,
+            });
+
+            var single = ScadaClipboard.Materialize(
+                groupPage, singlePayload, 0, 0, "单图元模板", groupAll: true);
+
+            Check("TP12 单图元模板不建组（单控件不允许存模板/成组）",
+                single.Count == 1 && single[0].GroupId == Guid.Empty,
+                single.Count == 1 ? single[0].GroupId.ToString() : $"count={single.Count}");
+
+            ScadaEditHistory.Clear();
+
+            // ---------------- 关联模板：改模板 → 实例刷新 ----------------
+            var refreshTemplateId = Guid.NewGuid();
+
+            var oldTemplatePayload = new ScadaClipboardPayload();
+            var oldTemplateElement = new ScadaElementSnapshot
+            {
+                TypeKey = "Hmi.Text",
+                Name = "Cylinder1_Manual",
+                Width = 100,
+                Height = 30,
+            };
+            oldTemplateElement.Properties["Text"] = "旧 1";
+            oldTemplateElement.Bindings.Add(new ScadaBindingSnapshot
+            {
+                TargetProperty = "Value",
+                VariableName = "Cylinder1_Manual",
+            });
+            oldTemplatePayload.Items.Add(oldTemplateElement);
+            oldTemplatePayload.Items.Add(new ScadaElementSnapshot
+            {
+                TypeKey = "Hmi.Rectangle",
+                Name = "Cylinder1_Frame",
+                Width = 100,
+                Height = 60,
+            });
+
+            var refreshDocument = new ScadaDocument();
+            var refreshPage = new ScadaPage { Name = "刷新页" };
+            refreshDocument.Pages.Add(refreshPage);
+            refreshPage.AddLayer();
+            ScadaEditHistory.Clear();
+
+            var oldInstance = ScadaClipboard.Materialize(
+                refreshPage, oldTemplatePayload, 10, 20, "插入关联实例", groupAll: true,
+                templateId: refreshTemplateId, templateIndex: 1, templateRevision: 1);
+
+            Check("TP13 插入模板实例记录 TemplateId / 序号 / Revision",
+                oldInstance.Count == 2
+                && oldInstance.All(e => e.TemplateId == refreshTemplateId
+                                        && e.TemplateIndex == 1
+                                        && e.TemplateRevision == 1
+                                        && e.GroupId != Guid.Empty
+                                        && e.GroupId == oldInstance[0].GroupId),
+                oldInstance.Count == 2
+                    ? $"{oldInstance[0].TemplateId} / {oldInstance[0].TemplateIndex} / {oldInstance[0].TemplateRevision}"
+                    : $"count={oldInstance.Count}");
+
+            var oldInstanceId = oldInstance[0].ElementId;
+            var oldGroupId = oldInstance[0].GroupId;
+            double oldX = oldInstance[0].X;
+            double oldY = oldInstance[0].Y;
+
+            var roundTrip = JsonConvert.DeserializeObject<ScadaElement>(
+                JsonConvert.SerializeObject(oldInstance[0]));
+
+            Check("TP13 模板实例元数据随 .vms 序列化往返",
+                roundTrip != null
+                && roundTrip.TemplateId == refreshTemplateId
+                && roundTrip.TemplateIndex == 1
+                && roundTrip.TemplateRevision == 1,
+                roundTrip == null
+                    ? "反序列化为空"
+                    : $"{roundTrip.TemplateId} / {roundTrip.TemplateIndex} / {roundTrip.TemplateRevision}");
+
+            var newTemplatePayload = new ScadaClipboardPayload();
+            var newTemplateElement = new ScadaElementSnapshot
+            {
+                TypeKey = "Hmi.Text",
+                Name = "Cylinder{i}_Manual",
+                Width = 100,
+                Height = 30,
+            };
+            newTemplateElement.Properties["Text"] = "新 {i}";
+            newTemplateElement.Bindings.Add(new ScadaBindingSnapshot
+            {
+                TargetProperty = "Value",
+                VariableName = "Cylinder{i}_Manual",
+            });
+            newTemplatePayload.Items.Add(newTemplateElement);
+            newTemplatePayload.Items.Add(new ScadaElementSnapshot
+            {
+                TypeKey = "Hmi.Rectangle",
+                Name = "Cylinder{i}_Frame",
+                Width = 100,
+                Height = 60,
+            });
+
+            var refreshResolver = new ScadaTemplateVariableResolver(BuildRegistry(cylinder1));
+            var refreshResult = ScadaTemplateInstanceRefresher.Refresh(
+                refreshDocument, refreshTemplateId, newTemplatePayload, 2, refreshResolver);
+
+            var refreshedElement = refreshPage.Elements.FirstOrDefault(
+                e => e.TemplateId == refreshTemplateId && e.Properties["Text"] == "新 1");
+
+            Check("TP13 更新模板后实例整块刷新：位置/组保留、Revision 前进、文字换新",
+                refreshResult.Refreshed == 1
+                && refreshResult.Failed == 0
+                && refreshedElement != null
+                && refreshedElement.ElementId != oldInstanceId
+                && refreshedElement.GroupId == oldGroupId
+                && Math.Abs(refreshedElement.X - oldX) < 0.001
+                && Math.Abs(refreshedElement.Y - oldY) < 0.001
+                && refreshedElement.TemplateRevision == 2
+                && refreshedElement.Properties["Text"] == "新 1",
+                $"{refreshResult.Refreshed}/{refreshResult.Failed} / "
+                + (refreshedElement == null
+                    ? "无新图元"
+                    : $"{refreshedElement.X},{refreshedElement.Y} / {refreshedElement.Properties["Text"]}"));
+
+            Check("TP13 刷新一次只占一条撤销；撤销后旧实例回来",
+                ScadaEditHistory.NextUndoLabel?.Contains("关联模板") == true
+                && ScadaEditHistory.Undo()
+                && refreshPage.Elements.Any(e => e.ElementId == oldInstanceId)
+                && refreshPage.Elements.Any(e => e.Properties["Text"] == "旧 1"),
+                ScadaEditHistory.NextUndoLabel ?? "null");
+
+            ScadaEditHistory.Clear();
+
+            // ---------------- 批量插入：一次撤销 ----------------
+            ScadaEditHistory.Clear();
+            var page = new ScadaPage();
+            page.AddLayer();
+            ScadaEditHistory.Clear();
+
+            var insertOptions = new ScadaTemplateExpansionOptions
+            {
+                Count = 3,
+                StartIndex = 0,
+                Columns = 3,
+                GapX = 10,
+                GapY = 10,
+                OriginX = 0,
+                OriginY = 0,
+            };
+
+            bool inserted = ScadaTemplateBatchInserter.TryInsert(
+                page, independentPlan, insertOptions, "TP 模板", out var created, out string? insertError);
+
+            Check("TP7 批量插入：3 个实例全部进画面",
+                inserted && created.Count == 3 && page.Elements.Count == 3,
+                inserted ? $"created={created.Count} / page={page.Elements.Count}" : insertError ?? "插入失败");
+
+            Check("TP7 批量插入：整批只占一条撤销记录",
+                ScadaEditHistory.UndoCount == 1,
+                $"undo={ScadaEditHistory.UndoCount}");
+
+            bool undone = ScadaEditHistory.Undo();
+
+            Check("TP7 一次撤销撤掉整批",
+                undone && page.Elements.Count == 0,
+                $"undo={undone} / page={page.Elements.Count}");
+
+            bool redone = ScadaEditHistory.Redo();
+
+            Check("TP7 重做恢复整批",
+                redone && page.Elements.Count == 3,
+                $"redo={redone} / page={page.Elements.Count}");
+
+            // ---------------- 异常回滚：第 2 个实例物化时抛异常 ----------------
+            ScadaEditHistory.Clear();
+            var rollbackPage = new ScadaPage();
+            rollbackPage.AddLayer();
+            ScadaEditHistory.Clear();
+
+            var badPayload = new ScadaClipboardPayload();
+            badPayload.Items.Add(new ScadaElementSnapshot
+            {
+                TypeKey = "Hmi.Text",
+                Name = "坏模板",
+                Width = 100,
+                Height = 30,
+                Properties = null!, // 故意制造 Materialize 内部 NRE，验证半途异常回滚
+            });
+
+            var badPlan = new ScadaTemplateExpansionPlan(
+                new[] { independentPlan.Instances[0], badPayload },
+                Array.Empty<string>());
+
+            bool rollbackInserted = ScadaTemplateBatchInserter.TryInsert(
+                rollbackPage, badPlan, insertOptions, "TP 回滚", out var rollbackCreated, out string? rollbackError);
+
+            Check("TP7 物化半途抛异常：整批回滚、画面零残留、撤销栈零记录",
+                !rollbackInserted
+                && rollbackCreated.Count == 0
+                && rollbackPage.Elements.Count == 0
+                && ScadaEditHistory.UndoCount == 0,
+                $"ok={rollbackInserted} / created={rollbackCreated.Count} / page={rollbackPage.Elements.Count} / undo={ScadaEditHistory.UndoCount} / {rollbackError}");
+
+            ScadaEditHistory.Clear();
+        }
+
+        private static VariableRegistry BuildRegistry(params IVariable[] variables)
+            => new(new ObservableCollection<IVariable>(variables));
+
+        private static ScadaClipboardPayload BuildParameterizedTemplate(
+            string bindingToken, string animationToken)
+        {
+            var payload = new ScadaClipboardPayload();
+
+            var element = new ScadaElementSnapshot
+            {
+                TypeKey = "Hmi.Text",
+                Name = "设备 {i}",
+                Width = 100,
+                Height = 30,
+                Properties = { ["Text"] = "设备 {i}" },
+            };
+
+            element.Bindings.Add(new ScadaBindingSnapshot
+            {
+                TargetProperty = "Value",
+                VariableName = bindingToken,
+            });
+
+            element.Animations.Add(new ScadaAnimationSnapshot
+            {
+                VariableName = animationToken,
+            });
+
+            var hook = new ScadaEventHookSnapshot();
+            hook.Actions.Add(new ScadaActionSnapshot
+            {
+                Type = ScadaActionType.WriteVariable,
+                VariableName = bindingToken,
+                Value = "1",
+            });
+            element.EventHooks.Add(hook);
+
+            payload.Items.Add(element);
+            return payload;
+        }
+
+        private static string DescribeErrors(IReadOnlyList<ScadaTemplateExpansionError> errors)
+            => errors.Count == 0
+                ? "无错误"
+                : string.Join(" | ", errors.Take(3).Select(e => $"{e.InstanceIndex}/{e.ElementName}/{e.Reference}:{e.Reason}"));
 
         // ==================================================================
         //  [CP] 复制 / 粘贴 / 再制 / 存为模板（S13）
@@ -15629,6 +17394,68 @@ namespace ScadaChecks
                         && garbageStore.LastLoadError != null && garbageStore.LastLoadError.Contains("读取失败")
                         && garbageStore.TrySave("重来", payload, out _, out _),
                         $"{garbageStore.LastLoadError}");
+
+                    // 关联模板：用当前选中覆盖定义 → Revision +1 + TemplateUpdated 带 Id
+                    var updatePath = Path.Combine(storeDir, "Update.json");
+                    var updateStore = new ScadaTemplateStore(updatePath);
+
+                    var updateV1 = new ScadaClipboardPayload();
+                    updateV1.Items.Add(new ScadaElementSnapshot
+                    {
+                        TypeKey = "Hmi.Text",
+                        Name = "旧定义",
+                        Width = 80,
+                        Height = 24,
+                    });
+
+                    bool updateSaved = updateStore.TrySave(
+                        "关联模板", updateV1, 3, out var updateInfo, out string? updateSaveError);
+
+                    Guid updateId = updateInfo?.TemplateId ?? Guid.Empty;
+                    int updateEvents = 0;
+                    Guid updateEventId = Guid.Empty;
+                    int updateEventRevision = -1;
+
+                    updateStore.TemplateUpdated += (_, e) =>
+                    {
+                        updateEvents++;
+                        updateEventId = e.TemplateId;
+                        updateEventRevision = e.Revision;
+                    };
+
+                    var updateV2 = new ScadaClipboardPayload();
+                    updateV2.Items.Add(new ScadaElementSnapshot
+                    {
+                        TypeKey = "Hmi.Text",
+                        Name = "新定义",
+                        Width = 90,
+                        Height = 28,
+                    });
+
+                    bool updated = updateStore.TryUpdate(updateId, updateV2, 7, out int updatedRevision,
+                        out string? updateError);
+
+                    Check("更新模板定义：Revision 1→2、TemplateUpdated 带 Id/Revision、负载与参数下标换新",
+                        updateSaved
+                        && updated
+                        && updatedRevision == 2
+                        && updateEvents == 1
+                        && updateEventId == updateId
+                        && updateEventRevision == 2
+                        && updateStore.GetRevision(updateId) == 2
+                        && updateStore.GetParameterIndex(updateId) == 7
+                        && updateStore.GetPayload(updateId)?.Items.Count == 1
+                        && updateStore.GetPayload(updateId)?.Items[0].Name == "新定义"
+                        && updateStore.Templates.Single(t => t.TemplateId == updateId).Revision == 2,
+                        $"{updateSaveError} / rev={updatedRevision} / events={updateEvents} / {updateError}");
+
+                    bool updateMissing = updateStore.TryUpdate(
+                        Guid.NewGuid(), updateV2, 0, out _, out string? updateMissingError);
+
+                    Check("更新不存在的模板：拒绝并说明「模板不存在」",
+                        !updateMissing && updateMissingError != null
+                        && updateMissingError.Contains("模板不存在"),
+                        updateMissingError);
                 }
                 finally
                 {
@@ -16070,6 +17897,15 @@ namespace ScadaChecks
                 // ----------------------------------------------------------
                 // ⑨ 配置热更新：运行中改阈值 / 停用 / 增删 → 下一拍自动重挂
                 // ----------------------------------------------------------
+                var aRecordId = orderEngine.ActiveAlarms.First(r => r.AlarmId == alarmA.AlarmId).RecordId;
+                var historyBeforeTextEdit = orderEngine.History.Count;
+                alarmA.Message = "温度高（改个文案）"; // 判定口径没变
+                orderEngine.Tick();
+                Check("运行中只改提示文案 → 沿用原 RecordId、历史不多一条（不把当前报警重新激活）",
+                    orderEngine.ActiveAlarms.Any(r => r.AlarmId == alarmA.AlarmId && r.RecordId == aRecordId)
+                    && orderEngine.History.Count == historyBeforeTextEdit,
+                    $"RecordId 保持={orderEngine.ActiveAlarms.Any(r => r.RecordId == aRecordId)} / 历史 {historyBeforeTextEdit} → {orderEngine.History.Count}");
+
                 alarmA.Threshold = 25; // 值 20 不再越限
                 orderEngine.Tick();
                 Check("运行中把阈值 10 改成 25 → 下一次 Tick 自动重挂并重新判定（值 20 不再越限，A 自己消失）",
@@ -18314,18 +20150,24 @@ namespace ScadaChecks
                     .GroupBy(p => UI.CustomControl.PropertyGrid.PropertyGridDefaults.GroupSegment(p, 0))
                     .ToDictionary(g => g.Key, g => g.Count());
 
-                Check("页签按草稿上的 Group 生成：运行窗口 2 项 / 安全与留档 3 项 / 画布 8 项",
+                Check("页签按草稿上的 Group 生成：运行窗口 2 / 安全与留档 4 / 画布 9 / 日志 5 / 服务与启动 10 / 并行执行 2",
                     byGroup.TryGetValue(SystemSettingsDraft.GroupRunWindow, out var runCount) && runCount == 2
-                    && byGroup.TryGetValue(SystemSettingsDraft.GroupSafety, out var safetyCount) && safetyCount == 3
-                    && byGroup.TryGetValue(SystemSettingsDraft.GroupGallery, out var galleryCount) && galleryCount == 8,
+                    && byGroup.TryGetValue(SystemSettingsDraft.GroupSafety, out var safetyCount) && safetyCount == 4
+                    && byGroup.TryGetValue(SystemSettingsDraft.GroupGallery, out var galleryCount) && galleryCount == 9
+                    && byGroup.TryGetValue(SystemSettingsDraft.GroupLog, out var logCount) && logCount == 5
+                    && byGroup.TryGetValue(SystemSettingsDraft.GroupServices, out var svcCount) && svcCount == 10
+                    && byGroup.TryGetValue(SystemSettingsDraft.GroupParallel, out var parCount) && parCount == 2,
                     string.Join(" | ", byGroup.Select(kv => $"{kv.Key}={kv.Value}")));
 
                 // 旧入口靠 InitialGroup 落到对应页签：页签名改名而这里不同步的话，
                 // 旧入口会静默落回第一页（SelectedGroup 找不到就保持不动）。
-                Check("入口分页用的三个页签名都真实存在于草稿分组里（改名不同步 = 旧入口静默落回第一页）",
+                Check("入口分页用的页签名都真实存在于草稿分组里（改名不同步 = 旧入口静默落回第一页）",
                     byGroup.ContainsKey(SystemSettingsDraft.GroupRunWindow)
                     && byGroup.ContainsKey(SystemSettingsDraft.GroupSafety)
-                    && byGroup.ContainsKey(SystemSettingsDraft.GroupGallery),
+                    && byGroup.ContainsKey(SystemSettingsDraft.GroupGallery)
+                    && byGroup.ContainsKey(SystemSettingsDraft.GroupLog)
+                    && byGroup.ContainsKey(SystemSettingsDraft.GroupServices)
+                    && byGroup.ContainsKey(SystemSettingsDraft.GroupParallel),
                     string.Join(" | ", byGroup.Keys));
 
                 var safetySubGroups = visibleProps
@@ -18335,8 +20177,9 @@ namespace ScadaChecks
                     .Select(g => g.Key)
                     .ToList();
 
-                Check("安全与留档页分成「会话」「历史留档」两个折叠块（混着不写会落进「默认分组」）",
+                Check("安全与留档页分成「会话」「历史留档」「账号」三个折叠块（混着不写会落进「默认分组」）",
                     safetySubGroups.Contains("会话") && safetySubGroups.Contains("历史留档")
+                    && safetySubGroups.Contains("账号")
                     && !safetySubGroups.Contains(UI.CustomControl.PropertyGrid.PropertyGridDefaults.DefaultGroupName),
                     string.Join(" | ", safetySubGroups));
 
@@ -18348,11 +20191,11 @@ namespace ScadaChecks
                 Check("旧入口转发：带 group 参数打开时 InitialGroup 指向对应页签",
                     paged.InitialGroup == SystemSettingsDraft.GroupSafety, paged.InitialGroup);
 
-                // 五个数值项都带整数校验：属性面板会在行内标红（它拦不住确定，
+                // 十二个数值项都带整数校验：属性面板会在行内标红（它拦不住确定，
                 // 真正的闸是确认时的解析——上一段已经钉过「3O / 空白都关不了窗」）。
                 var numericTexts = visibleProps.Where(p => p.Name.EndsWith("Text", StringComparison.Ordinal)).ToList();
-                Check("五个数值项都标了整数校验（行内红字的第一道提示）",
-                    numericTexts.Count == 5
+                Check("十二个数值项都标了整数校验（行内红字的第一道提示）",
+                    numericTexts.Count == 12
                     && numericTexts.All(p => p.GetCustomAttributes(
                         typeof(UI.Attributes.ValidationBaseAttribute), inherit: true).Any()),
                     string.Join(" | ", numericTexts.Select(p => p.Name)));
@@ -18475,6 +20318,292 @@ namespace ScadaChecks
         }
 
         /// <summary>
+        /// 系统设置新增项（2026-10-21）：日志保留 / 目录 / 落盘级别 / 面板上限、报警图集保留期、
+        /// 密码最小长度、并行全局开关、两个收图服务的"保存即重启"与保存前的三道闸。
+        ///
+        /// 全部用**真对象**跑：LogService 真写文件（含后台落盘线程），ScadaUserStore 真建账号，
+        /// 设置弹窗真走"确定"链。只有收图服务用回调替身——真起监听要占端口，而断言机器上
+        /// 端口是否被占用不可控（真机路径由宿主注入的 Restart 承担）。
+        /// </summary>
+        private static void SystemSettingsExtendedChecks()
+        {
+            Section("[SX] 系统设置新增项：日志 / 报警图集 / 密码策略 / 并行总闸 / 收图服务");
+
+            var settings = new AppSettingsService();
+            var originalLogDir = settings.Current.LogDirectory;
+            var originalLogRetention = settings.Current.LogRetentionDays;
+            var originalLogLevel = settings.Current.LogFileLevel;
+            var originalLogPanel = settings.Current.LogPanelMaxRows;
+            var originalFrameRetention = settings.Current.AlarmFrameRetentionDays;
+            var originalMinPwd = settings.Current.MinPasswordLength;
+            var originalForceSeq = settings.Current.ParallelExecution?.ForceSequential ?? false;
+            var originalFailFast = settings.Current.ParallelExecution?.FailFastByDefault ?? false;
+            var originalHttpEnabled = settings.Current.HttpImageServer?.Enabled ?? true;
+            var originalHttpHost = settings.Current.HttpImageServer?.Host ?? "";
+            var originalHttpPort = settings.Current.HttpImageServer?.Port ?? HttpImageServerSettings.DefaultPort;
+            var originalHttpToken = settings.Current.HttpImageServer?.Token ?? "";
+            var originalHttpTimeout = settings.Current.HttpImageServer?.RequestTimeoutMs ?? 30000;
+
+            var tempRoot = Path.Combine(Path.GetTempPath(), "VmSys_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempRoot);
+
+            try
+            {
+                // ---------------- ① 日志保留期 ----------------
+                var logDirA = Path.Combine(tempRoot, "logsA");
+                Directory.CreateDirectory(logDirA);
+                settings.Current.LogDirectory = logDirA;
+                settings.Current.LogRetentionDays = 30;
+                settings.Save();
+
+                var expired = Path.Combine(logDirA, "2020-01-01.log");
+                var fresh = Path.Combine(logDirA, $"{DateTime.Now.AddDays(-5):yyyy-MM-dd}.log");
+                File.WriteAllText(expired, "old");
+                File.WriteAllText(fresh, "fresh");
+                File.SetLastWriteTime(expired, DateTime.Now.AddDays(-40));
+
+                using (var log = new LogService(settings))
+                {
+                    // 构造里就会清理一次（与启动路径同源）
+                }
+
+                Check("日志保留期：超过 30 天的 .log 在启动清理时被删，保留期内的留着",
+                    !File.Exists(expired) && File.Exists(fresh),
+                    $"过期={(File.Exists(expired) ? "还在" : "已删")} / 期内={(File.Exists(fresh) ? "还在" : "被删")}");
+
+                // 0 = 永不清理（与审计 / 报警同口径）
+                File.WriteAllText(expired, "old");
+                File.SetLastWriteTime(expired, DateTime.Now.AddDays(-400));
+                settings.Current.LogRetentionDays = 0;
+                settings.Save();
+                using (var log = new LogService(settings)) { }
+                Check("日志保留期填 0 = 永不清理（与审计 / 报警历史同一条规则）",
+                    File.Exists(expired), File.Exists(expired) ? "还在" : "被删了");
+
+                // ---------------- ② 落盘级别过滤 ----------------
+                var logDirB = Path.Combine(tempRoot, "logsB");
+                settings.Current.LogDirectory = logDirB;
+                settings.Current.LogRetentionDays = 30;
+                settings.Current.LogFileLevel = LogFileLevel.Warning;
+                settings.Save();
+
+                using (var log = new LogService(settings))
+                {
+                    log.Info("info-line-marker");
+                    log.Error("error-line-marker");
+                    Thread.Sleep(1200);   // 落盘线程空闲时 200ms 一拍
+                }
+
+                var todayFileB = Path.Combine(logDirB, $"{DateTime.Now:yyyy-MM-dd}.log");
+                var textB0 = File.Exists(todayFileB) ? File.ReadAllText(todayFileB) : "";
+                Check("落盘级别=仅警告与错误：Info 不写文件、Error 写（面板不受影响，那是事件通道）",
+                    !textB0.Contains("info-line-marker") && textB0.Contains("error-line-marker"),
+                    textB0.Length == 0 ? "文件不存在/为空" : textB0.Replace("\r", "").Replace("\n", " | "));
+
+                // ---------------- ③ 目录改了要重开写入器 ----------------
+                var logDirC = Path.Combine(tempRoot, "logsC");
+                settings.Current.LogFileLevel = LogFileLevel.Info;
+                settings.Save();
+
+                using (var log = new LogService(settings))
+                {
+                    log.Error("before-reopen-marker");
+                    Thread.Sleep(600);
+
+                    settings.Current.LogDirectory = logDirC;   // 等价于"保存后的内存态"
+                    log.RequestReopen();
+                    log.Error("after-reopen-marker");
+                    Thread.Sleep(900);
+                }
+
+                var textB = File.Exists(todayFileB) ? File.ReadAllText(todayFileB) : "";
+                var fileC = Path.Combine(logDirC, $"{DateTime.Now:yyyy-MM-dd}.log");
+                var textC = File.Exists(fileC) ? File.ReadAllText(fileC) : "";
+                Check("改日志目录 + RequestReopen：新日志写到新目录，旧目录不再增长",
+                    textB.Contains("before-reopen-marker") && !textB.Contains("after-reopen-marker")
+                    && textC.Contains("after-reopen-marker"),
+                    $"旧目录含 after={textB.Contains("after-reopen-marker")} / 新目录含 after={textC.Contains("after-reopen-marker")}");
+
+                // ---------------- ④ 面板保留条数 ----------------
+                var capped = new ObservableCollection<UI.Models.LogItem>();
+                for (var i = 0; i < 5; i++)
+                {
+                    VisionMaster.ViewModels.LogViewModel.AppendWithCap(
+                        capped, new UI.Models.LogItem(UI.Models.LogLevel.Info, "m" + i), 3);
+                }
+                Check("面板保留条数=3：只留最近 3 条，最旧的先丢",
+                    capped.Count == 3 && capped[0].Message == "m2" && capped[2].Message == "m4",
+                    string.Join(",", capped.Select(l => l.Message)));
+
+                var unlimited = new ObservableCollection<UI.Models.LogItem>();
+                for (var i = 0; i < 5; i++)
+                {
+                    VisionMaster.ViewModels.LogViewModel.AppendWithCap(
+                        unlimited, new UI.Models.LogItem(UI.Models.LogLevel.Info, "m" + i), 0);
+                }
+                Check("面板保留条数填 0 = 不限制", unlimited.Count == 5, unlimited.Count.ToString());
+
+                // ---------------- ⑤ 报警图集保留期 ----------------
+                var framesRoot = Path.Combine(tempRoot, "frames");
+                var oldFrameDir = Path.Combine(framesRoot, "2020-01-01");
+                var todayFrameDir = Path.Combine(framesRoot, $"{DateTime.Now:yyyy-MM-dd}");
+                var strangerDir = Path.Combine(framesRoot, "用户自己放的");
+                Directory.CreateDirectory(oldFrameDir);
+                Directory.CreateDirectory(todayFrameDir);
+                Directory.CreateDirectory(strangerDir);
+                File.WriteAllText(Path.Combine(oldFrameDir, "a.png"), "x");
+
+                ImageCollectionService.CleanupExpiredAlarmFrames(30, framesRoot);
+                Check("报警图集保留期：过期日期目录整棵删掉、今天的留着、认不出的目录不动（不拿用户自己放的东西当垃圾）",
+                    !Directory.Exists(oldFrameDir)
+                    && Directory.Exists(todayFrameDir)
+                    && Directory.Exists(strangerDir),
+                    $"过期={(Directory.Exists(oldFrameDir) ? "还在" : "已删")} / 今天={(Directory.Exists(todayFrameDir) ? "在" : "没了")} / 陌生={(Directory.Exists(strangerDir) ? "在" : "没了")}");
+
+                // ---------------- ⑥ 密码最小长度 ----------------
+                var userPath = Path.Combine(tempRoot, "users.json");
+                var store8 = new ScadaUserStore(userPath, minPasswordLengthProvider: () => 8);
+                var shortOk = store8.TryAddUser("u1", "123456", ScadaRole.Operator, out var shortError);
+                var longOk = store8.TryAddUser("u1", "12345678", ScadaRole.Operator, out var longError);
+
+                Check("密码最小长度=8：6 位被拒且说明写的是 8，8 位通过（规则现读配置，不用重启）",
+                    !shortOk && (shortError ?? "").Contains("8") && longOk,
+                    $"短={(shortOk ? "通过" : "被拒")}({shortError}) / 长={(longOk ? "通过" : "被拒")}({longError})");
+
+                // 0 / 负数按默认值处理：不能成为"允许空密码"的后门
+                var storeZero = new ScadaUserStore(Path.Combine(tempRoot, "users2.json"), minPasswordLengthProvider: () => 0);
+                var zeroOk = storeZero.TryAddUser("u2", "123", ScadaRole.Operator, out _);
+                Check("密码最小长度填 0 按默认 4 处理（不是「允许空密码」）",
+                    !zeroOk && storeZero.MinPasswordLength == ScadaUserStore.DefaultMinPasswordLength,
+                    $"MinPasswordLength={storeZero.MinPasswordLength} / 3位={(zeroOk ? "通过" : "被拒")}");
+
+                // ---------------- ⑦ 并行全局开关：保存即生效 ----------------
+                var vm = new ScadaSystemSettingsVM(settings);
+                vm.OnDialogOpened(new DialogParameters());
+                vm.RequestClose = MakeCloseListener(_ => { });
+
+                vm.Draft.ParallelForceSequential = !GlobalParallelConfig.ForceSequential;
+                vm.Draft.ParallelFailFastByDefault = !GlobalParallelConfig.FailFastByDefault;
+                vm.ConfirmCommand.Execute();
+
+                Check("并行两个全局开关：保存后立刻写进 GlobalParallelConfig（不需要重启）",
+                    GlobalParallelConfig.ForceSequential == (settings.Current.ParallelExecution?.ForceSequential ?? false)
+                    && GlobalParallelConfig.FailFastByDefault == (settings.Current.ParallelExecution?.FailFastByDefault ?? false)
+                    && (settings.Current.ParallelExecution?.ForceSequential ?? false) == !originalForceSeq,
+                    $"ForceSequential={GlobalParallelConfig.ForceSequential} / FailFast={GlobalParallelConfig.FailFastByDefault}");
+
+                // ---------------- ⑧ 收图服务：保存即重启 / 失败留窗 ----------------
+                var restarts = 0;
+                var svcVm = new ScadaSystemSettingsVM(settings, restartInboundServers: () => restarts++);
+                svcVm.OnDialogOpened(new DialogParameters());
+                ButtonResult? svcClosed = null;
+                svcVm.RequestClose = MakeCloseListener(r => svcClosed = r);
+
+                var nextPort = (settings.Current.HttpImageServer?.Port ?? HttpImageServerSettings.DefaultPort) + 1;
+                svcVm.Draft.HttpServerPortText = nextPort.ToString();
+                svcVm.ConfirmCommand.Execute();
+
+                Check("改收图服务端口：保存后调用一次重启回调，并正常关窗",
+                    restarts == 1 && svcClosed == ButtonResult.OK
+                    && new AppSettingsService().Current.HttpImageServer?.Port == nextPort,
+                    $"重启次数={restarts} / 关闭={svcClosed?.ToString() ?? "未关"} / 端口={new AppSettingsService().Current.HttpImageServer?.Port}");
+
+                var boom = new ScadaSystemSettingsVM(settings,
+                    restartInboundServers: () => throw new InvalidOperationException("端口被占用"));
+                boom.OnDialogOpened(new DialogParameters());
+                ButtonResult? boomClosed = null;
+                boom.RequestClose = MakeCloseListener(r => boomClosed = r);
+                boom.Draft.HttpServerPortText = (nextPort + 1).ToString();
+                boom.ConfirmCommand.Execute();
+
+                Check("重启失败：配置已落盘但弹窗不关，红字写明原因（让用户改端口后重试）",
+                    boomClosed == null && boom.HasError
+                    && (boom.ErrorMessage ?? "").Contains("端口被占用"),
+                    $"关闭={boomClosed?.ToString() ?? "未关"} / 提示={boom.ErrorMessage}");
+
+                // ---------------- ⑨ 保存前的三道闸 ----------------
+                var guard = new ScadaSystemSettingsVM(settings);
+                guard.OnDialogOpened(new DialogParameters());
+                ButtonResult? guardClosed = null;
+                guard.RequestClose = MakeCloseListener(r => guardClosed = r);
+
+                guard.Draft.HttpServerPortText = "70000";
+                guard.ConfirmCommand.Execute();
+                Check("端口越界（70000）：拒绝保存并说明范围",
+                    guardClosed == null && (guard.ErrorMessage ?? "").Contains("1~65535"),
+                    guard.ErrorMessage);
+
+                guard.Draft.HttpServerPortText = "19001";
+                guard.Draft.HttpServerToken = "   ";
+                guard.ConfirmCommand.Execute();
+                Check("启用状态下令牌留空：拒绝保存（空令牌会让所有请求都验不过）",
+                    guardClosed == null && (guard.ErrorMessage ?? "").Contains("令牌"),
+                    guard.ErrorMessage);
+
+                // 日志目录指到一个"父级是文件"的路径：CreateDirectory 必失败
+                var blocker = Path.Combine(tempRoot, "blocker.txt");
+                File.WriteAllText(blocker, "x");
+                guard.Draft.HttpServerToken = "token";
+                guard.Draft.LogDirectory = Path.Combine(blocker, "logs");
+                guard.ConfirmCommand.Execute();
+                Check("日志目录不可写：拒绝保存并说清是哪个目录（否则文件日志会静默消失）",
+                    guardClosed == null && (guard.ErrorMessage ?? "").Contains("不可写"),
+                    guard.ErrorMessage);
+
+                // ---------------- ⑩ 「打开日志目录」按钮的接线 ----------------
+                // [Command] 是**按名字**绑到绑定对象上的命令：属性名拼错不会报错，
+                // 只会渲染出一个永远点不动的按钮（CommandProcessor 取不到命令时绑定静默失败）。
+                // 这是本仓第一处生产代码使用 [Command]，所以把"名字对得上 + 点了真执行"钉住。
+                var cmdAttr = typeof(SystemSettingsDraft)
+                    .GetProperty(nameof(SystemSettingsDraft.OpenLogFolder))!
+                    .GetCustomAttributes(typeof(UI.Attributes.CommandAttribute), inherit: true)
+                    .Cast<UI.Attributes.CommandAttribute>()
+                    .SingleOrDefault();
+
+                var cmdProp = cmdAttr == null
+                    ? null
+                    : typeof(SystemSettingsDraft).GetProperty(cmdAttr.Command);
+
+                var opened = 0;
+                var draftWithCmd = new SystemSettingsDraft(null, () => opened++);
+                draftWithCmd.OpenLogFolderCommand?.Execute();
+
+                Check("「打开日志目录」：命令名与草稿上的命令属性对得上，且点了真的执行注入的动作",
+                    cmdAttr != null && cmdProp != null
+                    && cmdProp.PropertyType == typeof(Prism.Commands.DelegateCommand)
+                    && draftWithCmd.OpenLogFolderCommand != null && opened == 1,
+                    $"命令名={cmdAttr?.Command ?? "（缺特性）"} / 属性={cmdProp?.Name ?? "（找不到）"} / 执行次数={opened}");
+            }
+            finally
+            {
+                settings.Current.LogDirectory = originalLogDir;
+                settings.Current.LogRetentionDays = originalLogRetention;
+                settings.Current.LogFileLevel = originalLogLevel;
+                settings.Current.LogPanelMaxRows = originalLogPanel;
+                settings.Current.AlarmFrameRetentionDays = originalFrameRetention;
+                settings.Current.MinPasswordLength = originalMinPwd;
+
+                var http = settings.Current.HttpImageServer ?? new HttpImageServerSettings();
+                settings.Current.HttpImageServer = http;
+                http.Enabled = originalHttpEnabled;
+                http.Host = originalHttpHost;
+                http.Port = originalHttpPort;
+                http.Token = originalHttpToken;
+                http.RequestTimeoutMs = originalHttpTimeout;
+
+                if (settings.Current.ParallelExecution != null)
+                {
+                    settings.Current.ParallelExecution.FailFastByDefault = originalFailFast;
+                    settings.Current.ParallelExecution.ForceSequential = originalForceSeq;
+                }
+
+                settings.Save();
+
+                try { Directory.Delete(tempRoot, recursive: true); } catch { }
+            }
+        }
+
+        /// <summary>
         /// 属性面板的页签选择（<see cref="UI.CustomControl.PropertyGridBase.SelectedGroup"/>）：
         /// 合并弹窗靠它让"旧的两个菜单入口各自落到对应页签"。
         ///
@@ -18546,12 +20675,15 @@ namespace ScadaChecks
             var headers = tabControl?.Items.OfType<TabItem>().Select(t => t.Header as string).ToList()
                           ?? new List<string>();
 
-            Check("三个页签按 Group 生成，顺序是 运行窗口 → 安全与留档 → 画布",
+            Check("六个页签按 Group 生成，顺序是 运行窗口 → 安全与留档 → 画布 → 日志 → 服务与启动 → 并行执行",
                 headers.SequenceEqual(new[]
                 {
                     SystemSettingsDraft.GroupRunWindow,
                     SystemSettingsDraft.GroupSafety,
                     SystemSettingsDraft.GroupGallery,
+                    SystemSettingsDraft.GroupLog,
+                    SystemSettingsDraft.GroupServices,
+                    SystemSettingsDraft.GroupParallel,
                 }),
                 string.Join(" | ", headers));
 
@@ -19440,8 +21572,10 @@ namespace ScadaChecks
 
         private static void Check(string name, bool ok, string detail)
         {
-            _pass += ok ? 1 : 0;
-            _fail += ok ? 0 : 1;
+            // 并发断言（UC16~UC18 起后台线程）会与主线程同时 Check；非原子的 += 会丢计数，
+            // 出现"日志里有红条、汇总却 0 失败"的假绿。计数一律走 Interlocked。
+            if (ok) System.Threading.Interlocked.Increment(ref _pass);
+            else System.Threading.Interlocked.Increment(ref _fail);
             Console.WriteLine($"  [{(ok ? "√通过" : "×失败")}] {name}{(string.IsNullOrEmpty(detail) ? "" : "  →  " + detail)}");
         }
 

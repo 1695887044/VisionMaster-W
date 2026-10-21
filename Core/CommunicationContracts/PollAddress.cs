@@ -8,7 +8,11 @@ namespace VisionMaster.Communications
         /// <summary>西门子 S7（按字节编址）</summary>
         S7,
         /// <summary>Modbus TCP/RTU（寄存器区按字编址，位区按点编址）</summary>
-        Modbus
+        Modbus,
+        /// <summary>三菱/基恩士/松下 MC（按字编址；位区不批量）</summary>
+        Mc,
+        /// <summary>欧姆龙 FINS（按字编址；位区不批量）</summary>
+        Fins
     }
 
     /// <summary>
@@ -57,6 +61,15 @@ namespace VisionMaster.Communications
         public string SegmentPrefix { get; init; } = string.Empty;
 
         /// <summary>
+        /// 段地址的显式覆盖串（为空时退回 <c>SegmentPrefix + Start</c>）。
+        /// <para>为什么需要它：<see cref="Start"/> 是**十进制**设备号，而有些设备区是按十六进制编址的
+        /// （MC 的 X/Y/B/W；基恩士的 ZR）。把十进制设备号直接拼回十六进制区，等于把 100 变成 "100" 再被
+        /// 解析成 0x100=256——单读与批读会打到不同地址（MC 的 W 区实测）。由地址实现按该设备的进制
+        /// 生成这个串，规划器只负责拼接与合并。</para>
+        /// </summary>
+        public string? SegmentAddressOverride { get; init; }
+
+        /// <summary>
         /// 变量起始地址（S7=字节偏移；Modbus=0 基址的寄存器号/位点号）
         /// </summary>
         public int Start { get; init; }
@@ -75,8 +88,8 @@ namespace VisionMaster.Communications
         /// <summary>bit 偏移（0-7），非位访问为 -1</summary>
         public int BitOffset { get; init; } = -1;
 
-        /// <summary>本变量的段地址（HSL 可解析）</summary>
-        public string SegmentAddress => SegmentPrefix + Start;
+        /// <summary>本变量的段地址（HSL 可解析；十六进制编址区由地址实现提供覆盖串）</summary>
+        public string SegmentAddress => SegmentAddressOverride ?? SegmentPrefix + Start;
 
         /// <summary>区间结束（不含），用于贪心合并的相邻判断</summary>
         public int EndUnit => Start + SpanUnits;
@@ -84,7 +97,9 @@ namespace VisionMaster.Communications
         /// <summary>变量值的字节长度（位区/位访问固定 1 字节切片）</summary>
         public int ValueByteLength => IsBitArea || IsBitAccess
             ? 1
-            : Protocol == PollProtocol.Modbus ? SpanUnits * 2 : SpanUnits;
+            : Protocol is PollProtocol.Modbus or PollProtocol.Mc or PollProtocol.Fins
+                ? SpanUnits * 2
+                : SpanUnits;
 
         /// <summary>
         /// 单请求单元数上限（来自 HSL ModbusInfo.BuildReadModbusCommand 的分包限制与 S7 PDU 保守值）
@@ -92,6 +107,10 @@ namespace VisionMaster.Communications
         public int MaxSegmentUnits => Protocol switch
         {
             PollProtocol.Modbus => IsBitArea ? 2000 : 120,
+            // MC 3E 二进制单次批量读的软元件点数上限按 960 取（留余量）；
+            // FINS 单次字读上限按 500 取（HSL 内部 ReadSplits 默认更保守，500 不会触发二次拆分）
+            PollProtocol.Mc => 960,
+            PollProtocol.Fins => 500,
             _ => 110 // S7：留足 PDU 余量
         };
     }

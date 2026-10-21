@@ -232,7 +232,7 @@
                                             VerticalAlignment="Center"
                                             FontSize="12.5"
                                             Foreground="{StaticResource DialogTextSecondaryBrush}"
-                                            Text="{Binding Protocol}" />
+                                            Text="{Binding ProtocolText}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>

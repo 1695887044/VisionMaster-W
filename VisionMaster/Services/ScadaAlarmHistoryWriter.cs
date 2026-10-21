@@ -12,6 +12,11 @@ namespace VisionMaster.Services
     /// <summary>
     /// 报警历史落盘：把运行态的每一次报警态迁移追加成 CSV 的一行，按天滚动。
     ///
+    /// <b>目录由宿主传入</b>（2026-10-21）：正常是当前方案目录下的 <c>Alarms</c>，
+    /// 让历史跟着方案文件夹走；<see cref="DefaultDirectory"/> 只作为“方案还没保存过”时的回落。
+    /// 同目录还有 <c>AlarmHistory.json</c>（<see cref="ScadaAlarmHistoryStore"/>），
+    /// 供下次加载时历史面板恢复；CSV 仍是给人/Excel 看的事件流水。
+    ///
     /// 为什么落盘归宿主、不归引擎
     /// ---------
     /// <see cref="ScadaAlarmEngine"/> 的类注释把这条边界写死了：文件 IO 不该拖慢值变化那条热路径。
@@ -149,7 +154,7 @@ namespace VisionMaster.Services
         /// </summary>
         public int RetentionDays => _retentionProvider?.Invoke() ?? _retentionDays;
 
-        /// <summary>默认目录：软件目录下的 <c>Alarms</c>。
+        /// <summary>回落目录：软件目录下的 <c>Alarms</c>（只在方案还没保存过、没有方案目录时使用）。
         /// 与 <c>Logs</c> 同口径（跟着软件走，不污染系统目录），但刻意<b>分开</b>——
         /// 报警历史是资产，运行日志是可以随时清掉的过程记录，混在一起早晚被一起删掉。</summary>
         public static string DefaultDirectory => Path.Combine(AppContext.BaseDirectory, "Alarms");

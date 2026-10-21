@@ -73,6 +73,29 @@
     <SolidColorBrush x:Key="ScadaPrimaryButtonBrush" Color="#409EFF" />
     <SolidColorBrush x:Key="ScadaOnAccentTextBrush" Color="#FFFFFF" />
 
+    <!--
+        组态编辑器工作台（design.html v2 §组态画面）。
+
+        与上面那批「弹窗域」的 Scada* 分开命名：这里描述的是<b>编辑器 chrome</b>
+        （顶栏、工作台底、按钮五态），不是弹窗里的卡片与表单。
+        取值逐项对应 design.html 的 .scada-top / .scada-btn / .scada-canvas-wrap / .scada-zoom。
+    -->
+    <!--  顶栏底（.scada-top 的 surface-2）  -->
+    <SolidColorBrush x:Key="ScadaToolbarBackgroundBrush" Color="#F8FAFC" />
+    <!--  画布视口底（.scada-canvas-wrap）——浅色工作台，画面自己浮在上面  -->
+    <SolidColorBrush x:Key="ScadaWorkbenchBrush" Color="#E9EEF5" />
+    <!--  顶栏文字（.scada-top label 的 text-2）  -->
+    <SolidColorBrush x:Key="ScadaToolbarTextBrush" Color="#475569" />
+    <!--  .scada-btn 的描边 / 悬停 / 按下  -->
+    <SolidColorBrush x:Key="ScadaToolbarBorderBrush" Color="#E2E8F0" />
+    <SolidColorBrush x:Key="ScadaToolbarBorderStrongBrush" Color="#CBD5E1" />
+    <SolidColorBrush x:Key="ScadaToolbarHoverBrush" Color="#F1F5F9" />
+    <SolidColorBrush x:Key="ScadaToolbarPressedBrush" Color="#E2E8F0" />
+    <!--  主按钮悬停（.scada-btn.primary:hover 的 primary-strong）  -->
+    <SolidColorBrush x:Key="ScadaPrimaryButtonHoverBrush" Color="#0284C7" />
+    <!--  浮出工具条的投影色：DropShadowEffect.Color 要 Color 不是 Brush，单列一条  -->
+    <Color x:Key="ScadaToolbarShadowColor">#0F172A</Color>
+
     <!--  语义色：非法（红）/ 警示（橙）/ 色块描边  -->
     <SolidColorBrush x:Key="ScadaDangerBrush" Color="#E05B5B" />
     <SolidColorBrush x:Key="ScadaInvalidBackgroundBrush" Color="#FDF0F0" />
@@ -80,8 +103,7 @@
     <SolidColorBrush x:Key="ScadaSwatchBorderBrush" Color="#C0C4CC" />
 
     <!--  已绑变量：ƒx 按钮 / 变量带底与描边 / ƒ 记号 / 变量带上的 ✕  -->
-    <SolidColorBrush x:Key="ScadaBoundBrush" Color="#2A6BB5" />
-    <SolidColorBrush x:Key="ScadaBoundChipBrush" Color="#EAF3FF" />
+    <SolidColorBrush x:Key="ScadaBoundBrush" Color="#2A6BB5" />    <SolidColorBrush x:Key="ScadaBoundChipBrush" Color="#EAF3FF" />
     <SolidColorBrush x:Key="ScadaBoundChipBorderBrush" Color="#C6DDF5" />
     <SolidColorBrush x:Key="ScadaBoundGlyphBrush" Color="#7FA8D4" />
     <SolidColorBrush x:Key="ScadaChipCloseBrush" Color="#6B8FB5" />

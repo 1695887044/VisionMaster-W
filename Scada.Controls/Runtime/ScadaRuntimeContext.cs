@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using VisionMaster.Scada;
 
 namespace VisionMaster.Scada.Controls
@@ -55,6 +56,10 @@ namespace VisionMaster.Scada.Controls
         /// <param name="axisCommands">本轮的运动轴命令出口；纯监视画面可以不给</param>
         /// <param name="confirmations">本轮的操作二次确认出口；不给则轴控台的示教/定位在需要确认时拒绝执行</param>
         /// <param name="values">本轮的值通道（按变量名解析句柄）；不给则数据表格这类"按名字取数"的图元显示未接入</param>
+        /// <param name="priorAlarms">
+        /// 本轮开始前从方案目录读回的历史报警记录（最新在前）。历史面板把这份与
+        /// <see cref="Alarms"/> 的本轮记录合并显示；历史记录只读，不许点确认。
+        /// </param>
         public ScadaRuntimeContext(
             ScadaAlarmEngine alarms,
             ScadaBeatSource beat,
@@ -63,7 +68,8 @@ namespace VisionMaster.Scada.Controls
             IScadaAxisSource? axisSource = null,
             IScadaAxisCommandSink? axisCommands = null,
             IScadaConfirmationService? confirmations = null,
-            IScadaValueSource? values = null)
+            IScadaValueSource? values = null,
+            IReadOnlyList<ScadaAlarmRecord>? priorAlarms = null)
         {
             Alarms = alarms ?? throw new ArgumentNullException(nameof(alarms));
             Beat = beat ?? throw new ArgumentNullException(nameof(beat));
@@ -73,6 +79,7 @@ namespace VisionMaster.Scada.Controls
             AxisCommands = axisCommands;
             Confirmations = confirmations;
             Values = values;
+            PriorAlarms = priorAlarms ?? Array.Empty<ScadaAlarmRecord>();
         }
 
         /// <summary>
@@ -84,6 +91,13 @@ namespace VisionMaster.Scada.Controls
         /// <c>Attach</c>/<c>Tick</c>/<c>Acknowledge</c> 归宿主与操作员面板，图元不该碰。
         /// </summary>
         public ScadaAlarmEngine Alarms { get; }
+
+        /// <summary>
+        /// 本轮开始前从方案目录 <c>Alarms\AlarmHistory.json</c> 读回的历史记录（最新在前）。
+        /// 历史面板把它与 <see cref="Alarms"/> 的本轮记录合并显示；<see cref="ScadaAlarmRecord.IsHistorical"/>
+        /// 为 true 的行只读（确认按钮不出现）——上一轮运行的引擎已经没了，按 AlarmId 找不回去。
+        /// </summary>
+        public IReadOnlyList<ScadaAlarmRecord> PriorAlarms { get; }
 
         /// <summary>
         /// 本轮的全画面统一节拍（闪烁相位的唯一来源）。

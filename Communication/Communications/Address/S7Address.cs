@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -28,12 +29,16 @@ namespace VisionMaster.Communications
 
         protected override string BuildAddress()
         {
+            // 有效起始字节 = 基地址（Offset）+ 地址偏移；解析失败时退回原始字符串，
+            // 由 Validate 报错（预览不因非法输入抛异常）。
+            int start = EffectiveStart ?? 0;
+
             // 位访问（Boolean+位偏移）：无类型前缀，如 M0.0 / DB1.DBX0.0 由 DB 分支自带 X 前缀
             if (IsBitType)
             {
                 string baseBit = Area == S7Area.DB
-                    ? $"DB{DbNumber}.DBX{Offset}"
-                    : $"{Area}{Offset}";
+                    ? $"DB{DbNumber}.DBX{start}"
+                    : $"{Area}{start}";
                 return $"{baseBit}.{BitOffset}";
             }
 
@@ -41,11 +46,11 @@ namespace VisionMaster.Communications
 
             if (Area == S7Area.DB)
             {
-                baseAddress = $"DB{DbNumber}.DB{GetDataTypePrefix(DataType)}{Offset}";
+                baseAddress = $"DB{DbNumber}.DB{GetDataTypePrefix(DataType)}{start}";
             }
             else
             {
-                baseAddress = $"{Area}{GetDataTypePrefix(DataType)}{Offset}";
+                baseAddress = $"{Area}{GetDataTypePrefix(DataType)}{start}";
             }
 
             return baseAddress;
@@ -73,7 +78,7 @@ namespace VisionMaster.Communications
         public override bool TryCreatePollAddress(out PollAddress? poll)
         {
             poll = null;
-            if (!int.TryParse(Offset, out int start) || start < 0) return false;
+            if (EffectiveStart is not int start || start < 0) return false;
 
             string group, prefix;
             if (Area == S7Area.DB)
@@ -98,6 +103,81 @@ namespace VisionMaster.Communications
                 IsBitAccess = IsBitType,
                 BitOffset = IsBitType ? BitOffset : -1
             };
+            return true;
+        }
+
+        /// <inheritdoc />
+        public override bool TryCreateElementAddress(
+            int index, out DeviceAddressBase? elementAddress, out string? error)
+        {
+            elementAddress = null;
+            error = null;
+
+            if (index < 0)
+            {
+                error = "数组下标不能为负数";
+                return false;
+            }
+
+            if (index >= Length)
+            {
+                error = $"下标 {index} 超出数组长度 {Length}";
+                return false;
+            }
+
+            int start = EffectiveStart ?? 0;
+            int elementStart;
+            DataValueType elementType;
+            int elementLength;
+
+            if (DataType == DataValueType.ByteArray)
+            {
+                // byte[] 的每个元素就是 1 字节；S7 是字节寻址，可以直接写 DBB<n>。
+                elementStart = start + index;
+                elementType = DataValueType.Byte;
+                elementLength = 1;
+            }
+            else if (DataType == DataValueType.String && ElementByteLength > 0)
+            {
+                // string[] 的每个元素是固定宽度字节块；按 ElementByteLength 对齐。
+                elementStart = start + index * ElementByteLength;
+                elementType = DataValueType.ByteArray;
+                elementLength = ElementByteLength;
+            }
+            else if (DataType == DataValueType.String)
+            {
+                error = "字符串数组未配置每元素字节数，无法按元素写入";
+                return false;
+            }
+            else
+            {
+                elementStart = start + index * Math.Max(1, TypeSize);
+                elementType = DataType;
+                elementLength = 1;
+            }
+
+            var element = new S7Address
+            {
+                Area = Area,
+                DbNumber = DbNumber,
+                Offset = elementStart.ToString(CultureInfo.InvariantCulture),
+                DataType = elementType,
+                BitOffset = -1,
+                Length = elementLength,
+                ElementByteLength = 0,
+                AddressOffset = 0,
+            };
+
+            element.EnableConversion = false;
+
+            var validation = element.Validate();
+            if (!validation.IsValid)
+            {
+                error = validation.ErrorMessage;
+                return false;
+            }
+
+            elementAddress = element;
             return true;
         }
 

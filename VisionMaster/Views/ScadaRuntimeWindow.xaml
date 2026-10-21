@@ -134,6 +134,113 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!--  顶条「页面」下拉：Button + ContextMenu。
+             为什么不用 ComboBox：Fluent 主题的 ComboBox 弹层是浅色的，和这条深色运行顶栏对不上；
+             页面切换也不需要“可编辑/可输入”，一个按钮 + 菜单就够，且样式完全可控。  -->
+        <Style x:Key="PageMenuButton" TargetType="Button">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="3"
+                            SnapsToDevicePixels="True">
+                            <ContentPresenter
+                                Margin="{TemplateBinding Padding}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#FF2A2F36" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#FF3A4048" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#FF323841" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+            页面菜单的深色外观：显式 key，只作用于页面菜单，不污染窗口里其它右键菜单。
+            为什么不用隐式样式：隐式 MenuItem 样式会整条顶掉应用级模板，悬停项会落回
+            浅底浅字的默认模板（2026-10-21 评审实测）。这里给一份完整的深色模板。
+        -->
+        <Style x:Key="PageMenuContextStyle" TargetType="ContextMenu">
+            <Setter Property="Background" Value="{StaticResource BarBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BarLineBrush}" />
+            <Setter Property="Padding" Value="4" />
+        </Style>
+        <Style x:Key="PageMenuItemStyle" TargetType="MenuItem">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border
+                            x:Name="Bd"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="3"
+                            SnapsToDevicePixels="True">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="18" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    x:Name="Check"
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="#FF4A8FE0"
+                                    Text="✓"
+                                    Visibility="Collapsed" />
+                                <!--  RecognizesAccessKey=False：页名里的 "_" 原样显示，不当访问键  -->
+                                <ContentPresenter
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    ContentSource="Header"
+                                    RecognizesAccessKey="False" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#FF2A2F36" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -167,13 +274,43 @@
                     Foreground="{StaticResource MutedTextBrush}"
                     Text="运行画面"
                     VerticalAlignment="Center" />
-                <TextBlock
+                <StackPanel
                     Grid.Column="1"
-                    FontSize="14"
-                    FontWeight="SemiBold"
-                    Foreground="{StaticResource TextBrush}"
-                    Text="{Binding CurrentPage.Name}"
-                    VerticalAlignment="Center" />
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center">
+                    <Button
+                        x:Name="PageMenuButton"
+                        Click="OnPageMenuClick"
+                        Style="{StaticResource PageMenuButton}"
+                        ToolTip="切换画面">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                x:Name="PageMenuText"
+                                MaxWidth="220"
+                                VerticalAlignment="Center"
+                                Text="{Binding CurrentPage.Name}"
+                                TextTrimming="CharacterEllipsis"
+                                ToolTip="{Binding CurrentPage.Name}" />
+                            <TextBlock
+                                Margin="6,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                Foreground="{StaticResource MutedTextBrush}"
+                                Text="▾" />
+                        </StackPanel>
+                    </Button>
+                    <Button
+                        x:Name="PageBackButton"
+                        Margin="4,0,0,0"
+                        Click="OnPageBackClick"
+                        Content="← 返回"
+                        FontSize="12"
+                        FontWeight="Normal"
+                        Foreground="{StaticResource TextBrush}"
+                        IsEnabled="{Binding CanGoBack}"
+                        Style="{StaticResource PageMenuButton}"
+                        ToolTip="回到进入当前页之前的那一页" />
+                </StackPanel>
 
                 <!--  ====================  报警历史入口  ====================  -->
                 <!--  放在"停止运行"左边：顶条右侧是动作区，左侧是"我在看哪一页"的读数区，

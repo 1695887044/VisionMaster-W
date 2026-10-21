@@ -126,7 +126,7 @@ namespace VisionMaster.Scada
                 if (action == null || !action.Matches(variableId, oldName))
                     continue;
 
-                action.BindVariable(variableId, newName);
+                action.BindVariable(variableId, newName, action.ArrayIndex);
                 changed++;
             }
 

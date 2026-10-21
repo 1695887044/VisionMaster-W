@@ -528,6 +528,54 @@ namespace ScadaChecks
                 && string.IsNullOrEmpty(combo.WriteError),
                 $"writes={string.Join(",", comboWriter.Writes.Select(w => w.Text))} / error={combo.WriteError ?? "null"}");
 
+            // P0-2：Presentation=Text 只读字段。数据能力完全复用 Options/SelectedText，
+            // 只把“写”这一侧关掉——即使有写通道 + 绑定 + InputOutput 模式，也不写。
+            var textComboElement = ElementRegistry.CreateElement("Hmi.ComboBox");
+            textComboElement.SetProperty("Presentation", "Text");
+            textComboElement.SetProperty("Options", "0=手动;1=自动;2=检修");
+            textComboElement.SetProperty("Value", "1");
+            var textCombo = (ComboBoxElement)ElementRegistry.CreateControl(textComboElement);
+            var textWriter = new FakeValueWriter();
+            textComboElement.GetOrAddBinding("Value").Bind(Guid.NewGuid(), "Line3.Mode");
+            textCombo.RuntimeContext = CbContext(textWriter);
+            textCombo.Refresh();
+            textCombo.NotifyDropDownClosed();
+
+            Check("[CB36] Presentation=Text：SelectedText 仍按 Options 映射（「自动」），但即使有写通道 + 绑定也保持只读、DropDownClosed 不写变量",
+                textCombo.SelectedText == "自动"
+                && !textCombo.IsEditable
+                && textWriter.Writes.Count == 0,
+                $"text={textCombo.SelectedText} editable={textCombo.IsEditable} writes={textWriter.Writes.Count}");
+
+            // 条件可见：Text 呈现下 Mode/Fill/Stroke/CornerRadius 不生效，必须从属性面板藏掉；
+            // Field 呈现下反过来。默认值也算数：新建图元不写 Presentation，也要判成 Field。
+            var comboTextModel = ElementRegistry.CreateElement("Hmi.ComboBox");
+            comboTextModel.SetProperty("Presentation", "Text");
+            var comboFieldModel = ElementRegistry.CreateElement("Hmi.ComboBox");
+            var sepDesc = ElementRegistry.FindProperty("Hmi.ComboBox", "ShowSeparator");
+            var modeDesc = ElementRegistry.FindProperty("Hmi.ComboBox", "Mode");
+            var fillDesc = ElementRegistry.FindProperty("Hmi.ComboBox", "Fill");
+            var labelDesc = ElementRegistry.FindProperty("Hmi.ComboBox", "Text");
+            var alignDesc = ElementRegistry.FindProperty("Hmi.ComboBox", "TextAlignment");
+
+            Check("[CB37] 条件可见（Text 呈现）：ShowSeparator/标签/对齐显示，Mode/Fill 隐藏",
+                sepDesc?.IsVisibleFor(comboTextModel) == true
+                && labelDesc?.IsVisibleFor(comboTextModel) == true
+                && alignDesc?.IsVisibleFor(comboTextModel) == true
+                && modeDesc?.IsVisibleFor(comboTextModel) == false
+                && fillDesc?.IsVisibleFor(comboTextModel) == false,
+                $"sep={sepDesc?.IsVisibleFor(comboTextModel)} label={labelDesc?.IsVisibleFor(comboTextModel)} " +
+                $"align={alignDesc?.IsVisibleFor(comboTextModel)} mode={modeDesc?.IsVisibleFor(comboTextModel)} fill={fillDesc?.IsVisibleFor(comboTextModel)}");
+
+            Check("[CB38] 条件可见（Field 呈现）：Mode/Fill 显示，ShowSeparator/标签/对齐隐藏（默认值就是 Field，不写袋也要判对）",
+                sepDesc?.IsVisibleFor(comboFieldModel) == false
+                && labelDesc?.IsVisibleFor(comboFieldModel) == false
+                && alignDesc?.IsVisibleFor(comboFieldModel) == false
+                && modeDesc?.IsVisibleFor(comboFieldModel) == true
+                && fillDesc?.IsVisibleFor(comboFieldModel) == true,
+                $"sep={sepDesc?.IsVisibleFor(comboFieldModel)} label={labelDesc?.IsVisibleFor(comboFieldModel)} " +
+                $"align={alignDesc?.IsVisibleFor(comboFieldModel)} mode={modeDesc?.IsVisibleFor(comboFieldModel)} fill={fillDesc?.IsVisibleFor(comboFieldModel)}");
+
             // ★ 变异反证：把写入从 DropDownClosed 挪到 Value 变化 → 这条会红
             comboWriter.Writes.Clear();
             comboElement.SetProperty("Value", "0");

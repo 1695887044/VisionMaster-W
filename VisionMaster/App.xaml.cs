@@ -1,5 +1,6 @@
 using Core.Interfaces;
 using Core.Interfaces.Io;
+using Prism.Dialogs;
 using Prism.Ioc;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -42,6 +43,17 @@ namespace VisionMaster
         private Lifetime.SplashScreen? _splash;
         private readonly List<IAppModule> _modules = new();
 
+        /// <summary>
+        /// RegisterTypes 阶段产生的"模块注册/加载"诊断（含可选模块加载器的结果）。
+        ///
+        /// 为什么先缓冲、不直接写日志
+        /// ---------
+        /// RegisterTypes 里容器尚未构建，<see cref="ILogService"/> 还解析不出来（那一步 Resolve 会抛）。
+        /// 而这些诊断又必须在 Release 下可见（<c>Debug.WriteLine</c> 在发布版是黑洞）——
+        /// 所以统一缓冲到 <see cref="CreateShell"/>，那时日志服务已就绪，逐条按 Warn 落盘（A03 口径）。
+        /// </summary>
+        private readonly List<string> _pendingModuleDiagnostics = new();
+
         protected override Window CreateShell()
         {
             var thinFont = this.Resources["FA.Light"];
@@ -79,8 +91,34 @@ namespace VisionMaster
             // 必须在模块初始化之前挂接：通讯模块的启动装配（加载配置 + 自动连接）日志也在其中
             AdvancedCommunicationManager.LogSink = Container.Resolve<ILogService>();
 
+            // RegisterTypes 阶段缓冲的模块诊断（含可选 Web 模块"启用但缺件"）在这里落地：
+            // 日志服务此刻已可用，Release 版也能在 Logs\ 当天日志里查到（A03）。
+            if (_pendingModuleDiagnostics.Count > 0)
+            {
+                var startupLog = Container.Resolve<ILogService>();
+                foreach (var diagnostic in _pendingModuleDiagnostics)
+                    startupLog.Warn(diagnostic);
+                _pendingModuleDiagnostics.Clear();
+            }
+
+            // 模块初始化逐项隔离：一个模块起不来只让它的功能不可用，不许把主界面拦在启动链外
+            // （Initialize 阶段容器已就绪，异常可以直接写日志——与 RegisterTypes 阶段的缓冲口径不同）。
+            // 注册阶段失败的模块已在 RegisterTypes 里从 _modules 摘除，所以这里天然只跑"注册成功"的那些；
+            // 万一将来有人在注册失败后重新加回，会在这里再炸一次——那是新加的装配路径该修的 bug。
             foreach (var module in _modules)
-                module.Initialize(Container, _lifetime); // 模块注册自检项/退出任务，须在自检前完成
+            {
+                try
+                {
+                    module.Initialize(Container, _lifetime); // 模块注册自检项/退出任务，须在自检前完成
+                }
+                catch (Exception ex)
+                {
+                    var message = $"[模块] {module.Name} 初始化失败，本次按该功能不可用运行：{ex.GetType().Name}：{ex.Message}";
+                    Debug.WriteLine(message);
+                    // 日志服务本身取不到时只留 Debug 痕迹：一个模块起不来绝不许把启动带走
+                    try { Container.Resolve<ILogService>().Error(message); } catch { }
+                }
+            }
 
             // 图像集采集服务：在这里强制构造一次，让它的订阅（FlowRunCompleted / 实时预览）
             // 先于任何一次流程运行挂上。否则"第一次运行没进图集、第二次才有"这种时序 bug
@@ -184,8 +222,41 @@ namespace VisionMaster
             _modules.Add(new MotionModule());
             // 注：IO 接入层已下线——设备/点位配置改由"通讯连接 + 网络变量"承载
             // （旧 IO 配置在方案加载时由 IoMigrationHook 一次性折算，见下方注册）。
-            foreach (var module in _modules)
-                module.Register(containerRegistry);
+
+            // ===== 可选模块：SCADA 运行态 Web 客户端 =====
+            // 追加在**最后**，语义有两条：
+            //   ① Initialize 最后执行——Web 只读运行态，必须在流程引擎/相机/运动都就绪之后才开始看；
+            //   ② 退出任务最先执行——AppLifetimeService 按注册逆序跑退出链，
+            //      最后注册的退出任务最先跑，Web 的监听/会话先停，再去停流程引擎与通讯。
+            // 加载失败（未启用 / 缺 DLL / Web\ 里出现契约副本）一律**不拦启动**：
+            // 未启用时 diagnostic 为 null（正常状态，不写 Warn），其余情况缓冲到 CreateShell 再 Warn。
+            var webModule = ScadaWebModuleLoader.TryLoad(AppContext.BaseDirectory, out var webDiagnostic);
+            if (webModule != null)
+                _modules.Add(webModule);
+            else if (!string.IsNullOrWhiteSpace(webDiagnostic))
+                _pendingModuleDiagnostics.Add(webDiagnostic);
+
+            // 模块注册逐项隔离：单个模块的注册异常不许把整条启动链带走
+            // （RegisterTypes 阶段不能 Resolve 日志服务，异常信息同样先缓冲，CreateShell 里 Warn）。
+            // 注册失败必须**从 _modules 摘除**：半注册的模块（部分服务已登记、部分没登记）若留在表里，
+            // CreateShell 的 Initialize 会继续调它，等于把"注册失败"变成"初始化时再炸一次"，
+            // 而且那时炸出来的是缺依赖的二次故障，真实原因（注册阶段那条）反而被盖住。
+            // 用 ToArray() 快照遍历：边遍历边删会让 foreach 抛 InvalidOperationException。
+            foreach (var module in _modules.ToArray())
+            {
+                try
+                {
+                    module.Register(containerRegistry);
+                }
+                catch (Exception ex)
+                {
+                    _modules.Remove(module);
+                    var message = $"[模块] {module.Name} 注册失败，已跳过（本次按该功能不可用运行）："
+                        + $"{ex.GetType().Name}：{ex.Message}";
+                    _pendingModuleDiagnostics.Add(message);
+                    Debug.WriteLine(message);
+                }
+            }
 
             containerRegistry.RegisterSingleton<SolutionService>();
             containerRegistry.RegisterSingleton<SolutionDraftService>();
@@ -205,7 +276,11 @@ namespace VisionMaster
             // 组态编辑器的视图模型必须是单例：画布宿主与属性面板要靠"同一个 SelectedElement"联动，
             // 各自一份就得引入事件总线才能对齐选中态。RegisterForNavigation 造视图时经由容器
             // 解析视图模型，singleton 覆盖默认的单次构造，所以两处拿到的是同一个实例。
-            containerRegistry.RegisterSingleton<ScadaEditorViewModel>();
+            containerRegistry.RegisterSingleton<ScadaEditorViewModel>(c => new ScadaEditorViewModel(
+                c.Resolve<IWorkspaceManager>(),
+                c.Resolve<IScadaRuntimeHost>(),
+                // 报警配置入口（方案级）从组态工具栏打开；断言工程构造时可以不传。
+                c.Resolve<IDialogService>()));
             containerRegistry.RegisterForNavigation<ScadaEditorView, ScadaEditorViewModel>();
             containerRegistry.RegisterForNavigation<ScadaToolboxView, ScadaToolboxViewModel>();
             containerRegistry.RegisterForNavigation<ScadaPropertyView, ScadaPropertyViewModel>();
@@ -233,9 +308,61 @@ namespace VisionMaster
                         log.Warn(message);
                 },
                 retentionProvider: () => c.Resolve<AppSettingsService>().Current.AuditRetentionDays));
+            // 审计的跨程序集出口（可选模块用）：接口在 VM.Scada，实现是宿主这一份 writer。
+            // 映射到**同一个单例**是硬要求——审计是"谁在什么时候按了哪个按钮"的凭证，
+            // 两份实例各自往同一个文件追加写，出来的会是交错的行（与上面"全局一份"同一条理由）。
+            containerRegistry.RegisterSingleton<IScadaAuditSink>(c => c.Resolve<ScadaAuditWriter>());
             // 运行态宿主必须是单例：它管的就是"同一时刻只允许一个运行窗口"这条策略，
             // 每个调用方解析出一份新实例，等于这条策略根本不存在（两份会话各自写同一批变量）。
-            containerRegistry.RegisterSingleton<IScadaRuntimeHost, ScadaRuntimeHost>();
+            // 三个映射指向**同一个实例**（具体类型 / 桌面宿主接口 / 运行态事实接口）：
+            //   · IScadaRuntimeHost 住在宿主工程，桌面侧（Shell、运行窗口）用；
+            //   · IScadaRunHub 住在 VM.Scada，可选模块（Web 运行态）只引用 VM.Scada、看不到前者，
+            //     靠它拿"这一轮是否在跑 / 会话 / 文档 / generation"与启停事件。
+            // 走工厂而不是类型映射（与 FlowEngineModule 同一手法）：接口另建一份会让
+            // "订阅事件的实例"与"真正在跑运行的实例"不是同一个对象——事件永远收不到，
+            // 而症状是"Web 上看不到运行态"，很难往注册处想。
+            containerRegistry.RegisterSingleton<ScadaRuntimeHost>(c => new ScadaRuntimeHost(
+                c.Resolve<ILogService>(),
+                c.Resolve<IUserNotifier>(),
+                c.Resolve<IWorkspaceManager>(),
+                c.Resolve<IScadaActionDispatcher>(),
+                c.Resolve<IScadaValueSource>(),
+                c.Resolve<IScadaValueWriter>(),
+                c.Resolve<ScadaNavigator>(),
+                c.Resolve<IScadaAccessPolicy>(),
+                c.Resolve<ScadaAuditWriter>(),
+                c.Resolve<AppSettingsService>(),
+                ResolveOptional<IScadaAxisSource>(c),
+                ResolveOptional<IScadaAxisCommandSink>(c),
+                c.Resolve<IScadaConfirmationService>(),
+                // 方案级监控必须与宿主共用同一个实例；显式传，不靠容器猜可选参数。
+                c.Resolve<ScadaMonitoringHost>()));
+            // 方案级监控：报警 + 变量事件 + 节拍，生命周期跟方案走（不再跟 SCADA 运行窗口）。
+            containerRegistry.RegisterSingleton<ScadaMonitoringHost>(c => new ScadaMonitoringHost(
+                c.Resolve<ILogService>(),
+                c.Resolve<IWorkspaceManager>(),
+                c.Resolve<IScadaValueSource>(),
+                c.Resolve<IScadaValueWriter>(),
+                c.Resolve<IScadaAccessPolicy>(),
+                ResolveOptional<IScadaAxisSource>(c),
+                ResolveOptional<IScadaAxisCommandSink>(c),
+                c.Resolve<IScadaConfirmationService>(),
+                c.Resolve<IScadaActionDispatcher>(),
+                c.Resolve<AppSettingsService>()));
+            containerRegistry.RegisterSingleton<IScadaRuntimeHost>(c => c.Resolve<ScadaRuntimeHost>());
+            containerRegistry.RegisterSingleton<IScadaRunHub>(c => c.Resolve<ScadaRuntimeHost>());
+            // 报警命令出口（M2）：Web 命令层「确认报警 / 全部确认」只认 VM.Scada 里的接口，
+            // 引擎实例由本宿主按"当前运行的那一轮"现取（见 ScadaRuntimeHost.CurrentAlarmEngine），
+            // 所以这里也必须映射到**同一个**单例——另建一份实例会拿不到运行中的引擎。
+            containerRegistry.RegisterSingleton<IScadaAlarmCommands>(c => c.Resolve<ScadaRuntimeHost>());
+            // 报警只读快照（M2b AckButton 的列表/未确认计数）：与确认命令同一实例、同一轮引擎。
+            containerRegistry.RegisterSingleton<IScadaAlarmFeed>(c => c.Resolve<ScadaRuntimeHost>());
+            // 渲染目录（M1a）：把图元注册表投影成无 WPF 的只读 DTO，供可选模块（Web 渲染器）读
+            // "类型键 / 默认尺寸 / 属性默认值 / 事件名"。**必须懒构建**：趋势图（Hmi.ChartTrend）在
+            // 另一个程序集里，要等 Initialize 里的 ScadaChartElements.Register() 跑完才在注册表里，
+            // 所以这里只登记映射、不解析实例（第一次 Resolve 必须晚于那次注册）。
+            containerRegistry.RegisterSingleton<IScadaRenderCatalog, ScadaRenderCatalog>();
+
             // 运行态的数据通道：把工作区的变量注册表接成领域层认的"值源"（见 IScadaValueSource）。
             // 走工厂而不是类型映射，是因为注册表挂在 WorkspaceContext 上、不单独注册——
             // 这样"变量只有一个索引"这条约束不会被绕开（多一份索引就会分裂）。
@@ -253,6 +380,8 @@ namespace VisionMaster
             // 走工厂而不是类型映射：audit 在构造函数上是**可选参数**（默认 null），
             // 让容器去猜"这个可选参数要不要注入"，结果多半是编译能过、运行起来审计文件一直空着
             // （而且不报错）。这里显式传进去，"接上审计"这件事在注册处一眼可见。
+            // 执行前二次确认（P0）：全局一份。窗口路径允许弹框，headless 监控会把它临时置为不可交互。
+            containerRegistry.RegisterSingleton<IScadaConfirmationService>(c => new ScadaConfirmationService());
             containerRegistry.RegisterSingleton<IScadaActionDispatcher>(c => new ScadaActionDispatcher(
                 c.Resolve<ILogService>(),
                 c.Resolve<IScadaValueSource>(),
@@ -262,7 +391,9 @@ namespace VisionMaster
                 // 运动命令族执行器：同样是可选参数（断言工程里 16 处 4~5 参构造不该为它解析运动依赖）。
                 // 这里显式传进去——交给容器去猜的结果是编译能过、运行起来点「轴定位」只记一行
                 // "未接入运动模块"（而且不报错）。它持有"哪根轴在点动"的状态与看门狗，所以是单例。
-                c.Resolve<MotionActionExecutor>()));
+                c.Resolve<MotionActionExecutor>(),
+                // 执行前二次确认（P0）：显式接上，没接线时按取消处理（fail-safe）。
+                c.Resolve<IScadaConfirmationService>()));
             // 运行态的切页出口：分发器是长命单例，运行态会话是每次点"运行"现建、关窗口即废，
             // 中间得有人记住"此刻活着的是哪一个会话"。宿主 Start 时 Attach、关窗口收尾时摘掉。
             // 也必须是单例：两份实例各记一个会话，动作落到哪一份上就变成了随机。
@@ -306,8 +437,18 @@ namespace VisionMaster
                 return new ScadaUserStore(
                     storePath: null,
                     audit: c.Resolve<ScadaAuditWriter>(),
-                    actorProvider: () => policy.CurrentUserName);
+                    actorProvider: () => policy.CurrentUserName,
+                    // 密码最小长度是软件级配置（系统设置 → 安全与留档 → 账号）：
+                    // 每次校验现读，改完不需要重启软件。
+                    minPasswordLengthProvider: () => c.Resolve<AppSettingsService>().Current.MinPasswordLength);
             });
+            // 账号校验的跨程序集出口（可选模块用）：接口在 VM.Scada，实现是宿主这一份 ScadaUserStore。
+            // 同一单例——"谁能登录、登录后是几档"只有一份数据；两份实例的表现是
+            // "Web 上刚建的账号登录时说不存在"。
+            containerRegistry.RegisterSingleton<IScadaUserAuthenticator>(c => c.Resolve<ScadaUserStore>());
+            // 账号变更通知出口（M2a P0-A）：改密/重置/改角色/删号后，Web 模块据此立刻撤销旧会话。
+            // 必须是同一个 ScadaUserStore 实例——另建一份就收不到事件。
+            containerRegistry.RegisterSingleton<IScadaUserChangeNotifier>(c => c.Resolve<ScadaUserStore>());
             // 组态「选变量」入口：属性面板只说"给我一个变量"，弹窗怎么弹、弹哪个由这一层决定。
             // 面板与事件行因此能在无 WPF 宿主下被直接构造、直接断言（ScadaChecks 就是这么测的）。
             containerRegistry.RegisterSingleton<IScadaVariablePicker, ScadaVariablePicker>();
@@ -332,6 +473,15 @@ namespace VisionMaster
                 ScadaFlowPicker.DialogName);
             containerRegistry.RegisterDialog<VariableBindingView, VariableBindingViewModel>("DataBindView");
             containerRegistry.RegisterDialog<GlobalVariableView, GlobalVariableManagerViewModel>("GlobalVariable");
+            // 单设备变量表批量导入/导出（xlsx）：入口在变量管理卡片头，仅网络来源可见。
+            // 导入弹窗自己完成"差异计划 → 事务应用 → 回滚"，关闭后由变量管理重建左栏与明细。
+            containerRegistry.RegisterDialog<DeviceVariableExportView, DeviceVariableExportViewModel>(
+                DeviceVariableExportViewModel.DialogName);
+            containerRegistry.RegisterDialog<DeviceVariableImportView, DeviceVariableImportViewModel>(
+                DeviceVariableImportViewModel.DialogName);
+            // 数组编辑弹窗（变量管理 → 数组根「编辑数组…」）：装填当前值，默认只写当前值，
+            // 勾选才写初始值；校验在弹窗内完成（设计基线 global-variables v2）。
+            containerRegistry.RegisterDialog<ArrayEditorView, ArrayEditorViewModel>(ArrayEditorViewModel.DialogName);
             containerRegistry.RegisterDialog<ConditionEditorView, ConditionEditorViewModel>("ConditionEditor");
             // 并行分组参数已收编为标准属性面板（EasyDialog.ShowPropertyGridSync + FlatPropertyGrid，
             // 2026-10-09 用户裁决"没必要新建一个视图"）：不再注册专属弹窗 ParallelGroupConfigView，
@@ -403,7 +553,55 @@ namespace VisionMaster
                 new ScadaSystemSettingsViewModel(
                     Container.Resolve<AppSettingsService>(),
                     Container.Resolve<ScadaAuditWriter>(),
-                    () => Container.Resolve<ScadaAccessPolicy>().CurrentUserName));
+                    () => Container.Resolve<ScadaAccessPolicy>().CurrentUserName,
+                    monitorOptionsProvider: null,
+                    // 日志：目录要重开写入器、保留期要立刻清一次。
+                    // 用具体类型 LogService（RequestReopen / CleanupNow 不在 ILogService 上——
+                    // 那两个是"改完生效"的内部收尾动作，不该污染日志接口）。
+                    applyLogSettings: () =>
+                    {
+                        if (Container.Resolve<ILogService>() is LogService log)
+                        {
+                            log.RequestReopen();
+                            log.CleanupNow();
+                        }
+                    },
+                    // 两个收图服务：Host/Port 是绑定期决定的，只能停掉再起。
+                    // 两个各起各的：一个端口被占用不该让另一个也跟着不重开。
+                    restartInboundServers: () =>
+                    {
+                        var errors = new List<string>();
+
+                        try { Container.Resolve<HttpImageServer>().Restart(); }
+                        catch (Exception ex) { errors.Add($"HTTP 收图服务：{ex.Message}"); }
+
+                        try { Container.Resolve<NetworkCameraServer>().Restart(); }
+                        catch (Exception ex) { errors.Add($"网络相机服务：{ex.Message}"); }
+
+                        if (errors.Count > 0)
+                            throw new InvalidOperationException(string.Join("；", errors));
+                    },
+                    // 「打开日志目录」：与 LogService 的目录口径**逐字相同**（空串 = 程序目录\Logs），
+                    // 否则按钮打开的是一个和真正落盘位置不同的目录。
+                    openLogFolder: () =>
+                    {
+                        var configured = Container.Resolve<AppSettingsService>().Current.LogDirectory;
+                        var target = string.IsNullOrWhiteSpace(configured)
+                            ? Path.Combine(AppContext.BaseDirectory, "Logs")
+                            : configured.Trim();
+
+                        try
+                        {
+                            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{target}\"")
+                            {
+                                UseShellExecute = true
+                            });
+                        }
+                        catch
+                        {
+                            // 打不开资源管理器只影响这一个按钮，不该让调用点崩
+                        }
+                    }));
             // 变量事件弹窗同一手法（它的 audit / actorProvider 同样是可选参数，理由见上）。
             // 它比上面几个更依赖这一行：本弹窗的每一次勾选、每一次改阈值都当场写回模型，
             // 没有"确定"这个统一的提交点——所以漏接审计的话，一条线索都不会留下。
@@ -728,6 +926,16 @@ namespace VisionMaster
         ///
         /// 时序：<c>base.OnInitialized()</c> 之后容器已就绪（Prism 的 OnStartup → Initialize → OnInitialized）。
         /// </summary>
+        /// <summary>
+        /// 解析可选模块依赖：没注册（纯视觉/离线场景）就返回 null，不让容器报错。
+        /// 只用于“有就用、没有也能跑”的轴接口；核心依赖仍走 <c>Resolve</c>，缺了必须启动失败。
+        /// </summary>
+        private static T? ResolveOptional<T>(IContainerProvider container) where T : class
+        {
+            try { return container.Resolve<T>(); }
+            catch { return null; }
+        }
+
         private void HookGlobalActivity()
         {
             var accessPolicy = Container.Resolve<ScadaAccessPolicy>();

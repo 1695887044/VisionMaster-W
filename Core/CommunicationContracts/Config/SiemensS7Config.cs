@@ -40,6 +40,8 @@ namespace VisionMaster.Communications
 
         public override ConnectionConfigBase Clone() => new SiemensS7Config
         {
+            // 必须拷贝基类 Type（默认 0 = ModbusTcp）：漏拷会让 S7 副本被判"协议类型不匹配"
+            Type = Type,
             TimeoutMs = TimeoutMs,
             RetryCount = RetryCount,
             RetryIntervalMs = RetryIntervalMs,

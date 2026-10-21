@@ -255,18 +255,24 @@ namespace VisionMaster.Models
         ///  · 单步放行（DebugStepPending，一次性，命中即消费）；
         ///  · 用户暂停（PauseSession 已合锁）：只按住等待，不再补发通知（避免二次 Paused 事件）。
         ///
-        /// 豁免：非调试会话（DebugEnabled=false）一步不停——HTTP 触发 / 试运行 / 普通运行全走
-        /// 这条早退路径，热路径只多一次 bool 读。
+        /// 豁免：非调试会话（DebugEnabled=false）<b>且非连续运行</b>一步不停——HTTP 触发 /
+        /// 试运行 / 非调试单次执行全走这条早退路径，热路径只多一次 bool 读。
+        /// <b>连续运行不再豁免</b>（2026-10-21 P0）：用户暂停要求"停在节点边界、恢复从当前步继续"，
+        /// 而连续运行的轮顶等待只会在整轮跑完后停住、下一轮又从第 1 步开始；只有让连续会话
+        /// 也经过本门，PauseLock 才能在"下一个节点执行前"把它按住。未暂停时这里只多读
+        /// 两三个标志，不改变原有执行顺序。
         /// </summary>
         /// <param name="node">即将执行的编译节点（取其 Blueprint 查断点）</param>
         /// <param name="token">执行取消令牌（停止 / 会话替换）</param>
         public void DebugGateBeforeNode(CompiledNode node, CancellationToken token)
         {
-            if (!DebugEnabled) return; // 豁免路径（HTTP / 试运行 / 非调试运行）
+            if (!DebugEnabled && !IsContinuousRun) return; // 非调试单次执行豁免（无节点级暂停点）
 
             var step = node?.Blueprint;
-            bool hitBreakpoint = step?.IsBreakpoint == true;
-            bool stepRequested = DebugStepPending;
+            // 断点/单步只对调试会话生效：连续非调试运行（HTTP/定时/自动触发）虽然也经过本门，
+            // 但它们的 Blueprint 上可能残留断点标记，不能因此把生产运行停住。
+            bool hitBreakpoint = DebugEnabled && step?.IsBreakpoint == true;
+            bool stepRequested = DebugEnabled && DebugStepPending;
             bool pauseRequested = !PauseLock.IsSet; // PauseSession 已把锁合上
 
             if (!hitBreakpoint && !stepRequested && !pauseRequested)

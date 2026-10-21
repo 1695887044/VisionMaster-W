@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>VisionMaster SCADA · 运行画面</title>
+  <!-- 空 data URI：避免浏览器请求 /favicon.ico（静态白名单里没有它，会多一条 404） -->
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="elements-process.css?v=5" />
+  <link rel="stylesheet" href="elements-interactive.css?v=1" />
+</head>
+<body>
+  <!--
+    运行画面（M2：只读镜像 + 6 个交互图元）。
+
+    只读图元仍由 snapshot / frame 驱动；交互图元（按钮 / 位按钮 / 输入 / 下拉 /
+    多档旋钮 / 报警确认）在权限允许时发 cmd.* 命令，服务端用 ack / error 回执。
+    ?demo=1 使用本地 mock（不连服务端）；?demo=1&readonly=1 可截只读态。
+
+    入口有两条：
+      · URL 带 ?ticket=…（桌面端复制过来的链接）→ 直接握手；
+      · 没有 ticket → 显示登录卡片（账号密码 / 只读匿名），登录成功后
+        POST /api/ticket 取一次性 ticket 再连 /ws。
+    断线重连不再复用旧 ticket：用 hello 下发的 sessionToken 走
+    POST /api/ticket {refreshToken} 换新票；会话过期（E_SESSION_EXPIRED / 401）退回登录卡片。
+  -->
+  <div id="app" class="app">
+    <header id="topbar" class="topbar" role="banner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div class="brand-text">
+          <span class="brand-name">VisionMaster SCADA</span>
+          <span id="page-name" class="page-name">运行画面</span>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <span id="demo-chip" class="chip chip-warn chip-demo" hidden>演示数据</span>
+        <span id="page-version" class="chip chip-muted" hidden></span>
+        <span id="online" class="chip chip-muted" hidden role="button" tabindex="0"
+              aria-haspopup="dialog" aria-expanded="false" title="在线用户"></span>
+        <div id="presence-pop" class="presence-pop" hidden role="dialog" aria-label="在线用户">
+          <div class="presence-pop-title">在线用户</div>
+          <ul id="presence-list" class="presence-list"></ul>
+        </div>
+        <span id="scale-note" class="chip chip-warn" hidden>窗口较小，已启用最小缩放</span>
+        <button id="lease" class="chip chip-muted chip-button" type="button" hidden></button>
+        <span id="readonly" class="chip chip-muted">只读</span>
+
+        <span id="conn" class="conn conn-connecting" role="status" aria-live="polite">
+          <span class="conn-dot" aria-hidden="true"></span>
+          <span id="conn-text" class="conn-text">正在连接…</span>
+        </span>
+
+        <button id="reconnect" class="btn" type="button" title="重新连接 WebSocket">重连</button>
+      </div>
+    </header>
+
+    <!--
+      #stage 是画布的可视区域：正常时 flex 居中做 letterbox；窗口小于最小缩放阈值时
+      追加 .is-scroll（display:block + overflow:auto），画布按 MIN_SCALE 铺开、由这里滚动。
+      顶栏在 #stage 之外，所以永远不随画布滚动。
+    -->
+    <main id="stage" class="stage">
+      <!--
+        #scaler 是"缩放后的占位盒"（宽高 = 设计尺寸 × k），#viewport 以左上角为原点做
+        transform: scale(k)。这样缩放不会改变布局尺寸，滚动也只发生在 #stage 里。
+      -->
+      <div id="scaler" class="scaler">
+        <div id="viewport" class="viewport">
+          <div id="base-layer" class="layer" aria-hidden="true"></div>
+          <div id="page-layer" class="layer"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 演示水印固定在可视区右下角（不随 #stage 滚动），只靠文字不靠颜色表达"非真实运行" -->
+    <div id="demo-watermark" class="demo-watermark" hidden aria-hidden="true">
+      <span class="demo-watermark-title">演示数据</span>
+      <span class="demo-watermark-sub">非真实运行</span>
+    </div>
+
+    <div id="overlay" class="overlay" hidden>
+      <div class="overlay-card">
+        <div id="overlay-icon" class="overlay-icon tone-info" aria-hidden="true">i</div>
+        <h1 id="overlay-title" class="overlay-title">…</h1>
+        <p id="overlay-text" class="overlay-text"></p>
+
+        <!-- 登录卡片：overlay 显示 kind=login 时才可见 -->
+        <form id="login-form" class="login-form" hidden novalidate>
+          <label class="login-field" for="login-user">
+            <span class="login-label">用户名</span>
+            <input id="login-user" class="login-input" type="text" autocomplete="username"
+                   spellcheck="false" autocapitalize="off" />
+          </label>
+          <label class="login-field" for="login-pass">
+            <span class="login-label">密码</span>
+            <input id="login-pass" class="login-input" type="password" autocomplete="current-password" />
+          </label>
+          <p id="login-error" class="login-error" role="alert" hidden></p>
+          <button id="login-submit" class="btn btn-primary login-submit" type="submit">登录</button>
+          <button id="login-anon" class="btn login-anon" type="button">以只读身份查看</button>
+        </form>
+
+        <div id="overlay-actions" class="overlay-actions"></div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  </div>
+
+  <!--
+    加载顺序有语义：app.js 先初始化 window.ScadaRenderers（前 5 个图元）与命令客户端，
+    elements-process.js 再往同一个对象里注册后 5 个只读图元；
+    elements-interactive.js 最后注册 M2 的 6 个交互图元。
+    未注册的类型走中性占位盒，页面不因单个图元缺失而空白。
+  -->
+  <script src="app.js"></script>
+  <script src="elements-process.js" onerror="window.__scadaProcessMissing = true"></script>
+  <script src="elements-interactive.js?v=1" onerror="window.__scadaInteractiveMissing = true"></script>
+</body>
+</html>

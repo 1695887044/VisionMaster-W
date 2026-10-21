@@ -1,6 +1,0 @@
-﻿namespace G.Systems.Logger
-{
-    public class hl_dm_warn : LogEntityBase<string>
-    {
-    }
-}

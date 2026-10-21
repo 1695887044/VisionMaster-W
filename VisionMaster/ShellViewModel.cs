@@ -600,10 +600,8 @@ namespace VisionMaster
             Add("控制台", "视图 · 展开 / 收起底部面板", "\uf120", LayoutHelper.ToggleConsole);
 
             Add("全局变量", "命令", "\uf121", () => OnSystemAction(SystemAction.GlobalVariables));
-            Add("通讯设置", "命令", "\uf6ff", () => OnSystemAction(SystemAction.CommSettings));
+            Add("硬件管理", "命令", "\uf2db", () => OnSystemAction(SystemAction.HardwareSettings));
             Add("系统健康", "命令", "\uf21e", () => OnSystemAction(SystemAction.SystemHealth));
-            Add("相机设置", "命令", "\uf030", () => OnSystemAction(SystemAction.CameraSettings));
-            Add("运动板卡", "命令", "\uf085", () => OnSystemAction(SystemAction.MotionBoard));
 
             if (Workspace.CurrentSolution?.Flows != null)
             {
@@ -914,6 +912,7 @@ namespace VisionMaster
             var result = dialog.ShowDialog() == true;
             if (result == true)
             {
+                var previousPath = Workspace.CurrentSolution.SolutionFilePath;
                 CaptureLayoutToConfig();
                 VariablePersistenceService.Capture(Workspace.CurrentSolution, Workspace); // 变量快照随方案落盘
                 // 通信配置快照：通信设置里的增删改只更新管理器内存，保存时经绑定器同步进方案
@@ -923,6 +922,13 @@ namespace VisionMaster
                 if (saveResult.Success)
                 {
                     Workspace.CurrentSolution.SolutionFilePath = dialog.FileName;
+
+                    // 另存为：把旧方案目录下的 Image / Alarms 一起带到新目录。
+                    // 用户复制的是“这个方案”，不是只复制一个 .vms 文件；失败只提示、不回滚保存。
+                    var assetFailures = SolutionAssetFolders.CopyAlongside(previousPath, dialog.FileName);
+                    if (assetFailures.Length > 0)
+                        Notifier.ShowWarning("方案已保存，但部分资产未复制：" + string.Join("；", assetFailures));
+
                     Notifier.ShowSuccess($"方案 [{Workspace.CurrentSolution.SolutionName}] 保存成功");
                 }
                 else

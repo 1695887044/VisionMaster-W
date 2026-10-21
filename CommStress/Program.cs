@@ -9,6 +9,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using HslCommunication.ModBus;
+using HslCommunication.Profinet.Melsec;
+using HslCommunication.Profinet.Omron;
 using HslCommunication.Profinet.Siemens;
 using Newtonsoft.Json;
 using VisionMaster;
@@ -28,10 +30,16 @@ internal static class Program
     private const string Host = "127.0.0.1";
     private const int ModbusPort = 1502;
     private const int S7Port = 1102;
+    private const int McPort = 1802;
+    private const int FinsPort = 1960;
 
     private static ModbusTcpServer? _modbusServer;
     private static SiemensS7Server? _s7Server;
+    private static MelsecMcServer? _mcServer;
+    private static OmronFinsServer? _finsServer;
     private static bool _s7Available;
+    private static bool _mcAvailable;
+    private static bool _finsAvailable;
 
     private static readonly Process Proc = Process.GetCurrentProcess();
     private static TextWriter _real = Console.Out;
@@ -47,6 +55,7 @@ internal static class Program
 
         bool diagOnly = args.Length > 0 && args[0] == "diag";
         bool bigOnly = args.Length > 0 && args[0] == "big"; // 只跑 S9/S10（S1-S8 基线已跑过的复跑用）
+        bool mcPerfOnly = args.Length > 0 && args[0] == "mcperf"; // 只跑 MC/FINS 批量 vs 单读
 
         int exit = 0;
         try
@@ -61,6 +70,18 @@ internal static class Program
             }
 
             StartS7Server();
+            StartMcFinsServers();
+
+            if (mcPerfOnly)
+            {
+                RunMcFinsBatchPerf();
+                PrintFindings();
+                PrintSinkTail();
+                return 0;
+            }
+
+            if (!diagOnly)
+                RunMcFinsBatchPerf();
 
             if (diagOnly)
             {
@@ -235,6 +256,244 @@ internal static class Program
             Find("S7 虚拟服务器未跑通（HSL 源码注释为「仅限商业授权」），S7 侧压测本轮无法覆盖");
         Say();
     }
+
+    /// <summary>
+    /// MC / FINS 靶子服务器：用 HSL 自带的虚拟 PLC 做真 TCP 写→读回环。
+    /// 这一段验的是"新连接实现 + 工厂注册 + 地址解析"三件事真的能通，
+    /// 不是算法级压力测试；压力仍走 Modbus/S7 的既有 S1-S10。
+    /// </summary>
+    private static void StartMcFinsServers()
+    {
+        Say("== S0c 三菱 MC 靶子服务器 ==");
+        try
+        {
+            _mcServer = new MelsecMcServer(isBinary: true) { Port = McPort };
+            _mcServer.ServerStart();
+
+            using var mc = new MitsubishiMcConnection(new MitsubishiMcConfig
+            {
+                IpAddress = Host,
+                Port = McPort,
+            });
+
+            bool mcConnected = mc.Connect();
+            _mcAvailable = mcConnected;
+            short mcValue = 0;
+            if (mcConnected)
+            {
+                mc.Write("D100", (short)0x1234);
+                mcValue = mc.Read<short>("D100");
+                _mcAvailable = mcValue == 0x1234;
+            }
+
+            int mcInt = 0;
+            if (mcConnected)
+            {
+                mc.Write("D200", 0x12345678);
+                mcInt = mc.Read<int>("D200");
+                _mcAvailable = _mcAvailable && mcInt == 0x12345678;
+            }
+
+            Say($"  IsStarted={_mcServer.IsStarted}  端口={_mcServer.Port}  真连真读={_mcAvailable}" +
+                $"  写 0x1234 → 读 0x{mcValue:X4}；写 int 0x12345678 → 读 0x{mcInt:X8}" +
+                (_mcAvailable ? "" : $"（{mc.LastConnectError ?? "写读回环不一致"}）"));
+        }
+        catch (Exception ex)
+        {
+            _mcAvailable = false;
+            Say($"  ServerStart 抛异常：{ex.Message}");
+        }
+        if (!_mcAvailable)
+            Find("MC 虚拟服务器未跑通，MC 侧本轮无法覆盖");
+        Say();
+
+        Say("== S0d 欧姆龙 FINS 靶子服务器 ==");
+        try
+        {
+            _finsServer = new OmronFinsServer { Port = FinsPort };
+            _finsServer.ServerStart();
+
+            using var fins = new OmronFinsConnection(new OmronFinsConfig
+            {
+                IpAddress = Host,
+                Port = FinsPort,
+            });
+
+            _finsAvailable = fins.Connect();
+            if (_finsAvailable)
+            {
+                fins.Write("D100", (short)0x1234);
+                _finsAvailable = fins.Read<short>("D100") == 0x1234;
+            }
+
+            Say($"  IsStarted={_finsServer.IsStarted}  端口={_finsServer.Port}  真连真读={_finsAvailable}" +
+                (_finsAvailable ? "" : $"（{fins.LastConnectError ?? "写读回环不一致"}）"));
+        }
+        catch (Exception ex)
+        {
+            _finsAvailable = false;
+            Say($"  ServerStart 抛异常：{ex.Message}");
+        }
+        if (!_finsAvailable)
+            Find("FINS 虚拟服务器未跑通，FINS 侧本轮无法覆盖");
+        Say();
+    }
+
+    /// <summary>
+    /// MC/FINS 批量轮询性能对照：1000 个连续 D 寄存器，批量段读 vs 逐点单读。
+    /// 判据不是绝对毫秒（机器差异大），而是"段数/兜底数"和"批量必须跑赢单读"。
+    /// </summary>
+    private static void RunMcFinsBatchPerf()
+    {
+        Say("== S0e MC/FINS 批量轮询性能 ==");
+
+        if (_mcAvailable)
+            MeasureMcBatch();
+        else
+            Say("  MC 靶子未就绪，跳过");
+
+        if (_finsAvailable)
+            MeasureFinsBatch();
+        else
+            Say("  FINS 靶子未就绪，跳过");
+
+        Say();
+    }
+
+    private static void MeasureMcBatch()
+    {
+        const int count = 1000;
+        var variables = new List<CommunicationVariable>(count);
+        for (int i = 0; i < count; i++)
+        {
+            var addr = new McAddress
+            {
+                Area = McArea.D,
+                Offset = i.ToString(),
+                DataType = DataValueType.Int16,
+                Length = 1,
+            };
+            variables.Add(new CommunicationVariable
+            {
+                ConnectionName = "MC_PERF",
+                VariableName = $"mc{i}",
+                Address = addr.Address,
+                AddressConfig = addr,
+                ValueType = typeof(short).AssemblyQualifiedName,
+                AccessMode = VariableAccessMode.ReadWrite,
+            });
+        }
+
+        var planner = PollBatchPlanner.Build(variables, PollTransportKind.Ethernet, m => Say("  " + m));
+        using var conn = new MitsubishiMcConnection(new MitsubishiMcConfig { IpAddress = Host, Port = McPort });
+        if (!conn.Connect())
+        {
+            Find("MC 批量性能：连接失败 " + conn.LastConnectError);
+            return;
+        }
+
+        // 批量解码正确性：写已知值 → 轮询 → 按变量读回，防止"快但错"
+        conn.Write("D0", (short)0x1111);
+        conn.Write("D1", (short)0x2222);
+        conn.Write("D500", (short)0x3333);
+        conn.Write("D999", (short)0x4444);
+        planner.Poll(conn);
+        bool valuesOk = Convert.ToInt16(variables[0].CurrentValue) == 0x1111
+                     && Convert.ToInt16(variables[1].CurrentValue) == 0x2222
+                     && Convert.ToInt16(variables[500].CurrentValue) == 0x3333
+                     && Convert.ToInt16(variables[999].CurrentValue) == 0x4444;
+        if (!valuesOk)
+            Find($"MC 批量解码值不正确：D0={variables[0].CurrentValue} D1={variables[1].CurrentValue} " +
+                 $"D500={variables[500].CurrentValue} D999={variables[999].CurrentValue}");
+
+        var sw = Stopwatch.StartNew();
+        planner.Poll(conn);
+        sw.Stop();
+        long batchMs = sw.ElapsedMilliseconds;
+
+        sw.Restart();
+        for (int i = 0; i < count; i++)
+            conn.Read<short>($"D{i}");
+        sw.Stop();
+        long singleMs = sw.ElapsedMilliseconds;
+
+        Say($"  MC {count} 点：段 {planner.SegmentCount} / 兜底 {planner.FallbackCount}；" +
+            $"批量 {batchMs}ms / 单读 {singleMs}ms（{Ratio(singleMs, batchMs)}）");
+
+        if (planner.SegmentCount > 2 || planner.FallbackCount != 0)
+            Find($"MC 批量规划异常：段 {planner.SegmentCount} / 兜底 {planner.FallbackCount}（期望 ≤2 / 0）");
+        if (batchMs >= singleMs)
+            Find($"MC 批量未跑赢单读：批量 {batchMs}ms / 单读 {singleMs}ms");
+    }
+
+    private static void MeasureFinsBatch()
+    {
+        const int count = 1000;
+        var variables = new List<CommunicationVariable>(count);
+        for (int i = 0; i < count; i++)
+        {
+            var addr = new FinsAddress
+            {
+                Area = FinsArea.D,
+                Offset = i.ToString(),
+                DataType = DataValueType.Int16,
+                Length = 1,
+            };
+            variables.Add(new CommunicationVariable
+            {
+                ConnectionName = "FINS_PERF",
+                VariableName = $"fins{i}",
+                Address = addr.Address,
+                AddressConfig = addr,
+                ValueType = typeof(short).AssemblyQualifiedName,
+                AccessMode = VariableAccessMode.ReadWrite,
+            });
+        }
+
+        var planner = PollBatchPlanner.Build(variables, PollTransportKind.Ethernet, m => Say("  " + m));
+        using var conn = new OmronFinsConnection(new OmronFinsConfig { IpAddress = Host, Port = FinsPort });
+        if (!conn.Connect())
+        {
+            Find("FINS 批量性能：连接失败 " + conn.LastConnectError);
+            return;
+        }
+
+        // 批量解码正确性：写已知值 → 轮询 → 按变量读回
+        conn.Write("D0", (short)0x1111);
+        conn.Write("D1", (short)0x2222);
+        conn.Write("D500", (short)0x3333);
+        conn.Write("D999", (short)0x4444);
+        planner.Poll(conn);
+        bool valuesOk = Convert.ToInt16(variables[0].CurrentValue) == 0x1111
+                     && Convert.ToInt16(variables[1].CurrentValue) == 0x2222
+                     && Convert.ToInt16(variables[500].CurrentValue) == 0x3333
+                     && Convert.ToInt16(variables[999].CurrentValue) == 0x4444;
+        if (!valuesOk)
+            Find($"FINS 批量解码值不正确：D0={variables[0].CurrentValue} D1={variables[1].CurrentValue} " +
+                 $"D500={variables[500].CurrentValue} D999={variables[999].CurrentValue}");
+
+        var sw = Stopwatch.StartNew();
+        planner.Poll(conn);
+        sw.Stop();
+        long batchMs = sw.ElapsedMilliseconds;
+
+        sw.Restart();
+        for (int i = 0; i < count; i++)
+            conn.Read<short>($"D{i}");
+        sw.Stop();
+        long singleMs = sw.ElapsedMilliseconds;
+
+        Say($"  FINS {count} 点：段 {planner.SegmentCount} / 兜底 {planner.FallbackCount}；" +
+            $"批量 {batchMs}ms / 单读 {singleMs}ms（{Ratio(singleMs, batchMs)}）");
+
+        if (planner.SegmentCount > 2 || planner.FallbackCount != 0)
+            Find($"FINS 批量规划异常：段 {planner.SegmentCount} / 兜底 {planner.FallbackCount}（期望 ≤2 / 0）");
+        if (batchMs >= singleMs)
+            Find($"FINS 批量未跑赢单读：批量 {batchMs}ms / 单读 {singleMs}ms");
+    }
+
+    private static string Ratio(long singleMs, long batchMs)
+        => batchMs <= 0 ? "批量<1ms" : $"{singleMs / (double)batchMs:0.0}x";
 
     /// <summary>把"配置 → 连接实现 → Manager"三段链路逐层拆开，定位连接失败发生在哪一层</summary>
     private static void RunDiag()
@@ -1146,7 +1405,7 @@ internal static class Program
         Say($" 进程     : {Proc.ProcessName} (PID {Proc.Id})");
         Say($" 运行时   : {Environment.Version} / {System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}");
         Say($" 逻辑核数 : {Environment.ProcessorCount}");
-        Say($" 靶子     : ModbusTCP {Host}:{ModbusPort}   S7 {Host}:{S7Port}");
+        Say($" 靶子     : ModbusTCP {Host}:{ModbusPort}   S7 {Host}:{S7Port}   MC {Host}:{McPort}   FINS {Host}:{FinsPort}");
         Say();
     }
 

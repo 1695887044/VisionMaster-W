@@ -545,3 +545,61 @@
 | # | 规则 |
 | --- | --- |
 | R148 | **自定义模板（`<X.Template>`）里的 `ToggleButton` 必须自己声明 `HorizontalAlignment`（外壳类还要 `VerticalAlignment`），不许指望默认值**。原因：应用级 Fluent 的隐式样式把对齐设成 `Left/Center`，显式模板的元素照样吃得到——外壳缩成内容宽度后，`Border` 的下沿 hairline 只到标题、ComboBox 的框只剩箭头。三条豁免：① 显式 `Style=`（隐式样式整份不生效）；② 自己写了 `HorizontalAlignment=`；③ 同时写了 `Width=` 与 `Height=`（自定尺寸，对齐无所谓，与 R68 同口径）。**同族先例**：`UI/Controls/Themes/Dialog/Dialog.Input.xaml` 的 ComboBox 外壳早就写了 `Stretch`，只是没推广开。守门人两层：`ScadaChecks` 的 `[AI]` 静态扫描（87 个 XAML，变异反证：去掉一处 → 准确红并给出文件:行号）+ 属性面板渲染探针的「**合并 Fluent 再渲染一次**」两条（组头 ToggleButton 必须与 Expander 等宽、ComboBox 外壳必须与 ComboBox 等宽；变异反证：87.9×259 / 18.7 vs 145）。**更普遍的教训**：现有渲染探针都不合并 Fluent，所以"只在真机上错"的隐式样式问题探针永远看不见——**凡涉及应用级隐式样式的断言，必须在合并了 Fluent 的条件下渲染一次**（本轮之前 2096 条断言全绿、面板却明显是坏的，就是这个原因）。 |
+
+---
+
+## 34. 通讯变量数值数组与地址偏移（2026-10-21）
+
+**起因**：用户要求「连续 10 个 int 添加成数组」「通讯地址要有偏移，比如地址 40001，改偏移来寻址」。
+第一期只做**数值数组只读**（`int[]`/`double[]`/`float[]`）；地址偏移对**所有按地址寻址的通讯变量**生效、
+默认 0；Modbus 加「40001 写法」开关，默认关闭、旧方案零影响。
+第二轮补齐数值数组写入、`bool[]`、字符串标量/`string[]`；细节、断言台账与已知边界见
+`docs/code-changes/2026-10-21-通讯变量数值数组与地址偏移.md` 与
+`docs/code-changes/2026-10-21-通讯数组写入与字符串支持.md`。
+
+| # | 规则 |
+| --- | --- |
+| R149 | **通讯数组的「元素个数」必须随方案落盘（`VariableDto.Length`），且 `BuildAddressConfig` 要在 `DataType` 之后写 `Length`**。`DataType` setter 会把 `Length` 重置为类型默认值（数值 1 / String 20 / ByteArray 10），先写 Length 等于没写——重开方案后数组静默变回标量。`AddressOffset` / `UseLegacyAddress` / `ElementByteLength` 同样必须落盘；`UseLegacyAddress` 只在 `ModbusAddress` 上（S7 没有 5 位写法），Core 侧用反射设置，别反向引用通信程序集。 |
+| R150 | **数值数组解码必须按元素大小循环、字序仍用连接配置；变更检测必须按内容逐元素比较**。`HslHelper.ConvertTo<T>` 只取类型所需的头部字节（Int32 只取 4 字节），把整个数组切片直接传进去只会得到第一个元素；数组每拍都是新实例，按引用比较会让 `ValueChanged` 每拍触发（几万点场景的事件风暴）。`byte[]` 保留逐字节快路径，其余数组按 `Equals` 比较元素。守门人：`CommChecks` C22-6/C22-7。 |
+| R151 | **数组写入只走「整组替换」，元素行保持只读**。写入口 = 变量管理根行「写入数组…」（复用 `ArrayEditor` 的网络模式）+ `TryWriteToValue` / 立刻写；`VariableNode.CommitChildElementEdit` / `ResetElementValue` 仍拒绝单元素写（单元素写会与固定跨度脱节）。整组写必须同时做到：① 长度 = `AddressConfig.Length`；② 元素逐个归一到声明类型（`TryNormalizeArray`，走 `VariableValueConverter` 同一份规则）；③ 写租约；④ 运行互锁（打开前 + 弹窗确认时各查一次）；⑤ 字符串定长编码后再下发。`Value` setter 的隐式写仍跳过数组（避免绑定/镜像赋值整块覆盖）。UI 侧网络数组根走 `NetworkArrayRoot`、元素行走 `ReadOnlyChild`，**不得复用本地数组的 `ArrayRoot` / `EditableChild`**。守门人：`CommChecks` C24-1~C24-8、`FlowCanvasChecks` `[G]` 十条、`UIThemeSmokeTest --global-variables` 三条。 |
+| R152 | **「40001 写法」是每变量开关、默认关闭；打开后必须按存储区区间换算并在不匹配时 `Validate` 失败**。绝不自动识别 5 位地址——旧方案里可能存在字面 40001（0 基）的变量，自动换算会静默改义。地址偏移单位是**地址单位**（Modbus 寄存器/位、S7 字节），不是数组元素个数；默认 0 = 不偏移。守门人：`CommChecks` C22-1~C22-5。 |
+| R153 | **数组跨度超过单请求上限（Modbus 120 寄存器 / S7 110 字节）时当前版本直接拒绝，不做分块**；创建入口与规划器两处都要拦（UI 给中文提示，规划器记日志跳过）。分块要处理跨段拼接、坏段隔离与部分失败，属于另一档改动。 |
+| R154 | **字符串的"宽度"有两个不同口径，不能复用同一个数**：`string` 标量的 `Length` 是**总字节数**（默认 20）；`string[]` 的 `Length` 是**元素个数**，另需 `ElementByteLength` 表示每元素固定字节数。`DeviceAddressBase.TotalBytes` 对 `String + ElementByteLength > 0` 走 `ElementByteLength × Length`，其余走 `TypeSize × Length`。写入必须 ASCII + 尾部补 0、超长明确失败（写短了设备尾部会保留旧字节，写长了覆盖相邻字段）；读回 `TrimEnd('\0')`。缺 `ElementByteLength` 的 `string[]` 由规划器跳过并记日志，不硬解。守门人：`CommChecks` C23-1~C23-5、C24-5~C24-8。 |
+| R155 | **`ArrayEditor` 的网络模式与本地模式共用同一个弹窗，但语义必须分家**：网络模式 `ShowBaselineControls=false`（隐藏"写入范围/基准"）、`CanEditStructure=false`（元素个数固定为 `AddressConfig.Length`，不许增删/移动）、`Title` 为「写入数组」、确认时直接 `TryWriteToValue`（失败留在弹窗内显示原因）。本地模式三条语义（装填当前值 / 默认只写当前值 / 弹窗内校验）**一个字都不许改**。新增绑定一律走 `ShowBaselineControls` / `CanEditStructure` / `FooterSummary`，别在 XAML 里按 `IsNetwork` 写死。**网络数组必须等当前值到齐才能确认**（`CanConfirm` 要求 `Value is Array` 且长度 = `AddressConfig.Length`）：空表直接确认会把整段设备数据写成 0；值未到时禁用「确定」，取消/重开即可（不要做"值到达自动填行"——会在用户已输入时覆盖草稿）。守门人：`FlowCanvasChecks` `[G]` 的"网络模式隐藏基准面板、固定 3 行"与 `CanConfirm` 两条 + 本地数组编辑既有断言。 |
+
+---
+
+## 35. 设备变量表批量导入/导出：空白默认值、事务清单与两个 WPF 绑定陷阱（2026-10-21）
+
+**起因**：用户要求「对于单个设备 应该建立 批量导入导出的功能」——把一条连接下的网络变量导成 xlsx、改完再导回来（新增 / 更新 / 无变化 / 错误预览）。本批新增 `DeviceVariableIoService`（导出 / 读取 / 差异计划 / 事务应用）、导入 / 导出两个弹窗与变量管理入口；设计稿的 WPF 渲染证据在 `docs/UI设计基线/global-variables/evidence/after-render-v1-export.png` 与 `after-render-v1-import.png`，细节与断言台账见 `docs/code-changes/2026-10-21-设备变量表批量导入导出.md`。
+
+| # | 规则 |
+| --- | --- |
+| R156 | **导入只按变量名匹配，不支持通过 Excel 改名**；文件内重名、与其它来源（本地 / 系统 / 其它设备）撞名都是错误行。**空白单元格的默认值必须按列语义给**：`TryParseInt/TryParseDouble` 对空白返回 `true/0`，直接拿 0 当默认值会把 DB 号 / 元素个数 / 缩放系数 / 位偏移全部读错（DB 0 → 报错、元素 0 → 报错、缩放 0 → 读数归零、位偏移 0 → bool 悄悄按第 0 位读）。本批的默认值：DB 号 1、元素个数 1、缩放系数 1、位偏移 -1、站号 / 地址偏移 / 工程偏移 0。守门：`FlowCanvasChecks` `[IO]` 的往返 / 计划 / 应用 20+ 条。 |
+| R157 | **更新必须 ReRegister，事务回滚清单必须先入再动集合**。地址 / 扫描组 / 区域合并读 / 类型在注册时被抄成 `CommunicationVariable` 快照，只改模型不 `NetworkVariableBridge.ReRegister` 会出现"导入成功但还在读旧地址"。新增变量 / 更新快照 / 待删变量都要**先进回滚清单再 Add / 赋值 / Remove**——集合事件会触发桥接注册，注册抛异常时对象可能已经落地，后进清单就漏回滚。**数组的「初始值」列按设计忽略**（Excel 里是空的）：更新数组时不许把已有 `DefaultValue` 基准清成 null。守门：`[IO]` 的"更新触发 ReRegister"与"失败全量回滚（新增 / 更新 / 自动建组）"、数组基准保留。 |
+| R158 | **地址是结构化列，地址预览列只读**：存储区 / 偏移 / 位偏移 / 站号 / DB号 / 元素个数 / 每元素字节数 / 地址偏移 / 40001写法分别成列，导入端不解析复合地址串。导出 / 导入必须同时覆盖 Modbus（Tcp/Rtu）、S7（含 DB 号）、三菱 MC、欧姆龙 Fins——只写 Modbus/S7 两支会让 MC/Fins 变量导出后存储区 / 偏移为空、无法回导。扫描组未知回落默认组且**不自动建组**；显示分组未知可按选项自动建（默认开），关闭时回落未分组；删除缺失默认关闭。守门：`[IO]` 的 Modbus/S7/MC/Fins 往返与未知扫描组 / 显示分组。 |
+| R159 | **`DataGrid.RowHeight` 是 `double`，XAML 写 `Auto` 会在视图构造期抛 `Auto is not a valid value for Double`（编译期全绿）**——自动行高只能 `RowHeight="{x:Static sys:Double.NaN}"` + `MinRowHeight`。**`Run.Text` 的默认绑定模式是 TwoWay**：`<Run Text="{Binding NewCount}"/>` 绑只读计数属性会在构造期抛"无法对只读属性使用 TwoWay 绑定"，必须显式 `Mode=OneWay`。两条都由 `UIThemeSmokeTest --global-variables` 的静态闸（RowHeight NaN / 计数 Run OneWay）与渲染档守门。 |
+| R160 | **自定义 `RadioButton` 卡片要等宽，必须显式 `HorizontalAlignment="Stretch"` + `HorizontalContentAlignment="Stretch"`，模板里的 Border 与 ContentPresenter 也要 Stretch**；只写外层 Grid 的 `*` 列不够——内容会按内容宽收缩（本批导出范围卡首版一张 178px、一张 119px）。 |
+| R161 | **xlsx 导出先写同目录临时文件再 `File.Move(..., overwrite: true)`**，不许"先 Delete 目标再 SaveAs"：磁盘满 / 文件被占用时会把用户原文件一起弄丢。临时文件必须保持 `.xlsx` 后缀（MiniExcel 按扩展名选格式），失败时在 finally 删除。 |
+| R162 | **更新行的空白「初始值」= 保持原值（含 null），新增行 = 类型默认值**；数组的初始值列忽略且更新时保留基准。否则"导出→读回"会把 `DefaultValue == null` 静默改成 0/false、或把用户没打算改的初始值批量重置。类型变更时另行处理：标量用新初始值、数组清空基准/镜像（镜像走 `UpdateMirrorValue`，绝不经 `Value` setter 写设备）。守门：`[IO]` 的初始值三态、数组基准保留、scalar→array 四条。 |
+| R163 | **字符串标量的跨度必须与数组同闸**（`(isArray || isStringScalar)`，它的「元素个数」是总字节数）；**协议专属列**（站号 / 40001写法仅 Modbus、DB号仅 S7、位偏移仅 bool（上限按协议：FINS 15，其余 7；MC / 线圈 / 离散输入不适用）、每元素字节数仅 string[]）非空但协议/类型不适用要明确报错，不能拿别的协议去范围校验；**地址类型与连接协议不一致必须判更新并重建**——MC↔Fins 的 `D100` 等地址串可以完全相同，光比导出列会判"无变化"。守门：`[IO]` 的字符串跨度、MC/Fins 往返、协议切换四条。 |
+| R164 | **回滚与重注册失败必须可观测**：`NetworkVariableBridge.ReRegister` 返回 bool（`Register` 的 catch 不再只写日志），导入在返回 false 时抛错并回滚；回滚逐项收集错误，失败时抛 `DeviceVariableImportException`，Message 写"本次改动已回滚"或"回滚未完全成功：…"，VM 不再固定声称已回滚。`Apply` 是 public，服务层自己也要守流程运行锁并复核"Existing 仍在集合 / New 名字未被占用"。守门：`[IO]` 的"更新触发 ReRegister"与"回滚未完全成功如实上报"。 |
+| R165 | **静态闸要剥注释、Run 要断言"全部 OneWay"、渲染档要量等宽**：`Contains`/regex 直接扫 XAML 会被注释里的字符串假绿（先 `<!--.*?-->` 剥注释）；`Run.Text` 判据必须抓 `Mode=TwoWay` 变体（只抓"没写 Mode"会放过写错模式的）；R160 的等宽必须在渲染档用 `ActualWidth` 实测，不能只断言 PNG 存在。守门：`UIThemeSmokeTest` 的静态段 + `RenderIoDialogs` 的"两张范围卡等宽"。 |
+
+---
+
+## 36. 仓库分区与文件位置约束（2026-10-21）
+
+**起因**：仓库根目录一度堆积 **841 个文件 / 75 个目录 / 13.44 GB**——527 个 `.log`、195 个 `.out`、69 个 `.txt`、
+16 个 `_XxxProbe` 探针、12 个 `_render*` 渲染产物、9 个命令写坏留下的垃圾文件，外加一个含会话 cookie 的 curl cookie jar。
+真正的生产源码只有 15 个顶层目录。本轮按"分区 + 清理 + 白名单"收口：根目录文件从 841 → **8**，目录从 75 → **40**，
+全仓从 13.44 GB → **6.6 GB**（清掉 165 个顶层 bin/obj 与嵌套产物，共 6.49 GB）。细节与逐项台账见
+`docs/code-changes/2026-10-21-仓库根目录整理（分区+探针登记+白名单）.md`。
+
+| # | 规则 |
+| --- | --- |
+| R166 | **根目录白名单是唯一事实源：`tools\root-layout.json`**（files 8 个 / dirs 40 个）。允许的根文件只有 `VisionMaster.sln`、`AGENTS.md`、`NuGet.config`、`.editorconfig`、`.gitattributes`、`.gitignore`、`.zcodeignore`、`pack.ps1`；允许的根目录见该 JSON。**新增顶层条目必须先登记**，否则 `powershell -NoProfile -ExecutionPolicy Bypass -File tools\audit_root.ps1` 判红（退出码 1，逐条列出 `FILE` / `DIR`）。**产物落点**：日志 `artifacts\logs\<yyyyMMdd>\`、渲染/截图 `artifacts\render\<yyyyMMdd>\`；命令输出禁止 `> xxx.log` 落根。一次性脚本放 `tools\oneoff\`，用完即删或归档 `_Retired\<date>-<topic>\`。 |
+| R167 | **探针路径是"任务契约"，唯一解析入口是 `tools\probes\probes.json` + `run-probe.ps1`**。10 个在用探针已从根目录迁到 `tools\probes\<原名>\`（**只搬位置、不改工程名**，避免 AssemblyName 变化打断正在运行的任务）；6 个被取代的退役到 `_Retired\2026-10-21-probes\`。**运行任务不许按记忆拼旧路径**：`powershell -NoProfile -ExecutionPolicy Bypass -File tools\probes\run-probe.ps1 -List` 看登记名，`-Name <名>` 运行，`-BuildOnly` 只构建（本机执行策略为 `Restricted`，必须带 `Bypass`）；未登记的名字会直接报错并列出全部已知名字。**搬迁三步原子完成**：① 新址 `-BuildOnly` 通过；② 更新 `probes.json` 与 `README.md` 的旧→新对照；③ 才能删旧路径。禁止"先搬后补"；正在跑的任务必须先停。历史 `docs\code-changes\*.md` 里的旧路径保留原文不追改。 |
+| R168 | **退役件统一进 `_Retired\<yyyy-MM-dd>-<topic>\`，必须带 README**（为什么下线 / 怎么恢复 / 何时可删），且不参与构建、不进任何 `.sln`。`_Retired` 是根目录**唯一允许的下划线目录**；`_XxxProbe` / `_render*` / `_verify` 这类下划线目录不再允许出现在根目录（白名单会判红）。范式照 `_Retired\2026-10-07-unused-controls\README.md`。 |
+| R169 | **`packages\` 不许删**：`tools\DeviceSimulator\DeviceSimulator.csproj` 用 HintPath 直引 `..\..\packages\Newtonsoft.Json.13.0.4\lib\net45\Newtonsoft.Json.dll`（不是 PackageReference）。它已被 `.gitignore` 的 `**/[Pp]ackages/*` 忽略，换机后由 restore 或手工补齐；清理根目录时把它当"必需依赖目录"，不是"旧式还原残留"。**判据**：删任何根目录前先 `findstr /s /i "..\..\packages\" *.csproj`，命中就必须保留。 |
+| R170 | **本轮迁移的验收口径（不只看构建退出码）**：① 根目录文件恰好 8 个、`audit_root.ps1` 退出 0；② `run-probe.ps1 -List` 列出 10 个探针，10 个工程 `-BuildOnly` 全部通过；③ `ResProbe` 输出 `RESULT: ALL_OK`；④ 解决方案 `--no-incremental` 重建通过；⑤ `FlowCanvasChecks` / `ScadaChecks` / `HelpProbe` 跑完并记录条数（本轮未改生产源码，期望与最近一次记录一致；没有基线时要求 0 FAIL 且条数不为 0）。**清 bin/obj 之后必须重建**，否则 `Modules\` 与 `VisionMaster\bin` 是空的（红线③）。 |

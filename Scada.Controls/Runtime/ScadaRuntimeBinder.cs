@@ -197,11 +197,12 @@ namespace VisionMaster.Scada.Controls
                 return;
             }
 
-            if (!_valueSource.TryResolve(binding.VariableId, binding.VariableName, out var handle) || handle is null)
+            if (!_valueSource.TryResolve(binding.ToReference(), out var handle, out var resolveError) || handle is null)
             {
                 MissCount++;
                 Report(control, binding, ScadaDiagnosticLevel.Warning,
-                    $"画面「{_page.Name}」图元「{element.Name}」：变量「{Describe(binding)}」没有找到，这条绑定不会刷新");
+                    $"画面「{_page.Name}」图元「{element.Name}」：变量「{Describe(binding)}」没有找到"
+                    + (string.IsNullOrWhiteSpace(resolveError) ? "，这条绑定不会刷新" : $"（{resolveError}），这条绑定不会刷新"));
                 return;
             }
 
@@ -244,11 +245,12 @@ namespace VisionMaster.Scada.Controls
             if (!animation.HasVariable)
                 return; // 还没选变量，不算错
 
-            if (!_valueSource.TryResolve(animation.VariableId, animation.VariableName, out var handle) || handle is null)
+            if (!_valueSource.TryResolve(animation.ToReference(), out var handle, out var resolveError) || handle is null)
             {
                 MissCount++;
                 Report(control, animation, ScadaDiagnosticLevel.Warning,
-                    $"画面「{_page.Name}」图元「{element.Name}」：动画「{animation.Type.DisplayName()}」的变量「{Describe(animation)}」没有找到，这条动画不会生效");
+                    $"画面「{_page.Name}」图元「{element.Name}」：动画「{animation.Type.DisplayName()}」的变量「{Describe(animation)}」没有找到"
+                    + (string.IsNullOrWhiteSpace(resolveError) ? "，这条动画不会生效" : $"（{resolveError}），这条动画不会生效"));
                 return;
             }
 
@@ -298,11 +300,9 @@ namespace VisionMaster.Scada.Controls
                 ? "id:" + handle.VariableId.ToString("D")
                 : "name:" + handle.Name;
 
-        private static string Describe(ScadaBinding binding)
-            => string.IsNullOrWhiteSpace(binding.VariableName) ? "(未指定)" : binding.VariableName!;
+        private static string Describe(ScadaBinding binding) => binding.ToReference().DisplayText;
 
-        private static string Describe(ScadaAnimation animation)
-            => string.IsNullOrWhiteSpace(animation.VariableName) ? "(未指定)" : animation.VariableName!;
+        private static string Describe(ScadaAnimation animation) => animation.ToReference().DisplayText;
 
         #endregion
 

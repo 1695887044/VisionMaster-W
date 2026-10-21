@@ -2,6 +2,8 @@ using Core.Interfaces;
 using VisionMaster.Communications;
 using VisionMaster.Services;
 using Prism.Mvvm;
+using System.Globalization;
+using System.Text;
 using System.Windows;
 using VisionMaster.Helpers;
 
@@ -9,7 +11,7 @@ using Newtonsoft.Json;
 
 namespace VisionMaster.Models
 {
-    public class NetworkVariableModel : BindableBase, IVariable, IVariableDisplaySource, IRenameableVariable, IWritableVariable
+    public class NetworkVariableModel : BindableBase, IVariable, IVariableDisplaySource, IRenameableVariable, IWritableVariable, IArrayElementWritable
     {
         private string _dataTypeString;
         private Type _dataType;
@@ -68,6 +70,13 @@ namespace VisionMaster.Models
         /// 改周期只需改一处（组表），不必逐变量改。
         /// </summary>
         public string ScanGroup { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 显示分组 Id（方案级 <see cref="SolutionModel.VariableGroups"/> 的引用；Guid.Empty = 未分组）。
+        /// <para>只用于变量管理的归类与筛选，不参与采集、轮询与写入；改名不级联（按 Id 引用）。
+        /// 与 <see cref="ScanGroup"/> 是两条正交的轴：一个管"多久读一次"，一个管"给谁看"。</para>
+        /// </summary>
+        public Guid GroupId { get; set; }
 
         /// <summary>
         /// <para>是否允许与相邻地址合并成一次区域读（默认 true，与改造前行为一致）。</para>
@@ -179,6 +188,176 @@ namespace VisionMaster.Models
             => TryWriteCore(value, urgent: false, waitForCompletion: true, out _, out error);
 
         /// <summary>
+        /// 只写数组的一个元素：按元素地址直接下发，不做"读整组→改一项→写回"。
+        ///
+        /// 为什么不能走整组写：整组写要求调用方先拿到最新镜像，镜像过期或并发写就会
+        /// 覆盖别的元素；而模板/画面写 `Control[3]` 的语义本来就是"只动第 3 个点"。
+        /// Modbus/S7 的地址类实现了 <see cref="DeviceAddressBase.TryCreateElementAddress"/>；
+        /// 其它协议不支持时明确拒绝，不静默退回整组写。
+        /// </summary>
+        public bool TryWriteElement(int index, object? value, out string? error)
+        {
+            error = null;
+
+            if (!DataType.IsArray)
+            {
+                error = $"变量 [{Name}] 不是数组，不能按元素写入";
+                return false;
+            }
+
+            if (AddressConfig == null)
+            {
+                error = $"变量 [{Name}] 未配置设备地址，无法写入";
+                return false;
+            }
+
+            if (CommunicationManager == null)
+            {
+                error = $"变量 [{Name}] 未绑定通信管理器（连接可能已删除，请在变量管理中重新挂接）";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(ConnectionName))
+            {
+                error = $"变量 [{Name}] 缺少连接名，无法定位设备";
+                return false;
+            }
+
+            var connection = CommunicationManager.GetConnection(ConnectionName);
+            if (connection == null || !connection.IsConnected)
+            {
+                error = $"连接 [{ConnectionName}] 离线，变量 [{Name}] 未写入设备";
+                return false;
+            }
+
+            if (IsReadOnlyArea)
+            {
+                error = $"变量 [{Name}] 位于只读存储区（离散输入 / S7 输入映像 I），不能写入";
+                return false;
+            }
+
+            if (AddressConfig.EnableConversion)
+            {
+                error = $"变量 [{Name}] 是数组类型，暂不支持工程量换算（请关闭地址上的「启用转换」）";
+                return false;
+            }
+
+            if (index < 0 || index >= AddressConfig.Length)
+            {
+                error = $"下标 {index} 超出数组 [{Name}] 的长度 {AddressConfig.Length}";
+                return false;
+            }
+
+            if (!AddressConfig.TryCreateElementAddress(index, out var elementAddress, out var addressError)
+                || elementAddress == null)
+            {
+                error = addressError ?? $"变量 [{Name}] 的地址不支持单元素写入";
+                return false;
+            }
+
+            Type elementType = DataType.GetElementType() ?? typeof(object);
+
+            if (!TryCoerceElement(value, elementType, out object? converted, out error))
+                return false;
+
+            string owner = WriteScope.CurrentOwner?.Trim() is { Length: > 0 } flowOwner
+                ? flowOwner
+                : WriteLeaseRegistry.ManualOwner;
+
+            var leases = LeaseRegistry;
+            if (leases != null && !AllowSharedWrite)
+            {
+                int leaseTimeout = LeaseTimeoutMs > 0 ? LeaseTimeoutMs : 30000;
+                if (!leases.TryAcquire(LeaseKey, owner, leaseTimeout, allowShared: false, out var leaseError))
+                {
+                    error = $"写入被拒绝：{leaseError}";
+                    return false;
+                }
+            }
+
+            try
+            {
+                var rawValue = elementAddress.ConvertToRaw(converted);
+                if (rawValue == null)
+                {
+                    error = $"变量 [{Name}] 的第 {index} 项无法转换为设备原始值（检查数据类型与地址配置）";
+                    return false;
+                }
+
+                // string[] 的单个元素也要按"每元素固定字节数"编码成定长块，
+                // 与整组写 TryEncodeStringArray 的分块规则一致；否则设备侧会把短串尾部旧字节留下。
+                object? wireValue = rawValue;
+                if (DataType == typeof(string[]) && wireValue is string text)
+                {
+                    if (!TryEncodeFixedString(text, AddressConfig.ElementByteLength, out var encoded, out var encodeError))
+                    {
+                        error = $"变量 [{Name}] 的第 {index} 项写入失败：{encodeError}";
+                        return false;
+                    }
+
+                    wireValue = encoded;
+                }
+
+                CommunicationManager.WriteVariable(ConnectionName, elementAddress.Address, wireValue);
+
+                // 设备已确认 → 更新镜像。克隆一份数组再改元素：引用变化才能触发 ValueChanged，
+                // 直接改原数组会被 SetProperty 的同引用短路掉（画面不会刷新）。
+                if (Value is Array mirror)
+                {
+                    var copy = (Array)mirror.Clone();
+                    copy.SetValue(converted, index);
+                    UpdateMirrorValue(copy);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = $"变量 [{Name}] 的第 {index} 项写入失败：{ex.Message}";
+                return false;
+            }
+        }
+
+        /// <summary>元素值归一：文本按元素类型解析，已是目标类型直通，其余不变文化转换。</summary>
+        private static bool TryCoerceElement(
+            object? value, Type elementType, out object? converted, out string? error)
+        {
+            converted = null;
+            error = null;
+
+            if (value == null)
+            {
+                if (elementType.IsValueType && Nullable.GetUnderlyingType(elementType) == null)
+                {
+                    error = $"数组元素类型 {elementType.Name} 不接受空值";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (elementType.IsInstanceOfType(value))
+            {
+                converted = value;
+                return true;
+            }
+
+            if (value is string text)
+                return VariableValueConverter.TryConvert(text, elementType, out converted, out error);
+
+            try
+            {
+                converted = Convert.ChangeType(value, elementType, CultureInfo.InvariantCulture);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = $"「{value}」无法转换为数组元素类型 {elementType.Name}：{ex.Message}";
+                return false;
+            }
+        }
+
+        /// <summary>
         /// 插队写（「立刻写」的等待模式）：与 <see cref="TryWriteToValue"/> 同一套校验/换算/租约，
         /// 只把传输换成最高优先级的插队写车道，并等设备返回。
         /// <para><paramref name="writtenValue"/> 是实际写入的工程值：文本会先按声明类型解析
@@ -236,9 +415,38 @@ namespace VisionMaster.Models
                 return false;
             }
 
+            // 数组写入：整组替换。长度必须与地址配置一致，元素逐个归一到声明类型；
+            // 数组不做逐元素工程量换算（Scale/Offset 语义未定，静默跳过比猜一个更安全）。
+            if (DataType.IsArray)
+            {
+                if (AddressConfig.EnableConversion)
+                {
+                    error = $"变量 [{Name}] 是数组类型，暂不支持工程量换算（请关闭地址上的「启用转换」）";
+                    return false;
+                }
+                if (value is not Array inputArray)
+                {
+                    error = $"变量 [{Name}] 是数组类型，写入值必须是数组（收到 {value?.GetType().Name ?? "null"}）";
+                    return false;
+                }
+                if (!TryNormalizeArray(inputArray, out var normalized, out var normalizeError))
+                {
+                    error = $"变量 [{Name}] 数组写入失败：{normalizeError}";
+                    return false;
+                }
+                value = normalized;
+                writtenValue = normalized;
+            }
+            // 字符串变量：非文本值按不变文化转成文本（避免把 int 当数值写到字符串区，
+            // 那样 HslHelper 会按 4 字节整数下发，字符串区直接错位）。
+            else if (DataType == typeof(string) && value is not null and not string)
+            {
+                value = Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
+                writtenValue = value;
+            }
             // 文本按声明类型解析一次（R34 宽进严出；只放宽文本）。
             // 界面能产出的只有文本，硬守门会让"给 Int32 变量填 21"永远失败。
-            if (value is string text)
+            else if (value is string text)
             {
                 if (!ValueTextCoercion.TryCoerce(text, DataType, out var coerced))
                 {
@@ -275,12 +483,34 @@ namespace VisionMaster.Models
                     return false;
                 }
 
+                // 文本类按"定长字节块"下发：设备侧是固定宽度的字符串区，写短了尾部会保留旧字节。
+                // 字符串标量用 Length（总字节数）；字符串数组用 ElementByteLength（每元素宽度）。
+                object? wireValue = rawValue;
+                if (DataType == typeof(string) && wireValue is string scalarText)
+                {
+                    if (!TryEncodeFixedString(scalarText, AddressConfig.Length, out var encoded, out var encodeError))
+                    {
+                        error = $"变量 [{Name}] 写入失败：{encodeError}";
+                        return false;
+                    }
+                    wireValue = encoded;
+                }
+                else if (DataType == typeof(string[]) && wireValue is string[] stringArray)
+                {
+                    if (!TryEncodeStringArray(stringArray, AddressConfig.ElementByteLength, out var encoded, out var encodeError))
+                    {
+                        error = $"变量 [{Name}] 写入失败：{encodeError}";
+                        return false;
+                    }
+                    wireValue = encoded;
+                }
+
                 if (urgent)
                 {
                     if (waitForCompletion)
                     {
                         // 插队写（等待）：最高优先级车道，优先于插队读、常规读写与轮询
-                        CommunicationManager.WriteVariableNow(ConnectionName, Name, rawValue);
+                        CommunicationManager.WriteVariableNow(ConnectionName, Name, wireValue);
                         UpdateMirrorValue(value); // 设备已确认 → 镜像同步并通知 UI
                     }
                     else
@@ -288,7 +518,7 @@ namespace VisionMaster.Models
                         // 插队写（只入队）：成功只代表"已受理"，不更新镜像——
                         // 命令还没执行，更新镜像等于向界面撒谎；等下一拍轮询读到设备新值再刷新。
                         if (!CommunicationManager.TryTriggerWriteNow(
-                                ConnectionName, Name, rawValue, out var queueError))
+                                ConnectionName, Name, wireValue, out var queueError))
                         {
                             error = string.IsNullOrWhiteSpace(queueError)
                                 ? $"变量 [{Name}] 插队写入队失败"
@@ -300,7 +530,7 @@ namespace VisionMaster.Models
                 else
                 {
                     // 经 Manager → 连接专属线程下发：与轮询、其他写命令在同一条线程上串行执行
-                    CommunicationManager.WriteVariable(ConnectionName, AddressConfig.Address, rawValue);
+                    CommunicationManager.WriteVariable(ConnectionName, AddressConfig.Address, wireValue);
                     UpdateMirrorValue(value); // 写确认成功 → 镜像同步并通知 UI
                 }
 
@@ -311,6 +541,128 @@ namespace VisionMaster.Models
                 error = $"变量 [{Name}] 写入失败：{ex.Message}";
                 return false;
             }
+        }
+
+        /// <summary>
+        /// 把外部数组归一到变量声明的元素类型，并校验长度。
+        /// <para>长度必须与地址配置一致：设备点位跨度是固定的，短写/长写都会覆盖邻居或留下旧值。</para>
+        /// <para>元素转换走 <see cref="VariableValueConverter"/>（布尔认 1/0、数值不变文化），
+        /// 与界面单值写入同一份规则，避免"界面能填、数组写不进"的口径漂移。</para>
+        /// </summary>
+        private bool TryNormalizeArray(Array input, out Array normalized, out string? error)
+        {
+            normalized = input;
+            error = null;
+
+            var elementType = DataType.GetElementType();
+            if (elementType == null)
+            {
+                error = "数组元素类型无法确定";
+                return false;
+            }
+
+            int expected = AddressConfig?.Length ?? 0;
+            if (input.Length != expected)
+            {
+                error = $"长度 {input.Length} 与配置的{(DataType == typeof(byte[]) ? "字节数" : "元素个数")} {expected} 不一致";
+                return false;
+            }
+
+            var result = Array.CreateInstance(elementType, input.Length);
+            for (int i = 0; i < input.Length; i++)
+            {
+                object? item = input.GetValue(i);
+                try
+                {
+                    object? converted;
+                    if (elementType == typeof(string))
+                    {
+                        converted = Convert.ToString(item, CultureInfo.InvariantCulture) ?? string.Empty;
+                    }
+                    else if (item is null)
+                    {
+                        converted = elementType.IsValueType ? Activator.CreateInstance(elementType) : null;
+                    }
+                    else if (item is string text)
+                    {
+                        if (!VariableValueConverter.TryConvert(text, elementType, out converted, out var convertError))
+                        {
+                            error = $"第 {i} 项 [{text}] 无法转换为 {elementType.Name}：{convertError}";
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        converted = Convert.ChangeType(item, elementType, CultureInfo.InvariantCulture);
+                    }
+
+                    result.SetValue(converted, i);
+                }
+                catch (Exception ex)
+                {
+                    error = $"第 {i} 项 [{item}] 无法转换为 {elementType.Name}：{ex.Message}";
+                    return false;
+                }
+            }
+
+            normalized = result;
+            return true;
+        }
+
+        /// <summary>
+        /// 把字符串编码成定长字节块（ASCII + 尾部补 0）。
+        /// <para>设备侧字符串区是固定宽度：写短了尾部保留旧字节，读回来会粘上上次的残留；
+        /// 写长了会覆盖相邻字段，所以超长必须明确失败。</para>
+        /// </summary>
+        private static bool TryEncodeFixedString(string text, int byteLength, out byte[] encoded, out string? error)
+        {
+            encoded = Array.Empty<byte>();
+            error = null;
+
+            if (byteLength < 1)
+            {
+                error = "字符串字节长度未配置（必须 >= 1）";
+                return false;
+            }
+
+            byte[] bytes = Encoding.ASCII.GetBytes(text ?? string.Empty);
+            if (bytes.Length > byteLength)
+            {
+                error = $"字符串长度 {bytes.Length} 字节超过配置的 {byteLength} 字节";
+                return false;
+            }
+
+            encoded = new byte[byteLength];
+            Array.Copy(bytes, encoded, bytes.Length);
+            return true;
+        }
+
+        /// <summary>把字符串数组编码成"每元素固定宽度"的连续字节块（ASCII + 尾部补 0）。</summary>
+        private static bool TryEncodeStringArray(string[] values, int elementByteLength, out byte[] encoded, out string? error)
+        {
+            encoded = Array.Empty<byte>();
+            error = null;
+
+            if (elementByteLength < 1)
+            {
+                error = "字符串数组未配置每元素字节数（必须 >= 1）";
+                return false;
+            }
+
+            var buffer = new byte[elementByteLength * values.Length];
+            for (int i = 0; i < values.Length; i++)
+            {
+                byte[] bytes = Encoding.ASCII.GetBytes(values[i] ?? string.Empty);
+                if (bytes.Length > elementByteLength)
+                {
+                    error = $"第 {i} 项长度 {bytes.Length} 字节超过每元素宽度 {elementByteLength} 字节";
+                    return false;
+                }
+                Array.Copy(bytes, 0, buffer, i * elementByteLength, bytes.Length);
+            }
+
+            encoded = buffer;
+            return true;
         }
 
         /// <summary>
@@ -371,6 +723,10 @@ namespace VisionMaster.Models
         {
             if (AddressConfig == null || CommunicationManager == null) return;
 
+            // 数组只走显式整组写（TryWriteToValue / 立刻写）：Value setter 的隐式写不做整块覆盖，
+            // 避免绑定/镜像赋值在不知情时把整段设备数据重写。
+            if (DataType.IsArray) return;
+
             var connection = CommunicationManager.GetConnection(ConnectionName);
             if (connection != null && connection.IsConnected)
             {
@@ -403,6 +759,9 @@ namespace VisionMaster.Models
         /// </summary>
         public void ResetToDefault()
         {
+            // 数组只读：恢复初始值既不写设备，也不该把镜像值改成基准（那会让界面显示一个设备上并不存在的值）
+            if (DataType.IsArray) return;
+
             if (!TryWriteToValue(DefaultValue, out _))
                 Value = DefaultValue;
         }

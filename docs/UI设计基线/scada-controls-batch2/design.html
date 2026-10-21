@@ -1,0 +1,1363 @@
+<!doctype html>
+<html lang="zh-CN" data-preview="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SCADA 推荐控件 · Web 设计稿 v2（复核版）</title>
+<style>
+  /* =====================================================================
+     SCADA 推荐控件 · 设计基线（第二批）v1
+     设计媒介，不是交付物（AGENTS.md R126）。
+     沿用 scada-controls v1 的视觉语言与 Hmi* 令牌：
+     深色运行 / 浅色编辑、五态、8px 圆角、等宽数字、状态色只表达状态。
+     本页只用 HTML/CSS 表达，对应 WPF 可还原能力：
+     Border / Path / Ellipse / TextBlock / Grid / Canvas / DropShadowEffect。
+     ===================================================================== */
+  :root{
+    --bg:#E9EEF5;
+    --surface:#FFFFFF;
+    --surface-2:#F8FAFC;
+    --surface-3:#F1F5F9;
+    --border:#E2E8F0;
+    --border-soft:#EEF2F7;
+    --border-strong:#CBD5E1;
+    --text:#0F172A;
+    --text-2:#475569;
+    --text-3:#94A3B8;
+    --primary:#0EA5E9;
+    --primary-strong:#0284C7;
+    --primary-text:#0369A1;
+    --primary-soft:#F0F9FF;
+    --primary-light:#E0F2FE;
+    --primary-border:#BAE6FD;
+    --success:#22C55E;
+    --success-text:#15803D;
+    --success-soft:#F0FDF4;
+    --success-border:#BBF7D0;
+    --danger:#EF4444;
+    --danger-text:#B91C1C;
+    --danger-soft:#FEF2F2;
+    --danger-border:#FECACA;
+    --warning:#F59E0B;
+    --warning-text:#B45309;
+    --warning-soft:#FFF4E5;
+    --warning-border:#FDE68A;
+    --font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+    --shadow-1:0 1px 2px rgba(15,23,42,.05);
+    --shadow-2:0 10px 28px rgba(15,23,42,.10),0 2px 6px rgba(15,23,42,.05);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1100px 620px at 50% -12%, #F8FAFC 0%, rgba(248,250,252,0) 62%),
+      radial-gradient(circle at 1px 1px, rgba(148,163,184,.14) 1px, transparent 0) 0 0/24px 24px,
+      var(--bg);
+    color:var(--text);
+    font-family:var(--font);
+    font-size:13px;
+    line-height:1.5;
+    padding:28px 28px 96px;
+    -webkit-font-smoothing:antialiased;
+  }
+  button,input,select{font-family:inherit;}
+  svg{display:block;}
+  a{color:inherit;}
+
+  /* ---------- 页面头 ---------- */
+  .page-head{max-width:1560px;margin:0 auto 18px;}
+  .eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--primary-text);margin-bottom:8px;}
+  .eyebrow::before{content:"";width:18px;height:2px;border-radius:1px;background:var(--primary);}
+  .page-head h1{margin:0;font-size:24px;font-weight:600;letter-spacing:-.02em;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--primary-light);color:var(--primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;}
+  .page-head .meta{margin:8px 0 0;color:var(--text-2);font-size:13px;max-width:1180px;line-height:1.65;}
+  .page-head .meta b{color:var(--text);font-weight:600;}
+  .page-head .meta code{font-family:var(--mono);font-size:11.5px;padding:1px 5px;border:1px solid var(--border);border-radius:4px;background:rgba(255,255,255,.72);white-space:nowrap;}
+  .meta-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;}
+  .meta-chip{display:inline-flex;align-items:center;height:24px;padding:0 9px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.72);color:var(--text-2);font-size:11px;}
+  .meta-chip strong{color:var(--text);font-weight:600;margin-right:3px;}
+
+  .page-nav{max-width:1560px;margin:16px auto 0;padding:7px 8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.82);box-shadow:var(--shadow-1);position:sticky;top:10px;z-index:20;backdrop-filter:blur(10px);}
+  .page-nav a{display:inline-flex;align-items:center;height:26px;padding:0 9px;border-radius:7px;color:var(--text-2);font-size:11.5px;text-decoration:none;white-space:nowrap;transition:background 150ms ease,color 150ms ease;}
+  .page-nav a:hover{background:var(--surface-3);color:var(--text);}
+  .page-nav a.is-on{background:var(--primary-light);color:var(--primary-text);font-weight:600;}
+  .theme-toggle{margin-left:auto;display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:8px;background:var(--surface-3);}
+  .theme-toggle button{height:24px;padding:0 9px;border:0;border-radius:6px;background:transparent;color:var(--text-2);font-size:11px;cursor:pointer;transition:background 150ms ease,color 150ms ease;}
+  .theme-toggle button.is-on{background:#fff;color:var(--text);font-weight:600;box-shadow:var(--shadow-1);}
+
+  main{max-width:1560px;margin:26px auto 0;}
+  .section{margin:0 0 52px;scroll-margin-top:92px;}
+  .sec-head{display:flex;align-items:flex-end;gap:12px;margin:0 0 14px;flex-wrap:wrap;}
+  .sec-index{width:28px;height:28px;flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;background:var(--primary-light);color:var(--primary-text);font-family:var(--mono);font-size:11px;font-weight:700;}
+  .sec-head h2{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em;}
+  .sec-head p{margin:0;color:var(--text-2);font-size:12.5px;max-width:1020px;}
+  .note{color:var(--text-2);font-size:12.5px;margin:0 0 14px;line-height:1.65;}
+  .note b{color:var(--text);font-weight:600;}
+  .note code{font-family:var(--mono);font-size:11.5px;padding:0 4px;border:1px solid var(--border);border-radius:4px;background:#fff;}
+
+  /* ---------- 卡片 / 表格 ---------- */
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);}
+  .card-pad{padding:16px;}
+  .callout{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:10px;background:var(--primary-soft);border:1px solid var(--primary-border);color:var(--text-2);font-size:12.5px;line-height:1.65;}
+  .callout svg{width:16px;height:16px;flex:none;margin-top:2px;color:var(--primary-text);}
+  .callout b{color:var(--text);font-weight:600;}
+  .callout.warning{background:var(--warning-soft);border-color:var(--warning-border);}
+  .callout.warning svg{color:var(--warning-text);}
+  .callout.danger{background:var(--danger-soft);border-color:var(--danger-border);}
+  .callout.danger svg{color:var(--danger-text);}
+
+  .table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:#fff;box-shadow:var(--shadow-1);}
+  table.data{width:100%;border-collapse:collapse;font-size:12px;min-width:760px;}
+  table.data th{text-align:left;font-weight:600;color:var(--text-2);background:var(--surface-2);padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  table.data td{padding:10px 12px;border-bottom:1px solid var(--border-soft);vertical-align:top;color:var(--text-2);line-height:1.55;}
+  table.data tr:last-child td{border-bottom:0;}
+  table.data td b{color:var(--text);font-weight:600;}
+  table.data td code{font-family:var(--mono);font-size:10.5px;padding:0 4px;border-radius:4px;background:var(--surface-3);color:var(--text);white-space:nowrap;}
+  table.data .num{font-family:var(--mono);font-size:11px;color:var(--text-3);white-space:nowrap;}
+
+  .sev{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:999px;font-size:10.5px;font-weight:700;white-space:nowrap;}
+  .sev.p0{background:var(--danger-soft);color:var(--danger-text);border:1px solid var(--danger-border);}
+  .sev.p1{background:var(--warning-soft);color:var(--warning-text);border:1px solid var(--warning-border);}
+  .sev.p2{background:var(--surface-3);color:var(--text-2);border:1px solid var(--border);}
+  .sev.p3{background:transparent;color:var(--text-3);border:1px dashed var(--border-strong);}
+  .sev.new{background:#EEF2FF;color:#4338CA;border:1px solid #C7D2FE;}
+
+  /* ---------- 原则 / 令牌 ---------- */
+  .principle-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;}
+  .principle{padding:14px;border-radius:12px;background:#fff;border:1px solid var(--border);box-shadow:var(--shadow-1);display:flex;gap:10px;align-items:flex-start;}
+  .principle-icon{width:30px;height:30px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--primary-light);color:var(--primary-text);font-family:var(--mono);font-size:11px;font-weight:700;}
+  .principle h3{margin:0 0 4px;font-size:12.5px;font-weight:600;}
+  .principle p{margin:0;color:var(--text-2);font-size:11.5px;line-height:1.6;}
+
+  .token-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;}
+  .token{border:1px solid var(--border);border-radius:10px;background:#fff;overflow:hidden;box-shadow:var(--shadow-1);}
+  .token-swatch{height:40px;border-bottom:1px solid var(--border-soft);}
+  .token-body{padding:7px 9px;}
+  .token-body b{display:block;font-size:11px;font-weight:600;color:var(--text);}
+  .token-body span{display:block;font-family:var(--mono);font-size:9.5px;color:var(--text-3);margin-top:2px;}
+  .scale-row{display:flex;align-items:baseline;gap:14px;padding:8px 0;border-bottom:1px dashed var(--border);}
+  .scale-row:last-child{border-bottom:0;}
+  .scale-row .nm{width:120px;flex:none;font-family:var(--mono);font-size:10.5px;color:var(--text-3);}
+  .scale-row .demo{color:var(--text);}
+  .scale-row .use{color:var(--text-2);font-size:11.5px;}
+
+  /* ---------- 预览舞台 ---------- */
+  .stage{
+    --p-bg:#0E1318;
+    --p-surface:#151C23;
+    --p-surface-2:#1B242D;
+    --p-border:#2A3745;
+    --p-border-strong:#3A4A5C;
+    --p-text:#E6EEF7;
+    --p-text-2:#A9B7C6;
+    --p-text-3:#7C8A99;
+    --p-accent:#38BDF8;
+    --p-accent-strong:#0EA5E9;
+    --p-success:#22C55E;
+    --p-success-fill:#15803D;
+    --p-warning:#F59E0B;
+    --p-danger:#EF4444;
+    --p-off:#64748B;
+    --p-track:#26313D;
+    --p-underline:#7A7A7A;
+    position:relative;
+    background:var(--p-bg);
+    color:var(--p-text);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:18px;
+    overflow:hidden;
+    box-shadow:var(--shadow-1);
+  }
+  .stage::before{content:"";position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px, rgba(148,163,184,.10) 1px, transparent 0);background-size:24px 24px;pointer-events:none;}
+  html[data-preview="light"] .stage{
+    --p-bg:#F4F7FB;
+    --p-surface:#FFFFFF;
+    --p-surface-2:#F8FAFC;
+    --p-border:#D8E0EA;
+    --p-border-strong:#B8C4D4;
+    --p-text:#0F172A;
+    --p-text-2:#475569;
+    --p-text-3:#94A3B8;
+    --p-accent:#0284C7;
+    --p-accent-strong:#0EA5E9;
+    --p-success:#16A34A;
+    --p-success-fill:#15803D;
+    --p-warning:#D97706;
+    --p-danger:#DC2626;
+    --p-off:#94A3B8;
+    --p-track:#E8EDF3;
+  }
+  html[data-preview="light"] .stage::before{opacity:.45;}
+  .stage > *{position:relative;z-index:1;}
+  .stage-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;}
+  .stage-title{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--p-text-3);}
+  .stage-tag{font-family:var(--mono);font-size:10.5px;color:var(--p-text-3);border:1px solid var(--p-border);border-radius:999px;padding:2px 8px;}
+  .stage-body{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start;}
+  .stage-col{display:flex;flex-direction:column;gap:12px;}
+  .stage-caption{font-size:11px;color:var(--p-text-3);margin-top:8px;}
+
+  .hmi-card{background:var(--p-surface);border:1px solid var(--p-border);border-radius:8px;}
+  .hmi-card-pad{padding:14px;}
+  .hmi-label{font-size:11.5px;color:var(--p-text-2);}
+  .hmi-help{font-size:10.5px;color:var(--p-text-3);}
+  .hmi-value{font-variant-numeric:tabular-nums;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--p-text);}
+  .hmi-mono{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+  .hmi-row{display:flex;align-items:center;gap:10px;}
+  .hmi-between{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+
+  .hmi-btn{height:36px;padding:0 14px;border-radius:6px;border:1px solid var(--p-border-strong);background:var(--p-surface-2);color:var(--p-text);font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease,transform 80ms ease;}
+  .hmi-btn:hover{background:var(--p-surface);border-color:var(--p-accent);}
+  .hmi-btn:active{transform:translateY(1px);}
+  .hmi-btn.primary{background:var(--p-accent-strong);border-color:var(--p-accent-strong);color:#fff;}
+  .hmi-btn.primary:hover{filter:brightness(1.06);}
+  .hmi-btn.danger{background:var(--p-danger);border-color:var(--p-danger);color:#fff;}
+  .hmi-btn.ghost{background:transparent;}
+  .hmi-btn:disabled,.hmi-btn.is-disabled{opacity:.45;cursor:not-allowed;transform:none;}
+  .hmi-btn.is-focus{outline:2px solid var(--p-accent);outline-offset:2px;}
+
+  .hmi-input{height:36px;padding:0 10px;border-radius:4px;border:1px solid var(--p-border-strong);background:var(--p-surface-2);color:var(--p-text);font-size:12.5px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .hmi-input .hmi-mono{font-size:13px;}
+  .hmi-input.is-focus{border-color:var(--p-accent);box-shadow:0 0 0 3px rgba(56,189,248,.18);}
+  .hmi-input.is-error{border-color:var(--p-danger);box-shadow:0 0 0 3px rgba(239,68,68,.16);}
+  .hmi-input.is-readonly{border-style:dashed;background:transparent;}
+
+  .hmi-chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;font-size:10.5px;font-weight:600;border:1px solid var(--p-border);color:var(--p-text-2);background:var(--p-surface-2);white-space:nowrap;}
+  .hmi-chip.ok{color:var(--p-success);border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.10);}
+  .hmi-chip.warn{color:var(--p-warning);border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.10);}
+  .hmi-chip.bad{color:var(--p-danger);border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.10);}
+  .hmi-chip.accent{color:var(--p-accent);border-color:rgba(56,189,248,.35);background:rgba(56,189,248,.10);}
+  .hmi-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+
+  /* ---------- 状态矩阵 ---------- */
+  .state-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+  .state-cell{border:1px solid var(--border);border-radius:10px;background:#fff;padding:12px;box-shadow:var(--shadow-1);}
+  .state-cell h4{margin:0 0 8px;font-size:11.5px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px;}
+  .state-cell h4 span{font-family:var(--mono);font-size:9.5px;color:var(--text-3);font-weight:400;}
+  /* 状态矩阵固定按“运行态深色画布”展示：它演示的是运行中的控件状态，
+     不随浅色编辑预览切换，否则深色文字会落在浅底上不可读。
+     这里必须把 --p-* 令牌也挂上：状态矩阵在 .stage 之外，
+     不挂的话里面的 .hmi-* 控件会拿到文档壳的深色文字色，在深底上看不见。 */
+  .state-demo{
+    --p-bg:#0E1318;--p-surface:#151C23;--p-surface-2:#1B242D;
+    --p-border:#2A3745;--p-border-strong:#3A4A5C;
+    --p-text:#E6EEF7;--p-text-2:#A9B7C6;--p-text-3:#7C8A99;
+    --p-accent:#38BDF8;--p-accent-strong:#0EA5E9;
+    --p-success:#22C55E;--p-success-fill:#15803D;--p-warning:#F59E0B;
+    --p-danger:#EF4444;--p-off:#64748B;--p-track:#26313D;--p-underline:#7A7A7A;
+    background:#0E1318;border-radius:8px;padding:12px;min-height:64px;display:flex;align-items:center;justify-content:center;
+  }
+  .state-note{margin:8px 0 0;font-size:11px;color:var(--text-2);line-height:1.55;}
+
+  /* ---------- 页面菜单 ---------- */
+  .hmi-nav{width:190px;background:var(--p-surface);border:1px solid var(--p-border);border-radius:8px;padding:6px;}
+  .hmi-nav-back{height:34px;display:flex;align-items:center;gap:7px;padding:0 10px;border-radius:6px;color:var(--p-text-2);font-size:12px;cursor:pointer;border-bottom:1px solid var(--p-border);margin-bottom:5px;padding-bottom:6px;height:38px;}
+  .hmi-nav-back:hover{color:var(--p-text);}
+  .hmi-nav-back.is-disabled{opacity:.4;cursor:not-allowed;}
+  .hmi-nav-item{height:36px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:6px;color:var(--p-text-2);font-size:12.5px;cursor:pointer;transition:background 150ms ease,color 150ms ease;}
+  .hmi-nav-item:hover{background:var(--p-surface-2);color:var(--p-text);}
+  .hmi-nav-item.is-current{background:rgba(56,189,248,.14);color:var(--p-accent);font-weight:600;}
+  .hmi-nav-item.is-disabled{opacity:.38;cursor:not-allowed;}
+  .hmi-nav-item .idx{width:18px;flex:none;font-family:var(--mono);font-size:9.5px;color:var(--p-text-3);text-align:right;}
+  .hmi-nav-item.is-current .idx{color:var(--p-accent);}
+  .hmi-nav-item .badge{margin-left:auto;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--p-danger);color:#fff;font-size:9.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;}
+  .hmi-dropdown{position:relative;width:200px;}
+  .hmi-dropdown-trigger{height:36px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 10px;border-radius:6px;border:1px solid var(--p-border-strong);background:var(--p-surface);color:var(--p-text);font-size:12.5px;cursor:pointer;}
+  .hmi-dropdown-trigger.is-focus{border-color:var(--p-accent);box-shadow:0 0 0 3px rgba(56,189,248,.18);}
+  .hmi-dropdown-panel{margin-top:6px;background:var(--p-surface);border:1px solid var(--p-border-strong);border-radius:8px;padding:5px;box-shadow:0 16px 40px rgba(0,0,0,.35);}
+  .hmi-dropdown-item{height:34px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 9px;border-radius:5px;color:var(--p-text-2);font-size:12px;cursor:pointer;}
+  .hmi-dropdown-item:hover{background:var(--p-surface-2);color:var(--p-text);}
+  .hmi-dropdown-item.is-current{color:var(--p-accent);font-weight:600;}
+
+  /* ---------- 软键盘 ---------- */
+  .keypad{width:344px;background:var(--p-surface);border:1px solid var(--p-border-strong);border-radius:12px;box-shadow:0 24px 56px rgba(0,0,0,.40);padding:12px;}
+  .keypad-display{background:var(--p-surface-2);border:1px solid var(--p-border);border-radius:8px;padding:8px 10px;margin-bottom:10px;}
+  .keypad-display .line1{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+  .keypad-display .field{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--p-text);font-variant-numeric:tabular-nums;}
+  .keypad-display .unit{font-size:11.5px;color:var(--p-text-2);}
+  .keypad-display .line2{display:flex;justify-content:space-between;gap:8px;margin-top:4px;font-size:10.5px;color:var(--p-text-3);}
+  .keypad-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .key{height:48px;border-radius:8px;border:1px solid var(--p-border-strong);background:var(--p-surface-2);color:var(--p-text);font-size:17px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;transition:background 120ms ease,transform 60ms ease;}
+  .key:hover{background:var(--p-surface);border-color:var(--p-accent);}
+  .key:active{transform:translateY(1px);background:var(--p-surface-2);}
+  .key.muted{font-size:12px;font-weight:600;color:var(--p-text-2);}
+  .key.accent{background:var(--p-accent-strong);border-color:var(--p-accent-strong);color:#fff;}
+  .key.accent:hover{filter:brightness(1.06);}
+  .key.span2{grid-column:span 2;}
+  .key.is-focus{outline:2px solid var(--p-accent);outline-offset:2px;}
+  .keypad-error{margin-top:8px;font-size:11px;color:var(--p-danger);display:flex;align-items:center;gap:5px;}
+  .anchor-grid{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:6px;width:190px;height:150px;padding:6px;border:1px solid var(--p-border);border-radius:8px;background:var(--p-surface-2);}
+  .anchor-cell{border-radius:5px;border:1px dashed var(--p-border-strong);display:flex;align-items:center;justify-content:center;font-size:9.5px;color:var(--p-text-3);}
+  .anchor-cell.is-on{border-style:solid;border-color:var(--p-accent);background:rgba(56,189,248,.12);color:var(--p-accent);font-weight:700;}
+  .anchor-field{grid-column:2;grid-row:2;border-radius:5px;border:1px solid var(--p-accent);background:rgba(56,189,248,.16);display:flex;align-items:center;justify-content:center;font-size:9.5px;color:var(--p-accent);font-weight:700;}
+
+  /* ---------- 弹窗 ---------- */
+  .popup-layer{position:relative;height:430px;border-radius:10px;overflow:hidden;background:var(--p-bg);border:1px solid var(--p-border);}
+  .popup-layer::before{content:"";position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px, rgba(148,163,184,.10) 1px, transparent 0);background-size:24px 24px;}
+  .popup-underlay{position:absolute;inset:0;padding:22px;display:grid;grid-template-columns:220px 1fr;grid-template-rows:auto 1fr;gap:12px;}
+  .popup-underlay .u-card{background:var(--p-surface);border:1px solid var(--p-border);border-radius:8px;}
+  .popup-underlay .u-wide{grid-column:2;grid-row:1 / span 2;}
+  .popup-backdrop{position:absolute;inset:0;background:rgba(3,7,12,.64);backdrop-filter:blur(1.5px);}
+  .popup{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:480px;background:var(--p-surface);border:1px solid var(--p-border-strong);border-radius:12px;box-shadow:0 28px 72px rgba(0,0,0,.52);overflow:hidden;}
+  .popup.is-nonmodal{box-shadow:0 20px 48px rgba(0,0,0,.36);}
+  .popup-title{height:42px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 14px;border-bottom:1px solid var(--p-border);font-size:13px;font-weight:600;color:var(--p-text);}
+  .popup-close{width:28px;height:28px;border-radius:6px;border:0;background:transparent;color:var(--p-text-2);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  .popup-close:hover{background:var(--p-surface-2);color:var(--p-text);}
+  .popup-body{padding:16px;display:grid;gap:12px;}
+  .popup-foot{height:54px;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:0 14px;border-top:1px solid var(--p-border);background:var(--p-surface-2);}
+  .field-row{display:grid;grid-template-columns:96px 1fr;gap:10px;align-items:center;}
+  .field-row .hmi-label{text-align:right;}
+
+  /* ---------- 滑块 ---------- */
+  .slider{width:280px;padding:8px 2px;}
+  .slider-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px;}
+  .slider-value{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--p-text);font-variant-numeric:tabular-nums;}
+  .slider-value small{font-size:11px;color:var(--p-text-2);font-weight:400;margin-left:3px;}
+  .slider-track{position:relative;height:8px;border-radius:999px;background:var(--p-track);}
+  .slider-fill{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--p-accent);}
+  .slider-thumb{position:absolute;top:50%;width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid var(--p-accent);transform:translate(-50%,-50%);box-shadow:0 2px 8px rgba(0,0,0,.35);}
+  .slider-thumb.is-drag{box-shadow:0 0 0 6px rgba(56,189,248,.18),0 2px 8px rgba(0,0,0,.35);}
+  .slider-ticks{display:flex;justify-content:space-between;margin-top:8px;font-family:var(--mono);font-size:9.5px;color:var(--p-text-3);}
+  .slider.is-disabled{opacity:.45;}
+  .slider.is-error .slider-fill{background:var(--p-danger);}
+  .slider.is-error .slider-thumb{border-color:var(--p-danger);}
+  .slider-v{height:180px;display:flex;align-items:center;gap:12px;}
+  .slider-v .track{position:relative;width:8px;height:150px;border-radius:999px;background:var(--p-track);}
+  .slider-v .fill{position:absolute;left:0;right:0;bottom:0;border-radius:999px;background:var(--p-accent);}
+  .slider-v .thumb{position:absolute;left:50%;width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid var(--p-accent);transform:translate(-50%,50%);box-shadow:0 2px 8px rgba(0,0,0,.35);}
+  .stepper{display:inline-flex;border:1px solid var(--p-border-strong);border-radius:6px;overflow:hidden;}
+  .stepper button{width:34px;height:32px;border:0;background:var(--p-surface-2);color:var(--p-text);font-size:16px;cursor:pointer;}
+  .stepper button:hover{background:var(--p-surface);}
+  .stepper .val{width:56px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;border-left:1px solid var(--p-border);border-right:1px solid var(--p-border);}
+
+  /* ---------- 记录列表 ---------- */
+  .hmi-tabs{display:flex;gap:2px;border-bottom:1px solid var(--p-border);}
+  .hmi-tab{height:34px;padding:0 11px;font-size:12px;color:var(--p-text-2);border-bottom:2px solid transparent;cursor:pointer;display:flex;align-items:center;gap:6px;}
+  .hmi-tab:hover{color:var(--p-text);}
+  .hmi-tab.is-on{color:var(--p-accent);border-bottom-color:var(--p-accent);font-weight:600;}
+  .hmi-filter{display:flex;flex-wrap:wrap;gap:5px;padding:8px 0;}
+  .hmi-filter .f{height:24px;padding:0 8px;border-radius:999px;border:1px solid var(--p-border);background:transparent;color:var(--p-text-2);font-size:10.5px;display:inline-flex;align-items:center;cursor:pointer;}
+  .hmi-filter .f.is-on{border-color:var(--p-accent);color:var(--p-accent);background:rgba(56,189,248,.10);font-weight:600;}
+  .hmi-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+  .hmi-table th{text-align:left;font-weight:600;color:var(--p-text-3);font-size:10.5px;padding:7px 8px;border-bottom:1px solid var(--p-border);white-space:nowrap;}
+  .hmi-table td{padding:8px;border-bottom:1px solid rgba(42,55,69,.55);color:var(--p-text-2);vertical-align:middle;}
+  html[data-preview="light"] .hmi-table td{border-bottom-color:#EEF2F7;}
+  .hmi-table tr:last-child td{border-bottom:0;}
+  .hmi-table td.name{color:var(--p-text);font-weight:600;}
+  .hmi-table td.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:10.5px;}
+  .hmi-table tr.rec-unack td:first-child{box-shadow:inset 3px 0 0 var(--p-danger);}
+  .hmi-table tr.rec-ack td{opacity:.75;}
+  .hmi-table tr.rec-clear td{opacity:.62;}
+  .hmi-table tr:hover td{background:var(--p-surface-2);}
+  .hmi-empty{padding:26px 10px;text-align:center;color:var(--p-text-3);font-size:11.5px;}
+  .hmi-empty b{display:block;color:var(--p-text-2);font-size:12.5px;margin-bottom:3px;}
+
+  /* ---------- 历史表 ---------- */
+  .range-chips{display:flex;flex-wrap:wrap;gap:5px;}
+  .range-chips .r{height:26px;padding:0 9px;border-radius:6px;border:1px solid var(--p-border);background:transparent;color:var(--p-text-2);font-size:10.5px;display:inline-flex;align-items:center;cursor:pointer;}
+  .range-chips .r.is-on{border-color:var(--p-accent);color:var(--p-accent);background:rgba(56,189,248,.10);font-weight:600;}
+  .skeleton{height:9px;border-radius:4px;background:linear-gradient(90deg,var(--p-surface-2),var(--p-border),var(--p-surface-2));background-size:200% 100%;animation:sh 1.4s linear infinite;}
+  @keyframes sh{from{background-position:200% 0}to{background-position:-200% 0}}
+
+  /* ---------- 动画 ---------- */
+  .anim-demo{height:180px;display:flex;align-items:center;justify-content:center;gap:40px;}
+  .fan{width:96px;height:96px;border-radius:50%;border:2px solid var(--p-border-strong);position:relative;display:flex;align-items:center;justify-content:center;}
+  .fan::before,.fan::after{content:"";position:absolute;width:6px;height:34px;border-radius:3px;background:var(--p-accent);top:14px;left:50%;transform-origin:50% 34px;transform:translateX(-50%) rotate(0deg);}
+  .fan::after{transform:translateX(-50%) rotate(120deg);}
+  .fan .blade{position:absolute;width:6px;height:34px;border-radius:3px;background:var(--p-accent);top:14px;left:50%;transform-origin:50% 34px;transform:translateX(-50%) rotate(240deg);}
+  .fan .hub{width:12px;height:12px;border-radius:50%;background:var(--p-surface);border:2px solid var(--p-accent);z-index:2;}
+  .angle-arc{width:96px;height:96px;position:relative;border-radius:50%;border:1px dashed var(--p-border-strong);}
+  .angle-arc .arc{position:absolute;inset:6px;border-radius:50%;border:3px solid transparent;border-top-color:var(--p-accent);border-right-color:var(--p-accent);transform:rotate(45deg);}
+  .scale-box{width:72px;height:72px;border-radius:10px;background:rgba(56,189,248,.16);border:2px solid var(--p-accent);display:flex;align-items:center;justify-content:center;color:var(--p-accent);font-family:var(--mono);font-size:11px;}
+  .scale-box.small{width:44px;height:44px;opacity:.7;}
+
+  /* ---------- 组合示例 ---------- */
+  .screen{width:1200px;max-width:100%;height:720px;background:var(--p-bg);border:1px solid var(--p-border);border-radius:10px;overflow:hidden;position:relative;}
+  .screen::before{content:"";position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px, rgba(148,163,184,.09) 1px, transparent 0);background-size:24px 24px;}
+  .screen > *{position:relative;z-index:1;}
+  .screen-top{height:52px;display:flex;align-items:center;gap:12px;padding:0 14px;border-bottom:1px solid var(--p-border);background:var(--p-surface);}
+  .screen-top .title{font-size:13px;font-weight:600;color:var(--p-text);}
+  .screen-top .spacer{flex:1;}
+  .screen-body{display:grid;grid-template-columns:190px minmax(0,1fr) 360px;gap:12px;padding:12px;height:calc(100% - 52px);}
+  .screen-col{display:flex;flex-direction:column;gap:12px;min-height:0;}
+  .screen-main{display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px;min-height:0;}
+  .screen-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+  .screen-bottom{display:flex;align-items:center;gap:14px;padding:12px;border:1px solid var(--p-border);border-radius:8px;background:var(--p-surface);}
+  .pipe{height:10px;border-radius:5px;background:var(--p-track);position:relative;overflow:hidden;}
+  .pipe::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 14px,rgba(56,189,248,.65) 14px 22px);}
+  .tank{width:120px;height:150px;border:2px solid var(--p-border-strong);border-radius:14px;position:relative;overflow:hidden;background:var(--p-surface-2);}
+  .tank::after{content:"";position:absolute;left:0;right:0;bottom:0;height:58%;background:rgba(56,189,248,.35);border-top:2px solid var(--p-accent);}
+  .tank .tag{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:var(--mono);font-size:10.5px;color:var(--p-text);z-index:2;}
+  .screen-popup{position:absolute;inset:0;background:rgba(3,7,12,.55);display:flex;align-items:center;justify-content:center;z-index:5;}
+  .screen-popup .popup{position:relative;left:auto;top:auto;transform:none;width:440px;}
+  .screen-keypad{position:absolute;right:18px;bottom:18px;z-index:6;transform:scale(.86);transform-origin:right bottom;}
+
+  /* ---------- 验收 ---------- */
+  .check-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+  .check{display:flex;gap:9px;align-items:flex-start;padding:11px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;box-shadow:var(--shadow-1);}
+  .check .box{width:16px;height:16px;flex:none;border-radius:4px;border:1.5px solid var(--border-strong);margin-top:1px;}
+  .check p{margin:0;font-size:11.5px;color:var(--text-2);line-height:1.55;}
+  .check p b{color:var(--text);}
+  .q-list{display:flex;flex-direction:column;gap:8px;}
+  .q{display:grid;grid-template-columns:26px 1fr;gap:10px;padding:11px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;box-shadow:var(--shadow-1);}
+  .q .n{width:24px;height:24px;border-radius:7px;background:var(--primary-light);color:var(--primary-text);font-family:var(--mono);font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+  .q p{margin:0;font-size:11.5px;color:var(--text-2);line-height:1.6;}
+  .q p b{color:var(--text);}
+  .q p em{font-style:normal;color:var(--success-text);font-weight:600;}
+
+  @media (max-width:1180px){
+    .principle-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .token-grid{grid-template-columns:repeat(3,minmax(0,1fr));}
+    .state-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .screen{height:auto;}
+    .screen-body{grid-template-columns:190px minmax(0,1fr);}
+  }
+  @media (max-width:820px){
+    body{padding:18px 14px 72px;}
+    .principle-grid,.token-grid,.state-grid,.check-list{grid-template-columns:1fr;}
+    .screen-body{grid-template-columns:1fr;}
+  }
+
+  /* ---------- v2 复核版新增 ---------- */
+  .combo-field{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 10px;border-radius:6px;border:1px solid var(--p-border-strong);background:var(--p-surface);color:var(--p-text);font-size:12.5px;opacity:.45;}
+  .combo-field .chev{width:8px;height:8px;border-right:1.4px solid currentColor;border-bottom:1.4px solid currentColor;transform:rotate(45deg);margin-left:auto;margin-top:-3px;}
+  .combo-field .raw{font-family:var(--mono);font-size:10px;color:var(--p-text-3);}
+  .combo-text{display:flex;align-items:baseline;gap:8px;font-size:14px;color:var(--p-text);}
+  .combo-text .label{font-size:14px;color:var(--p-text-2);}
+  .combo-text .value{font-weight:600;}
+  .combo-text .unknown{color:var(--p-text-2);}
+  .combo-text.is-field{padding:0 0 8px;border-bottom:1px solid var(--p-underline);}
+  .combo-text.is-dense{font-size:12.5px;}
+  .runtime-bar{display:flex;align-items:center;gap:10px;min-height:48px;padding:0 12px;background:var(--p-surface);border:1px solid var(--p-border);border-radius:8px;}
+  .runtime-bar .title{font-size:13px;font-weight:600;color:var(--p-text);}
+  .runtime-bar .spacer{flex:1;}
+  .alarm-row{display:grid;grid-template-columns:3px 1fr auto;gap:10px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--p-border);}
+  .alarm-row:last-child{border-bottom:0;}
+  .alarm-row .bar{width:3px;height:32px;border-radius:2px;background:var(--p-danger);}
+  .alarm-row .bar.warn{background:var(--p-warning);}
+  .alarm-row .bar.ok{background:var(--p-off);}
+  .alarm-row .name{font-size:12px;font-weight:600;color:var(--p-text);}
+  .alarm-row .meta{font-size:10.5px;color:var(--p-text-3);margin-top:2px;}
+  .alarm-row.is-ack{opacity:.72;}
+  .alarm-row.is-clear{opacity:.55;}
+  .source-chip{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:999px;border:1px solid var(--p-accent);color:var(--p-accent);background:rgba(56,189,248,.10);font-size:10.5px;font-weight:600;}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <div class="eyebrow">SCADA 图元控件 · 设计基线（第二批）</div>
+  <h1>SCADA 推荐控件 · Web 设计稿 <span class="ver">v2 · 2026-10-21 · 复核版</span></h1>
+  <p class="meta">
+    复核版：<b>先问现有控件能不能改，再问要不要新建</b>。v1 里的 <code>Hmi.StateText</code> / <code>Hmi.PageMenu</code> / <code>Hmi.HistoryTable</code> 都被现有控件覆盖或只差一个模式，已删除；<code>Hmi.RecordList</code> 降级为“先扩 AlarmBanner”。<b>本批只新增 Slider 一个 TypeKey</b>，其余都是现有控件的模式/预设或运行时设施。
+  </p>
+  <div class="meta-row">
+    <span class="meta-chip"><strong>范围</strong>1 个新 TypeKey + 3 项扩展 + 2 个设施</span>
+    <span class="meta-chip"><strong>依据</strong>EBPro V6.10.01 第 12 / 13 章</span>
+    <span class="meta-chip"><strong>状态</strong>v2 复核稿，待用户确认</span>
+    <span class="meta-chip"><strong>不含</strong>WPF 复刻、证据截图、历史数据契约实现</span>
+  </div>
+</header>
+
+<nav class="page-nav">
+  <a href="#scope" class="is-on">00 范围</a>
+  <a href="#principles">01 原则</a>
+  <a href="#tokens">02 令牌</a>
+  <a href="#combo-readonly">03 下拉只读</a>
+  <a href="#topbar-menu">04 顶栏菜单</a>
+  <a href="#keypad">05 软键盘</a>
+  <a href="#popup">06 弹窗</a>
+  <a href="#slider">07 滑块</a>
+  <a href="#alarm-ack">08 报警确认</a>
+  <a href="#grid-history">09 表格历史源</a>
+  <a href="#animation">10 动画扩展</a>
+  <a href="#composition">11 组合示例</a>
+  <a href="#boundaries">12 边界</a>
+  <a href="#acceptance">13 验收</a>
+  <span class="theme-toggle" role="group" aria-label="画面预览主题">
+    <button type="button" data-set-theme="dark" class="is-on">深色运行</button>
+    <button type="button" data-set-theme="light">浅色编辑</button>
+  </span>
+</nav>
+
+<main>
+
+<!-- ============================ 00 范围 ============================ -->
+<section class="section" id="scope">
+  <div class="sec-head">
+    <span class="sec-index">00</span>
+    <h2>本批范围与复核口径</h2>
+    <p>复核版：每个建议先问“现有控件能不能改”，再问“要不要新建”。结论是<b>只新增 Slider 一个 TypeKey</b>，其余都是现有控件的模式/预设或运行时设施。</p>
+  </div>
+
+  <div class="callout" style="margin-bottom:14px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3h.01"/></svg>
+    <div><b>复核口径（v1 → v2）：</b>① 现有控件能不能改？② 改一个属性够不够？③ 新建 TypeKey 多出来的成本（工具箱条目、属性面板、web <code>caps</code>、断言、文档）值不值？三问都过不去才新建。v1 的 <code>StateText</code> / <code>PageMenu</code> / <code>HistoryTable</code> 都在第 ① 问就被否掉；<code>RecordList</code> 被降级为“先扩 AlarmBanner”。</div>
+  </div>
+
+  <div class="table-wrap" style="margin-bottom:14px">
+    <table class="data">
+      <thead><tr><th>优先级</th><th>建议</th><th>落点</th><th>手册出处</th><th>与现有控件的关系</th><th>为什么</th></tr></thead>
+      <tbody>
+        <tr><td><span class="sev p0">P0</span></td><td><b>返回上一页</b></td><td><code>NavigateBack = 18</code> + <code>IScadaNavigator.GoBack</code></td><td>13.36 / 13.5</td><td>动作扩展 + 接口扩展 + <code>CanGoBack</code> 通知；<code>ScadaRuntime.GoBack()</code> 已就绪</td><td>页栈已实现，但接口/通知是前置</td></tr>
+        <tr><td><span class="sev p0">P0</span></td><td><b>下拉框只读显示</b></td><td><code>Hmi.ComboBox</code> + <code>Presentation=Text</code></td><td>13.43</td><td><b>扩展现有控件</b>：<code>Mode=Output</code> / <code>Options</code> / <code>SelectedText</code> 已存在；<code>Text</code>/<code>TextAlignment</code> 复用基类</td><td>只差“别长得像禁用下拉框”；不新增 TypeKey / Label</td></tr>
+        <tr><td><span class="sev p1">P1</span></td><td><b>软键盘</b></td><td>运行时设施</td><td>第 12 章</td><td>现有 IOField/TextField 的 TextBox 编辑链；按钮需 <code>Focusable=False</code></td><td>数字 P1、字符 P2；触摸部署才升 P0</td></tr>
+        <tr><td><span class="sev p0">P0</span></td><td><b>页面菜单</b></td><td>运行窗口顶栏（无 TypeKey）</td><td>13.29 / 13.36</td><td><b>现有顶栏</b>已有页名/报警/停止；已实现 <code>CanGoBack</code> 通知 + 页面级 <code>RequiredRole</code>（Navigate/GoBack/菜单共用）</td><td>全局导航不该每页放一个图元</td></tr>
+        <tr><td><span class="sev p1">P1</span></td><td><b>弹窗 / 子画面</b></td><td>文档模型 + 动作契约 + 运行时浮层</td><td>13.11 / 13.12</td><td>不是纯浮层：<code>ScadaPage.IsPopup</code>、<code>ScadaAction</code> 的 Modal/Anchor/Offset、当前表面闸门、独立页栈</td><td>事件闸门只认 CurrentPage，不改会“点不动”</td></tr>
+        <tr><td><span class="sev p2">P2</span></td><td><b>模拟量滑块</b></td><td><code>Hmi.Slider</code>（<b>唯一新增 TypeKey</b>）</td><td>13.8</td><td>ProgressBar 只显示、IOField 靠键盘、SelectorSwitch 离散；运动量需三档门禁</td><td>通用非运动量 P1、视觉设备 P2；位置类走 TryMove</td></tr>
+        <tr><td><span class="sev p1">P1</span></td><td><b>报警逐条确认</b></td><td><code>Hmi.AlarmBanner</code> 扩展</td><td>13.21 / 13.22</td><td><b>扩展现有控件</b>：活动报警列表 + <code>AckButton</code> 已有；需统一确认服务 + 审计 + <code>AckWriteMode</code></td><td>桌面确认目前没有审计；握手写失败不能回滚</td></tr>
+        <tr><td><span class="sev p1">P1</span></td><td><b>历史数据</b></td><td><code>Hmi.DataGrid</code> + <code>Source=History</code></td><td>13.18</td><td><b>扩展现有控件</b>：列定义/行模型/空态已有；先定 <code>IScadaHistorySource</code></td><td>视觉追溯核心；等契约再排期</td></tr>
+        <tr><td><span class="sev p3">P3</span></td><td><b>旋转 / 缩放动画</b></td><td><code>ScadaAnimationType</code> 5 / 6</td><td>13.13 / 13.14</td><td>现有 4 种动画 + <code>ApplyRotation</code>；需模型字段 + <code>TransformGroup</code></td><td>视觉现场无场景；本批不做</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>v1 提案</th><th>v2 结论</th><th>依据</th></tr></thead>
+      <tbody>
+        <tr><td><code>Hmi.StateText</code></td><td><b>删除</b>；改为 <code>Hmi.ComboBox</code> 的 <code>Presentation=Text</code></td><td><code>ComboBoxElement.cs:40-71</code> 已有 <code>Mode=Output</code>、<code>Options</code>、<code>SelectedText</code></td></tr>
+        <tr><td><code>Hmi.PageMenu</code></td><td><b>删除</b>；改为运行窗口顶栏页面菜单</td><td><code>ScadaRuntimeWindow.xaml</code> 已有顶栏；<code>ScadaRuntime.GoBack()</code> 已有</td></tr>
+        <tr><td><code>Hmi.RecordList</code></td><td><b>降级</b>；先扩 <code>Hmi.AlarmBanner</code> 逐条确认</td><td><code>AlarmBannerElement</code> 已吃活动报警；<code>AckButton</code> 已做整体确认</td></tr>
+        <tr><td><code>Hmi.HistoryTable</code></td><td><b>删除</b>；改为 <code>Hmi.DataGrid</code> 的 <code>Source=History</code></td><td><code>DataGridElement</code> 已有表格内核、列定义、空态</td></tr>
+        <tr><td><code>Hmi.Slider</code></td><td><b>保留</b>（唯一新增 TypeKey）</td><td>现有控件没有连续量拖动写入</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout" style="margin-top:14px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3h.01"/></svg>
+    <div><b>专家评审（2026-10-21）：</b>6 个角色（reviewer / hmi / ui / vision / motion / comm）全部 <b>pass with changes</b>。完整记录见 <code>评审记录-2026-10-21.md</code>。最重要的三条：① ComboBox 的 <code>Text</code>/<code>TextAlignment</code> 复用基类，不新增 <code>Label</code>；② 报警确认要统一服务（桌面目前没有审计）；③ 弹窗不是纯浮层，事件闸门/页栈/模型都要改。</div>
+  </div>
+</section>
+
+<!-- ============================ 01 原则 ============================ -->
+<section class="section" id="principles">
+  <div class="sec-head">
+    <span class="sec-index">01</span>
+    <h2>设计原则</h2>
+    <p>沿用 v1 的 11 条，只把与本批控件直接相关的 8 条落到可检查的判据上。</p>
+  </div>
+
+  <div class="principle-grid">
+    <div class="principle"><div class="principle-icon">01</div><div><h3>双上下文，一套结构</h3><p>运行画面深色 <code>#0E1318</code>，编辑工作台浅色 <code>#F4F7FB</code>；控件结构、尺寸、状态完全一致，只换令牌。</p></div></div>
+    <div class="principle"><div class="principle-icon">02</div><div><h3>五态是底线</h3><p>Normal / Hover / Pressed / Focus / Disabled；过程控件再加 Current / Dragging / Loading。缺态即视为未完成。</p></div></div>
+    <div class="principle"><div class="principle-icon">03</div><div><h3>状态色只表达状态</h3><p>灰=停、绿=运行、黄=警告、红=故障/报警；accent 青蓝只做交互、焦点、当前项，不占用语义色。</p></div></div>
+    <div class="principle"><div class="principle-icon">04</div><div><h3>数字等宽</h3><p>时间、数值、坐标、计数一律 <code>tabular-nums</code>；小数点在列里排成一条线。</p></div></div>
+    <div class="principle"><div class="principle-icon">05</div><div><h3>触摸命中 ≥44</h3><p>运行态按键 / 菜单项 / 滑块拇指最小命中 44×44；桌面鼠标档不低于 36×36。</p></div></div>
+    <div class="principle"><div class="principle-icon">06</div><div><h3>不造死属性</h3><p>每个可配属性必须在运行态有可见效果；只接现有属性 / 命令，不新增“主题 / 皮肤”类空开关。</p></div></div>
+    <div class="principle"><div class="principle-icon">07</div><div><h3>失败可见</h3><p>写入失败、变量丢失、无权限、越限都要就地反馈；不许静默回弹或假装成功。</p></div></div>
+    <div class="principle"><div class="principle-icon">08</div><div><h3>只读不伪装</h3><p>没有写通道时输入控件必须是只读外观；没有权限时不给“能点但点了报错”的假按钮。</p></div></div>
+  </div>
+</section>
+
+<!-- ============================ 02 令牌 ============================ -->
+<section class="section" id="tokens">
+  <div class="sec-head">
+    <span class="sec-index">02</span>
+    <h2>令牌与刻度</h2>
+    <p>直接复用 <code>Scada.Controls\Themes\ScadaTokens.xaml</code> 的 20 个 <code>Hmi*</code> 令牌；本批不新增令牌，只新增用法。</p>
+  </div>
+
+  <div class="token-grid" style="margin-bottom:14px">
+    <div class="token"><div class="token-swatch" style="background:#0E1318"></div><div class="token-body"><b>画面底</b><span>HmiCanvasBackground</span></div></div>
+    <div class="token"><div class="token-swatch" style="background:#151C23"></div><div class="token-body"><b>表面</b><span>HmiSurface</span></div></div>
+    <div class="token"><div class="token-swatch" style="background:#1B242D"></div><div class="token-body"><b>浮起表面</b><span>HmiSurfaceRaised</span></div></div>
+    <div class="token"><div class="token-swatch" style="background:#2A3745"></div><div class="token-body"><b>描边</b><span>HmiBorder</span></div></div>
+    <div class="token"><div class="token-swatch" style="background:#E6EEF7"></div><div class="token-body"><b>主文字</b><span>HmiText</span></div></div>
+    <div class="token"><div class="token-swatch" style="background:#A9B7C6"></div><div class="token-body"><b>次要文字</b><span>HmiTextSecondary</span></div></div>
+    <div class="token"><div class="token-swatch" style="background:#38BDF8"></div><div class="token-body"><b>强调 / 焦点</b><span>HmiAccent</span></div></div>
+    <div class="token"><div class="token-swatch" style="background:#22C55E"></div><div class="token-body"><b>运行 / 正常</b><span>HmiSuccess</span></div></div>
+    <div class="token"><div class="token-swatch" style="background:#F59E0B"></div><div class="token-body"><b>警告</b><span>HmiWarning</span></div></div>
+    <div class="token"><div class="token-swatch" style="background:#EF4444"></div><div class="token-body"><b>故障 / 报警</b><span>HmiDanger</span></div></div>
+    <div class="token"><div class="token-swatch" style="background:#64748B"></div><div class="token-body"><b>停机 / 熄灭</b><span>HmiOff</span></div></div>
+    <div class="token"><div class="token-swatch" style="background:#26313D"></div><div class="token-body"><b>空槽 / 轨道</b><span>HmiTrack</span></div></div>
+  </div>
+
+  <div class="card card-pad">
+    <div class="scale-row"><span class="nm">字号七档</span><span class="demo" style="font-size:28px;font-weight:600">28</span><span class="demo" style="font-size:20px;font-weight:600">20</span><span class="demo" style="font-size:16px">16</span><span class="demo" style="font-size:14px">14</span><span class="demo" style="font-size:12.5px">12.5</span><span class="demo" style="font-size:11.5px">11.5</span><span class="demo" style="font-size:10px">10</span><span class="use">数值 / 标题 / 标签 / 帮助</span></div>
+    <div class="scale-row"><span class="nm">圆角四档</span><span class="demo" style="display:inline-block;width:44px;height:24px;border:1px solid var(--border-strong);border-radius:4px"></span><span class="demo" style="display:inline-block;width:44px;height:24px;border:1px solid var(--border-strong);border-radius:6px"></span><span class="demo" style="display:inline-block;width:44px;height:24px;border:1px solid var(--border-strong);border-radius:8px"></span><span class="demo" style="display:inline-block;width:44px;height:24px;border:1px solid var(--border-strong);border-radius:12px"></span><span class="use">数据 4 / 按钮 6 / 卡片 8 / 控制台 12</span></div>
+    <div class="scale-row"><span class="nm">控件高度</span><span class="demo" style="display:inline-flex;align-items:center;justify-content:center;width:64px;height:32px;border:1px solid var(--border-strong);border-radius:6px;font-size:11px">32</span><span class="demo" style="display:inline-flex;align-items:center;justify-content:center;width:64px;height:36px;border:1px solid var(--border-strong);border-radius:6px;font-size:11px">36</span><span class="demo" style="display:inline-flex;align-items:center;justify-content:center;width:64px;height:44px;border:1px solid var(--border-strong);border-radius:6px;font-size:11px">44</span><span class="use">紧凑 / 标准 / 触摸</span></div>
+  </div>
+</section>
+
+<!-- ============================ 03 下拉框只读显示 ============================ -->
+<section class="section" id="combo-readonly">
+  <div class="sec-head">
+    <span class="sec-index">03</span>
+    <h2>Hmi.ComboBox · 只读显示 <span class="sev p0">P0</span></h2>
+    <p>它已经是状态文本的 80%：<code>Mode=Output</code> 只读、<code>Options</code> 做值→文字映射、<code>SelectedText</code> 已把值翻成文字。缺的只是“别长得像禁用下拉框”。</p>
+  </div>
+
+  <div class="callout" style="margin-bottom:14px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3h.01"/></svg>
+    <div><b>结论：不新增 <code>Hmi.StateText</code>。</b>现有 <code>ComboBoxElement</code> 已有 <code>Mode=Output</code>（只读）、<code>Options</code>（映射）、<code>SelectedText</code>（显示文本）；新建控件会把这三样再写一遍。需要补的是<b>呈现方式</b>，不是<b>数据能力</b>。</div>
+  </div>
+
+  <div class="stage" style="margin-bottom:14px">
+    <div class="stage-head"><span class="stage-title">现状 vs 建议 · 运行态</span><span class="stage-tag">Hmi.ComboBox · 160×32</span></div>
+    <div class="stage-body">
+      <div class="stage-col" style="width:250px">
+        <div class="hmi-card hmi-card-pad">
+          <div class="hmi-label" style="margin-bottom:8px">现状：Mode=Output</div>
+          <div class="combo-field" style="width:180px"><span>运行中</span><span class="raw">1</span><span class="chev"></span></div>
+          <div class="hmi-help" style="margin-top:8px">功能上已经是只读；但看起来像“禁用中的下拉框”：整体 45% 透明、仍带 chevron、右侧还露原始整数。</div>
+        </div>
+        <div class="stage-caption">现状的 <code>IsEditable=false</code> 会把内层 ComboBox 置为 <code>IsEnabled=false</code>，触发 0.45 透明。</div>
+      </div>
+      <div class="stage-col" style="width:250px">
+        <div class="hmi-card hmi-card-pad">
+          <div class="hmi-label" style="margin-bottom:8px">建议：Presentation=Text · 只读字段</div>
+          <div class="combo-text is-field"><span class="label">设备状态</span><span class="value">运行中</span></div>
+          <div class="hmi-help" style="margin-top:8px">无整框、无 chevron、无原始值、不降透明；底边线与 IOField 只读态同族。数据仍是同一个 <code>Value</code> / <code>Options</code>。</div>
+        </div>
+        <div class="stage-caption">只改呈现；<code>Mode=Output</code> 的只读语义不变，仍然一个字节都不写。</div>
+      </div>
+      <div class="stage-col" style="width:230px">
+        <div class="hmi-card hmi-card-pad">
+          <div class="hmi-label" style="margin-bottom:8px">样式候选</div>
+          <div class="combo-text is-field" style="margin-bottom:10px"><span class="label">只读字段</span><span class="value">运行中</span></div>
+          <div class="combo-text is-dense"><span class="label">纯文本</span><span class="value">运行中</span></div>
+          <div class="hmi-help" style="margin-top:8px">只读字段（默认，<code>ShowSeparator=true</code>）与 IOField 同族；纯文本（<code>ShowSeparator=false</code>）用于 KPI 卡 / 密集看板。</div>
+        </div>
+        <div class="stage-caption">两种都是同一个 <code>Presentation=Text</code>，只差底边线。</div>
+      </div>
+      <div class="stage-col" style="width:300px">
+        <div class="hmi-card hmi-card-pad">
+          <div class="hmi-label" style="margin-bottom:6px">映射表（沿用现有 Options）</div>
+          <div class="hmi-mono" style="font-size:10.5px;line-height:1.9;color:var(--p-text-2)">
+            0=待机<br>1=运行中<br>2=故障<br>101=相机掉线<br>102=光源未就绪
+          </div>
+          <div class="hmi-help" style="margin-top:8px">与下拉框共用同一份映射；改显示名不会改值，也不会打断已配好的流程。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="state-grid" style="margin-bottom:14px">
+    <div class="state-cell"><h4>正常命中 <span>value=1</span></h4><div class="state-demo"><div class="combo-text is-field"><span class="label">设备状态</span><span class="value" style="color:#E6EEF7">运行中</span></div></div><p class="state-note">主文字色；标签弱化；底边线与 IOField 只读态同族。</p></div>
+    <div class="state-cell"><h4>未命中 <span>value=999</span></h4><div class="state-demo"><div class="combo-text is-field"><span class="label">设备状态</span><span class="value" style="color:#7C8A99">#999</span></div></div><p class="state-note">沿用现有口径：显示 <code>#值</code>，不编造一个假的“待机”。</p></div>
+    <div class="state-cell"><h4>绑定丢失 <span>binding miss</span></h4><div class="state-demo" style="position:relative"><div class="combo-text is-field" style="width:140px"><span class="value" style="color:#A9B7C6">待机</span></div><span style="position:absolute;right:9px;top:9px;width:10px;height:10px;border-radius:50%;background:#E88B1A"></span></div><p class="state-note">保留最后一次有效值 + 橙点（与数据泵诊断角标同口径）；不是 <code>#0</code>，也不显示空白。</p></div>
+    <div class="state-cell"><h4>超长 <span>value=102</span></h4><div class="state-demo" style="justify-content:flex-start"><div class="combo-text is-field" style="max-width:160px"><span class="value" style="color:#E6EEF7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">光源未就绪，请检查…</span></div></div><p class="state-note">单行省略 + ToolTip；需要多行时把高度调大并允许换行。</p></div>
+    <div class="state-cell"><h4>值 0 有映射 <span>value=0</span></h4><div class="state-demo"><div class="combo-text is-field" style="width:140px"><span class="label">设备状态</span><span class="value" style="color:#E6EEF7">待机</span></div></div><p class="state-note">0 命中映射就显示「待机」；<code>#值</code> 只在没有映射时出现。</p></div>
+    <div class="state-cell"><h4>无标签 · 纯文本档 <span>ShowSeparator=false</span></h4><div class="state-demo"><div class="combo-text is-dense"><span class="value" style="color:#E6EEF7">运行中</span></div></div><p class="state-note">用于 KPI 卡 / 密集看板；与只读字段共用同一个 <code>Presentation=Text</code>，只差底边线。</p></div>
+  </div>
+
+  <div class="table-wrap" style="margin-bottom:14px">
+    <table class="data">
+      <thead><tr><th>属性</th><th>来源</th><th>类型</th><th>默认</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>Value</code></td><td>已有</td><td>int（可绑）</td><td>0</td><td>唯一数据入口；枚举会按数值转换，字符串状态不在本批范围。</td></tr>
+        <tr><td><code>Options</code></td><td>已有</td><td>映射串</td><td><code>0=手动;1=自动;2=检修</code></td><td>值→显示名；与下拉框共用，改文案不改值。</td></tr>
+        <tr><td><code>Mode</code></td><td>已有</td><td>Output / InputOutput</td><td>InputOutput</td><td><code>Output</code> = 只读，不写变量；<code>Presentation=Text</code> 时恒只读，<b>Mode 在 Text 下不生效、属性面板隐藏</b>；要可写请切回 Field。</td></tr>
+        <tr><td><code>SelectedText</code></td><td>已有（只读）</td><td>string</td><td>—</td><td>已把当前值翻成显示名；找不到映射时 <code>#值</code>。模板直接绑它。</td></tr>
+        <tr><td><code>Presentation</code></td><td><b>新增</b></td><td>Field / Text</td><td>Field</td><td>Field = 现有下拉框外观；Text = 只读字段（隐藏 chevron / 原始值 / 整框，保留底边线，不降透明）。</td></tr>
+        <tr><td><code>ShowSeparator</code></td><td><b>新增</b></td><td>bool</td><td>true</td><td>Text 呈现的底边线；关掉就是纯文本档，用于 KPI 卡 / 密集看板。Field 模式下无效，属性面板应隐藏/置灰。</td></tr>
+        <tr><td><code>Text</code></td><td>已有（基类）</td><td>string</td><td>空</td><td>左侧说明字；与 IOField 的「说明字」是同一个基类属性，<b>不新增 <code>Label</code></b>。</td></tr>
+        <tr><td><code>TextAlignment</code></td><td>已有（基类）</td><td>Left / Center / Right</td><td>Center</td><td>基类默认 Center；Text 呈现要覆盖为 Left，否则值会居中。<b>不新增同名属性</b>（会触发 SPG0006）。</td></tr>
+        <tr><td><code>Foreground / FontSize / FontWeight</code></td><td>已有</td><td>外观</td><td>HmiText / 14 / SemiBold</td><td>Text 呈现直接复用；字号与 IOField 说明字同档。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout warning">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 8v5m0 3h.01"/><circle cx="12" cy="12" r="9"/></svg>
+    <div><b>边界：</b>① 不做“值→颜色”映射——颜色交给 Lamp / 外观动画，避免与状态色语义重复。② 不做字符串状态；<code>Value</code> 是 int，字符串状态用别的控件组合。③ 不新增 TypeKey；如果需要一个独立的工具箱入口，可以像 <code>AxisPanel</code> / <code>AxisConsole</code> 那样做<b>同类预设</b>（同一个控件类、不同默认值），但这不是新控件。</div>
+  </div>
+</section>
+
+<!-- ============================ 04 顶栏页面菜单 ============================ -->
+<section class="section" id="topbar-menu">
+  <div class="sec-head">
+    <span class="sec-index">04</span>
+    <h2>运行窗口顶栏 · 页面菜单 <span class="sev p0">P0</span></h2>
+    <p>运行窗口已经有顶栏（页名 / 报警 / 停止）；把页名换成下拉，就是全局页面菜单。它不需要每页放一个图元，也不会被画布裁剪。</p>
+  </div>
+
+  <div class="callout" style="margin-bottom:14px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3h.01"/></svg>
+    <div><b>结论：不新增 <code>Hmi.PageMenu</code>。</b>页面导航是<b>运行窗口的 chrome</b>，不是画布内容；放在顶栏一处，所有页面共享，也不用担心被图层/裁剪/缩放影响。画布内需要导航时，用现有 <code>Hmi.Panel</code> + <code>Hmi.Button</code> + <code>Navigate</code> 组合即可。</div>
+  </div>
+
+  <div class="stage" style="margin-bottom:14px">
+    <div class="stage-head"><span class="stage-title">顶栏 · 页面下拉</span><span class="stage-tag">ScadaRuntimeWindow chrome</span></div>
+    <div class="runtime-bar" style="margin-bottom:12px">
+      <span class="title">2# 灌装检测单元</span>
+      <div class="hmi-dropdown" style="width:170px">
+        <div class="hmi-dropdown-trigger is-focus" style="height:30px;font-size:11.5px"><span>总览</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      </div>
+      <button class="hmi-btn ghost" style="height:30px;padding:0 9px;font-size:11px" type="button">← 返回</button>
+      <div class="spacer"></div>
+      <span class="hmi-chip bad"><span class="hmi-dot"></span>3 条未确认</span>
+      <span class="hmi-chip ok"><span class="hmi-dot"></span>运行中</span>
+      <span class="hmi-chip accent">张三 · 操作员</span>
+      <button class="hmi-btn danger" style="height:30px;padding:0 9px;font-size:11px" type="button">停止运行</button>
+    </div>
+    <div class="hmi-dropdown" style="width:220px;margin-left:180px">
+      <div class="hmi-dropdown-panel">
+        <div class="hmi-dropdown-item is-current"><span>01 总览</span><span class="hmi-chip bad">3</span></div>
+        <div class="hmi-dropdown-item"><span>02 实时监控</span></div>
+        <div class="hmi-dropdown-item"><span>03 手动操作</span></div>
+        <div class="hmi-dropdown-item"><span>04 报警记录</span></div>
+        <div class="hmi-dropdown-item"><span>05 参数设置</span></div>
+        <div class="hmi-dropdown-item" style="opacity:.38"><span>06 用户管理</span><span class="hmi-help">管理员</span></div>
+      </div>
+    </div>
+    <div class="stage-caption">下拉与顶栏同宽；当前页打勾、点击幂等；无权限页按页面级 RequiredRole 隐藏。</div>
+  </div>
+
+  <div class="state-grid" style="margin-bottom:14px">
+    <div class="state-cell"><h4>Normal</h4><div class="state-demo"><div class="hmi-dropdown-trigger" style="width:150px;height:30px;font-size:11px"><span>总览</span><span style="color:#7C8A99">▾</span></div></div><p class="state-note">顶栏内的紧凑高度 30px；点击展开页面清单。</p></div>
+    <div class="state-cell"><h4>Current</h4><div class="state-demo"><div class="hmi-dropdown-item is-current" style="width:150px;height:30px"><span>总览</span></div></div><p class="state-note">accent 字 + accent 底；当前页打勾；点击幂等（Navigate 对当前页直接返回，不压栈、不发 Loaded）。</p></div>
+    <div class="state-cell"><h4>Back · 栈空</h4><div class="state-demo"><button class="hmi-btn ghost" style="height:30px;font-size:11px" disabled type="button">← 返回</button></div><p class="state-note">与 <code>CanGoBack</code> 同源；栈空置灰。</p></div>
+    <div class="state-cell"><h4>Disabled（无权限）</h4><div class="state-demo"><div class="hmi-dropdown-item" style="width:160px;height:30px;opacity:.38"><span>用户管理</span><span class="hmi-help">管理员</span></div></div><p class="state-note">默认隐藏；选置灰时保留位置并提示所需角色。</p></div>
+    <div class="state-cell"><h4>Overflow</h4><div class="state-demo"><div class="hmi-dropdown-panel" style="width:160px;padding:4px"><div class="hmi-dropdown-item" style="height:26px;font-size:10.5px">01 总览</div><div class="hmi-dropdown-item" style="height:26px;font-size:10.5px">02 实时监控</div><div class="hmi-help" style="padding:2px 8px">… 还有 4 页</div></div></div><p class="state-note">超过 8 项滚动；不压缩行高。</p></div>
+    <div class="state-cell"><h4>Web（镜像）</h4><div class="state-demo"><span class="hmi-chip">隐藏</span></div><p class="state-note">镜像模式禁止浏览器切页；web 不显示页面菜单，桌面切页后跟随。</p></div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>项</th><th>约定</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td><b>落点</b></td><td><code>ScadaRuntimeWindow</code> 顶栏；无 TypeKey、无 <code>.vms</code> 图元</td><td>全局导航，所有页面共享；不受画布缩放/裁剪/图层影响。</td></tr>
+        <tr><td><b>页面来源</b></td><td>自动 = 本方案可导航页（排除基座与弹窗页）；手动可排序/改显示名</td><td>与 <code>IScadaNavigator</code> 的寻址口径一致。</td></tr>
+        <tr><td><b>当前页</b></td><td>高亮且不可点</td><td>避免重复 <code>Loaded</code>；与现有 <code>Navigate</code> 幂等语义一致。</td></tr>
+        <tr><td><b>返回</b></td><td>走 <code>GoBack()</code>；栈空置灰</td><td>页栈已实现（深度 32），只差 UI 出口；同时补 <code>NavigateBack</code> 动作给画布按钮用。</td></tr>
+        <tr><td><b>权限</b></td><td>页面级 <code>ScadaPage.RequiredRole</code></td><td>已在领域层实现：<code>Navigate</code>/<code>GoBack</code>/页面菜单共用 <code>ScadaRuntime.CanAccess</code>；不配（None）= 全部可见，旧方案行为不变。</td></tr>
+        <tr><td><b>Web</b></td><td>隐藏页面菜单</td><td>镜像模式禁止浏览器切页（<code>SCADA运行态Web客户端方案</code> §2.1）。</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================ 05 软键盘 ============================ -->
+<section class="section" id="keypad">
+  <div class="sec-head">
+    <span class="sec-index">05</span>
+    <h2>软键盘 · 数字 / 字符 <span class="sev p0">P0</span></h2>
+    <p>不是图元，是运行窗口的共享设施：数值域 / 文本域进入编辑时弹出，提交仍走现有 <code>CommitEdit()</code>。触摸屏部署的硬门槛。</p>
+  </div>
+
+  <div class="stage" style="margin-bottom:14px">
+    <div class="stage-head"><span class="stage-title">Numeric · 编辑态</span><span class="stage-tag">Keypad · 344×300</span></div>
+    <div class="stage-body">
+      <div class="stage-col" style="width:250px">
+        <div class="hmi-card hmi-card-pad">
+          <div class="hmi-between"><span class="hmi-label">曝光时间</span><span class="hmi-chip accent">可写</span></div>
+          <div class="hmi-input is-focus" style="margin-top:8px"><span class="hmi-mono">12.5</span><span class="hmi-label">ms</span></div>
+          <div class="hmi-help" style="margin-top:6px">范围 1–100 ms · 原值 10.0</div>
+        </div>
+        <div class="stage-caption">输入框保持 accent 边框与焦点环；键盘不遮住字段（九宫格自动选边）。</div>
+      </div>
+      <div class="stage-col">
+        <div class="keypad">
+          <div class="keypad-display">
+            <div class="line1"><span class="field">12.5</span><span class="unit">ms</span></div>
+            <div class="line2"><span>范围 1–100</span><span>原值 10.0</span></div>
+          </div>
+          <div class="keypad-grid">
+            <button class="key">7</button><button class="key">8</button><button class="key">9</button><button class="key muted">⌫</button>
+            <button class="key">4</button><button class="key">5</button><button class="key">6</button><button class="key muted">清除</button>
+            <button class="key">1</button><button class="key">2</button><button class="key">3</button><button class="key muted">±</button>
+            <button class="key">0</button><button class="key">.</button><button class="key muted">Esc</button><button class="key accent">确定</button>
+          </div>
+        </div>
+        <div class="stage-caption">键 48×48、间距 8；确定键用 accent 实底，Esc / 清除是弱化键。</div>
+      </div>
+      <div class="stage-col" style="width:220px">
+        <div class="hmi-card hmi-card-pad">
+          <div class="hmi-label" style="margin-bottom:6px">越限反馈</div>
+          <div class="hmi-input is-error"><span class="hmi-mono">150</span><span class="hmi-label">ms</span></div>
+          <div style="font-size:11px;color:var(--p-danger);margin-top:6px;display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v5m0 3h.01"/><circle cx="12" cy="12" r="9"/></svg>超出范围 1–100 ms</div>
+          <div class="hmi-help" style="margin-top:8px">键盘保持打开、原值不被覆盖；改一下就能重提。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage" style="margin-bottom:14px">
+    <div class="stage-head"><span class="stage-title">Placement · 九宫格选边</span><span class="stage-tag">relative to element</span></div>
+    <div class="stage-body">
+      <div class="anchor-grid">
+        <div class="anchor-cell">左上</div><div class="anchor-cell">上</div><div class="anchor-cell">右上</div>
+        <div class="anchor-cell">左</div><div class="anchor-field">字段</div><div class="anchor-cell">右</div>
+        <div class="anchor-cell">左下</div><div class="anchor-cell">下</div><div class="anchor-cell is-on">右下</div>
+      </div>
+      <div class="stage-col" style="width:360px">
+        <div class="hmi-card hmi-card-pad">
+          <div class="hmi-label" style="margin-bottom:6px">规则</div>
+          <div style="font-size:11.5px;line-height:1.8;color:var(--p-text-2)">
+            · 默认优先放在字段<b>下方</b>；下方放不下就翻到上方<br>
+            · 左右按字段中心与屏幕中线自动选边<br>
+            · 键盘外框与字段至少留 8px，且完整落在窗口内<br>
+            · 打开时字段滚入可视区；关闭后焦点回到字段
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="state-grid" style="margin-bottom:14px">
+    <div class="state-cell"><h4>Normal</h4><div class="state-demo"><div class="keypad" style="width:220px;padding:8px"><div class="keypad-grid" style="gap:6px"><button class="key" style="height:36px;font-size:14px">7</button><button class="key" style="height:36px;font-size:14px">8</button><button class="key" style="height:36px;font-size:14px">9</button><button class="key accent" style="height:36px;font-size:12px">确定</button></div></div></div><p class="state-note">数字键主文字；功能键弱化；确定 accent。</p></div>
+    <div class="state-cell"><h4>Pressed</h4><div class="state-demo"><button class="key" style="width:64px;height:40px;background:#0E1318;transform:translateY(1px)">7</button></div><p class="state-note">按下压暗 1px；触摸时给即时反馈，不必等写入。</p></div>
+    <div class="state-cell"><h4>Disabled（只读）</h4><div class="state-demo"><div class="hmi-input is-readonly" style="width:160px"><span class="hmi-mono" style="color:#7C8A99">12.5</span><span class="hmi-label">ms</span></div></div><p class="state-note">只读字段不弹键盘；没有写通道 / 权限时也不弹。</p></div>
+    <div class="state-cell"><h4>Password</h4><div class="state-demo"><span class="hmi-mono" style="font-size:22px;color:#E6EEF7">••••••</span></div><p class="state-note">密码模式只显示圆点；键盘上不出现“显示明文”。</p></div>
+    <div class="state-cell"><h4>Out of range</h4><div class="state-demo" style="flex-direction:column;gap:4px"><div class="hmi-input is-error" style="width:150px"><span class="hmi-mono">150</span></div><span style="font-size:10px;color:#EF4444">超出范围 1–100</span></div><p class="state-note">字段红框 + 键盘内一行原因；不写变量。</p></div>
+    <div class="state-cell"><h4>Write failed</h4><div class="state-demo" style="flex-direction:column;gap:4px"><div class="hmi-input is-error" style="width:170px"><span class="hmi-mono">12.5</span></div><span style="font-size:10px;color:#EF4444">写入被拒：变量只读</span></div><p class="state-note">写失败留在编辑态并显示原因；不假装已提交。</p></div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>行为</th><th>约定</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td><b>打开时机</b></td><td><code>IOFieldElement.BeginEdit()</code> / <code>TextFieldElement.BeginEdit()</code> 之后</td><td>与现有编辑入口同一处，不另开“点击”判据。</td></tr>
+        <tr><td><b>提交</b></td><td>Enter / 确定 → 现有 <code>CommitEdit()</code></td><td>校验、类型转换、权限、写变量全部复用一条路径。</td></tr>
+        <tr><td><b>取消</b></td><td>Esc / 点键盘外 → 放弃编辑，恢复原值</td><td>与桌面 TextBox 的 Esc 语义一致。</td></tr>
+        <tr><td><b>写入时机</b></td><td>只在提交成功时写；<b>不在 TextChanged 写</b></td><td>R35：只有真实用户输入事件才算意图；逐字写会把半截数字推给 PLC。</td></tr>
+        <tr><td><b>显示</b></td><td>当前输入 + 单位 + 上下限 + 原值</td><td>手册 13.9「显示上下限值 / 显示前一数值」；现场改参数最需要这两个参照。</td></tr>
+        <tr><td><b>字符键盘</b></td><td>v1 只做 ASCII 字母 / 数字 / 常用符号；中文走系统输入法</td><td>Unicode 键盘需要字体与输入法配合，先不承诺。</td></tr>
+        <tr><td><b>Web</b></td><td>M2 用浏览器键盘 + 同一套校验文案；不做网页版九宫格键盘</td><td>浏览器已有软键盘；桌面端的键盘设施不影响 web 只读镜像。</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================ 06 弹窗 ============================ -->
+<section class="section" id="popup">
+  <div class="sec-head">
+    <span class="sec-index">06</span>
+    <h2>弹窗 / 子画面 <span class="sev p1">P1</span></h2>
+    <p>整页切换之外的第二种页面呈现：模态浮层盖在当前页上，关闭后回到原页与原焦点。弹窗页就是普通 <code>ScadaPage</code>，加 <code>IsPopup</code> 标记。</p>
+  </div>
+
+  <div class="stage" style="margin-bottom:14px;padding:0;border:0;background:transparent">
+    <div class="popup-layer">
+      <div class="popup-underlay">
+        <div class="u-card" style="height:96px"></div>
+        <div class="u-card u-wide"></div>
+        <div class="u-card" style="height:132px"></div>
+      </div>
+      <div class="popup-backdrop"></div>
+      <div class="popup">
+        <div class="popup-title">
+          <span>轴参数 · X 轴</span>
+          <button class="popup-close" type="button" aria-label="关闭">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <div class="popup-body">
+          <div class="field-row"><span class="hmi-label">速度</span><div class="hmi-input"><span class="hmi-mono">50.0</span><span class="hmi-label">mm/s</span></div></div>
+          <div class="field-row"><span class="hmi-label">加速度</span><div class="hmi-input"><span class="hmi-mono">500</span><span class="hmi-label">mm/s²</span></div></div>
+          <div class="field-row"><span class="hmi-label">软限位</span><div class="hmi-input"><span class="hmi-mono">0 – 300</span><span class="hmi-label">mm</span></div></div>
+          <div class="hmi-help">修改会在“保存”时一次性写入；取消不改变任何变量。</div>
+        </div>
+        <div class="popup-foot">
+          <button class="hmi-btn ghost" type="button">取消</button>
+          <button class="hmi-btn primary" type="button">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage" style="margin-bottom:14px">
+    <div class="stage-head"><span class="stage-title">Anchor · 九宫格 / 非模态</span><span class="stage-tag">OpenPopup(anchor, modal)</span></div>
+    <div class="stage-body">
+      <div class="anchor-grid">
+        <div class="anchor-cell">左上</div><div class="anchor-cell">上</div><div class="anchor-cell is-on">右上</div>
+        <div class="anchor-cell">左</div><div class="anchor-field">触发</div><div class="anchor-cell">右</div>
+        <div class="anchor-cell">左下</div><div class="anchor-cell">下</div><div class="anchor-cell">右下</div>
+      </div>
+      <div class="stage-col" style="width:330px">
+        <div class="hmi-card hmi-card-pad">
+          <div class="hmi-label" style="margin-bottom:6px">两种形态</div>
+          <div style="font-size:11.5px;line-height:1.8;color:var(--p-text-2)">
+            <b>模态（默认）</b>：遮罩 + 背景不可点 + 焦点锁在弹窗内；Esc / 关闭按钮退出。<br>
+            <b>非模态</b>：无遮罩，可边看边操作；适合“帮助 / 参考参数”，<b>不允许</b>同时开两个非模态。
+          </div>
+        </div>
+        <div class="hmi-card hmi-card-pad">
+          <div class="hmi-label" style="margin-bottom:6px">尺寸</div>
+          <div style="font-size:11.5px;line-height:1.8;color:var(--p-text-2)">由弹窗页的 <code>Width × Height</code> 决定；标题 42 / 底栏 54 固定，内容区自适应。窄屏时按 90% 宽收敛。</div>
+        </div>
+      </div>
+      <div class="stage-col" style="width:330px">
+        <div class="hmi-card" style="padding:0;overflow:hidden;box-shadow:0 16px 40px rgba(0,0,0,.35)">
+          <div class="popup-title" style="height:38px"><span>参考参数</span><span class="hmi-chip">非模态</span></div>
+          <div class="popup-body" style="padding:12px;font-size:11.5px;color:var(--p-text-2)">没有遮罩；主画面仍可操作。点主画面不会自动关闭它，需显式关闭。</div>
+        </div>
+        <div class="stage-caption">非模态只用于“参考/帮助”，参数编辑一律模态。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="state-grid" style="margin-bottom:14px">
+    <div class="state-cell"><h4>Opening / Closing</h4><div class="state-demo"><span class="hmi-chip accent">fade 150ms</span></div><p class="state-note">淡入 + 上移 8px；关闭反向。不做缩放/旋转等花哨动画。</p></div>
+    <div class="state-cell"><h4>Modal</h4><div class="state-demo" style="position:relative"><div style="position:absolute;inset:0;background:rgba(3,7,12,.64)"></div><div style="position:relative;width:120px;height:56px;background:#151C23;border:1px solid #3A4A5C;border-radius:8px"></div></div><p class="state-note">背景压暗 64%，背景控件不可命中。</p></div>
+    <div class="state-cell"><h4>Non-modal</h4><div class="state-demo"><div style="width:120px;height:56px;background:#151C23;border:1px solid #3A4A5C;border-radius:8px;box-shadow:0 16px 40px rgba(0,0,0,.4)"></div></div><p class="state-note">无遮罩，阴影抬升层级；同一时刻只允许一个。</p></div>
+    <div class="state-cell"><h4>Save failed</h4><div class="state-demo" style="flex-direction:column;gap:4px"><div class="hmi-input is-error" style="width:160px"><span class="hmi-mono">50.0</span></div><span style="font-size:10px;color:#EF4444">写入被拒：轴未使能</span></div><p class="state-note">弹窗不关，错误留在字段旁；取消可丢弃。</p></div>
+    <div class="state-cell"><h4>Permission denied</h4><div class="state-demo"><span class="hmi-chip bad">无权限打开</span></div><p class="state-note">动作执行前拦下，toast 说明需要哪个角色；不打开空弹窗。</p></div>
+    <div class="state-cell"><h4>Nested</h4><div class="state-demo"><span class="hmi-chip warn">v1 不支持</span></div><p class="state-note">弹窗里再开弹窗一律拒绝并记日志；避免层叠与焦点混乱。</p></div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>项</th><th>约定</th></tr></thead>
+      <tbody>
+        <tr><td><b>动作</b></td><td><code>OpenPopup(TargetPage, Modal=true, Anchor=9宫格, OffsetX/Y)</code> / <code>ClosePopup</code>；关闭条件还可由变量归零触发（间接窗口语义，v1.1 可选）。</td></tr>
+        <tr><td><b>页面</b></td><td>普通 <code>ScadaPage</code> + <code>IsPopup=true</code>；不参与页面菜单、不能被 <code>Navigate</code> 当作普通页切走。</td></tr>
+        <tr><td><b>关闭</b></td><td>关闭按钮 / Esc / 点遮罩（可配）/ <code>ClosePopup</code> 动作。关闭后焦点回到打开它的元素。</td></tr>
+        <tr><td><b>数据</b></td><td>弹窗页的绑定与动画走同一个 <code>ScadaRuntimeBinder</code>；打开时建表、关闭时摘表（不泄漏订阅）。</td></tr>
+        <tr><td><b>Web</b></td><td>M3：快照带弹窗层，web 只渲染不打开；镜像模式下桌面切页/开关弹窗，web 跟随。</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================ 07 滑块 ============================ -->
+<section class="section" id="slider">
+  <div class="sec-head">
+    <span class="sec-index">07</span>
+    <h2>Hmi.Slider · 模拟量滑块 <span class="sev p1">P1</span></h2>
+    <p>连续量的“拖动即写”。v1 补充候选已列 P1；本稿补交互契约、写入时机与失败反馈。</p>
+  </div>
+
+  <div class="stage" style="margin-bottom:14px">
+    <div class="stage-head"><span class="stage-title">Horizontal / Vertical / Stepper</span><span class="stage-tag">Hmi.Slider · 280×48 / 48×180</span></div>
+    <div class="stage-body">
+      <div class="stage-col" style="width:320px">
+        <div class="hmi-card hmi-card-pad">
+          <div class="slider-head"><span class="hmi-label">曝光时间</span><span class="slider-value">62<small>%</small></span></div>
+          <div class="slider">
+            <div class="slider-track"><div class="slider-fill" style="width:62%"></div><div class="slider-thumb" style="left:62%"></div></div>
+            <div class="slider-ticks"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+          </div>
+        </div>
+        <div class="stage-caption">横向：轨道 8px，拇指 20px；刻度只标主刻度。</div>
+      </div>
+      <div class="stage-col">
+        <div class="hmi-card hmi-card-pad" style="display:flex;gap:16px;align-items:center">
+          <div class="slider-v">
+            <div class="track"><div class="fill" style="height:38%"></div><div class="thumb" style="bottom:38%"></div></div>
+            <div class="hmi-label">亮度<br><span class="hmi-mono" style="color:var(--p-text)">38%</span></div>
+          </div>
+          <div style="font-size:11.5px;line-height:1.8;color:var(--p-text-2);width:150px">
+            纵向用于“越高越大”的物理量；<br>方向可翻转。
+          </div>
+        </div>
+        <div class="stage-caption">纵向：拇指与轨道同轴，数值标签在右侧。</div>
+      </div>
+      <div class="stage-col" style="width:250px">
+        <div class="hmi-card hmi-card-pad">
+          <div class="hmi-label" style="margin-bottom:8px">滚动模式（点按步进）</div>
+          <div class="hmi-row"><div class="stepper"><button type="button">−</button><span class="val">62</span><button type="button">+</button></div><span class="hmi-label">步长 5</span></div>
+          <div class="hmi-help" style="margin-top:8px">不拖也能调：适合戴手套 / 小屏；与拖动共用同一个写入出口。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="state-grid" style="margin-bottom:14px">
+    <div class="state-cell"><h4>Normal</h4><div class="state-demo"><div class="slider" style="width:150px"><div class="slider-track"><div class="slider-fill" style="width:45%"></div><div class="slider-thumb" style="left:45%"></div></div></div></div><p class="state-note">accent 填充 + 白色拇指；轨道用 HmiTrack。</p></div>
+    <div class="state-cell"><h4>Dragging</h4><div class="state-demo"><div class="slider" style="width:150px"><div class="slider-track"><div class="slider-fill" style="width:70%"></div><div class="slider-thumb is-drag" style="left:70%"></div></div></div></div><p class="state-note">拇指外圈 6px accent 光晕；数值实时跟手，但<b>不写变量</b>。</p></div>
+    <div class="state-cell"><h4>Focus</h4><div class="state-demo"><div class="slider" style="width:150px"><div class="slider-track"><div class="slider-fill" style="width:45%"></div><div class="slider-thumb" style="left:45%;outline:2px solid #38BDF8;outline-offset:3px"></div></div></div></div><p class="state-note">键盘左右 ±Step；焦点环 2px + 3px offset。</p></div>
+    <div class="state-cell"><h4>Disabled</h4><div class="state-demo"><div class="slider is-disabled" style="width:150px"><div class="slider-track"><div class="slider-fill" style="width:45%"></div><div class="slider-thumb" style="left:45%"></div></div></div></div><p class="state-note">无写通道 / 变量丢失：整条降透明度，拇指不可拖。</p></div>
+    <div class="state-cell"><h4>Permission</h4><div class="state-demo" style="flex-direction:column;gap:4px"><div class="slider" style="width:150px"><div class="slider-track"><div class="slider-fill" style="width:45%"></div><div class="slider-thumb" style="left:45%"></div></div></div><span class="hmi-chip warn">需要操作员</span></div><p class="state-note">无权限时保持可读，不显示“能拖但拖了报错”。</p></div>
+    <div class="state-cell"><h4>Write failed</h4><div class="state-demo"><div class="slider is-error" style="width:150px"><div class="slider-track"><div class="slider-fill" style="width:70%"></div><div class="slider-thumb" style="left:70%"></div></div></div><span style="font-size:10px;color:#EF4444;margin-top:6px">写入被拒，已回弹</span></div><p class="state-note">松手写入失败 → 拇指回弹到变量当前值 + 红轨 + 原因。</p></div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>属性 / 行为</th><th>类型 / 约定</th><th>默认</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>Value</code></td><td>number（读写）</td><td>0</td><td>唯一绑定入口；拖动只改显示，提交才写变量。</td></tr>
+        <tr><td><code>Minimum / Maximum</code></td><td>number</td><td>0 / 100</td><td>常数上下限；与变量上下限二选一。</td></tr>
+        <tr><td><code>MinVariable / MaxVariable</code></td><td>变量名</td><td>空</td><td>运行中可改量程（手册 13.8「上下限取自寄存器」）；配置后常数框置灰。</td></tr>
+        <tr><td><code>Step</code></td><td>number</td><td>1</td><td>键盘 / 点按步进；拖动不受步长限制（显示连续值）。</td></tr>
+        <tr><td><code>WriteMode</code></td><td>枚举</td><td>Release</td><td>Release（松手写一次）/ Throttled（100ms 节流，仅用于必须连续跟随的场合）。</td></tr>
+        <tr><td><code>ConfirmDanger</code></td><td>bool</td><td>false</td><td>速度 / 压力 / 温度类建议打开；写入前走二次确认。</td></tr>
+        <tr><td><b>拖动中</b></td><td>只更新显示</td><td>—</td><td>不写变量；松手才写。避免一个拖动把变量写几百次。</td></tr>
+        <tr><td><b>写入失败</b></td><td>回弹 + 红轨 + 原因</td><td>—</td><td>不许停在“看起来已经改了”的位置。</td></tr>
+        <tr><td><b>Web</b></td><td>M2 可交互</td><td>—</td><td>走 <code>cmd.input</code>；写入时机与桌面同一口径（松手一次）。</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================ 08 报警逐条确认 ============================ -->
+<section class="section" id="alarm-ack">
+  <div class="sec-head">
+    <span class="sec-index">08</span>
+    <h2>Hmi.AlarmBanner · 逐条确认 <span class="sev p1">P1</span></h2>
+    <p>活动报警列表和整体确认已经有了；缺的是行内逐条确认与确认回写。历史/审计不塞进这个图元。</p>
+  </div>
+
+  <div class="callout" style="margin-bottom:14px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3h.01"/></svg>
+    <div><b>结论：本批不新增 <code>Hmi.RecordList</code>。</b>现有 <code>AlarmBanner</code> 已吃 <code>ScadaAlarmEngine.ActiveAlarms</code>（严重度排序、未确认计数、严重未确认闪烁），<code>AckButton</code> 已做“全部/最早”确认。先补<b>行内逐条确认</b>；历史走宿主 <code>ScadaAlarmHistoryView</code>，审计走 <code>ScadaAuditWriter</code> / 将来的 DataGrid 源模式。</div>
+  </div>
+
+  <div class="stage" style="margin-bottom:14px">
+    <div class="stage-head"><span class="stage-title">AlarmBanner · 行内确认</span><span class="stage-tag">Hmi.AlarmBanner · 320×140</span></div>
+    <div class="hmi-card" style="overflow:hidden;max-width:560px">
+      <div class="hmi-between" style="padding:10px 12px;border-bottom:1px solid var(--p-border)">
+        <span style="font-size:12px;font-weight:600;color:var(--p-text)">实时报警</span>
+        <span class="hmi-help">未确认 2 / 共 3</span>
+      </div>
+      <div class="alarm-row"><span class="bar"></span><div><div class="name">相机 2 掉线</div><div class="meta">14:32:08 · 严重 · 未确认</div></div><button class="hmi-btn" style="height:26px;padding:0 8px;font-size:10.5px" type="button">确认</button></div>
+      <div class="alarm-row"><span class="bar warn"></span><div><div class="name">光源亮度偏低</div><div class="meta">14:30:51 · 警告 · 未确认</div></div><button class="hmi-btn" style="height:26px;padding:0 8px;font-size:10.5px" type="button">确认</button></div>
+      <div class="alarm-row is-ack"><span class="bar warn"></span><div><div class="name">X 轴接近软限位</div><div class="meta">14:28:17 · 警告 · 张三 14:29 已确认</div></div><span class="hmi-help">已确认</span></div>
+      <div class="alarm-row is-clear"><span class="bar ok"></span><div><div class="name">气源压力低</div><div class="meta">14:12:03 · 严重 · 已恢复</div></div><span class="hmi-help">已恢复</span></div>
+    </div>
+    <div class="stage-caption">行内确认只确认这一条；表头计数与闪烁仍由现有报警条负责。</div>
+  </div>
+
+  <div class="state-grid" style="margin-bottom:14px">
+    <div class="state-cell"><h4>未确认</h4><div class="state-demo" style="justify-content:stretch"><div class="alarm-row" style="padding:4px 0;border:0"><span class="bar"></span><div><div class="name" style="font-size:11px">相机 2 掉线</div><div class="meta">14:32 · 严重</div></div><button class="hmi-btn" style="height:24px;padding:0 7px;font-size:10px" type="button">确认</button></div></div><p class="state-note">左侧 3px 严重度色条；行内给“确认”。</p></div>
+    <div class="state-cell"><h4>已确认</h4><div class="state-demo" style="justify-content:stretch"><div class="alarm-row is-ack" style="padding:4px 0;border:0"><span class="bar warn"></span><div><div class="name" style="font-size:11px">光源亮度偏低</div><div class="meta">14:30 · 张三 14:31</div></div><span class="hmi-help">已确认</span></div></div><p class="state-note">整行降到 72%；确认人与时间留在行内。</p></div>
+    <div class="state-cell"><h4>已恢复</h4><div class="state-demo" style="justify-content:stretch"><div class="alarm-row is-clear" style="padding:4px 0;border:0"><span class="bar ok"></span><div><div class="name" style="font-size:11px">气源压力低</div><div class="meta">14:12 · 已恢复</div></div><span class="hmi-help">已恢复</span></div></div><p class="state-note">再降一档；恢复后是否保留由现有报警条口径决定。</p></div>
+    <div class="state-cell"><h4>Empty</h4><div class="state-demo"><div class="hmi-empty" style="padding:8px"><b>系统正常</b>没有活动报警</div></div><p class="state-note">沿用现有 <code>EmptyText</code>；不是空白表格。</p></div>
+    <div class="state-cell"><h4>Ack failed</h4><div class="state-demo"><span class="hmi-chip bad">确认失败：没有权限</span></div><p class="state-note">失败不改行状态；toast + 日志；不乐观更新。</p></div>
+    <div class="state-cell"><h4>ShowRowAck=false</h4><div class="state-demo" style="justify-content:stretch"><div class="alarm-row" style="padding:4px 0;border:0"><span class="bar warn"></span><div><div class="name" style="font-size:11px">光源亮度偏低</div><div class="meta">14:30 · 警告</div></div><span class="hmi-help">—</span></div></div><p class="state-note">默认关闭，保持现有外观；新项目建议打开。</p></div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>属性 / 行为</th><th>来源</th><th>约定</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>MaxRows / EmptyText / 四种颜色</code></td><td>已有</td><td>—</td><td>现有报警条属性，全部保留。</td></tr>
+        <tr><td><code>ShowRowAck</code></td><td><b>新增</b></td><td>bool，默认 false</td><td>打开后每行出现“确认”；关闭时与现在完全一致，老方案不受影响。</td></tr>
+        <tr><td><code>AckVariable</code></td><td><b>新增</b></td><td>变量名，默认空</td><td>确认成功后写入（0→1 或累加）；PLC 握手用。留空 = 不写。</td></tr>
+        <tr><td><b>确认顺序</b></td><td>—</td><td>先引擎、后回写</td><td><code>ScadaAlarmEngine.Acknowledge(id)</code> 成功后才写 <code>AckVariable</code>；任一步失败都不改行状态。</td></tr>
+        <tr><td><b>权限</b></td><td>已有</td><td><code>RequiredRole</code></td><td>与 <code>AckButton</code> 同一套角色闸门；无权限时按钮置灰或隐藏。</td></tr>
+        <tr><td><b>历史 / 审计</b></td><td>宿主已有</td><td>不塞进报警条</td><td>历史用 <code>ScadaAlarmHistoryView</code>（弹窗）；审计用 <code>ScadaAuditWriter</code>；将来页内历史表用 DataGrid 源模式。</td></tr>
+        <tr><td><b>Web</b></td><td>M2 已有</td><td><code>cmd.alarm.ack</code></td><td>web 的确认命令已存在；报警条渲染沿用现有方案，不新增协议。</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================ 09 表格历史源 ============================ -->
+<section class="section" id="grid-history">
+  <div class="sec-head">
+    <span class="sec-index">09</span>
+    <h2>Hmi.DataGrid · 历史源模式 <span class="sev p2">P2</span></h2>
+    <p>表格内核（列定义 / 行模型 / 空态 / 斑马纹 / 缓存行数）已经在 DataGrid 里；历史只是换一个数据源。</p>
+  </div>
+
+  <div class="callout" style="margin-bottom:14px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3h.01"/></svg>
+    <div><b>结论：不新增 <code>Hmi.HistoryTable</code>。</b><code>DataGridElement</code> 已经有列定义、行视图模型、列头格、空态、最大行数与斑马纹；历史只是把“采行信号驱动的缓冲”换成“时间范围查询”。加一个 <code>Source</code> 模式即可，不造第二张表。</div>
+  </div>
+
+  <div class="stage" style="margin-bottom:14px">
+    <div class="stage-head"><span class="stage-title">DataGrid · 历史模式</span><span class="stage-tag">Hmi.DataGrid · 720×320</span></div>
+    <div class="hmi-card" style="overflow:hidden">
+      <div class="hmi-row" style="padding:10px 12px;border-bottom:1px solid var(--p-border);gap:10px">
+        <span class="source-chip">历史</span>
+        <div class="range-chips"><span class="r is-on">今天</span><span class="r">昨天</span><span class="r">最近 7 天</span><span class="r">自定义…</span></div>
+        <div style="flex:1"></div>
+        <span class="hmi-help">自动刷新 10s</span>
+        <button class="hmi-btn" style="height:28px;padding:0 9px;font-size:11px" type="button">刷新</button>
+      </div>
+      <table class="hmi-table">
+        <thead><tr><th>时间</th><th>SN</th><th>角度</th><th>结果</th><th>MES</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">14:32:08</td><td class="mono">SN20261021001</td><td class="mono">12.48°</td><td><span class="hmi-chip ok">OK</span></td><td>已上传</td></tr>
+          <tr><td class="mono">14:31:52</td><td class="mono">SN20261021002</td><td class="mono">12.51°</td><td><span class="hmi-chip ok">OK</span></td><td>已上传</td></tr>
+          <tr><td class="mono">14:31:37</td><td class="mono">SN20261021003</td><td class="mono">12.44°</td><td><span class="hmi-chip bad">NG</span></td><td>已上传</td></tr>
+          <tr><td class="mono">14:31:21</td><td class="mono">SN20261021004</td><td class="mono">12.50°</td><td><span class="hmi-chip ok">OK</span></td><td>待重试</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="stage-caption">列定义、宽度、对齐、格式、等宽全部复用现有 DataGrid 列配置；只多了顶部的数据源与时间范围。</div>
+  </div>
+
+  <div class="state-grid" style="margin-bottom:14px">
+    <div class="state-cell"><h4>Loading</h4><div class="state-demo" style="flex-direction:column;gap:6px;width:100%"><div class="skeleton" style="width:80%"></div><div class="skeleton" style="width:66%"></div><div class="skeleton" style="width:72%"></div></div><p class="state-note">查询中保留表头，行区骨架；不许整块白屏。</p></div>
+    <div class="state-cell"><h4>Empty</h4><div class="state-demo"><div class="hmi-empty" style="padding:10px"><b>这个时间段没有记录</b>换个时间范围或确认记录插件已启用</div></div><p class="state-note">沿用 DataGrid 的空态结构；文案说明“是没数据”而不是“坏了”。</p></div>
+    <div class="state-cell"><h4>Source unavailable</h4><div class="state-demo" style="flex-direction:column;gap:4px"><span class="hmi-chip bad">数据源不可用</span><span style="font-size:10px;color:#A9B7C6">未找到 DataRecord 输出目录</span></div><p class="state-note">错误可见 + 可重试；不把异常吞成空表。</p></div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>属性 / 依赖</th><th>来源</th><th>约定</th></tr></thead>
+      <tbody>
+        <tr><td><code>Columns / MaxRows / RowHeight / NewestFirst / Zebra</code></td><td>已有</td><td>全部复用；历史模式与实时模式共用同一套列定义。</td></tr>
+        <tr><td><code>Source</code></td><td><b>新增</b></td><td>Live（默认，现有采行信号）/ History（时间范围查询）。</td></tr>
+        <tr><td><code>HistoryRange</code></td><td><b>新增</b></td><td>今天 / 昨天 / 最近 7 天 / 自定义；自定义走日期选择器。</td></tr>
+        <tr><td><code>AutoRefreshSeconds</code></td><td><b>新增</b></td><td>默认 10s；0 = 不自动刷新。查询在后台线程，结果回 UI 线程。</td></tr>
+        <tr><td><code>HistorySource</code></td><td><b>新增</b></td><td>数据源标识（DataRecord 文件 / 数据库）；由宿主侧 <code>IScadaHistorySource</code> 实现，图元不直接读文件。</td></tr>
+        <tr><td><b>排期前提</b></td><td>—</td><td><code>IScadaHistorySource</code> 契约 + 数据保留策略 + 查询超时/分页；未定之前不做 WPF 复刻。</td></tr>
+        <tr><td><b>Web</b></td><td>非目标</td><td>运行态 web 只显示“此刻”；历史表不占 web 快照。</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================ 10 动画扩展 ============================ -->
+<section class="section" id="animation">
+  <div class="sec-head">
+    <span class="sec-index">10</span>
+    <h2>旋转 / 缩放动画 <span class="sev p2">P2</span></h2>
+    <p>现有 4 种动画（外观 / 水平 / 垂直 / 可见性）之外，补“转起来”和“放大缩小”。图元已有设计期 <code>Rotation</code> 与 <code>ApplyRotation</code>，动画只需叠加。</p>
+  </div>
+
+  <div class="stage" style="margin-bottom:14px">
+    <div class="stage-head"><span class="stage-title">Rotation / Scale</span><span class="stage-tag">ScadaAnimationType 5 / 6</span></div>
+    <div class="stage-body">
+      <div class="stage-col">
+        <div class="anim-demo">
+          <div class="fan"><span class="blade"></span><span class="hub"></span></div>
+          <div class="angle-arc"><div class="arc"></div></div>
+        </div>
+        <div class="stage-caption">旋转：值域 → 角度域（0–360°，顺/逆时针）；中心默认 (0.5, 0.5)。</div>
+      </div>
+      <div class="stage-col">
+        <div class="anim-demo">
+          <div class="scale-box small">50%</div>
+          <div style="color:#7C8A99">→</div>
+          <div class="scale-box">100%</div>
+        </div>
+        <div class="stage-caption">缩放：值域 → 比例域（0.5–2.0）；中心默认 (0.5, 0.5)。</div>
+      </div>
+      <div class="stage-col" style="width:320px">
+        <div class="hmi-card hmi-card-pad">
+          <div class="hmi-label" style="margin-bottom:6px">叠加规则</div>
+          <div style="font-size:11.5px;line-height:1.8;color:var(--p-text-2)">
+            设计角是“底”，动画角是“增量”：<br>
+            <span class="hmi-mono">最终角 = 设计角 + 动画角</span><br>
+            停止运行 → 回到设计角；动画不写模型。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>属性</th><th>适用</th><th>默认</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>FromAngle / ToAngle</code></td><td>Rotation</td><td>0 / 360</td><td>变量最小 / 最大值对应的角度；可为负、可超过 360（多圈）。</td></tr>
+        <tr><td><code>Direction</code></td><td>Rotation</td><td>Clockwise</td><td>顺时针 / 逆时针；只影响视觉方向，不改值域。</td></tr>
+        <tr><td><code>CenterX / CenterY</code></td><td>Rotation / Scale</td><td>0.5 / 0.5</td><td>相对图元的中心；风机/转盘通常用 0.5，指针类用几何中心。</td></tr>
+        <tr><td><code>FromScale / ToScale</code></td><td>Scale</td><td>0.5 / 1.0</td><td>比例域；小于 0.2 或大于 3 时属性面板提示“可能看不清”。</td></tr>
+        <tr><td><b>与设计角叠加</b></td><td>两者</td><td>—</td><td>当前 <code>ApplyRotation</code> 是覆盖；动画要改成“设计角 + 动画角”，停止时复位。</td></tr>
+        <tr><td><b>Web</b></td><td>M1.5</td><td>—</td><td>CSS transform；与 WPF 的 <code>RenderTransformOrigin</code> 同一口径。</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================ 11 组合示例 ============================ -->
+<section class="section" id="composition">
+  <div class="sec-head">
+    <span class="sec-index">11</span>
+    <h2>组合示例 · 一屏看全</h2>
+    <p>复核版组合：顶栏页面菜单（运行时 chrome）+ 左栏 ComboBox 只读显示 + 中区工艺图与滑块 + 右栏 AlarmBanner（行内确认）；弹窗与软键盘同时展示。</p>
+  </div>
+
+  <div class="stage" style="padding:12px">
+    <div class="screen">
+      <div class="screen-top">
+        <span class="title">2# 灌装检测单元</span>
+        <div class="hmi-dropdown" style="width:150px">
+          <div class="hmi-dropdown-trigger" style="height:30px;font-size:11.5px"><span>总览</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+        <button class="hmi-btn ghost" style="height:30px;padding:0 9px;font-size:11px" type="button">← 返回</button>
+        <div class="spacer"></div>
+        <span class="hmi-chip bad"><span class="hmi-dot"></span>3 条未确认</span>
+        <span class="hmi-chip ok"><span class="hmi-dot"></span>运行中</span>
+        <span class="hmi-chip accent">张三 · 操作员</span>
+        <button class="hmi-btn danger" style="height:30px;padding:0 9px;font-size:11px" type="button">停止运行</button>
+      </div>
+      <div class="screen-body" style="grid-template-columns:210px minmax(0,1fr) 360px">
+        <div class="screen-col">
+          <div class="hmi-card hmi-card-pad">
+            <div class="hmi-label">设备状态</div>
+            <div class="combo-text" style="margin-top:4px"><span class="value" style="font-size:18px">运行中</span></div>
+            <div class="hmi-label" style="margin-top:12px">相机状态</div>
+            <div class="combo-text" style="margin-top:4px"><span class="value" style="font-size:14px">在线</span></div>
+            <div class="hmi-help" style="margin-top:2px">29.8 fps</div>
+          </div>
+          <div class="hmi-card hmi-card-pad">
+            <div class="hmi-label">当前页</div>
+            <div style="font-size:14px;font-weight:600;margin-top:2px">总览</div>
+            <div class="hmi-help" style="margin-top:6px">页面菜单在顶栏，不在画布</div>
+          </div>
+          <div class="hmi-card hmi-card-pad">
+            <div class="hmi-label">操作员</div>
+            <div style="font-size:13px;font-weight:600;margin-top:2px">张三</div>
+            <div class="hmi-help">操作员 · 可确认报警</div>
+          </div>
+        </div>
+        <div class="screen-main">
+          <div class="screen-row">
+            <div class="hmi-card hmi-card-pad"><div class="hmi-label">产量</div><div class="hmi-value">12,480</div><div class="hmi-help">件 · 本班</div></div>
+            <div class="hmi-card hmi-card-pad"><div class="hmi-label">良率</div><div class="hmi-value">99.2<small style="font-size:12px">%</small></div><div class="hmi-help">目标 ≥ 99.0%</div></div>
+            <div class="hmi-card hmi-card-pad"><div class="hmi-label">节拍</div><div class="hmi-value">1.28<small style="font-size:12px">s</small></div><div class="hmi-help">最近 100 件均值</div></div>
+          </div>
+          <div class="hmi-card hmi-card-pad" style="display:flex;flex-direction:column;gap:12px;min-height:0">
+            <div class="hmi-between"><span class="hmi-label">工艺流程图</span><span class="hmi-chip ok"><span class="hmi-dot"></span>自动</span></div>
+            <div class="hmi-row" style="gap:18px;flex:1;align-items:center">
+              <div class="tank"><span class="tag">T-101<br>62%</span></div>
+              <div class="stage-col" style="flex:1;gap:14px">
+                <div class="pipe"></div>
+                <div class="hmi-row" style="justify-content:space-between"><span class="hmi-label">P-101 供料泵</span><span class="hmi-chip ok">运行</span></div>
+                <div class="pipe" style="opacity:.55"></div>
+                <div class="hmi-row" style="justify-content:space-between"><span class="hmi-label">FV-101 调节阀</span><span class="hmi-chip accent">开度 62%</span></div>
+              </div>
+            </div>
+            <div class="screen-bottom">
+              <span class="hmi-label" style="width:64px">曝光</span>
+              <div class="slider" style="flex:1;padding:0">
+                <div class="slider-track"><div class="slider-fill" style="width:62%"></div><div class="slider-thumb" style="left:62%"></div></div>
+                <div class="slider-ticks"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+              </div>
+              <span class="hmi-mono" style="font-size:14px">62%</span>
+            </div>
+          </div>
+        </div>
+        <div class="screen-col">
+          <div class="hmi-card" style="overflow:hidden;flex:1;min-height:0">
+            <div class="hmi-between" style="padding:10px 12px;border-bottom:1px solid var(--p-border)">
+              <span style="font-size:12px;font-weight:600">实时报警</span>
+              <span class="hmi-help">未确认 2 / 共 3</span>
+            </div>
+            <div class="alarm-row"><span class="bar"></span><div><div class="name">相机 2 掉线</div><div class="meta">14:32 · 严重</div></div><button class="hmi-btn" style="height:24px;padding:0 7px;font-size:10px" type="button">确认</button></div>
+            <div class="alarm-row"><span class="bar warn"></span><div><div class="name">光源亮度偏低</div><div class="meta">14:30 · 警告</div></div><button class="hmi-btn" style="height:24px;padding:0 7px;font-size:10px" type="button">确认</button></div>
+            <div class="alarm-row is-ack"><span class="bar warn"></span><div><div class="name">X 轴接近软限位</div><div class="meta">14:28 · 张三</div></div><span class="hmi-help">已确认</span></div>
+            <div class="alarm-row is-clear"><span class="bar ok"></span><div><div class="name">气源压力低</div><div class="meta">14:12 · 已恢复</div></div><span class="hmi-help">已恢复</span></div>
+          </div>
+          <div class="hmi-card hmi-card-pad">
+            <div class="hmi-between"><span class="hmi-label">趋势 · 压力</span><span class="hmi-chip accent">LIVE</span></div>
+            <svg viewBox="0 0 300 70" style="width:100%;height:70px;margin-top:6px" preserveAspectRatio="none">
+              <polyline points="0,50 30,44 60,46 90,32 120,36 150,26 180,30 210,20 240,24 270,16 300,18" fill="none" stroke="#38BDF8" stroke-width="2"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen-popup">
+        <div class="popup">
+          <div class="popup-title"><span>轴参数 · X 轴</span><button class="popup-close" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+          <div class="popup-body">
+            <div class="field-row"><span class="hmi-label">速度</span><div class="hmi-input is-focus"><span class="hmi-mono">50.0</span><span class="hmi-label">mm/s</span></div></div>
+            <div class="field-row"><span class="hmi-label">加速度</span><div class="hmi-input"><span class="hmi-mono">500</span><span class="hmi-label">mm/s²</span></div></div>
+          </div>
+          <div class="popup-foot"><button class="hmi-btn ghost" type="button">取消</button><button class="hmi-btn primary" type="button">保存</button></div>
+        </div>
+      </div>
+      <div class="screen-keypad">
+        <div class="keypad" style="width:260px;padding:9px">
+          <div class="keypad-display" style="padding:6px 8px;margin-bottom:7px"><div class="line1"><span class="field" style="font-size:17px">50.0</span><span class="unit" style="font-size:10px">mm/s</span></div></div>
+          <div class="keypad-grid" style="gap:6px">
+            <button class="key" style="height:34px;font-size:13px">7</button><button class="key" style="height:34px;font-size:13px">8</button><button class="key" style="height:34px;font-size:13px">9</button><button class="key muted" style="height:34px;font-size:10px">⌫</button>
+            <button class="key" style="height:34px;font-size:13px">4</button><button class="key" style="height:34px;font-size:13px">5</button><button class="key" style="height:34px;font-size:13px">6</button><button class="key muted" style="height:34px;font-size:10px">清除</button>
+            <button class="key" style="height:34px;font-size:13px">1</button><button class="key" style="height:34px;font-size:13px">2</button><button class="key" style="height:34px;font-size:13px">3</button><button class="key muted" style="height:34px;font-size:10px">Esc</button>
+            <button class="key" style="height:34px;font-size:13px">0</button><button class="key" style="height:34px;font-size:13px">.</button><button class="key muted" style="height:34px;font-size:10px">±</button><button class="key accent" style="height:34px;font-size:10px">确定</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="stage-caption">组合示例：页面菜单在顶栏；左栏状态用 ComboBox 只读显示；右栏是现有 AlarmBanner + 行内确认。弹窗与键盘仍是运行时设施。</div>
+  </div>
+</section>
+
+<!-- ============================ 12 边界 ============================ -->
+<section class="section" id="boundaries">
+  <div class="sec-head">
+    <span class="sec-index">12</span>
+    <h2>边界与不做</h2>
+    <p>复核版把“新建控件”压到只剩 Slider；其余要么扩展现有控件，要么是运行时设施。下面这些明确不做，避免占档期。</p>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>手册元件 / 能力</th><th>本批处置</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td>数据传输、备份、排程、PLC 控制、FTP、邮件、打印、数据库、VNC、PDF、媒体播放器</td><td><b>不做</b></td><td>属于宿主 / 流程 / 插件层能力，不是 HMI 图元。</td></tr>
+        <tr><td>复合式多功能按钮</td><td><b>不新建</b></td><td>事件钩子已支持一个事件挂多条动作，顺序可调。</td></tr>
+        <tr><td>状态文本</td><td><b>不新增</b></td><td>用 <code>Hmi.ComboBox</code> 的 <code>Presentation=Text</code>；<code>Options</code> + <code>SelectedText</code> 已存在，Text 恒只读（不依赖 <code>Mode=Output</code>）。</td></tr>
+        <tr><td>页面菜单</td><td><b>不新增</b></td><td>运行窗口顶栏；画布内需要导航时用 Panel + Button + Navigate 组合。</td></tr>
+        <tr><td>记录列表</td><td><b>本批不新增</b></td><td>先扩 AlarmBanner 行内确认；历史走宿主报警历史弹窗，审计走 <code>ScadaAuditWriter</code> / 将来 DataGrid 源模式。</td></tr>
+        <tr><td>历史数据表</td><td><b>不新增</b></td><td>DataGrid 的 <code>Source=History</code>；不造第二张表。</td></tr>
+        <tr><td>模拟量滑块</td><td><b>新增</b>（唯一 TypeKey）</td><td>ProgressBar 只显示、IOField 靠键盘、SelectorSwitch 离散；连续量拖动写入没有现有控件。</td></tr>
+        <tr><td>索引寄存器</td><td><b>不做</b></td><td>模板 <code>{i}</code> + 变量解析已覆盖主要用法。</td></tr>
+        <tr><td>多状态指示灯 / 切换开关、数值 / 字符、趋势图、报警条、表格、模板</td><td><b>已有</b></td><td>Lamp / SelectorSwitch / BitButton、IOField / TextField、ChartTrend、AlarmBanner、DataGrid、模板展开已覆盖。</td></tr>
+        <tr><td>XY 曲线、圆盘曲线、圆饼 / 柱状</td><td><b>P2 / 已有候选</b></td><td>ChartBar / ChartPie 已在 v1 补充候选；XY 只对运动曲线 / 标定曲线有意义。</td></tr>
+        <tr><td>事件甘特图、条形码 / 二维码</td><td><b>P3 观察</b></td><td>需要时间序列存储 / 编码库；先不做。</td></tr>
+        <tr><td>多语言文字标签库、向量图库</td><td><b>P3 战略项</b></td><td>工作量大；除非有出口机型 / 多语言标书需求。</td></tr>
+        <tr><td>计时器（延时 / 脉冲 / 累加）</td><td><b>暂不做</b></td><td>流程侧已有等待 / 延时能力；HMI 独立计时器只在“不跑流程也要计时”的场景需要。</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================ 13 验收 ============================ -->
+<section class="section" id="acceptance">
+  <div class="sec-head">
+    <span class="sec-index">13</span>
+    <h2>验收与待裁定</h2>
+    <p>设计稿确认后才进入令牌映射与 WPF 复刻；复刻前先冻结下面 6 个裁定项。</p>
+  </div>
+
+  <div class="check-list" style="margin-bottom:16px">
+    <div class="check"><span class="box"></span><p><b>复用优先：</b>每个建议都能回答“现有控件是什么、改了什么、为什么不能只改属性”。</p></div>
+    <div class="check"><span class="box"></span><p><b>只新增 1 个 TypeKey：</b>Slider；其余是 ComboBox/AlarmBanner/DataGrid 的扩展或运行时设施。</p></div>
+    <div class="check"><span class="box"></span><p><b>向后兼容：</b>ComboBox 默认 <code>Presentation=Field</code>、AlarmBanner 默认 <code>ShowRowAck=false</code>，老方案外观不变。</p></div>
+    <div class="check"><span class="box"></span><p><b>失败可见：</b>越限、写入被拒、变量丢失、无权限、确认失败都有就地反馈。</p></div>
+    <div class="check"><span class="box"></span><p><b>Web：</b>每个控件标注 M1 / M1.5 / M2 / M3 / 非目标；页面菜单在 web 隐藏。</p></div>
+    <div class="check"><span class="box"></span><p><b>不重复：</b>与 v1 的 16+7 候选逐项对账；StateText / PageMenu / HistoryTable 已删除，RecordList 已降级。</p></div>
+  </div>
+
+  <div class="q-list">
+    <div class="q"><span class="n">Q1</span><p><b>ComboBox 未命中值：保留 <code>#999</code> 还是加一个 <code>UnknownText</code>？</b> 建议 <em>保留 <code>#值</code></em>：现有实现刻意“难看但诚实”，不编造一个假的“待机”；真要友好文案就把映射表补全。</p></div>
+    <div class="q"><span class="n">Q2</span><p><b>页面菜单放顶栏还是画布？</b> 建议 <em>顶栏</em>：全局导航一处维护，不受画布缩放/裁剪/图层影响；画布内需要时用 Panel + Button 组合。</p></div>
+    <div class="q"><span class="n">Q3</span><p><b>AlarmBanner 行内确认默认开还是关？</b> 建议 <em>默认关</em>（保持现有外观），新项目在属性面板打开；确认回写变量留空 = 不写。</p></div>
+    <div class="q"><span class="n">Q4</span><p><b>DataGrid 历史源现在做还是等契约？</b> 建议 <em>等</em> <code>IScadaHistorySource</code> 定稿后再排期；本稿只冻结视觉与列定义。</p></div>
+    <div class="q"><span class="n">Q5</span><p><b>Slider 写入时机：松手一次还是 100ms 节流？</b> 建议 <em>松手一次</em>；只有“必须连续跟随”的场合才开节流，并配危险确认。</p></div>
+    <div class="q"><span class="n">Q6</span><p><b>软键盘是否必做？</b> 建议 <em>看部署形态</em>：触摸屏/无物理键盘必做；纯鼠标键盘工控机可降到 P2。弹窗则是 P1 结构件。</p></div>
+  </div>
+
+  <div class="callout" style="margin-top:16px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/></svg>
+    <div><b>下一步（确认后）：</b>① 冻结本稿 v2；② 出令牌映射与 WPF 复刻清单（逐项列文件与断言）；③ 按 P0 批 A（NavigateBack / ComboBox 只读呈现 / 顶栏页面菜单）→ 批 B（软键盘）→ 批 C（弹窗）→ 批 D（DataGrid 历史源）排期。证据截图在 WPF 复刻后补入 <code>evidence/</code>。</div>
+  </div>
+</section>
+
+</main>
+
+<script>
+(function(){
+  var root = document.documentElement;
+  var themeButtons = Array.prototype.slice.call(document.querySelectorAll('[data-set-theme]'));
+  themeButtons.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      root.setAttribute('data-preview', btn.getAttribute('data-set-theme'));
+      themeButtons.forEach(function(b){ b.classList.toggle('is-on', b === btn); });
+    });
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.page-nav a[href^="#"]'));
+  var sections = links.map(function(a){ return document.querySelector(a.getAttribute('href')); }).filter(Boolean);
+  var ticking = false;
+  function updateActive(){
+    ticking = false;
+    var line = window.scrollY + 120;
+    var current = sections[0];
+    sections.forEach(function(s){ if (s.offsetTop <= line) current = s; });
+    links.forEach(function(a){
+      a.classList.toggle('is-on', !!current && a.getAttribute('href') === '#' + current.id);
+    });
+  }
+  window.addEventListener('scroll', function(){
+    if (ticking) return;
+    ticking = true;
+    window.requestAnimationFrame(updateActive);
+  }, { passive: true });
+  window.addEventListener('resize', updateActive);
+  updateActive();
+})();
+</script>
+</body>
+</html>

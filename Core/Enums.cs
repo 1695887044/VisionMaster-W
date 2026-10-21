@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
@@ -285,7 +286,9 @@ namespace VisionMaster
         /// <summary>循环运行单条流程（直到"停止本流程"）</summary>
         RunContinuous,
         /// <summary>停止单条流程（按流程名找会话；未运行则提示）</summary>
-        Stop
+        Stop,
+        /// <summary>方案级变量事件配置（从流程栏进入；数据仍属方案，不属单条流程）</summary>
+        VariableEvents
     }
 
     /// <summary>
@@ -431,28 +434,45 @@ namespace VisionMaster
     // 校验位
     public enum ParityMode
     {
+        [Description("无")]
         None = 0,
+        [Description("奇校验")]
        Odd = 1,
+        [Description("偶校验")]
        Even = 2
     }
 
     // 停止位
     public enum StopBitsMode
     {
+        [Description("1")]
       One = 1,
+        [Description("1.5")]
         OnePointFive = 3, // 底层库通常用3代表1.5
+        [Description("2")]
         Two = 2
     }
 
     // 通讯类型枚举
+    //
+    // 【必须带 [Description]】属性面板（FlatPropertyGrid 的 EnumGenerator）只认这个特性，
+    // 缺了就显示成员名（ModbusTcp / OmronFins）。这里的中文名也是通讯列表、变量管理左栏、
+    // 系统健康面板的**唯一显示来源**（CommunicationProtocols.DisplayName 读它）。
     public enum CommunicationType
     {
+        [Description("Modbus TCP")]
         ModbusTcp,
+        [Description("Modbus RTU")]
         ModbusRtu,
+        [Description("西门子 S7")]
         SiemensS7,
+        [Description("欧姆龙 FINS")]
         OmronFins,
+        [Description("三菱 MC")]
         MitsubishiMc,
+        [Description("自由协议")]
         FreeProtocol,
+        [Description("OPC UA（未实现）")]
         OpcUa
     }
     public enum DataValueType
@@ -473,13 +493,17 @@ namespace VisionMaster
     }
     public enum McProtocolType
     {
+        [Description("TCP")]
         Tcp,
+        [Description("UDP（未实现）")]
         Udp
     }
 
     public enum McFrameFormat
     {
+        [Description("二进制")]
         Binary,
+        [Description("ASCII")]
         Ascii
     }
 

@@ -32,6 +32,8 @@
                  断言宿主没有 Application（ScadaChecks 直连 new 视图），只能用相对 pack 写法自合并，
                  不能依赖 App.xaml 那本主题字典（见 SolutionListView.xaml 同一段注释）。  -->
             <ResourceDictionary.MergedDictionaries>
+                <!--  本视图新增的数组下标区使用主题令牌；断言宿主没有 Application，必须就地合并  -->
+                <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
                 <ResourceDictionary Source="/UI;component/Themes/Controls/GridView.xaml" />
             </ResourceDictionary.MergedDictionaries>
         <!--  行容器：整行可点，选中态与变量绑定弹窗同一套配色（#ECF5FF + #409EFF）  -->
@@ -144,6 +146,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
@@ -294,9 +297,62 @@
                         </Grid>
                     </Border>
 
+                    <!--  数组下标：只有选中数组变量时才出现。
+                          为什么不做成"把 100 个元素平铺成 100 行"：数组可能很大，平铺会刷屏；
+                          用户要的是"根变量 + 一个下标"，填一个整数比在长列表里找第 73 行快。  -->
+                    <StackPanel
+                        Grid.Row="2"
+                        Margin="0,10,0,0"
+                        Visibility="{Binding IsArraySelected, Converter={ui:BooleanToVisibilityConverter}}">
+                        <Border
+                            Padding="10,8"
+                            Background="{StaticResource ScadaPanelBackgroundBrush}"
+                            BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="90" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Margin="0,0,10,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="12"
+                                    Foreground="{StaticResource ScadaTextBrush}"
+                                    Text="数组下标" />
+                                <TextBox
+                                    Grid.Column="1"
+                                    Height="26"
+                                    Padding="6,3"
+                                    VerticalContentAlignment="Center"
+                                    FontSize="12"
+                                    Text="{Binding ArrayIndexText, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Margin="10,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                    Text="{Binding ArrayIndexHint}"
+                                    TextTrimming="CharacterEllipsis" />
+                            </Grid>
+                        </Border>
+
+                        <!--  下标错误就地标红（确认键同时置灰；错误文案给出可行动的原因）  -->
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            FontSize="11"
+                            Foreground="{StaticResource ScadaDangerBrush}"
+                            Text="{Binding ArrayIndexError}"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+
                     <!--  口径说明：让操作员明白"这里选的就是运行时写的那个"  -->
                     <TextBlock
-                        Grid.Row="2"
+                        Grid.Row="3"
                         Margin="0,8,0,0"
                         FontSize="11"
                         Foreground="#C0C4CC"

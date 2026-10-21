@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 
 namespace VisionMaster.Communications
 {
@@ -43,6 +44,32 @@ namespace VisionMaster.Communications
     public class ModbusAddress : DeviceAddressBase<ModbusArea>
     {
         private int _station;
+        private bool _useLegacyAddress;
+
+        /// <summary>
+        /// <para>按 Modbus 传统 5 位地址写法解析 <see cref="DeviceAddressBase.Offset"/>：</para>
+        /// <para>线圈 00001~09999 / 离散输入 10001~19999 / 输入寄存器 30001~39999 / 保持寄存器 40001~49999。</para>
+        /// <para>默认关闭 = 沿用新表单的 0 基偏移（40001 要填 0）。打开后 40001 才表示第 1 个保持寄存器；
+        /// 旧方案里已存的字面 40001 不会因为升级被改义（开关随方案落盘，默认 false）。</para>
+        /// </summary>
+        [UI.Attributes.SuperDisplay(
+            Name = "40001 写法",
+            Group = new[] { "地址" },
+            Order = 21,
+            Description = "打开后按 Modbus 5 位地址写法解析（保持寄存器 40001~49999 → 0 基 0~9998）")]
+        public bool UseLegacyAddress
+        {
+            get => _useLegacyAddress;
+            set
+            {
+                if (SetProperty(ref _useLegacyAddress, value))
+                {
+                    _cachedAddress = null;
+                    RaisePropertyChanged(nameof(Address));
+                    RaisePropertyChanged(nameof(EffectiveStart));
+                }
+            }
+        }
 
         /// <summary>
         /// <para>从站号（0 = 跟随连接配置）。</para>
@@ -69,6 +96,16 @@ namespace VisionMaster.Communications
             }
         }
 
+        /// <summary>存储区中文名（校验文案用；枚举名不上屏）</summary>
+        protected string AreaDisplayName => Area switch
+        {
+            ModbusArea.Coils => "线圈",
+            ModbusArea.DiscreteInputs => "离散输入",
+            ModbusArea.InputRegisters => "输入寄存器",
+            ModbusArea.HoldingRegisters => "保持寄存器",
+            _ => Area.ToString()
+        };
+
         /// <summary>区域对应的读功能码（1 线圈 / 2 离散 / 3 保持 / 4 输入）</summary>
         public int FunctionCode => Area switch
         {
@@ -79,8 +116,43 @@ namespace VisionMaster.Communications
             _ => 3
         };
 
-        /// <summary>0 基原始地址（用户填写的偏移量，直接就是 HSL 认识的地址）</summary>
-        public int RawAddress => int.TryParse(Offset, out int v) && v >= 0 ? v : 0;
+        /// <summary>
+        /// 0 基原始地址（基地址解析结果 + 地址偏移，直接就是 HSL 认识的地址）。
+        /// 解析失败返回 0；创建路径会先走 <see cref="Validate"/> 拦住非法地址。
+        /// </summary>
+        public int RawAddress => EffectiveStart ?? 0;
+
+        protected override bool TryParseBaseStart(out int start)
+        {
+            start = 0;
+            if (!int.TryParse(Offset, out int raw) || raw < 0) return false;
+            if (!_useLegacyAddress)
+            {
+                start = raw;
+                return true;
+            }
+
+            // 传统 5 位写法：按当前存储区的区间换算成 0 基地址。
+            // 区间不匹配返回 false（Validate 给出"地址与存储区不匹配"的明确原因），
+            // 不静默退回字面值——那会把 40001 读成第 40001 个寄存器。
+            switch (Area)
+            {
+                case ModbusArea.Coils when raw is >= 1 and <= 9999:
+                    start = raw - 1;
+                    return true;
+                case ModbusArea.DiscreteInputs when raw is >= 10001 and <= 19999:
+                    start = raw - 10001;
+                    return true;
+                case ModbusArea.InputRegisters when raw is >= 30001 and <= 39999:
+                    start = raw - 30001;
+                    return true;
+                case ModbusArea.HoldingRegisters when raw is >= 40001 and <= 49999:
+                    start = raw - 40001;
+                    return true;
+                default:
+                    return false;
+            }
+        }
 
         protected override string BuildAddress()
         {
@@ -89,10 +161,28 @@ namespace VisionMaster.Communications
             return _station > 0 ? $"s={_station};{baseAddress}" : baseAddress;
         }
 
+        public override (bool IsValid, string ErrorMessage) Validate()
+        {
+            if (!TryParseBaseStart(out _))
+            {
+                return (false, _useLegacyAddress
+                    ? $"地址 {Offset} 不符合当前存储区（{AreaDisplayName}）的 40001 写法（应填该存储区的 5 位地址）"
+                    : "地址必须是 0 基的非负整数");
+            }
+
+            var baseResult = base.Validate();
+            if (!baseResult.IsValid) return baseResult;
+
+            if (RawAddress > 65535)
+                return (false, "地址超出 Modbus 16 位范围（0~65535）");
+
+            return (true, string.Empty);
+        }
+
         public override bool TryCreatePollAddress(out PollAddress? poll)
         {
             poll = null;
-            if (!int.TryParse(Offset, out int start) || start < 0) return false;
+            if (EffectiveStart is not int start || start < 0) return false;
 
             int fc = FunctionCode;
             bool bitArea = fc is 1 or 2;
@@ -116,6 +206,99 @@ namespace VisionMaster.Communications
                 IsBitAccess = bitArea,
                 BitOffset = -1
             };
+            return true;
+        }
+
+        /// <inheritdoc />
+        public override bool TryCreateElementAddress(
+            int index, out DeviceAddressBase? elementAddress, out string? error)
+        {
+            elementAddress = null;
+            error = null;
+
+            if (index < 0)
+            {
+                error = "数组下标不能为负数";
+                return false;
+            }
+
+            if (index >= Length)
+            {
+                error = $"下标 {index} 超出数组长度 {Length}";
+                return false;
+            }
+
+            int fc = FunctionCode;
+            bool bitArea = fc is 1 or 2;
+
+            int elementStart;
+            DataValueType elementType;
+            int elementLength;
+
+            if (DataType == DataValueType.ByteArray)
+            {
+                // Modbus 寄存器是 16 位粒度：按字节写会覆盖同一寄存器的另一半，
+                // 只能整组写或改成 S7 这类字节寻址协议。
+                error = "Modbus 寄存器区按 16 位寄存器寻址，byte[] 不支持按字节写入（会覆盖同寄存器另一半）";
+                return false;
+            }
+
+            if (DataType == DataValueType.String)
+            {
+                if (bitArea)
+                {
+                    error = "线圈/离散输入区不支持字符串数组";
+                    return false;
+                }
+
+                if (ElementByteLength <= 0)
+                {
+                    error = "字符串数组未配置每元素字节数，无法按元素写入";
+                    return false;
+                }
+
+                if (ElementByteLength % 2 != 0)
+                {
+                    error = $"字符串元素宽度 {ElementByteLength} 字节不是 2 的倍数，无法按 Modbus 寄存器对齐写入";
+                    return false;
+                }
+
+                elementStart = RawAddress + index * (ElementByteLength / 2);
+                elementType = DataValueType.ByteArray;
+                elementLength = ElementByteLength;
+            }
+            else
+            {
+                // 位区 1 元素 = 1 位；寄存器区按字折算（Int32 = 2 个寄存器，Int64 = 4 个）
+                int unitsPerElement = bitArea ? 1 : Math.Max(1, TypeSize / 2);
+                elementStart = RawAddress + index * unitsPerElement;
+                elementType = DataType;
+                elementLength = 1;
+            }
+
+            var element = new ModbusAddress
+            {
+                Area = Area,
+                Offset = elementStart.ToString(CultureInfo.InvariantCulture),
+                DataType = elementType,
+                BitOffset = BitOffset,
+                Station = Station,
+                Length = elementLength,
+                ElementByteLength = 0,
+                AddressOffset = 0,
+                UseLegacyAddress = false,
+            };
+
+            element.EnableConversion = false;
+
+            var validation = element.Validate();
+            if (!validation.IsValid)
+            {
+                error = validation.ErrorMessage;
+                return false;
+            }
+
+            elementAddress = element;
             return true;
         }
 

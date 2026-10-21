@@ -374,3 +374,15 @@ FodyWeavers.xsd
 /Image/
 # Qoder CLI 本地作用域配置（个人 MCP 注册，含本机绝对路径，不入库）
 .qoder/settings.local.json
+
+## ===== 仓库分区约束（2026-10-21，见 AGENTS.md §36）=====
+# 根目录只允许 tools/root-layout.json 白名单内的条目。
+# 验证产物统一落 artifacts/（已被上面的 artifacts/ 规则覆盖），日志不许落根。
+/*.log
+/*.out
+/*.err
+# 退役与探针工程的构建产物不入库
+/_Retired/*/bin/
+/_Retired/*/obj/
+/tools/probes/*/bin/
+/tools/probes/*/obj/

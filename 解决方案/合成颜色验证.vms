@@ -1,12 +1,12 @@
 {
-  "SolutionName": "解决方案-20261021002737",
+  "SolutionName": "解决方案-20261021162832",
   "Version": 1.0,
   "Config": {
     "ImageViewMode": 0
   },
   "Flows": [
     {
-      "FlowID": "14cf23617aea4c3386dffa03c3b5ba8e",
+      "FlowID": "b22207d502864b3b916191b3df272d0a",
       "FlowName": "合成颜色验证",
       "Version": 4,
       "IsEnabled": true,
@@ -22,7 +22,7 @@
       "Steps": [
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "8f9e4b28-03bb-4649-a84e-9561c32cecbe",
+          "StepID": "d11e1772-b9a0-4e11-bea2-8e58468bc97f",
           "Icon": "",
           "PluginName": "图像采集",
           "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
@@ -39,7 +39,7 @@
         },
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "7cfc74f3-a9c7-4033-a1ea-a68a2a6d7f32",
+          "StepID": "5732841c-10fe-4999-a159-a1f617f1e6ee",
           "Icon": "",
           "PluginName": "颜色序列检查",
           "PluginTypeName": "Plugin.ColorCheck.ColorCheckPlugin, Plugin.ColorCheck, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
@@ -65,7 +65,7 @@
           "LinkedSources": {
             "Image": {
               "Kind": 1,
-              "TargetStepId": "8f9e4b28-03bb-4649-a84e-9561c32cecbe",
+              "TargetStepId": "d11e1772-b9a0-4e11-bea2-8e58468bc97f",
               "TargetPortName": "Image",
               "TargetVariableId": "00000000-0000-0000-0000-000000000000",
               "DisplayAddress": "图像采集_0.Image"
@@ -75,7 +75,7 @@
         },
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "c319ae01-620d-411b-9f92-2624e8157f72",
+          "StepID": "c029b7d0-85cb-4e0b-8b28-77fdfe415c5d",
           "Icon": "",
           "PluginName": "区域颜色检查",
           "PluginTypeName": "Plugin.ColorRegion.RegionColorPlugin, Plugin.ColorRegion, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
@@ -103,7 +103,7 @@
           "LinkedSources": {
             "Image": {
               "Kind": 1,
-              "TargetStepId": "8f9e4b28-03bb-4649-a84e-9561c32cecbe",
+              "TargetStepId": "d11e1772-b9a0-4e11-bea2-8e58468bc97f",
               "TargetPortName": "Image",
               "TargetVariableId": "00000000-0000-0000-0000-000000000000",
               "DisplayAddress": "图像采集_0.Image"
@@ -113,7 +113,7 @@
         },
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "36478887-4add-4cf8-80d4-e45b0c290c0d",
+          "StepID": "2f086f9a-8892-4103-8565-0bb09c42702a",
           "Icon": "",
           "PluginName": "区域颜色检查",
           "PluginTypeName": "Plugin.ColorRegion.RegionColorPlugin, Plugin.ColorRegion, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
@@ -140,7 +140,7 @@
           "LinkedSources": {
             "Image": {
               "Kind": 1,
-              "TargetStepId": "8f9e4b28-03bb-4649-a84e-9561c32cecbe",
+              "TargetStepId": "d11e1772-b9a0-4e11-bea2-8e58468bc97f",
               "TargetPortName": "Image",
               "TargetVariableId": "00000000-0000-0000-0000-000000000000",
               "DisplayAddress": "图像采集_0.Image"
@@ -151,7 +151,7 @@
       ]
     }
   ],
-  "SolutionId": "70df660b-39c6-43a8-8720-2fb1cbfb933d",
+  "SolutionId": "caf60574-3cad-43ce-aa47-190638f3e8f4",
   "CommunicationConfigs": [],
   "IoBuses": [],
   "IoDevices": [],
@@ -159,6 +159,7 @@
   "MotionCards": [],
   "CamTables": [],
   "VariableSnapshots": [],
+  "VariableGroups": [],
   "WatchItems": [],
   "Scada": {
     "SchemaVersion": 1,

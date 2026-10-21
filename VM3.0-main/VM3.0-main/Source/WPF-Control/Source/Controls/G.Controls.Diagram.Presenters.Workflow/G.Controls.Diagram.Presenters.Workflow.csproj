@@ -1,5 +1,0 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
-  <ItemGroup>
-    <ProjectReference Include="..\G.Controls.Diagram.Presenter\G.Controls.Diagram.Presenter.csproj" />
-  </ItemGroup>
-</Project>

@@ -82,13 +82,24 @@ namespace UI.CustomControl
 
                     Action syncPosition = () =>
                     {
-                        if (owner != null && overlayWindow != null)
+                        if (owner == null || overlayWindow == null) return;
+
+                        if (TryGetOwnerScreenRect(owner, out var screenRect))
                         {
-                            overlayWindow.Left = owner.Left;
-                            overlayWindow.Top = owner.Top;
-                            overlayWindow.Width = owner.ActualWidth;
-                            overlayWindow.Height = owner.ActualHeight;
+                            overlayWindow.Left = screenRect.Left;
+                            overlayWindow.Top = screenRect.Top;
+                            overlayWindow.Width = screenRect.Width;
+                            overlayWindow.Height = screenRect.Height;
+                            return;
                         }
+
+                        // 退化路径：窗口还没连上 PresentationSource 时沿用旧口径。
+                        // 最大化状态下这条会偏移（见 TryGetOwnerScreenRect 的注释），
+                        // 但"遮罩位置略歪"远好过"遮罩尺寸非法导致弹窗打不开"。
+                        overlayWindow.Left = owner.Left;
+                        overlayWindow.Top = owner.Top;
+                        overlayWindow.Width = owner.ActualWidth;
+                        overlayWindow.Height = owner.ActualHeight;
                     };
 
                     generalHandler = (s, e) => syncPosition();
@@ -109,7 +120,8 @@ namespace UI.CustomControl
                     overlayWindow.Closed += (s, e) => tcs.TrySetResult(MessageResult.Close);
 
                     // 消息卡片的键盘契约在宿主窗口这一层收口：
-                    //   Esc → 次操作；Y → 主操作；N → 次操作；Enter → 默认按钮。
+                    //   Esc → 次操作；Y → 默认按钮；N → 次操作；Enter → 默认按钮。
+                    //   Y 不能无条件走主操作：危险弹窗的默认焦点在取消，Y 也必须取消。
                     // 只有卡片是 MessageDialogView 时才转发；自定义内容（属性表格 / 文本输入）
                     // 保持旧行为（只接 Esc），否则会抢走输入框里的 Y/N/Enter。
                     MessageDialogView? messageView = null;
@@ -127,7 +139,9 @@ namespace UI.CustomControl
 
                         if (e.Key == System.Windows.Input.Key.Y)
                         {
-                            messageView.RequestPrimary();
+                            // Y 跟随默认按钮，不直接触发主操作：危险弹窗的默认按钮是「取消」，
+                            // 无条件 RequestPrimary 会让操作员按 Y 就把停止/删除执行掉。
+                            messageView.RequestDefault();
                             e.Handled = true;
                         }
                         else if (e.Key == System.Windows.Input.Key.N)
@@ -216,6 +230,58 @@ namespace UI.CustomControl
                 return default;
             }
         }
+
+        /// <summary>
+        /// 取 owner 在屏幕上的**真实**矩形（DIP），供遮罩窗口对齐。
+        ///
+        /// ★ 不能再用 <c>owner.Left/Top</c>：窗口最大化时那两个属性返回的是**还原位置**
+        ///   （最大化之前的位置），而 <c>ActualWidth/Height</c> 返回的是**最大化后的尺寸**。
+        ///   两者不同源 → 遮罩整体右下偏移：2026-10-21 真机截图逐像素实测偏移 (304,304) px
+        ///   （左栏与顶栏没被压暗、卡片不居中、遮罩右下溢出屏幕）；更糟的是没被遮罩盖住的
+        ///   区域仍然能点，假模态被穿透 —— 弹窗开着还能触发主窗体命令。
+        ///
+        /// ★ 正解：PointToScreen 取客户区左上/右下（设备像素），再按**该窗口自己的**
+        ///   HwndSource 变换折回 DIP。最大化 / 普通 / 拖动 / 改尺寸四种状态同一个口径，
+        ///   而且不依赖 WindowState 分支（分支写法在"最大化过程中 SizeChanged 还没到"时仍会抖）。
+        ///
+        /// 返回 false 表示"现在量不出来"（没连上 PresentationSource / 还没布局 / 窗口正在销毁），
+        /// 由调用方退回旧口径 —— 负宽高的窗口会让 WPF 在 Show() 时抛 ArgumentException，
+        /// 那等于"弹窗打不开"，比位置歪严重得多。
+        /// </summary>
+        private static bool TryGetOwnerScreenRect(Window owner, out Rect rect)
+        {
+            rect = Rect.Empty;
+
+            try
+            {
+                var source = PresentationSource.FromVisual(owner);
+                if (source?.CompositionTarget == null) return false;
+
+                // 设备像素 → DIP：跨 DPI 缩放（125%/150%）下直接拿 PointToScreen 的像素值
+                // 赋给 Left/Top 会再被放大一次，偏移量随缩放比例变化。
+                Matrix fromDevice = source.CompositionTarget.TransformFromDevice;
+
+                Point topLeft = fromDevice.Transform(owner.PointToScreen(new Point(0, 0)));
+                Point bottomRight = fromDevice.Transform(
+                    owner.PointToScreen(new Point(owner.ActualWidth, owner.ActualHeight)));
+
+                double width = bottomRight.X - topLeft.X;
+                double height = bottomRight.Y - topLeft.Y;
+
+                if (!IsFinite(topLeft.X) || !IsFinite(topLeft.Y) || !IsFinite(width) || !IsFinite(height))
+                    return false;
+                if (width <= 0 || height <= 0) return false;
+
+                rect = new Rect(topLeft.X, topLeft.Y, width, height);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool IsFinite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
 
         #endregion
 

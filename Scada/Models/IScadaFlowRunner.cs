@@ -84,5 +84,24 @@ namespace VisionMaster.Scada
         /// <param name="reason">一句净效果（"已发出停止" / "本就未在运行"）；false 时为原因（如"找不到流程…"）</param>
         /// <returns>目标是否已处于停止状态（刚停的算，本来就没跑的也算——幂等）</returns>
         bool Stop(string flowId, string? fallbackName, out string? reason);
+
+        /// <summary>
+        /// 请求暂停目标流程（P0）。只对<b>连续运行</b>的会话生效；暂停在节点边界生效，
+        /// 已下发的动作不撤回。未运行 / 单次执行 / 已暂停的处置见实现。
+        /// </summary>
+        /// <param name="flowId">目标流程稳定身份（权威）；空白 = 旧数据只按名找</param>
+        /// <param name="fallbackName">目标流程名（Id 落空时按名找，忽略大小写与首尾空格）</param>
+        /// <param name="reason">true 时为净效果（"已暂停" / "本就已暂停"）；false 时为原因</param>
+        /// <returns>目标是否已处于暂停状态（刚暂停的算，本来就暂停的也算——幂等）</returns>
+        bool Pause(string flowId, string? fallbackName, out string? reason);
+
+        /// <summary>
+        /// 请求恢复目标流程（P0）。从当前步继续；未暂停的运行中流程是幂等空操作。
+        /// </summary>
+        /// <param name="flowId">目标流程稳定身份（权威）；空白 = 旧数据只按名找</param>
+        /// <param name="fallbackName">目标流程名（Id 落空时按名找，忽略大小写与首尾空格）</param>
+        /// <param name="reason">true 时为净效果（"已恢复" / "本就未暂停"）；false 时为原因</param>
+        /// <returns>目标是否已处于运行状态（刚恢复的算，本来就运行的也算——幂等）</returns>
+        bool Resume(string flowId, string? fallbackName, out string? reason);
     }
 }

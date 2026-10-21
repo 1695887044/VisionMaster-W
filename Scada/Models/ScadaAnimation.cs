@@ -45,6 +45,7 @@ namespace VisionMaster.Scada
         private bool _isEnabled = true;
         private Guid _variableId;
         private string? _variableName;
+        private int _arrayIndex = -1;
         private string _rangeLow = "0";
         private string _rangeHigh = "100";
         private double _endX;
@@ -120,6 +121,23 @@ namespace VisionMaster.Scada
                     RaiseDerived();
             }
         }
+
+        /// <summary>
+        /// 数组元素下标：<c>-1</c> = 引用整个变量，<c>≥ 0</c> = 引用数组元素。
+        /// 口径与 <see cref="ScadaBinding.ArrayIndex"/> 逐字一致（见 <see cref="ScadaVariableRef"/>）。
+        /// </summary>
+        public int ArrayIndex
+        {
+            get => _arrayIndex;
+            set
+            {
+                if (SetProperty(ref _arrayIndex, value < 0 ? -1 : value))
+                    RaiseDerived();
+            }
+        }
+
+        /// <summary>把本动画的驱动变量摊成值源/运行态认的完整引用</summary>
+        public ScadaVariableRef ToReference() => new(VariableId, VariableName, ArrayIndex);
 
         /// <summary>范围下端点（手册里的"范围值1"）：变量值 ≤ 它 → 停在起始位置 / 不命中</summary>
         public string RangeLow
@@ -242,18 +260,30 @@ namespace VisionMaster.Scada
         };
 
         /// <summary>驱动变量的展示名（没选时为 <c>null</c>，供面板显示"未选择"）</summary>
-        public string? VariableDisplayName => string.IsNullOrWhiteSpace(_variableName) ? null : _variableName;
+        public string? VariableDisplayName => string.IsNullOrWhiteSpace(_variableName)
+            ? null
+            : ToReference().DisplayText;
 
         /// <summary>
         /// 绑定驱动变量（先写 Id 再写名字）。Id 是权威身份，名字只作显示与兜底寻址，
         /// 与 <see cref="ScadaAction.BindVariable"/> 同一口径。
         /// </summary>
         public void BindVariable(Guid variableId, string? variableName)
+            => BindVariable(variableId, variableName, -1);
+
+        /// <summary>
+        /// 绑定驱动变量（含数组元素下标）。旧调用点用上面那个重载，等价于
+        /// <paramref name="arrayIndex"/> = -1（引用整个变量）。
+        /// </summary>
+        public void BindVariable(Guid variableId, string? variableName, int arrayIndex)
         {
-            using (BeginEdit($"动画驱动变量 {(string.IsNullOrWhiteSpace(variableName) ? "(未指定)" : variableName)}"))
+            string label = new ScadaVariableRef(variableId, variableName, arrayIndex).DisplayText;
+
+            using (BeginEdit($"动画驱动变量 {label}"))
             {
                 VariableId = variableId;
                 VariableName = variableName;
+                ArrayIndex = arrayIndex;
             }
         }
 

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "updated": "2026-10-21",
+  "note": "探针登记表：dir/project 均相对本文件所在目录。运行中的任务必须通过 run-probe.ps1 或本表解析路径，禁止按记忆拼旧路径。",
+  "probes": [
+    {
+      "name": "ResProbe",
+      "dir": "_ResProbe",
+      "project": "_ResProbe.csproj",
+      "runMode": "dotnet",
+      "description": "资源字典合并链 + 模板落地 + 弹窗视图尺寸探针（R32 运行期对照，输出 RESULT: ALL_OK）"
+    },
+    {
+      "name": "StyleProbe",
+      "dir": "_StyleProbe",
+      "project": "_StyleProbe.csproj",
+      "runMode": "dotnet",
+      "description": "控件样式与主题渲染探针（对话框、按钮、属性面板外观对照）"
+    },
+    {
+      "name": "ToolboxProbe",
+      "dir": "_ToolboxProbe",
+      "project": "_ToolboxProbe.csproj",
+      "runMode": "dotnet",
+      "description": "工具箱面板探针（收藏、视图切换、分类映射）"
+    },
+    {
+      "name": "LogViewProbe",
+      "dir": "_LogViewProbe",
+      "project": "_LogViewProbe.csproj",
+      "runMode": "dotnet",
+      "description": "日志控制台控件探针（过滤、分组、粘底、容量、配色）"
+    },
+    {
+      "name": "FocusProbe",
+      "dir": "_FocusProbe",
+      "project": "_FocusProbe.csproj",
+      "runMode": "dotnet",
+      "description": "焦点视觉与输入态探针"
+    },
+    {
+      "name": "BeadViewProbe",
+      "dir": "_BeadViewProbe",
+      "project": "_BeadViewProbe.csproj",
+      "runMode": "dotnet",
+      "description": "胶路检测配置视图探针（画布刷新、布局、点列显示）"
+    },
+    {
+      "name": "ScadaEditorProbe",
+      "dir": "_ScadaEditorProbe",
+      "project": "_ScadaEditorProbe.csproj",
+      "runMode": "dotnet",
+      "description": "组态编辑器探针（框选、拖拽、版式渲染）"
+    },
+    {
+      "name": "ChartProbe5",
+      "dir": "_ChartProbe5",
+      "project": "_ChartProbe5.csproj",
+      "runMode": "exe",
+      "framework": "net48",
+      "exe": "_ChartProbe5.exe",
+      "description": "趋势曲线（ScottPlot）渲染探针；net48 目标，构建后直接启动 exe"
+    },
+    {
+      "name": "WebProbe5",
+      "dir": "_WebProbe5",
+      "project": "WebProbe5.csproj",
+      "runMode": "dotnet",
+      "description": "SCADA 运行态 Web 客户端探针（M0 初版）"
+    },
+    {
+      "name": "WebProbe6",
+      "dir": "_WebProbe6",
+      "project": "WebProbe6.csproj",
+      "runMode": "dotnet",
+      "description": "SCADA 运行态 Web 客户端探针（当前版）"
+    }
+  ]
+}

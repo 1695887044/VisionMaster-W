@@ -25,6 +25,7 @@ namespace VisionMaster.Scada
         private string? _text;
         private Guid _variableId;
         private string? _variableName;
+        private int _arrayIndex = -1;
         private string? _value;
         private Guid _targetPageId;
         private string? _targetPageName;
@@ -34,6 +35,7 @@ namespace VisionMaster.Scada
         private string? _axisName;
         private double? _targetMm;
         private double? _velocityMmPerS;
+        private bool _onlyIfPreviousSucceeded;
 
         /// <summary>动作类型（决定下面哪几组字段有意义）</summary>
         public ScadaActionType Type
@@ -70,7 +72,10 @@ namespace VisionMaster.Scada
             set
             {
                 if (SetProperty(ref _variableId, value))
+                {
                     RaisePropertyChanged(nameof(HasVariable));
+                    RaisePropertyChanged(nameof(VariableDisplayName));
+                }
             }
         }
 
@@ -84,9 +89,34 @@ namespace VisionMaster.Scada
                 {
                     RaisePropertyChanged(nameof(Detail));
                     RaisePropertyChanged(nameof(HasVariable));
+                    RaisePropertyChanged(nameof(VariableDisplayName));
                 }
             }
         }
+
+        /// <summary>
+        /// 目标变量的数组元素下标：<c>-1</c> = 引用整个变量，<c>≥ 0</c> = 引用数组元素。
+        /// 口径与 <see cref="ScadaBinding.ArrayIndex"/> 逐字一致（见 <see cref="ScadaVariableRef"/>）。
+        /// </summary>
+        public int ArrayIndex
+        {
+            get => _arrayIndex;
+            set
+            {
+                if (SetProperty(ref _arrayIndex, value < 0 ? -1 : value))
+                {
+                    RaisePropertyChanged(nameof(Detail));
+                    RaisePropertyChanged(nameof(HasVariable));
+                    RaisePropertyChanged(nameof(VariableDisplayName));
+                }
+            }
+        }
+
+        /// <summary>把本动作的目标变量摊成值源/运行态认的完整引用</summary>
+        public ScadaVariableRef ToReference() => new(VariableId, VariableName, ArrayIndex);
+
+        /// <summary>动作行上"变量：Control[3]"那一格（含数组下标；未选时给占位）</summary>
+        public string VariableDisplayName => HasVariable ? ToReference().DisplayText : "（还没选变量）";
 
         /// <summary>
         /// 是否已经选好目标变量（Id 或名字任一非空即算）。
@@ -108,6 +138,19 @@ namespace VisionMaster.Scada
         {
             get => _value;
             set => SetProperty(ref _value, value);
+        }
+
+        /// <summary>
+        /// 仅在上一条动作成功时执行（P0）。用于“暂停流程成功后才写 Paused=1”这类
+        /// 状态变量：上一条被跳过或失败时，本条不执行，避免页面显示假状态。
+        ///
+        /// 默认 false = 历史行为（每条动作独立执行，一条失败不阻断后面的）。
+        /// 只有写变量动作在界面上暴露这个开关；其它类型保持默认 false。
+        /// </summary>
+        public bool OnlyIfPreviousSucceeded
+        {
+            get => _onlyIfPreviousSucceeded;
+            set => SetProperty(ref _onlyIfPreviousSucceeded, value);
         }
 
         /// <summary>目标画面稳定身份（<see cref="ScadaActionType.Navigate"/>）</summary>
@@ -291,8 +334,9 @@ namespace VisionMaster.Scada
         public string Detail => Type switch
         {
             ScadaActionType.Log => _text ?? string.Empty,
-            ScadaActionType.WriteVariable => $"{_variableName} := {_value}",
+            ScadaActionType.WriteVariable => $"{ToReference().DisplayText} := {_value}",
             ScadaActionType.Navigate => _targetPageName ?? string.Empty,
+            ScadaActionType.NavigateBack => string.Empty,
             // 流程三条与切画面同款：行上显示目标流程名（未选则为空，面板另有占位与警告）
             ScadaActionType.StartFlow => _flowName ?? string.Empty,
             ScadaActionType.StopFlow => _flowName ?? string.Empty,
@@ -326,9 +370,17 @@ namespace VisionMaster.Scada
 
         /// <summary>绑定/自愈回填变量（与 <see cref="ScadaBinding.Bind"/> 同一职责）</summary>
         public void BindVariable(Guid variableId, string? variableName)
+            => BindVariable(variableId, variableName, -1);
+
+        /// <summary>
+        /// 绑定/自愈回填目标变量（含数组元素下标）。旧调用点用上面那个重载，等价于
+        /// <paramref name="arrayIndex"/> = -1（引用整个变量）。
+        /// </summary>
+        public void BindVariable(Guid variableId, string? variableName, int arrayIndex)
         {
             VariableId = variableId;
             VariableName = variableName;
+            ArrayIndex = arrayIndex;
         }
 
         /// <summary>绑定/自愈回填目标画面（口径同 <see cref="BindVariable"/>：Id 是权威键，名字给人看）</summary>
@@ -426,10 +478,11 @@ namespace VisionMaster.Scada
                 : $"记录日志「{_text}」",
             ScadaActionType.WriteVariable => _variableId == Guid.Empty && string.IsNullOrEmpty(_variableName)
                 ? "写变量（未选变量）"
-                : $"写变量 {_variableName} := {_value}",
+                : $"写变量 {ToReference().DisplayText} := {_value}",
             ScadaActionType.Navigate => _targetPageId == Guid.Empty && string.IsNullOrEmpty(_targetPageName)
                 ? "切换画面（未选画面）"
                 : $"切换画面 → {_targetPageName}",
+            ScadaActionType.NavigateBack => "返回上一页",
             // 流程三条的判定口径与 HasFlow 一致（Id 或名字任一非空白即算已选）
             ScadaActionType.StartFlow => !HasFlow
                 ? "启动流程（未选流程）"

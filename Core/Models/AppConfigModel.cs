@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -246,6 +247,264 @@ namespace VisionMaster.Models
     }
 
     /// <summary>
+    /// SCADA 运行态 Web 客户端的点击策略（见 <see cref="ScadaWebSettings.ClickPolicy"/>）。
+    ///
+    /// 两个成员不是"好看不好看"的偏好，而是两种现场安全口径：
+    ///   <see cref="AllOperators"/>     = 所有已登录账号都能点（含操作员）；适合只给操作工看/操作的屏；
+    ///   <see cref="HighestRoleOnly"/>   = 只有当前登录账号里权限最高的那一档能点；默认值。
+    /// </summary>
+    public enum ScadaWebClickPolicy
+    {
+        /// <summary>所有已登录账号都可点击（不按角色再收窄）</summary>
+        AllOperators = 0,
+
+        /// <summary>只有最高权限档（管理员/工程师）可点击，其余账号只读——默认</summary>
+        HighestRoleOnly = 1
+    }
+
+    /// <summary>
+    /// SCADA 运行态 Web 客户端（可选模块）的配置节（见 <see cref="AppConfigModel.ScadaWeb"/>）。
+    ///
+    /// <b>默认口径（四条，缺一条都不是"安全默认"）</b>
+    /// ---------
+    ///   1. <b>默认不启用</b>（<see cref="Enabled"/> = false）：Web 是一个可选模块，
+    ///      程序目录里没有 <c>Web\VisionMaster.ScadaWeb.dll</c> 时启动链也不该报错；
+    ///   2. <b>默认只读</b>（<see cref="RequireLogin"/> = true、<see cref="AllowAnonymousView"/> = false）：
+    ///      打开网页先登录，未登录看不到任何画面内容；
+    ///   3. <b>默认只有最高权限可点</b>（<see cref="ClickPolicy"/> = <see cref="ScadaWebClickPolicy.HighestRoleOnly"/>）：
+    ///      普通操作员在浏览器里看得见画面、点不动图元；
+    ///   4. <b>默认禁用运动命令</b>（<see cref="AllowMotionCommands"/> = false）：
+    ///      浏览器里点一下就让轴动起来，是这套功能里唯一"点错会撞机"的入口，
+    ///      必须由现场显式打开（还叠加了 <see cref="OperationLeaseEnabled"/> 的操作权租约）。
+    ///
+    /// <b>改配置需重启</b>（M1 口径）
+    /// ---------
+    /// 本节的读取发生在 <c>App.RegisterTypes</c>（见 <c>ScadaWebModuleLoader</c>），
+    /// 那一刻容器还没构建，也没有任何"改完即时生效"的通道。所以改了
+    /// <see cref="Enabled"/> / <see cref="Port"/> / <see cref="BindAddress"/> 之后
+    /// <b>必须重启 VisionMaster</b> 才会生效——不做成热重载是刻意的：换监听地址要停服务、
+    /// 断掉所有已连会话，而"点保存就断线"在产线上比"重启生效"更难接受。
+    /// 其余字段（策略类）由 Web 模块每轮现读，改完重启一次同样生效。
+    /// </summary>
+    public class ScadaWebSettings
+    {
+        /// <summary>默认监听端口（与 HttpImageServer 的 19000、NetworkCameraServer 的 19100 错开）</summary>
+        public const int DefaultPort = 8080;
+
+        /// <summary>默认监听地址：<c>0.0.0.0</c> = 所有网卡（现场用平板/另一台机器打开网页）</summary>
+        public const string DefaultBindAddress = "0.0.0.0";
+
+        /// <summary>默认最大并发会话数</summary>
+        public const int DefaultMaxSessions = 16;
+
+        /// <summary>默认每会话入站队列容量</summary>
+        public const int DefaultSessionInboundQueueCapacity = 32;
+
+        /// <summary>入站队列容量的下界（小于它等于每帧都可能丢）</summary>
+        public const int MinSessionInboundQueueCapacity = 16;
+
+        /// <summary>入站队列容量的上界（再大就只是把延迟堆在内存里）</summary>
+        public const int MaxSessionInboundQueueCapacity = 64;
+
+        /// <summary>默认每会话命令速率上限（条/秒）</summary>
+        public const int DefaultCommandRatePerSecond = 5;
+
+        /// <summary>确认令牌默认有效期（秒）</summary>
+        public const int DefaultConfirmTokenSeconds = 30;
+
+        /// <summary>确认令牌有效期下界（再短就连"看一眼提示再点确认"都不够）</summary>
+        public const int MinConfirmTokenSeconds = 5;
+
+        /// <summary>确认令牌有效期上界</summary>
+        public const int MaxConfirmTokenSeconds = 300;
+
+        /// <summary>取票接口的默认每分钟上限（每个来源 IP）</summary>
+        public const int DefaultTicketRatePerMinute = 10;
+
+        /// <summary>取票限速的下界（0 或负数按 1 处理，不许关掉限流）</summary>
+        public const int MinTicketRatePerMinute = 1;
+
+        /// <summary>取票限速的上界</summary>
+        public const int MaxTicketRatePerMinute = 600;
+
+        /// <summary>默认单帧快照上限（字节）。2MB ≈ 一张 1080p JPEG 的 4 倍余量</summary>
+        public const int DefaultSnapshotMaxBytes = 2 * 1024 * 1024;
+
+        /// <summary>默认单帧增量预算（字节）。120KB 是"窄带现场也要能刷出来"的量级</summary>
+        public const int DefaultFrameBudgetBytes = 120 * 1024;
+
+        /// <summary>
+        /// 是否启用 Web 运行态模块。<b>默认 false</b>——不启用时加载器直接返回 null，
+        /// 启动链既不加载程序集、也不监听任何端口（正常状态，不写 Warn）。
+        /// 改完需重启（见类注释）。
+        /// </summary>
+        public bool Enabled { get; set; } = false;
+
+        /// <summary>
+        /// 监听端口。默认 <see cref="DefaultPort"/>。改完需重启；
+        /// 与 HTTP 收图 / 网络相机两个服务的端口必须错开（否则其中一个绑不上）。
+        /// </summary>
+        public int Port { get; set; } = DefaultPort;
+
+        /// <summary>
+        /// 监听地址。<c>0.0.0.0</c> = 所有网卡；<c>127.0.0.1</c> = 只允许本机（调试/反向代理前置时用）。
+        /// 现场只有视觉网该被访问时，填该网卡的实际 IP。改完需重启。
+        /// </summary>
+        public string BindAddress { get; set; } = DefaultBindAddress;
+
+        /// <summary>
+        /// 是否要求登录后才能查看画面。<b>默认 true</b>。
+        /// 关掉它等于"网页一打开就是运行画面"，只适合完全隔离的调试网络。
+        /// </summary>
+        public bool RequireLogin { get; set; } = true;
+
+        /// <summary>
+        /// 未登录时是否允许<b>只读</b>查看（画面 + 变量值，不含任何写入/动作）。<b>默认 false</b>。
+        /// 与 <see cref="RequireLogin"/> 的区别：后者管"能不能进"，本项管"进来之前能看到什么"。
+        /// </summary>
+        public bool AllowAnonymousView { get; set; } = false;
+
+        /// <summary>
+        /// 是否允许浏览器下发命令（写变量 / 执行图元事件 / 确认报警）。<b>默认 false = 只读镜像</b>。
+        ///
+        /// 这是 M2 的总闸，与 <see cref="ClickPolicy"/> 是两道独立的门：
+        ///   · 本项为 false → 所有 <c>cmd.*</c> 一律回 <c>E_POLICY</c>（"当前为只读模式"），
+        ///     <c>caps</c> 全 false——<b>即使角色与策略都允许</b>；
+        ///   · 本项为 true 才轮到 <see cref="ClickPolicy"/> 与角色判定。
+        /// 默认关的理由与 <see cref="AllowAnonymousView"/> 同一条：浏览器是远程入口，
+        /// 一次升级不该让现场网页忽然获得写能力。运行期可改（改后推 caps + policyVersion++），
+        /// 不需要重启。
+        /// </summary>
+        public bool AllowCommands { get; set; } = false;
+
+        /// <summary>
+        /// 危险动作（停流程、运动类动作）的一次性确认令牌有效期（秒）。<b>默认 30</b>，
+        /// 取值夹在 <see cref="MinConfirmTokenSeconds"/>~<see cref="MaxConfirmTokenSeconds"/>。
+        ///
+        /// 令牌绑定 <c>(sessionId, elementId, actionKind)</c>、单次使用、先删后执行；
+        /// 有效期从签发时刻算（服务端时钟）。太长等于把"确认"变成一张长期通行证，
+        /// 太短则用户还没看清提示就已经过期。
+        /// </summary>
+        public int ConfirmTokenSeconds { get; set; } = DefaultConfirmTokenSeconds;
+
+        /// <summary>
+        /// <c>POST /api/ticket</c> 的每来源 IP 每分钟请求上限（匿名取票 / 登录 / 换票三种请求合并计数）。
+        /// <b>默认 10</b>，取值夹在 <see cref="MinTicketRatePerMinute"/>~<see cref="MaxTicketRatePerMinute"/>。
+        ///
+        /// 计数按 <c>(remoteIp, 60s 滑动窗口)</c>，<b>不因用户名不同而分开</b>——否则换一个用户名
+        /// 就能绕过限速去刷密码。超出上限回 429 + <c>E_RATE_LIMITED</c> + <c>retryAfterMs</c>，
+        /// 不签发 ticket、不做 PBKDF2。
+        /// </summary>
+        public int TicketRatePerMinute { get; set; } = DefaultTicketRatePerMinute;
+
+        /// <summary>
+        /// 最大并发会话数。<b>默认 16</b>。超过后新连接被明确拒绝（不是排队），
+        /// 免得一台机器开几十个标签页把运行态拖慢。
+        /// </summary>
+        public int MaxSessions { get; set; } = DefaultMaxSessions;
+
+        /// <summary>
+        /// 每会话入站命令队列容量，取值范围 <see cref="MinSessionInboundQueueCapacity"/>~<see cref="MaxSessionInboundQueueCapacity"/>
+        /// （16~64）。<b>默认 32</b>。超出范围时按边界夹取并记一条 Warn（不阻断启动）。
+        /// </summary>
+        public int SessionInboundQueueCapacity { get; set; } = DefaultSessionInboundQueueCapacity;
+
+        /// <summary>
+        /// 点击策略。<b>默认 <see cref="ScadaWebClickPolicy.HighestRoleOnly"/></b>——
+        /// 只有最高权限档可点，其余账号只读。需要"操作员也能点"时改成 <see cref="ScadaWebClickPolicy.AllOperators"/>。
+        /// </summary>
+        public ScadaWebClickPolicy ClickPolicy { get; set; } = ScadaWebClickPolicy.HighestRoleOnly;
+
+        /// <summary>
+        /// 是否允许从 Web 下发运动命令（点动/定位/回零）。<b>默认 false</b>。
+        /// 这是"点错会撞机"的唯一入口，打开前请同时确认 <see cref="OperationLeaseEnabled"/>
+        /// 与现场的安全回路（急停/限位）确实在位。
+        /// </summary>
+        public bool AllowMotionCommands { get; set; } = false;
+
+        /// <summary>
+        /// 是否启用"操作权租约"（同一时刻只有一份会话能下发写命令，其余只读）。<b>默认 false</b>。
+        /// 打开后，多个浏览器同时开着也不会出现"两个人抢着写同一个变量"。
+        /// </summary>
+        public bool OperationLeaseEnabled { get; set; } = false;
+
+        /// <summary>
+        /// 每会话命令速率上限（条/秒）。<b>默认 5</b>。0 或负数按 1 处理（不许关掉限流）。
+        /// </summary>
+        public int CommandRatePerSecond { get; set; } = DefaultCommandRatePerSecond;
+
+        /// <summary>
+        /// 单帧快照上限（字节）。<b>默认 2MB</b>。超限时按缩帧处理并记诊断，不抛给客户端。
+        /// </summary>
+        public int SnapshotMaxBytes { get; set; } = DefaultSnapshotMaxBytes;
+
+        /// <summary>
+        /// 单帧增量预算（字节）。<b>默认 120KB</b>。决定一帧里能塞多少"变化的图元"，
+        /// 超出部分留到下一帧（宁可慢半拍，也不把带宽打满）。
+        /// </summary>
+        public int FrameBudgetBytes { get; set; } = DefaultFrameBudgetBytes;
+
+        // ===== 全操作员开放（AllOperators）时的监管闸门 =====
+        //
+        // 背景：<see cref="ClickPolicy"/> = <see cref="ScadaWebClickPolicy.HighestRoleOnly"/> 时，
+        // 浏览器里的写入口本来就只对最高权限档开放；一旦改成 <see cref="ScadaWebClickPolicy.AllOperators"/>，
+        // 普通操作员也能在网页上按按钮、写变量、下运动命令——现场失去的正是"只有工程师能改"这层保护。
+        // 下面五项就是补回这层保护的替代手段（身份、留痕、限速、危险操作二次确认、操作权租约）。
+        //
+        // 口径（M2 实现）：<see cref="ClickPolicy"/> 切到 <see cref="ScadaWebClickPolicy.AllOperators"/> 时，
+        // 下面五项是**监管闸门**——缺项拒绝启用 AllOperators（配置校验失败、Web 模块按不可用处理并记 Warn），
+        // 不做"缺哪项就悄悄跳过哪项"。理由是这五项各自对应一种现场事故，
+        // 少一项就等于给操作员开一条没有护栏的通道，而这种"看起来开了、其实少一层"最难在事后发现。
+        // <see cref="AllOperatorsRequiresLease"/> 是其中"租约是否也计入必开清单"的那一项：
+        // 默认 false 保持历史行为，M2 校验时按它决定要不要把 <see cref="OperationLeaseEnabled"/> 一起要求上。
+
+        /// <summary>
+        /// 是否要求登录用户在线（有活跃会话）才允许写操作。<b>默认 true</b>。
+        /// AllOperators 下的第一道闸门：写动作必须能对应到一个仍在线的账号，而不是一个已登出的残留令牌。
+        /// </summary>
+        public bool RequireOnlineUsers { get; set; } = true;
+
+        /// <summary>
+        /// 是否要求每一次写操作都落审计（<c>ScadaAuditWriter</c>）。<b>默认 true</b>。
+        /// AllOperators 下"谁按的"是事后唯一能查的东西，关掉等于放弃追责。
+        /// </summary>
+        public bool RequireAudit { get; set; } = true;
+
+        /// <summary>
+        /// 是否要求每会话命令限流（<see cref="CommandRatePerSecond"/>）。<b>默认 true</b>。
+        /// AllOperators 下用户数变多、误触变多，限流是防止"连点把变量刷爆"的唯一手段。
+        /// </summary>
+        public bool RequireRateLimit { get; set; } = true;
+
+        /// <summary>
+        /// 危险操作（运动命令、急停复位等）是否要求二次确认。<b>默认 true</b>。
+        /// AllOperators 下按错按钮的概率随人数上升，二次确认是最后一道人机防线。
+        /// </summary>
+        public bool RequireConfirmForDangerous { get; set; } = true;
+
+        /// <summary>
+        /// AllOperators 时是否强制启用操作权租约（同一时刻只有一份会话能写）。<b>默认 false</b>。
+        /// 与 <see cref="OperationLeaseEnabled"/> 的关系：后者是"要不要租约"，本项是"放开 AllOperators 时
+        /// 是否<b>强制</b>要求租约"；两者都开才是"放开写权限 + 只允许一个人写"。
+        /// 默认 false 是历史行为（M1 口径），M2 会把它纳入上面那组闸门的校验。
+        /// </summary>
+        public bool AllOperatorsRequiresLease { get; set; } = false;
+
+        /// <summary>
+        /// 单图元每秒变更上限（条/秒/图元）。<b>默认 2</b>。
+        /// AllOperators 下的细粒度限流：按图元而不是按会话算，防止一个会话把某一个图元刷成"每秒几十帧"。
+        /// </summary>
+        public int ElementRatePerSecond { get; set; } = 2;
+
+        /// <summary>
+        /// 图像令牌有效期（秒）。<b>默认 45</b>。
+        /// AllOperators 下图像请求走一次性令牌而不是裸 URL：令牌过期即失效，
+        /// 避免"把浏览器里那张图的地址发出去"成为长期可用的旁路。
+        /// </summary>
+        public int ImageTokenSeconds { get; set; } = 45;
+    }
+
+    /// <summary>
     /// 软件级配置（AppConfig.json）：方案清单 + 默认启动方案
     /// 注意：这是软件全局配置，不随任何解决方案持久化
     /// </summary>
@@ -422,6 +681,98 @@ namespace VisionMaster.Models
         /// 初始化器让"文件里没有"与"文件里写了默认值"走同一条路。
         /// </summary>
         public HelpSettings Help { get; set; } = new();
+
+        /// <summary>
+        /// SCADA 运行态 Web 客户端（可选模块）配置，见 <see cref="ScadaWebSettings"/>。
+        ///
+        /// <b>不能为 null</b>：与上面几节同一理由——加载器与 Web 模块都会直接点着用
+        /// （<c>Current.ScadaWeb.Enabled</c> / <c>Current.ScadaWeb.Port</c>），
+        /// 而老版本的 AppConfig.json 里没有这个节，Newtonsoft 遇到缺失的引用类型
+        /// 只留 null 不会自动 new。初始化器让"文件里没有"与"文件里写了默认值"走同一条路。
+        ///
+        /// 默认 <see cref="ScadaWebSettings.Enabled"/> = false：不启用时启动链不加载 Web 程序集、
+        /// 不监听端口，升级到本版本对现场的行为改变为零（详见该类的"默认口径"四条）。
+        /// </summary>
+        public ScadaWebSettings ScadaWeb { get; set; } = new();
+
+        // ==================================================================
+        //  日志（2026-10-21）：原先全是 LogService 里的硬编码
+        // ==================================================================
+
+        /// <summary>日志保留天数默认值（含今天）。与 LogService 的构造兜底同源</summary>
+        public const int DefaultLogRetentionDays = 30;
+
+        /// <summary>日志面板保留条数默认值（只在内存里，不是落盘）</summary>
+        public const int DefaultLogPanelMaxRows = 5000;
+
+        /// <summary>报警图集保留天数默认值（含今天）</summary>
+        public const int DefaultAlarmFrameRetentionDays = 90;
+
+        /// <summary>密码最小长度默认值（= 历史行为，升级不改现场节奏）</summary>
+        public const int DefaultMinPasswordLength = 4;
+
+        /// <summary>
+        /// 日志文件保留天数（含今天）。<b>0 或负数 = 永不清理</b>。
+        /// 与审计 / 报警保留同一口径——它们都是"磁盘上的历史证据"，规则不该两样。
+        /// </summary>
+        public int LogRetentionDays { get; set; } = DefaultLogRetentionDays;
+
+        /// <summary>
+        /// 日志目录。<b>空串 = 程序目录下的 Logs</b>（= 历史行为）。
+        ///
+        /// 为什么允许改：装在 Program Files 或以受限用户跑时，程序目录可能不可写；
+        /// 也有现场要求把日志放到独立数据盘。留空时行为与升级前逐字一致。
+        /// </summary>
+        public string LogDirectory { get; set; } = "";
+
+        /// <summary>
+        /// 落盘的最小级别（面板不受影响——面板永远收全部级别）。
+        /// 磁盘紧张的机台可以只落警告与错误。
+        /// </summary>
+        public LogFileLevel LogFileLevel { get; set; } = LogFileLevel.Info;
+
+        /// <summary>
+        /// 日志面板保留条数（只在内存里，超过按最旧丢弃）。
+        /// 0 或负数 = 不限制（不推荐：连续跑几天会把内存吃干）。
+        /// </summary>
+        public int LogPanelMaxRows { get; set; } = DefaultLogPanelMaxRows;
+
+        /// <summary>
+        /// 报警图集（程序目录 <c>AlarmFrames</c> 下的 PNG）保留天数（含今天）。
+        /// <b>0 或负数 = 永不清理</b>。
+        ///
+        /// 为什么必须有这一项：每次报警都把整个图集落盘，每张 ~15MB 量级，而这一目录
+        /// 在加这一项之前<b>只写不删</b>——它是唯一一个没有上限的磁盘增长点。
+        /// </summary>
+        public int AlarmFrameRetentionDays { get; set; } = DefaultAlarmFrameRetentionDays;
+
+        /// <summary>
+        /// 账号密码最小长度。<b>0 或负数按 <see cref="DefaultMinPasswordLength"/> 处理</b>
+        /// （"允许空密码"不是这条配置的语义，别让它成为关掉校验的后门）。
+        /// </summary>
+        public int MinPasswordLength { get; set; } = DefaultMinPasswordLength;
+    }
+
+    /// <summary>
+    /// 日志落盘的最小级别（软件级配置，见 <see cref="AppConfigModel.LogFileLevel"/>）。
+    ///
+    /// 顺序就是严重度（Info &lt; Warning &lt; Error）：过滤按"级别 &gt;= 配置值"。
+    /// 显示名走 <see cref="DescriptionAttribute"/>——属性面板的 EnumGenerator 读的是它
+    /// （不是 <c>[Display]</c>，见 R84 的三条上屏路径）。
+    /// </summary>
+    public enum LogFileLevel
+    {
+        /// <summary>信息及以上（历史行为：所有日志都落盘）</summary>
+        [Description("全部（信息及以上）")]
+        Info = 0,
+
+        /// <summary>只落警告与错误</summary>
+        [Description("仅警告与错误")]
+        Warning = 1,
+
+        /// <summary>只落错误</summary>
+        [Description("仅错误")]
+        Error = 2
     }
 
     /// <summary>

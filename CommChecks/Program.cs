@@ -5,7 +5,10 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
@@ -74,6 +77,9 @@ namespace CommChecks
             PublishFailureIsolation();
             ValueTimestampPublication();
             SpanDecodeEquivalence();
+            NetworkArrayDecodeAndOffset();
+            NetworkStringAndBoolArrayDecode();
+            NetworkArrayWriteEncoding();
             WritePriorityAndBackpressure();
             UrgentLanesAndPollYield();
             WaitSchedulingAndLogThrottleKey();
@@ -85,6 +91,11 @@ namespace CommChecks
             CommunicationDriverRegistryContract();
             ModbusStationFrameContract();
             IoMigrationContract();
+            McFinsFreeProtocolContract();
+            McFinsBatchPlanning();
+            McFinsAddressContract();
+            ProtocolDisplayNameContract();
+            FreeProtocolLoopback();
             CommunicationProtocolsAndAddRollback();
             KeepAliveConfigPropagation();
             ConfigJsonPerItemIsolation();
@@ -427,7 +438,122 @@ namespace CommChecks
             var noGroupsClone = noGroups.Clone();
             Check("C4-9 原件组表为 null 时 Clone 仍给空表（不抛 NRE）",
                 noGroupsClone.ScanGroups != null && noGroupsClone.ScanGroups.Count == 0, "");
+
+            // P0 回归：Clone/CopyFrom 必须带上基类 Type。
+            // 漏拷时副本自报 ModbusTcp（枚举默认值 0），而 Validate 会判"协议类型不匹配"——
+            // 表现是"编辑连接点确定就失败"，且此时旧连接已被管理器先删后加地摘掉了。
+            foreach (var protocol in CommunicationProtocols.Implemented)
+            {
+                var live = new CommunicationConfig(protocol);
+                var copy = live.Clone();
+                bool cloneOk = copy.Config?.Type == protocol && copy.Validate(out _);
+
+                var targetConfig = new CommunicationConfig(protocol);
+                targetConfig.CopyFrom(copy);
+                bool copyOk = targetConfig.Config?.Type == protocol && targetConfig.Validate(out _);
+
+                Check($"C4-10 {protocol}：Clone / CopyFrom 后 Config.Type 跟随协议且 Validate 通过",
+                    cloneOk && copyOk,
+                    $"clone={copy.Config?.Type} copyFrom={targetConfig.Config?.Type}");
+            }
         }
+
+        #endregion
+
+        #region B8/B9 MC·FINS 地址与显示名
+
+        /// <summary>
+        /// MC/FINS 地址的"进制 / 厂商 / 位偏移"契约。
+        /// <para>为什么必须有：MC 的 X/Y/B/W 是十六进制编址，而批处理规划器用 "前缀 + 十进制 Start"
+        /// 拼段地址——对十六进制区会把 W100(=256) 拼成 "W256"(=598)，单读与批读打到不同设备。
+        /// 这条断言钉住"单读地址 == 批读段地址"。</para>
+        /// </summary>
+        private static void McFinsAddressContract()
+        {
+            Section("B8 MC/FINS 地址（进制 / 厂商 / 位偏移）");
+
+            var w = new McAddress { Area = McArea.W, Offset = "100", DataType = DataValueType.Int16, Length = 1 };
+            bool wBatch = w.TryCreatePollAddress(out var wPoll);
+            Check("B8-1 MC W 区：单读地址与批读段地址一致（十六进制区不能二次转写）",
+                w.Address == "W100" && wBatch && wPoll!.SegmentAddress == "W100" && wPoll.Start == 256,
+                $"addr={w.Address} seg={wPoll?.SegmentAddress} start={wPoll?.Start}");
+
+            var x = new McAddress { Area = McArea.X, Offset = "1A", DataType = DataValueType.Boolean, Length = 1 };
+            var xHexPrefix = new McAddress { Area = McArea.X, Offset = "0x1A", DataType = DataValueType.Boolean, Length = 1 };
+            Check("B8-2 MC X 区接受十六进制写法（1A / 0x1A）",
+                x.Validate().IsValid && x.Address == "X1A" && xHexPrefix.Address == "X1A",
+                $"{x.Address} / {xHexPrefix.Address} / {x.Validate().ErrorMessage}");
+
+            var m = new McAddress { Area = McArea.M, Offset = "100", AddressOffset = 5, DataType = DataValueType.Boolean, Length = 1 };
+            Check("B8-3 MC 位区也吃「地址偏移」（旧实现位区直接忽略）",
+                m.Address == "M105", m.Address);
+
+            var mInt = new McAddress { Area = McArea.M, Offset = "100", DataType = DataValueType.Int32, Length = 1 };
+            var mIntResult = mInt.Validate();
+            Check("B8-4 MC 位区配数值类型在创建阶段被拒（不再等轮询时出怪值）",
+                !mIntResult.IsValid, mIntResult.ErrorMessage);
+
+            var panaM = new McAddress { Area = McArea.M, Vendor = McVendor.Panasonic, Offset = "100", DataType = DataValueType.Boolean, Length = 1 };
+            var keyF = new McAddress { Area = McArea.F, Vendor = McVendor.Keyence, Offset = "100", DataType = DataValueType.Boolean, Length = 1 };
+            var keyB = new McAddress { Area = McArea.B, Vendor = McVendor.Keyence, Offset = "1A", DataType = DataValueType.Boolean, Length = 1 };
+            Check("B8-5 MC 地址校验按厂商解析器（松下无 M / 基恩士 F 只认 FM / 基恩士 B 可用）",
+                !panaM.Validate().IsValid && !keyF.Validate().IsValid && keyB.Validate().IsValid,
+                $"松下M={panaM.Validate().IsValid} 基恩士F={keyF.Validate().IsValid} 基恩士B={keyB.Validate().IsValid}");
+
+            var zrM = new McAddress { Area = McArea.ZR, Vendor = McVendor.Mitsubishi, Offset = "100", DataType = DataValueType.Int16, Length = 1 };
+            var zrK = new McAddress { Area = McArea.ZR, Vendor = McVendor.Keyence, Offset = "100", DataType = DataValueType.Int16, Length = 1 };
+            bool zrMok = zrM.TryCreatePollAddress(out var zrMPoll);
+            bool zrKok = zrK.TryCreatePollAddress(out var zrKPoll);
+            Check("B8-6 ZR 的进制随厂商（三菱十进制 100 / 基恩士十六进制 0x100）",
+                zrMok && zrKok && zrMPoll!.Start == 100 && zrKPoll!.Start == 256
+                && zrMPoll.SegmentAddress == "ZR100" && zrKPoll.SegmentAddress == "ZR100",
+                $"三菱 {zrMPoll?.Start}/{zrMPoll?.SegmentAddress} vs 基恩士 {zrKPoll?.Start}/{zrKPoll?.SegmentAddress}");
+
+            var finsBit = new FinsAddress { Area = FinsArea.D, Offset = "100", BitOffset = 15, DataType = DataValueType.Boolean, Length = 1 };
+            var finsNoBit = new FinsAddress { Area = FinsArea.D, Offset = "100", BitOffset = -1, DataType = DataValueType.Boolean, Length = 1 };
+            Check("B8-7 FINS 位偏移 0-15（旧实现钳到 7，D100.12 建不出来）",
+                finsBit.Validate().IsValid && finsBit.Address == "D100.15" && !finsNoBit.Validate().IsValid,
+                $"{finsBit.Address} / 无位偏移 valid={finsNoBit.Validate().IsValid}");
+
+            var serialText = new SerialConfig().ToString();
+            Check("B8-8 串口配置 ToString 不是类型全名（通讯列表「IP:端口」列）",
+                !serialText.Contains("VisionMaster.", StringComparison.Ordinal), serialText);
+        }
+
+        /// <summary>
+        /// R40/R84：枚举上屏必须走中文显示名。
+        /// <para>属性面板（FlatPropertyGrid 的 EnumGenerator）读 <c>[Description]</c>；
+        /// MC/FINS 的存储区下拉读枚举上的 <c>[Display(Name)]</c>。两条路读的不是同一个特性，
+        /// 所以这里分开断言——只补一个会让另一条路继续显示英文。</para>
+        /// </summary>
+        private static void ProtocolDisplayNameContract()
+        {
+            Section("B9 协议/枚举显示名（R40/R84）");
+
+            Check("B9-1 CommunicationType 每个成员都有中文 [Description]",
+                AllHaveDescription<CommunicationType>(), "");
+            Check("B9-2 McProtocolType / McFrameFormat 有 [Description]",
+                AllHaveDescription<McProtocolType>() && AllHaveDescription<McFrameFormat>(), "");
+            Check("B9-3 ParityMode / StopBitsMode 有 [Description]",
+                AllHaveDescription<ParityMode>() && AllHaveDescription<StopBitsMode>(), "");
+            Check("B9-4 McArea / FinsArea 每个成员都有 [Display(Name)]（存储区下拉的数据源）",
+                AllHaveDisplay<McArea>() && AllHaveDisplay<FinsArea>(), "");
+            Check("B9-5 已实现协议文案走中文显示名（不再拼枚举成员名）",
+                CommunicationProtocols.ImplementedText
+                    == "Modbus TCP / Modbus RTU / 西门子 S7 / 三菱 MC / 欧姆龙 FINS / 自由协议",
+                CommunicationProtocols.ImplementedText);
+        }
+
+        private static bool AllHaveDescription<TEnum>() where TEnum : struct, Enum
+            => Enum.GetValues<TEnum>().All(v => v.GetType().GetField(v.ToString())?
+                .GetCustomAttribute<DescriptionAttribute>()?.Description is { Length: > 0 });
+
+        private static bool AllHaveDisplay<TEnum>() where TEnum : struct, Enum
+            => Enum.GetValues<TEnum>().All(v =>
+                v.GetType().GetField(v.ToString())?
+                    .GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.DisplayAttribute), false)
+                    .OfType<System.ComponentModel.DataAnnotations.DisplayAttribute>()
+                    .Any(d => !string.IsNullOrWhiteSpace(d.Name)) == true);
 
         #endregion
 
@@ -1253,6 +1379,378 @@ namespace CommChecks
 
             Check($"C21-4 解码行为等价：{cases.Length} 组（4 种字序 × short/int/float）逐值一致",
                 mismatch == 0, mismatch == 0 ? "全部一致" : $"{mismatch} 组不一致；首个：{firstMismatch}");
+        }
+
+        /// <summary>
+        /// C22：通讯数组与地址偏移。
+        /// <para>数组第一期只做数值数组只读，但"只读"不等于"只加一个类型"——
+        /// 解码、内容比较、跨度上限、方案落盘四件事任何一件漏了都会静默坏：
+        /// 解码漏了数组永远为空；内容比较漏了每轮都推 ValueChanged；跨度上限漏了建完永远读不到；
+        /// Length 不落盘则重开方案数组变回标量。</para>
+        /// </summary>
+        private static void NetworkArrayDecodeAndOffset()
+        {
+            Section("C22 通讯数组与地址偏移（数值数组解码 / 40001 写法 / 内容比较 / 持久化）");
+
+            // C22-1~3：40001 写法 + 地址偏移 → 0 基有效地址
+            var legacy = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                DataType = DataValueType.Int32,
+                Offset = "40001",
+                UseLegacyAddress = true,
+                AddressOffset = 2,
+                Length = 3
+            };
+            Check("C22-1 40001 写法 + 偏移 2 → x=3;2", legacy.Address == "x=3;2", legacy.Address);
+            bool legacyPollOk = legacy.TryCreatePollAddress(out var legacyPoll);
+            Check("C22-2 40001 写法 + 偏移 2 的轮询起点 = 2、跨度 = 6 寄存器",
+                legacyPollOk && legacyPoll!.Start == 2 && legacyPoll.SpanUnits == 6,
+                legacyPoll == null ? "null" : $"Start={legacyPoll.Start} Span={legacyPoll.SpanUnits}");
+            Check("C22-3 40001 写法与存储区匹配时 Validate 通过", legacy.Validate().IsValid, legacy.Validate().ErrorMessage);
+
+            // C22-4：开关关闭时保持 0 基字面值（旧数据零影响）
+            var literal = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                DataType = DataValueType.Int32,
+                Offset = "40001"
+            };
+            Check("C22-4 40001 写法关闭 → 仍按 0 基字面值 x=3;40001", literal.Address == "x=3;40001", literal.Address);
+
+            // C22-5：写法与存储区不匹配必须红（不静默读错位置）
+            var mismatched = new ModbusAddress
+            {
+                Area = ModbusArea.InputRegisters,
+                DataType = DataValueType.Int32,
+                Offset = "40001",
+                UseLegacyAddress = true
+            };
+            var mismatch = mismatched.Validate();
+            Check("C22-5 40001 写法与存储区不匹配 → Validate 失败", !mismatch.IsValid, mismatch.ErrorMessage);
+
+            // C22-6：规划器把 3 个连续 Int32 解成 int[3]
+            var arrayAddr = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                DataType = DataValueType.Int32,
+                Offset = "0",
+                Length = 3
+            };
+            var arrayVar = new CommunicationVariable
+            {
+                ConnectionName = "PLC1",
+                VariableName = "Arr",
+                Address = arrayAddr.Address,
+                AddressConfig = arrayAddr,
+                ValueType = typeof(int[]).AssemblyQualifiedName!,
+                AccessMode = VariableAccessMode.ReadOnly
+            };
+            var arrayPlanner = PollBatchPlanner.Build(new[] { arrayVar }, PollTransportKind.Ethernet);
+            var arrayConn = new ArrayBytesConnection(new byte[]
+            {
+                0x00, 0x00, 0x00, 0x01,
+                0x00, 0x00, 0x00, 0x02,
+                0x00, 0x00, 0x00, 0x03
+            });
+            bool arrayOk = arrayPlanner.TryReadOne(arrayConn, out var arrayValue, out var arrayError);
+            var ints = arrayValue as int[];
+            Check("C22-6 规划器把 3 个连续 Int32 解成 int[3]（值 1/2/3）",
+                arrayOk && ints is { Length: 3 } && ints[0] == 1 && ints[1] == 2 && ints[2] == 3,
+                arrayOk
+                    ? (ints == null ? "null" : string.Join(",", ints))
+                    : arrayError ?? "null");
+
+            // C22-7：数组按内容比较——同值不推送，变值推送一次
+            var changeVar = new CommunicationVariable();
+            int events = 0;
+            changeVar.ValueChanged += (_, _) => events++;
+            changeVar.UpdateValue(new[] { 1, 2, 3 });
+            changeVar.UpdateValue(new[] { 1, 2, 3 });
+            int afterSame = events;
+            changeVar.UpdateValue(new[] { 1, 2, 4 });
+            Check("C22-7 数组按内容比较：同值不推送、变值推送一次", afterSame == 1 && events == 2,
+                $"同值后 {afterSame} 次，变值后 {events} 次");
+
+            // C22-8：超过单请求上限 → 规划器跳过并留日志（第一期不做分块）
+            var tooLongAddr = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                DataType = DataValueType.Int32,
+                Offset = "0",
+                Length = 61
+            };
+            var tooLongVar = new CommunicationVariable
+            {
+                ConnectionName = "PLC1",
+                VariableName = "TooLong",
+                Address = tooLongAddr.Address,
+                AddressConfig = tooLongAddr,
+                ValueType = typeof(int[]).AssemblyQualifiedName!,
+                AccessMode = VariableAccessMode.ReadOnly
+            };
+            var logs = new List<string>();
+            var tooLongPlanner = PollBatchPlanner.Build(new[] { tooLongVar }, PollTransportKind.Ethernet, logs.Add);
+            Check("C22-8 61 个 Int32 超过 Modbus 单段上限 → 不参与轮询且日志说明原因",
+                tooLongPlanner.PollItemCount == 0 && logs.Any(l => l.Contains("超过单请求上限", StringComparison.Ordinal)),
+                logs.Count == 0 ? "无日志" : logs[0]);
+
+            // C22-9：方案落盘往返保留元素个数/地址偏移/40001 写法
+            var nv = new NetworkVariableModel
+            {
+                Name = "Arr",
+                DataType = typeof(int[]),
+                ConnectionName = "PLC1",
+                AddressConfig = new ModbusAddress
+                {
+                    Area = ModbusArea.HoldingRegisters,
+                    DataType = DataValueType.Int32,
+                    Offset = "40001",
+                    UseLegacyAddress = true,
+                    AddressOffset = 2,
+                    Length = 3
+                }
+            };
+            var dto = VariableDto.FromNetwork(nv, CommunicationType.ModbusTcp);
+            var restored = dto.BuildAddressConfig() as ModbusAddress;
+            Check("C22-9 方案落盘往返保留元素个数/地址偏移/40001 写法",
+                dto.Length == 3 && dto.AddressOffset == 2 && dto.UseLegacyAddress
+                && restored != null && restored.Length == 3 && restored.AddressOffset == 2
+                && restored.UseLegacyAddress && restored.Address == "x=3;2",
+                $"dto: Length={dto.Length} Offset={dto.AddressOffset} Legacy={dto.UseLegacyAddress}；restored: {restored?.Address ?? "null"}");
+        }
+
+        /// <summary>
+        /// C23：字符串标量 / 字符串数组 / bool 数组解码。
+        /// <para>这三类与数值数组的差别都在"宽度"：字符串标量用 Length 当总字节数，
+        /// 字符串数组要 Length（元素个数）+ ElementByteLength（每元素宽度）两个数，
+        /// bool 数组则按位区点数走。任何一处宽度口径错了，读回来就是截断/乱码/错位。</para>
+        /// </summary>
+        private static void NetworkStringAndBoolArrayDecode()
+        {
+            Section("C23 字符串 / bool 数组解码（定长宽度与位区语义）");
+
+            // C23-1：字符串标量（Length = 总字节数 20）
+            var strAddr = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                DataType = DataValueType.String,
+                Offset = "0",
+                Length = 20
+            };
+            var strVar = new CommunicationVariable
+            {
+                ConnectionName = "PLC1",
+                VariableName = "Text",
+                Address = strAddr.Address,
+                AddressConfig = strAddr,
+                ValueType = typeof(string).AssemblyQualifiedName!,
+                AccessMode = VariableAccessMode.ReadOnly
+            };
+            var strPlanner = PollBatchPlanner.Build(new[] { strVar }, PollTransportKind.Ethernet);
+            var strData = new byte[20];
+            Encoding.ASCII.GetBytes("ABC").CopyTo(strData, 0);
+            var strConn = new ArrayBytesConnection(strData);
+            bool strOk = strPlanner.TryReadOne(strConn, out var strValue, out var strError);
+            Check("C23-1 字符串标量按定长 20 字节解码并去掉尾部 \\0",
+                strOk && Equals(strValue, "ABC"),
+                strOk ? $"值=[{strValue}]" : strError ?? "null");
+
+            // C23-2：字符串数组（2 项 × 每项 8 字节）
+            var strArrAddr = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                DataType = DataValueType.String,
+                Offset = "0",
+                Length = 2,
+                ElementByteLength = 8
+            };
+            var strArrVar = new CommunicationVariable
+            {
+                ConnectionName = "PLC1",
+                VariableName = "Texts",
+                Address = strArrAddr.Address,
+                AddressConfig = strArrAddr,
+                ValueType = typeof(string[]).AssemblyQualifiedName!,
+                AccessMode = VariableAccessMode.ReadOnly
+            };
+            var strArrPlanner = PollBatchPlanner.Build(new[] { strArrVar }, PollTransportKind.Ethernet);
+            var strArrData = new byte[16];
+            Encoding.ASCII.GetBytes("ABC").CopyTo(strArrData, 0);
+            Encoding.ASCII.GetBytes("DEF").CopyTo(strArrData, 8);
+            var strArrConn = new ArrayBytesConnection(strArrData);
+            bool strArrOk = strArrPlanner.TryReadOne(strArrConn, out var strArrValue, out var strArrError);
+            var strings = strArrValue as string[];
+            Check("C23-2 字符串数组按 2 项 × 8 字节切分（ABC / DEF）",
+                strArrOk && strings is { Length: 2 } && strings[0] == "ABC" && strings[1] == "DEF",
+                strArrOk ? (strings == null ? "null" : string.Join("|", strings)) : strArrError ?? "null");
+
+            // C23-3：bool 数组（Modbus 线圈，3 点）
+            var bitAddr = new ModbusAddress
+            {
+                Area = ModbusArea.Coils,
+                DataType = DataValueType.Boolean,
+                Offset = "0",
+                Length = 3
+            };
+            var bitVar = new CommunicationVariable
+            {
+                ConnectionName = "PLC1",
+                VariableName = "Flags",
+                Address = bitAddr.Address,
+                AddressConfig = bitAddr,
+                ValueType = typeof(bool[]).AssemblyQualifiedName!,
+                AccessMode = VariableAccessMode.ReadOnly
+            };
+            var bitPlanner = PollBatchPlanner.Build(new[] { bitVar }, PollTransportKind.Ethernet);
+            var bitConn = new ArrayBitsConnection(new[] { true, false, true });
+            bool bitOk = bitPlanner.TryReadOne(bitConn, out var bitValue, out var bitError);
+            var bits = bitValue as bool[];
+            Check("C23-3 bool 数组按线圈 3 点解码（True / False / True）",
+                bitOk && bits is { Length: 3 } && bits[0] && !bits[1] && bits[2],
+                bitOk ? (bits == null ? "null" : string.Join(",", bits)) : bitError ?? "null");
+
+            // C23-4：字符串数组缺 ElementByteLength → 规划器明确跳过并留日志
+            var missingWidthAddr = new ModbusAddress
+            {
+                Area = ModbusArea.HoldingRegisters,
+                DataType = DataValueType.String,
+                Offset = "0",
+                Length = 2
+            };
+            var missingWidthVar = new CommunicationVariable
+            {
+                ConnectionName = "PLC1",
+                VariableName = "BadTexts",
+                Address = missingWidthAddr.Address,
+                AddressConfig = missingWidthAddr,
+                ValueType = typeof(string[]).AssemblyQualifiedName!,
+                AccessMode = VariableAccessMode.ReadOnly
+            };
+            var missingLogs = new List<string>();
+            var missingPlanner = PollBatchPlanner.Build(
+                new[] { missingWidthVar }, PollTransportKind.Ethernet, missingLogs.Add);
+            Check("C23-4 字符串数组缺每元素字节数 → 不参与轮询且日志说明原因",
+                missingPlanner.PollItemCount == 0
+                && missingLogs.Any(l => l.Contains("每元素字节数", StringComparison.Ordinal)),
+                missingLogs.Count == 0 ? "无日志" : missingLogs[0]);
+
+            // C23-5：方案落盘往返保留每元素字节数
+            var nv = new NetworkVariableModel
+            {
+                Name = "Texts",
+                DataType = typeof(string[]),
+                ConnectionName = "PLC1",
+                AddressConfig = strArrAddr
+            };
+            var dto = VariableDto.FromNetwork(nv, CommunicationType.ModbusTcp);
+            var restored = dto.BuildAddressConfig() as ModbusAddress;
+            Check("C23-5 方案落盘往返保留 ElementByteLength（8 字节）",
+                dto.ElementByteLength == 8 && restored != null && restored.ElementByteLength == 8
+                && restored.Length == 2,
+                $"dto: Length={dto.Length} Width={dto.ElementByteLength}；restored: {restored?.ElementByteLength}");
+        }
+
+        /// <summary>
+        /// C24：数组写入前的归一化与定长编码（不碰 ICommunicationManager，直接打私有纯函数）。
+        /// <para>写链路真正发设备那一步由 Manager/Connection 负责；这里钉住的是最容易错、
+        /// 也最容易静默坏的两段：元素类型/长度归一、字符串定长补零。</para>
+        /// </summary>
+        private static void NetworkArrayWriteEncoding()
+        {
+            Section("C24 数组写入编码（元素归一 / 定长补零 / 超长拒绝）");
+
+            var normalize = typeof(NetworkVariableModel).GetMethod(
+                "TryNormalizeArray", BindingFlags.NonPublic | BindingFlags.Instance);
+            Check("C24-0 前提：能定位 NetworkVariableModel.TryNormalizeArray",
+                normalize != null, normalize?.ToString() ?? "未找到");
+
+            if (normalize != null)
+            {
+                var model = new NetworkVariableModel
+                {
+                    Name = "Arr",
+                    DataType = typeof(int[]),
+                    AddressConfig = new ModbusAddress
+                    {
+                        Area = ModbusArea.HoldingRegisters,
+                        DataType = DataValueType.Int32,
+                        Offset = "0",
+                        Length = 3
+                    }
+                };
+
+                object?[] goodArgs = { new object[] { "1", 2, 3 }, null, null };
+                bool good = (bool)normalize.Invoke(model, goodArgs)!;
+                var normalized = goodArgs[1] as int[];
+                Check("C24-1 元素归一：object[] { \"1\", 2, 3 } → int[3]",
+                    good && normalized is { Length: 3 } && normalized[0] == 1 && normalized[1] == 2 && normalized[2] == 3,
+                    good ? (normalized == null ? "null" : string.Join(",", normalized)) : goodArgs[2] as string ?? "null");
+
+                object?[] shortArgs = { new[] { 1, 2 }, null, null };
+                bool shortOk = (bool)normalize.Invoke(model, shortArgs)!;
+                Check("C24-2 长度不一致 → 明确失败（不短写覆盖邻居）",
+                    !shortOk && (shortArgs[2] as string)?.Contains("不一致", StringComparison.Ordinal) == true,
+                    shortArgs[2] as string ?? "null");
+
+                var boolModel = new NetworkVariableModel
+                {
+                    Name = "Flags",
+                    DataType = typeof(bool[]),
+                    AddressConfig = new ModbusAddress
+                    {
+                        Area = ModbusArea.Coils,
+                        DataType = DataValueType.Boolean,
+                        Offset = "0",
+                        Length = 3
+                    }
+                };
+                object?[] boolArgs = { new object[] { "1", "0", "true" }, null, null };
+                bool boolOk = (bool)normalize.Invoke(boolModel, boolArgs)!;
+                var bools = boolArgs[1] as bool[];
+                Check("C24-3 bool 元素归一：\"1\"/\"0\"/\"true\" → True/False/True",
+                    boolOk && bools is { Length: 3 } && bools[0] && !bools[1] && bools[2],
+                    boolOk ? (bools == null ? "null" : string.Join(",", bools)) : boolArgs[2] as string ?? "null");
+            }
+
+            var encodeString = typeof(NetworkVariableModel).GetMethod(
+                "TryEncodeFixedString", BindingFlags.NonPublic | BindingFlags.Static);
+            Check("C24-4 前提：能定位 TryEncodeFixedString", encodeString != null,
+                encodeString?.ToString() ?? "未找到");
+
+            if (encodeString != null)
+            {
+                object?[] args = { "ABC", 5, null, null };
+                bool ok = (bool)encodeString.Invoke(null, args)!;
+                var bytes = args[2] as byte[];
+                Check("C24-5 字符串定长补零：\"ABC\" → 5 字节 [65,66,67,0,0]",
+                    ok && bytes is { Length: 5 } && bytes[0] == 65 && bytes[1] == 66 && bytes[2] == 67
+                    && bytes[3] == 0 && bytes[4] == 0,
+                    ok ? (bytes == null ? "null" : string.Join(",", bytes)) : args[3] as string ?? "null");
+
+                object?[] tooLong = { "ABCDEF", 5, null, null };
+                bool tooLongOk = (bool)encodeString.Invoke(null, tooLong)!;
+                Check("C24-6 字符串超长 → 明确失败（不覆盖相邻字段）",
+                    !tooLongOk && (tooLong[3] as string)?.Contains("超过", StringComparison.Ordinal) == true,
+                    tooLong[3] as string ?? "null");
+            }
+
+            var encodeArray = typeof(NetworkVariableModel).GetMethod(
+                "TryEncodeStringArray", BindingFlags.NonPublic | BindingFlags.Static);
+            Check("C24-7 前提：能定位 TryEncodeStringArray", encodeArray != null,
+                encodeArray?.ToString() ?? "未找到");
+
+            if (encodeArray != null)
+            {
+                object?[] args = { new[] { "A", "BC" }, 4, null, null };
+                bool ok = (bool)encodeArray.Invoke(null, args)!;
+                var bytes = args[2] as byte[];
+                Check("C24-8 字符串数组定长：[\"A\",\"BC\"] × 4 字节 → 8 字节且逐项补零",
+                    ok && bytes is { Length: 8 }
+                    && bytes[0] == 65 && bytes[1] == 0 && bytes[2] == 0 && bytes[3] == 0
+                    && bytes[4] == 66 && bytes[5] == 67 && bytes[6] == 0 && bytes[7] == 0,
+                    ok ? (bytes == null ? "null" : string.Join(",", bytes)) : args[3] as string ?? "null");
+            }
         }
 
         private static string DescribeParams(MethodInfo method)
@@ -2573,6 +3071,69 @@ namespace CommChecks
         }
 
         /// <summary>
+        /// 返回脚本化字节的假连接（数组解码用）：按请求长度铺满，内容取构造时给的字节。
+        /// </summary>
+        private sealed class ArrayBytesConnection : ICommunicationConnection
+        {
+            private readonly byte[] _data;
+
+            public ArrayBytesConnection(byte[] data) => _data = data;
+
+            public string ConnectionName => "ARRAY";
+            public CommunicationType Type => CommunicationType.ModbusTcp;
+            public bool IsConnected => true;
+            public ByteOrderFormat ByteOrder => ByteOrderFormat.ABCD;
+
+            public bool Connect() => true;
+            public void Disconnect() { }
+            public bool TestConnection() => true;
+
+            public byte[] ReadBytes(string address, ushort length)
+            {
+                var result = new byte[Math.Max(1, (int)length * 2)];
+                Array.Copy(_data, result, Math.Min(_data.Length, result.Length));
+                return result;
+            }
+
+            public bool[] ReadBits(string address, ushort count) => new bool[Math.Max(1, (int)count)];
+            public T Read<T>(string address) where T : struct => throw new NotSupportedException();
+            public void Write(string address, object value) => throw new NotSupportedException();
+            public void WriteBytes(string address, byte[] data) => throw new NotSupportedException();
+            public void Dispose() { }
+        }
+
+        /// <summary>返回脚本化位数组的假连接（bool[] 位区解码用）。</summary>
+        private sealed class ArrayBitsConnection : ICommunicationConnection
+        {
+            private readonly bool[] _bits;
+
+            public ArrayBitsConnection(bool[] bits) => _bits = bits;
+
+            public string ConnectionName => "BITS";
+            public CommunicationType Type => CommunicationType.ModbusTcp;
+            public bool IsConnected => true;
+            public ByteOrderFormat ByteOrder => ByteOrderFormat.ABCD;
+
+            public bool Connect() => true;
+            public void Disconnect() { }
+            public bool TestConnection() => true;
+
+            public byte[] ReadBytes(string address, ushort length) => new byte[Math.Max(1, (int)length * 2)];
+
+            public bool[] ReadBits(string address, ushort count)
+            {
+                var result = new bool[Math.Max(1, (int)count)];
+                Array.Copy(_bits, result, Math.Min(_bits.Length, result.Length));
+                return result;
+            }
+
+            public T Read<T>(string address) where T : struct => throw new NotSupportedException();
+            public void Write(string address, object value) => throw new NotSupportedException();
+            public void WriteBytes(string address, byte[] data) => throw new NotSupportedException();
+            public void Dispose() { }
+        }
+
+        /// <summary>
         /// 返回固定原始字节的假连接（验证"读路径真的做了换算"这类端到端行为）。
         /// <para>value 按大端 Int16 编成 2 字节——与 Modbus 寄存器区 1 单元 = 2 字节一致。</para>
         /// </summary>
@@ -2642,6 +3203,217 @@ namespace CommChecks
         /// 订阅者抛异常在生产里并不罕见（UI 订阅者的任何一句都可能抛），而事件广播本身没有 try/catch，
         /// 异常会一路穿透回 AddConnection。</para>
         /// </summary>
+        // ==================================================================
+        //  B5/B6：MC / FINS / FreeProtocol
+        // ==================================================================
+
+        private static void McFinsFreeProtocolContract()
+        {
+            Section("B5 MC / FINS / FreeProtocol 契约");
+
+            var mc = new CommunicationConfig(CommunicationType.MitsubishiMc);
+            Check("B5-1 MC 配置 Validate 通过且 Config 类型正确",
+                mc.Validate(out string mcErr) && mc.Config is MitsubishiMcConfig,
+                mcErr.Length == 0 ? $"Config={mc.Config?.GetType().Name}" : mcErr);
+
+            var fins = new CommunicationConfig(CommunicationType.OmronFins);
+            Check("B5-1 FINS 配置 Validate 通过且 Config 类型正确",
+                fins.Validate(out string finsErr) && fins.Config is OmronFinsConfig,
+                finsErr.Length == 0 ? $"Config={fins.Config?.GetType().Name}" : finsErr);
+
+            var free = new CommunicationConfig(CommunicationType.FreeProtocol);
+            Check("B5-1 FreeProtocol 配置 Validate 通过且 Config 类型正确",
+                free.Validate(out string freeErr) && free.Config is FreeProtocolConfig,
+                freeErr.Length == 0 ? $"Config={free.Config?.GetType().Name}" : freeErr);
+
+            Check("B5-2 MC 地址 D100 通过（三菱）",
+                MitsubishiMcConnection.TryValidateAddress("D100", McVendor.Mitsubishi, out string mcAddrErr), mcAddrErr);
+            Check("B5-2 MC 地址 @@@ 被拒",
+                !MitsubishiMcConnection.TryValidateAddress("@@@", McVendor.Mitsubishi, out _), "");
+            Check("B5-2 FINS 地址 D100 通过",
+                OmronFinsConnection.TryValidateAddress("D100", out string finsAddrErr), finsAddrErr);
+            Check("B5-2 FINS 地址 @@@ 被拒",
+                !OmronFinsConnection.TryValidateAddress("@@@", out _), "");
+
+            bool factoryOk = true;
+            string factoryDetail = "";
+            try
+            {
+                factoryOk =
+                    ConnectionFactoryManager.Instance.CreateConnection(mc) is MitsubishiMcConnection &&
+                    ConnectionFactoryManager.Instance.CreateConnection(fins) is OmronFinsConnection &&
+                    ConnectionFactoryManager.Instance.CreateConnection(free) is FreeProtocolConnection;
+            }
+            catch (Exception ex)
+            {
+                factoryOk = false;
+                factoryDetail = ex.GetType().Name + ": " + ex.Message;
+            }
+            Check("B5-3 工厂创建 MC/FINS/Free 连接类型正确", factoryOk, factoryDetail);
+
+            var udp = new MitsubishiMcConfig { ProtocolType = McProtocolType.Udp };
+            Check("B5-4 MC UDP 在 Validate 阶段被拒（不等到现场才炸）",
+                !udp.Validate(out string udpErr) && udpErr.Contains("UDP"),
+                udpErr);
+
+            // R84：FlatPropertyGrid 的枚举读 [Description]；只写 [Display] 会显示英文
+            bool vendorDesc = Enum.GetValues<McVendor>().All(v =>
+                v.GetType().GetField(v.ToString())?
+                    .GetCustomAttribute<DescriptionAttribute>()?.Description is { Length: > 0 });
+            Check("B5-5 McVendor 上屏走中文 [Description]", vendorDesc, "");
+
+            bool encodingDesc = Enum.GetValues<FreeProtocolEncoding>().All(v =>
+                v.GetType().GetField(v.ToString())?
+                    .GetCustomAttribute<DescriptionAttribute>()?.Description is { Length: > 0 });
+            Check("B5-5 FreeProtocolEncoding 上屏走 [Description]", encodingDesc, "");
+
+            var keyenceAscii = new MitsubishiMcConfig
+            {
+                Vendor = McVendor.Keyence,
+                FrameFormat = McFrameFormat.Ascii,
+            };
+            Check("B5-6 基恩士/松下 + ASCII 在 Validate 阶段被拒",
+                !keyenceAscii.Validate(out string kaErr) && kaErr.Contains("二进制"),
+                kaErr);
+        }
+
+        private static void McFinsBatchPlanning()
+        {
+            Section("B7 MC/FINS 批量规划");
+
+            var mc = new McAddress { Area = McArea.D, Offset = "100", DataType = DataValueType.Int16, Length = 1 };
+            Check("B7-1 MC D100 可批量（Mc / Start=100 / 1 字）",
+                mc.TryCreatePollAddress(out var mcPoll) &&
+                mcPoll.Protocol == PollProtocol.Mc && mcPoll.Start == 100 && mcPoll.SpanUnits == 1,
+                mcPoll == null ? "null" : $"{mcPoll.Protocol}/{mcPoll.Start}/{mcPoll.SpanUnits}");
+
+            var mcBit = new McAddress { Area = McArea.M, Offset = "100", DataType = DataValueType.Boolean };
+            Check("B7-1 MC 位区 M100 不批量（走单读）", !mcBit.TryCreatePollAddress(out _), "");
+
+            var fins = new FinsAddress { Area = FinsArea.D, Offset = "100", DataType = DataValueType.Int16, Length = 1 };
+            Check("B7-1 FINS D100 可批量（Fins / Start=100 / 1 字）",
+                fins.TryCreatePollAddress(out var finsPoll) &&
+                finsPoll.Protocol == PollProtocol.Fins && finsPoll.Start == 100 && finsPoll.SpanUnits == 1,
+                finsPoll == null ? "null" : $"{finsPoll.Protocol}/{finsPoll.Start}/{finsPoll.SpanUnits}");
+
+            var finsBit = new FinsAddress { Area = FinsArea.D, Offset = "100", DataType = DataValueType.Boolean, BitOffset = 0 };
+            Check("B7-1 FINS D100.0 位地址不批量（走单读）", !finsBit.TryCreatePollAddress(out _), "");
+
+            var mcVars = Enumerable.Range(0, 1000)
+                .Select(i => NewBatchVariable($"mc{i}", new McAddress
+                {
+                    Area = McArea.D, Offset = i.ToString(), DataType = DataValueType.Int16, Length = 1
+                }))
+                .ToList();
+            var mcPlanner = PollBatchPlanner.Build(mcVars, PollTransportKind.Ethernet);
+            Check("B7-2 MC 1000 点：2 段 / 0 兜底",
+                mcPlanner.SegmentCount == 2 && mcPlanner.FallbackCount == 0,
+                $"段 {mcPlanner.SegmentCount} / 兜底 {mcPlanner.FallbackCount}");
+
+            var finsVars = Enumerable.Range(0, 1000)
+                .Select(i => NewBatchVariable($"fins{i}", new FinsAddress
+                {
+                    Area = FinsArea.D, Offset = i.ToString(), DataType = DataValueType.Int16, Length = 1
+                }))
+                .ToList();
+            var finsPlanner = PollBatchPlanner.Build(finsVars, PollTransportKind.Ethernet);
+            Check("B7-2 FINS 1000 点：2 段 / 0 兜底",
+                finsPlanner.SegmentCount == 2 && finsPlanner.FallbackCount == 0,
+                $"段 {finsPlanner.SegmentCount} / 兜底 {finsPlanner.FallbackCount}");
+        }
+
+        private static CommunicationVariable NewBatchVariable(string name, DeviceAddressBase address)
+            => new()
+            {
+                ConnectionName = "BATCH",
+                VariableName = name,
+                Address = address.Address,
+                AddressConfig = address,
+                ValueType = typeof(short).AssemblyQualifiedName,
+                AccessMode = VariableAccessMode.ReadWrite,
+            };
+
+        private static void FreeProtocolLoopback()
+        {
+            Section("B6 FreeProtocol 本地 TCP 回环");
+
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+
+            var server = Task.Run(() =>
+            {
+                try
+                {
+                    using var client = listener.AcceptTcpClient();
+                    using var stream = client.GetStream();
+                    var buffer = new byte[512];
+                    var pending = new StringBuilder();
+                    while (true)
+                    {
+                        int n = stream.Read(buffer, 0, buffer.Length);
+                        if (n <= 0) break;
+                        pending.Append(Encoding.ASCII.GetString(buffer, 0, n));
+
+                        string text = pending.ToString();
+                        int idx;
+                        while ((idx = text.IndexOf("\r\n", StringComparison.Ordinal)) >= 0)
+                        {
+                            string line = text.Substring(0, idx);
+                            text = text.Substring(idx + 2);
+                            pending.Clear().Append(text);
+
+                            string response = line.StartsWith("READ", StringComparison.Ordinal) ? "42\r\n"
+                                            : line.StartsWith("SET", StringComparison.Ordinal) ? "OK\r\n"
+                                            : "ERR\r\n";
+                            byte[] bytes = Encoding.ASCII.GetBytes(response);
+                            stream.Write(bytes, 0, bytes.Length);
+                            stream.Flush();
+                        }
+                    }
+                }
+                catch { /* 回环服务器异常不拖垮断言 */ }
+            });
+
+            var cfg = new FreeProtocolConfig
+            {
+                IpAddress = "127.0.0.1",
+                Port = port,
+                FrameTerminator = "\\r\\n",
+                ResponseTimeoutMs = 2000,
+            };
+
+            using var conn = new FreeProtocolConnection(cfg);
+            bool connected = conn.Connect();
+            Check("B6-1 连接本地回环", connected, conn.LastConnectError ?? "");
+
+            if (connected)
+            {
+                try
+                {
+                    Check("B6-2 Read<int>(\"READ\") 解析 42", conn.Read<int>("READ") == 42, "");
+                }
+                catch (Exception ex) { Check("B6-2 Read<int>(\"READ\") 解析 42", false, ex.Message); }
+
+                try
+                {
+                    conn.Write("SET {0}", 7);
+                    Check("B6-3 Write 模板 \"SET {0}\" 发送并收到 OK", true, "");
+                }
+                catch (Exception ex) { Check("B6-3 Write 模板 \"SET {0}\" 发送并收到 OK", false, ex.Message); }
+
+                try
+                {
+                    Check("B6-4 连续读仍正确（帧边界未串）", conn.Read<int>("READ") == 42, "");
+                }
+                catch (Exception ex) { Check("B6-4 连续读仍正确（帧边界未串）", false, ex.Message); }
+            }
+
+            conn.Disconnect();
+            listener.Stop();
+            server.Wait(2000);
+        }
+
         private static void CommunicationProtocolsAndAddRollback()
         {
             Section("B3 协议清单合一 / B4 添加连接失败回滚");

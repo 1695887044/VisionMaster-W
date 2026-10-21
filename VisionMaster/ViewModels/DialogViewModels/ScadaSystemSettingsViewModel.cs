@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using Prism.Commands;
 using Prism.Dialogs;
@@ -57,6 +58,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private readonly ScadaAuditWriter? _audit;
         private readonly Func<string?>? _actorProvider;
         private readonly Func<IReadOnlyList<ScadaMonitorOption>>? _monitorOptionsProvider;
+        private readonly Action? _applyLogSettings;
+        private readonly Action? _restartInboundServers;
+        private readonly Action? _openLogFolder;
 
         private SystemSettingsDraft _draft;
         private string? _errorMessage;
@@ -72,16 +76,31 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// 断言里注入一份固定清单，才能在不依赖"这台机器恰好接着几块屏"的前提下钉住
         /// "下拉文案 → 设备名"这条反查（单屏机器上真清单只有「跟随主屏」一项）。
         /// </param>
+        /// <param name="applyLogSettings">
+        /// 日志设置写盘后的收尾动作（宿主接到 <c>LogService.RequestReopen</c> + <c>CleanupNow</c>）：
+        /// 目录要重开写入器、保留期要立刻清一次。null = 不动（断言里只看配置写没写对）。
+        /// </param>
+        /// <param name="restartInboundServers">
+        /// 两个收图服务的重启动作（Host/Port 是绑定期决定的，不重开就换不了端口）。
+        /// null = 不动（断言里不真起监听）。<b>抛异常 = 服务没起来</b>，由本类把原因写回弹窗。
+        /// </param>
+        /// <param name="openLogFolder">「打开日志目录」按钮的动作（null = 该行点了没反应，断言用）</param>
         public ScadaSystemSettingsViewModel(
             AppSettingsService settings,
             ScadaAuditWriter? audit = null,
             Func<string?>? actorProvider = null,
-            Func<IReadOnlyList<ScadaMonitorOption>>? monitorOptionsProvider = null)
+            Func<IReadOnlyList<ScadaMonitorOption>>? monitorOptionsProvider = null,
+            Action? applyLogSettings = null,
+            Action? restartInboundServers = null,
+            Action? openLogFolder = null)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _audit = audit;
             _actorProvider = actorProvider;
             _monitorOptionsProvider = monitorOptionsProvider;
+            _applyLogSettings = applyLogSettings;
+            _restartInboundServers = restartInboundServers;
+            _openLogFolder = openLogFolder;
 
             _draft = BuildDraft();
             _draft.PropertyChanged += OnDraftPropertyChanged;
@@ -167,9 +186,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             var config = _settings.Current;
             var gallery = config.ImageGallery ?? new ImageGallerySettings();
+            var http = config.HttpImageServer ?? new HttpImageServerSettings();
+            var camera = config.NetworkCameraServer ?? new NetworkCameraServerSettings();
+            var parallel = config.ParallelExecution ?? new ParallelExecutionSettings();
             var monitors = _monitorOptionsProvider?.Invoke() ?? BuildMonitorOptions();
 
-            return new SystemSettingsDraft(monitors)
+            return new SystemSettingsDraft(monitors, _openLogFolder)
             {
                 IndependentWindow = config.RunWindowMode == ScadaRunWindowMode.IndependentWindow,
 
@@ -180,6 +202,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 IdleTimeoutText = config.IdleTimeoutMinutes.ToString(CultureInfo.InvariantCulture),
                 AuditRetentionText = config.AuditRetentionDays.ToString(CultureInfo.InvariantCulture),
                 AlarmRetentionText = config.AlarmHistoryRetentionDays.ToString(CultureInfo.InvariantCulture),
+                MinPasswordLengthText = config.MinPasswordLength.ToString(CultureInfo.InvariantCulture),
 
                 GalleryEnabled = gallery.Enabled,
                 GalleryClearOnRun = gallery.RunStartMode == ImageGalleryRunStartMode.ClearAll,
@@ -189,6 +212,28 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 GallerySaveOnAlarm = gallery.SaveFramesOnAlarm,
                 GalleryTotalLimitText = gallery.TotalLimit.ToString(CultureInfo.InvariantCulture),
                 GalleryPerFlowLimitText = gallery.PerFlowLimit.ToString(CultureInfo.InvariantCulture),
+                AlarmFrameRetentionText = config.AlarmFrameRetentionDays.ToString(CultureInfo.InvariantCulture),
+
+                LogRetentionText = config.LogRetentionDays.ToString(CultureInfo.InvariantCulture),
+                LogDirectory = config.LogDirectory ?? "",
+                LogFileLevel = config.LogFileLevel,
+                LogPanelMaxRowsText = config.LogPanelMaxRows.ToString(CultureInfo.InvariantCulture),
+
+                HttpServerEnabled = http.Enabled,
+                HttpServerHost = http.Host ?? "",
+                HttpServerPortText = http.Port.ToString(CultureInfo.InvariantCulture),
+                HttpServerToken = http.Token ?? "",
+                HttpServerTimeoutText = http.RequestTimeoutMs.ToString(CultureInfo.InvariantCulture),
+
+                CameraServerEnabled = camera.Enabled,
+                CameraServerHost = camera.Host ?? "",
+                CameraServerPortText = camera.Port.ToString(CultureInfo.InvariantCulture),
+                CameraServerToken = camera.Token ?? "",
+
+                CommunicationStartupCheck = config.EnableCommunicationStartupCheck,
+
+                ParallelFailFastByDefault = parallel.FailFastByDefault,
+                ParallelForceSequential = parallel.ForceSequential,
             };
         }
 
@@ -253,15 +298,43 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if (!TryParseField(Draft.IdleTimeoutText, "空闲自动登出", out var idleMinutes, out var error)
                 || !TryParseField(Draft.AuditRetentionText, "操作审计保留", out var auditDays, out error)
                 || !TryParseField(Draft.AlarmRetentionText, "报警历史保留", out var alarmDays, out error)
+                || !TryParseField(Draft.MinPasswordLengthText, "密码最小长度", out var minPassword, out error)
                 || !TryParseField(Draft.GalleryTotalLimitText, "图集总张数上限", out var galleryTotal, out error)
-                || !TryParseField(Draft.GalleryPerFlowLimitText, "图集单流程上限", out var galleryPerFlow, out error))
+                || !TryParseField(Draft.GalleryPerFlowLimitText, "图集单流程上限", out var galleryPerFlow, out error)
+                || !TryParseField(Draft.AlarmFrameRetentionText, "报警图集保留天数", out var alarmFrameDays, out error)
+                || !TryParseField(Draft.LogRetentionText, "日志保留天数", out var logRetention, out error)
+                || !TryParseField(Draft.LogPanelMaxRowsText, "日志面板保留条数", out var logPanelRows, out error)
+                || !TryParsePort(Draft.HttpServerPortText, "HTTP 收图服务端口", out var httpPort, out error)
+                || !TryParseField(Draft.HttpServerTimeoutText, "HTTP 请求超时", out var httpTimeout, out error)
+                || !TryParsePort(Draft.CameraServerPortText, "网络相机服务端口", out var cameraPort, out error))
             {
                 ErrorMessage = error;
                 return;
             }
 
+            // 空令牌会让所有请求都验不过（Authenticate 要求 token.Length > 0 且相等），
+            // "服务开着但谁都连不上"是最难查的一类故障——保存前就拦住。
+            if (Draft.HttpServerEnabled && string.IsNullOrWhiteSpace(Draft.HttpServerToken))
+            {
+                ErrorMessage = "「HTTP 收图服务」的访问令牌不能留空：空令牌会让所有推图请求都验不过。";
+                return;
+            }
+            if (Draft.CameraServerEnabled && string.IsNullOrWhiteSpace(Draft.CameraServerToken))
+            {
+                ErrorMessage = "「网络相机收图服务」的访问令牌不能留空：空令牌会让所有推帧请求都验不过。";
+                return;
+            }
+            if (httpTimeout <= 0)
+            {
+                ErrorMessage = "「HTTP 请求超时」必须大于 0 毫秒。";
+                return;
+            }
+
             var config = _settings.Current;
             var gallery = config.ImageGallery ?? new ImageGallerySettings();
+            var http = config.HttpImageServer ?? new HttpImageServerSettings();
+            var camera = config.NetworkCameraServer ?? new NetworkCameraServerSettings();
+            var parallel = config.ParallelExecution ?? new ParallelExecutionSettings();
 
             var newMode = Draft.IndependentWindow
                 ? ScadaRunWindowMode.IndependentWindow
@@ -270,6 +343,17 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var newRunStart = Draft.GalleryClearOnRun
                 ? ImageGalleryRunStartMode.ClearAll
                 : ImageGalleryRunStartMode.ReplaceFlow;
+            var newLogDirectory = (Draft.LogDirectory ?? string.Empty).Trim();
+            var newPasswordLength = minPassword > 0 ? minPassword : AppConfigModel.DefaultMinPasswordLength;
+
+            // 日志目录改了才试写：没改的时候不该因为"网络盘刚好断线"把无关的保存也拦下来。
+            // 不试写的话，指到不可写目录的表现是"日志面板照常、文件一条没有"——最阴的一类静默故障。
+            if (!string.Equals(newLogDirectory, config.LogDirectory ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+                && !TryProbeLogDirectory(newLogDirectory, out var logDirError))
+            {
+                ErrorMessage = logDirError;
+                return;
+            }
 
             // 先留旧值：审计"说明"列要写净效果（旧值 → 新值），落盘之后就读不到了。
             var oldMode = config.RunWindowMode;
@@ -277,6 +361,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var oldIdle = config.IdleTimeoutMinutes;
             var oldAudit = config.AuditRetentionDays;
             var oldAlarm = config.AlarmHistoryRetentionDays;
+            var oldMinPassword = config.MinPasswordLength;
             var oldGalleryTotal = gallery.TotalLimit;
             var oldGalleryPerFlow = gallery.PerFlowLimit;
             var oldGalleryEnabled = gallery.Enabled;
@@ -285,9 +370,18 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var oldGalleryHistory = gallery.KeepFrameHistory;
             var oldGalleryRealtime = gallery.IncludeRealtimePreviews;
             var oldGallerySaveOnAlarm = gallery.SaveFramesOnAlarm;
+            var oldAlarmFrameDays = config.AlarmFrameRetentionDays;
+            var oldLogRetention = config.LogRetentionDays;
+            var oldLogDirectory = config.LogDirectory ?? "";
+            var oldLogLevel = config.LogFileLevel;
+            var oldLogPanelRows = config.LogPanelMaxRows;
+            var oldCommCheck = config.EnableCommunicationStartupCheck;
+            var oldHttp = (http.Enabled, http.Host ?? "", http.Port, http.Token ?? "", http.RequestTimeoutMs);
+            var oldCamera = (camera.Enabled, camera.Host ?? "", camera.Port, camera.Token ?? "");
+            var oldParallel = (parallel.FailFastByDefault, parallel.ForceSequential);
 
             // 只列**真变了的**项：一股脑列出来，事后就分不清"他改了哪一项"和"他只是点了一下确定"。
-            // 两个域分开记：审计的"事件"列是历史流水的检索词，合并弹窗不改这个口径。
+            // 两个域分开记：审计的"事件"列是历史流水检索词，合并弹窗不改这个口径。
             var windowChanges = new List<string>();
             if (newMode != oldMode)
                 windowChanges.Add($"形态：{DescribeMode(oldMode)} → {DescribeMode(newMode)}");
@@ -298,6 +392,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if (idleMinutes != oldIdle) parameterChanges.Add($"空闲自动登出：{oldIdle} → {idleMinutes} 分钟");
             if (auditDays != oldAudit) parameterChanges.Add($"操作审计保留：{oldAudit} → {auditDays} 天");
             if (alarmDays != oldAlarm) parameterChanges.Add($"报警历史保留：{oldAlarm} → {alarmDays} 天");
+            if (newPasswordLength != oldMinPassword)
+                parameterChanges.Add($"密码最小长度：{oldMinPassword} → {newPasswordLength} 位");
             if (Draft.GalleryEnabled != oldGalleryEnabled)
                 parameterChanges.Add($"图集采集：{(oldGalleryEnabled ? "启用" : "关闭")} → {(Draft.GalleryEnabled ? "启用" : "关闭")}");
             if (newRunStart != oldGalleryRunStart)
@@ -314,6 +410,87 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 parameterChanges.Add($"图集收录实时预览：{(oldGalleryRealtime ? "是" : "否")} → {(Draft.GalleryIncludeRealtime ? "是" : "否")}");
             if (Draft.GallerySaveOnAlarm != oldGallerySaveOnAlarm)
                 parameterChanges.Add($"报警时留存图集：{(oldGallerySaveOnAlarm ? "是" : "否")} → {(Draft.GallerySaveOnAlarm ? "是" : "否")}");
+            if (alarmFrameDays != oldAlarmFrameDays)
+                parameterChanges.Add($"报警图集保留：{oldAlarmFrameDays} → {alarmFrameDays} 天");
+
+            var logChanged = false;
+            if (logRetention != oldLogRetention)
+            {
+                parameterChanges.Add($"日志保留：{oldLogRetention} → {logRetention} 天");
+                logChanged = true;
+            }
+            if (!string.Equals(newLogDirectory, oldLogDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                parameterChanges.Add($"日志目录：{(oldLogDirectory.Length == 0 ? "（程序目录\\Logs）" : oldLogDirectory)}"
+                                     + $" → {(newLogDirectory.Length == 0 ? "（程序目录\\Logs）" : newLogDirectory)}");
+                logChanged = true;
+            }
+            if (Draft.LogFileLevel != oldLogLevel)
+            {
+                parameterChanges.Add($"日志落盘级别：{oldLogLevel} → {Draft.LogFileLevel}");
+                logChanged = true;
+            }
+            if (logPanelRows != oldLogPanelRows)
+                parameterChanges.Add($"日志面板保留条数：{oldLogPanelRows} → {logPanelRows} 条");
+
+            var serviceChanged = false;
+            if (Draft.HttpServerEnabled != oldHttp.Enabled)
+            {
+                parameterChanges.Add($"HTTP 收图服务：{(oldHttp.Enabled ? "启用" : "关闭")} → {(Draft.HttpServerEnabled ? "启用" : "关闭")}");
+                serviceChanged = true;
+            }
+            if (!string.Equals(Draft.HttpServerHost?.Trim(), oldHttp.Item2, StringComparison.OrdinalIgnoreCase))
+            {
+                parameterChanges.Add($"HTTP 监听地址：{oldHttp.Item2} → {Draft.HttpServerHost?.Trim()}");
+                serviceChanged = true;
+            }
+            if (httpPort != oldHttp.Port)
+            {
+                parameterChanges.Add($"HTTP 监听端口：{oldHttp.Port} → {httpPort}");
+                serviceChanged = true;
+            }
+            // 令牌是凭据：审计只记"改过"，绝不把值写进流水
+            if (!string.Equals(Draft.HttpServerToken, oldHttp.Item4, StringComparison.Ordinal))
+            {
+                parameterChanges.Add("HTTP 访问令牌：已修改");
+                serviceChanged = true;
+            }
+            if (httpTimeout != oldHttp.Item5)
+            {
+                parameterChanges.Add($"HTTP 请求超时：{oldHttp.Item5} → {httpTimeout} ms");
+                serviceChanged = true;
+            }
+            if (Draft.CameraServerEnabled != oldCamera.Enabled)
+            {
+                parameterChanges.Add($"网络相机服务：{(oldCamera.Enabled ? "启用" : "关闭")} → {(Draft.CameraServerEnabled ? "启用" : "关闭")}");
+                serviceChanged = true;
+            }
+            if (!string.Equals(Draft.CameraServerHost?.Trim(), oldCamera.Item2, StringComparison.OrdinalIgnoreCase))
+            {
+                parameterChanges.Add($"网络相机监听地址：{oldCamera.Item2} → {Draft.CameraServerHost?.Trim()}");
+                serviceChanged = true;
+            }
+            if (cameraPort != oldCamera.Port)
+            {
+                parameterChanges.Add($"网络相机监听端口：{oldCamera.Port} → {cameraPort}");
+                serviceChanged = true;
+            }
+            if (!string.Equals(Draft.CameraServerToken, oldCamera.Item4, StringComparison.Ordinal))
+            {
+                parameterChanges.Add("网络相机访问令牌：已修改");
+                serviceChanged = true;
+            }
+            if (Draft.CommunicationStartupCheck != oldCommCheck)
+                parameterChanges.Add($"启动时通讯自检：{(oldCommCheck ? "开" : "关")} → {(Draft.CommunicationStartupCheck ? "开" : "关")}");
+
+            if (Draft.ParallelFailFastByDefault != oldParallel.Item1)
+                parameterChanges.Add($"并行失败聚合默认：{(oldParallel.Item1 ? "开" : "关")} → {(Draft.ParallelFailFastByDefault ? "开" : "关")}");
+            if (Draft.ParallelForceSequential != oldParallel.Item2)
+                parameterChanges.Add($"并行强制顺序总闸：{(oldParallel.Item2 ? "开" : "关")} → {(Draft.ParallelForceSequential ? "开" : "关")}");
+
+            var galleryChanged = parameterChanges.Count > 0 && (
+                galleryTotal != oldGalleryTotal || galleryPerFlow != oldGalleryPerFlow
+                || alarmFrameDays != oldAlarmFrameDays || Draft.GalleryEnabled != oldGalleryEnabled);
 
             if (windowChanges.Count == 0 && parameterChanges.Count == 0)
             {
@@ -331,6 +508,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
             config.IdleTimeoutMinutes = idleMinutes;
             config.AuditRetentionDays = auditDays;
             config.AlarmHistoryRetentionDays = alarmDays;
+            config.MinPasswordLength = newPasswordLength;
+            config.AlarmFrameRetentionDays = alarmFrameDays;
+            config.LogRetentionDays = logRetention;
+            config.LogDirectory = newLogDirectory;
+            config.LogFileLevel = Draft.LogFileLevel;
+            config.LogPanelMaxRows = logPanelRows;
+            config.EnableCommunicationStartupCheck = Draft.CommunicationStartupCheck;
+
+            config.ImageGallery = gallery;
             gallery.Enabled = Draft.GalleryEnabled;
             gallery.RunStartMode = newRunStart;
             gallery.CollectAllOutputPorts = Draft.GalleryCollectAllPorts;
@@ -340,9 +526,26 @@ namespace VisionMaster.ViewModels.DialogViewModels
             gallery.IncludeRealtimePreviews = Draft.GalleryIncludeRealtime;
             gallery.SaveFramesOnAlarm = Draft.GallerySaveOnAlarm;
 
+            config.HttpImageServer = http;
+            http.Enabled = Draft.HttpServerEnabled;
+            http.Host = (Draft.HttpServerHost ?? string.Empty).Trim();
+            http.Port = httpPort;
+            http.Token = Draft.HttpServerToken ?? string.Empty;
+            http.RequestTimeoutMs = httpTimeout;
+
+            config.NetworkCameraServer = camera;
+            camera.Enabled = Draft.CameraServerEnabled;
+            camera.Host = (Draft.CameraServerHost ?? string.Empty).Trim();
+            camera.Port = cameraPort;
+            camera.Token = Draft.CameraServerToken ?? string.Empty;
+
+            config.ParallelExecution = parallel;
+            parallel.FailFastByDefault = Draft.ParallelFailFastByDefault;
+            parallel.ForceSequential = Draft.ParallelForceSequential;
+
             try
             {
-                _settings.Save();
+                _settings.Save();   // 内部会 SyncParallelConfig：两个并行开关保存即生效
             }
             catch (Exception ex)
             {
@@ -359,18 +562,38 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 return;
             }
 
+            // 落盘之后才做"生效动作"：配置已经是新的了，动作失败只影响"现在能不能用"，不影响"存了什么"。
+            try
+            {
+                // 日志：目录要重开写入器、保留期要立刻清一次（否则"改完立即生效"是空话）
+                if (logChanged) _applyLogSettings?.Invoke();
+
+                // 张数上限 / 报警图集保留期可能被调小：立即按新值裁剪/清理一次
+                if (galleryChanged) ImageCollectionService.Instance?.ApplySettingsNow();
+
+                // 收图服务：Host/Port 是绑定期决定的，只能重开监听
+                if (serviceChanged) _restartInboundServers?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                // 配置已落盘，但服务没起来 —— 不关窗，让用户看着原因改端口后重试。
+                ErrorMessage = $"设置已写入 AppConfig.json，但生效失败：{ex.Message}。"
+                             + "若是收图服务，请检查端口是否被占用，改好后重新点一次「确定」。";
+
+                if (windowChanges.Count > 0)
+                    Audit(AuditEventWindow, AuditActionWindow, ok: true, detail: string.Join("；", windowChanges), error: null);
+                Audit(AuditEventParameters, AuditActionParameters, ok: false, detail: null, error: ErrorMessage);
+                return;
+            }
+
             if (windowChanges.Count > 0)
                 Audit(AuditEventWindow, AuditActionWindow, ok: true, detail: string.Join("；", windowChanges), error: null);
             if (parameterChanges.Count > 0)
                 Audit(AuditEventParameters, AuditActionParameters, ok: true, detail: string.Join("；", parameterChanges), error: null);
 
-            // 张数上限可能被调小：立即按新上限裁剪一次，不必等下次运行才看到效果。
-            // 只在画布这一组真的变了时做——只改运行窗口不该去动图集。
-            if (parameterChanges.Count > 0)
-                ImageCollectionService.Instance?.ApplySettingsNow();
-
             RequestClose.Invoke(new DialogParameters(), ButtonResult.OK);
         }
+
 
         /// <summary>审计"说明"列里怎么称呼一种形态。不认识的档位（高版本存下的）就写"未知"，不编一个中文名</summary>
         private static string DescribeMode(ScadaRunWindowMode mode)
@@ -422,6 +645,48 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 ? $"「{fieldName}」不能留空，请填整数（0 表示不限制）。"
                 : $"「{fieldName}」请填整数，当前填的是「{trimmed}」。";
             return false;
+        }
+
+        /// <summary>端口号：先按整数解析，再卡 1~65535（超范围要在保存前拦住，别等监听失败）</summary>
+        private static bool TryParsePort(string? text, string fieldName, out int value, out string? error)
+        {
+            if (!TryParseField(text, fieldName, out value, out error)) return false;
+
+            if (value < 1 || value > 65535)
+            {
+                error = $"「{fieldName}」请填 1~65535 之间的端口号，当前填的是「{value}」。";
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 日志目录试写：建目录 + 写一个探针文件再删掉。
+        ///
+        /// 为什么必须试：<c>LogService</c> 的文件通道在目录不可写时会静默降级（面板照常显示、
+        /// 文件一条没有），现场根本看不出来——这正是"记录地址"这一项最容易埋的坑。
+        /// </summary>
+        private static bool TryProbeLogDirectory(string? configured, out string? error)
+        {
+            error = null;
+            var dir = string.IsNullOrWhiteSpace(configured)
+                ? Path.Combine(AppContext.BaseDirectory, "Logs")
+                : configured!.Trim();
+
+            try
+            {
+                Directory.CreateDirectory(dir);
+                var probe = Path.Combine(dir, $".vm_probe_{Guid.NewGuid():N}.tmp");
+                File.WriteAllText(probe, "ok");
+                File.Delete(probe);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = $"「日志目录」不可写（{dir}）：{ex.Message}";
+                return false;
+            }
         }
 
         #region IDialogAware

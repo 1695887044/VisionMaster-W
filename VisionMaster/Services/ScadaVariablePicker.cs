@@ -19,10 +19,12 @@ namespace VisionMaster.Services
         /// <summary>入参键：打开时要预选的变量</summary>
         public const string CurrentIdKey = "CurrentVariableId";
         public const string CurrentNameKey = "CurrentVariableName";
+        public const string CurrentArrayIndexKey = "CurrentArrayIndex";
 
         /// <summary>出参键：用户确认后选中的变量</summary>
         public const string PickedIdKey = "PickedVariableId";
         public const string PickedNameKey = "PickedVariableName";
+        public const string PickedArrayIndexKey = "PickedArrayIndex";
 
         private readonly IDialogService _dialogs;
 
@@ -34,10 +36,20 @@ namespace VisionMaster.Services
         {
             if (onPicked == null) throw new ArgumentNullException(nameof(onPicked));
 
+            Pick(currentId, currentName, -1, (id, name, _) => onPicked(id, name));
+        }
+
+        /// <inheritdoc />
+        public void Pick(Guid currentId, string? currentName, int currentArrayIndex,
+                         Action<Guid, string?, int> onPicked)
+        {
+            if (onPicked == null) throw new ArgumentNullException(nameof(onPicked));
+
             var parameters = new DialogParameters
             {
                 { CurrentIdKey, currentId },
                 { CurrentNameKey, currentName },
+                { CurrentArrayIndexKey, currentArrayIndex },
             };
 
             _dialogs.ShowDialog(DialogName, parameters, result =>
@@ -50,7 +62,15 @@ namespace VisionMaster.Services
                 if (!result.Parameters.TryGetValue<Guid>(PickedIdKey, out var id)) return;
 
                 result.Parameters.TryGetValue<string>(PickedNameKey, out var name);
-                onPicked(id, name);
+
+                // 键缺失必须当 -1（引用整个变量）；TryGetValue 的 out 默认是 0，
+                // 直接用会把"没带下标的调用方"静默改成"元素 0"。
+                int index = result.Parameters.TryGetValue<int>(PickedArrayIndexKey, out var pickedIndex)
+                            && pickedIndex >= 0
+                    ? pickedIndex
+                    : -1;
+
+                onPicked(id, name, index);
             });
         }
     }

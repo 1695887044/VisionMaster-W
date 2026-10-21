@@ -1,0 +1,926 @@
+/* ============================================================================
+   VisionMaster SCADA · 运行态 Web 客户端（M1b 只读基础页）
+
+   视觉基调：深色工业风，令牌与桌面端 ScadaTokens.xaml 同值
+   （画布 #0E1318 / 面板 #151C23 / 描边 #2A3745 / 文本 #E6EEF7 / accent #38BDF8）。
+   这里只做"壳层"（顶栏、舞台、遮罩、占位盒）；图元的颜色与几何由 app.js 的
+   渲染器按快照属性写入行内样式——图元属性是数据，不能提前固化进 CSS。
+   ========================================================================== */
+
+:root {
+  /* 画面与表面 */
+  --canvas: #0e1318;
+  --surface: #151c23;
+  --surface-raised: #1b242d;
+  --surface-overlay: rgba(14, 19, 24, 0.76);
+
+  /* 描边 */
+  --border: #2a3745;
+  --border-strong: #3a4a5c;
+
+  /* 文字 */
+  --text: #e6eef7;
+  --text-secondary: #a9b7c6;
+  --text-muted: #7c8a99;
+
+  /* 语义色 */
+  --accent: #38bdf8;
+  --accent-strong: #0ea5e9;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+
+  /* 间距（8pt 栅格）与圆角 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --topbar-h: 52px;
+
+  --font-ui: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* hidden 属性必须能压住 .overlay 的 display:flex（否则遮罩关不掉） */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--canvas);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  /* 只读页面：不允许误拖选文字 */
+  user-select: none;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   顶栏：固定高度、不覆盖画布（flex 列布局把舞台压在它下面）
+   --------------------------------------------------------------------------- */
+
+.topbar {
+  position: relative;
+  z-index: 100;
+  flex: 0 0 var(--topbar-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  height: var(--topbar-h);
+  padding: 0 var(--space-4);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 rgba(56, 189, 248, 0.08);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.brand-mark {
+  position: relative;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  border-radius: var(--radius-sm);
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.brand-mark::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.85;
+}
+
+.brand-text {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.brand-name {
+  flex: 0 0 auto;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.page-name {
+  overflow: hidden;
+  max-width: min(42vw, 520px);
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-right {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.chip-accent {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.09);
+  color: #bae6fd;
+}
+
+.chip-warn {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.1);
+  color: #fcd34d;
+}
+
+.chip-muted {
+  color: var(--text-muted);
+}
+
+.chip-success {
+  border-color: rgba(34, 197, 94, 0.45);
+  background: rgba(34, 197, 94, 0.1);
+  color: #bbf7d0;
+}
+
+/* 可点击的 chip（在线人数）：保留 chip 外观，补键盘焦点 */
+.chip-button {
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+
+.chip-button:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.chip-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   在线用户 popover：锚在顶栏右侧，点在线人数展开；点外部收起
+   --------------------------------------------------------------------------- */
+
+.presence-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 220;
+  width: 300px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
+}
+
+.presence-pop-title {
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.presence-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.presence-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.presence-row.is-self {
+  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.presence-name {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presence-meta {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.presence-empty {
+  padding: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* 演示数据徽标：比普通 warn 更醒目（实心暖色 + 前导圆点），只靠形状/文字表达语义 */
+.chip-demo {
+  gap: 6px;
+  border-color: rgba(245, 158, 11, 0.85);
+  background: rgba(245, 158, 11, 0.22);
+  color: #ffe1a3;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.chip-demo::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warning);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+}
+
+.conn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.conn-text {
+  overflow: hidden;
+  max-width: 200px;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+}
+
+.conn-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  box-shadow: 0 0 0 3px rgba(124, 138, 153, 0.12);
+}
+
+.conn-online .conn-dot {
+  background: var(--success);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.16);
+}
+
+.conn-connecting .conn-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16);
+  animation: conn-pulse 1.6s ease-in-out infinite;
+}
+
+.conn-offline .conn-dot {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.16);
+}
+
+.conn-idle .conn-dot {
+  background: var(--text-muted);
+}
+
+.conn-demo .conn-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16);
+}
+
+@keyframes conn-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.btn:hover {
+  border-color: var(--accent);
+  background: #22303c;
+}
+
+.btn:active {
+  background: #18222b;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.btn-primary {
+  border-color: rgba(56, 189, 248, 0.5);
+  background: rgba(56, 189, 248, 0.12);
+  color: #bae6fd;
+}
+
+.btn-primary:hover {
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.2);
+}
+
+/* ---------------------------------------------------------------------------
+   舞台：画布居中、固定设计尺寸等比缩放（letterbox）
+
+   两态：
+     · 默认（窗口足够大）：flex 居中，画布四周留 16px；
+     · .is-scroll（自然缩放 < MIN_SCALE）：display:block + overflow:auto，
+       画布按 MIN_SCALE 铺开，超出部分由这里滚动 —— 页面不重排、不裁切。
+   --------------------------------------------------------------------------- */
+
+.stage {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--canvas);
+  /* 空状态时的一点工业网格；画面有背景色时会把它完全盖住 */
+  background-image: radial-gradient(rgba(124, 138, 153, 0.1) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* 最小缩放态：改为块级滚动容器。padding 与 FIT_MARGIN/2 同值，
+   scrollbar-gutter 预留给滚动条，保证滚动条不压在画布上。 */
+.stage.is-scroll {
+  display: block;
+  padding: 16px;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.stage.is-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.stage.is-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.stage.is-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid var(--canvas);
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+
+.stage.is-scroll::-webkit-scrollbar-thumb:hover {
+  background: #4a5c70;
+}
+
+.scaler {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.viewport {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  background: var(--canvas);
+  transform-origin: 0 0;
+  /* 设计像素就是逻辑像素：缩放只由 transform 完成，不改布局 */
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+}
+
+/* 基座层必须整体压在本页之下：两层各自建立层叠上下文，
+   否则基座里一个 ZIndex 较高的图元会盖到本页图元上（与"先画基座、再画本页"矛盾）。 */
+#base-layer {
+  z-index: 0;
+  isolation: isolate;
+}
+
+#page-layer {
+  z-index: 1;
+  isolation: isolate;
+}
+
+/* ---------------------------------------------------------------------------
+   遮罩（登录 / 断线 / 未运行）
+   固定在顶栏下方的可视区里：#stage 进入滚动态时，遮罩不跟着画布一起滚。
+   --------------------------------------------------------------------------- */
+
+.overlay {
+  position: fixed;
+  top: var(--topbar-h);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--surface-overlay);
+}
+
+.overlay-card {
+  width: min(440px, 100%);
+  padding: var(--space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+  text-align: center;
+}
+
+.overlay-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  color: var(--text-secondary);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.overlay-icon.tone-danger {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+}
+
+.overlay-icon.tone-warn {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: rgba(245, 158, 11, 0.1);
+  color: #fcd34d;
+}
+
+.overlay-icon.tone-info {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.1);
+  color: #bae6fd;
+}
+
+.overlay-title {
+  margin: 0 0 var(--space-2);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.overlay-text {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.overlay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.overlay-actions:empty {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   登录卡片：overlay 的 kind=login 时展开（其余状态整块隐藏）
+   --------------------------------------------------------------------------- */
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  text-align: left;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.login-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.login-input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--canvas);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  user-select: text;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.login-input::placeholder {
+  color: var(--text-muted);
+}
+
+.login-input:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.28);
+}
+
+.login-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.login-error {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  border-radius: var(--radius-sm);
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+.login-submit,
+.login-anon {
+  width: 100%;
+  height: 34px;
+}
+
+.login-anon {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.login-anon:hover {
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.08);
+  color: var(--text);
+}
+
+.login-hint {
+  margin: var(--space-3) 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ---------------------------------------------------------------------------
+   演示水印：固定在可视区右下角，半透明，不接收鼠标事件
+   --------------------------------------------------------------------------- */
+
+.demo-watermark {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid rgba(245, 158, 11, 0.42);
+  border-radius: var(--radius-md);
+  background: rgba(14, 19, 24, 0.55);
+  color: rgba(252, 211, 77, 0.88);
+  text-align: right;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.9;
+}
+
+.demo-watermark-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+}
+
+.demo-watermark-sub {
+  color: rgba(230, 238, 247, 0.72);
+  font-size: 11px;
+  line-height: 1.3;
+  letter-spacing: 0.06em;
+}
+
+.toast {
+  position: fixed;
+  bottom: var(--space-6);
+  left: 50%;
+  z-index: 210;
+  max-width: min(520px, calc(100% - 32px));
+  padding: 10px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+  transform: translateX(-50%);
+}
+
+.toast.tone-warn {
+  border-color: rgba(245, 158, 11, 0.55);
+  color: #fcd34d;
+}
+
+.toast.tone-error {
+  border-color: rgba(239, 68, 68, 0.55);
+  color: #fca5a5;
+}
+
+/* ---------------------------------------------------------------------------
+   图元根节点：几何（left/top/width/height/rotate/z-index）一律由 app.js 写入行内样式。
+   下面的类只提供"渲染器没写时的兜底外观"，以及便于调试的命名。
+   --------------------------------------------------------------------------- */
+
+.scada-el {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+/* 文本 */
+.scada-text {
+  overflow: hidden;
+}
+
+.scada-text-content {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+/* 矩形 */
+.scada-rect {
+  overflow: hidden;
+}
+
+.scada-rect-label {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+/* 底板 */
+.scada-panel {
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.scada-panel-title {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.scada-panel-title-label {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scada-panel-body {
+  position: absolute;
+  overflow: hidden;
+}
+
+/* 数值域（只读：透明底 + 仅底边 1px） */
+.scada-iofield {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.scada-iofield-label {
+  /* 与 WPF 模板的 Auto 列同口径：说明字不收缩，剩余宽度留给数值 */
+  flex: 0 0 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scada-iofield-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 棒图 */
+.scada-progress {
+  overflow: hidden;
+}
+
+.scada-progress-fill {
+  position: absolute;
+}
+
+.scada-progress-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+   未实现图元的中性占位盒（虚线 + 类型名 + 元素名）
+   --------------------------------------------------------------------------- */
+
+.scada-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--space-2);
+  overflow: hidden;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.scada-placeholder-text {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scada-placeholder-type {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+   窄窗口：顶栏收敛，避免状态项把品牌挤出可视区（1280 宽仍保留画面名）
+   --------------------------------------------------------------------------- */
+
+@media (max-width: 1400px) {
+  .page-name {
+    max-width: 22vw;
+  }
+}
+
+@media (max-width: 1100px) {
+  .page-name {
+    display: none;
+  }
+
+  .conn-text {
+    max-width: 110px;
+  }
+}
+
+@media (max-width: 900px) {
+  .brand-name {
+    display: none;
+  }
+
+  .conn-text {
+    max-width: 120px;
+  }
+}

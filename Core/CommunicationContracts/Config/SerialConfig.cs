@@ -76,6 +76,8 @@ namespace VisionMaster.Communications
         /// <returns>配置副本</returns>
         public override ConnectionConfigBase Clone() => new SerialConfig
         {
+            // 必须拷贝基类 Type（默认 0 = ModbusTcp）：漏拷会让 ModbusRtu 副本被判"协议类型不匹配"
+            Type = Type,
             TimeoutMs = TimeoutMs, 
             RetryCount = RetryCount, 
             RetryIntervalMs = RetryIntervalMs,
@@ -87,6 +89,12 @@ namespace VisionMaster.Communications
             StopBits = StopBits,
             ByteOrder = ByteOrder
         };
+
+        /// <summary>
+        /// 通讯列表的「IP : 端口」列直接绑 <c>Config</c> 并调 <c>ToString()</c>。
+        /// 串口没有 IP/端口，不重写就会显示成类型全名（VisionMaster.Communications.SerialConfig）。
+        /// </summary>
+        public override string ToString() => $"{PortName} {BaudRate}bps";
     }
 }
 

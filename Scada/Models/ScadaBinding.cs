@@ -21,6 +21,7 @@ namespace VisionMaster.Scada
         private string _targetProperty = string.Empty;
         private Guid _variableId;
         private string? _variableName;
+        private int _arrayIndex = -1;
         private bool _isEnabled = true;
         private string? _displayFormat;
 
@@ -56,6 +57,22 @@ namespace VisionMaster.Scada
         }
 
         /// <summary>
+        /// 数组元素下标：<c>-1</c> = 引用整个变量（历史行为），<c>≥ 0</c> = 引用该数组变量的一个元素。
+        ///
+        /// 为什么是结构字段而不是名字里的一段文本：见 <see cref="ScadaVariableRef"/> 的注释。
+        /// 落盘口径：旧 .vms 没有这个字段，反序列化后取默认 <c>-1</c>，正是"那个版本没有
+        /// 数组元素绑定"的正确解释，不需要迁移代码。
+        /// </summary>
+        public int ArrayIndex
+        {
+            get => _arrayIndex;
+            set => SetProperty(ref _arrayIndex, value < 0 ? -1 : value);
+        }
+
+        /// <summary>把本绑定摊成值源/运行态认的完整引用</summary>
+        public ScadaVariableRef ToReference() => new(VariableId, VariableName, ArrayIndex);
+
+        /// <summary>
         /// 是否启用。停用（false）时运行态跳过本绑定，但配置保留——
         /// 联调时"临时摘掉一条绑定看现象"比"删掉再重新配一遍"常用得多。
         /// </summary>
@@ -89,9 +106,17 @@ namespace VisionMaster.Scada
         /// ② 加载旧方案后按名解析成功，把 Id 补回来（"用一次才落盘"的一次性迁移）。
         /// </summary>
         public void Bind(Guid variableId, string? variableName)
+            => Bind(variableId, variableName, -1);
+
+        /// <summary>
+        /// 绑定/自愈回填（含数组元素下标）。旧调用点用上面那个重载，等价于
+        /// <paramref name="arrayIndex"/> = -1（引用整个变量）。
+        /// </summary>
+        public void Bind(Guid variableId, string? variableName, int arrayIndex)
         {
             VariableId = variableId;
             VariableName = variableName;
+            ArrayIndex = arrayIndex;
         }
 
         /// <summary>

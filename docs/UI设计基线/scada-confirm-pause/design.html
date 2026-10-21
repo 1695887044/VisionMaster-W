@@ -299,7 +299,7 @@
         <div class="event-title"><span class="check on"></span>按下</div>
         <div class="confirm-row"><span class="check on"></span><span>执行前确认</span><span class="danger-tag">含停止动作</span></div>
         <div class="confirm-row" style="margin-top:7px;"><span class="field">停止后进料中断，当前批次将暂停。</span></div>
-        <div class="helper">留空则使用默认提示：确定执行「对象」的「事件」操作吗？</div>
+        <div class="helper">留空则使用默认提示：将执行：动作摘要。</div>
         <div class="action-title">动作（自上而下依次执行）：</div>
         <div class="action-row"><span class="type">停止流程</span><span class="target">3# 灌装线</span><span class="link">选择流程</span></div>
         <div class="action-row"><span class="type">记录日志</span><span class="target">P-101 已停止</span><span class="link">编辑</span></div>
@@ -331,8 +331,8 @@
       <ul>
         <li>确认开关挂在<b>事件钩子</b>上，不是单条动作上；一次确认覆盖整串动作。</li>
         <li>默认<b>关闭</b>，老工程行为不变；勾选后才弹窗。</li>
-        <li>确认文案可自定义；留空走默认「确定执行『对象』的『事件』操作吗？」。</li>
-        <li>动作表里出现 <code>停止流程</code> / <code>轴停止</code> / <code>轴失能</code> 时，编辑器显示「危险动作」标记，弹窗用红色主按钮。</li>
+        <li>确认文案可自定义；留空走默认「将执行：动作摘要。」。</li>
+        <li>动作表里出现 <code>启动流程</code> / <code>停止流程</code> / <code>执行一次</code> / <code>轴停止</code> / <code>轴失能</code> / <code>轴定位</code> / <code>轴回零</code> / <code>点动开始</code> 时，编辑器显示「危险动作」标记，弹窗用红色主按钮。</li>
         <li>无动作时不弹确认框（执行侧本来就把空动作表当没配）。</li>
       </ul>
     </div>
@@ -590,7 +590,7 @@
       <div class="action-row" style="margin-left:0;"><span class="type">暂停流程</span><span class="target">3# 灌装线</span><span class="link">选择流程</span></div>
       <div class="action-row" style="margin-left:0;"><span class="type">恢复流程</span><span class="target">3# 灌装线</span><span class="link">选择流程</span></div>
       <div class="helper" style="margin-left:0;">暂停在节点边界生效；未运行时跳过并记日志；单次执行不支持暂停。恢复对未暂停的运行中流程是幂等空操作。</div>
-      <div class="helper" style="margin-left:0;">推荐同钩子追加 <code>WriteVariable(Paused=1/0)</code>，页面用该变量驱动“已暂停”状态；不新增流程状态源。</div>
+      <div class="helper" style="margin-left:0;">推荐同钩子追加 <code>WriteVariable(Paused=1/0)</code>，并勾上「仅在上一条成功时执行」——暂停/恢复被跳过时不会把页面写成假状态；不新增流程状态源。</div>
       <div style="margin-top:12px;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;">
         <div class="action-row" style="margin:0;border:0;border-bottom:1px solid #EEF2F7;border-radius:0;"><span class="type">记录日志</span><span class="target">—</span></div>
         <div class="action-row" style="margin:0;border:0;border-bottom:1px solid #EEF2F7;border-radius:0;"><span class="type">写变量</span><span class="target">Line3.Mode := 1</span></div>
@@ -616,7 +616,7 @@
         <tr><td>权限不足（图元 RequiredRole）</td><td>权限闸门先于确认闸门</td><td class="no">不弹确认、不执行、提示无权限</td></tr>
       </table>
       </div>
-      <div class="helper" style="margin-left:0;margin-top:10px;">动作表含 <b>停止流程 / 轴停止 / 轴失能</b> 时，编辑器显示「危险动作」，弹窗用红色主按钮；危险判定由领域层 <code>IsDangerous()</code> 单源给出，不在视图硬编码。确认文案可自定义。</div>
+      <div class="helper" style="margin-left:0;margin-top:10px;">动作表含 <b>启动流程 / 停止流程 / 执行一次 / 轴停止 / 轴失能 / 轴定位 / 轴回零 / 点动开始</b> 时，编辑器显示「危险动作」，弹窗用红色主按钮；危险判定由领域层 <code>IsDangerous()</code> 单源给出，不在视图硬编码。确认文案可自定义。</div>
     </div>
   </div>
 

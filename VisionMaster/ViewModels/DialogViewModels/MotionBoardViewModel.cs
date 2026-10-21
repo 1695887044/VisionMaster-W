@@ -134,7 +134,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             CancelConfirmCommand = new DelegateCommand(CloseConfirm);
         }
 
-        /// <summary>四个页签 VM（构造时创建，生命周期与外壳一致）</summary>
+        /// <summary>页签 VM（构造时创建，生命周期与外壳一致；电子凸轮暂不开放 UI）</summary>
         public MotionBoardSettingsTabViewModel Settings { get; }
         public MotionBoardDebugTabViewModel Debug { get; }
         public MotionBoardPointsTabViewModel Points { get; }
@@ -166,7 +166,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             // 需要卡就点「添加」——由用户主动创建，而不是替他做决定。
             //
             // 电子凸轮表也不在这里 seed：用户只是打开运动页看一眼，不应该顺手改方案。
-            // 空库时 Cam 页有「新建凸轮表」按钮，由用户主动创建。
+            // 电子凸轮 UI 暂不开放；Cam VM 保留，仅维护已落盘数据的轴标签/表状态。
             Cam.LoadTables();
 
             // 菜单「轴点位表」入口 → 直接落在点位列表页签

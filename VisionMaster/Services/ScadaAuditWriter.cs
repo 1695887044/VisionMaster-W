@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using VisionMaster.Models;
+using VisionMaster.Scada;
 using VisionMaster.Scada.Controls;
 
 namespace VisionMaster.Services
@@ -174,12 +175,15 @@ namespace VisionMaster.Services
     /// 进程刚起来时 <c>_lastPurgedDay</c> 是空的，所以当天第一次写入就会清一次，
     /// 现场"攒了一年没开过机"的情况也能在启动后第一次操作时收掉。
     ///
-    /// <b>线程</b>：不锁。调用方只有两处，都在 UI 线程上（事件来自鼠标与渲染，
-    /// 越权拦截也在同一条线上，见 <see cref="ScadaActionDispatcher"/> 的线程注释）。
-    /// 将来若要在后台线程上写（比如流程引擎也来记一笔），必须先在这里补锁——
-    /// 两条线程同时以 <c>FileMode.Append</c> 打开同一个文件，出来的是谁也不是的行。
+    /// <b>线程</b>：允许任意线程调用，但同一时刻只有一个写者——<c>_writeGate</c> 罩住
+    /// "打开文件 → 写一行 → 关文件"整段（含表头判定与跨天清理）。原先的约定是"不锁、
+    /// 只许 UI 线程"，但 <see cref="ScadaUserStore"/> 的账号管理审计会在 Web 后台线程上落笔：
+    /// 两条线程同时以 <c>FileMode.Append</c> 打开同一个文件，写出来的是谁也不是的行。
+    /// 锁只解决"写不坏"；<b>调用方仍应尽量走 UI 命令泵</b>——审计是同步文件 I/O，
+    /// 放在 UI 线程上才与动作执行同序，也不必让网络线程替 UI 挨这一次磁盘延迟。
+    /// 外部模块（Web 运行态）走 <see cref="IScadaAuditSink"/> 那条重载，线程契约同上。
     /// </summary>
-    public sealed class ScadaAuditWriter
+    public sealed class ScadaAuditWriter : IScadaAuditSink
     {
         /// <summary>
         /// 默认保留天数（含今天）。三个月是"够查一次季度复盘、又不至于让目录无限涨"的折中；
@@ -230,6 +234,18 @@ namespace VisionMaster.Services
         /// 于是"改完立刻生效"是结构上保证的，不必重启软件，也不靠谁记得把新值推过来。
         /// </summary>
         private readonly Func<int>? _retentionProvider;
+
+        /// <summary>
+        /// 写文件的互斥闸。两个 <see cref="Append(ScadaAuditEntry)"/> 重载共用这一把：
+        /// "打开文件 → 写一行 → 关文件"整段罩住，同一时刻只有一个写者。
+        ///
+        /// 为什么必须有：调用方不只有 UI 线程——账号管理（<see cref="ScadaUserStore"/>）的审计
+        /// 会在 Web 后台线程上落笔。两条线程同时以 <c>FileMode.Append</c> 打开同一个文件，
+        /// 写出来的是谁也不是的行（还可能撞上 FileShare 拒绝，把整条记录丢掉）。
+        ///
+        /// 锁的范围只到落盘这一段：调用方仍应尽量把审计投到 UI 命令泵里（见类注释）。
+        /// </summary>
+        private readonly object _writeGate = new();
 
         /// <summary>落盘当前是否处于故障态（只用来给诊断上报去重，不参与任何判定）</summary>
         private bool _faulted;
@@ -289,48 +305,124 @@ namespace VisionMaster.Services
             if (entry == null)
                 return false;
 
-            try
+            // 锁罩住"打开文件 → 写一行 → 关文件"整段（含表头判定与跨天清理）。
+            // 行内容本身由一次 WriteLine 完成，但表头/清理与追加交错时，
+            // 另一条线程可能看到"空文件"再补一遍表头，或者正写到一半被清理删掉文件。
+            lock (_writeGate)
             {
-                Directory.CreateDirectory(_directory);
-
-                var path = Path.Combine(
-                    _directory,
-                    string.Format(CultureInfo.InvariantCulture, FileNameFormat, nowLocal));
-
-                // FileShare.Read：运行中允许别人（Excel）读这份审计，但不许别人同时写。
-                // 追加模式下文件位置天然在末尾，不存在覆盖既有行的可能。
-                using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
-
-                // 空文件 = 本类刚建出来（或上次崩在写表头之前）→ 补 BOM 与表头。
-                // 判"空"必须在写任何字节之前做，所以这两步合在一起、顺序不能换。
-                //
-                // leaveOpen: true 不是可选项：StreamWriter 默认会连底层流一起关掉，
-                // 表头那个 writer 一出作用域就把 stream 关了，下面写行时必然抛 ObjectDisposedException——
-                // 表现是"审计一行都写不进去，但目录和空文件建出来了"。
-                if (stream.Length == 0)
+                try
                 {
-                    stream.Write(Bom, 0, Bom.Length);
-                    using var head = new StreamWriter(stream, Utf8NoBom, 1024, leaveOpen: true) { AutoFlush = true };
-                    head.WriteLine(string.Join(",", Header));
+                    Directory.CreateDirectory(_directory);
+
+                    var path = Path.Combine(
+                        _directory,
+                        string.Format(CultureInfo.InvariantCulture, FileNameFormat, nowLocal));
+
+                    // FileShare.Read：运行中允许别人（Excel）读这份审计，但不许别人同时写。
+                    // 追加模式下文件位置天然在末尾，不存在覆盖既有行的可能。
+                    using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
+
+                    // 空文件 = 本类刚建出来（或上次崩在写表头之前）→ 补 BOM 与表头。
+                    // 判"空"必须在写任何字节之前做，所以这两步合在一起、顺序不能换。
+                    //
+                    // leaveOpen: true 不是可选项：StreamWriter 默认会连底层流一起关掉，
+                    // 表头那个 writer 一出作用域就把 stream 关了，下面写行时必然抛 ObjectDisposedException——
+                    // 表现是"审计一行都写不进去，但目录和空文件建出来了"。
+                    if (stream.Length == 0)
+                    {
+                        stream.Write(Bom, 0, Bom.Length);
+                        using var head = new StreamWriter(stream, Utf8NoBom, 1024, leaveOpen: true) { AutoFlush = true };
+                        head.WriteLine(string.Join(",", Header));
+                    }
+
+                    using (var writer = new StreamWriter(stream, Utf8NoBom, 1024, leaveOpen: true) { AutoFlush = true })
+                        writer.WriteLine(BuildRow(entry, nowLocal));
+
+                    ReportRecovered();
+
+                    // 清理放在写成功之后：反过来的话，写不成时（磁盘满）先删掉旧凭证，等于把
+                    // "唯一能作证的那份"赔进去了。清理本身绝不抛，也不会改变本次写入的结果。
+                    PurgeIfNewDay(nowLocal);
+                    return true;
                 }
-
-                using (var writer = new StreamWriter(stream, Utf8NoBom, 1024, leaveOpen: true) { AutoFlush = true })
-                    writer.WriteLine(BuildRow(entry, nowLocal));
-
-                ReportRecovered();
-
-                // 清理放在写成功之后：反过来的话，写不成时（磁盘满）先删掉旧凭证，等于把
-                // "唯一能作证的那份"赔进去了。清理本身绝不抛，也不会改变本次写入的结果。
-                PurgeIfNewDay(nowLocal);
-                return true;
+                catch (Exception ex)
+                {
+                    // 任何 IO 异常都在这里收住：审计写不成不该让操作失败，
+                    // 更不该把异常抛回动作执行链（那会顺着 UI 事件变成"点按钮程序崩了"）。
+                    ReportFault(ex);
+                    return false;
+                }
             }
-            catch (Exception ex)
-            {
-                // 任何 IO 异常都在这里收住：审计写不成不该让操作失败，
-                // 更不该把异常抛回动作执行链（那会顺着 UI 事件变成"点按钮程序崩了"）。
-                ReportFault(ex);
-                return false;
-            }
+        }
+
+        /// <summary>
+        /// 追加一条<b>外部模块</b>（Web 运行态）发来的操作记录（<see cref="IScadaAuditSink"/>）。
+        ///
+        /// 映射口径
+        /// ---------
+        /// · <paramref name="result"/> 是调用方展示给用户的那个词（"成功"/"失败"/"拒绝"…），
+        ///   映射成 <see cref="ScadaAuditOutcome"/> 后落进 CSV 的「结果」列（见 <see cref="MapWebOutcome"/>）。
+        /// · 会话与来源地址<b>并进「说明」列</b>，不新增列：这份 CSV 是现场报表与外部脚本在读的，
+        ///   多一列会让它们整表错位。格式固定为 <c>[web s=会话 ip=来源地址] 原说明</c>。
+        ///
+        /// <b>线程</b>：与 <see cref="Append(ScadaAuditEntry)"/> 同一条契约——允许任意线程，
+        /// 两个重载共用同一把写锁（同一时刻只有一个写者）；调用方仍应尽量把这次写入投到
+        /// 命令泵的 UI 回调里（审计是同步文件 I/O，别让网络线程替 UI 挨这次磁盘延迟）。
+        ///
+        /// 失败口径与 <see cref="Append(ScadaAuditEntry)"/> 完全一致：<b>不抛</b>，返回 false，
+        /// 只在"成功 ↔ 失败"翻转的那一次上报诊断——审计写不成不能反过来让这次操作失败。
+        /// </summary>
+        public bool Append(
+            string actor,
+            string sessionId,
+            string clientAddress,
+            string subject,
+            string eventText,
+            string action,
+            string result,
+            string detail)
+            => Append(new ScadaAuditEntry(
+                actor,
+                subject,
+                eventText,
+                action,
+                MapWebOutcome(result),
+                $"[web s={sessionId} ip={clientAddress}] {detail ?? string.Empty}"));
+
+        /// <summary>
+        /// 外部模块的结果用语 → <see cref="ScadaAuditOutcome"/>。
+        ///
+        /// 四档的中文名与 <see cref="ScadaAuditOutcomeExtensions.DisplayName"/> 同源，
+        /// 所以 Web 侧只要回传它自己展示给用户的那个词，就能原样落进 CSV；
+        /// 另外认几个常见英文写法，免得调用方为了一个词去查文档。
+        ///
+        /// <b>认不出的词一律按「失败」记</b>：这是唯一一个"要有人去看"的档。
+        /// 记成「成功」会让一次没确认成功的操作被直接放过，记成「未执行」也会让查的人以为
+        /// 动作压根没跑——两种都比"多看一眼"危险。
+        /// </summary>
+        private static ScadaAuditOutcome MapWebOutcome(string? result)
+        {
+            var text = (result ?? string.Empty).Trim();
+
+            if (text.Length == 0)
+                return ScadaAuditOutcome.Failed;
+
+            if (string.Equals(text, "成功", StringComparison.Ordinal)
+                || string.Equals(text, "success", StringComparison.OrdinalIgnoreCase))
+                return ScadaAuditOutcome.Success;
+
+            if (string.Equals(text, "拒绝", StringComparison.Ordinal)
+                || string.Equals(text, "被拒绝", StringComparison.Ordinal)
+                || string.Equals(text, "denied", StringComparison.OrdinalIgnoreCase))
+                return ScadaAuditOutcome.Denied;
+
+            if (string.Equals(text, "未执行", StringComparison.Ordinal)
+                || string.Equals(text, "跳过", StringComparison.Ordinal)
+                || string.Equals(text, "skipped", StringComparison.OrdinalIgnoreCase))
+                return ScadaAuditOutcome.Skipped;
+
+            // "失败" / "failed" / 以及任何认不出的词
+            return ScadaAuditOutcome.Failed;
         }
 
         /// <summary>

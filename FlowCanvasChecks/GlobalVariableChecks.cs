@@ -1,11 +1,21 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Windows;
 using Core.Interfaces.Io;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Prism.Dialogs;
+using VisionMaster;
+using VisionMaster.Communications;
 using VisionMaster.Models;
+using VisionMaster.Services;
 using VisionMaster.ViewModels.DialogViewModels;
+using VisionMaster.Views.DialogViews;
 using static FlowCanvasChecks.Program;
 
 namespace FlowCanvasChecks
@@ -32,10 +42,12 @@ namespace FlowCanvasChecks
         {
             RunFilterContract();
             RunSystemSourceContract();
-            RunElementEditContract();
             RunArrayBuildContract();
+            RunArrayEditContract();
             RunDetailColumnWidthContract();
             RunCurrentValueEditContract();
+            RunNetworkArrayReadOnlyContract();
+            RunVariableGroupContract();
         }
 
         // ==================================================================
@@ -160,82 +172,6 @@ namespace FlowCanvasChecks
         }
 
         // ==================================================================
-        //  ② 数组元素就地编辑（VariableNode.ChildDefaultValueText）
-        // ==================================================================
-
-        private static void RunElementEditContract()
-        {
-            Section("[G] 数组元素就地编辑：写回父数组 / 类型校验 / 留空用默认值");
-
-            var model = new LocalVariableModel
-            {
-                Name = "Barcode",
-                DataType = typeof(string[]),
-                DefaultValue = new[] { "A", "B" },
-                Value = new[] { "A", "B" },
-            };
-
-            var element = ChildOf(model, index: 1, elementType: typeof(string), current: "B");
-            element.ChildDefaultValueText = "C";
-
-            var def = (string[])model.DefaultValue;
-            var cur = (string[])model.Value;
-            Check("改元素 → 初始值与当前值同步写下标",
-                def[1] == "C" && cur[1] == "C" && def[0] == "A",
-                $"DefaultValue=[{string.Join(",", def)}] Value=[{string.Join(",", cur)}]");
-            Check("节点自身回显同步更新", element.ChildDefaultValue?.ToString() == "C",
-                "ChildDefaultValue=" + element.ChildDefaultValue);
-
-            // 类型不符：必须抛（绑定引擎据此标红），且**模型不被污染**
-            var intModel = new LocalVariableModel
-            {
-                Name = "Numbers",
-                DataType = typeof(int[]),
-                DefaultValue = new[] { 1, 2 },
-                Value = new[] { 1, 2 },
-            };
-            var intElement = ChildOf(intModel, index: 0, elementType: typeof(int), current: 1);
-
-            bool threw = false;
-            try { intElement.ChildDefaultValueText = "abc"; }
-            catch (ArgumentException) { threw = true; }
-
-            var intDef = (int[])intModel.DefaultValue;
-            Check("非法值抛异常、且模型保持原值（不污染）",
-                threw && intDef[0] == 1, $"抛异常={threw} 模型[0]={intDef[0]}");
-
-            // 留空 = 用该类型的默认值
-            intElement.ChildDefaultValueText = "";
-            Check("int 元素留空 → 写入 0", ((int[])intModel.DefaultValue)[0] == 0,
-                "模型[0]=" + ((int[])intModel.DefaultValue)[0]);
-
-            var stringModel = new LocalVariableModel
-            {
-                Name = "Texts",
-                DataType = typeof(string[]),
-                DefaultValue = new[] { "x" },
-                Value = new[] { "x" },
-            };
-            var stringElement = ChildOf(stringModel, index: 0, elementType: typeof(string), current: "x");
-            stringElement.ChildDefaultValueText = "";
-            Check("string 元素留空 → 写入 null（引用类型没有可实例化的默认值）",
-                ((string?[])stringModel.DefaultValue)[0] == null, "");
-
-            // 非元素节点（ElementIndex = -1）不得误写
-            var stray = new VariableNode
-            {
-                Name = "stray",
-                DataType = typeof(string),
-                OriginalModel = model,
-                Level = 1,
-                ChildDefaultValue = "keep",
-            };
-            stray.ChildDefaultValueText = "changed";
-            Check("ElementIndex 未设（-1）时不写任何东西（防止误改父数组）",
-                ((string[])model.DefaultValue)[1] == "C", "模型[1]=" + ((string[])model.DefaultValue)[1]);
-        }
-
-        // ==================================================================
         //  ③ 数组文本 → 数组（弹窗确定时的转换）
         // ==================================================================
 
@@ -263,13 +199,379 @@ namespace FlowCanvasChecks
                 empty != null && ((string?[])empty).Length == 0, empty == null ? "失败：" + e4 : "");
 
             var texts = GlobalVariableManagerViewModel.TryBuildArray(typeof(string), new[] { "a", "", "c" }, out string e5);
-            Check("string[]：空串保留为 null 元素（而不是被丢弃，长度必须与界面一致）",
-                texts != null && ((string?[])texts).Length == 3 && ((string?[])texts)[1] == null,
+            Check("string[]：空串原样保留（条码/文本数组里「空槽」是合法值，旧实现写成了 null）",
+                texts != null && ((string?[])texts).Length == 3 && ((string?[])texts)[1] == "",
                 texts == null ? "失败：" + e5 : string.Join(",", ((string?[])texts).Select(s => s ?? "<null>")));
+
+            var thousands = GlobalVariableManagerViewModel.TryBuildArray(typeof(int), new[] { "1,000" }, out string e7, out int i7);
+            Check("int[]：千分位分隔符明确拒绝（默认解析会把 1,000 读成 1000）",
+                thousands == null && i7 == 0 && e7.Contains("千分位"), "error=" + e7);
+
+            var badIndex = GlobalVariableManagerViewModel.TryBuildArray(typeof(int), new[] { "1", "abc", "3" }, out string e8, out int i8);
+            Check("int[]：失败时指出第几项（弹窗据此把那一行标红）",
+                badIndex == null && i8 == 1 && e8.Contains("第 2 项"), "error=" + e8);
 
             var misuse = GlobalVariableManagerViewModel.TryBuildArray(typeof(int[]), new[] { "1" }, out string e6);
             Check("误传数组类型时明确失败（而不是抛一句指不到问题所在的 InvalidCastException）",
                 misuse == null && e6.Contains("元素类型"), "error=" + e6);
+        }
+
+        // ==================================================================
+        //  ③b 数组编辑 v2（设计基线 global-variables v2）
+        // ==================================================================
+        //
+        // 【背景】旧入口只有一个「强制覆盖集合...」：弹窗装填 DefaultValue、确认时同时写
+        // Value 与 DefaultValue。流程写过数组之后，用户看到的是基准、点确定却把屏幕上的
+        // 运行值换掉；元素级只有"改当前值"，没有复位、没有摘要、长度变化也不重建。
+        //
+        // 【v2 四条口径】
+        //  ① 偏离判定逐元素（数组按引用比会永远判"已偏离"）；
+        //  ② 元素行 ↺ 只恢复该下标，且基准里没有这一项时不给 ↺；
+        //  ③ 就地改元素必须补广播 ValueChanged（引用没变，订阅方靠它刷新）；
+        //  ④ 弹窗默认只写当前值，勾选才写基准；长度变化时子行必须重建。
+
+        private static void RunArrayEditContract()
+        {
+            Section("[G] 变量管理：数组编辑 v2（当前值/基准分离 / 元素复位 / 摘要 / 长度重建）");
+
+            // —— 偏离判定必须逐元素 ——
+            var model = new LocalVariableModel
+            {
+                Name = "Codes",
+                DataType = typeof(string[]),
+                DefaultValue = new[] { "A", "B" },
+                Value = new[] { "A", "B" },
+            };
+            var root = new VariableNode { OriginalModel = model, Name = "Codes", DataType = typeof(string[]), Level = 0 };
+
+            Check("数组偏离：内容相同（不同实例）→ 未偏离",
+                !root.IsValueDeviated, $"Value=[{Join(model.Value)}] Default=[{Join(model.DefaultValue)}]");
+
+            model.Value = new[] { "A", "C" };
+            root.RefreshValueDisplay();
+            Check("数组偏离：内容不同 → 已偏离", root.IsValueDeviated, "");
+
+            model.Value = new[] { "A", "B", "C" };
+            root.RefreshValueDisplay();
+            Check("数组偏离：长度不同 → 已偏离", root.IsValueDeviated, "");
+
+            // —— 元素级偏离 / 复位 ——
+            model.DefaultValue = new[] { "A", "B", "C" };
+            model.Value = new[] { "A", "X", "C" };
+            var child0 = new VariableNode { OriginalModel = model, Name = "[0]", DataType = typeof(string), ElementIndex = 0, Level = 1 };
+            var child1 = new VariableNode { OriginalModel = model, Name = "[1]", DataType = typeof(string), ElementIndex = 1, Level = 1 };
+
+            Check("元素偏离：值不同才显示 ↺（同值行不显示）",
+                child1.IsElementDeviated && !child0.IsElementDeviated,
+                $"c0={child0.IsElementDeviated} c1={child1.IsElementDeviated}");
+
+            int changed = 0;
+            model.ValueChanged += (_, __) => changed++;
+            bool restored = child1.ResetElementValue();
+            Check("★元素复位：只恢复该下标，其它元素与基准分毫不动",
+                restored && ((string[])model.Value)[1] == "B"
+                && ((string[])model.Value)[0] == "A" && ((string[])model.DefaultValue)[2] == "C",
+                $"Value=[{Join(model.Value)}] Default=[{Join(model.DefaultValue)}]");
+            Check("★元素复位：补广播一次 ValueChanged（引用没变，订阅方靠它刷新）",
+                changed == 1, $"count={changed}");
+            Check("元素复位后该行不再显示 ↺", !child1.IsElementDeviated, "");
+
+            // 基准比当前值短：没有可恢复的项 → 不给 ↺、复位空跑
+            var shortBase = new LocalVariableModel
+            {
+                Name = "Codes2",
+                DataType = typeof(string[]),
+                DefaultValue = Array.Empty<string>(),
+                Value = new[] { "SN1", "SN2" },
+            };
+            var orphan = new VariableNode { OriginalModel = shortBase, Name = "[0]", DataType = typeof(string), ElementIndex = 0, Level = 1 };
+            Check("基准比当前值短 → 元素不显示 ↺（那种'恢复'会把元素清空，不是用户要的动作）",
+                !orphan.IsElementDeviated && !orphan.ResetElementValue(), "");
+
+            // —— 元素就地编辑同样要广播 ——
+            var editModel = new LocalVariableModel
+            {
+                Name = "Codes3",
+                DataType = typeof(string[]),
+                DefaultValue = new[] { "A" },
+                Value = new[] { "A" },
+            };
+            var editChild = new VariableNode { OriginalModel = editModel, Name = "[0]", DataType = typeof(string), ElementIndex = 0, Level = 1 };
+            int editChanged = 0;
+            editModel.ValueChanged += (_, __) => editChanged++;
+            string? editError = editChild.CommitEditValue("Z");
+            Check("★元素就地编辑：写进 Value[0] 且补广播 ValueChanged",
+                editError == null && ((string[])editModel.Value)[0] == "Z" && editChanged == 1,
+                $"err={editError ?? "无"} changed={editChanged}");
+
+            // —— 摘要 ——
+            var summaryModel = new LocalVariableModel
+            {
+                Name = "S",
+                DataType = typeof(int[]),
+                DefaultValue = new[] { 1, 2, 3, 4 },
+                Value = new[] { 1, 2, 3, 4 },
+            };
+            var summaryRoot = new VariableNode { OriginalModel = summaryModel, Name = "S", DataType = typeof(int[]), Level = 0 };
+            Check("数组摘要：前 2 项 + …", summaryRoot.ArraySummary == "1 · 2 …", summaryRoot.ArraySummary);
+
+            summaryModel.Value = Array.Empty<int>();
+            summaryRoot.RefreshValueDisplay();
+            Check("数组摘要：空集合明确写出来（不是空白）", summaryRoot.ArraySummary == "空集合", summaryRoot.ArraySummary);
+
+            // —— 弹窗结果落地：默认只写当前值 ——
+            var applyModel = new LocalVariableModel
+            {
+                Name = "A",
+                DataType = typeof(int[]),
+                DefaultValue = new[] { 1 },
+                Value = new[] { 1 },
+            };
+            var edited = new[] { 7, 8 };
+            GlobalVariableManagerViewModel.ApplyArrayEdit(applyModel, edited, syncBaseline: false);
+            Check("★弹窗确认（默认）：只写当前值，基准分毫不动",
+                ReferenceEquals(applyModel.Value, edited) && ((int[])applyModel.DefaultValue)[0] == 1,
+                $"Value=[{Join(applyModel.Value)}] Default=[{Join(applyModel.DefaultValue)}]");
+
+            var syncModel = new LocalVariableModel
+            {
+                Name = "B",
+                DataType = typeof(int[]),
+                DefaultValue = new[] { 1 },
+                Value = new[] { 1 },
+            };
+            GlobalVariableManagerViewModel.ApplyArrayEdit(syncModel, new[] { 3, 4 }, syncBaseline: true);
+            Check("★弹窗确认（勾选）：当前值与基准一起换，且不是同一个实例",
+                ((int[])syncModel.Value)[1] == 4 && ((int[])syncModel.DefaultValue)[1] == 4
+                && !ReferenceEquals(syncModel.Value, syncModel.DefaultValue),
+                "");
+
+            // —— 运行时长度变化 → 子行必须重建 ——
+            var liveModel = new LocalVariableModel
+            {
+                Name = "L",
+                DataType = typeof(string[]),
+                DefaultValue = Array.Empty<string>(),
+                Value = new[] { "a" },
+            };
+            Check("长度判定：长度对上 → 不重建；对不上 → 重建",
+                !GlobalVariableManagerViewModel.ShouldRebuildArrayRows(liveModel, currentChildCount: 1)
+                && GlobalVariableManagerViewModel.ShouldRebuildArrayRows(liveModel, currentChildCount: 3),
+                "");
+
+            liveModel.Value = new[] { "a", "b", "c" };
+            var longerDefault = new LocalVariableModel
+            {
+                DataType = typeof(string[]),
+                DefaultValue = new[] { "x", "y" },
+                Value = new[] { "x" },
+            };
+            Check("长度判定：按 max(当前值, 基准) 算，基准更长时也不误重建",
+                !GlobalVariableManagerViewModel.ShouldRebuildArrayRows(liveModel, currentChildCount: 3)
+                && !GlobalVariableManagerViewModel.ShouldRebuildArrayRows(longerDefault, currentChildCount: 2),
+                "");
+
+            var nullValue = new LocalVariableModel
+            {
+                DataType = typeof(string[]),
+                DefaultValue = new[] { "x", "y" },
+                Value = null,
+            };
+            Check("长度判定：当前值为 null 时按 0 计（与 CreateChildNodes 的 max 口径一致）",
+                !GlobalVariableManagerViewModel.ShouldRebuildArrayRows(nullValue, currentChildCount: 2)
+                && GlobalVariableManagerViewModel.ShouldRebuildArrayRows(nullValue, currentChildCount: 0),
+                "");
+
+            // —— 基准更长：多出来的行不能给"点了没反应"的 ↺ ——
+            var longerBase = new LocalVariableModel
+            {
+                Name = "Codes4",
+                DataType = typeof(string[]),
+                DefaultValue = new[] { "A", "B", "C" },
+                Value = new[] { "A" },
+            };
+            var extraRow = new VariableNode { OriginalModel = longerBase, Name = "[2]", DataType = typeof(string), ElementIndex = 2, Level = 1 };
+            Check("基准更长：多出来的行不给 ↺（当前值没有该下标，复位写不进去）",
+                !extraRow.IsElementDeviated && !extraRow.ResetElementValue(), "");
+
+            // —— 工厂创建的数组：基准与当前值必须是独立实例 ——
+            var factoryVar = VariableFactory.CreateLocal("F", typeof(int[]), "", new[] { 1, 2 }) as LocalVariableModel;
+            Check("★工厂创建的数组：基准与当前值不同实例（否则元素编辑会改掉基准）",
+                factoryVar != null && !ReferenceEquals(factoryVar.DefaultValue, factoryVar.Value),
+                "");
+
+            if (factoryVar != null)
+            {
+                var factoryChild = new VariableNode { OriginalModel = factoryVar, Name = "[0]", DataType = typeof(int), ElementIndex = 0, Level = 1 };
+                factoryChild.CommitEditValue("9");
+                Check("★工厂数组：元素编辑后基准保持原值",
+                    ((int[])factoryVar.DefaultValue)[0] == 1 && ((int[])factoryVar.Value)[0] == 9,
+                    $"Default=[{Join(factoryVar.DefaultValue)}] Value=[{Join(factoryVar.Value)}]");
+            }
+
+            // —— 弹窗 VM 行为：装填当前值 / 取消零改动 / 确认回传 / 校验失败不关窗 ——
+            var dialogModel = new LocalVariableModel
+            {
+                Name = "D",
+                DataType = typeof(int[]),
+                DefaultValue = new[] { 1 },
+                Value = new[] { 2, 3 },
+            };
+            var dialogVm = new ArrayEditorViewModel();
+            dialogVm.OnDialogOpened(new DialogParameters
+            {
+                { ArrayEditorViewModel.VariableKey, dialogModel },
+            });
+            Check("★弹窗装填的是当前值（不是基准）",
+                dialogVm.Elements.Count == 2 && dialogVm.Elements[0].Value == "2" && dialogVm.Elements[1].Value == "3",
+                $"count={dialogVm.Elements.Count} first={(dialogVm.Elements.Count > 0 ? dialogVm.Elements[0].Value : "<空>")}");
+
+            Check("★弹窗默认不勾「同时写入初始值（基准）」", !dialogVm.SyncBaseline, "");
+
+            // —— v3：逐行基准 / 已修改标记 / 行内 ↺ / 恢复全部 ——
+            var changedVm = new ArrayEditorViewModel();
+            var changedModel = new LocalVariableModel
+            {
+                Name = "C",
+                DataType = typeof(int[]),
+                DefaultValue = new[] { 1 },
+                Value = new[] { 2, 3 },
+            };
+            changedVm.OnDialogOpened(new DialogParameters
+            {
+                { ArrayEditorViewModel.VariableKey, changedModel },
+            });
+
+            Check("★弹窗：改过的行标「已修改」并给出基准值（新增行没有基准不计入）",
+                changedVm.Elements[0].IsChanged && changedVm.Elements[0].BaselineText == "1"
+                && !changedVm.Elements[1].IsChanged && changedVm.ChangedCount == 1,
+                $"c0={changedVm.Elements[0].IsChanged} base0={changedVm.Elements[0].BaselineText} " +
+                $"c1={changedVm.Elements[1].IsChanged} count={changedVm.ChangedCount}");
+
+            Check("★弹窗：写入范围默认「只写当前值」，后果说明跟随选择",
+                changedVm.IsCurrentOnly && changedVm.ScopeHint.Contains("保持不变"),
+                changedVm.ScopeHint);
+
+            changedVm.WriteBothCommand.Execute();
+            Check("★弹窗：选「同时写初始值」后说明改为写入基准",
+                changedVm.SyncBaseline && !changedVm.IsCurrentOnly && changedVm.ScopeHint.Contains("同时成为初始值"),
+                changedVm.ScopeHint);
+
+            changedVm.ResetRowCommand.Execute(changedVm.Elements[0]);
+            Check("★弹窗：行内 ↺ 只恢复该行到基准",
+                changedVm.Elements[0].Value == "1" && !changedVm.Elements[0].IsChanged && changedVm.ChangedCount == 0,
+                $"value={changedVm.Elements[0].Value} count={changedVm.ChangedCount}");
+
+            changedVm.ResetAllCommand.Execute();
+            Check("★弹窗：恢复全部为基准 → 列表回到基准长度与值",
+                changedVm.Elements.Count == 1 && changedVm.Elements[0].Value == "1" && changedVm.ChangedCount == 0,
+                $"count={changedVm.Elements.Count} value={(changedVm.Elements.Count > 0 ? changedVm.Elements[0].Value : "<空>")}");
+
+            ButtonResult? closedWith = null;
+            IDialogParameters? closedParams = null;
+            dialogVm.RequestClose = MakeDialogCloseListener(result =>
+            {
+                closedWith = result.Result;
+                closedParams = result.Parameters;
+            });
+
+            dialogVm.CancelCommand.Execute();
+            Check("★弹窗取消：回传 Cancel、活模型零改动",
+                closedWith == ButtonResult.Cancel
+                && ((int[])dialogModel.Value).Length == 2 && ((int[])dialogModel.DefaultValue)[0] == 1,
+                $"result={closedWith}");
+
+            closedWith = null;
+            dialogVm.ConfirmCommand.Execute();
+            Array? returnedArray = null;
+            bool returnedSync = true;
+            if (closedParams != null)
+            {
+                closedParams.TryGetValue<Array>(ArrayEditorViewModel.ArrayKey, out returnedArray);
+                returnedSync = closedParams.TryGetValue<bool>(ArrayEditorViewModel.SyncBaselineKey, out var s) && s;
+            }
+            Check("★弹窗确定：回传 OK + 新数组 + 勾选状态，模型在落地前不动",
+                closedWith == ButtonResult.OK && returnedArray is int[] { Length: 2 }
+                && !returnedSync && ((int[])dialogModel.Value).Length == 2,
+                $"result={closedWith} arrayLen={(returnedArray as int[])?.Length ?? -1} sync={returnedSync}");
+
+            var errorVm = new ArrayEditorViewModel();
+            errorVm.OnDialogOpened(new DialogParameters
+            {
+                { ArrayEditorViewModel.VariableKey, new LocalVariableModel { Name = "E", DataType = typeof(double[]), DefaultValue = new[] { 1.0 }, Value = new[] { 1.0, 2.0 } } },
+            });
+            errorVm.Elements[1].Value = "abc";
+            bool errorClosed = false;
+            errorVm.RequestClose = MakeDialogCloseListener(_ => errorClosed = true);
+            errorVm.ConfirmCommand.Execute();
+            Check("★弹窗校验失败：不关窗、出错行标红、错误文案指到第 2 项",
+                !errorClosed && errorVm.HasError && errorVm.Elements[1].HasError && errorVm.ErrorText.Contains("第 2 项"),
+                errorVm.ErrorText);
+
+            // —— 结构：视图 / 弹窗 / 注册 ——
+            var xamlPath = FindRepoFile(@"VisionMaster\Views\DialogViews\GlobalVariableView.xaml");
+            var editorViewPath = FindRepoFile(@"VisionMaster\Views\DialogViews\ArrayEditorView.xaml");
+            var editorVmPath = FindRepoFile(@"VisionMaster\ViewModels\DialogViewModels\ArrayEditorViewModel.cs");
+            var appPath = FindRepoFile(@"VisionMaster\App.xaml.cs");
+
+            if (xamlPath == null || editorViewPath == null || editorVmPath == null || appPath == null)
+            {
+                Check("【数组 v2】结构扫描定位", false, "定位不到视图 / 弹窗 / 注册文件（不允许跳过）");
+                return;
+            }
+
+            string xamlNoComments = Regex.Replace(File.ReadAllText(xamlPath), "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+            string editorXaml = Regex.Replace(File.ReadAllText(editorViewPath), "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+            string editorVm = File.ReadAllText(editorVmPath);
+            string app = File.ReadAllText(appPath);
+
+            Check("★视图：数组根改为「摘要 + 编辑数组… + ↺」，旧「强制覆盖集合」零残留",
+                xamlNoComments.Contains("ArraySummary") && xamlNoComments.Contains("编辑数组…")
+                && !xamlNoComments.Contains("强制覆盖集合"),
+                "");
+
+            Check("★视图：元素行挂逐元素 ↺（IsElementDeviated + ResetElementCommand）",
+                xamlNoComments.Contains("IsElementDeviated") && xamlNoComments.Contains("ResetElementCommand"),
+                "");
+
+            Check("★弹窗视图：写入范围分段 / 逐行基准 / 修改汇总 / 恢复全部 齐备",
+                editorXaml.Contains("只写当前值") && editorXaml.Contains("同时写初始值")
+                && editorXaml.Contains("ScopeHint") && editorXaml.Contains("BaselineText")
+                && editorXaml.Contains("IsChanged") && editorXaml.Contains("ResetAllCommand")
+                && editorXaml.Contains("恢复全部为基准"),
+                "");
+
+            Check("★弹窗 VM：装填当前值 + 确认走 TryBuildArray + 回传 SyncBaseline",
+                editorVm.Contains("_model?.Value as Array ?? _baseline")
+                && editorVm.Contains("TryBuildArray") && editorVm.Contains("SyncBaselineKey"),
+                "");
+
+            Check("★宿主注册：ArrayEditor 弹窗已注册",
+                app.Contains("RegisterDialog<ArrayEditorView, ArrayEditorViewModel>"),
+                "");
+        }
+
+        /// <summary>断言消息里展示数组内容（null → 空串）</summary>
+        private static string Join(object? value)
+            => value is Array array ? string.Join(",", array.Cast<object?>().Select(v => v?.ToString() ?? "")) : "";
+
+        /// <summary>
+        /// 造一个能观察关窗结果的 <see cref="DialogCloseListener"/>（与 HelpProbe / ScadaChecks 同源）。
+        /// Prism 9 的这个类型是类、回调构造器是 internal 的；断言宿主里没有容器，
+        /// 所以反射走一次那个 internal 构造器拿它当替身。
+        /// </summary>
+        private static DialogCloseListener MakeDialogCloseListener(Action<IDialogResult> onClosed)
+        {
+            var ctor = typeof(DialogCloseListener).GetConstructor(
+                BindingFlags.Instance | BindingFlags.NonPublic,
+                binder: null,
+                types: new[] { typeof(Action<IDialogResult>) },
+                modifiers: null);
+
+            if (ctor == null)
+                throw new MissingMethodException("Prism.Dialogs.DialogCloseListener", ".ctor(Action<IDialogResult>)");
+
+            return (DialogCloseListener)ctor.Invoke(new object[] { onClosed });
         }
 
         // ==================================================================
@@ -293,7 +595,7 @@ namespace FlowCanvasChecks
         // 2026-10-20 用户按 1200 窄档定稿：220/104/120/104/88/*160/100（早期 280/88/100 已废弃）。
 
         private static readonly string[] DetailCollapsedInLocalSource =
-            { "SourceColumn", "ScanGroupColumn", "AddressColumn" };
+            { "GroupColumn", "ScanGroupColumn", "AddressColumn" };
 
         private static void RunDetailColumnWidthContract()
         {
@@ -336,7 +638,7 @@ namespace FlowCanvasChecks
                 .Where(m => m.Success)
                 .Select(m => m.Groups[1].Value)
                 .ToList();
-            Check("【列宽】逐列宽度与 2026-10-20 定稿一致（变量名/类型/来源/扫描组/地址/当前值/操作）",
+            Check("【列宽】逐列宽度与 2026-10-20 定稿一致（变量名/类型/分组/扫描组/地址/当前值/操作）",
                 actualWidths.SequenceEqual(expectedWidths),
                 $"actual=[{string.Join(",", actualWidths)}] expected=[{string.Join(",", expectedWidths)}]");
             Check("【列宽】逐列 MinWidth 与定稿一致（窄档锁定，不靠星号列兜底）",
@@ -420,7 +722,7 @@ namespace FlowCanvasChecks
                 $"tooltips={styledToolTips}/{allToolTips}");
             string[] namedElements =
             {
-                "AddButton", "ManageGroupsButton", "SystemBanner", "EmptySourceOverlay", "SearchEmptyOverlay",
+                "AddButton", "ManageVariableGroupsButton", "SystemBanner", "EmptySourceOverlay", "SearchEmptyOverlay",
             };
             var missingNamed = namedElements.Where(n => !text.Contains($"x:Name=\"{n}\"", StringComparison.Ordinal)).ToList();
             Check("【列宽】冒烟依赖的命名元素全部在位（防 FindName 为空被当成可见/收起）",
@@ -622,6 +924,410 @@ namespace FlowCanvasChecks
 
         private static string Names(IEnumerable<VariableNode> nodes) => string.Join(",", nodes.Select(n => n.Name));
 
+        // ==================================================================
+        //  ⑥ 网络数组：只读展示 + 元素行写入拦截
+        // ==================================================================
+
+        /// <summary>
+        /// 网络数组第一期只读。三件事必须同时成立，少一件都会让用户以为"能改"：
+        /// ① 根行走 NetworkArrayRoot（显示摘要），不能落到 ReadOnlyRoot 把 "System.Int32[]" 上屏；
+        /// ② 元素行走 ReadOnlyChild（只读文本），不能走本地数组的 EditableChild；
+        /// ③ 即使绕过界面直接调模型，元素提交/复位也必须被拒（否则改了镜像、下一拍被设备覆盖）。
+        /// </summary>
+        private static void RunNetworkArrayReadOnlyContract()
+        {
+            Section("[G] 变量管理：网络数组只读（根摘要 / 元素行 / 写入拦截）");
+
+            var netArray = new NetworkVariableModel
+            {
+                Name = "Arr",
+                DataType = typeof(int[]),
+                ConnectionName = "PLC1",
+                AddressConfig = new ModbusAddress
+                {
+                    Area = ModbusArea.HoldingRegisters,
+                    DataType = DataValueType.Int32,
+                    Offset = "0",
+                    Length = 3
+                },
+                Value = new[] { 1, 2, 3 }
+            };
+
+            var root = new VariableNode
+            {
+                Name = "Arr",
+                DataType = typeof(int[]),
+                TypeName = "Int32[]",
+                Level = 0,
+                IsNetwork = true,
+                OriginalModel = netArray
+            };
+
+            var child = new VariableNode
+            {
+                Name = "[0]",
+                DataType = typeof(int),
+                TypeName = "Int32",
+                Level = 1,
+                IsNetwork = true,
+                OriginalModel = netArray,
+                ElementIndex = 0,
+                ChildValue = 1
+            };
+
+            var converter = new GlobalVariableValueModeConverter();
+            object Mode(VariableNode node, string mode) => converter.Convert(
+                new object?[]
+                {
+                    node.IsRootNode,
+                    node.IsChildNode,
+                    node.IsArrayRootNode,
+                    node.IsEditableNode,
+                    node.IsValueReadOnly,
+                    node.IsSystemOwned,
+                    node.TypeName,
+                    node.OriginalModel
+                },
+                typeof(Visibility), mode, CultureInfo.InvariantCulture);
+
+            Check("[G] 网络数组根走 NetworkArrayRoot（显示摘要，不显示 System.Int32[]）",
+                Equals(Mode(root, "NetworkArrayRoot"), Visibility.Visible)
+                && Equals(Mode(root, "ArrayRoot"), Visibility.Collapsed)
+                && Equals(Mode(root, "ReadOnlyRoot"), Visibility.Collapsed),
+                $"NetworkArrayRoot={Mode(root, "NetworkArrayRoot")} ArrayRoot={Mode(root, "ArrayRoot")} ReadOnlyRoot={Mode(root, "ReadOnlyRoot")}");
+
+            Check("[G] 网络数组元素行走 ReadOnlyChild（不能走本地数组的 EditableChild）",
+                Equals(Mode(child, "ReadOnlyChild"), Visibility.Visible)
+                && Equals(Mode(child, "EditableChild"), Visibility.Collapsed),
+                $"ReadOnlyChild={Mode(child, "ReadOnlyChild")} EditableChild={Mode(child, "EditableChild")}");
+
+            string? commitError = child.CommitEditValue("9");
+            Check("[G] 网络数组元素提交被拒，且镜像数组未被改动",
+                commitError != null && ((int[])netArray.Value!)[0] == 1,
+                commitError ?? "提交竟然成功了");
+
+            Check("[G] 网络数组元素复位被拒（没有元素级基准）",
+                !child.ResetElementValue(), "ResetElementValue 返回 true");
+
+            Check("[G] 建行口径把配置的元素个数算进来（第一拍值到达前后不反复重建）",
+                !GlobalVariableManagerViewModel.ShouldRebuildArrayRows(netArray, 3)
+                && GlobalVariableManagerViewModel.ShouldRebuildArrayRows(netArray, 0),
+                $"3 行→{GlobalVariableManagerViewModel.ShouldRebuildArrayRows(netArray, 3)}；0 行→{GlobalVariableManagerViewModel.ShouldRebuildArrayRows(netArray, 0)}");
+
+            Check("[G] 网络数组可写区：CanWriteNetworkArray=true（根行出现「写入数组…」）",
+                root.CanWriteNetworkArray, $"CanWriteNetworkArray={root.CanWriteNetworkArray}");
+
+            var readOnlyArray = new NetworkVariableModel
+            {
+                Name = "Flags",
+                DataType = typeof(bool[]),
+                ConnectionName = "PLC1",
+                AddressConfig = new ModbusAddress
+                {
+                    Area = ModbusArea.DiscreteInputs,
+                    DataType = DataValueType.Boolean,
+                    Offset = "0",
+                    Length = 3
+                },
+                Value = new[] { true, false, true }
+            };
+            var readOnlyRoot = new VariableNode
+            {
+                Name = "Flags",
+                DataType = typeof(bool[]),
+                TypeName = "Boolean[]",
+                Level = 0,
+                IsNetwork = true,
+                OriginalModel = readOnlyArray
+            };
+            Check("[G] 网络数组只读区：CanWriteNetworkArray=false（只显示「只读」）",
+                !readOnlyRoot.CanWriteNetworkArray, $"CanWriteNetworkArray={readOnlyRoot.CanWriteNetworkArray}");
+
+            var editor = new ArrayEditorViewModel();
+            editor.OnDialogOpened(new DialogParameters
+            {
+                { ArrayEditorViewModel.VariableKey, netArray }
+            });
+            Check("[G] 网络数组写入弹窗：隐藏基准面板、固定 3 行、标题为「写入数组」",
+                !editor.ShowBaselineControls && !editor.CanEditStructure
+                && editor.Elements.Count == 3
+                && editor.Title.Contains("写入数组", StringComparison.Ordinal)
+                && editor.ScopeHint.Contains("整组写入设备", StringComparison.Ordinal),
+                $"ShowBaseline={editor.ShowBaselineControls} CanEdit={editor.CanEditStructure} " +
+                $"rows={editor.Elements.Count} title={editor.Title} hint={editor.ScopeHint}");
+
+            Check("[G] 网络数组写入弹窗：当前值已到 → CanConfirm=true",
+                editor.CanConfirm, $"CanConfirm={editor.CanConfirm}");
+
+            var emptyModel = new NetworkVariableModel
+            {
+                Name = "Empty",
+                DataType = typeof(int[]),
+                ConnectionName = "PLC1",
+                AddressConfig = new ModbusAddress
+                {
+                    Area = ModbusArea.HoldingRegisters,
+                    DataType = DataValueType.Int32,
+                    Offset = "0",
+                    Length = 3
+                },
+                Value = null
+            };
+            var emptyEditor = new ArrayEditorViewModel();
+            emptyEditor.OnDialogOpened(new DialogParameters
+            {
+                { ArrayEditorViewModel.VariableKey, emptyModel }
+            });
+            Check("[G] 网络数组写入弹窗：当前值未到 → CanConfirm=false（防空表写成 0）",
+                !emptyEditor.CanConfirm && emptyEditor.Elements.Count == 3,
+                $"CanConfirm={emptyEditor.CanConfirm} rows={emptyEditor.Elements.Count}");
+        }
+
+        // ==================================================================
+        //  ⑦ 显示分组：方案级分类（唯一名 / 筛选 / 删组回落 / 持久化 / 扫描组入口）
+        // ==================================================================
+
+        private static void RunVariableGroupContract()
+        {
+            Section("[G] 变量管理：显示分组（方案级分类 / 唯一名 / 筛选 / 删组回落 / 持久化）");
+
+            var monitor = new VariableGroupDescriptor { Id = Guid.NewGuid(), Name = "监控分组" };
+            var control = new VariableGroupDescriptor { Id = Guid.NewGuid(), Name = "控制分组" };
+            var groups = new List<VariableGroupDescriptor> { monitor, control };
+
+            Check("[G] 分组名：空 / 重名（trim + 不区分大小写）/ 保留名 全部拒绝",
+                VariableGroupEditorViewModel.ValidateGroupName("  ", groups, null) != null
+                && VariableGroupEditorViewModel.ValidateGroupName(" 监控分组 ", groups, null) != null
+                && VariableGroupEditorViewModel.ValidateGroupName("未分组", groups, null) != null,
+                $"empty={VariableGroupEditorViewModel.ValidateGroupName("  ", groups, null)} " +
+                $"dup={VariableGroupEditorViewModel.ValidateGroupName(" 监控分组 ", groups, null)} " +
+                $"reserved={VariableGroupEditorViewModel.ValidateGroupName("未分组", groups, null)}");
+
+            Check("[G] 分组名：不重名可用；改名排除自身（拿别人的名字才算重名）",
+                VariableGroupEditorViewModel.ValidateGroupName("报警分组", groups, null) == null
+                && VariableGroupEditorViewModel.ValidateGroupName("监控分组", groups, monitor.Id) == null
+                && VariableGroupEditorViewModel.ValidateGroupName("控制分组", groups, monitor.Id) != null,
+                "");
+
+            var asciiGroups = new List<VariableGroupDescriptor>
+            {
+                new() { Id = Guid.NewGuid(), Name = "GroupA" }
+            };
+            Check("[G] 分组名：ASCII 大小写不敏感 + 20 字符上限",
+                VariableGroupEditorViewModel.ValidateGroupName("groupa", asciiGroups, null) != null
+                && VariableGroupEditorViewModel.ValidateGroupName("GroupB", asciiGroups, null) == null
+                && VariableGroupEditorViewModel.ValidateGroupName(new string('x', 20), asciiGroups, null) == null
+                && VariableGroupEditorViewModel.ValidateGroupName(new string('x', 21), asciiGroups, null) != null,
+                "");
+
+            var v1 = new VariableNode { Name = "Temp", Level = 0, IsNetwork = true, SourceLabel = "PLC1", GroupId = monitor.Id };
+            var v2 = new VariableNode { Name = "Start", Level = 0, IsNetwork = true, SourceLabel = "PLC1", GroupId = control.Id };
+            var v3 = new VariableNode { Name = "Spare", Level = 0, IsNetwork = true, SourceLabel = "PLC1", GroupId = Guid.Empty };
+            var nodes = new List<VariableNode> { v1, v2, v3 };
+
+            Check("[G] 分组筛选：监控分组只回监控点；全部（null）回全部",
+                Names(GlobalVariableManagerViewModel.FilterDisplayNodes(nodes, "PLC1", monitor.Id, "")) == "Temp"
+                && Names(GlobalVariableManagerViewModel.FilterDisplayNodes(nodes, "PLC1", null, "")) == "Temp,Start,Spare",
+                "monitor=" + Names(GlobalVariableManagerViewModel.FilterDisplayNodes(nodes, "PLC1", monitor.Id, "")));
+
+            Check("[G] 未分组（Guid.Empty）只回未归类的点",
+                Names(GlobalVariableManagerViewModel.FilterDisplayNodes(nodes, "PLC1", Guid.Empty, "")) == "Spare",
+                Names(GlobalVariableManagerViewModel.FilterDisplayNodes(nodes, "PLC1", Guid.Empty, "")));
+
+            Check("[G] ★搜索跨分组：在监控分组里搜控制分组的点也要搜到",
+                Names(GlobalVariableManagerViewModel.FilterDisplayNodes(nodes, "PLC1", monitor.Id, "Start")) == "Start",
+                Names(GlobalVariableManagerViewModel.FilterDisplayNodes(nodes, "PLC1", monitor.Id, "Start")));
+
+            var netVars = new List<NetworkVariableModel>
+            {
+                new() { Name = "Temp", ConnectionName = "PLC1", GroupId = monitor.Id },
+                new() { Name = "Start", ConnectionName = "PLC1", GroupId = control.Id },
+                new() { Name = "Spare", ConnectionName = "PLC1", GroupId = Guid.Empty },
+            };
+            var mutableGroups = new List<VariableGroupDescriptor> { monitor, control };
+            int affected = VariableGroupEditorViewModel.DeleteGroupCore(mutableGroups, netVars, control.Id);
+            Check("[G] ★删组：受影响变量回落到未分组，变量本身不删，组表只剩另一组",
+                affected == 1 && netVars[1].GroupId == Guid.Empty && netVars.Count == 3
+                && mutableGroups.Count == 1 && mutableGroups[0].Id == monitor.Id,
+                $"affected={affected} groups={mutableGroups.Count} startGroup={netVars[1].GroupId}");
+
+            Check("[G] 内置「未分组」不可删（DeleteGroupCore 空跑）",
+                VariableGroupEditorViewModel.DeleteGroupCore(mutableGroups, netVars, Guid.Empty) == 0
+                && mutableGroups.Count == 1,
+                "");
+
+            var renameTarget = new VariableGroupDescriptor { Id = Guid.NewGuid(), Name = "监控" };
+            var renameGroups = new List<VariableGroupDescriptor> { renameTarget };
+            var renamedVar = new NetworkVariableModel { Name = "Temp", ConnectionName = "PLC1", GroupId = renameTarget.Id };
+            bool renamed = VariableGroupEditorViewModel.RenameGroupCore(renameGroups, renameTarget.Id, "监控分组");
+            Check("[G] ★改名：只改显示名，变量仍指向同一个 Id（不需要级联）",
+                renamed && renameTarget.Name == "监控分组" && renamedVar.GroupId == renameTarget.Id,
+                $"name={renameTarget.Name} varGroup={renamedVar.GroupId}");
+
+            var selModel = new NetworkVariableModel { Name = "Sel", ConnectionName = "PLC1", GroupId = Guid.Empty };
+            var selNode = new VariableNode { Name = "Sel", Level = 0, IsNetwork = true, GroupId = Guid.Empty };
+            var selOption = new VariableGroupOption { Id = monitor.Id, Name = monitor.Name };
+            var applied = GlobalVariableManagerViewModel.ApplyGroupSelection(selModel, selNode, selOption);
+            Check("[G] 分组下拉落账：合法选项写模型+节点；null 不覆盖模型",
+                applied == monitor.Id && selModel.GroupId == monitor.Id && selNode.GroupId == monitor.Id
+                && GlobalVariableManagerViewModel.ApplyGroupSelection(selModel, selNode, null) == monitor.Id
+                && selModel.GroupId == monitor.Id,
+                $"applied={applied} model={selModel.GroupId}");
+
+            // —— 编辑器 VM：新增 / 改名 / 删除的命令行为（含 Changed 事件） ——
+            var ws = new WorkspaceContext();
+            ws.SwitchSolution(new SolutionModel());
+            ws.GlobalVariables.Clear();
+            var editGroup = new VariableGroupDescriptor { Id = Guid.NewGuid(), Name = "监控分组" };
+            ws.CurrentSolution.VariableGroups.Add(editGroup);
+            var editVar = new NetworkVariableModel { Name = "Temp", ConnectionName = "PLC1", GroupId = editGroup.Id };
+            ws.GlobalVariables.Add(editVar);
+
+            var editor = new VariableGroupEditorViewModel(ws);
+            editor.Open();
+            Check("[G] 分组编辑器打开：组行 + 内置未分组 + 变量数",
+                editor.Rows.Count == 2
+                && editor.Rows[0].Name == "监控分组" && editor.Rows[0].Count == 1
+                && editor.Rows[1].IsBuiltIn && editor.Rows[1].Name == "未分组",
+                $"rows={editor.Rows.Count} first={editor.Rows.FirstOrDefault()?.Name}");
+
+            editor.NewGroupName = "监控分组";
+            Check("[G] 分组编辑器新增：重名时 CanAddGroup=false 且给出原因",
+                !editor.CanAddGroup && editor.NewGroupError?.Contains("已存在", StringComparison.Ordinal) == true,
+                $"canAdd={editor.CanAddGroup} err={editor.NewGroupError}");
+
+            int changedCount = 0;
+            editor.Changed += () => changedCount++;
+            editor.NewGroupName = "报警分组";
+            editor.AddGroupCommand.Execute();
+            Check("[G] 分组编辑器新增：合法名写入方案组表并触发 Changed",
+                ws.CurrentSolution.VariableGroups.Count == 2
+                && ws.CurrentSolution.VariableGroups.Any(g => g.Name == "报警分组")
+                && changedCount == 1,
+                $"groups={ws.CurrentSolution.VariableGroups.Count} changed={changedCount}");
+
+            var renameRow = editor.Rows.First(r => r.Name == "监控分组");
+            editor.BeginRenameCommand.Execute(renameRow);
+            renameRow.EditName = "控制分组";
+            editor.CommitRenameCommand.Execute(renameRow);
+            Check("[G] 分组编辑器改名：方案组表改名，变量仍指向原 Id",
+                ws.CurrentSolution.VariableGroups.First(g => g.Id == editGroup.Id).Name == "控制分组"
+                && editVar.GroupId == editGroup.Id
+                && changedCount == 2,
+                $"name={ws.CurrentSolution.VariableGroups.First(g => g.Id == editGroup.Id).Name} changed={changedCount}");
+
+            var dupRow = editor.Rows.First(r => r.Name == "控制分组");
+            editor.BeginRenameCommand.Execute(dupRow);
+            dupRow.EditName = "报警分组";
+            editor.CommitRenameCommand.Execute(dupRow);
+            Check("[G] 分组编辑器改名：重名被拒（组表名字不变）",
+                ws.CurrentSolution.VariableGroups.First(g => g.Id == editGroup.Id).Name == "控制分组"
+                && changedCount == 2,
+                $"name={ws.CurrentSolution.VariableGroups.First(g => g.Id == editGroup.Id).Name} changed={changedCount}");
+
+            var deleteRow = editor.Rows.First(r => r.Name == "控制分组");
+            editor.BeginDeleteCommand.Execute(deleteRow);
+            editor.ConfirmDeleteCommand.Execute(deleteRow);
+            Check("[G] 分组编辑器删组：变量回落未分组、组表移除、Changed 触发",
+                editVar.GroupId == Guid.Empty
+                && ws.CurrentSolution.VariableGroups.Count == 1
+                && changedCount == 3,
+                $"varGroup={editVar.GroupId} groups={ws.CurrentSolution.VariableGroups.Count} changed={changedCount}");
+            editor.Close();
+
+            // 无方案：明确提示并禁用，不再"输完名字点一下什么都不发生"
+            var noSolutionWs = new WorkspaceContext();
+            var noSolutionEditor = new VariableGroupEditorViewModel(noSolutionWs);
+            noSolutionEditor.Open();
+            noSolutionEditor.NewGroupName = "报警分组";
+            Check("[G] 无方案：添加分组明确提示并禁用（不再静默失效）",
+                !noSolutionEditor.CanAddGroup
+                && noSolutionEditor.NewGroupError?.Contains("没有打开的方案", StringComparison.Ordinal) == true,
+                $"canAdd={noSolutionEditor.CanAddGroup} err={noSolutionEditor.NewGroupError}");
+            noSolutionEditor.Close();
+
+            var dto = VariableDto.FromNetwork(
+                new NetworkVariableModel
+                {
+                    Name = "Temp",
+                    ConnectionName = "PLC1",
+                    DataType = typeof(double),
+                    GroupId = monitor.Id,
+                    AddressConfig = new ModbusAddress
+                    {
+                        Area = ModbusArea.HoldingRegisters,
+                        DataType = DataValueType.Double,
+                        Offset = "0"
+                    }
+                }, CommunicationType.ModbusTcp);
+
+            var json = JsonConvert.SerializeObject(new
+            {
+                VariableGroups = new List<VariableGroupDescriptor> { monitor },
+                VariableSnapshots = new List<VariableDto> { dto }
+            });
+            var back = JObject.Parse(json);
+            var groupsBack = back["VariableGroups"]?.ToObject<List<VariableGroupDescriptor>>();
+            var varsBack = back["VariableSnapshots"]?.ToObject<List<VariableDto>>();
+            Check("[G] ★持久化往返：分组表与变量的 GroupId 原样还原",
+                groupsBack is { Count: 1 } && groupsBack[0].Id == monitor.Id && groupsBack[0].Name == monitor.Name
+                && varsBack is { Count: 1 } && varsBack[0].GroupId == monitor.Id,
+                $"groups={groupsBack?.Count} varGroup={varsBack?.FirstOrDefault()?.GroupId}");
+
+            var legacyDto = JsonConvert.DeserializeObject<VariableDto>(
+                "{\"VarType\":\"Network\",\"Name\":\"Old\",\"ConnectionName\":\"PLC1\"}");
+            var legacySolution = JsonConvert.DeserializeObject<SolutionModel>("{}");
+            Check("[G] 旧方案：缺 VariableGroups / GroupId → 空表 + 未分组（零迁移）",
+                legacyDto != null && legacyDto.GroupId == Guid.Empty
+                && legacySolution != null && legacySolution.VariableGroups.Count == 0,
+                legacyDto == null
+                    ? "dto=null"
+                    : $"varGroup={legacyDto.GroupId} groups={legacySolution?.VariableGroups.Count}");
+
+            var persistencePath = FindRepoFile(@"VisionMaster\Services\VariablePersistenceService.cs");
+            var dtoPath = FindRepoFile(@"Core\Models\Variable\VariableDto.cs");
+            Check("[G] 持久化接线：DTO 捕获 GroupId + 恢复时写回 GroupId（悬空归一）",
+                persistencePath != null && dtoPath != null
+                && File.ReadAllText(dtoPath).Contains("GroupId = nv.GroupId", StringComparison.Ordinal)
+                && File.ReadAllText(persistencePath).Contains("var groupId = dto.GroupId", StringComparison.Ordinal)
+                && File.ReadAllText(persistencePath).Contains("GroupId = groupId", StringComparison.Ordinal)
+                && File.ReadAllText(persistencePath).Contains(
+                    "solution.VariableGroups.All(g => g.Id != groupId)", StringComparison.Ordinal),
+                persistencePath == null || dtoPath == null ? "定位不到持久化文件" : "");
+
+            var vmPath = FindRepoFile(@"VisionMaster\ViewModels\DialogViewModels\GlobalVariableManagerViewModel.cs");
+            var xamlPath = FindRepoFile(@"VisionMaster\Views\DialogViews\GlobalVariableView.xaml");
+            if (vmPath == null || xamlPath == null)
+            {
+                Check("[G] 显示分组结构扫描定位", false, "定位不到 VM / 视图（不允许跳过）");
+                return;
+            }
+
+            string vm = File.ReadAllText(vmPath);
+            string xaml = Regex.Replace(File.ReadAllText(xamlPath), "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+            Check("[G] ★扫描组：变量管理不再打开扫描组编辑器（入口只在通讯设置）",
+                !vm.Contains("ScanGroupEditorViewModel") && !vm.Contains("ManageScanGroupsCommand")
+                && !xaml.Contains("ManageScanGroupsCommand") && !xaml.Contains("ManageGroupsButton"),
+                "");
+            Check("[G] 显示分组：左栏模板选择器 / 分组列 / 管理分组入口 / 覆盖层在位",
+                xaml.Contains("GvSourceNodeSelector") && xaml.Contains("GvGroupNodeTemplate")
+                && xaml.Contains("x:Name=\"GroupColumn\"") && xaml.Contains("SelectedGroup")
+                && xaml.Contains("OpenGroupManagerCommand") && xaml.Contains("GroupEditor.Rows")
+                && xaml.Contains("GroupEditor.IsOpen"),
+                "");
+            Check("[G] 分组编辑器接线：管理器订阅/退订 Changed + 覆盖层内部命令齐备",
+                vm.Contains("GroupEditor.Changed += OnVariableGroupsChanged")
+                && vm.Contains("GroupEditor.Changed -= OnVariableGroupsChanged")
+                && xaml.Contains("GroupEditor.AddGroupCommand")
+                && xaml.Contains("GroupEditor.BeginRenameCommand")
+                && xaml.Contains("GroupEditor.CommitRenameCommand")
+                && xaml.Contains("GroupEditor.CancelRenameCommand")
+                && xaml.Contains("GroupEditor.BeginDeleteCommand")
+                && xaml.Contains("GroupEditor.ConfirmDeleteCommand")
+                && xaml.Contains("GroupEditor.CancelDeleteCommand"),
+                "");
+        }
+
         private static VariableNode Root(string name, bool isNetwork, string sourceLabel, string? description = null, string? address = null)
             => new()
             {
@@ -646,20 +1352,6 @@ namespace FlowCanvasChecks
                 Level = 1,
                 IsNetwork = parent.IsNetwork,
                 SourceLabel = parent.SourceLabel,
-            };
-
-        /// <summary>造一个"指向某变量数组第 index 项"的元素节点（与 CreateChildNodes 的产物同形）</summary>
-        private static VariableNode ChildOf(IVariable model, int index, Type elementType, object? current)
-            => new()
-            {
-                Name = $"[{index}]",
-                DataType = elementType,
-                TypeName = elementType.Name,
-                OriginalModel = model,
-                ElementIndex = index,
-                ChildDefaultValue = current,
-                ChildValue = current,
-                Level = 1,
             };
     }
 }

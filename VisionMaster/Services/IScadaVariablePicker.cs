@@ -26,5 +26,18 @@ namespace VisionMaster.Services
         /// <param name="currentName">当前已绑的变量名（旧数据只有名字时靠它预选）</param>
         /// <param name="onPicked">确认后的落点：(变量 Id, 变量名)</param>
         void Pick(Guid currentId, string? currentName, Action<Guid, string?> onPicked);
+
+        /// <summary>
+        /// 带数组下标的选变量：<paramref name="currentArrayIndex"/> = -1 表示当前引用整个变量。
+        /// 用户选数组变量时弹窗会要求填一个下标；确认后回传 (Id, 名字, 下标)。
+        ///
+        /// 默认实现退回旧方法并回传 -1：断言工程里的假选择器只实现旧方法，
+        /// 不该为了一个新能力被迫实现它不关心的重载。
+        /// </summary>
+        void Pick(Guid currentId, string? currentName, int currentArrayIndex,
+                  Action<Guid, string?, int> onPicked)
+        {
+            Pick(currentId, currentName, (id, name) => onPicked(id, name, -1));
+        }
     }
 }

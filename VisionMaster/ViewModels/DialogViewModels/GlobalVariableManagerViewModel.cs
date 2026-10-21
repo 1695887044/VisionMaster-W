@@ -65,6 +65,32 @@ namespace VisionMaster.ViewModels.DialogViewModels
             : string.Equals(Key, GlobalVariableManagerViewModel.SystemSourceKey, StringComparison.Ordinal)
                 ? "宿主维护 · 只读"
                 : "内存变量 · 可编辑";
+
+        // ==================================================================
+        //  二级分类（设备 → 分组）：来源行 Level=0，分组行 Level=1。
+        //  左栏仍是同一个 ListBox（按 IsNetwork 分节），分组行缩进渲染。
+        // ==================================================================
+
+        /// <summary>0 = 来源行；1 = 分组行（全部 / 自定义分组 / 未分组）。</summary>
+        public int Level { get; set; }
+
+        /// <summary>分组行所属连接名；来源行为空。</summary>
+        public string ParentKey { get; set; } = string.Empty;
+
+        /// <summary>分组行的分组 Id：null = 全部；Guid.Empty = 未分组；其余 = 方案分组。</summary>
+        public Guid? GroupId { get; set; }
+
+        public bool IsGroup => Level == 1;
+
+        /// <summary>只有连接来源行有展开箭头（本地/系统/分组行都没有）。</summary>
+        public bool ShowExpand => IsNetwork && !IsGroup;
+
+        private bool _isExpanded;
+        public bool IsExpanded
+        {
+            get => _isExpanded;
+            set => SetProperty(ref _isExpanded, value);
+        }
     }
 
     /// <summary>
@@ -77,50 +103,199 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private readonly AdvancedCommunicationManager _communicationManager;
         private readonly NetworkVariableBridge _bridge;
 
-        /// <summary>弹窗服务：用于打开扫描组编辑器（与「通讯设置 → 操作列 → 扫描组」是同一个弹窗）</summary>
+        /// <summary>弹窗服务：用于打开数组编辑弹窗（扫描组编辑器已不在变量管理里开）</summary>
         private readonly IDialogService _dialogs;
 
         public string Title => "变量管理";
 
-        #region 来源树
+        #region 来源树（设备 → 显示分组 二级）
 
         public ObservableCollection<VariableSourceNode> SourceNodes { get; } = new();
 
+        /// <summary>已展开的连接（按连接名记；重建左栏后保留用户的展开状态）。</summary>
+        private readonly HashSet<string> _expandedConnections = new(StringComparer.Ordinal);
+        private bool _expandedInitialized;
+
+        private VariableSourceNode? _selectedNode;
         private VariableSourceNode? _selectedSource;
+        private string _selectedSourceKey = "Local";
+        private Guid? _selectedGroupId;
+        private bool _selectedIsGroupRow;
+
+        /// <summary>左栏当前选中的节点（来源行或分组行）。ListBox 双向绑定到它。</summary>
+        public VariableSourceNode? SelectedNode
+        {
+            get => _selectedNode;
+            set => ApplySelection(value);
+        }
+
+        /// <summary>
+        /// 当前来源行（本地 / 系统 / 某条连接）。分组行选中时返回它的父连接。
+        /// 保留这个属性是为了让"按来源建变量 / 收放网络三列"的既有代码不必区分层级。
+        /// </summary>
         public VariableSourceNode? SelectedSource
         {
             get => _selectedSource;
             set
             {
-                // 分组视图刷新/集合重建时 ListBox 可能把选中项写回 null；
-                // 这里忽略 null，避免"左栏没选中、右栏显示本地"的错位。
                 if (value == null) return;
-
-                if (SetProperty(ref _selectedSource, value))
-                {
-                    UpdateFilteredList();
-
-                    // 左栏选中项是"要建哪种变量"的唯一决定者（原中栏的本地/网络胶囊已撤）：
-                    // 选本地/系统节点 → IsNetworkSource=false（明细表收起网络三列）；
-                    // 选连接节点 → true，并把「所属连接」跟着换成它（草稿的默认值从这来）
-                    IsNetworkSource = value.IsNetwork;
-
-                    if (value.IsNetwork)
-                        SelectedConnection = Connections.FirstOrDefault(c => c.ConnectionName == value.Key);
-                    else
-                        SelectedConnection = null;
-                }
+                SelectedNode = value.IsGroup ? FindSourceNode(value.ParentKey) : value;
             }
         }
 
-        /// <summary>重建来源树并刷新计数（方案变量或连接变化时调用）。
-        /// 本地变量与网络变量分组显示：本地节点只显示本地变量，连接节点只显示该连接的网络变量</summary>
+        /// <summary>当前选中的显示分组：null = 全部；Guid.Empty = 未分组；其余 = 方案分组。</summary>
+        public Guid? SelectedGroupId => _selectedGroupId;
+
+        public bool IsGroupScope => _selectedGroupId != null && !IsSearching;
+
+        public bool IsSearching => !string.IsNullOrWhiteSpace(SearchText);
+
+        public string SearchScopeLabel => "搜索范围：全部分组";
+
+        /// <summary>当前分组显示名（全部/未分组也给出可上屏文案）。</summary>
+        public string SelectedGroupName
+        {
+            get
+            {
+                if (_selectedGroupId == null) return "全部";
+                if (_selectedGroupId == Guid.Empty) return VariableGroupEditorViewModel.UngroupedName;
+                return Groups.FirstOrDefault(g => g.Id == _selectedGroupId)?.Name
+                       ?? VariableGroupEditorViewModel.UngroupedName;
+            }
+        }
+
+        /// <summary>明细表当前可见的根行数（分组/搜索过滤后），卡片头徽标与状态条用它。</summary>
+        private int _visibleRootCount;
+        public int VisibleRootCount
+        {
+            get => _visibleRootCount;
+            private set => SetProperty(ref _visibleRootCount, value);
+        }
+
+        /// <summary>状态条上的作用域文案：来源 / 分组，或"全部分组"（搜索时）。</summary>
+        public string SelectedScopeLabel
+        {
+            get
+            {
+                string sourceName = _selectedSource?.DisplayName ?? "本地变量";
+                if (IsSearching) return sourceName + " / 全部分组";
+                return _selectedGroupId == null ? sourceName : sourceName + " / " + SelectedGroupName;
+            }
+        }
+
+        // 方案在启动早期可能还没挂上（WorkspaceContext.CurrentSolution 在 SwitchSolution 之前为 null）；
+        // 此时分组表按空处理，避免打开变量管理就 NRE。真实运行期一定有方案。
+        private List<VariableGroupDescriptor> Groups
+            => _workspace.CurrentSolution?.VariableGroups ?? new List<VariableGroupDescriptor>();
+
+        /// <summary>
+        /// 左栏选中项落账：来源行 → 全部；分组行 → 父连接 + 该组。
+        /// 只影响筛选与"建哪种变量"的默认值，不触碰变量模型。
+        /// </summary>
+        private void ApplySelection(VariableSourceNode? node)
+        {
+            // 分组视图刷新/集合重建时 ListBox 可能把选中项写回 null；
+            // 这里忽略 null，避免"左栏没选中、右栏显示本地"的错位。
+            if (node == null) return;
+            // 必须显式给属性名：SetProperty 的 [CallerMemberName] 在 ApplySelection 里会
+            // 报成 "ApplySelection"，绑定（ListBox.SelectedItem）收不到 SelectedNode 变更。
+            if (!SetProperty(ref _selectedNode, node, nameof(SelectedNode))) return;
+
+            _selectedIsGroupRow = node.IsGroup;
+            if (node.IsGroup)
+            {
+                _selectedSourceKey = node.ParentKey;
+                _selectedGroupId = node.GroupId;
+            }
+            else
+            {
+                _selectedSourceKey = node.Key;
+                _selectedGroupId = null;
+            }
+
+            _selectedSource = FindSourceNode(_selectedSourceKey);
+            RaisePropertyChanged(nameof(SelectedSource));
+            RaisePropertyChanged(nameof(SelectedGroupId));
+            RaisePropertyChanged(nameof(SelectedGroupName));
+            RaisePropertyChanged(nameof(IsGroupScope));
+            RaisePropertyChanged(nameof(SelectedScopeLabel));
+
+            // 左栏选中项是"要建哪种变量"的唯一决定者（原中栏的本地/网络胶囊已撤）：
+            // 选本地/系统节点 → IsNetworkSource=false（明细表收起网络三列）；
+            // 选连接/连接下的分组 → true，并把「所属连接」跟着换成它（草稿的默认值从这来）
+            IsNetworkSource = _selectedSource?.IsNetwork == true;
+            SelectedConnection = IsNetworkSource
+                ? Connections.FirstOrDefault(c => c.ConnectionName == _selectedSourceKey)
+                : null;
+
+            UpdateFilteredList();
+        }
+
+        private VariableSourceNode? FindSourceNode(string? key)
+            => SourceNodes.FirstOrDefault(s => !s.IsGroup
+                && string.Equals(s.Key, key, StringComparison.Ordinal));
+
+        private VariableSourceNode? FindNode(string key, Guid? groupId, bool isGroupRow)
+        {
+            if (groupId != null)
+            {
+                return SourceNodes.FirstOrDefault(s => s.IsGroup
+                    && string.Equals(s.ParentKey, key, StringComparison.Ordinal)
+                    && s.GroupId == groupId);
+            }
+
+            // groupId == null 有两种节点：来源行（选中=全部）与「全部」分组行。
+            // 重建后必须按"上次选的是不是分组行"还原，否则高亮会从「全部」跳到父连接。
+            return isGroupRow
+                ? SourceNodes.FirstOrDefault(s => s.IsGroup
+                    && string.Equals(s.ParentKey, key, StringComparison.Ordinal)
+                    && s.GroupId == null)
+                : FindSourceNode(key);
+        }
+
+        private void RestoreSelection(string sourceKey, Guid? groupId, bool isGroupRow)
+        {
+            var node = FindNode(sourceKey, groupId, isGroupRow)
+                       ?? FindSourceNode(sourceKey)
+                       ?? SourceNodes.FirstOrDefault();
+            if (node != null) SelectedNode = node;
+        }
+
+        /// <summary>
+        /// 重建左栏（来源行 + 已展开连接的「全部 / 分组 / 未分组」行）。
+        /// 连接默认全部展开（首次建树时初始化），之后按用户折叠状态保留。
+        /// </summary>
         private void RebuildSourceTree()
         {
-            var currentKey = SelectedSource?.Key ?? "Local";
+            var currentKey = _selectedSourceKey;
+            var currentGroup = _selectedGroupId;
+            var currentIsGroupRow = _selectedIsGroupRow;
+
+            var connections = _communicationManager.GetAllConnections();
+
+            // 来源树每次从管理器现取，连接集合也必须同步刷新：
+            // 否则弹窗存活期间新增/删除连接会出现"左栏看得到、SelectedConnection 找不到"。
+            Connections.Clear();
+            foreach (var conn in connections)
+                Connections.Add(conn);
+
+            if (!_expandedInitialized)
+            {
+                foreach (var conn in connections)
+                    _expandedConnections.Add(conn.ConnectionName);
+                _expandedInitialized = true;
+            }
 
             SourceNodes.Clear();
-            SourceNodes.Add(new VariableSourceNode { Key = "Local", DisplayName = "本地变量", Icon = "\uf15b", Count = _workspace.GlobalVariables.Count(v => v.VariableType == VariableType.Local), IsOnline = true });
+            SourceNodes.Add(new VariableSourceNode
+            {
+                Key = "Local",
+                DisplayName = "本地变量",
+                Icon = "\uf15b",
+                Level = 0,
+                Count = _workspace.GlobalVariables.Count(v => v.VariableType == VariableType.Local),
+                IsOnline = true
+            });
 
             // 系统变量（运动 / IO 点等）：由宿主按方案与设备维护，这里只读展示。
             // 单独一个来源节点的理由：它们不属于"本地变量"——放进本地池会让用户以为可以改初始值/删除，
@@ -130,46 +305,106 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 Key = SystemSourceKey,
                 DisplayName = "系统变量",
                 Icon = "\uf013",
+                Level = 0,
                 Count = CountSystemVariables(),
                 IsOnline = true
             });
 
-            foreach (var conn in _communicationManager.GetAllConnections())
+            foreach (var conn in connections)
             {
-                SourceNodes.Add(new VariableSourceNode
+                var source = new VariableSourceNode
                 {
                     Key = conn.ConnectionName,
                     DisplayName = conn.ConnectionName,
                     Icon = "\uf1eb",
                     IsNetwork = true,
+                    Level = 0,
                     ProtocolText = ProtocolDisplayName(conn.Protocol),
-                    Count = _workspace.GlobalVariables.Count(v => v is NetworkVariableModel n && n.ConnectionName == conn.ConnectionName),
-                    IsOnline = _communicationManager.GetConnection(conn.ConnectionName)?.IsConnected ?? false
-                });
+                    Count = CountVariables(conn.ConnectionName, null),
+                    IsOnline = _communicationManager.GetConnection(conn.ConnectionName)?.IsConnected ?? false,
+                    IsExpanded = _expandedConnections.Contains(conn.ConnectionName)
+                };
+                SourceNodes.Add(source);
+
+                if (!source.IsExpanded) continue;
+
+                // 二级分类：全部 → 方案分组（按定义顺序）→ 未分组。
+                // 空分组也显示（计数 0）：分组表是方案级资源，用户刚建完就要能在树上看到。
+                SourceNodes.Add(CreateGroupNode(source, null, "全部", "\uf0ca"));
+                foreach (var group in Groups)
+                    SourceNodes.Add(CreateGroupNode(source, group.Id, group.Name, "\uf02b"));
+                SourceNodes.Add(CreateGroupNode(source, Guid.Empty, VariableGroupEditorViewModel.UngroupedName, "\uf01c"));
             }
 
-            SelectedSource = SourceNodes.FirstOrDefault(s => s.Key == currentKey) ?? SourceNodes[0];
+            RestoreSelection(currentKey, currentGroup, currentIsGroupRow);
+        }
+
+        private VariableSourceNode CreateGroupNode(
+            VariableSourceNode parent, Guid? groupId, string name, string icon)
+            => new()
+            {
+                Key = parent.Key + "|" + (groupId?.ToString("N") ?? "all"),
+                DisplayName = name,
+                Icon = icon,
+                IsNetwork = true,
+                Level = 1,
+                ParentKey = parent.Key,
+                GroupId = groupId,
+                Count = CountVariables(parent.Key, groupId),
+                IsOnline = parent.IsOnline,
+            };
+
+        /// <summary>
+        /// 某连接下、某显示分组里的变量数。groupId = null 表示"全部"。
+        /// 悬空分组 Id（分组被外部删除 / 方案来自别处）按「未分组」统计，与界面显示一致。
+        /// </summary>
+        private int CountVariables(string connectionName, Guid? groupId)
+            => _workspace.GlobalVariables.OfType<NetworkVariableModel>()
+                .Count(v => string.Equals(v.ConnectionName, connectionName, StringComparison.Ordinal)
+                            && (groupId == null || NormalizeGroupId(v.GroupId) == groupId.Value));
+
+        private Guid NormalizeGroupId(Guid id)
+            => id == Guid.Empty || Groups.Any(g => g.Id == id) ? id : Guid.Empty;
+
+        /// <summary>展开/折叠连接行（只重建左栏，不改变右侧选中作用域）。</summary>
+        private void ToggleSourceExpand(VariableSourceNode? node)
+        {
+            if (node == null || !node.ShowExpand) return;
+            if (!_expandedConnections.Add(node.Key))
+                _expandedConnections.Remove(node.Key);
+            RebuildSourceTree();
         }
 
         /// <summary>协议枚举 → 界面显示名（左栏副行用；不直接把枚举成员名上屏）</summary>
-        private static string ProtocolDisplayName(CommunicationType protocol) => protocol switch
+        internal static string ProtocolDisplayName(CommunicationType protocol) => protocol switch
         {
             CommunicationType.ModbusTcp => "Modbus TCP",
             CommunicationType.ModbusRtu => "Modbus RTU",
             CommunicationType.SiemensS7 => "Siemens S7",
+            // P0-F 新增的三个协议：漏在兜底分支里会显示成 MitsubishiMc / OmronFins / FreeProtocol
+            CommunicationType.MitsubishiMc => "三菱 MC",
+            CommunicationType.OmronFins => "欧姆龙 FINS",
+            CommunicationType.FreeProtocol => "自由协议",
+            CommunicationType.OpcUa => "OPC UA",
             _ => protocol.ToString(),
         };
 
-        /// <summary>轻量刷新来源计数（新建/删除变量后调用，不重建树不改变选中）</summary>
+        /// <summary>轻量刷新来源/分组计数（新建/删除/改分组后调用，不重建树不改变选中）</summary>
         private void RefreshSourceCounts()
         {
             foreach (var node in SourceNodes)
             {
+                if (node.IsGroup)
+                {
+                    node.Count = CountVariables(node.ParentKey, node.GroupId);
+                    continue;
+                }
+
                 node.Count = node.Key switch
                 {
                     "Local" => _workspace.GlobalVariables.Count(v => v.VariableType == VariableType.Local),
                     SystemSourceKey => CountSystemVariables(),
-                    _ => _workspace.GlobalVariables.Count(v => v is NetworkVariableModel n && n.ConnectionName == node.Key)
+                    _ => CountVariables(node.Key, null)
                 };
             }
         }
@@ -218,7 +453,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         private void RefreshSourceStates()
         {
-            foreach (var node in SourceNodes.Where(s => s.IsNetwork))
+            foreach (var node in SourceNodes.Where(s => s.IsNetwork && !s.IsGroup))
             {
                 node.IsOnline = _communicationManager.GetConnection(node.Key)?.IsConnected ?? false;
             }
@@ -241,7 +476,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             get => _searchText;
             set
             {
-                SetProperty(ref _searchText, value);
+                if (!SetProperty(ref _searchText, value)) return;
                 UpdateFilteredList();
             }
         }
@@ -257,28 +492,55 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private void UpdateFilteredList()
         {
             FilteredDisplayNodes.Clear();
-            foreach (var node in FilterDisplayNodes(DisplayNodes, SelectedSource?.Key ?? "Local", SearchText?.Trim() ?? ""))
+            foreach (var node in FilterDisplayNodes(
+                         DisplayNodes, _selectedSourceKey, _selectedGroupId, SearchText?.Trim() ?? ""))
+            {
                 FilteredDisplayNodes.Add(node);
+            }
+
+            // 卡片头徽标 / 状态条用的是"当前作用域里可见的根行数"：
+            // 分组筛选与搜索都会改变它，不能继续绑来源总数。
+            RefreshVisibleRootCount();
+            RaisePropertyChanged(nameof(IsSearching));
+            RaisePropertyChanged(nameof(IsGroupScope));
+            RaisePropertyChanged(nameof(SelectedScopeLabel));
         }
 
         /// <summary>
-        /// 明细表的筛选：来源（本地 / 某条连接）+ 搜索。
+        /// 重算当前可见根行数（卡片头 / 状态条徽标）。
+        /// 正常路径由 <see cref="UpdateFilteredList"/> 调用；直接改写 FilteredDisplayNodes 的
+        /// 夹具（视图冒烟）也用它同步徽标，避免渲染出"0 个变量"。
+        /// </summary>
+        public void RefreshVisibleRootCount()
+            => VisibleRootCount = FilteredDisplayNodes.Count(n => n.IsRootNode);
+
+        /// <summary>
+        /// 明细表的筛选：来源（本地 / 某条连接）+ 显示分组 + 搜索。
         ///
         /// 抽成**纯函数**是为了能直接被断言（VM 的构造函数要通信管理器、桥接器、弹窗服务，
         /// 在冒烟里凑齐这些依赖不划算；而这段逻辑恰恰是最容易出错、也最该守住的一段）。
         ///
-        /// ★ 子节点必须跟随父级 —— 这条是本次修复的核心：
+        /// ★ 子节点必须跟随父级 —— 这条是 2026-10-11 修复的核心：
         /// 旧实现只对"根节点"判来源、判搜索，子节点（数组元素行）无条件加进列表。
         /// 后果是切到"网络变量"时，本地数组变量的 [0]/[1] 会以
         /// "没有变量名、没有来源、类型还被列宽截断"的残行留在表里，既看不懂也不能操作。
         /// DisplayNodes 是"根 + 它的子节点紧随其后"的扁平表（见基类 UpdateFlatList），
         /// 所以一个游标量就足以表达"跟随父级"。
+        ///
+        /// ★ 搜索必须跨分组：在「监控分组」里搜一个属于「控制分组」的点，也要能搜到；
+        /// 否则用户的第一反应是"明明有这个变量却搜不到"。搜索时忽略分组过滤，
+        /// 由界面的「搜索范围：全部分组」提示当前口径。
         /// </summary>
         public static List<VariableNode> FilterDisplayNodes(
             IEnumerable<VariableNode> displayNodes, string sourceKey, string query)
+            => FilterDisplayNodes(displayNodes, sourceKey, null, query);
+
+        public static List<VariableNode> FilterDisplayNodes(
+            IEnumerable<VariableNode> displayNodes, string sourceKey, Guid? groupId, string query)
         {
             var result = new List<VariableNode>();
             bool rootAccepted = false;
+            bool searching = !string.IsNullOrEmpty(query);
 
             foreach (var node in displayNodes)
             {
@@ -294,13 +556,20 @@ namespace VisionMaster.ViewModels.DialogViewModels
                         _ => node.IsNetwork && node.SourceLabel == sourceKey
                     };
 
+                    // 分组：只对网络变量生效；本地/系统没有分组维度。
+                    // 搜索时忽略分组（跨分组搜索），见方法注释。
+                    bool matchGroup = searching
+                        || groupId == null
+                        || !node.IsNetwork
+                        || node.GroupId == groupId.Value;
+
                     // 搜索：名称 / 描述 / 地址，任一命中即可
-                    bool matchSearch = string.IsNullOrEmpty(query)
+                    bool matchSearch = !searching
                         || node.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0
                         || (node.Description?.IndexOf(query, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0
                         || (node.Address?.IndexOf(query, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0;
 
-                    rootAccepted = matchSource && matchSearch;
+                    rootAccepted = matchSource && matchGroup && matchSearch;
                     if (!rootAccepted) continue;
                 }
                 else if (!rootAccepted)
@@ -321,8 +590,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private bool _isNetworkSource;
         /// <summary>
         /// 当前来源是不是网络：false=本地 true=网络。
-        /// <para>由左栏「变量来源」的选中项驱动（见 <see cref="SelectedSource"/> 的 setter），
-        /// 代码后置靠它收放明细表的「来源/扫描组/地址」三列，所以它必须留在 VM 上。</para>
+        /// <para>由左栏「变量来源」的选中项驱动（见 <see cref="ApplySelection"/>），
+        /// 代码后置靠它收放明细表的「分组/扫描组/地址」三列，所以它必须留在 VM 上。</para>
         /// </summary>
         public bool IsNetworkSource
         {
@@ -333,7 +602,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 // 是"右栏三列收放"的纯派生信号。这里不能再反向改 SelectedSource：
                 // 选中「系统变量」(IsNetwork=false) 时若走旧的 else 分支，会被强制改回「本地变量」，
                 // 导致系统来源永远进不去（系统横幅/只读 chip 全部不可达）。
-                SetProperty(ref _isNetworkSource, value);
+                if (!SetProperty(ref _isNetworkSource, value)) return;
+                ExportCommand.RaiseCanExecuteChanged();
+                ImportCommand.RaiseCanExecuteChanged();
             }
         }
 
@@ -341,21 +612,18 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         private CommunicationConfig? _selectedConnection;
         /// <summary>
-        /// 当前选中的连接（左栏选中连接节点时同步过来）。
-        /// 「添加变量」弹窗的「所属连接」默认值、「管理扫描组」的作用对象都用它。
+        /// 当前选中的连接（左栏选中连接节点 / 其下分组时同步过来）。
+        /// 「添加变量」弹窗的「所属连接」默认值、扫描组下拉的候选都用它。
         /// </summary>
         public CommunicationConfig? SelectedConnection
         {
             get => _selectedConnection;
             set
             {
-                if (SetProperty(ref _selectedConnection, value))
-                {
-                    RefreshNewScanGroupOptions();
-
-                    // 「管理扫描组」的作用对象就是这个连接，命令可用性必须跟着换
-                    ManageScanGroupsCommand.RaiseCanExecuteChanged();
-                }
+                if (!SetProperty(ref _selectedConnection, value)) return;
+                RefreshNewScanGroupOptions();
+                ExportCommand.RaiseCanExecuteChanged();
+                ImportCommand.RaiseCanExecuteChanged();
             }
         }
 
@@ -388,110 +656,144 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
 
         /// <summary>显示值 → 落库值："默认组"是虚拟组，模型里以空串表示（PollScheduler 约定：空名 → 默认组）</summary>
-        private static string ToStoredScanGroup(string? displayName) =>
+        internal static string ToStoredScanGroup(string? displayName) =>
             string.IsNullOrWhiteSpace(displayName)
             || string.Equals(displayName, PollScheduler.DefaultGroupName, StringComparison.Ordinal)
                 ? string.Empty
                 : displayName;
 
-        /// <summary>
-        /// 打开扫描组编辑器。只传连接名，活对象由编辑器自己按名字去 Manager 里取
-        /// （传引用反而危险：编辑期间这条连接可能已被删除，编辑器会拿着一个"已不在册"的对象改）。
-        /// <para>为什么变量管理也要有这个入口：这里才是"录点位"的地方，用户是在「扫描组」下拉里
-        /// 发现只有默认组、才想起要建组的——入口就放在下拉旁边，不必退出去开通讯设置。</para>
-        /// </summary>
-        private void ExecuteManageScanGroups()
-        {
-            var connection = SelectedConnection;
-            if (connection == null) return;
-
-            var parameters = new DialogParameters
-            {
-                { ScanGroupEditorViewModel.ConnectionNameKey, connection.ConnectionName },
-            };
-
-            _dialogs.ShowDialog(ScanGroupEditorViewModel.DialogName, parameters, OnScanGroupsClosed);
-        }
-
-        /// <summary>
-        /// 扫描组编辑器关闭后重算两处「扫描组」下拉。
-        /// <para>① 添加变量弹窗的默认值：新加的组要能立刻选到（<see cref="RefreshNewScanGroupOptions"/>）；</para>
-        /// <para>② 右栏变量列表的下拉：组被改名/删除后，已有变量的可选项要跟上。变量模型里的组名
-        /// 已由编辑器级联改好（<c>CascadeRename</c>），这里只负责让界面重新读一遍——
-        /// 所以走 <see cref="RefreshTree"/> 重建节点（它按 VariableId 保留展开态），而不是自己造一套局部刷新。</para>
-        /// <para>取消时活对象从未被改动，无需任何刷新。</para>
-        /// </summary>
-        private void OnScanGroupsClosed(IDialogResult result)
-        {
-            if (result.Result != ButtonResult.OK) return;
-
-            RefreshNewScanGroupOptions();
-            RefreshTree();
-        }
+        // 扫描组编辑器只在「通讯设置 → 连接 → 操作 → 扫描组」里开。
+        // 变量管理只保留"给变量选组"（明细表的扫描组下拉），不再提供组表编辑入口：
+        // 组表是连接级调度资源（周期 / 请求配额 / 段合并），改它的影响面是整条连接；
+        // 且它需要 IHardwareEditGate 的"管理员 + 流程未运行"门禁与通讯配置置脏——
+        // 这两样都不在变量管理的职责里（见 docs/code-changes 的扫描组入口评审记录）。
 
         /// <summary>存储区显示名表：界面显示中文，落库仍用原始枚举（显示与数据解耦）</summary>
-        private static readonly System.Collections.Generic.Dictionary<Enum, string> AreaDisplayNames = new()
+        internal static readonly System.Collections.Generic.Dictionary<Enum, string> AreaDisplayNames = BuildAreaDisplayNames();
+
+        /// <summary>
+        /// 构造显示名表：Modbus / S7 用显式文案（带读写语义），MC / FINS 直接取枚举上的
+        /// <c>[Display(Name)]</c>——它们本来就把中文写好了，只是之前没人读（R40/R84）。
+        /// </summary>
+        private static System.Collections.Generic.Dictionary<Enum, string> BuildAreaDisplayNames()
         {
-            [ModbusArea.Coils] = "线圈 (0x, 读写布尔)",
-            [ModbusArea.DiscreteInputs] = "离散输入 (1x, 只读布尔)",
-            [ModbusArea.InputRegisters] = "输入寄存器 (3x, 只读字)",
-            [ModbusArea.HoldingRegisters] = "保持寄存器 (4x, 读写字)",
-            [S7Area.DB] = "数据块 (DB)",
-            [S7Area.I] = "输入映像区 (I)",
-            [S7Area.Q] = "输出映像区 (Q)",
-            [S7Area.M] = "内部标志位 (M)",
-            [S7Area.V] = "V 区 (S7-200 Smart)",
-        };
+            var map = new System.Collections.Generic.Dictionary<Enum, string>
+            {
+                [ModbusArea.Coils] = "线圈 (0x, 读写布尔)",
+                [ModbusArea.DiscreteInputs] = "离散输入 (1x, 只读布尔)",
+                [ModbusArea.InputRegisters] = "输入寄存器 (3x, 只读字)",
+                [ModbusArea.HoldingRegisters] = "保持寄存器 (4x, 读写字)",
+                [S7Area.DB] = "数据块 (DB)",
+                [S7Area.I] = "输入映像区 (I)",
+                [S7Area.Q] = "输出映像区 (Q)",
+                [S7Area.M] = "内部标志位 (M)",
+                [S7Area.V] = "V 区 (S7-200 Smart)",
+            };
+
+            foreach (McArea area in Enum.GetValues(typeof(McArea)))
+                map[area] = EnumDisplayName(area);
+            foreach (FinsArea area in Enum.GetValues(typeof(FinsArea)))
+                map[area] = EnumDisplayName(area);
+
+            return map;
+        }
+
+        /// <summary>枚举成员的 <c>[Display(Name)]</c>；没标就回退成员名（绝不返回空白）</summary>
+        private static string EnumDisplayName(Enum value)
+        {
+            var field = value.GetType().GetField(value.ToString());
+            var display = field?
+                .GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.DisplayAttribute), false)
+                .OfType<System.ComponentModel.DataAnnotations.DisplayAttribute>()
+                .FirstOrDefault();
+            return string.IsNullOrWhiteSpace(display?.Name) ? value.ToString() : display!.Name!;
+        }
 
         /// <summary>某连接的存储区候选（显示名，顺序 = 枚举声明序）；连接为空/协议未实现时给空表</summary>
-        private static IReadOnlyList<string> GetAreaOptions(CommunicationConfig? connection) => connection?.Protocol switch
+        internal static IReadOnlyList<string> GetAreaOptions(CommunicationConfig? connection)
         {
-            // ModbusRtu 与 ModbusTcp 的地址语义完全相同（都是 Modbus 存储区），只是链路不同。
-            // 漏掉它会让"串口变量"在变量管理里根本选不出存储区——IO 层下线后串口就彻底没法配了。
-            CommunicationType.ModbusTcp or CommunicationType.ModbusRtu
-                => Enum.GetValues(typeof(ModbusArea)).Cast<ModbusArea>().Select(a => AreaDisplayNames[a]).ToList(),
-            CommunicationType.SiemensS7 => Enum.GetValues(typeof(S7Area)).Cast<S7Area>().Select(a => AreaDisplayNames[a]).ToList(),
-            _ => Array.Empty<string>(),
+            if (connection == null) return Array.Empty<string>();
+
+            return connection.Protocol switch
+            {
+                // ModbusRtu 与 ModbusTcp 的地址语义完全相同（都是 Modbus 存储区），只是链路不同。
+                // 漏掉它会让"串口变量"在变量管理里根本选不出存储区——IO 层下线后串口就彻底没法配了。
+                CommunicationType.ModbusTcp or CommunicationType.ModbusRtu
+                    => Enum.GetValues(typeof(ModbusArea)).Cast<ModbusArea>().Select(a => AreaDisplayNames[a]).ToList(),
+                CommunicationType.SiemensS7
+                    => Enum.GetValues(typeof(S7Area)).Cast<S7Area>().Select(a => AreaDisplayNames[a]).ToList(),
+                // 存储区候选必须按**厂商**收窄：同一份 McArea 枚举，松下的解析器只认 R/X/Y/L/D，
+                // 基恩士的 F/S/V 需要 FM/SM·SD 前缀（拼 "F100" 会被解析器直接拒）。
+                // 不收窄的后果是"建的时候全绿、轮询时才报不支持的数据类型"。
+                CommunicationType.MitsubishiMc
+                    => AllowedMcAreas(McVendorOf(connection)).Select(a => AreaDisplayNames[a]).ToList(),
+                CommunicationType.OmronFins
+                    => Enum.GetValues(typeof(FinsArea)).Cast<FinsArea>().Select(a => AreaDisplayNames[a]).ToList(),
+                _ => Array.Empty<string>(),
+            };
+        }
+
+        /// <summary>连接配置里的 MC 厂商变体（非 MC / 取不到时按三菱）</summary>
+        internal static McVendor McVendorOf(CommunicationConfig? connection)
+            => (connection?.Config as MitsubishiMcConfig)?.Vendor ?? McVendor.Mitsubishi;
+
+        /// <summary>该厂商的 MC 解析器实际支持的存储区（顺序 = 枚举声明序）</summary>
+        private static IEnumerable<McArea> AllowedMcAreas(McVendor vendor) => vendor switch
+        {
+            // HSL 的 ParsePanasonicFrom 只认 R/X/Y/L/D（含 LD/TN/TS/CN/CS/SD 变体）
+            McVendor.Panasonic => new[] { McArea.D, McArea.R, McArea.X, McArea.Y, McArea.L },
+            // HSL 的 ParseKeyenceFrom 的 F 只认 FM、S 只认 SM/SD、没有 V
+            McVendor.Keyence => new[]
+            {
+                McArea.D, McArea.W, McArea.R, McArea.ZR, McArea.M,
+                McArea.X, McArea.Y, McArea.L, McArea.B,
+            },
+            _ => Enum.GetValues(typeof(McArea)).Cast<McArea>(),
         };
 
         /// <summary>协议的默认存储区显示名（Modbus = 保持寄存器 / S7 = 内部标志位，与旧表单的默认选中一致）</summary>
-        private static string GetDefaultAreaName(CommunicationType protocol) => protocol switch
+        internal static string GetDefaultAreaName(CommunicationConfig? connection) => connection?.Protocol switch
         {
             CommunicationType.ModbusTcp or CommunicationType.ModbusRtu => AreaDisplayNames[ModbusArea.HoldingRegisters],
             CommunicationType.SiemensS7 => AreaDisplayNames[S7Area.M],
+            CommunicationType.MitsubishiMc => AreaDisplayNames[AllowedMcAreas(McVendorOf(connection)).First()],
+            CommunicationType.OmronFins => AreaDisplayNames[FinsArea.D],
             _ => string.Empty,
         };
 
         /// <summary>
-        /// 显示名 → 存储区枚举值（按该协议的候选表反查）。
+        /// 显示名 → 存储区枚举值（按该协议/厂商的候选表反查）。
         /// 草稿里存的是显示名（属性网格渲染的是字符串），落库前必须回到枚举——
         /// 直接拿显示名当值等于把界面文案写进配置。
+        /// <para>同时接受**枚举成员名**：存量导入文件（xlsx）里 MC/FINS 的存储区列是 "D"/"W"，
+        /// 改显示名不能让它们导不进来。显式按名字比较而不是 Enum.TryParse，
+        /// 顺带把 "7" 这类数字串挡在门外（Enum.TryParse 会把它们当枚举值）。</para>
         /// </summary>
-        private static bool TryResolveArea(CommunicationType protocol, string? displayName, out Enum area)
+        internal static bool TryResolveArea(CommunicationConfig? connection, string? displayName, out Enum area)
         {
             area = null!;
-            if (string.IsNullOrWhiteSpace(displayName)) return false;
+            if (connection == null || string.IsNullOrWhiteSpace(displayName)) return false;
 
-            if (protocol is CommunicationType.ModbusTcp or CommunicationType.ModbusRtu)
+            var candidates = connection.Protocol switch
             {
-                foreach (ModbusArea a in Enum.GetValues(typeof(ModbusArea)))
-                {
-                    if (string.Equals(AreaDisplayNames[a], displayName, StringComparison.Ordinal))
-                    {
-                        area = a;
-                        return true;
-                    }
-                }
-            }
-            else if (protocol == CommunicationType.SiemensS7)
+                CommunicationType.ModbusTcp or CommunicationType.ModbusRtu
+                    => Enum.GetValues(typeof(ModbusArea)).Cast<ModbusArea>().Select(a => (Enum)a),
+                CommunicationType.SiemensS7
+                    => Enum.GetValues(typeof(S7Area)).Cast<S7Area>().Select(a => (Enum)a),
+                CommunicationType.MitsubishiMc
+                    => AllowedMcAreas(McVendorOf(connection)).Select(a => (Enum)a),
+                CommunicationType.OmronFins
+                    => Enum.GetValues(typeof(FinsArea)).Cast<FinsArea>().Select(a => (Enum)a),
+                _ => Enumerable.Empty<Enum>(),
+            };
+
+            foreach (var candidate in candidates)
             {
-                foreach (S7Area a in Enum.GetValues(typeof(S7Area)))
+                if (string.Equals(AreaDisplayNames[candidate], displayName, StringComparison.Ordinal)
+                    || string.Equals(candidate.ToString(), displayName, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (string.Equals(AreaDisplayNames[a], displayName, StringComparison.Ordinal))
-                    {
-                        area = a;
-                        return true;
-                    }
+                    area = candidate;
+                    return true;
                 }
             }
 
@@ -499,7 +801,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
 
         /// <summary>所选存储区是否线圈/离散输入（仅 bool 合法，且不使用位偏移）</summary>
-        private static bool IsCoilOrDiscreteArea(Enum? area)
+        internal static bool IsCoilOrDiscreteArea(Enum? area)
             => area is ModbusArea.Coils or ModbusArea.DiscreteInputs;
 
         #endregion
@@ -513,14 +815,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// 位图没法用文本初始值表达，所以它在变量表里的"初始值"单元格是只读的
         /// （见 VariableNode.IsEditableNode 的同名判断）。
         /// </summary>
-        private static readonly List<DataTypeOption> AllTypes = new()
+        internal static readonly List<DataTypeOption> AllTypes = new()
         {
             new DataTypeOption { DisplayName = "整数 (int)", ActualType = typeof(int) },
             new DataTypeOption { DisplayName = "小数 (double)", ActualType = typeof(double) },
+            new DataTypeOption { DisplayName = "单精度 (float)", ActualType = typeof(float) },
             new DataTypeOption { DisplayName = "文本 (string)", ActualType = typeof(string) },
             new DataTypeOption { DisplayName = "布尔 (bool)", ActualType = typeof(bool) },
             new DataTypeOption { DisplayName = "整数数组 (int[])", ActualType = typeof(int[]) },
             new DataTypeOption { DisplayName = "小数数组 (double[])", ActualType = typeof(double[]) },
+            new DataTypeOption { DisplayName = "单精度数组 (float[])", ActualType = typeof(float[]) },
             new DataTypeOption { DisplayName = "文本数组 (string[])", ActualType = typeof(string[]) },
             new DataTypeOption { DisplayName = "布尔数组 (bool[])", ActualType = typeof(bool[]) },
             new DataTypeOption { DisplayName = "图像 (HImage)", ActualType = typeof(HImage) },
@@ -528,29 +832,43 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>
         /// 某来源可选类型（弹窗的类型候选）：
-        /// 网络来源下过滤文本、数组与图像——通信层仅支持标量点读，
-        /// ToDataValueType 对 string/数组会兜底成 Int32，导致地址语义错误（隐患修复）；
-        /// 图像更是设备侧根本没有对应点位，留着只会让人配出一个永远为空的变量。
+        /// 网络来源下只过滤图像（设备侧没有对应点位）；文本、文本数组、bool 数组由创建校验按
+        /// 协议/存储区再收窄（bool 数组只对 Modbus 线圈/离散输入有意义，string[] 需要每元素字节数）。
         /// </summary>
-        private static IEnumerable<DataTypeOption> TypesFor(bool isNetwork)
+        internal static IEnumerable<DataTypeOption> TypesFor(bool isNetwork)
             => isNetwork
-                ? AllTypes.Where(t =>
-                    t.ActualType != typeof(string) &&
-                    t.ActualType != typeof(string[]) &&
-                    t.ActualType != typeof(HImage) &&
-                    !t.ActualType.IsArray)
+                ? AllTypes.Where(t => t.ActualType != typeof(HImage))
                 : AllTypes;
 
         /// <summary>显示名 → CLR 类型；认不出返回 null（弹窗确认时的第一道闸）</summary>
-        private static Type? ResolveType(string? displayName)
+        internal static Type? ResolveType(string? displayName)
             => string.IsNullOrWhiteSpace(displayName)
                 ? null
                 : AllTypes.FirstOrDefault(t => string.Equals(t.DisplayName, displayName, StringComparison.Ordinal))?.ActualType;
 
+        /// <summary>CLR 类型 → 界面显示名（导入/导出用；未知类型回退 CLR 名，绝不返回空白）。</summary>
+        internal static string TypeDisplayName(Type? type)
+        {
+            if (type == null) return string.Empty;
+            var normalized = Nullable.GetUnderlyingType(type) ?? type;
+            return AllTypes.FirstOrDefault(t => t.ActualType == normalized)?.DisplayName ?? normalized.Name;
+        }
+
+        /// <summary>存储区枚举 → 界面显示名（导出用；未知枚举回退成员名）。</summary>
+        internal static string AreaDisplayName(Enum? area)
+        {
+            if (area == null) return string.Empty;
+            return AreaDisplayNames.TryGetValue(area, out var name) ? name : area.ToString();
+        }
+
         public DelegateCommand AddCommand { get; }
         public DelegateCommand<VariableNode> DeleteCommand { get; }
         public DelegateCommand<VariableNode> EditArrayCommand { get; }
+        public DelegateCommand<VariableNode> WriteArrayCommand { get; }
         public DelegateCommand<VariableNode> ResetCommand { get; }
+
+        /// <summary>数组元素行 ↺：只把该元素恢复为基准数组的对应项（不碰其它元素）</summary>
+        public DelegateCommand<VariableNode> ResetElementCommand { get; }
 
         /// <summary>复制变量名（HMI 控件绑定预留入口）</summary>
         public DelegateCommand<VariableNode> CopyNameCommand { get; }
@@ -558,13 +876,26 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>重命名变量（经注册表统一入口，连线/监视项/轮询注册自动跟随）</summary>
         public DelegateCommand<VariableNode> RenameCommand { get; }
 
-        public DelegateCommand<VariableSourceNode> SelectSourceCommand { get; }
+        /// <summary>展开/折叠左栏连接行（只影响左栏，不改变右侧作用域）。</summary>
+        public DelegateCommand<VariableSourceNode> ToggleSourceExpandCommand { get; }
 
         /// <summary>
-        /// 管理扫描组：打开连接级组表编辑器（新增/改名/删组/周期/预设）。
-        /// <para>作用对象是新建面板里当前选中的「所属连接」，故未选连接时置灰。</para>
+        /// 打开显示分组编辑器（变量管理内的覆盖层）。
+        /// <para>与扫描组的分工：分组是方案级、纯展示分类，只做归类与筛选；
+        /// 扫描组是连接级调度资源，只在通讯设置里维护。</para>
         /// </summary>
-        public DelegateCommand ManageScanGroupsCommand { get; }
+        public DelegateCommand OpenGroupManagerCommand { get; }
+
+        public DelegateCommand CloseGroupManagerCommand { get; }
+
+        /// <summary>导出当前设备的网络变量表（xlsx；全部 / 当前显示分组二选一）。</summary>
+        public DelegateCommand ExportCommand { get; }
+
+        /// <summary>从 xlsx 批量导入当前设备的网络变量（差异预览 + 事务应用）。</summary>
+        public DelegateCommand ImportCommand { get; }
+
+        /// <summary>显示分组编辑器（方案级、纯展示分类）。</summary>
+        public VariableGroupEditorViewModel GroupEditor { get; }
 
         /// <summary>
         /// 关闭弹窗（自绘标题栏右上角的 × 用它）。
@@ -586,11 +917,18 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _bridge = bridge;
             _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
 
+            // 显示分组编辑器：方案级资源，读 _workspace.CurrentSolution.VariableGroups。
+            // 必须在命令之前建好（命令体执行时才读它，但字段不能为空）。
+            GroupEditor = new VariableGroupEditorViewModel(workspace);
+            GroupEditor.Changed += OnVariableGroupsChanged;
+
             AddCommand = new DelegateCommand(AddVariable);
             CloseCommand = new DelegateCommand(() => RequestClose.Invoke(new DialogResult(ButtonResult.OK)));
             DeleteCommand = new DelegateCommand<VariableNode>(DeleteVariable);
             ResetCommand = new DelegateCommand<VariableNode>(ResetVariable);
+            ResetElementCommand = new DelegateCommand<VariableNode>(ResetElement);
             EditArrayCommand = new DelegateCommand<VariableNode>(ExecuteEditArray);
+            WriteArrayCommand = new DelegateCommand<VariableNode>(ExecuteWriteArray);
             CopyNameCommand = new DelegateCommand<VariableNode>(
                 n => Clipboard.SetText(n?.Name ?? ""),
                 n => n != null && n.IsRootNode);
@@ -598,9 +936,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 RenameVariable,
                 n => n != null && n.IsRootNode && n.OriginalModel != null && !IsSystemVariable(n.OriginalModel));
 
-            SelectSourceCommand = new DelegateCommand<VariableSourceNode>(node => SelectedSource = node);
+            ToggleSourceExpandCommand = new DelegateCommand<VariableSourceNode>(ToggleSourceExpand);
+            OpenGroupManagerCommand = new DelegateCommand(() => GroupEditor.Open());
+            CloseGroupManagerCommand = new DelegateCommand(() => GroupEditor.Close());
 
-            ManageScanGroupsCommand = new DelegateCommand(ExecuteManageScanGroups, () => SelectedConnection != null);
+            // 批量导入/导出只对"某条设备连接"有意义：本地/系统来源没有设备地址表可导。
+            ExportCommand = new DelegateCommand(ExecuteExport,
+                () => IsNetworkSource && SelectedConnection != null && _workspace.CurrentSolution != null);
+            ImportCommand = new DelegateCommand(ExecuteImport,
+                () => IsNetworkSource && SelectedConnection != null && _workspace.CurrentSolution != null);
 
             foreach (var conn in _communicationManager.GetAllConnections())
                 Connections.Add(conn);
@@ -655,7 +999,87 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 node.IsConnected = true;
             }
+
+            // 显示分组（仅网络变量）：选项 = 未分组 + 方案分组；悬空 Id 归入未分组。
+            // 回调必须在赋完初值后再挂，否则构造节点时就会触发一次"变更"。
+            if (isNetwork)
+            {
+                var groupId = NormalizeGroupId((gv as NetworkVariableModel)?.GroupId ?? Guid.Empty);
+                node.GroupId = groupId;
+                node.GroupOptions.Add(new VariableGroupOption
+                {
+                    Id = Guid.Empty,
+                    Name = VariableGroupEditorViewModel.UngroupedName
+                });
+                foreach (var group in Groups)
+                    node.GroupOptions.Add(new VariableGroupOption { Id = group.Id, Name = group.Name });
+
+                node.SelectedGroup = node.GroupOptions.FirstOrDefault(o => o.Id == groupId)
+                                     ?? node.GroupOptions[0];
+                node.GroupChanged = OnGroupChanged;
+            }
+
+            // 编辑结束（提交/取消）后补一次长度重建：编辑期间那次推送被跳过了
+            node.ValueEditCompleted += OnNodeValueEditCompleted;
             return node;
+        }
+
+        /// <summary>
+        /// 显示分组下拉变更：只回写变量模型 + 刷新左栏计数，**不重注册轮询**。
+        /// 与扫描组（<see cref="OnScanGroupChanged"/> 必须 ReRegister）刻意不同：
+        /// 分组只做归类与筛选，不影响采集。
+        /// </summary>
+        private void OnGroupChanged(VariableNode node)
+        {
+            if (node?.OriginalModel is not NetworkVariableModel nv) return;
+
+            var option = node.SelectedGroup;
+            if (option == null)
+            {
+                // 选项被重填时 ComboBox 可能短暂把 SelectedItem 写成 null：
+                // 绝不能用它覆盖模型；把选中项回填成模型当前组，避免单元格留空。
+                var fallback = node.GroupOptions.FirstOrDefault(o => o.Id == node.GroupId)
+                               ?? node.GroupOptions.FirstOrDefault();
+                if (fallback != null && !ReferenceEquals(node.SelectedGroup, fallback))
+                    node.SelectedGroup = fallback;
+                return;
+            }
+
+            if (node.GroupId == option.Id && nv.GroupId == option.Id) return;
+
+            ApplyGroupSelection(nv, node, option);
+            RefreshSourceCounts();
+            UpdateFilteredList();
+        }
+
+        /// <summary>
+        /// 显示分组选择落账（纯函数，便于断言）：
+        /// null 选项不覆盖模型；同 Id 不重复写。返回落账后的 GroupId。
+        /// </summary>
+        public static Guid ApplyGroupSelection(
+            NetworkVariableModel? model, VariableNode? node, VariableGroupOption? option)
+        {
+            if (node == null) return Guid.Empty;
+            if (model == null || option == null) return node.GroupId;
+
+            node.GroupId = option.Id;
+            model.GroupId = option.Id;
+            return option.Id;
+        }
+
+        /// <summary>
+        /// 分组表变更（新增 / 改名 / 删除）后的刷新。
+        /// <para>必须重建变量节点：每个节点的 <c>GroupOptions</c> 是建节点那一刻的快照，
+        /// 只刷新左栏会让明细表的下拉继续显示旧组名。重建按 VariableId 保留数组展开态。</para>
+        /// <para>当前选中的分组被删掉时回落到「未分组」（分组表即时生效，没有撤销可找回）。</para>
+        /// </summary>
+        private void OnVariableGroupsChanged()
+        {
+            if (_selectedGroupId is { } gid && gid != Guid.Empty && Groups.All(g => g.Id != gid))
+                _selectedGroupId = Guid.Empty;
+
+            RebuildSourceTree();
+            RefreshTree();
         }
 
         /// <summary>
@@ -679,42 +1103,160 @@ namespace VisionMaster.ViewModels.DialogViewModels
             // "默认组"是虚拟组，模型里以空串表示（PollScheduler：空名 → 默认组，周期取连接 ReadCycleMs）
             string stored = ToStoredScanGroup(selected);
 
-            if (string.Equals(nv.ScanGroup ?? string.Empty, stored, StringComparison.Ordinal)) return;
+            string previous = nv.ScanGroup ?? string.Empty;
+            if (string.Equals(previous, stored, StringComparison.Ordinal)) return;
 
             nv.ScanGroup = stored;
-            _bridge.ReRegister(nv);
+            if (!_bridge.ReRegister(nv))
+            {
+                // 注册失败（连接不存在/地址非法）：模型必须退回，否则界面显示新组、轮询仍按旧组。
+                nv.ScanGroup = previous;
+                node.ScanGroupText = string.IsNullOrWhiteSpace(previous)
+                    ? PollScheduler.DefaultGroupName
+                    : previous;
+                Notifier.ShowWarning($"扫描组「{selected}」重注册失败（连接不存在或地址非法），已恢复原扫描组。");
+            }
         }
+
+        #region 批量导入 / 导出
+
+        private void ExecuteExport()
+        {
+            var connection = SelectedConnection;
+            if (connection == null) return;
+
+            var parameters = new DialogParameters
+            {
+                { DeviceVariableExportViewModel.ConnectionNameKey, connection.ConnectionName },
+                { DeviceVariableExportViewModel.CurrentGroupIdKey, _selectedGroupId ?? Guid.Empty },
+                { DeviceVariableExportViewModel.HasCurrentGroupKey, _selectedGroupId != null },
+                { DeviceVariableExportViewModel.CurrentGroupNameKey, SelectedGroupName },
+            };
+            _dialogs.ShowDialog(DeviceVariableExportViewModel.DialogName, parameters, OnExportClosed);
+        }
+
+        private void OnExportClosed(IDialogResult result)
+        {
+            if (result.Result != ButtonResult.OK) return;
+            if (!result.Parameters.TryGetValue<string>(DeviceVariableExportViewModel.ExportedPathKey, out var path)) return;
+
+            result.Parameters.TryGetValue<int>(DeviceVariableExportViewModel.ExportedCountKey, out var count);
+            Notifier.ShowSuccess($"变量表已导出（{count} 个变量）：{path}");
+        }
+
+        private void ExecuteImport()
+        {
+            var connection = SelectedConnection;
+            if (connection == null) return;
+
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Filter = "Excel 工作簿 (*.xlsx)|*.xlsx",
+                Title = "选择变量表",
+                CheckFileExists = true,
+            };
+            if (dialog.ShowDialog() != true) return;
+
+            var parameters = new DialogParameters
+            {
+                { DeviceVariableImportViewModel.FilePathKey, dialog.FileName },
+                { DeviceVariableImportViewModel.ConnectionNameKey, connection.ConnectionName },
+            };
+            _dialogs.ShowDialog(DeviceVariableImportViewModel.DialogName, parameters, OnImportClosed);
+        }
+
+        /// <summary>
+        /// 导入弹窗关闭：只在确认（含结果页 × 返回 OK）时重建左栏与明细；取消保持用户原选择。
+        /// <para>导入是即时落地（结果页只是回执），变量集合与分组表可能已被新增变量、
+        /// 自动建组改过；结果页点 × 也会返回 OK，所以确认分支必须刷新。</para>
+        /// </summary>
+        private void OnImportClosed(IDialogResult result)
+        {
+            // 取消（未应用）不改工作区：保留用户原来的分组选择，不重建左栏。
+            if (result.Result != ButtonResult.OK) return;
+
+            var connectionName = SelectedConnection?.ConnectionName;
+
+            RebuildSourceTree();
+            if (connectionName != null)
+            {
+                // 导入后统一回到该设备的「全部」：新增的变量可能落在任意分组，
+                // 停留在导入前的分组会让用户以为"导进来的没几个"。
+                var source = FindSourceNode(connectionName);
+                if (source != null) SelectedSource = source;
+            }
+            RefreshTree();
+
+            if (!result.Parameters.TryGetValue<int>(DeviceVariableImportViewModel.AddedKey, out var added)) return;
+
+            result.Parameters.TryGetValue<int>(DeviceVariableImportViewModel.UpdatedKey, out var updated);
+            result.Parameters.TryGetValue<int>(DeviceVariableImportViewModel.DeletedKey, out var deleted);
+            result.Parameters.TryGetValue<int>(DeviceVariableImportViewModel.SkippedKey, out var skipped);
+
+            var parts = new List<string> { $"新增 {added}", $"更新 {updated}" };
+            if (deleted > 0) parts.Add($"删除 {deleted}");
+            if (skipped > 0) parts.Add($"跳过 {skipped}");
+            Notifier.ShowSuccess($"变量表导入完成：{string.Join(" · ", parts)}");
+        }
+
+        #endregion
 
         protected override void CreateChildNodes(IVariable gv, VariableNode parentNode)
         {
             var defArray = gv.DefaultValue as Array;
             var valArray = gv.Value as Array;
             int len = Math.Max(defArray?.Length ?? 0, valArray?.Length ?? 0);
+
+            // 网络数组：AddressConfig.Length 是配置的唯一真相源（导入可改大也可改小）。
+            // 不能与旧 Value/基准取 max——5→3 时旧值长度 5 会让树永远显示 5 行，
+            // 与数组编辑弹窗（按地址长度 3 行）和轮询跨度脱节。
+            if (gv is NetworkVariableModel nv && nv.AddressConfig != null)
+                len = nv.AddressConfig.Length;
+
             var elementType = gv.DataType.GetElementType();
 
             for (int i = 0; i < len; i++)
             {
-                parentNode.Children.Add(
-                    new VariableNode
-                    {
-                        Name = $"[{i}]",
-                        DataType = elementType,
-                        TypeName = elementType?.Name,
-                        ChildDefaultValue =
-                            defArray != null && i < defArray.Length ? defArray.GetValue(i) : null,
-                        ChildValue =
-                            valArray != null && i < valArray.Length ? valArray.GetValue(i) : null,
-                        // 子行要能就地改元素值：得知道"我属于哪个变量、是第几项"
-                        // （写回逻辑见 VariableNode.ChildDefaultValueText）
-                        OriginalModel = parentNode.OriginalModel,
-                        ElementIndex = i,
-                        Level = 1,
-                        SourceLabel = parentNode.SourceLabel,
-                        IsNetwork = parentNode.IsNetwork,
-                        IsConnected = parentNode.IsConnected,
-                    }
-                );
+                var child = new VariableNode
+                {
+                    Name = $"[{i}]",
+                    DataType = elementType,
+                    TypeName = elementType?.Name,
+                    ChildDefaultValue =
+                        defArray != null && i < defArray.Length ? defArray.GetValue(i) : null,
+                    ChildValue =
+                        valArray != null && i < valArray.Length ? valArray.GetValue(i) : null,
+                    // 子行要能就地改元素值：得知道"我属于哪个变量、是第几项"
+                    // （写回逻辑见 VariableNode.CommitChildElementEdit）
+                    OriginalModel = parentNode.OriginalModel,
+                    ElementIndex = i,
+                    Level = 1,
+                    SourceLabel = parentNode.SourceLabel,
+                    IsNetwork = parentNode.IsNetwork,
+                    IsConnected = parentNode.IsConnected,
+                };
+
+                // 编辑结束（提交/取消）后补一次长度重建（见 OnNodeValueEditCompleted）
+                child.ValueEditCompleted += OnNodeValueEditCompleted;
+                parentNode.Children.Add(child);
             }
+        }
+
+        /// <summary>
+        /// 单元格编辑结束（提交成功或 Esc 取消）后的补偿：
+        /// 编辑期间 <see cref="OnVariableValueChanged"/> 会跳过"长度变化 → 重建子行"（防止吞掉草稿），
+        /// 若外部恰在编辑中换了数组长度，取消路径没有任何模型事件能补上这次重建——这里补。
+        /// </summary>
+        private void OnNodeValueEditCompleted(VariableNode node)
+        {
+            var model = node?.OriginalModel;
+            if (model == null) return;
+
+            var root = NodesOf(model).FirstOrDefault(n => n.IsRootNode);
+            if (root == null) return;
+
+            if (ShouldRebuildArrayRows(model, root.Children.Count))
+                RefreshTree();
         }
 
         private void OnVariableValueChanged(object sender, EventArgs e)
@@ -725,9 +1267,44 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if (sender is not IVariable gv) return;
             VisionMaster.Helpers.SafeDispatch.BeginInvoke(() =>
             {
-                foreach (var node in NodesOf(gv))
+                var nodes = NodesOf(gv).ToList();
+                if (nodes.Count == 0) return;
+
+                // 数组长度变了（典型：流程写入另一组条码 / 坐标）：子行是按长度生成的，
+                // 只刷显示会留下旧行数——「N 项」徽标、[i] 行、超出新长度的提交全部错位。
+                // 编辑中不重建（会吞掉输入中的草稿），提交后由 RefreshTree 兜底。
+                if (!nodes.Any(n => n.IsEditingValue) && ShouldRebuildArrayRows(gv, nodes[0].Children.Count))
+                {
+                    RefreshTree();
+                    return;
+                }
+
+                foreach (var node in nodes)
                     node.RefreshValueDisplay();
             });
+        }
+
+        /// <summary>
+        /// 数组值推送后是否需要重建子行：期望行数（max(当前值长度, 基准长度)，与
+        /// <see cref="CreateChildNodes"/> 同口径）与现有子行数不一致才重建。
+        /// <para>抽成静态纯函数便于断言：VM 构造要通信管理器 / 桥接器 / 弹窗服务，
+        /// 冒烟里凑齐这些依赖不划算，而这段恰恰是最容易漏的一段。</para>
+        /// </summary>
+        public static bool ShouldRebuildArrayRows(IVariable? variable, int currentChildCount)
+        {
+            if (variable?.DataType?.IsArray != true) return false;
+
+            // 与 CreateChildNodes 同口径：当前值可能是 null（流程写 null / 复位），
+            // 此时按 0 计，不能因为"不是数组"就直接放行（那会和建行口径分叉）。
+            int currentLength = variable.Value is Array current ? current.Length : 0;
+            int baselineLength = (variable.DefaultValue as Array)?.Length ?? 0;
+
+            // 网络数组的元素个数是配置项（AddressConfig.Length），是唯一真相源；
+            // 旧 Value/基准可能更长（缩小场景），不能取 max，否则 5→3 永远判不出差异。
+            if (variable is NetworkVariableModel nv && nv.AddressConfig != null)
+                return nv.AddressConfig.Length != currentChildCount;
+
+            return Math.Max(currentLength, baselineLength) != currentChildCount;
         }
 
         /// <summary>枚举某变量在当前树里的全部展示节点（根 + 数组元素行；子行与根共享同一模型）</summary>
@@ -848,17 +1425,30 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 Connections.Select(c => c.ConnectionName),
                 GetScanGroupOptions(connection?.ConnectionName),
                 GetAreaOptions(connection),
-                BuildAddressPreview)
+                BuildAddressPreview,
+                // 候选走回调：弹窗里切换「所属连接」时，属性网格整表重建、候选按新协议重算
+                new NetworkVariableDraftContext
+                {
+                    AreaOptionsFor = name => GetAreaOptions(FindConnection(name)),
+                    DefaultAreaFor = name => GetDefaultAreaName(FindConnection(name)),
+                    ScanGroupsFor = name => GetScanGroupOptions(name),
+                })
             {
                 TypeName = typeOptions.FirstOrDefault() ?? string.Empty,
                 ConnectionName = connection?.ConnectionName ?? string.Empty,
                 // 扫描组默认沿用"建完记住"的那个（RefreshNewScanGroupOptions 已保证它在组表里）
                 ScanGroupName = SelectedNewScanGroup,
-                AreaName = connection == null ? string.Empty : GetDefaultAreaName(connection.Protocol),
+                AreaName = connection == null ? string.Empty : GetDefaultAreaName(connection),
                 Offset = "0",
                 BitOffset = 0,
             };
         }
+
+        /// <summary>按连接名取当前方案的连接（弹窗存活期间连接可能被删，取不到返回 null）</summary>
+        private CommunicationConfig? FindConnection(string? connectionName)
+            => string.IsNullOrWhiteSpace(connectionName)
+                ? null
+                : Connections.FirstOrDefault(c => string.Equals(c.ConnectionName, connectionName, StringComparison.Ordinal));
 
         /// <summary>
         /// 草稿「地址预览」的取值委托：与创建路径共用 <see cref="TryBuildAddress"/> 一份逻辑，
@@ -873,17 +1463,29 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var targetType = ResolveType(draft.TypeName);
             if (targetType == null) return "（先选数据类型）";
 
-            if (!TryResolveArea(connection.Protocol, draft.AreaName, out var area)) return "（先选存储区）";
+            if (!TryResolveArea(connection, draft.AreaName, out var area)) return "（先选存储区）";
 
-            return TryBuildAddress(connection.Protocol, area, draft.Offset, draft.BitOffset, targetType,
+            if (!TryBuildAddress(connection.Protocol, area, draft.Offset, draft.BitOffset, targetType,
                     out var address, out var error,
-                    station: draft.Station)
-                ? address.Address
-                : $"（{error}）";
+                    station: draft.Station,
+                    elementCount: targetType.IsArray || targetType == typeof(string) ? draft.ElementCount : 1,
+                    elementByteLength: targetType.IsArray && targetType.GetElementType() == typeof(string)
+                        ? draft.ElementByteLength
+                        : 0,
+                    addressOffset: draft.AddressOffset,
+                    useLegacyAddress: draft.UseLegacyAddress,
+                    dbNumber: draft.DbNumber,
+                    mcVendor: McVendorOf(connection)))
+                return $"（{error}）";
+
+            // 预览与落库同一份构造逻辑：非法地址（40001 写法与存储区不匹配、偏移后为负等）
+            // 在预览里直接说原因，而不是显示一个"看起来能读"的地址。
+            var (valid, validationError) = address.Validate();
+            return valid ? address.Address : $"（{validationError}）";
         }
 
         /// <summary>解析弹窗草稿里的初始值文本：留空 = 类型默认值；非法文本返回 false 并给出中文原因</summary>
-        private static bool TryGetNewInitialValue(string? text, Type targetType, out object? initial, out string error)
+        internal static bool TryGetNewInitialValue(string? text, Type targetType, out object? initial, out string error)
         {
             var trimmed = text?.Trim();
             if (string.IsNullOrWhiteSpace(trimmed))
@@ -924,7 +1526,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 Name = draft.VariableName,
                 DataType = targetType,
                 Description = draft.Description,
-                DefaultValue = initValue,
+                // 数组给基准一份独立副本（与 VariableFactory 同一口径）：
+                // 同实例会让元素就地编辑同时改掉基准
+                DefaultValue = initValue is Array initArray ? initArray.Clone() : initValue,
                 Value = initValue,
             };
 
@@ -944,23 +1548,77 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 EasyDialog.ShowSync("请选择所属连接！", "提示");
                 return;
             }
-            if (!TryResolveArea(connection.Protocol, draft.AreaName, out var area))
+            if (!TryResolveArea(connection, draft.AreaName, out var area))
             {
                 EasyDialog.ShowSync("请选择存储区！", "提示");
                 return;
             }
-            if (IsCoilOrDiscreteArea(area) && targetType != typeof(bool))
+            var elementType = targetType.IsArray ? targetType.GetElementType() : null;
+            bool isArray = targetType.IsArray && targetType != typeof(byte[]);
+            bool isStringScalar = targetType == typeof(string);
+            bool isStringArray = isArray && elementType == typeof(string);
+            bool isBoolArray = isArray && elementType == typeof(bool);
+
+            if (isArray)
             {
-                EasyDialog.ShowSync("线圈/离散输入区仅支持布尔类型！", "提示");
+                if (elementType == null)
+                {
+                    EasyDialog.ShowSync("数组元素类型无法确定，请重新选择数据类型。", "提示");
+                    return;
+                }
+                if (elementType == typeof(bool))
+                {
+                    if (!IsCoilOrDiscreteArea(area))
+                    {
+                        EasyDialog.ShowSync("bool 数组仅支持 Modbus 线圈/离散输入区（S7 的位数组语义不唯一）。", "提示");
+                        return;
+                    }
+                }
+                else if (elementType != typeof(string) && elementType != typeof(int)
+                         && elementType != typeof(double) && elementType != typeof(float))
+                {
+                    EasyDialog.ShowSync(
+                        $"网络数组暂不支持元素类型 {elementType.Name}（可用 int / double / float / string / bool）！",
+                        "提示");
+                    return;
+                }
+
+                if (isStringArray && draft.ElementByteLength < 1)
+                {
+                    EasyDialog.ShowSync("字符串数组必须填「每元素字节数」（>= 1）。", "提示");
+                    return;
+                }
+            }
+
+            if (!isArray && !isStringScalar && draft.ElementCount != 1)
+            {
+                // 标量填 10 曾经是"读 10 个元素但只解第一个"的静默陷阱；现在明确拦住。
+                EasyDialog.ShowSync("「元素个数」只对数组类型有效；标量请填 1（或改选数组类型）。", "提示");
                 return;
             }
-            // 创建入口兜底校验：通信层仅支持标量点读，文本/数组会导致地址语义错误
-            if (targetType == typeof(string) || targetType.IsArray)
+            if ((isArray || isStringScalar) && draft.ElementCount < 1)
             {
-                EasyDialog.ShowSync("网络变量仅支持数值/布尔标量类型，不支持文本与数组！", "提示");
+                EasyDialog.ShowSync("元素个数 / 字符串字节长度必须 >= 1。", "提示");
                 return;
             }
-            if (!TryGetNewInitialValue(draft.InitialValue, targetType, out var initial, out var initialError))
+            if (IsCoilOrDiscreteArea(area) && targetType != typeof(bool) && !isBoolArray)
+            {
+                EasyDialog.ShowSync("线圈/离散输入区仅支持布尔类型（或 bool 数组）！", "提示");
+                return;
+            }
+            if ((isArray || isStringScalar) && draft.EnableConversion)
+            {
+                EasyDialog.ShowSync("数组与字符串变量暂不支持工程量换算，请关闭「启用工程量换算」。", "提示");
+                return;
+            }
+
+            object? initial;
+            if (isArray)
+            {
+                // 数组没有"单值初始值"：整组值由设备轮询/整组写入维护，基准不参与恢复初始值
+                initial = null;
+            }
+            else if (!TryGetNewInitialValue(draft.InitialValue, targetType, out initial, out var initialError))
             {
                 EasyDialog.ShowSync($"初始值无效：{initialError}", "提示");
                 return;
@@ -975,7 +1633,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
                         enableConversion: draft.EnableConversion,
                         scale: draft.Scale,
                         engineeringOffset: draft.EngineeringOffset,
-                        unit: draft.Unit))
+                        unit: draft.Unit,
+                        elementCount: isArray || isStringScalar ? draft.ElementCount : 1,
+                        elementByteLength: isStringArray ? draft.ElementByteLength : 0,
+                        addressOffset: draft.AddressOffset,
+                        useLegacyAddress: draft.UseLegacyAddress,
+                        dbNumber: draft.DbNumber,
+                        mcVendor: McVendorOf(connection)))
                 {
                     EasyDialog.ShowSync(addressError, "提示");
                     return;
@@ -988,9 +1652,27 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     return;
                 }
 
+                // 数组跨度不能超过单次读取上限（Modbus 120 寄存器 / S7 110 字节）：
+                // 第一期不做分块，超了必须在创建时明确拒绝，而不是建完发现"永远读不到"。
+                if ((isArray || isStringScalar) && address.TryCreatePollAddress(out var poll) && poll != null
+                    && poll.SpanUnits > poll.MaxSegmentUnits)
+                {
+                    EasyDialog.ShowSync(
+                        $"读取跨度 {poll.SpanUnits} 个地址单位，超过单次读取上限 {poll.MaxSegmentUnits}；" +
+                        "请减少元素个数 / 字符串字节长度",
+                        "提示");
+                    return;
+                }
+
                 var netVar = (NetworkVariableModel)VariableFactory.CreateNetwork(
                     draft.VariableName, targetType, connection.ConnectionName,
                     address, draft.Description);
+
+                // 在当前显示分组作用域里新建 → 直接归入该组；在「全部 / 未分组」下新建 → 未分组。
+                // 只影响归类，不参与采集/轮询/写入。
+                netVar.GroupId = _selectedGroupId is { } selectedGroupId && selectedGroupId != Guid.Empty
+                    ? selectedGroupId
+                    : Guid.Empty;
 
                 // 建的时候就定好节拍：桥接器注册时会把 ScanGroup 抄进 CommunicationVariable，
                 // 事后再改要走 ReRegister，这里一次到位
@@ -1026,18 +1708,35 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// 位偏移只在"布尔 + 非线圈/离散区"时才真正参与（S7 的 M0.0 形态），
         /// 其余情况按 -1（无位访问）落库——判据与旧表单的 IsBitMode 同源。
         /// </summary>
-        private static bool TryBuildAddress(
+        internal static bool TryBuildAddress(
             CommunicationType protocol, Enum area, string? offset, int bitOffset, Type targetType,
             out DeviceAddressBase address, out string error,
             int station = 0, bool enableConversion = false,
-            double scale = 1.0, double engineeringOffset = 0, string? unit = null)
+            double scale = 1.0, double engineeringOffset = 0, string? unit = null,
+            int elementCount = 1, int elementByteLength = 0,
+            int addressOffset = 0, bool useLegacyAddress = false,
+            int dbNumber = 1, McVendor mcVendor = McVendor.Mitsubishi)
         {
             address = null!;
             error = string.Empty;
 
-            int effectiveBitOffset = targetType == typeof(bool) && bitOffset >= 0 && !IsCoilOrDiscreteArea(area)
+            // MC 的位访问由"存储区"表达（M/X/Y/...），地址串里没有 ".位号" 形态；
+            // 若把草稿里的位偏移带进去，既不会进地址，还会让基类 Validate 对
+            // "0-7" 做无意义的范围校验（用户填 12 会被拒，而该字段对 MC 根本无效）。
+            int effectiveBitOffset = targetType == typeof(bool) && bitOffset >= 0
+                && !IsCoilOrDiscreteArea(area)
+                && protocol != CommunicationType.MitsubishiMc
                 ? bitOffset
                 : -1;
+
+            // 数组/字符串：Length = 元素个数（数值数组）或总字节数（字符串标量）；
+            // 其它标量固定 1（不允许标量填 10——那只会让"读 10 个只解第一个"重现）。
+            bool isArray = targetType.IsArray && targetType != typeof(byte[]);
+            bool isStringScalar = targetType == typeof(string);
+            bool isStringArray = isArray && targetType.GetElementType() == typeof(string);
+            int length = isArray || isStringScalar ? Math.Max(1, elementCount) : 1;
+            int perElementBytes = isStringArray ? Math.Max(0, elementByteLength) : 0;
+            var dataType = ToDataValueType(targetType);
 
             switch (protocol)
             {
@@ -1050,9 +1749,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     {
                         Area = (ModbusArea)area,
                         Offset = offset ?? "0",
-                        DataType = ToDataValueType(targetType),
+                        DataType = dataType,
                         BitOffset = effectiveBitOffset,
-                        Station = station
+                        Station = station,
+                        Length = length,
+                        ElementByteLength = perElementBytes,
+                        AddressOffset = addressOffset,
+                        UseLegacyAddress = useLegacyAddress
                     };
                     ApplyConversion(modbus, enableConversion, scale, engineeringOffset, unit);
                     address = modbus;
@@ -1061,15 +1764,61 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
                 case CommunicationType.SiemensS7:
                 {
+                    if (useLegacyAddress)
+                    {
+                        error = "S7 地址不支持「40001 写法」，请直接填字节偏移";
+                        return false;
+                    }
+
                     var s7 = new S7Address
                     {
                         Area = (S7Area)area,
                         Offset = offset ?? "0",
-                        DataType = ToDataValueType(targetType),
-                        BitOffset = effectiveBitOffset
+                        DataType = dataType,
+                        BitOffset = effectiveBitOffset,
+                        Length = length,
+                        ElementByteLength = perElementBytes,
+                        AddressOffset = addressOffset,
+                        DbNumber = Math.Max(1, dbNumber)
                     };
                     ApplyConversion(s7, enableConversion, scale, engineeringOffset, unit);
                     address = s7;
+                    return true;
+                }
+
+                case CommunicationType.MitsubishiMc:
+                {
+                    var mc = new McAddress
+                    {
+                        Area = (McArea)area,
+                        // 厂商决定 ZR 的进制与地址校验解析器（三菱 D100 / 基恩士 DM100 / 松下 DT100）
+                        Vendor = mcVendor,
+                        Offset = offset ?? "0",
+                        DataType = dataType,
+                        BitOffset = effectiveBitOffset,
+                        Length = length,
+                        ElementByteLength = perElementBytes,
+                        AddressOffset = addressOffset
+                    };
+                    ApplyConversion(mc, enableConversion, scale, engineeringOffset, unit);
+                    address = mc;
+                    return true;
+                }
+
+                case CommunicationType.OmronFins:
+                {
+                    var fins = new FinsAddress
+                    {
+                        Area = (FinsArea)area,
+                        Offset = offset ?? "0",
+                        DataType = dataType,
+                        BitOffset = effectiveBitOffset,
+                        Length = length,
+                        ElementByteLength = perElementBytes,
+                        AddressOffset = addressOffset
+                    };
+                    ApplyConversion(fins, enableConversion, scale, engineeringOffset, unit);
+                    address = fins;
                     return true;
                 }
 
@@ -1094,7 +1843,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private static DataValueType ToDataValueType(Type t)
         {
             var u = Nullable.GetUnderlyingType(t) ?? t;
+            if (u.IsArray) u = u.GetElementType() ?? u; // 数组按元素类型映射（int[] → Int32）
             if (u == typeof(bool)) return DataValueType.Boolean;
+            if (u == typeof(string)) return DataValueType.String;
             if (u == typeof(byte)) return DataValueType.Byte;
             if (u == typeof(short)) return DataValueType.Int16;
             if (u == typeof(ushort)) return DataValueType.UInt16;
@@ -1188,69 +1939,154 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RefreshTree(); // 索引与引用已由级联更新，这里只刷新本弹窗的树/表
         }
 
-        /// <summary>数组编辑器（本地数组变量）</summary>
+        /// <summary>
+        /// 数组编辑入口：打开「编辑数组」弹窗（本地数组变量）。
+        ///
+        /// 与旧「强制覆盖集合...」的区别（v2 设计基线）：
+        /// ① 弹窗装填的是**当前值**（屏幕上看到的那组），不是 DefaultValue；
+        /// ② 默认只写当前值，勾选「同时写入初始值（基准）」才写 DefaultValue；
+        /// ③ 校验在弹窗内完成——填错就地标红，不丢编辑、不关闭弹窗。
+        ///
+        /// 结构改动（增删 / 上下移）只放在弹窗里：表格里的 40px 元素行若也挂删除图标，
+        /// 误点一下就会让后面所有下标错位，代价远大于省下的两次点击。
+        /// </summary>
         private void ExecuteEditArray(VariableNode node)
         {
             if (node?.OriginalModel is not LocalVariableModel gv) return;
             if (!gv.DataType.IsArray) return;
-            ExecuteEditArrayCore(gv);
-        }
 
-        /// <summary>
-        /// 数组元素编辑对话框（编辑默认值并同步当前值）。
-        ///
-        /// 改前走的是 EasyDialog.ShowPropertyGridSync —— 而 UI 库的 PropertyGrid 是**反射式生成器**体系，
-        /// 它的五个生成器只有 Bool / Enum / 基础类型 / 嵌套对象 / [PropertyItem] 兜底，**没有集合这一类**。
-        /// 于是挂在承载对象上的 ObservableCollection 根本不会被渲染：弹窗里只有一行只读的"元素数"，
-        /// 新建数组（长度为 0）之后既看不到元素、也没地方加，等于死路。
-        ///
-        /// 现改用 UI 库的 DialogArrayEditor（显式列表 + 增删改 + 上下移），不再赌反射能猜对集合。
-        /// </summary>
-        private async void ExecuteEditArrayCore(LocalVariableModel gv)
-        {
-            Type? elementType = gv.DataType.GetElementType();
-            if (elementType == null)
+            if (gv.DataType.GetElementType() == null)
             {
-                // 走到这里说明类型声明本身就是坏的（如 object[] 之外的异常形态）。
-                // 必须明确告知，不能像旧版那样弹一个空面板让用户自己猜为什么改不了。
                 EasyDialog.ShowSync($"变量 [{gv.Name}] 的数组元素类型无法确定，请删除后重新创建。", "无法编辑");
                 return;
             }
 
-            var editor = new DialogArrayEditor
+            // A4 同口径：运行中整体替换数组 = 换掉运行步骤正在读的那组数据。
+            // 删除变量有这条互锁，数组覆盖同样必须有。
+            if (_workspace.CurrentFlow?.RunState == FlowRunState.Running)
             {
-                ElementTypeName = DescribeElementType(elementType),
-                Hint = "每行一个元素；留空的元素按该类型的默认值写入（数值 0 / 文本空串 / 布尔 false）。",
-            };
-            editor.Load((gv.DefaultValue as Array)?.Cast<object?>().Select(o => o?.ToString()));
-
-            if (!EasyDialog.ShowSync($"编辑数组 [{gv.Name}]", editor)) return;
-
-            var newArray = TryBuildArray(elementType, editor.Values, out string error);
-            if (newArray == null)
-            {
-                // 任何一个元素填错就整体不落地（模型保持干净），并把原因说清楚
-                EasyDialog.ShowSync($"数组转换失败：{error}\n本次修改未保存。", "错误");
+                EasyDialog.ShowSync(
+                    "流程运行中禁止编辑数组。\n请先停止流程——运行中的步骤按对象引用取值，整体替换会让它读到另一组数据。",
+                    "互锁");
                 return;
             }
 
-            gv.DefaultValue = newArray;
-            gv.Value = newArray.Clone();
-            RefreshTree();   // 长度可能变了，树必须重建（子行是按长度生成的）
+            var parameters = new DialogParameters
+            {
+                { ArrayEditorViewModel.VariableKey, gv },
+            };
 
-            await System.Threading.Tasks.Task.CompletedTask;
+            _dialogs.ShowDialog(ArrayEditorViewModel.DialogName, parameters, OnArrayEditorClosed);
+        }
+
+        /// <summary>
+        /// 网络数组「写入数组…」：复用数组编辑弹窗，但语义是**整组写设备**。
+        /// <para>三条互锁与本地数组编辑同口径：只读存储区不给入口、运行中禁止整组替换、
+        /// 弹窗确认后由 <see cref="ArrayEditorViewModel"/> 内部调用 <c>TryWriteToValue</c>。</para>
+        /// </summary>
+        private void ExecuteWriteArray(VariableNode? node)
+        {
+            if (node?.OriginalModel is not NetworkVariableModel gv) return;
+            if (!gv.DataType.IsArray) return;
+
+            if (gv.IsReadOnlyArea)
+            {
+                EasyDialog.ShowSync("该变量位于只读存储区（离散输入 / S7 输入映像 I），不能写入。", "只读");
+                return;
+            }
+
+            if (_workspace.CurrentFlow?.RunState == FlowRunState.Running)
+            {
+                EasyDialog.ShowSync(
+                    "流程运行中禁止整组写入数组。\n请先停止流程——整组替换会覆盖运行步骤正在读的那组数据。",
+                    "互锁");
+                return;
+            }
+
+            var parameters = new DialogParameters
+            {
+                { ArrayEditorViewModel.VariableKey, gv },
+                // 弹窗是模态的，但定时/变量触发的流程仍可能在弹窗打开期间启动；
+                // 确认时再查一次，避免整组替换正在运行的那组数据。
+                { ArrayEditorViewModel.IsFlowRunningKey, (Func<bool>)(() =>
+                    _workspace.CurrentFlow?.RunState == FlowRunState.Running) },
+            };
+
+            _dialogs.ShowDialog(ArrayEditorViewModel.DialogName, parameters, OnArrayEditorClosed);
+        }
+
+        /// <summary>数组编辑弹窗关闭回调：只有确认才落地（取消 = 活对象分毫不动）</summary>
+        private void OnArrayEditorClosed(IDialogResult result)
+        {
+            if (result.Result != ButtonResult.OK) return;
+
+            // 网络数组：弹窗内部已经调用 TryWriteToValue 整组写设备，这里只需要刷新镜像显示。
+            if (result.Parameters.TryGetValue<NetworkVariableModel>(ArrayEditorViewModel.VariableKey, out _))
+            {
+                RefreshTree();
+                return;
+            }
+
+            if (!result.Parameters.TryGetValue<Array>(ArrayEditorViewModel.ArrayKey, out var array) || array == null) return;
+            if (!result.Parameters.TryGetValue<LocalVariableModel>(ArrayEditorViewModel.VariableKey, out var model) || model == null) return;
+
+            // 打开时查过一次，落地时必须再查：弹窗是模态的，但定时/变量触发的流程
+            // 仍可能在弹窗打开期间启动，确认后照样会整体替换运行步骤正在读的数组。
+            if (_workspace.CurrentFlow?.RunState == FlowRunState.Running)
+            {
+                EasyDialog.ShowSync("流程已启动，本次数组编辑未应用。\n请先停止流程再编辑数组。", "互锁");
+                return;
+            }
+
+            bool syncBaseline = result.Parameters.TryGetValue<bool>(ArrayEditorViewModel.SyncBaselineKey, out var sync) && sync;
+            ApplyArrayEdit(model, array, syncBaseline);
+
+            RefreshTree();   // 长度可能变了，树必须重建（子行是按长度生成的）
+        }
+
+        /// <summary>
+        /// 把弹窗结果落到模型（纯静态，便于断言）：
+        /// 当前值**总是**写；初始值只在 <paramref name="syncBaseline"/> 为真时写。
+        ///
+        /// 为什么默认不写基准：旧「强制覆盖」两者一起写，且弹窗装填的是基准——
+        /// 用户看到的是旧值、点确定却把屏幕上的运行值换掉了。基准是「恢复初始值」的锚点，
+        /// 改它必须是一次显式选择。
+        /// </summary>
+        public static void ApplyArrayEdit(LocalVariableModel? model, Array? array, bool syncBaseline)
+        {
+            if (model == null || array == null) return;
+
+            model.Value = array;
+            if (syncBaseline)
+                model.DefaultValue = array.Clone();
+        }
+
+        /// <summary>元素级 ↺：只把该元素恢复为基准对应项（基准里没有这一项时什么都不做）</summary>
+        private void ResetElement(VariableNode? node)
+        {
+            if (node?.OriginalModel == null) return;
+            if (IsSystemVariable(node.OriginalModel)) return;
+            node.ResetElementValue();
         }
 
         /// <summary>
         /// 把编辑器回读的文本转成目标类型的数组（纯函数，便于断言）。
         /// 失败返回 null 并把原因写进 <paramref name="error"/>。
         ///
-        /// 规则：留空的元素按该类型的默认值写入（数值 0 / 文本空串 / 布尔 false）——
-        /// 空串直接 Convert.ChangeType 会抛，而"留空 = 用默认值"才是操作员的本意。
+        /// 规则（与"当前值"就地编辑同源，统一走 <see cref="VariableValueConverter"/>）：
+        /// - 文本元素：原样保留（空串是合法值——条码/文本数组里"空槽"有意义）；
+        /// - 其余元素：留空 = 该类型的默认值（数值 0 / 布尔 false）；
+        /// - 非空文本：不变文化、布尔认 1/0/是/否/on/off、**拒绝千分位分隔符**；
+        /// - 出错时给出**第几项 + 原值 + 原因**，而不是一句英文的 Convert 异常。
         /// </summary>
         public static Array? TryBuildArray(Type elementType, IReadOnlyList<string> texts, out string error)
+            => TryBuildArray(elementType, texts, out error, out _);
+
+        /// <summary>同上，额外返回出错项的下标（弹窗据此把那一行标红）</summary>
+        public static Array? TryBuildArray(Type elementType, IReadOnlyList<string> texts, out string error, out int errorIndex)
         {
             error = string.Empty;
+            errorIndex = -1;
             if (elementType == null) { error = "元素类型为空"; return null; }
             if (texts == null) { error = "元素集合为空"; return null; }
 
@@ -1264,35 +2100,38 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 return null;
             }
 
-            try
+            Type target = Nullable.GetUnderlyingType(elementType) ?? elementType;
+            var array = Array.CreateInstance(elementType, texts.Count);
+
+            for (int i = 0; i < texts.Count; i++)
             {
-                Type target = Nullable.GetUnderlyingType(elementType) ?? elementType;
-                var array = Array.CreateInstance(elementType, texts.Count);
+                string text = texts[i] ?? string.Empty;
 
-                for (int i = 0; i < texts.Count; i++)
+                // 文本元素原样保留（含空串）：旧实现把空串写成 null，与弹窗提示的"文本空串"不一致，
+                // 也让"故意留一个空条码槽"变成不可能。
+                if (target == typeof(string))
                 {
-                    string text = texts[i] ?? string.Empty;
-                    object? converted = string.IsNullOrWhiteSpace(text)
-                        ? (target.IsValueType ? Activator.CreateInstance(target) : null)
-                        : Convert.ChangeType(text, target);
-
-                    array.SetValue(converted, i);
+                    array.SetValue(text, i);
+                    continue;
                 }
 
-                return array;
-            }
-            catch (Exception ex)
-            {
-                error = ex.Message;
-                return null;
-            }
-        }
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    array.SetValue(target.IsValueType ? Activator.CreateInstance(target) : null, i);
+                    continue;
+                }
 
-        /// <summary>元素类型的界面文案（"Int32" / "String"；可空类型标出来）</summary>
-        private static string DescribeElementType(Type elementType)
-        {
-            var underlying = Nullable.GetUnderlyingType(elementType);
-            return underlying != null ? $"{underlying.Name}?" : elementType.Name;
+                if (!VisionMaster.Helpers.VariableValueConverter.TryConvert(text, target, out var converted, out var convertError))
+                {
+                    error = $"第 {i + 1} 项：{convertError}";
+                    errorIndex = i;
+                    return null;
+                }
+
+                array.SetValue(converted, i);
+            }
+
+            return array;
         }
 
         #endregion
@@ -1328,6 +2167,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 // 取消来源树联动订阅（必须用命名方法退订，lambda -= 无效会泄漏）
                 _communicationManager.ConnectionStateChanged -= OnConnectionStateChangedHandler;
                 _workspace.GlobalVariables.CollectionChanged -= OnVariablesChangedForCountsHandler;
+                GroupEditor.Changed -= OnVariableGroupsChanged;
             }
 
             base.Dispose(disposing);

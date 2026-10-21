@@ -606,7 +606,7 @@ namespace VisionMaster.ViewModels
         public override bool HasBinding => Element.FindBinding(Key) != null;
 
         /// <summary>已绑变量的名字（只作展示；寻址一律用 Id，名字随时可能过期）</summary>
-        public override string? BindingVariableName => Element.FindBinding(Key)?.VariableName;
+        public override string? BindingVariableName => Element.FindBinding(Key)?.ToReference().DisplayText;
 
         protected override string Read() => ElementValueAccess.Read(Element, Descriptor);
 
@@ -1695,7 +1695,8 @@ namespace VisionMaster.ViewModels
         {
             if (Animation is not { } animation) return;
 
-            _picker.Pick(animation.VariableId, animation.VariableName, (id, name) => animation.BindVariable(id, name));
+            _picker.Pick(animation.VariableId, animation.VariableName, animation.ArrayIndex,
+                (id, name, arrayIndex) => animation.BindVariable(id, name, arrayIndex));
         }
 
         private void OnClearVariable()
@@ -1706,6 +1707,7 @@ namespace VisionMaster.ViewModels
             {
                 animation.VariableId = Guid.Empty;
                 animation.VariableName = null;
+                animation.ArrayIndex = -1;
             }
         }
 
@@ -2397,6 +2399,11 @@ namespace VisionMaster.ViewModels
                 // 所以这里不需要为"没有名称/位置行"兜底——真缺了，那是注册表该报错的时候。
                 foreach (var property in descriptor.Properties)
                 {
+                    // 条件可见：同一属性在不同呈现/模式下是否有效（如 ComboBox 的 ShowSeparator 只在 Text 呈现有效）。
+                    // 不隐藏的话，属性面板上会留下"改了没反应"的死开关（设计基线原则 06）。
+                    if (!property.IsVisibleFor(element))
+                        continue;
+
                     // AxisList 行要一个"选择轴…"入口，普通属性行没有这个动作。
                     // 判据是行的 Kind 自述，而不是图元类型——与编辑器按 Kind 分流同一手法。
                     // 摘要显示的名字按 Id 从注册表现取（落盘 JSON 里那份是"选的时候"的名字，
@@ -2562,9 +2569,10 @@ namespace VisionMaster.ViewModels
             // 预选当前已绑的那个变量，让"换绑"是"改一处"而不是"重新找一遍"。
             var current = elementRow.Element.FindBinding(elementRow.Key);
 
-            _picker.Pick(current?.VariableId ?? Guid.Empty, current?.VariableName, (id, name) =>
+            _picker.Pick(current?.VariableId ?? Guid.Empty, current?.VariableName,
+                current?.ArrayIndex ?? -1, (id, name, arrayIndex) =>
             {
-                if (!page.TrySetBinding(elementRow.Element, elementRow.Key, id, name, out var error))
+                if (!page.TrySetBinding(elementRow.Element, elementRow.Key, id, name, arrayIndex, out var error))
                     _notifier.ShowError(error);
             });
         }
@@ -2589,6 +2597,11 @@ namespace VisionMaster.ViewModels
 
             if (!UI.CustomControl.EasyDialog.ShowSync("配置列", editor))
                 return;
+
+            // 变量名为空的行由 codec 丢掉（配置容错），但必须<b>说出来</b>：
+            // 静默丢配置等于"我填了却没生效"，比报错更难查。
+            if (editor.DroppedCount > 0)
+                _notifier.ShowWarn($"已忽略 {editor.DroppedCount} 行未选变量的列（列必须绑定一个变量）");
 
             row.Value = editor.ResultJson;
         }

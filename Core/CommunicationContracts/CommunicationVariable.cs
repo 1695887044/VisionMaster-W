@@ -188,14 +188,22 @@ namespace VisionMaster.Communications
             if (ReferenceEquals(old, newValue)) return false;
             if (old is null || newValue is null) return true;
 
-            // byte[]（字节串/原始帧）：段读每轮都切出新数组，Object.Equals 对数组是引用比较——
+            // 数组（byte[] / 数值数组 / bool[]…）：段读每轮都切出新数组，Object.Equals 对数组是引用比较——
             // 引用永不相等 → 每个轮询周期都触发一次 ValueChanged（几万点场景的事件风暴源）。
-            // 必须按内容逐字节比较。
-            if (old is byte[] oldBytes && newValue is byte[] newBytes)
+            // 必须按内容逐元素比较。byte[] 走下面的逐字节快路径（不装箱）；其余数组按 Equals 比元素。
+            if (old is Array oldArray && newValue is Array newArray)
             {
-                if (oldBytes.Length != newBytes.Length) return true;
-                for (int i = 0; i < oldBytes.Length; i++)
-                    if (oldBytes[i] != newBytes[i]) return true;
+                if (oldArray.Length != newArray.Length) return true;
+
+                if (oldArray is byte[] oldBytes && newArray is byte[] newBytes)
+                {
+                    for (int i = 0; i < oldBytes.Length; i++)
+                        if (oldBytes[i] != newBytes[i]) return true;
+                    return false;
+                }
+
+                for (int i = 0; i < oldArray.Length; i++)
+                    if (!Equals(oldArray.GetValue(i), newArray.GetValue(i))) return true;
                 return false;
             }
 

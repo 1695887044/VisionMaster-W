@@ -208,8 +208,10 @@ namespace UI.CustomControl
                 return "Enter 关闭";
 
             var secondary = options.SecondaryText ?? string.Empty;
+            if (options.PrimaryTone == MessageTone.Danger)
+                return $"Enter {secondary} · Esc {secondary} · 危险操作需点击或 Tab 到「{primary}」";
             return defaultFocus == MessageResult.Secondary
-                ? $"Enter {secondary} · 危险操作需点击或 Tab 到「{primary}」"
+                ? $"Enter {secondary} · Esc {secondary}"
                 : $"Enter {primary} · Esc {secondary}";
         }
 

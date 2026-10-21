@@ -230,6 +230,7 @@ namespace FlowCanvasChecks
             PreProcessingChecks.Run();
             PortBindChecks.Run();
             GlobalVariableChecks.Run();
+            DeviceVariableIoChecks.Run();
             MotionChecks.Run();
             MotionZMotionChecks.Run();
             HardwareManagerChecks.Run();
@@ -254,6 +255,11 @@ namespace FlowCanvasChecks
 
             // 通讯立刻读 / 立刻写：元数据 / 端口候选 / 成功失败路径 / 发起前短路
             CommOperatorChecks.Run();
+
+            // 数据链路（P0-B）：结果上报 / CSV 记录 / Excel 报表的行为断言
+            ResultUploadChecks.Run();
+            DataRecordChecks.Run();
+            ExcelExportChecks.Run();
 
             // C#脚本：变量改名/删行的连线收尾（孤儿键会让整条流程编译失败）+ 补全插入可编译模板
             CSharpScriptChecks.Run();

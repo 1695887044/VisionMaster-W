@@ -25,4 +25,10 @@
       <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
     </Reference>
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- 断言宿主要直调 RecordingHub 的临时目录/冲刷钩子（内部类型，不扩大 public 面） -->
+    <InternalsVisibleTo Include="FlowCanvasChecks" />
+    <InternalsVisibleTo Include="DataPipelineChecks" />
+  </ItemGroup>
 </Project>

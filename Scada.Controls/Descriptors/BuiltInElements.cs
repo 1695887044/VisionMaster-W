@@ -665,16 +665,37 @@ namespace VisionMaster.Scada.Controls
                 DefaultWidth = 160,
                 DefaultHeight = 32,
                 Description = "枚举型下拉：绑一个 int 变量，用「选项映射」（0=手动;1=自动;2=检修）把数值翻译成显示名。" +
-                              "用户选择后写回变量；运行态变量变化只更新显示、不回写（否则会形成回写环）",
+                              "用户选择后写回变量；运行态变量变化只更新显示、不回写（否则会形成回写环）。" +
+                              "把「呈现方式」切到 Text 就是只读状态文本：不写变量、不带 chevron/原始值",
                 Properties = GeometryProperties.WithGroups(
-                    ScadaPropertyCatalog.Collect(typeof(ComboBoxElement)),
-                    AppearanceProperties.Fill("#FF151C23", "下拉框底色；深色运行画面用 surface 档"),
-                    AppearanceProperties.Stroke("#FF3A4A5C"),
-                    AppearanceProperties.StrokeThickness(),
-                    AppearanceProperties.CornerRadius("4"),
+                    ScadaPropertyCatalog.WithVisibility(
+                        ScadaPropertyCatalog.Collect(typeof(ComboBoxElement)),
+                        ("ShowSeparator", "Presentation", "Text"),
+                        ("Mode", "Presentation", "Field")),
+                    ScadaPropertyCatalog.WithVisibility(
+                        TextProperties.Text("标签", isBindable: false,
+                            description: "Text 呈现时显示在值左侧的说明字；留空则值独占整行。" +
+                                         "与 IOField 的「说明字」是同一个基类属性"),
+                        ("Text", "Presentation", "Text")),
+                    ScadaPropertyCatalog.WithVisibility(
+                        TextProperties.TextAlignment("Left",
+                            description: "Text 呈现的水平对齐；基类默认 Center，这里覆盖为 Left"),
+                        ("TextAlignment", "Presentation", "Text")),
+                    ScadaPropertyCatalog.WithVisibility(
+                        AppearanceProperties.Fill("#FF151C23", "下拉框底色；深色运行画面用 surface 档"),
+                        ("Fill", "Presentation", "Field")),
+                    ScadaPropertyCatalog.WithVisibility(
+                        AppearanceProperties.Stroke("#FF3A4A5C"),
+                        ("Stroke", "Presentation", "Field")),
+                    ScadaPropertyCatalog.WithVisibility(
+                        AppearanceProperties.StrokeThickness(),
+                        ("StrokeThickness", "Presentation", "Field")),
+                    ScadaPropertyCatalog.WithVisibility(
+                        AppearanceProperties.CornerRadius("4"),
+                        ("CornerRadius", "Presentation", "Field")),
                     TextProperties.Foreground("#FFE6EEF7", displayName: "文字颜色",
                         description: "默认浅色：运行画面是深色底，深色字会糊成一片"),
-                    TextProperties.FontSize(),
+                    TextProperties.FontSize("14"),
                     TextProperties.FontWeight()),
             },
 

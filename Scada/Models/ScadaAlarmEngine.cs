@@ -217,7 +217,14 @@ namespace VisionMaster.Scada
 
         /// <inheritdoc cref="Attach()"/>
         /// <param name="nowUtc">当前时刻（UTC）。断言里传假时间才能测延时与断线</param>
-        public void Attach(DateTime nowUtc)
+        public void Attach(DateTime nowUtc) => AttachCore(nowUtc, null);
+
+        /// <summary>
+        /// 挂载本体。<paramref name="carry"/> 是 Reload 带过来的“同一 AlarmId 的旧槽”：
+        /// 字段没变（变量/种类/阈值/回差/断线秒数/启用状态）就沿用旧记录与延时计时起点，
+        /// 这样运行中改一个提示文案不会把当前报警重新激活成新 RecordId。
+        /// </summary>
+        private void AttachCore(DateTime nowUtc, IReadOnlyList<CarrySlot>? carry)
         {
             var pending = new List<Action>();
 
@@ -238,9 +245,18 @@ namespace VisionMaster.Scada
 
                     var slot = new Slot(definition, nowUtc);
 
+                    // 同一 AlarmId 且“判定口径没变”的旧槽：沿用记录与延时计时起点。
+                    // 只改文案/严重度/报警组时不该把当前报警重新激活成新记录。
+                    var old = carry?.FirstOrDefault(c => c.AlarmId == definition.AlarmId);
+                    if (old != null && CanCarry(old, definition))
+                    {
+                        slot.Record = old.Record;
+                        slot.ConditionSinceUtc = old.ConditionSinceUtc;
+                    }
+
                     if (definition.IsEnabled
                         && _source != null
-                        && _source.TryResolve(definition.VariableId, definition.VariableName, out var handle)
+                        && _source.TryResolve(definition.ToReference(), out var handle, out _)
                         && handle != null)
                     {
                         slot.Handle = handle;
@@ -293,8 +309,9 @@ namespace VisionMaster.Scada
 
         /// <summary>
         /// 按当前定义重新挂载（用户运行中改了报警配置，或增删了报警）。
-        /// 已建立的报警态<b>不</b>保留：配置都变了，"上次那条还算不算"没有正确答案，
-        /// 从当前值重新判一遍才是可解释的行为。
+        /// <b>判定口径没变</b>（变量/种类/阈值/回差/断线秒数/启用状态）的旧记录会沿用，
+        /// 避免“只改一个提示文案就把当前报警重新激活成新 RecordId”；
+        /// 口径变了的条目从当前值重新判一遍——那是“配置语义变了”，保留旧态没有正确答案。
         ///
         /// 通常<b>不需要</b>手工调用：配置一改引擎就会置脏标记，下一次 <see cref="Tick"/> 自动重挂。
         /// 留成公开方法是为了给"改完想立刻看到结果"的调用方（比如组态界面的"应用"按钮）。
@@ -305,9 +322,60 @@ namespace VisionMaster.Scada
         /// <param name="nowUtc">当前时刻（UTC）</param>
         public void Reload(DateTime nowUtc)
         {
+            // 先把“判定口径没变”的旧记录捞出来，再重挂；否则每改一个提示文案，
+            // 当前还在报的报警都会换一个新 RecordId，CSV/JSON 多出一批重复行。
+            List<CarrySlot> carry;
+            lock (_gate)
+            {
+                carry = _slots
+                    .Select(s => new CarrySlot(
+                        s.AlarmId,
+                        s.IsEnabled,
+                        s.VariableId,
+                        s.VariableName,
+                        s.ArrayIndex,
+                        s.Kind,
+                        s.Threshold,
+                        s.Deadband,
+                        s.StaleSeconds,
+                        s.Record,
+                        s.ConditionSinceUtc))
+                    .ToList();
+            }
+
             Detach();
-            Attach(nowUtc);
+            AttachCore(nowUtc, carry);
         }
+
+        /// <summary>
+        /// 旧定义与新定义是否仍按同一口径判定。只比较“会改变触发结果”的字段；
+        /// 名称/文案/严重度/报警组变了不影响是否报，只影响展示，可以沿用旧记录。
+        /// <b>注意</b>：Reload 捕获的是旧字段的<b>值</b>，不是旧定义对象的引用——
+        /// 用户改的就是同一个对象，拿引用比较会永远相等（第一版就这么错过）。
+        /// </summary>
+        private static bool CanCarry(CarrySlot old, ScadaAlarmDefinition newDefinition)
+            => old.IsEnabled == newDefinition.IsEnabled
+               && old.VariableId == newDefinition.VariableId
+               && string.Equals(old.VariableName, newDefinition.VariableName, StringComparison.OrdinalIgnoreCase)
+               && old.ArrayIndex == newDefinition.ArrayIndex
+               && old.Kind == newDefinition.Kind
+               && old.Threshold.Equals(newDefinition.Threshold)
+               && old.Deadband.Equals(newDefinition.Deadband)
+               && old.StaleSeconds.Equals(newDefinition.StaleSeconds);
+
+        /// <summary>Reload 时带过来的旧槽快照（字段值副本；不持有句柄/订阅/定义引用）</summary>
+        private sealed record CarrySlot(
+            Guid AlarmId,
+            bool IsEnabled,
+            Guid VariableId,
+            string? VariableName,
+            int ArrayIndex,
+            ScadaAlarmKind Kind,
+            double Threshold,
+            double Deadband,
+            double StaleSeconds,
+            ScadaAlarmRecord? Record,
+            DateTime? ConditionSinceUtc);
 
         /// <summary>
         /// 节拍：推进时间。负责两件只有"时间流逝"才能触发的事——
@@ -700,10 +768,41 @@ namespace VisionMaster.Scada
             public Slot(ScadaAlarmDefinition definition, DateTime nowUtc)
             {
                 Definition = definition;
+
+                // 判定口径的“挂载时快照”：用户改的就是同一个定义对象，
+                // Reload 时再读 Definition.Threshold 已经是新值，没法拿来判断“变没变”。
+                AlarmId = definition.AlarmId;
+                IsEnabled = definition.IsEnabled;
+                VariableId = definition.VariableId;
+                VariableName = definition.VariableName;
+                ArrayIndex = definition.ArrayIndex;
+                Kind = definition.Kind;
+                Threshold = definition.Threshold;
+                Deadband = definition.Deadband;
+                StaleSeconds = definition.StaleSeconds;
+
                 LastValueAtUtc = nowUtc;
             }
 
             public ScadaAlarmDefinition Definition { get; }
+
+            public Guid AlarmId { get; }
+
+            public bool IsEnabled { get; }
+
+            public Guid VariableId { get; }
+
+            public string? VariableName { get; }
+
+            public int ArrayIndex { get; }
+
+            public ScadaAlarmKind Kind { get; }
+
+            public double Threshold { get; }
+
+            public double Deadband { get; }
+
+            public double StaleSeconds { get; }
 
             /// <summary>值通道；null = 被停用或解析不到变量（该槽完全空转）</summary>
             public IScadaValueHandle? Handle { get; set; }

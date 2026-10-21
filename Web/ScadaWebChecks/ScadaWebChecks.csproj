@@ -1,0 +1,80 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SCADA 运行态 Web 的协议层断言工程（M1b 探针 _WebProbe6 的正式化）。
+
+    为什么放在 Web\ 而不是 Plugins\ / Modules\
+    =========
+    · Plugins\ 会被 Directory.Build.targets 当插件投递到 Modules\（红线①），断言工程不是插件；
+    · 本工程只做"起一个真实 ScadaWebHost + 用 HTTP/WS 打它"，不引用 VisionMaster.exe，
+      所以它既能进 sln，也不参与 pack.ps1 的产物投递。
+
+    为什么显式引用 VM.Core / VM.Scada
+    =========
+    被测对象 VisionMaster.ScadaWeb 已经传递引用这两个工程；这里再显式列一次，
+    是为了让"断言用到的领域类型（ScadaDocument / ScadaRuntime / ScadaWebSettings）"
+    在 csproj 里可见（将来 Web 工程改引用方向时，断言工程不会静默少一半类型）。
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>ScadaWebChecks</AssemblyName>
+    <RootNamespace>ScadaWebChecks</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- CS0067：假值源的 ValueChanged 只被触发、没人订阅（断言替身的正常形态） -->
+    <NoWarn>$(NoWarn);CS0618;CS0067</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 被测对象：M1b 的快照 + 值帧 + 静态资源 -->
+    <ProjectReference Include="..\VisionMaster.ScadaWeb\VisionMaster.ScadaWeb.csproj" />
+    <!-- 领域模型 / 运行态会话 / 软件配置（ScadaWebSettings） -->
+    <ProjectReference Include="..\..\Core\VM.Core.csproj" />
+    <ProjectReference Include="..\..\Scada\VM.Scada.csproj" />
+  </ItemGroup>
+
+  <!--
+    Watson 在 Web 工程里是 Private=false（模块从宿主目录解析同一份），
+    断言工程是独立可执行文件，必须自带一份，否则运行期找不到 WatsonWebserver.dll。
+  -->
+  <ItemGroup>
+    <Reference Include="WatsonWebserver">
+      <HintPath>..\..\DLL\Watson\WatsonWebserver.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="IpMatcher">
+      <HintPath>..\..\DLL\Watson\IpMatcher.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="RegexMatcher">
+      <HintPath>..\..\DLL\Watson\RegexMatcher.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Timestamps">
+      <HintPath>..\..\DLL\Watson\Timestamps.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UrlMatcher">
+      <HintPath>..\..\DLL\Watson\UrlMatcher.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    静态资源兜底投递（与 _WebProbe6 同源）：Web 工程的 Content 正常情况下会随工程引用
+    进输出目录；这里显式再挂一份，保证 AppContext.BaseDirectory\wwwroot 一定有文件
+    （ScadaWebHost.ResolveStaticFile 的第二个候选根）。
+  -->
+  <ItemGroup>
+    <Content Include="..\VisionMaster.ScadaWeb\wwwroot\**\*"
+             Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
