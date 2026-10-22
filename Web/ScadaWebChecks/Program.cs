@@ -863,8 +863,91 @@ namespace ScadaWebChecks
                                 ? "未收到 error"
                                 : $"code={bad.Value<string>("code")} message={bad.Value<string>("message")}");
                     }
+
+                    // 正常连接走完"预留 → 晋升 → 释放"：关闭后两本账都必须归零，
+                    // 否则下一次启动会把 16 个名额慢慢漏光（B55c 是 24 槽的集成反证）。
+                    var admissionSettled = await WaitUntilAsync(
+                        () => host.AdmittedCount == 0 && host.HandshakeCount == 0, 3000);
+
+                    Check("B55c", admissionSettled,
+                        $"admitted={host.AdmittedCount} handshake={host.HandshakeCount}");
                 }
             }
+
+            // ---------------- B55/B55b：24 槽准入闸（16 活跃 + 8 握手，5s TTL） ----------------
+            {
+                var now = new DateTime(2026, 10, 22, 12, 0, 0, DateTimeKind.Utc);
+                var gate = new ScadaWebAdmissionGate(maxActive: 16);
+
+                var reserved = 0;
+                for (var i = 0; i < 8; i++)
+                {
+                    if (gate.TryReserveHandshake("h" + i, now.AddSeconds(30), now, out _))
+                        reserved++;
+                }
+
+                var ninth = gate.TryReserveHandshake("h8", now.AddSeconds(30), now, out _);
+
+                var promoted = 0;
+                for (var i = 0; i < 8; i++)
+                {
+                    if (gate.TryPromote("h" + i, now, out _))
+                        promoted++;
+                }
+
+                var secondBatch = 0;
+                for (var i = 8; i < 16; i++)
+                {
+                    if (gate.TryReserveHandshake("h" + i, now.AddSeconds(30), now, out _))
+                        secondBatch++;
+                }
+
+                var promoted2 = 0;
+                for (var i = 8; i < 16; i++)
+                {
+                    if (gate.TryPromote("h" + i, now, out _))
+                        promoted2++;
+                }
+
+                // 活跃已满时仍允许"占握手槽"（在途），但第 17 个活跃一定转不过去
+                for (var i = 16; i < 24; i++)
+                    gate.TryReserveHandshake("h" + i, now.AddSeconds(30), now, out _);
+
+                var overflow = gate.TryPromote("h16", now, out _);
+                gate.ReleaseActive();
+                var afterRelease = gate.TryPromote("h17", now, out _);
+
+                Check("B55",
+                    reserved == 8 && !ninth && promoted == 8 && secondBatch == 8 && promoted2 == 8
+                    && !overflow && afterRelease && gate.ActiveCount == 16,
+                    $"预留={reserved} 第9={ninth} 晋升={promoted}/{promoted2} 溢出={overflow} "
+                    + $"释放后={afterRelease} active={gate.ActiveCount} handshake={gate.HandshakeCount}");
+
+                var ttlGate = new ScadaWebAdmissionGate(maxActive: 4, maxHandshake: 2);
+                ttlGate.TryReserveHandshake("a", now.AddSeconds(30), now, out _);
+                ttlGate.TryReserveHandshake("b", now.AddSeconds(30), now, out _);
+                var third = ttlGate.TryReserveHandshake("c", now.AddSeconds(30), now, out _);
+                var swept = ttlGate.SweepExpired(now.AddSeconds(6));
+                var promoteAfterTtl = ttlGate.TryPromote("a", now.AddSeconds(6), out _);
+
+                ttlGate.TryReserveHandshake("d", now.AddSeconds(30), now, out _);
+                ttlGate.TryPromote("d", now, out _);
+                ttlGate.ReleaseActive();
+                ttlGate.ReleaseActive();
+                ttlGate.ReleaseActive();
+
+                Check("B55b",
+                    !third && swept == 2 && !promoteAfterTtl
+                    && ttlGate.ActiveCount == 0 && ttlGate.HandshakeCount == 0,
+                    $"第3={third} 清扫={swept} TTL后晋升={promoteAfterTtl} "
+                    + $"active={ttlGate.ActiveCount} handshake={ttlGate.HandshakeCount}");
+            }
+
+            // ---------------- B56：第 17 个活跃走 WS 1013（不是 HTTP 503） ----------------
+            await RunAdmissionHostChecksAsync(http);
+
+            // ---------------- B57：/api/catalog 暴露 DefaultValue + 客户端首帧补键 ----------------
+            await RunCatalogChecksAsync(http);
 
             // ---------------- B45：死连接回收（判死阈值压到 1s；运行已停止，双向都无进展） ----------------
             {
@@ -1632,6 +1715,206 @@ namespace ScadaWebChecks
             {
                 await host.StopAsync();
             }
+        }
+
+        /// <summary>
+        /// B56：24 槽的容量行为。MaxSessions=1 时：
+        /// 第一个连接正常入册（admitted=1、handshake=0）；
+        /// 第二个客户端仍能取票并通过握手（握手预留槽），但转活跃时被 1013 拒绝——
+        /// 不是 HTTP 503（那会被前端渲染成"登录失败"）。
+        /// </summary>
+        private static async Task RunAdmissionHostChecksAsync(HttpClient http)
+        {
+            var port = GetFreePort();
+            var document = new ScadaDocument();
+            var page = document.AddPage("准入页");
+            page.Version = 1;
+            document.SetStartupPage(page);
+
+            var runtime = new ScadaRuntime(document);
+            runtime.Start();
+
+            var hub = new FakeRunHub();
+            hub.SetRunning(runtime, document, 1);
+
+            var settings = new ScadaWebSettings
+            {
+                Enabled = true,
+                Port = port,
+                BindAddress = "127.0.0.1",
+                AllowAnonymousView = true,
+                MaxSessions = 1
+            };
+
+            var host = new ScadaWebHost(hub, authenticator: null, catalog: null, new FakeLog(), settings);
+            host.Start();
+
+            if (!host.IsListening)
+            {
+                Check("B56", false, $"准入宿主未启动：{host.LastError ?? "<none>"}");
+                Check("B56b", false, $"准入宿主未启动：{host.LastError ?? "<none>"}");
+                return;
+            }
+
+            var baseUrl = $"http://127.0.0.1:{port}";
+            var wsBase = $"ws://127.0.0.1:{port}";
+
+            try
+            {
+                var firstIssue = await IssueTicketAsync(http, baseUrl);
+                var (firstConnected, firstError, firstSocket) =
+                    await ConnectAsync($"{wsBase}/ws?ticket={firstIssue.Ticket}");
+
+                if (!firstConnected || firstSocket == null)
+                {
+                    Check("B56", false, $"首连接失败 err={firstError ?? "<none>"}");
+                    Check("B56b", false, $"首连接失败 err={firstError ?? "<none>"}");
+                    return;
+                }
+
+                int? secondCloseCode = null;
+                var secondHandshake = false;
+
+                using (firstSocket)
+                {
+                    await ReceiveUntilAsync(firstSocket, m => TypeOf(m) == "hello", 3000);
+                    await ReceiveUntilAsync(firstSocket, m => TypeOf(m) == "snapshot", 5000);
+
+                    var admitted = host.AdmittedCount;
+                    var handshake = host.HandshakeCount;
+
+                    var secondIssue = await IssueTicketAsync(http, baseUrl);
+                    var (secondConnected, secondError, secondSocket) =
+                        await ConnectAsync($"{wsBase}/ws?ticket={secondIssue.Ticket}");
+
+                    secondHandshake = secondConnected;
+
+                    if (secondSocket != null)
+                    {
+                        using (secondSocket)
+                            secondCloseCode = await WaitForCloseCodeAsync(secondSocket, 5000);
+                    }
+                    else
+                    {
+                        _ = secondError;
+                    }
+
+                    Check("B56",
+                        admitted == 1 && handshake == 0
+                        && secondHandshake && secondCloseCode == 1013,
+                        $"admitted={admitted} handshake={handshake} "
+                        + $"secondHandshake={secondHandshake} "
+                        + $"closeCode={secondCloseCode?.ToString() ?? "<none>"}（期望 1013）");
+                }
+
+                var settled = await WaitUntilAsync(
+                    () => host.AdmittedCount == 0 && host.HandshakeCount == 0, 3000);
+
+                Check("B56b", settled,
+                    $"admitted={host.AdmittedCount} handshake={host.HandshakeCount}");
+            }
+            finally
+            {
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// B57：默认值只有一个事实源（/api/catalog 的 Properties[].DefaultValue）。
+        /// ① 服务端把默认值原样发出来（空串 = 没默认，客户端不补）；
+        /// ② app.js 的补键函数必须在 createRecord 之前执行（否则渲染器已经读了字面回退）。
+        /// </summary>
+        private static async Task RunCatalogChecksAsync(HttpClient http)
+        {
+            var port = GetFreePort();
+            var settings = new ScadaWebSettings
+            {
+                Enabled = true,
+                Port = port,
+                BindAddress = "127.0.0.1",
+                AllowAnonymousView = true,
+                MaxSessions = 2
+            };
+
+            var host = new ScadaWebHost(
+                hub: null,
+                authenticator: null,
+                catalog: new FakeRenderCatalog(),
+                log: new FakeLog(),
+                settings: settings);
+
+            host.Start();
+
+            if (!host.IsListening)
+            {
+                Check("B57", false, $"目录宿主未启动：{host.LastError ?? "<none>"}");
+                return;
+            }
+
+            try
+            {
+                var (status, _, body) = await GetAsync(http, $"http://127.0.0.1:{port}/api/catalog");
+                var json = TryJson(body);
+                var items = json?["items"] as JArray;
+                var first = items?.FirstOrDefault() as JObject;
+                var props = first?["Properties"] as JArray;
+                var format = props?.FirstOrDefault() as JObject;
+                var empty = props?.Count > 1 ? props[1] as JObject : null;
+
+                Check("B57",
+                    status == 200
+                    && first?.Value<string>("TypeKey") == "Hmi.Text"
+                    && format?.Value<string>("Key") == "Format"
+                    && format.Value<string>("DefaultValue") == "HH:mm:ss"
+                    && empty?.Value<string>("DefaultValue") == string.Empty,
+                    $"status={status} type={first?.Value<string>("TypeKey")} "
+                    + $"format={format?.Value<string>("DefaultValue")} "
+                    + $"empty={(empty == null ? "<缺失>" : "\"" + empty.Value<string>("DefaultValue") + "\"")}");
+            }
+            finally
+            {
+                await host.StopAsync();
+            }
+
+            // 静态闸：补键必须在 createRecord 之前（函数体位置只作"先后"判据，不钉行号）。
+            var root = FindSourceWwwRoot();
+            var appJs = root == null ? string.Empty : Path.Combine(root, "app.js");
+            var text = File.Exists(appJs) ? File.ReadAllText(appJs) : string.Empty;
+            var normalizeAt = text.IndexOf("applyCatalogDefaults(el.Properties, el.TypeKey)", StringComparison.Ordinal);
+            var createAt = text.IndexOf("function createRecord(", StringComparison.Ordinal);
+            var loadAt = text.IndexOf("loadCatalog();", StringComparison.Ordinal);
+
+            Check("B57b",
+                normalizeAt > 0 && createAt > normalizeAt && loadAt > 0,
+                $"appJs={(appJs == null ? "<未找到>" : appJs)} normalizeAt={normalizeAt} "
+                + $"createAt={createAt} loadAt={loadAt}");
+        }
+
+        private sealed class FakeRenderCatalog : IScadaRenderCatalog
+        {
+            public IReadOnlyList<ScadaElementDescriptorInfo> All { get; } = new[]
+            {
+                new ScadaElementDescriptorInfo
+                {
+                    TypeKey = "Hmi.Text",
+                    DisplayName = "文本",
+                    Properties = new[]
+                    {
+                        new ScadaElementPropertyInfo
+                        {
+                            Key = "Format",
+                            DisplayName = "格式",
+                            DefaultValue = "HH:mm:ss"
+                        },
+                        new ScadaElementPropertyInfo
+                        {
+                            Key = "Empty",
+                            DisplayName = "空默认",
+                            DefaultValue = string.Empty
+                        }
+                    }
+                }
+            };
         }
 
         private sealed class FakeRuntimeDataProvider : IScadaRuntimeDataProvider

@@ -83,6 +83,10 @@
     sessionRef: '',
     runGeneration: 0,
     caps: null,
+    // 图元目录默认值（TypeKey → {属性键: 默认字符串}），首屏前拉一次；
+    // 它是"模型没写这个键时该画什么"的唯一事实源（见 loadCatalog）。
+    catalogDefaults: null,
+    catalogPromise: null,
     lease: null,
     leaseBusy: false,
     alarms: [],
@@ -434,7 +438,121 @@
         return bag[k];
       }
     }
+
+    // 目录比首帧晚到时（非阻塞加载）仍能给出正确默认值；normalizeElement 的
+    // 补键是主路径，这里是"首帧已经画完、重放还没发生"的兜底。
+    var defaults = catalogDefaultsFor(el && el.TypeKey);
+    if (defaults) {
+      for (var d in defaults) {
+        if (Object.prototype.hasOwnProperty.call(defaults, d) && d.toLowerCase() === lower) {
+          return defaults[d];
+        }
+      }
+    }
+
     return fallback;
+  }
+
+  function hasPropertyIgnoreCase(bag, key) {
+    if (Object.prototype.hasOwnProperty.call(bag, key)) return true;
+
+    var lower = String(key).toLowerCase();
+    for (var k in bag) {
+      if (Object.prototype.hasOwnProperty.call(bag, k) && String(k).toLowerCase() === lower) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function catalogDefaultsFor(typeKey) {
+    if (!typeKey || !state.catalogDefaults) return null;
+    return state.catalogDefaults[typeKey] || null;
+  }
+
+  /**
+   * 把目录声明的默认值补进属性袋（只补缺失键，绝不覆盖模型里已有的值）。
+   * 补完之后渲染器里的字面回退（`prop(el,'Format','HH:mm:ss')`）对"模型没写"这一态
+   * 不再可达——默认值只有目录一份事实源，WPF 与 Web 不会各画一套。
+   */
+  function applyCatalogDefaults(props, typeKey) {
+    var defaults = catalogDefaultsFor(typeKey);
+    if (!defaults || !props) return;
+
+    for (var key in defaults) {
+      if (!Object.prototype.hasOwnProperty.call(defaults, key)) continue;
+      if (!hasPropertyIgnoreCase(props, key)) props[key] = defaults[key];
+    }
+  }
+
+  /** 目录晚到时给已经归一化过的整页补键（含基座页；基座只套一层）。 */
+  function applyCatalogDefaultsToPage(page) {
+    if (!page) return;
+
+    var lists = [page.Elements || []];
+    var bases = page.BasePages || [];
+    for (var i = 0; i < bases.length; i++) lists.push((bases[i] && bases[i].Elements) || []);
+
+    for (var l = 0; l < lists.length; l++) {
+      var list = lists[l];
+      for (var e = 0; e < list.length; e++) {
+        var el = list[e];
+        if (el) applyCatalogDefaults(el.Properties, el.TypeKey);
+      }
+    }
+  }
+
+  /**
+   * 拉一次图元目录（`/api/catalog` 无鉴权）。不阻塞连接：
+   * 快照可能先到，此时 normalizeElement 还不知道默认值；目录到达后重放一次当前页，
+   * 让"补键 → 重建记录"整体生效（10Hz 值帧会在下一拍补上实时值）。
+   */
+  function loadCatalog() {
+    if (state.catalogPromise) return state.catalogPromise;
+
+    state.catalogPromise = fetch('/api/catalog', { cache: 'no-store' })
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function (body) {
+        var items = body && (body.items || body.Items);
+        if (!Array.isArray(items)) return;
+
+        var map = {};
+        for (var i = 0; i < items.length; i++) {
+          var item = items[i] || {};
+          var typeKey = toText(pick(item, 'TypeKey', 'typeKey'), '');
+          if (!typeKey) continue;
+
+          var list = pick(item, 'Properties', 'properties') || [];
+          var defaults = {};
+          for (var j = 0; j < list.length; j++) {
+            var info = list[j] || {};
+            var key = toText(pick(info, 'Key', 'key'), '');
+            var value = pick(info, 'DefaultValue', 'defaultValue');
+            // 空串 = 描述符没给默认值（不是"默认值就是空串"），不补。
+            if (key && typeof value === 'string' && value.length > 0) {
+              defaults[key] = value;
+            }
+          }
+
+          map[typeKey] = defaults;
+        }
+
+        state.catalogDefaults = map;
+
+        // 首帧早于目录：已经画过一页就补键并重放一次（补键必须真的写进属性袋，
+        // 因为 elements-process.js 的 rawProp 不查目录；只重放不补键等于没做）。
+        if (state.page) {
+          applyCatalogDefaultsToPage(state.page);
+          renderSnapshot(state.page);
+        }
+      })
+      .catch(function (err) {
+        console.warn('[SCADA Web] 图元目录加载失败（沿用渲染器字面默认值）：', err);
+      });
+
+    return state.catalogPromise;
   }
 
   function normalizeElement(raw) {
@@ -510,6 +628,9 @@
       : String(operateReasonRaw);
     el.canOperate = el.CanOperate;
     el.operateReason = el.OperateReason;
+
+    // 目录默认值必须在任何渲染器读属性袋之前补好（createRecord 在 normalizePage 之后）。
+    applyCatalogDefaults(el.Properties, el.TypeKey);
 
     return el;
   }
@@ -746,8 +867,27 @@
         return state.alarms;
       },
       getOldestAlarm: oldestUnacknowledgedAlarm,
+      // 待确认报警条数：AckButton 用它当"值帧里没带 UnacknowledgedCount"时的兜底。
+      // 这个数是只读运行态（报警引擎经 alarms 广播下发），不是模型属性。
+      getUnacknowledgedCount: function () {
+        return state.unacknowledgedCount;
+      },
       color: cssColor,
       prop: prop,
+      /** 目录默认值（新渲染器优先用它，别再写第二份字面默认值） */
+      default: function (typeKey, key) {
+        var defaults = catalogDefaultsFor(typeKey);
+        if (!defaults) return undefined;
+        if (Object.prototype.hasOwnProperty.call(defaults, key)) return defaults[key];
+
+        var lower = String(key).toLowerCase();
+        for (var k in defaults) {
+          if (Object.prototype.hasOwnProperty.call(defaults, k) && String(k).toLowerCase() === lower) {
+            return defaults[k];
+          }
+        }
+        return undefined;
+      },
       pick: pick,
       toNumber: toNumber,
       toText: toText,
@@ -3967,6 +4107,9 @@
 
     updateTopbar();
     fit();
+
+    // 与连接并行拉取图元目录（不阻塞握手）；目录里的 DefaultValue 是默认值的唯一事实源。
+    loadCatalog();
 
     if (state.ticket) {
       connect();

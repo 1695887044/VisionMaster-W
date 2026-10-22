@@ -1794,6 +1794,13 @@
             var fromField = el ? el.UnacknowledgedCount : undefined;
             if (fromField === undefined) fromField = el ? el.unacknowledgedCount : undefined;
             var fallback = toNumber(fromField, 0);
+
+            // 模型里没有这个键（它是控件只读 DP）：值帧也不一定带，最终兜底用
+            // alarms 广播里的待确认条数，否则真实运行态永远显示 0。
+            if (fromField === undefined && typeof ctx.getUnacknowledgedCount === 'function') {
+                fallback = toNumber(ctx.getUnacknowledgedCount(), 0);
+            }
+
             var count = resolveNumber(el, frameValues, 'UnacknowledgedCount', fallback);
             return Math.max(0, Math.trunc(count));
         }

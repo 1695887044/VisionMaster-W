@@ -216,11 +216,12 @@ namespace VisionMaster.ScadaWeb
         private int _gridTick;
 
         /// <summary>
-        /// 已占用的活跃会话名额。用原子预占替代"先数 Count 再 TryAdd"的 TOCTOU：
-        /// 两个并发握手在旧写法下可以同时通过 16 的上限。
-        /// 注意：本批只做 16 活跃名额；8 个握手预留槽尚未实现（见剩余项清单）。
+        /// 准入闸：16 个活跃名额 + 8 个在途握手预留槽。
+        /// 用原子预占替代"先数 Count 再 TryAdd"的 TOCTOU：两个并发握手在旧写法下可以同时通过上限。
+        /// 活跃名额仍严格等于 <c>MaxSessions</c>；握手槽只给"票已核销、WS 还没入册"的窗口兜底
+        /// （见 <see cref="ScadaWebAdmissionGate"/> 的类注释）。
         /// </summary>
-        private int _admittedSessions;
+        private readonly ScadaWebAdmissionGate _admission;
 
         /// <summary>值帧循环上一拍看到的状态（只由循环线程写；<c>RunStopped</c> 处理器也会清它）</summary>
         private volatile bool _loopSawRunning;
@@ -325,6 +326,9 @@ namespace VisionMaster.ScadaWeb
             _lease = new ScadaWebLease();
             _policy = new ScadaWebAccessPolicy(_settings, _presence, _lease);
             _limiter = new ScadaWebRateLimiter(_settings);
+
+            _admission = new ScadaWebAdmissionGate(
+                _settings.MaxSessions > 0 ? _settings.MaxSessions : ScadaWebSettings.DefaultMaxSessions);
         }
 
         /// <summary>是否正在监听（<b>不是</b>运行态是否在跑；后者见 /api/status 的 running）</summary>
@@ -334,14 +338,13 @@ namespace VisionMaster.ScadaWeb
         public int OnlineCount => _sessions.Count;
 
         /// <summary>已占用的活跃名额（诊断/断言用；正常应等于 OnlineCount）</summary>
-        public int AdmittedCount => Math.Max(0, Volatile.Read(ref _admittedSessions));
+        public int AdmittedCount => _admission.ActiveCount;
 
-        /// <summary>释放一个活跃名额；减到负数时夹回 0（停服清表与 finally 的竞争窗口）</summary>
-        private void ReleaseAdmissionSlot()
-        {
-            if (Interlocked.Decrement(ref _admittedSessions) < 0)
-                Interlocked.Exchange(ref _admittedSessions, 0);
-        }
+        /// <summary>在途握手预留数（诊断/断言用；正常应为 0 或极短时间内的 1~8）</summary>
+        public int HandshakeCount => _admission.HandshakeCount;
+
+        /// <summary>释放一个活跃名额（减到 0 为止；停服清表与 finally 的竞争窗口下重复调用安全）</summary>
+        private void ReleaseAdmissionSlot() => _admission.ReleaseActive();
 
         /// <summary>实际生效的每帧每会话字节预算（诊断/断言用；配置值可能被 70Mbps 目标夹小）</summary>
         public int EffectiveFrameBudgetBytes => _frameBudgetBytes;
@@ -627,7 +630,7 @@ namespace VisionMaster.ScadaWeb
                 _presenceLoop = null;
                 sessions = _sessions.Values.ToArray();
                 _sessions.Clear();
-                Interlocked.Exchange(ref _admittedSessions, 0);
+                _admission.Clear();
                 _imageTokens.Clear();
                 _currentImageToken.Clear();
             }
@@ -910,7 +913,29 @@ namespace VisionMaster.ScadaWeb
 
             if (_tickets.TryRedeem(ticket, remoteIp, _settings.AllowCommands, out var grant, out var reason, out var errorCode))
             {
-                _log.Info($"[ScadaWeb] WS 握手放行：ticket={grant!.ShortTicket}…，"
+                // 24 槽：票已核销，先占握手槽（活跃仍严格 ≤ MaxSessions，槽只兜"在途握手"）。
+                // 槽满时票已经核销掉了，必须回收本次新签的会话令牌；续期票沿用客户端正在用的
+                // 8 小时令牌，回收它会把其它标签页一起登出（与 HandleWebSocket 的容量拒绝同一条口径）。
+                if (!_admission.TryReserveHandshake(ticket, grant!.ExpiresAtUtc, DateTime.UtcNow, out var admissionReason))
+                {
+                    var reclaimed = grant.SessionReused ? null : grant.Session?.Token;
+
+                    if (!string.IsNullOrEmpty(reclaimed))
+                        _tickets.RevokeSession(reclaimed);
+
+                    _log.Warn($"[ScadaWeb] WS 握手被拒：{admissionReason}"
+                        + $"（ticket={grant.ShortTicket}…，user={grant.UserName ?? "<匿名只读>"}）");
+
+                    AuditSecurity(grant.UserName, sessionId: null, remoteIp, "WS 握手", "在途握手容量",
+                        "握手鉴权", "拒绝",
+                        $"{admissionReason}，"
+                        + (grant.SessionReused ? "续期令牌保留（不回收）" : "已回收本次新签的会话令牌")
+                        + $"（ticket={grant.ShortTicket}）");
+
+                    return Task.FromResult(DenyAuth());
+                }
+
+                _log.Info($"[ScadaWeb] WS 握手放行：ticket={grant.ShortTicket}…，"
                     + $"user={grant.UserName ?? "<匿名只读>"}，role={grant.Role.DisplayName()}，"
                     + $"readOnly={grant.ReadOnly}");
 
@@ -1616,10 +1641,12 @@ namespace VisionMaster.ScadaWeb
 
             // 容量按"已占用的活跃名额"算：原子预占，避免 Count 与 TryAdd 之间的 TOCTOU。
             // 握手鉴权已经过了，这里拒绝不涉及身份泄露。
-            if (Interlocked.Increment(ref _admittedSessions) > maxSessions)
+            //
+            // 24 槽：Authenticate 已经为本条连接预留了握手槽，这里把它转成活跃槽。
+            // 失败有两种：活跃已满（1013），或预留已过期/不存在（票被重复使用、握手超过 5 秒）。
+            if (!_admission.TryPromote(ticket, DateTime.UtcNow, out var admissionReason))
             {
-                ReleaseAdmissionSlot();
-                _log.Warn($"[ScadaWeb] 会话已达上限 {maxSessions}，拒绝新连接");
+                _log.Warn($"[ScadaWeb] 会话准入被拒：{admissionReason}，拒绝新连接");
 
                 // 这条连接的身份在 TryRedeem 里已经核销。只有"本次新签"的令牌才回收；
                 // 续期票沿用客户端正在用的 8 小时令牌，回收它会把其它标签页一起登出
@@ -3300,6 +3327,9 @@ namespace VisionMaster.ScadaWeb
 
                 try
                 {
+                    // 先清过期的握手预留（5 秒 TTL）：握手失败/客户端中途放弃时没有人显式释放，
+                    // 不清就会让 8 个槽被"幽灵握手"占住，后续正常连接在 Authenticate 就被 401。
+                    _admission.SweepExpired(DateTime.UtcNow);
                     SweepDeadSessions();
                     BroadcastPresence();
                     RotateImageTokens();

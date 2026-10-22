@@ -116,6 +116,54 @@ namespace ScadaChecks
                 KnownMissingWebRenderers.All(key => expected.Contains(key)),
                 "悬空例外：" + string.Join("、",
                     KnownMissingWebRenderers.Where(key => !expected.Contains(key))));
+
+            // ------------------------------------------------------------------
+            // [WR5] 默认值一致性：渲染器从属性袋里读的每个键，必须在图元描述符里声明。
+            //
+            // 为什么只查"键在不在"，不查"字面默认值等不等于描述符默认值"：
+            // 客户端在 normalizeElement 里用 /api/catalog 的 DefaultValue 补键，
+            // 补完之后字面回退对"模型没写"这一态不可达；真正会漂移的是**读了一个
+            // 描述符根本不认识的键**（WPF 侧永远不会有值，Web 侧只能靠字面值画）。
+            // 这条闸不碰渲染器源码结构，只做"读键 ⊆ 声明键"的集合判断。
+            // ------------------------------------------------------------------
+            var readPattern = new Regex(
+                @"(?:prop|rawProp|boolProp|numProp|textProp|colorProp)\s*\(\s*[A-Za-z_$][\w$.]*\s*,\s*['""]([A-Za-z_$][\w$]*)['""]",
+                RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+            var readKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var file in jsFiles)
+            {
+                var text = File.ReadAllText(file);
+                foreach (Match match in readPattern.Matches(text))
+                    readKeys.Add(match.Groups[1].Value);
+            }
+
+            var declaredKeys = ElementRegistry.All
+                .SelectMany(d => d.Properties)
+                .Select(p => p.Key)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // 演示页夹具字段：只存在于 ?demo=1 的内置页面，不是模型属性。
+            // UnacknowledgedCount 是 AckButton 的只读运行态 DP（报警引擎经 alarms 广播供数）。
+            var runtimeOnlyKeys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["DemoConfirm"] = "演示页夹具字段（?demo=1 的按钮危险动作标记）",
+                ["DemoFail"] = "演示页夹具字段（?demo=1 的按钮失败标记）",
+                ["UnacknowledgedCount"] = "AckButton 只读运行态 DP（不是模型属性，经 alarms 广播供数）"
+            };
+
+            var undeclared = readKeys
+                .Where(k => !declaredKeys.Contains(k) && !runtimeOnlyKeys.ContainsKey(k))
+                .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            Check("[WR5] 渲染器读的属性键都在图元描述符里声明（防默认值漂移）",
+                readKeys.Count > 0 && undeclared.Length == 0,
+                readKeys.Count == 0
+                    ? "扫描器没有命中任何读键（解析器失效，不是「全都对」）"
+                    : undeclared.Length == 0
+                        ? $"读键 {readKeys.Count} 个全部有声明（演示夹具 {runtimeOnlyKeys.Count} 个豁免）"
+                        : "未声明的读键：" + string.Join("、", undeclared));
         }
 
         /// <summary>从断言宿主的 bin 目录向上找仓库根（含 Web\VisionMaster.ScadaWeb\wwwroot）。</summary>
