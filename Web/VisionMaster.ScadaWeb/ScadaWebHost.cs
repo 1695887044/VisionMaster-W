@@ -1821,6 +1821,10 @@ namespace VisionMaster.ScadaWeb
                     }));
                     return;
 
+                case ScadaWebCommandKinds.Result:
+                    HandleResultQuery(session, json);
+                    return;
+
                 case ScadaWebCommandKinds.LeaseAcquire:
                 case ScadaWebCommandKinds.LeaseRenew:
                 case ScadaWebCommandKinds.LeaseRelease:
@@ -1950,6 +1954,68 @@ namespace VisionMaster.ScadaWeb
                     error ?? "租约由他人持有",
                     result: snapshot);
             }
+        }
+
+        /// <summary>
+        /// <c>cmd.result</c>：按 <c>targetRequestId</c> 只读查询命令结果。
+        ///
+        /// <b>为什么在 WS 线程直答、不入泵</b>：查询是只读的，入泵会排在待查命令后面
+        /// （永远看不到 running），还会吃版本闸/审计 fail-closed/撤销闸；而 ack 丢失后
+        /// 用户最需要的正是"这条到底执行没有"。
+        ///
+        /// <b>边界</b>：撤销即关连接，撤销后不可查；30 分钟保留期外回 unknown；
+        /// 查询本身<b>不删除</b>幂等表条目（<see cref="ScadaWebCommandDedup.TryPeek"/>）。
+        /// </summary>
+        private void HandleResultQuery(ScadaWebSession session, JObject json)
+        {
+            var queryId = json.Value<string>("id") ?? string.Empty;
+            var target = json.Value<string>("targetRequestId");
+
+            if (string.IsNullOrWhiteSpace(target))
+            {
+                session.TrySend(Json(new
+                {
+                    type = "error",
+                    id = queryId,
+                    code = ScadaWebErrorCodes.BadRequest,
+                    message = "cmd.result 缺少 targetRequestId"
+                }));
+                return;
+            }
+
+            var key = session.Session?.Token ?? session.SessionId;
+
+            // 先赋初值再传 out：`_router?.Dedup.TryPeek(...) == true` 在 _router 为 null 时
+            // 不会执行 TryPeek，out 变量保持"未赋值"，编译器按明确赋值规则直接报错。
+            ScadaWebCommandResult? result = null;
+            var firstSeen = default(DateTime);
+            var found = _router != null
+                        && _router.Dedup.TryPeek(key, target, out result, out firstSeen);
+
+            var ageMs = found
+                ? Math.Max(0, (long)(DateTime.UtcNow - firstSeen).TotalMilliseconds)
+                : 0;
+
+            string state;
+
+            if (!found || ageMs > (long)ScadaWebCommandDedup.Retention.TotalMilliseconds)
+                state = "unknown";
+            else if (result == null)
+                state = "running";
+            else
+                state = result.Ok ? "succeeded" : "failed";
+
+            session.TrySend(Json(new
+            {
+                type = "result",
+                id = queryId,
+                targetRequestId = target,
+                state,
+                code = result?.Code,
+                message = result?.Message,
+                result = result?.Result,
+                ageMs
+            }));
         }
 
         /// <summary>

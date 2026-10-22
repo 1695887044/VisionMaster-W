@@ -27,6 +27,9 @@ namespace VisionMaster.ScadaWeb
         /// <summary>为危险动作申请一次性确认令牌</summary>
         public const string ConfirmRequest = "cmd.confirm.request";
 
+        /// <summary>按 targetRequestId 查询一条命令的结果（ack 丢失后的只读查询）</summary>
+        public const string Result = "cmd.result";
+
         /// <summary>取得操作权租约（M2b）</summary>
         public const string LeaseAcquire = "lease.acquire";
 

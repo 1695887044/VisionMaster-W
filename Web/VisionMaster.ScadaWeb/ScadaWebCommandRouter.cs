@@ -1309,6 +1309,36 @@ namespace VisionMaster.ScadaWeb
             }
         }
 
+        /// <summary>
+        /// 只读查询：按 (session, requestId) 看有没有记录/结果。
+        /// <b>绝不删除过期项</b>（与 <see cref="Check"/> 不同）——查询本身不能把证据清掉，
+        /// 否则一次查询会让随后的同 id 重试变成"新命令"而再次执行。
+        /// </summary>
+        public bool TryPeek(
+            string? sessionId,
+            string? requestId,
+            out ScadaWebCommandResult? result,
+            out DateTime firstSeenUtc)
+        {
+            result = null;
+            firstSeenUtc = default;
+
+            if (string.IsNullOrWhiteSpace(requestId))
+                return false;
+
+            var key = KeyOf(sessionId, requestId);
+
+            lock (_gate)
+            {
+                if (!_entries.TryGetValue(key, out var entry))
+                    return false;
+
+                result = entry.Result;
+                firstSeenUtc = entry.FirstSeenUtc;
+                return true;
+            }
+        }
+
         /// <summary>记下一条命令的首次执行结果（同一键已存在时保留最早那条）</summary>
         public void Complete(string? sessionId, string? requestId, ScadaWebCommandResult result)
         {

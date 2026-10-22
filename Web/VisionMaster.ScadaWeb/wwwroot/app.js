@@ -47,6 +47,8 @@
   var RECONNECT_BASE_MS = 1000;        // 指数退避：1s / 2s / 4s / 8s / 10s 封顶
   var RECONNECT_MAX_MS = 10000;
   var COMMAND_TIMEOUT_MS = 5000;       // M2 命令回执超时（5 秒）
+  var RESULT_QUERY_TIMEOUT_MS = 2000;  // cmd.result 单次查询超时
+  var RESULT_QUERY_MAX_ATTEMPTS = 3;   // running 状态下最多追问几次（含首次）
   // 业务自定义关闭码（ScadaWebHost）：4401 = 会话过期、4403 = 会话被撤销。
   // 两者都退回登录卡片；区别只在文案与"是否允许自动重连"（撤销 = 绝不重连）。
   var CLOSE_EXPIRED = 4401;
@@ -2718,6 +2720,13 @@
         }
         break;
 
+      case 'result':
+        var resultQueryId = toText(pick(message, 'id', 'Id'), '');
+        if (!resolvePendingResult(resultQueryId, message)) {
+          console.debug('[SCADA Web] 未匹配的 result（可能已超时）：', message);
+        }
+        break;
+
       case 'pong':
         break;
 
@@ -2898,14 +2907,24 @@
   // 11.5 M2 命令客户端
   //
   //   客户端发：cmd.element / cmd.input / cmd.alarm.ack / cmd.confirm.request
+  //             / cmd.result（ack 丢失后按 targetRequestId 查结果）
   //   服务端回：ack{id, ok, result} / error{id, code, message}
+  //             / result{id, targetRequestId, state, code, message, result, ageMs}
   //
-  //   每条命令进 pendingCommands，5 秒没有回执按 E_TIMEOUT 拒绝；
-  //   ack/error 到达时按 id resolve/reject 并清理（迟到回执只记 console.debug）。
+  //   每条命令进 pendingCommands，5 秒没有回执就**不急着判失败**：
+  //   先发 cmd.result 查这条到底执行没有（服务端在 WS 线程直答、只读）。
+  //   · succeeded → 按成功 resolve（ack 只是丢了，命令真做了）
+  //   · failed    → 按服务端 code/message reject
+  //   · running   → 最多追问 RESULT_QUERY_MAX_ATTEMPTS 次
+  //   · unknown   → 按 E_TIMEOUT reject（命令没到服务端，或已过保留期）
+  //   超时期间条目**留在 pendingCommands 里**：迟到的 ack 仍能正常结算，
+  //   查询返回时若发现已被 ack 结算就静默退出。**绝不自动重发**——重发可能把
+  //   一条已执行成功的命令再执行一遍（幂等表只认同一个 requestId）。
   //   演示模式不连服务端：本地 mock 返回同样的 ack/error 形状。
   // ---------------------------------------------------------------------------
 
   var pendingCommands = new Map();
+  var pendingResultQueries = new Map();
   var commandCounter = 0;
 
   function newRequestId() {
@@ -2961,6 +2980,107 @@
     for (var i = 0; i < ids.length; i++) {
       rejectPendingCommand(ids[i], code, message);
     }
+
+    // 结果查询也要一起收尾：否则断链后每个查询还要空等满 2 秒
+    var queryIds = [];
+    pendingResultQueries.forEach(function (entry, id) { queryIds.push(id); });
+    for (var j = 0; j < queryIds.length; j++) {
+      rejectPendingResult(queryIds[j], code, message);
+    }
+  }
+
+  function resolvePendingResult(id, message) {
+    var entry = pendingResultQueries.get(id);
+    if (!entry) return false;
+
+    pendingResultQueries.delete(id);
+    clearTimeout(entry.timer);
+    entry.resolve(message);
+    return true;
+  }
+
+  function rejectPendingResult(id, code, message) {
+    var entry = pendingResultQueries.get(id);
+    if (!entry) return false;
+
+    pendingResultQueries.delete(id);
+    clearTimeout(entry.timer);
+
+    var error = new Error(message || code || '结果查询失败');
+    error.code = code || 'E_RESULT_QUERY';
+    entry.reject(error);
+    return true;
+  }
+
+  /**
+   * 发一条 cmd.result 查询（只读，不需要版本闸/确认令牌）。
+   * 与命令共用 requestId 生成器，但走自己的 pendingResultQueries——
+   * 查询的 id 与目标命令的 id 必须分开，否则会互相抢回执。
+   */
+  function sendResultQuery(targetRequestId) {
+    return new Promise(function (resolve, reject) {
+      var id = newRequestId();
+      var entry = { id: id, resolve: resolve, reject: reject, timer: null };
+
+      entry.timer = setTimeout(function () {
+        if (!pendingResultQueries.has(id)) return;
+        pendingResultQueries.delete(id);
+        var error = new Error('结果查询超时（服务端未响应）');
+        error.code = 'E_RESULT_TIMEOUT';
+        reject(error);
+      }, RESULT_QUERY_TIMEOUT_MS);
+
+      pendingResultQueries.set(id, entry);
+
+      var socket = state.ws;
+      if (!socket || socket.readyState !== 1) {
+        pendingResultQueries.delete(id);
+        clearTimeout(entry.timer);
+        var offline = new Error('连接未就绪，无法查询执行结果');
+        offline.code = 'E_OFFLINE';
+        reject(offline);
+        return;
+      }
+
+      try {
+        socket.send(JSON.stringify({
+          type: 'cmd.result',
+          id: id,
+          targetRequestId: targetRequestId,
+        }));
+      } catch (err) {
+        pendingResultQueries.delete(id);
+        clearTimeout(entry.timer);
+        var sendError = new Error('结果查询发送失败');
+        sendError.code = 'E_SEND';
+        reject(sendError);
+      }
+    });
+  }
+
+  /**
+   * 追问一条命令的结果：running 时按间隔再问，最多 MAX_ATTEMPTS 次。
+   * 返回值统一成 { state, code, message, result }，由调用方决定 resolve/reject。
+   */
+  function queryCommandResult(targetRequestId, attempt) {
+    return sendResultQuery(targetRequestId).then(function (message) {
+      var outcome = {
+        state: toText(pick(message, 'state', 'State'), 'unknown').toLowerCase(),
+        code: toText(pick(message, 'code', 'Code'), ''),
+        message: toText(pick(message, 'message', 'Message'), ''),
+        result: pick(message, 'result', 'Result'),
+      };
+
+      if (outcome.state === 'running' && attempt + 1 < RESULT_QUERY_MAX_ATTEMPTS) {
+        return new Promise(function (resolve) {
+          setTimeout(resolve, 700);
+        }).then(function () {
+          return queryCommandResult(targetRequestId, attempt + 1);
+        });
+      }
+
+      return outcome;
+    });
   }
 
   /** 发一条命令并等回执（不接管确认流程；需要确认的 cmd.element 走 sendCommand）。 */
@@ -2979,11 +3099,56 @@
       entry.timer = setTimeout(function () {
         if (!pendingCommands.has(id)) return;
 
-        pendingCommands.delete(id);
-        var error = new Error('命令超时（5 秒内没有收到回执）');
-        error.code = 'E_TIMEOUT';
-        error.requestId = id;
-        reject(error);
+        // 先摘定时器，条目继续留着：迟到的 ack 仍可正常结算，
+        // 查询返回时若发现已被 ack 结算就静默退出（见下方 has(id) 守卫）。
+        clearTimeout(entry.timer);
+        entry.timer = null;
+
+        var timeoutError = function (detail) {
+          var error = new Error(detail || '命令超时（5 秒内没有收到回执，且未查到执行结果）');
+          error.code = 'E_TIMEOUT';
+          error.requestId = id;
+          return error;
+        };
+
+        // 演示模式没有服务端可查；断链时也查不了（rejectAllPending 会另行收尾）。
+        if (state.demo || !state.ws || state.ws.readyState !== 1) {
+          pendingCommands.delete(id);
+          reject(timeoutError('命令超时（5 秒内没有收到回执）'));
+          return;
+        }
+
+        queryCommandResult(id, 0).then(function (outcome) {
+          if (!pendingCommands.has(id)) return;
+
+          pendingCommands.delete(id);
+
+          if (outcome.state === 'succeeded') {
+            // ack 只是丢了，命令真的执行了：按成功结算，不误导操作员再点一次
+            console.debug('[SCADA Web] 命令回执丢失，但服务端确认已执行：', id);
+            resolve(outcome.result === undefined || outcome.result === null ? {} : outcome.result);
+            return;
+          }
+
+          if (outcome.state === 'failed') {
+            var failed = new Error(outcome.message || '命令执行失败');
+            failed.code = outcome.code || 'E_COMMAND';
+            failed.requestId = id;
+            reject(failed);
+            return;
+          }
+
+          reject(timeoutError(outcome.state === 'running'
+            ? '命令超时（5 秒内没有收到回执，服务端仍在执行）'
+            : '命令超时（5 秒内没有收到回执，且未查到执行记录）'));
+        }, function (queryError) {
+          if (!pendingCommands.has(id)) return;
+
+          pendingCommands.delete(id);
+          reject(timeoutError(
+            '命令超时（5 秒内没有收到回执；结果查询也失败：'
+            + (queryError && queryError.message ? queryError.message : '网络错误') + '）'));
+        });
       }, COMMAND_TIMEOUT_MS);
 
       pendingCommands.set(id, entry);

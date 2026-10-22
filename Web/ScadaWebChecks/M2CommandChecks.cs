@@ -1033,6 +1033,40 @@ namespace ScadaWebChecks
                     && world.Writer.Calls.Count == 0,
                     $"code={result.Code} message={result.Message} 写入={world.Writer.Calls.Count}");
             }
+
+            // cmd.result 的只读查询：执行过的命令可按 requestId 查到结果；
+            // 查询本身**不删除**幂等表条目——否则一次查询会让随后的同 id 重试
+            // 变成"新命令"而再执行一遍（这正是 cmd.result 存在的意义：查完还要能重放）。
+            {
+                using var world = new World(
+                    allowedActions: new[] { ScadaActionType.Log },
+                    requireConfirmForDangerous: false);
+
+                var hook = new ScadaEventHook { Event = ScadaEventType.Pressed };
+                hook.Actions.Add(new ScadaAction { Type = ScadaActionType.Log });
+                world.Element.EventHooks.Add(hook);
+
+                var session = world.RegisterSession("操作员寅", ScadaRole.Operator);
+                var command = world.ElementCommand(session, ScadaEventType.Pressed);
+                var executed = world.Router.Handle(command);
+
+                var key = session.Session?.Token ?? session.SessionId;
+                var firstFound = world.Router.Dedup.TryPeek(
+                    key, command.RequestId, out var cached, out var firstSeen);
+                var secondFound = world.Router.Dedup.TryPeek(
+                    key, command.RequestId, out var cachedAgain, out _);
+                var missingFound = world.Router.Dedup.TryPeek(
+                    key, "no-such-request", out _, out _);
+
+                Check("M2-13h",
+                    executed.Ok
+                    && firstFound && secondFound
+                    && cached?.Ok == true && cachedAgain?.Ok == true
+                    && !missingFound
+                    && firstSeen <= DateTime.UtcNow,
+                    $"执行={executed.Ok} 首查={firstFound} 复查={secondFound} "
+                    + $"未知={missingFound} 缓存={cached?.Code ?? "<null>"}");
+            }
         }
 
         // ==================================================================

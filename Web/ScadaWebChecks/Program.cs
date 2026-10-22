@@ -803,6 +803,69 @@ namespace ScadaWebChecks
             // ---------------- B53：DataGrid 行数据（独立宿主 + 假 IScadaRuntimeDataProvider） ----------------
             await RunGridChecksAsync(http);
 
+            // ---------------- B54：cmd.result 只读查询（ack 丢失后的兜底；主宿主 AllowCommands=false） ----------------
+            {
+                var resultIssue = await IssueTicketAsync(http, baseUrl);
+                var (resultConnected, resultError, resultSocket) =
+                    await ConnectAsync($"{wsBase}/ws?ticket={resultIssue.Ticket}");
+
+                if (!resultConnected || resultSocket == null)
+                {
+                    Check("B54", false, $"连接失败 err={resultError ?? "<none>"}");
+                    Check("B54b", false, $"连接失败 err={resultError ?? "<none>"}");
+                }
+                else
+                {
+                    using (resultSocket)
+                    {
+                        await ReceiveUntilAsync(resultSocket, m => TypeOf(m) == "hello", 3000);
+                        await ReceiveUntilAsync(resultSocket, m => TypeOf(m) == "snapshot", 5000);
+
+                        var queryId = Guid.NewGuid().ToString("N");
+                        await SendTextAsync(resultSocket, JsonConvert.SerializeObject(new
+                        {
+                            type = "cmd.result",
+                            id = queryId,
+                            targetRequestId = "missing-" + queryId
+                        }));
+
+                        var unknown = await ReceiveUntilAsync(
+                            resultSocket,
+                            m => TypeOf(m) == "result" && m.Value<string>("id") == queryId,
+                            3000);
+
+                        Check("B54",
+                            unknown != null
+                            && unknown.Value<string>("state") == "unknown"
+                            && unknown.Value<string>("targetRequestId") == "missing-" + queryId
+                            && unknown["ok"] == null,
+                            unknown == null
+                                ? "未收到 result"
+                                : $"state={unknown.Value<string>("state")} "
+                                  + $"target={unknown.Value<string>("targetRequestId")} "
+                                  + $"hasOk={unknown["ok"] != null}");
+
+                        var badQueryId = Guid.NewGuid().ToString("N");
+                        await SendTextAsync(resultSocket, JsonConvert.SerializeObject(new
+                        {
+                            type = "cmd.result",
+                            id = badQueryId
+                        }));
+
+                        var bad = await ReceiveUntilAsync(
+                            resultSocket,
+                            m => TypeOf(m) == "error" && m.Value<string>("id") == badQueryId,
+                            3000);
+
+                        Check("B54b",
+                            bad != null && bad.Value<string>("code") == "E_BAD_REQUEST",
+                            bad == null
+                                ? "未收到 error"
+                                : $"code={bad.Value<string>("code")} message={bad.Value<string>("message")}");
+                    }
+                }
+            }
+
             // ---------------- B45：死连接回收（判死阈值压到 1s；运行已停止，双向都无进展） ----------------
             {
                 hub.Stop();
