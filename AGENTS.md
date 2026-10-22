@@ -188,7 +188,7 @@
 |---|---|
 | R60 | **一页手册的身份只有「最后一个点之后」那段文件名**（`HelpCatalogService.GetPageFileName`）；必须先剥分册目录段（MSBuild 用**点**表达目录）再判 `IsDeveloperPage`，否则开发页混进用户目录。**前提由 HM6 钉住：文件名里除扩展名那点外不许再出现点。** |
 | R61 | **厚度按档位下限判**（HM17）：L 档 用户页≥5/开发页≥3/开发页行≥300；M 档 4/2/150；S 档 3/1/100；**未登记按 M 档**。**派工单必须抄三个数字。** |
-| R62 | **改过任何一页 `.md` 内容，产物就算脏**（R42 从"新增"扩到"改文案"）。**同族坑（2026-10-22 实测）**：`Plugin.Camera.Network`、`Plugin.ImageAssign` 不在 `VisionMaster.sln` 且**无任何工程引用 → 永不刷新**，收尾必须逐个 `--no-incremental`；`Plugin.DlClassify` 也不在 sln，但被 `FlowCanvasChecks.csproj` 引用顺带重建。 |
+| R62 | **改过任何一页 `.md` 内容，产物就算脏**（R42 从"新增"扩到"改文案"）。**同族坑（2026-10-22 已闭环）**：`Plugin.Camera.Network`、`Plugin.ImageAssign`、`Plugin.DlClassify` 曾不在 `VisionMaster.sln`——前两个无任何工程引用 → **永不刷新**，第三个只靠 `FlowCanvasChecks.csproj:31` 顺带重建；**VS「生成解决方案」三个都不编**。现 sln 已登记 **32/32** 插件工程。**判据：新增插件工程必须同时登记 sln**，否则 `Modules\` 里的 DLL 永久停在旧版且无任何报错（历史遗留项收尾仍要 `--no-incremental` 刷一次）。 |
 | R63 | **排版前提只有渲染级对照守得住**：① 渲染后残留字面 `**` 即红，额度只从代码上下文扣；② 代码块字体族必须显示得了代码上下文每个字符（判据"与无字形的 U+E000 位图逐像素相同"）。**跨行 `**…**` 是支持的，别修**；**测字形按 `Rune` 不按 `char`**；诊断带 `U+XXXX`。 |
 
 守门：`HelpProbe`。

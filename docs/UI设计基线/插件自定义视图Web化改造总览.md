@@ -53,7 +53,7 @@
 2. **真机验收**：所有 HALCON 画布/ROI/预览、右键菜单、拖拽、试算、确认后重开、关闭无泄漏均需在 VisionMaster 真机走查；离屏 PNG 不能替代。
 3. **640×560**：复杂三栏视图（PreProcessing 根滚动、Calibration/CaliperMeasure/Matching 窄档隐藏）需真机复核滚动与 HwndHost 表现；简单表单已按 560/600 适配。
 4. **插件专属断言**：通用 `--plugin-views` 是基线，不替代关键绑定断言；ColorCheck M2、部分插件（PreProcessing/Calibration 内参折叠区等）仍缺插件专属/负向断言，已登记在各 code-changes。
-5. **发布配置**：本轮验证以 Debug 为主；`pack.ps1` 打 Release，发布前需按 R55/R62 做 Release 重建并核对 `Modules` 时间戳/大小（尤其 `Plugin.Camera.Network`、`Plugin.ImageAssign` 不在 `VisionMaster.sln` 内）。
+5. **发布配置**：本轮验证以 Debug 为主；`pack.ps1` 打 Release，发布前需按 R55/R62 做 Release 重建并核对 `Modules` 时间戳/大小（`Plugin.Camera.Network`、`Plugin.ImageAssign` 曾不在 `VisionMaster.sln` 内，已于 2026-10-22 登记，现 32/32）。
 6. **P2/P3 与 FUNC 核销**：已按 4 组只读审查逐条核查 91 项，确认 79 项属实、11 项部分属实、1 项不属实；已修复 55 项（49 项 UI/DOC + 6 个 FUNC ID）。其中 FUNC 追加修复 CC4（试算使用画布当前图）、EE4（调度失败兜底）、BI4（BeadInspect 5 个入口）、BD6（BlobDetect 生命周期守卫）、YO3/DL1（Yolo/DlClassify 状态枚举）。其余 UI/DOC 修复含 ResultUpload M1~M3、DataRecord 空列名、ImageScript 列宽/状态条/双来源、CSharpScript ToolTip、ResultDisplay 可编辑判定项、Yolo 错误标题、Ocr Hint、CreateRoi ShapeTypeCN/ROI chip、Calibration 空态/左栏宽度、PreProcessing 文档 96px、ColorCheck HasRoi 等。剩余 TEST/真机/发布项见 [`插件遗留问题核查与修复结果.md`](插件遗留问题核查与修复结果.md)。
 7. **设计证据**：多数插件只有批量冒烟 920×520 初始态；4~5 张主态/空态/错误态证据需后续扩展 `UIThemeSmokeTest` 专属 render 模式（共享文件，本轮未改）。
 
