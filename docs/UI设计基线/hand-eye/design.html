@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>手眼标定配置窗口 · 设计基线 v1</title>
+<style>
+  :root{
+    --he-surface:#FFFFFF; --he-surface-2:#F8FAFC; --he-surface-3:#F1F5F9; --he-input:#F8FAFC;
+    --he-border:#E2E8F0; --he-border-soft:#EEF2F7; --he-border-strong:#CBD5E1; --he-card-border:#E3E9F2;
+    --he-text:#0F172A; --he-text-2:#475569; --he-text-3:#64748B; --he-text-4:#94A3B8;
+    --he-primary:#0EA5E9; --he-primary-dark:#0284C7; --he-primary-text:#0369A1;
+    --he-primary-soft:#F0F9FF; --he-primary-light:#E0F2FE; --he-primary-border:#BAE6FD;
+    --he-success:#22C55E; --he-success-text:#15803D; --he-success-soft:#F0FDF4; --he-success-border:#BBF7D0;
+    --he-warning:#F59E0B; --he-warning-text:#B45309; --he-warning-soft:#FFF4E5; --he-warning-border:#FDE68A;
+    --he-danger:#EF4444; --he-danger-text:#B91C1C; --he-danger-soft:#FEF2F2; --he-danger-border:#FECACA;
+    --he-mono:"Consolas","Cascadia Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:#EEF1F5; color:var(--he-text);
+    font-family:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    font-size:13px; -webkit-font-smoothing:antialiased;
+    padding:28px 24px 64px;
+  }
+  .doc-head{max-width:1000px;margin:0 auto 18px}
+  .doc-head h1{font-size:17px;margin:0 0 6px;font-weight:600}
+  .doc-head p{margin:0;color:var(--he-text-3);font-size:12px;line-height:1.7}
+  .doc-head code{font-family:var(--he-mono);font-size:11.5px;background:#fff;border:1px solid var(--he-border);border-radius:4px;padding:1px 5px}
+
+  .bar{max-width:1000px;margin:0 auto 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .bar .lbl{font-size:12px;color:var(--he-text-3);margin-right:2px}
+  .bar button{
+    font:inherit;font-size:12px;height:30px;padding:0 12px;border-radius:6px;cursor:pointer;
+    background:#fff;border:1px solid var(--he-border-strong);color:var(--he-text-2);
+  }
+  .bar button:hover{background:var(--he-surface-3)}
+  .bar button[aria-pressed="true"]{background:var(--he-primary);border-color:var(--he-primary);color:#fff}
+  .bar .sep{width:1px;height:22px;background:var(--he-border-strong);margin:0 6px}
+
+  /* ---------- window ---------- */
+  .win{
+    max-width:1000px;margin:0 auto;background:var(--he-surface);
+    border:1px solid var(--he-border-strong);border-radius:10px;overflow:hidden;
+    box-shadow:0 10px 30px rgba(15,23,42,.10);
+  }
+  .win-title{
+    height:40px;display:flex;align-items:center;gap:8px;padding:0 14px;
+    background:var(--he-surface-2);border-bottom:1px solid var(--he-border);
+    font-size:12.5px;color:var(--he-text-2);
+  }
+  .win-title .dot{width:8px;height:8px;border-radius:50%;background:var(--he-primary)}
+  .win-title .name{font-weight:600;color:var(--he-text)}
+  .win-title .spacer{flex:1}
+  .win-title .step{font-family:var(--he-mono);font-size:11px;color:var(--he-text-4)}
+
+  .body{display:flex;height:600px;background:var(--he-surface)}
+  body[data-width="640"] .body{height:600px}
+
+  /* ---------- left rail ---------- */
+  .rail{
+    width:360px;flex:0 0 360px;padding:14px;display:flex;flex-direction:column;overflow:hidden;
+    background:var(--he-surface-2);border-right:1px solid var(--he-border);
+  }
+  body[data-width="640"] .rail{width:300px;flex:0 0 300px;padding:12px}
+  .rail-scroll{flex:1;overflow:auto;padding-right:2px}
+  .rail-foot{flex:0 0 auto;padding-top:2px}
+  .rail-foot .card{margin-bottom:0}
+
+  .card{
+    background:var(--he-surface);border:1px solid var(--he-border-soft);border-radius:8px;
+    padding:14px;margin-bottom:12px;
+  }
+  .card-hd{display:flex;align-items:baseline;gap:8px;margin-bottom:10px}
+  .card-hd .t{font-size:12px;font-weight:600;color:var(--he-text-2)}
+  .card-hd .n{font-size:10.5px;color:var(--he-text-4);margin-left:auto}
+
+  .seg{display:flex;gap:0;border:1px solid var(--he-border);border-radius:6px;overflow:hidden}
+  .seg .o{
+    flex:1;height:34px;display:flex;align-items:center;justify-content:center;
+    font-size:12px;color:var(--he-text-2);background:var(--he-surface);cursor:default;
+  }
+  .seg .o + .o{border-left:1px solid var(--he-border)}
+  .seg .o[aria-pressed="true"]{background:var(--he-primary);color:#fff;font-weight:600}
+  .help{
+    display:flex;gap:6px;margin-top:8px;font-size:11.5px;line-height:1.65;color:var(--he-text-4);
+  }
+  .help svg{flex:0 0 12px;margin-top:2px}
+
+  .fld{margin-bottom:10px}
+  .fld:last-child{margin-bottom:0}
+  .fld .lb{display:block;font-size:12px;color:var(--he-text-2);margin-bottom:5px}
+  .link-row{
+    display:flex;align-items:center;gap:6px;height:36px;padding:0 10px;
+    border:1px dashed var(--he-border-strong);border-radius:6px;background:var(--he-surface);
+    font-size:12px;color:var(--he-text-4);
+  }
+  .link-row .chip{
+    font-family:var(--he-mono);font-size:11px;color:var(--he-primary-text);
+    background:var(--he-primary-soft);border:1px solid var(--he-primary-border);
+    border-radius:4px;padding:1px 6px;
+  }
+  .path-row{display:flex;gap:8px;margin-top:8px}
+  .path-row .box{
+    flex:1;min-width:0;height:36px;display:flex;align-items:center;padding:0 10px;
+    border:1px solid var(--he-border-strong);border-radius:6px;background:var(--he-input);
+    font-family:var(--he-mono);font-size:11.5px;color:var(--he-text);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .path-row .box.empty{color:var(--he-text-4);font-family:inherit;font-size:12px}
+  .path-row .btn{flex:0 0 auto}
+  .btn{
+    height:36px;padding:0 12px;border-radius:6px;border:1px solid var(--he-border-strong);
+    background:var(--he-surface);color:var(--he-text-2);font:inherit;font-size:12px;
+    display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  }
+  .btn.primary{width:100%;justify-content:center;background:var(--he-primary);border-color:var(--he-primary);color:#fff;font-weight:600}
+  .btn.ghost{height:30px;padding:0 10px}
+
+  .stat{display:flex;align-items:center;gap:7px;margin-top:10px;font-size:11.5px;line-height:1.6}
+  .stat .d{width:7px;height:7px;border-radius:50%;flex:0 0 7px}
+  .stat.ok{color:var(--he-success-text)} .stat.ok .d{background:var(--he-success)}
+  .stat.warn{color:var(--he-warning-text)} .stat.warn .d{background:var(--he-warning)}
+  .stat.err{color:var(--he-danger-text)} .stat.err .d{background:var(--he-danger)}
+  .stat.idle{color:var(--he-text-4)} .stat.idle .d{background:var(--he-text-4)}
+
+  .num{display:flex;gap:8px;align-items:center}
+  .num .inp{
+    flex:1;height:36px;display:flex;align-items:center;justify-content:flex-end;padding:0 10px;
+    border:1px solid var(--he-border-strong);border-radius:6px;background:var(--he-input);
+    font-family:var(--he-mono);font-size:12px;font-variant-numeric:tabular-nums;
+  }
+  .num .unit{font-size:11.5px;color:var(--he-text-4);width:26px}
+  .chk{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--he-text-2)}
+  .chk .b{width:16px;height:16px;border-radius:3px;border:1px solid var(--he-border-strong);background:var(--he-surface);display:flex;align-items:center;justify-content:center}
+  .chk .b.on{background:var(--he-primary);border-color:var(--he-primary)}
+
+  .tipbar{
+    margin-top:10px;padding:8px 10px;border-radius:6px;font-size:11.5px;line-height:1.6;
+    background:var(--he-surface-3);color:var(--he-text-3);
+  }
+
+  /* ---------- right workspace ---------- */
+  .work{flex:1;min-width:0;padding:14px;display:flex;flex-direction:column;gap:12px;overflow:auto}
+  body[data-width="640"] .work{padding:12px}
+  /* 640 窄档：路径框整行、按钮换行、页脚按钮不压扁（960 是真实对话框宽度，640 是压力档） */
+  body[data-width="640"] .path-row{flex-wrap:wrap}
+  body[data-width="640"] .path-row .box{flex:1 1 100%}
+  body[data-width="640"] .kpis{grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px 0}
+  body[data-width="640"] .kpi:last-child{grid-column:1 / -1}
+  body[data-width="640"] .thr{padding:10px 12px}
+  body[data-width="640"] .host-foot{flex-wrap:wrap;row-gap:8px}
+  body[data-width="640"] .host-foot > span:first-child{flex:1 1 100%}
+
+  .panel{
+    background:var(--he-surface);border:1px solid var(--he-border);border-radius:8px;
+  }
+  .panel-hd{
+    display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--he-border-soft);
+  }
+  .panel-hd .t{font-size:12px;font-weight:600;color:var(--he-text-2)}
+  .panel-hd .spacer{flex:1}
+  .chip{
+    font-size:11px;line-height:1;padding:5px 9px;border-radius:999px;border:1px solid transparent;
+  }
+  .chip.ok{background:var(--he-success-soft);border-color:var(--he-success-border);color:var(--he-success-text)}
+  .chip.warn{background:var(--he-warning-soft);border-color:var(--he-warning-border);color:var(--he-warning-text)}
+  .chip.err{background:var(--he-danger-soft);border-color:var(--he-danger-border);color:var(--he-danger-text)}
+  .chip.idle{background:var(--he-surface-3);border-color:var(--he-border);color:var(--he-text-3)}
+
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px 14px 0}
+  .thr{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;padding:12px 14px}
+  .thr .fld{margin-bottom:0}
+  .thr .wide{grid-column:1 / -1}
+  .kpi{background:var(--he-surface-2);border:1px solid var(--he-border-soft);border-radius:8px;padding:10px 12px}
+  .kpi .k{font-size:11px;color:var(--he-text-4);margin-bottom:4px}
+  .kpi .v{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;font-family:var(--he-mono);color:var(--he-text)}
+  .kpi .v small{font-size:11px;font-weight:400;color:var(--he-text-3);margin-left:2px}
+  .kpi .lim{font-size:10.5px;color:var(--he-text-4);margin-top:3px}
+  .kpi.bad .v{color:var(--he-danger-text)}
+  .kpi.bad .lim{color:var(--he-danger-text)}
+
+  .matrix-wrap{padding:12px 14px 14px}
+  .matrix{
+    background:var(--he-surface-2);border:1px solid var(--he-border-soft);border-radius:8px;
+    padding:12px;font-family:var(--he-mono);font-size:11.5px;font-variant-numeric:tabular-nums;
+    display:grid;grid-template-columns:34px repeat(4,minmax(0,1fr));gap:6px 10px;
+  }
+  .matrix .h{font-size:10.5px;color:var(--he-text-4);text-align:right;font-family:"Segoe UI","Microsoft YaHei UI",sans-serif}
+  .matrix .rh{font-size:10.5px;color:var(--he-text-4);display:flex;align-items:center}
+  .matrix .c{text-align:right;color:var(--he-text)}
+  .matrix .c.dim{color:var(--he-text-4)}
+  .matrix-note{display:flex;gap:8px;align-items:center;margin-top:8px;font-size:11px;color:var(--he-text-4);flex-wrap:wrap}
+  .matrix-note .k{font-family:var(--he-mono);color:var(--he-text-3)}
+
+  .foot{
+    margin-top:auto;display:flex;align-items:center;gap:8px;padding:9px 14px;
+    border-top:1px solid var(--he-border-soft);font-size:11.5px;color:var(--he-text-4);
+  }
+  .foot .spacer{flex:1}
+  .hintrow{
+    display:flex;gap:8px;align-items:flex-start;padding:10px 14px;border-radius:8px;
+    border:1px dashed var(--he-border-strong);background:var(--he-surface-2);
+    font-size:11.5px;line-height:1.7;color:var(--he-text-3);
+  }
+  .hintrow b{color:var(--he-text-2);font-weight:600}
+  .hintrow svg{flex:0 0 13px;margin-top:2px}
+
+  /* empty state */
+  .empty{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    border:1.5px dashed var(--he-border-strong);border-radius:10px;background:var(--he-surface-2);
+    padding:28px;text-align:left;
+  }
+  .empty .ico{width:44px;height:44px;border-radius:12px;background:var(--he-primary-soft);border:1px solid var(--he-primary-border);display:flex;align-items:center;justify-content:center}
+  .empty .t{font-size:13px;font-weight:600;color:var(--he-text-2)}
+  .empty ol{margin:0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:8px;max-width:420px}
+  .empty li{display:flex;gap:9px;font-size:12px;line-height:1.65;color:var(--he-text-3)}
+  .empty li b{color:var(--he-text-2);font-weight:600}
+  .empty li .idx{
+    flex:0 0 18px;height:18px;border-radius:5px;background:var(--he-surface);border:1px solid var(--he-border);
+    display:flex;align-items:center;justify-content:center;font-family:var(--he-mono);font-size:10.5px;color:var(--he-text-3);
+  }
+
+  /* error state */
+  .errbox{
+    background:var(--he-danger-soft);border:1px solid var(--he-danger-border);border-radius:8px;
+    padding:12px;position:relative;
+  }
+  .errbox .hd{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .errbox .hd .t{font-size:12px;font-weight:600;color:var(--he-danger-text)}
+  .errbox .hd .spacer{flex:1}
+  .errbox .body-txt{
+    font-family:var(--he-mono);font-size:11px;line-height:1.75;color:var(--he-danger-text);
+    max-height:132px;overflow:auto;white-space:pre-wrap;word-break:break-word;
+  }
+  .errbox .next{margin-top:10px;padding-top:10px;border-top:1px solid var(--he-danger-border);font-size:11.5px;color:var(--he-danger-text);line-height:1.7}
+  .errbox.warn{background:var(--he-warning-soft);border-color:var(--he-warning-border)}
+  .errbox.warn .hd .t,.errbox.warn .body-txt,.errbox.warn .next{color:var(--he-warning-text)}
+  .errbox.warn .next{border-top-color:var(--he-warning-border)}
+  .iconbtn{
+    width:30px;height:30px;border-radius:6px;border:1px solid transparent;background:transparent;
+    display:flex;align-items:center;justify-content:center;cursor:default;
+  }
+  .iconbtn:hover{background:rgba(15,23,42,.06)}
+
+  /* state visibility */
+  [data-state="default"] .only-empty,[data-state="default"] .only-failed{display:none}
+  [data-state="empty"] .only-default,[data-state="empty"] .only-failed{display:none}
+  [data-state="failed"] .only-default,[data-state="failed"] .only-empty{display:none}
+  [data-state="failed"] .hide-on-fail{display:none}
+  [data-state="empty"] .hide-on-empty{display:none}
+  .failed-stack{display:flex;flex-direction:column;gap:12px}
+
+  .host-foot{
+    max-width:1000px;margin:10px auto 0;padding:10px 14px;border:1.5px dashed var(--he-border-strong);
+    border-radius:8px;font-size:11.5px;color:var(--he-text-4);display:flex;gap:10px;align-items:center;
+    background:rgba(255,255,255,.6);
+  }
+  .host-foot .spacer{flex:1}
+  .host-foot .fake{height:30px;padding:0 16px;border-radius:6px;border:1px solid var(--he-border-strong);background:#fff;color:var(--he-text-4);display:flex;align-items:center;font-size:12px;white-space:nowrap;flex:0 0 auto}
+  .host-foot .fake.p{background:var(--he-primary);border-color:var(--he-primary);color:#fff}
+
+  .legend{max-width:1000px;margin:22px auto 0;font-size:11.5px;color:var(--he-text-3);line-height:1.8}
+  .legend h2{font-size:13px;margin:0 0 8px;color:var(--he-text-2)}
+  .legend table{border-collapse:collapse;width:100%;background:#fff;border:1px solid var(--he-border);border-radius:8px;overflow:hidden}
+  .legend th,.legend td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--he-border-soft);font-size:11.5px}
+  .legend th{background:var(--he-surface-2);color:var(--he-text-2);font-weight:600}
+  .legend tr:last-child td{border-bottom:none}
+  .legend code{font-family:var(--he-mono);font-size:11px;color:var(--he-primary-text)}
+</style>
+</head>
+<body data-state="default" data-width="960">
+
+<div class="doc-head">
+  <h1>手眼标定配置窗口 · 设计基线 v1</h1>
+  <p>
+    设计媒介，不进入构建、不部署（R126）。目标视图 <code>Plugins\Plugin.HandEye\HandEyeView.xaml</code>，尚未复刻。
+    点上方按钮切换四态；窗口内所有颜色均映射到 <code>Colors.xaml</code> 既有 <code>Dialog*</code> 令牌，本页不新增公共令牌。
+  </p>
+</div>
+
+<div class="bar">
+  <span class="lbl">状态</span>
+  <button data-s="default" aria-pressed="true">默认（求解完成）</button>
+  <button data-s="empty" aria-pressed="false">空态（未求解）</button>
+  <button data-s="failed" aria-pressed="false">失败（数据退化）</button>
+  <span class="sep"></span>
+  <span class="lbl">宽度</span>
+  <button data-w="960" aria-pressed="true">960</button>
+  <button data-w="640" aria-pressed="false">640 窄档</button>
+</div>
+
+<div class="win">
+  <div class="win-title">
+    <span class="dot"></span>
+    <span class="name">手眼标定</span>
+    <span>· 步骤参数</span>
+    <span class="spacer"></span>
+    <span class="step">Main / 步骤 7</span>
+  </div>
+
+  <div class="body">
+    <!-- ================= LEFT RAIL ================= -->
+    <div class="rail">
+      <div class="rail-scroll">
+
+      <div class="card">
+        <div class="card-hd"><span class="t">装法</span><span class="n">决定解出的 X 是什么</span></div>
+        <div class="seg">
+          <div class="o" aria-pressed="true">眼在手上</div>
+          <div class="o" aria-pressed="false">眼在手外</div>
+        </div>
+        <div class="help">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#94A3B8" stroke-width="1.3"/><path d="M8 7.2v4M8 5.1v.1" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span>相机装在机器人末端，随手一起动；解出的 <b>X = 夹爪←相机</b>。选错会让抓取点整体镜像。</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><span class="t">成对数据</span><span class="n">12 列 CSV</span></div>
+
+        <div class="fld">
+          <span class="lb">绑定上游路径（可选）</span>
+          <div class="link-row">
+            <span class="chip">SamplesPath</span>
+            <span class="hide-on-empty">未绑定 · 点右侧 🔗 可绑上游或变量</span>
+            <span class="only-empty">未绑定 · 可绑上游或变量</span>
+          </div>
+        </div>
+
+        <div class="fld">
+          <span class="lb">文件路径</span>
+          <div class="path-row">
+            <div class="box hide-on-empty">D:\data\handeye-20261022.csv</div>
+            <div class="box empty only-empty">选择机器人导出的成对位姿 CSV</div>
+            <div class="btn">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.2 5.4h3.1l1.1 1.5h7.4v6.1a1 1 0 0 1-1 1H3.2a1 1 0 0 1-1-1V5.4Z" stroke="#475569" stroke-width="1.3" stroke-linejoin="round"/></svg>
+              浏览…
+            </div>
+          </div>
+        </div>
+
+        <div class="stat ok hide-on-empty"><span class="d"></span><span>已读取 8 组 · 建议 ≥ 6 组 · 12 列校验通过</span></div>
+        <div class="stat idle only-empty"><span class="d"></span><span>尚未选择数据</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><span class="t">求解</span></div>
+        <div class="btn primary">求解手眼变换</div>
+        <div class="tipbar">求解只读数据，不改机器人；结果同时写入 <b>Transform</b> 端口。</div>
+      </div>
+
+      </div><!-- /rail-scroll -->
+    </div>
+
+    <!-- ================= RIGHT WORKSPACE ================= -->
+    <div class="work">
+
+      <!-- 质量门槛：常驻，与实测并排对照 -->
+      <div class="panel">
+        <div class="panel-hd">
+          <span class="t">质量门槛</span>
+          <span class="spacer"></span>
+          <span style="font-size:10.5px;color:var(--he-text-4)">超限即判失败 · 与下方实测并排对照</span>
+        </div>
+        <div class="thr">
+          <div class="fld">
+            <span class="lb">平移残差 RMS 上限</span>
+            <div class="num"><div class="inp">1.00</div><span class="unit">mm</span></div>
+          </div>
+          <div class="fld">
+            <span class="lb">旋转残差 RMS 上限</span>
+            <div class="num"><div class="inp">0.50</div><span class="unit">°</span></div>
+          </div>
+          <div class="fld wide">
+            <div class="chk"><span class="b on"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2.5 6.2 4.7 8.4 9.5 3.6" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>组数少于 6 组时判失败</span><span style="color:var(--he-text-4);font-size:11.5px">关掉后 3 组也能解，但解可能不稳</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- default -->
+      <div class="panel only-default">
+        <div class="panel-hd">
+          <span class="t">标定结果</span>
+          <span class="spacer"></span>
+          <span class="chip ok">完成</span>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi">
+            <div class="k">旋转残差 RMS</div>
+            <div class="v">0.021<small>°</small></div>
+            <div class="lim">上限 0.50</div>
+          </div>
+          <div class="kpi">
+            <div class="k">平移残差 RMS</div>
+            <div class="v">0.147<small>mm</small></div>
+            <div class="lim">上限 1.00</div>
+          </div>
+          <div class="kpi">
+            <div class="k">参与组数</div>
+            <div class="v">8</div>
+            <div class="lim">建议 ≥ 6</div>
+          </div>
+        </div>
+
+        <div class="matrix-wrap">
+          <div class="matrix">
+            <div class="h"></div>
+            <div class="h">X</div><div class="h">Y</div><div class="h">Z</div><div class="h">平移</div>
+
+            <div class="rh">X</div>
+            <div class="c">0.997</div><div class="c">-0.052</div><div class="c">0.061</div><div class="c">112.482</div>
+
+            <div class="rh">Y</div>
+            <div class="c">0.053</div><div class="c">0.998</div><div class="c">-0.031</div><div class="c">-34.117</div>
+
+            <div class="rh">Z</div>
+            <div class="c">-0.059</div><div class="c">0.034</div><div class="c">0.998</div><div class="c">240.005</div>
+
+            <div class="rh">t</div>
+            <div class="c dim">0</div><div class="c dim">0</div><div class="c dim">0</div><div class="c dim">1</div>
+          </div>
+          <div class="matrix-note">
+            <span>眼在手上 · <span class="k">X = T_gripper←camera</span> · 单位 mm · 行主序 16 元</span>
+            <span class="spacer" style="flex:1"></span>
+            <span>求解耗时 3 ms · 数据源 handeye-20261022.csv</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hintrow only-default">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#94A3B8" stroke-width="1.3"/><path d="M8 7.2v4M8 5.1v.1" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span>下一步：把 <b>Transform</b> 接到 <b>PoseTransform</b> 做运行期换算；或在结果比较节点里核对抓取点偏差。矩阵核对不了时，先怀疑<b>装法</b>选错（症状是抓取点整体镜像）。</span>
+      </div>
+
+      <!-- empty -->
+      <div class="empty only-empty">
+        <div class="ico">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5v-9Z" stroke="#0284C7" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M4 7.5 12 12l8-4.5M12 12v9" stroke="#0284C7" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="t">还没有求解结果</div>
+        <ol>
+          <li><span class="idx">1</span><span><b>选装法</b> —— 眼在手上 / 眼在手外。选错会让抓取点整体镜像。</span></li>
+          <li><span class="idx">2</span><span><b>给数据</b> —— 12 列 CSV（机器人 XYZ+rxryrz，相机 XYZ+rxryrz），至少 3 组、建议 ≥ 6 组。</span></li>
+          <li><span class="idx">3</span><span><b>点求解</b> —— 4×4 矩阵与旋转 / 平移残差会出现在这里。</span></li>
+        </ol>
+      </div>
+
+      <!-- failed -->
+      <div class="only-failed failed-stack">
+        <div class="panel">
+          <div class="panel-hd">
+            <span class="t">标定结果</span>
+            <span class="spacer"></span>
+            <span class="chip err">失败</span>
+          </div>
+
+          <div class="kpis">
+            <div class="kpi bad">
+              <div class="k">旋转残差 RMS</div>
+              <div class="v">—</div>
+              <div class="lim">上限 0.50</div>
+            </div>
+            <div class="kpi bad">
+              <div class="k">平移残差 RMS</div>
+              <div class="v">—</div>
+              <div class="lim">上限 1.00</div>
+            </div>
+            <div class="kpi">
+              <div class="k">参与组数</div>
+              <div class="v">0</div>
+              <div class="lim">未参与求解</div>
+            </div>
+          </div>
+
+          <div class="matrix-wrap">
+            <div class="errbox">
+              <div class="hd">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#B91C1C" stroke-width="1.4"/><path d="M8 4.6v4.2M8 10.9v.1" stroke="#B91C1C" stroke-width="1.6" stroke-linecap="round"/></svg>
+                <span class="t">求解失败 · 数据退化</span>
+                <span class="spacer"></span>
+                <span class="iconbtn"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5.2" y="5.2" width="7.6" height="7.6" rx="1.4" stroke="#B91C1C" stroke-width="1.3"/><path d="M3.2 10.4V4.1a1 1 0 0 1 1-1h6.3" stroke="#B91C1C" stroke-width="1.3" stroke-linecap="round"/></svg></span>
+              </div>
+              <div class="body-txt">旋转激励不足：相机侧最大旋转只有 0°（要求 ≥ 5°）。请让机器人以不同姿态取点（只平移或每次都回到同一姿态无法解出旋转）</div>
+              <div class="next">
+                <b>怎么办</b>：让机器人带相机走到至少 3 个明显不同的姿态再采一遍；只平移、或每次都回到同一姿态，都解不出旋转。
+              </div>
+            </div>
+            <div class="matrix-note"><span>失败时 <span class="k">Transform</span> 被置空，<span class="k">UsedPairs</span> 归零 —— 下游不会拿到上一次的旧矩阵。</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="foot">
+        <span class="d only-default" style="width:7px;height:7px;border-radius:50%;background:#22C55E"></span>
+        <span class="only-default">已求解 · 眼在手上 · 8 组</span>
+        <span class="only-empty">未求解</span>
+        <span class="d only-failed" style="width:7px;height:7px;border-radius:50%;background:#EF4444"></span>
+        <span class="only-failed">求解失败 · 数据退化</span>
+        <span class="spacer"></span>
+        <span>只读结果区 · 由端口驱动</span>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="host-foot">
+  <span>以下属于宿主 <code style="font-family:var(--he-mono);font-size:11px">PluginConfigShellView</code> 的页脚，插件视图不实现（R135：焦点与 ToolTip 由宿主统一提供）</span>
+  <span class="spacer"></span>
+  <span class="fake">执行</span>
+  <span class="fake">取消</span>
+  <span class="fake p">确认</span>
+</div>
+
+<div class="legend">
+  <h2>四态与判据</h2>
+  <table>
+    <thead><tr><th style="width:130px">状态</th><th style="width:210px">触发</th><th>右栏表现</th></tr></thead>
+    <tbody>
+      <tr><td>默认 / 完成</td><td><code>Transform != null</code> 且 <code>LastError</code> 为空</td><td>绿 chip + 三枚 KPI + 4×4 矩阵 + 语义副标题</td></tr>
+      <tr><td>空态 / 未求解</td><td><code>Transform == null</code> 且 <code>LastError</code> 为空</td><td>虚线空态卡 + 三步指引</td></tr>
+      <tr><td>失败 · 解不出（红）</td><td><code>LastError</code> 非空，原因是数据/数学问题</td><td>红 chip + KPI 转 <code>—</code> + 红色错误块（等宽全文 + 复制）+ 「怎么办」</td></tr>
+      <tr><td>失败 · 不达标（黄）</td><td>解出来了，但残差超上限</td><td>黄 chip + KPI 数值标红 + 「上限」小字并排 + 放宽门槛入口</td></tr>
+      <tr><td>窄档 640</td><td>窗口宽度 ≤ 640</td><td>左栏 300 + 右栏最小 260；矩阵字号 11.5→11，列间距 10→8</td></tr>
+    </tbody>
+  </table>
+  <p style="margin:12px 0 0">
+    红 / 黄的判据：<b>红 = 解不出来</b>（必须改数据）；<b>黄 = 解出来了但不达标</b>（可能只是门槛设紧了，用户有权放宽）。
+    两者都拦住结果，但只有黄态允许"放宽门槛"这个合法动作。
+  </p>
+</div>
+
+<script>
+  var bs = document.querySelectorAll('.bar button[data-s]');
+  var bw = document.querySelectorAll('.bar button[data-w]');
+  bs.forEach(function(b){
+    b.addEventListener('click', function(){
+      document.body.dataset.state = b.dataset.s;
+      bs.forEach(function(x){ x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+    });
+  });
+  bw.forEach(function(b){
+    b.addEventListener('click', function(){
+      document.body.dataset.width = b.dataset.w;
+      bw.forEach(function(x){ x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+    });
+  });
+</script>
+</body>
+</html>
