@@ -2098,4 +2098,145 @@
             }
         };
     };
+
+    // ----------------------------------------------------------------------
+    //  Hmi.AxisPanel / Hmi.AxisConsole / Hmi.AxisPointTable 只读轴显示
+    //
+    //  数据来自服务端 axis 消息（5Hz，IScadaAxisSource 投影）。A 范围下
+    //  不渲染任何使能/点动/回零/定位/示教/停止按钮；轴选择只存在客户端
+    //  （默认第一根候选轴），不跟随桌面 SelectedAxisId。
+    // ----------------------------------------------------------------------
+    function createAxisRenderer(el, ctx) {
+        var node = global.document.createElement('div');
+        node.className = 'hmi-axis-panel';
+        node.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;'
+            + 'background:rgba(14,19,24,0.55);border:1px solid #2A3745;border-radius:4px;'
+            + 'color:#E6EEF7;font:12px "Microsoft YaHei",sans-serif;box-sizing:border-box;padding:6px;';
+
+        var title = global.document.createElement('div');
+        title.style.cssText = 'display:flex;justify-content:space-between;align-items:center;'
+            + 'font-weight:600;margin-bottom:4px;white-space:nowrap;overflow:hidden;';
+        var titleText = global.document.createElement('span');
+        titleText.textContent = el.Name || '轴';
+        var badge = global.document.createElement('span');
+        badge.textContent = '只读';
+        badge.style.cssText = 'font-size:10px;color:#7C8A99;border:1px solid #3A4A5C;'
+            + 'border-radius:3px;padding:0 4px;';
+        title.appendChild(titleText);
+        title.appendChild(badge);
+        node.appendChild(title);
+
+        var grid = global.document.createElement('div');
+        grid.style.cssText = 'display:grid;grid-template-columns:auto 1fr;gap:2px 8px;'
+            + 'font-family:"Cascadia Mono",Consolas,monospace;font-size:11px;';
+        node.appendChild(grid);
+
+        var fields = [
+            ['位置', 'position', 3], ['速度', 'velocity', 2], ['状态', 'status', 0],
+            ['使能', 'enabled', 0], ['到位', 'inPosition', 0], ['运动', 'moving', 0],
+            ['报警', 'alarm', 0], ['正限位', 'positiveLimit', 0], ['负限位', 'negativeLimit', 0],
+            ['原点', 'origin', 0], ['急停', 'emergencyStop', 0]
+        ];
+        var valueNodes = {};
+
+        for (var i = 0; i < fields.length; i++) {
+            var label = global.document.createElement('span');
+            label.textContent = fields[i][0];
+            label.style.color = '#7C8A99';
+            var value = global.document.createElement('span');
+            value.textContent = '—';
+            grid.appendChild(label);
+            grid.appendChild(value);
+            valueNodes[fields[i][1]] = { node: value, digits: fields[i][2] };
+        }
+
+        var pointsHost = global.document.createElement('div');
+        pointsHost.style.cssText = 'margin-top:4px;font-family:"Cascadia Mono",Consolas,monospace;'
+            + 'font-size:11px;color:#B8C4D0;overflow:hidden;';
+        node.appendChild(pointsHost);
+
+        var showPoints = boolProp(el, 'ShowPoints', el.TypeKey !== 'Hmi.AxisPanel');
+        var pointsRows = Math.max(1, Math.min(16, numProp(el, 'PointsRows', 6)));
+        var axisRefs = [];
+
+        try {
+            var parsed = JSON.parse(rawProp(el, 'AxisOptions') || '[]');
+            if (Array.isArray(parsed)) {
+                for (var p = 0; p < parsed.length; p++) {
+                    if (parsed[p] && parsed[p].AxisId) axisRefs.push(String(parsed[p].AxisId));
+                }
+            }
+        } catch (err) {
+            // 坏配置按"无候选轴"处理，不打断整页
+        }
+
+        function textOf(axis, key, digits) {
+            var value = axis ? axis[key] : undefined;
+            if (value === undefined || value === null) return '—';
+            if (typeof value === 'boolean') return value ? '是' : '否';
+            if (typeof value === 'number') return isFinite(value) ? value.toFixed(digits) : '—';
+            return String(value);
+        }
+
+        function updateAxis(message) {
+            if (!message || !Array.isArray(message.axes)) return;
+
+            var axisId = axisRefs.length > 0 ? axisRefs[0] : '';
+            var axis = null;
+
+            for (var a = 0; a < message.axes.length; a++) {
+                if (String(message.axes[a].axisId) === axisId) {
+                    axis = message.axes[a];
+                    break;
+                }
+            }
+
+            if (!axis && message.axes.length > 0) axis = message.axes[0];
+
+            titleText.textContent = axis ? (axis.name || el.Name || '轴') : (el.Name || '轴');
+
+            for (var key in valueNodes) {
+                if (!Object.prototype.hasOwnProperty.call(valueNodes, key)) continue;
+                var entry = valueNodes[key];
+                if ((key === 'position' || key === 'velocity') && axis && !axis.valid) {
+                    entry.node.textContent = '—';
+                } else {
+                    entry.node.textContent = textOf(axis, key, entry.digits);
+                }
+            }
+
+            pointsHost.replaceChildren();
+
+            if (!showPoints || !axis) return;
+
+            var rows = (message.points && message.points[axis.axisId]) || [];
+            for (var r = 0; r < Math.min(pointsRows, rows.length); r++) {
+                var row = global.document.createElement('div');
+                row.style.cssText = 'display:flex;gap:8px;white-space:nowrap;';
+
+                var name = global.document.createElement('span');
+                name.style.cssText = 'flex:0 0 42%;overflow:hidden;text-overflow:ellipsis;';
+                name.textContent = 'P' + rows[r].index + ' · ' + (rows[r].name || '');
+
+                var pos = global.document.createElement('span');
+                pos.style.cssText = 'flex:1;text-align:right;';
+                pos.textContent = Number(rows[r].position).toFixed(3);
+
+                var speed = global.document.createElement('span');
+                speed.style.cssText = 'flex:0 0 22%;text-align:right;color:#7C8A99;';
+                speed.textContent = Number(rows[r].speed).toFixed(2);
+
+                row.appendChild(name);
+                row.appendChild(pos);
+                row.appendChild(speed);
+                pointsHost.appendChild(row);
+            }
+        }
+
+        return { node: node, update: function () { }, updateAxis: updateAxis };
+    }
+
+    registry['Hmi.AxisPanel'] = createAxisRenderer;
+    registry['Hmi.AxisConsole'] = createAxisRenderer;
+    registry['Hmi.AxisPointTable'] = createAxisRenderer;
 })(window);

@@ -190,6 +190,7 @@ namespace VisionMaster.ScadaWeb
         private readonly IScadaAlarmFeed? _alarmFeed;
         private readonly IScadaAuditSink? _audit;
         private readonly IScadaFlowTriggerQuery? _flowTriggerQuery;
+        private readonly IScadaAxisSource? _axisSource;
         private readonly ScadaWebSecurityGate _securityGate;
         private readonly ScadaWebPresence _presence;
         private readonly ScadaWebAccessPolicy _policy;
@@ -206,6 +207,9 @@ namespace VisionMaster.ScadaWeb
 
         /// <summary>值帧/快照消息序号（宿主级单调递增；客户端按缺号判断"漏了一帧"）</summary>
         private long _seq;
+
+        /// <summary>轴数据发送分频（每 2 拍发一次 = 5Hz）</summary>
+        private int _axisTick;
 
         /// <summary>
         /// 已占用的活跃会话名额。用原子预占替代"先数 Count 再 TryAdd"的 TOCTOU：
@@ -253,7 +257,8 @@ namespace VisionMaster.ScadaWeb
             IScadaAlarmCommands? alarmCommands = null,
             IScadaAuditSink? audit = null,
             IScadaAlarmFeed? alarmFeed = null,
-            IScadaFlowTriggerQuery? flowTriggerQuery = null)
+            IScadaFlowTriggerQuery? flowTriggerQuery = null,
+            IScadaAxisSource? axisSource = null)
         {
             _hub = hub;
             _authenticator = authenticator;
@@ -297,6 +302,7 @@ namespace VisionMaster.ScadaWeb
             _alarmFeed = alarmFeed;
             _audit = audit;
             _flowTriggerQuery = flowTriggerQuery;
+            _axisSource = axisSource;
 
             // 票表是身份的唯一来源：安全闸必须委托**同一份**票表（两份 = 撤销一边、放行另一边）。
             _tickets.AllowAnonymousView = _settings.AllowAnonymousView;
@@ -2536,6 +2542,123 @@ namespace VisionMaster.ScadaWeb
 
                 SendFrame(state, session, wireItems);
             }
+
+            // 轴数据 5Hz（每 2 拍一次）：只发给已经拿到当前页结构的会话。
+            // 与值帧分开：轴面板/轴控台/点位表的数据不是标量绑定，不能塞进 frame.items。
+            if (state.AxisJson != null && (Interlocked.Increment(ref _axisTick) & 1) == 0)
+            {
+                foreach (var session in _sessions.Values)
+                {
+                    if (string.Equals(session.CurrentPageKey, pageKey, StringComparison.Ordinal))
+                        session.TrySend(state.AxisJson);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 把当前页轴面板/轴控台/点位表引用的轴投影成一条 <c>axis</c> 消息。
+        /// <b>只读</b>：不接 <c>IScadaAxisCommandSink</c>，不渲染任何命令按钮（A 范围）。
+        /// 在 UI 线程调用（<see cref="CaptureLiveState"/> 内），点位表读取与运动卡配置同一线程。
+        /// </summary>
+        private string? BuildAxisJson(ScadaRuntime session, ScadaPageSnapshot page, long generation)
+        {
+            var runtimePage = session.CurrentPage;
+            if (runtimePage == null)
+                return null;
+
+            var elements = new List<object>();
+            var axes = new Dictionary<Guid, object>();
+            var points = new Dictionary<string, object>();
+
+            foreach (var element in runtimePage.Elements)
+            {
+                if (element is null)
+                    continue;
+
+                if (element.TypeKey != "Hmi.AxisPanel"
+                    && element.TypeKey != "Hmi.AxisConsole"
+                    && element.TypeKey != "Hmi.AxisPointTable")
+                {
+                    continue;
+                }
+
+                if (element.Properties is null
+                    || !element.Properties.TryGetValue(ScadaAxisOptionsCodec.Key, out var options))
+                {
+                    continue;
+                }
+
+                var refs = ScadaAxisOptionsCodec.Parse(options);
+                if (refs.Count == 0)
+                    continue;
+
+                var ids = new List<string>(refs.Count);
+
+                foreach (var reference in refs)
+                {
+                    ids.Add(reference.AxisId.ToString("D"));
+                    if (axes.ContainsKey(reference.AxisId))
+                        continue;
+
+                    _axisSource!.TryGetInfo(reference.AxisId, out var info);
+                    _axisSource.TryGetSample(reference.AxisId, out var sample);
+                    _axisSource.TryGetPoints(reference.AxisId, out var axisPoints);
+
+                    axes[reference.AxisId] = new
+                    {
+                        axisId = reference.AxisId.ToString("D"),
+                        name = info?.Name ?? reference.Name,
+                        card = info?.CardCaption ?? string.Empty,
+                        available = info?.IsAvailable ?? false,
+                        enabled = info?.Enabled ?? false,
+                        valid = sample.IsValid,
+                        error = sample.Error,
+                        position = sample.PositionMm,
+                        velocity = sample.VelocityMmPerS,
+                        moving = sample.Moving,
+                        inPosition = sample.InPosition,
+                        alarm = sample.Alarm,
+                        positiveLimit = sample.PositiveLimit,
+                        negativeLimit = sample.NegativeLimit,
+                        origin = sample.Origin,
+                        emergencyStop = sample.EmergencyStop,
+                        status = sample.StatusText,
+                        timestampUtc = sample.TimestampUtc
+                    };
+
+                    points[reference.AxisId.ToString("D")] = (axisPoints ?? Array.Empty<ScadaAxisPointInfo>())
+                        .Select(point => new
+                        {
+                            index = point.Index,
+                            name = point.Name,
+                            position = point.PositionMm,
+                            speed = point.SpeedMmPerS
+                        })
+                        .ToArray();
+                }
+
+                elements.Add(new
+                {
+                    elementId = element.ElementId.ToString("D"),
+                    typeKey = element.TypeKey,
+                    axes = ids
+                });
+            }
+
+            if (elements.Count == 0)
+                return null;
+
+            return Json(new
+            {
+                type = "axis",
+                seq = Interlocked.Increment(ref _seq),
+                runGeneration = generation,
+                pageId = page.PageId,
+                pageVersion = page.PageVersion,
+                elements,
+                axes = axes.Values,
+                points
+            });
         }
 
         /// <summary>
@@ -2577,7 +2700,11 @@ namespace VisionMaster.ScadaWeb
                     ? (IReadOnlyList<ScadaFrameItemDto>)Array.Empty<ScadaFrameItemDto>()
                     : _resolver.Resolve(page, _values);
 
-                return new LiveState(true, generation, page, items, key);
+                // 轴面板/轴控台/点位表的只读数据：与快照同一次 UI 调度里取，
+                // 5Hz 发送（见 PumpFrameAsync）。没有 IScadaAxisSource 时为 null。
+                var axisJson = _axisSource == null ? null : BuildAxisJson(session, page, generation);
+
+                return new LiveState(true, generation, page, items, key, axisJson);
             }
             catch (Exception ex)
             {
@@ -2982,10 +3109,11 @@ namespace VisionMaster.ScadaWeb
             long Generation,
             ScadaPageSnapshot? Page,
             IReadOnlyList<ScadaFrameItemDto> Items,
-            string PageKey)
+            string PageKey,
+            string? AxisJson)
         {
             public static readonly LiveState NotRunning =
-                new(false, 0, null, Array.Empty<ScadaFrameItemDto>(), string.Empty);
+                new(false, 0, null, Array.Empty<ScadaFrameItemDto>(), string.Empty, null);
         }
 
         /// <summary>一拍里已序列化好的一个值项（跨会话共享；Key 用于每会话的增量基线）</summary>

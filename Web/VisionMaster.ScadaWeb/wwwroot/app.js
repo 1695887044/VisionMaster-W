@@ -65,6 +65,7 @@
     ticketUsed: false,
     sessionToken: '',
     imageToken: '',
+    axis: null,
     user: '',
     refreshing: false,
     loginBusy: false,
@@ -1352,6 +1353,7 @@
       node: node,
       update: typeof result.update === 'function' ? result.update : null,
       reset: typeof result.reset === 'function' ? result.reset : null,
+      updateAxis: typeof result.updateAxis === 'function' ? result.updateAxis : null,
       dispose: typeof result.dispose === 'function' ? result.dispose : null,
       childrenHost: result.childrenHost || null,
       childrenOrigin: result.childrenOrigin || null,
@@ -1507,6 +1509,16 @@
     placeAll();
     fit();
     updateTopbar();
+
+    // 轴消息可能先于结构重建到达；重建后把最近一份轴数据补发给新渲染器。
+    if (state.axis) {
+      for (var ar = 0; ar < state.records.length; ar++) {
+        var axisRec = state.records[ar];
+        if (!axisRec || typeof axisRec.updateAxis !== 'function') continue;
+        try { axisRec.updateAxis(state.axis); }
+        catch (err) { warnOnce('axis:' + (axisRec.el && axisRec.el.TypeKey), '[SCADA Web] 轴渲染失败：', err); }
+      }
+    }
 
     state.renderedRendererCount = Object.keys(window.ScadaRenderers || {}).length;
   }
@@ -2642,6 +2654,21 @@
       case 'img.token':
         var rotatedImageToken = pick(message, 'token', 'Token');
         if (rotatedImageToken) state.imageToken = String(rotatedImageToken);
+        return;
+
+      case 'axis':
+        // 旧页的轴消息不应用（服务端 5Hz 发送，切页瞬间可能有一条在途）
+        if (state.page && message.pageId && String(message.pageId) !== String(state.page.PageId)) return;
+        state.axis = message;
+        for (var axisIndex = 0; axisIndex < state.records.length; axisIndex++) {
+          var axisRecord = state.records[axisIndex];
+          if (!axisRecord || typeof axisRecord.updateAxis !== 'function') continue;
+          try { axisRecord.updateAxis(message); }
+          catch (err) {
+            warnOnce('axis:' + (axisRecord.el && axisRecord.el.TypeKey),
+              '[SCADA Web] 轴渲染失败：', err);
+          }
+        }
         return;
 
       case 'alarms':

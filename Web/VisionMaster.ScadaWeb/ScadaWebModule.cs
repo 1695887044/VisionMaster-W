@@ -148,6 +148,10 @@ namespace VisionMaster.ScadaWeb
                 log.Error("[ScadaWeb] 未接入 IScadaFlowTriggerQuery：cmd.input 与写变量动作将回 E_INTERNAL（fail closed）");
             }
 
+            // 轴面板/轴控台/点位表的只读数据出口（运动模块注册；无运动模块时为 null，
+            // 轴图元仍能显示候选轴名，但实时值显示“—”）。
+            var axisSource = TryResolve<IScadaAxisSource>(container, log, "IScadaAxisSource");
+
             // AllOperators 的监管闸门：缺项不是“少一层”，而是“配置看着放开了、实际没有护栏”。
             // 缺项时拒绝启用该策略，回退 HighestRoleOnly（默认策略，不需要监管项）。
             //
@@ -202,7 +206,8 @@ namespace VisionMaster.ScadaWeb
                 alarmCommands,
                 audit,
                 alarmFeed,
-                flowTriggerQuery);
+                flowTriggerQuery,
+                axisSource);
 
             Host = host;
 

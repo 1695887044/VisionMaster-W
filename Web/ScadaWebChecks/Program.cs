@@ -797,6 +797,9 @@ namespace ScadaWebChecks
             // ---------------- B51：/img 图像通道（独立宿主 + 2x2 测试图） ----------------
             await RunImageChecksAsync(http);
 
+            // ---------------- B52：轴只读数据（独立宿主 + 假 IScadaAxisSource） ----------------
+            await RunAxisChecksAsync(http);
+
             // ---------------- B45：死连接回收（判死阈值压到 1s；运行已停止，双向都无进展） ----------------
             {
                 hub.Stop();
@@ -1354,6 +1357,164 @@ namespace ScadaWebChecks
             finally
             {
                 await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// B52：轴面板只读数据。独立宿主 + 假 IScadaAxisSource，断言 axis 消息里的
+        /// 轴名/位置/点位表，以及"没有命令字段"（A 范围）。
+        /// </summary>
+        private static async Task RunAxisChecksAsync(HttpClient http)
+        {
+            var port = GetFreePort();
+            var axis = new FakeAxisSource();
+
+            var document = new ScadaDocument();
+            var page = document.AddPage("轴页");
+            page.Version = 1;
+
+            var element = new ScadaElement
+            {
+                TypeKey = "Hmi.AxisPanel",
+                Name = "轴面板",
+                X = 10,
+                Y = 10,
+                Width = 280,
+                Height = 280
+            };
+            element.Properties[ScadaAxisOptionsCodec.Key] =
+                ScadaAxisOptionsCodec.Format(new[] { new ScadaAxisRef(axis.AxisId, "X") });
+            page.Elements.Add(element);
+            document.SetStartupPage(page);
+
+            var runtime = new ScadaRuntime(document);
+            runtime.Start();
+
+            var hub = new FakeRunHub();
+            hub.SetRunning(runtime, document, 1);
+
+            var settings = new ScadaWebSettings
+            {
+                Enabled = true,
+                Port = port,
+                BindAddress = "127.0.0.1",
+                AllowAnonymousView = true,
+                MaxSessions = 4
+            };
+
+            var host = new ScadaWebHost(
+                hub,
+                authenticator: null,
+                catalog: null,
+                new FakeLog(),
+                settings,
+                values: null,
+                axisSource: axis);
+
+            host.Start();
+
+            if (!host.IsListening)
+            {
+                Check("B52", false, $"轴宿主未启动：{host.LastError ?? "<none>"}");
+                return;
+            }
+
+            var baseUrl = $"http://127.0.0.1:{port}";
+
+            try
+            {
+                var issue = await IssueTicketAsync(http, baseUrl);
+                var (connected, connectError, socket) = await ConnectAsync($"{baseUrl.Replace("http", "ws")}/ws?ticket={issue.Ticket}");
+
+                if (!connected || socket == null)
+                {
+                    Check("B52", false, $"轴宿主 WS 连接失败：{connectError ?? "<none>"}");
+                    return;
+                }
+
+                using (socket)
+                {
+                    await ReceiveUntilAsync(socket, m => TypeOf(m) == "hello", 3000);
+                    await ReceiveUntilAsync(socket, m => TypeOf(m) == "snapshot", 5000);
+
+                    var axisMessage = await ReceiveUntilAsync(socket, m => TypeOf(m) == "axis", 5000);
+                    var axes = axisMessage?["axes"] as JArray;
+                    var firstAxis = axes?.FirstOrDefault() as JObject;
+                    var points = axisMessage?["points"] as JObject;
+                    var pointRows = firstAxis == null ? null : points?[firstAxis.Value<string>("axisId")] as JArray;
+                    var firstPoint = pointRows?.FirstOrDefault() as JObject;
+
+                    var noCommands = axisMessage?["commands"] == null
+                                     && axisMessage?["canOperate"] == null;
+
+                    Check("B52",
+                        axisMessage != null
+                        && firstAxis?.Value<string>("name") == "X"
+                        && Math.Abs((firstAxis.Value<double?>("position") ?? 0) - 12.345) < 1e-6
+                        && firstAxis.Value<bool?>("valid") == true
+                        && firstPoint?.Value<int?>("index") == 0
+                        && noCommands,
+                        axisMessage == null
+                            ? "未收到 axis"
+                            : $"axes={axes?.Count} name={firstAxis?.Value<string>("name")} "
+                              + $"pos={firstAxis?.Value<double?>("position")} "
+                              + $"points={pointRows?.Count} noCommands={noCommands}");
+                }
+            }
+            finally
+            {
+                await host.StopAsync();
+            }
+        }
+
+        private sealed class FakeAxisSource : IScadaAxisSource
+        {
+            public Guid AxisId { get; } = Guid.NewGuid();
+
+            public int Version => 1;
+
+            public event EventHandler? Changed
+            {
+                add { }
+                remove { }
+            }
+
+            public bool TryGetInfo(Guid axisId, out ScadaAxisInfo info)
+            {
+                if (axisId == AxisId)
+                {
+                    info = new ScadaAxisInfo(axisId, "X", "虚拟卡", true, true);
+                    return true;
+                }
+
+                info = null!;
+                return false;
+            }
+
+            public bool TryGetSample(Guid axisId, out ScadaAxisSample sample)
+            {
+                if (axisId == AxisId)
+                {
+                    sample = new ScadaAxisSample(
+                        true, null, 12.345, 6.7, true, false, true, false,
+                        false, false, false, false, "运动中", DateTime.UtcNow);
+                    return true;
+                }
+
+                sample = default;
+                return false;
+            }
+
+            public bool TryGetPoints(Guid axisId, out IReadOnlyList<ScadaAxisPointInfo> points)
+            {
+                if (axisId == AxisId)
+                {
+                    points = new[] { new ScadaAxisPointInfo(0, "取料位", 10.5, 20) };
+                    return true;
+                }
+
+                points = Array.Empty<ScadaAxisPointInfo>();
+                return false;
             }
         }
 
