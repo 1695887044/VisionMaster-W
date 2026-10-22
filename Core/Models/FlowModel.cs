@@ -201,7 +201,11 @@ namespace VisionMaster.Models
         public FlowRole Role
         {
             get { return field; }
-            set { SetProperty(ref field, value); }
+            set
+            {
+                if (SetProperty(ref field, value))
+                    RaiseCallVisualChanged();
+            }
         }
 
         /// <summary>
@@ -210,7 +214,85 @@ namespace VisionMaster.Models
         public FlowInvokeType InvokeType
         {
             get { return field; }
-            set { SetProperty(ref field, value); }
+            set
+            {
+                if (SetProperty(ref field, value))
+                    RaiseCallVisualChanged();
+            }
+        }
+
+        /// <summary>
+        /// 是否可由工具栏「循环运行主流程」直接启动。
+        /// 只表达**运行策略**，不改 Role/InvokeType 的既有语义；当前口径与 Role=Main 对齐。
+        /// </summary>
+        [JsonIgnore]
+        public bool IsDirectlyLoopable => Role == FlowRole.Main;
+
+        /// <summary>是否有除「子程序」以外的直接触发方式（定时 / 变量 / HTTP）。</summary>
+        [JsonIgnore]
+        public bool HasExternalTrigger
+            => (InvokeType & (FlowInvokeType.Timer | FlowInvokeType.Variable | FlowInvokeType.Http)) != 0;
+
+        /// <summary>
+        /// 是否只能作为子程序被其它流程调用：不是主流程、勾了子程序、且没有外部触发。
+        /// 这类流程在流程列表里必须和“可直接触发”的流程区分开。
+        /// </summary>
+        [JsonIgnore]
+        public bool IsSubroutineOnly
+            => Role != FlowRole.Main
+               && (InvokeType & FlowInvokeType.Subroutine) != 0
+               && !HasExternalTrigger;
+
+        /// <summary>流程列表用的短徽标：循环 / 外部 / 子；空串表示仅手动。</summary>
+        [JsonIgnore]
+        public string CallBadgeText
+        {
+            get
+            {
+                if (IsDirectlyLoopable) return "循环";
+                if (HasExternalTrigger) return "外部";
+                if (IsSubroutineOnly) return "子";
+                return string.Empty;
+            }
+        }
+
+        /// <summary>短徽标的完整解释（ToolTip）。</summary>
+        [JsonIgnore]
+        public string CallBadgeToolTip
+        {
+            get
+            {
+                if (IsDirectlyLoopable)
+                    return "主流程：工具栏「循环运行主流程」可直接启动";
+                if (HasExternalTrigger)
+                    return "可直接触发：" + InvokeType.DisplayText();
+                if (IsSubroutineOnly)
+                    return "子程序：只能由其它流程的「调用流程」拉起";
+                return "手动：仅在本机界面手动运行";
+            }
+        }
+
+        /// <summary>流程管理表格用的完整说明。</summary>
+        [JsonIgnore]
+        public string CallSummaryText
+        {
+            get
+            {
+                if (IsDirectlyLoopable) return "主流程 · 可循环";
+                if (HasExternalTrigger) return "外部触发";
+                if (IsSubroutineOnly) return "子程序 · 由主流程调用";
+                return "手动";
+            }
+        }
+
+        private void RaiseCallVisualChanged()
+        {
+            RaisePropertyChanged(nameof(IsDirectlyLoopable));
+            RaisePropertyChanged(nameof(HasExternalTrigger));
+            RaisePropertyChanged(nameof(IsSubroutineOnly));
+            RaisePropertyChanged(nameof(CallBadgeText));
+            RaisePropertyChanged(nameof(CallBadgeToolTip));
+            RaisePropertyChanged(nameof(CallSummaryText));
         }
 
         /// <summary>

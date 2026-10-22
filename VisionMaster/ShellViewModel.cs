@@ -847,6 +847,7 @@ namespace VisionMaster
                     _variableBridge.RebindAll();
                     // 通讯配置随方案走：用方案里的连接替换管理器集合（先停后换，逐条隔离）
                     CommunicationBinder.Apply(loadResult.Data, autoStart: true);
+                    ConnectMotionAutoStart();
                     Notifier.ShowSuccess($"方案 [{loadResult.Data.SolutionName}] 加载成功");
                 }
                 else
@@ -865,17 +866,39 @@ namespace VisionMaster
         }
 
         /// <summary>
-        /// 软件启动时按软件级配置（AppConfig.json）自动加载默认启动方案
-        /// 无默认方案或文件不存在时不做任何事
+        /// 软件启动时按软件级配置（AppConfig.json）自动加载默认启动方案。
+        ///
+        /// N3：两种失败都必须"说一声"（日志 + 右下角非模态提示），不许静默 return ——
+        /// 静默的后果是用户只看到"方案没加载"，既不知道为什么、也不知道去哪里改：
+        ///  · 文件不存在（配置指向了被删/被移走/网络盘没连上的文件）→ Warn；
+        ///  · 文件在但解析失败（版本不兼容 / 手工改坏 / 半截写入）→ Error，文案带 LoadAsync 的原因。
+        /// **不自动清 StartupSolutionPath**：盘没挂上、文件暂时被移走都是可恢复的，
+        /// 替用户删配置等于"下次插上盘也不会再自动加载"，比多一条提示更难查。
         /// </summary>
         public async Task AutoLoadStartupSolutionAsync()
         {
             var settings = ContainerLocator.Container.Resolve<AppSettingsService>();
             var startupPath = settings.Current.StartupSolutionPath;
-            if (string.IsNullOrWhiteSpace(startupPath) || !System.IO.File.Exists(startupPath)) return;
+            if (string.IsNullOrWhiteSpace(startupPath)) return;
+
+            var log = TryResolveLogService();
+
+            if (!System.IO.File.Exists(startupPath))
+            {
+                log?.Warn($"[启动方案] 文件不存在：{startupPath}（已跳过自动加载；配置保留，不自动清除）");
+                Notifier.ShowWarning($"启动方案文件不存在，已跳过自动加载：{startupPath}");
+                return;
+            }
 
             var loadResult = await solutionService.LoadAsync(startupPath);
-            if (!loadResult.Success) return;
+            if (!loadResult.Success)
+            {
+                // 解析失败 = 文件在但内容不可用。Error 级别（这是"配置/文件坏了"，不是"没配"），
+                // 原因直接用 LoadAsync 拼好的文案（含异常消息），界面与日志保持同一句话。
+                log?.Error($"[启动方案] 解析失败：{startupPath}：{loadResult.Message}");
+                Notifier.ShowError($"启动方案解析失败：{loadResult.Message}");
+                return;
+            }
 
             loadResult.Data.SolutionFilePath = startupPath;
             Workspace.SwitchSolution(loadResult.Data);
@@ -886,7 +909,43 @@ namespace VisionMaster
             VariablePersistenceService.Restore(loadResult.Data, Workspace);
             _variableBridge.RebindAll();
             CommunicationBinder.Apply(loadResult.Data, autoStart: true);
+            ConnectMotionAutoStart();
             Notifier.ShowSuccess($"已自动加载方案 [{loadResult.Data.SolutionName}]");
+        }
+
+        /// <summary>
+        /// 取日志服务（N3 启动方案失败留痕用）。
+        ///
+        /// 为什么不在构造函数里注入：Shell 是应用级单例，而日志服务在 RegisterTypes 之后才可用
+        /// （App.xaml.cs 的启动自检链同样用 Resolve 拿它）。解析不到就返回 null ——
+        /// "启动方案加载失败"本身绝不能因为日志不可用再抛一次（提示仍然会走 Notifier）。
+        /// </summary>
+        private static ILogService? TryResolveLogService()
+        {
+            try { return ContainerLocator.Container.Resolve<ILogService>(); }
+            catch { return null; }
+        }
+
+        /// <summary>
+        /// 方案加载后补一次运动卡自动连接。
+        ///
+        /// 为什么需要：MotionModule 只在**启动时**调一次 ConnectAutoStart，而方案是在启动之后才加载的，
+        /// 那一刻方案里还没有运动卡 → 自动连接无事可做；此后 EnsureSynced 只建运行态设备，不会连。
+        /// 结果就是"AutoConnect=true 却一直是 Closed"，用户必须手动去运动卡设置里点连接。
+        /// 放在方案加载之后补一次，与通讯的 CommunicationBinder.Apply 同一时机、同一语义。
+        /// </summary>
+        private static void ConnectMotionAutoStart()
+        {
+            try
+            {
+                var provider = ContainerLocator.Container.Resolve<global::Core.Interfaces.IMotionProvider>() as Services.MotionProvider;
+                provider?.EnsureSynced();
+                provider?.ConnectAutoStart();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[Motion] 方案加载后自动连接失败: " + ex.Message);
+            }
         }
 
         /// <summary>
@@ -957,7 +1016,9 @@ namespace VisionMaster
                     return RunState == MainRunState.NotStarted;
 
                 case ExecutionAction.Stop:
-                    return RunState != MainRunState.NotStarted;
+                    // S6：单流程运行 / HTTP 触发都不写 MainRunState（只认它 = 停止按钮灰着、
+                    // 而流程明明在跑）。判据补"是否真有流程在跑"，与方案互锁（CanExecuteSolution）同一口径。
+                    return RunState != MainRunState.NotStarted || AnyFlowRunning();
 
                 case ExecutionAction.Pause:
                     return RunState == MainRunState.RunningOnce || RunState == MainRunState.RunningContinuous;
@@ -1562,12 +1623,20 @@ namespace VisionMaster
         }
 
         /// <summary>
-        /// 停止所有正在运行的流程
+        /// 停止所有正在运行的流程。
+        ///
+        /// S6：提示必须按**实际停了几条**来说 —— 文案不许暗示"只停当前流程"
+        /// （停止按钮的语义一直是 StopAll：界面发起的整体运行、单流程运行、HTTP 触发一起停）。
+        /// 0 条时给一条 Info 而不是 Success：按钮现在会因"有流程在跑"而可点，
+        /// 但真到点下去那一刻可能已经跑完了，"已停止所有运行中的流程"就成了假话。
         /// </summary>
         private void StopAllRunning()
         {
-            flowEngine.StopAll();
-            Notifier.ShowSuccess("已停止所有运行中的流程");
+            int stopped = _flowEngineService.StopAll();
+            if (stopped > 0)
+                Notifier.ShowSuccess($"已请求停止 {stopped} 个运行中的流程");
+            else
+                Notifier.ShowInfo("当前没有运行中的流程（停止请求未发出）");
         }
 
         // ================= DWV 第 1 期：调试暂停 / 继续 / 单步 / 命中窗 =================

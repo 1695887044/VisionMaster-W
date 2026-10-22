@@ -40,16 +40,48 @@ namespace VisionMaster.Models
         private VariableQuality _quality = VariableQuality.Bad;
 
         /// <summary>
-        /// 质量戳镜像（仅供 UI 展示采集健康度，不参与业务逻辑）：
-        /// Good=最近读成功 / Uncertain=最近读失败（当前显示的是旧值）/ Bad=断线或从未读到。
-        /// 由通信层经 CommunicationVariable.QualityCallback 推送，仅在质量切换时触发（幂等）
+        /// 质量戳（采集健康度）：Good=最近一次读成功 / Uncertain=最近一次读失败（当前显示的是旧值）/
+        /// Bad=断线或从未读到 / Disabled=设计端禁用。
+        /// <para>由通信层经 <c>CommunicationVariable.QualityCallback</c> 推送，只在质量切换时触发（幂等）。</para>
+        /// <para><b>消费方一律读这里</b>（变量管理、组态、诊断、流程判断），不要自己从"值有没有变"推断采集是否健康：
+        /// 值不变与"读失败"在旧值镜像上看起来完全一样，只有质量戳分得开。
+        /// 判断"这个值能不能用"请用 <see cref="IsQualityGood"/>；要中文文案用 <see cref="QualityText"/>。</para>
         /// </summary>
         [JsonIgnore]
         public VariableQuality Quality
         {
             get => _quality;
-            private set => SetProperty(ref _quality, value);
+            private set
+            {
+                if (SetProperty(ref _quality, value))
+                {
+                    // 派生属性跟着刷新：绑定 QualityText / IsQualityGood 的界面不能等下次质量变化才更新
+                    OnPropertyChanged(new System.ComponentModel.PropertyChangedEventArgs(nameof(QualityText)));
+                    OnPropertyChanged(new System.ComponentModel.PropertyChangedEventArgs(nameof(IsQualityGood)));
+                }
+            }
         }
+
+        /// <summary>
+        /// 质量戳的中文显示名（界面/日志直接用；未知取值退回成员名，绝不显示空白）。
+        /// 与 <c>VariableQuality</c> 的四个成员一一对应。
+        /// </summary>
+        [JsonIgnore]
+        public string QualityText => Quality switch
+        {
+            VariableQuality.Good => "良好",
+            VariableQuality.Uncertain => "存疑（旧值）",
+            VariableQuality.Bad => "无效（断线或未读到）",
+            VariableQuality.Disabled => "已禁用",
+            _ => Quality.ToString(),
+        };
+
+        /// <summary>
+        /// 质量戳是否 Good（= 最近一次读成功、当前值是新鲜的）。
+        /// <para>这是"值能不能用"的唯一判据：Uncertain/Bad 时 <see cref="Value"/> 里可能是旧值或默认值。</para>
+        /// </summary>
+        [JsonIgnore]
+        public bool IsQualityGood => Quality == VariableQuality.Good;
 
         /// <summary>通信层质量推送入口（NetworkVariableBridge 接线）</summary>
         public void UpdateQuality(VariableQuality quality) => Quality = quality;
@@ -150,6 +182,12 @@ namespace VisionMaster.Models
             get
             {
                 if (!DataType.IsArray || DataType == typeof(byte[])) return false;
+
+                // 数值闸门：旧版 UI 可能给 string[]/bool[] 留下档案（当时没有按类型收口）。
+                // 不在这里拦住，读路径会把字符串按 double 解析、整组写会在
+                // SetValue(double, bool[]) 上抛 InvalidCastException。
+                Type? elementType = DataType.GetElementType();
+                if (elementType == null || !ArrayConversion.IsNumericElement(elementType)) return false;
 
                 var conversions = ElementConversions;
                 for (int i = 0; i < conversions.Length; i++)
@@ -317,16 +355,16 @@ namespace VisionMaster.Models
         }
 
         /// <summary>
-        /// 只读存储区（Modbus 离散输入 / S7 输入映像 I）。
-        /// <para>写链路必须在发往设备之前拦住：这两类区在协议层就是只读的，
-        /// 发下去只会换回一个协议错误，现场看到的是"写了但设备没动"。</para>
+        /// 只读存储区（Modbus 离散输入 / 输入寄存器 / S7 输入映像 I）。
+        /// <para>写链路必须在发往设备之前拦住：这几类区在协议层就是只读的，
+        /// 发下去只会换回一个协议错误或超时，现场看到的是"写了但设备没动"。</para>
         /// </summary>
         public bool IsReadOnlyArea
         {
             get
             {
                 if (AddressConfig is DeviceAddressBase<ModbusArea> ma)
-                    return ma.Area == ModbusArea.DiscreteInputs;
+                    return ma.Area == ModbusArea.DiscreteInputs || ma.Area == ModbusArea.InputRegisters;
                 if (AddressConfig is DeviceAddressBase<S7Area> sa)
                     return sa.Area == S7Area.I;
                 return false;
@@ -388,7 +426,7 @@ namespace VisionMaster.Models
 
             if (IsReadOnlyArea)
             {
-                error = $"变量 [{Name}] 位于只读存储区（离散输入 / S7 输入映像 I），不能写入";
+                error = $"变量 [{Name}] 位于只读存储区（离散输入 / 输入寄存器 / S7 输入映像 I），不能写入";
                 return false;
             }
 
@@ -653,7 +691,7 @@ namespace VisionMaster.Models
 
             if (IsReadOnlyArea)
             {
-                error = $"变量 [{Name}] 位于只读存储区（离散输入 / S7 输入映像 I），不能写入";
+                error = $"变量 [{Name}] 位于只读存储区（离散输入 / 输入寄存器 / S7 输入映像 I），不能写入";
                 return false;
             }
 
@@ -676,6 +714,17 @@ namespace VisionMaster.Models
                     error = $"变量 [{Name}] 是数组类型，写入值必须是数组（收到 {value?.GetType().Name ?? "null"}）";
                     return false;
                 }
+
+                // 长度必须在进入换算/归一分支之前校验：换算分支不再经过 TryNormalizeArray，
+                // 少了这一道，流程/SCADA/脚本传短数组会留下旧值、传长数组会覆盖相邻点位。
+                int expectedLength = AddressConfig.Length;
+                if (inputArray.Length != expectedLength)
+                {
+                    error = $"变量 [{Name}] 数组长度 {inputArray.Length} 与配置的"
+                        + $"{(DataType == typeof(byte[]) ? "字节数" : "元素个数")} {expectedLength} 不一致";
+                    return false;
+                }
+
                 if (HasElementConversion)
                 {
                     // 换算生效：工程域是 double[]，绝不能先 TryNormalizeArray 到声明元素类型
@@ -733,6 +782,26 @@ namespace VisionMaster.Models
                 writtenValue = coerced;
                 mirrorValue = coerced;
                 deviceValue = coerced;
+            }
+            // 标量按声明类型归一再下发：JSON / 界面把数字读成 Int64/Double，直接交给 HSL 会按 8 字节写，
+            // 与 2 字节的 Int16 地址错位（低字跑到后面的寄存器，回读仍是 0）。
+            // 这是"写成功但读回不一致"的根因之一，口径与 R34 的写入侧解析一致。
+            else if (value != null && DataType != typeof(object) && value.GetType() != DataType)
+            {
+                var targetType = Nullable.GetUnderlyingType(DataType) ?? DataType;
+                try
+                {
+                    value = Convert.ChangeType(value, targetType, CultureInfo.InvariantCulture);
+                }
+                catch (Exception ex)
+                {
+                    error = $"变量 [{Name}] 的类型是 {DataType.Name}，值 [{value}] 无法按该类型转换：{ex.Message}";
+                    return false;
+                }
+
+                writtenValue = value;
+                mirrorValue = value;
+                deviceValue = value;
             }
 
             // 写租约：并行分支抢同一个输出时明确拒绝，而不是"最后写入者赢"。
@@ -898,6 +967,16 @@ namespace VisionMaster.Models
         {
             error = null;
             engineering = new double[input.Length];
+
+            // 换算分支不经过 TryNormalizeArray：长度校验必须在这里再做一次，
+            // 否则直接调用（流程/SCADA/脚本）短写留旧值、长写覆盖邻居。
+            int expected = AddressConfig?.Length ?? 0;
+            if (expected > 0 && input.Length != expected)
+            {
+                error = $"长度 {input.Length} 与配置的元素个数 {expected} 不一致";
+                engineering = Array.Empty<double>();
+                return false;
+            }
 
             for (int i = 0; i < input.Length; i++)
             {

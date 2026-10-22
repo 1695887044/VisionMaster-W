@@ -9,215 +9,413 @@
     xmlns:ui="http://schemas.UI.com/ui"
     d:DesignHeight="600"
     d:DesignWidth="250"
-    prism:ViewModelLocator.AutoWireViewModel="True"
-    mc:Ignorable="d">
+    mc:Ignorable="d"
+    prism:ViewModelLocator.AutoWireViewModel="True">
     <UserControl.Resources>
-        <ui:BindingProxy x:Key="MyViewModelProxy" Data="{Binding}" />
+        <!--
+            设计基线：docs/UI设计基线/flow-list/ v2（2026-10-22 复刻）。
+
+            高度是硬约束：ProcessView.xaml:290 把本控件固定为 Height="112"，
+            左栏宽度 340（Shell.xaml:1052）。所以胶囊必须是**单行 22px**：
+            6(上内距) + 22×3 + 4×2 + 26(底栏) = 106 ≤ 110（扣掉上下边框）。
+            v1 的两行式（46px）装不下，已作废。
+        -->
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <ui:BindingProxy x:Key="MyViewModelProxy" Data="{Binding}" />
+        </ResourceDictionary>
     </UserControl.Resources>
+
     <Grid Background="{StaticResource DialogSurfaceBrush}">
-        <ListBox
-            x:Name="FlowList"
-            HorizontalContentAlignment="Stretch"
-            Background="Transparent"
-            BorderThickness="0"
-            ItemsSource="{Binding Workspace.CurrentSolution.Flows}"
-            PreviewMouseRightButtonUp="FlowList_PreviewMouseRightButtonUp"
-            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-            SelectedItem="{Binding SelectFlow}">
-            <ListBox.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <UniformGrid Columns="2" />
-                </ItemsPanelTemplate>
-            </ListBox.ItemsPanel>
-            <ListBox.ItemContainerStyle>
-                <Style TargetType="ListBoxItem">
-                    <Setter Property="Padding" Value="0" />
-                    <Setter Property="Margin" Value="0,0,6,6" />
-                    <Setter Property="Background" Value="Transparent" />
-                    <Setter Property="BorderThickness" Value="0" />
-                    <Setter Property="Template">
-                        <Setter.Value>
-                            <ControlTemplate TargetType="ListBoxItem">
-                                <Border
-                                    x:Name="ItemBorder"
-                                    MinHeight="40"
-                                    Padding="8,0"
-                                    Background="{StaticResource DialogSurfaceBrush}"
-                                    BorderBrush="{StaticResource DialogBorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="8">
-                                    <ContentPresenter />
-                                </Border>
-                                <ControlTemplate.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
-                                    </Trigger>
-                                    <Trigger Property="IsSelected" Value="True">
-                                        <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource LogicIfSoftBrush}" />
-                                        <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{StaticResource LogicIfBorderBrush}" />
-                                        <Setter Property="TextElement.FontWeight" Value="SemiBold" />
-                                    </Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </Setter.Value>
-                    </Setter>
-                </Style>
-            </ListBox.ItemContainerStyle>
-            <ListBox.ItemTemplate>
-                <DataTemplate>
-                    <!--  flow-logic 流程胶囊：状态点 + 名称 + 步数；描述/完整信息进 Tooltip  -->
-                    <Grid Background="Transparent" ToolTip="{Binding Description}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <Ellipse
-                            x:Name="FlowDot"
-                            Grid.Column="0"
-                            Width="7"
-                            Height="7"
-                            Margin="0,0,6,0"
-                            VerticalAlignment="Center"
-                            Fill="{StaticResource FlowCanvasSuccessBrush}" />
-                        <TextBlock
-                            x:Name="NameText"
-                            Grid.Column="1"
-                            VerticalAlignment="Center"
-                            FontSize="11.5"
-                            Foreground="{StaticResource ScadaTextBrush}"
-                            Text="{Binding FlowName}"
-                            TextTrimming="CharacterEllipsis" />
-                        <TextBlock
-                            x:Name="CountText"
-                            Grid.Column="2"
-                            Margin="6,0,0,0"
-                            VerticalAlignment="Center"
-                            FontFamily="Consolas"
-                            FontSize="9.5"
-                            Foreground="{StaticResource ScadaSecondaryTextBrush}"
-                            Text="{Binding Steps.Count}" />
-                        <TextBlock
-                            x:Name="DisabledTag"
-                            Grid.Column="3"
-                            Margin="5,0,0,0"
-                            VerticalAlignment="Center"
-                            FontSize="9"
-                            Foreground="{StaticResource DialogDangerBrush}"
-                            Text="禁用"
-                            Visibility="Collapsed" />
-                        <!--  运行标记：与「禁用」同格（禁用流程不可能在跑，两者互斥）。
-                              真值来自 FlowModel.RunState——ShellViewModel 按会话状态镜像它，
-                              涵盖界面运行 / 单流程运行 / HTTP / 定时触发，所以这里不必认识会话。  -->
-                        <TextBlock
-                            x:Name="RunningTag"
-                            Grid.Column="3"
-                            Margin="5,0,0,0"
-                            VerticalAlignment="Center"
-                            FontSize="9"
-                            FontWeight="SemiBold"
-                            Foreground="{StaticResource FlowCanvasSuccessBrush}"
-                            Text="运行中"
-                            Visibility="Collapsed" />
-                        <Grid.ContextMenu>
-                            <ContextMenu FontFamily="{StaticResource Icon}">
-                                <MenuItem Header="流程" Icon="&#xf0e8;">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <ListBox
+                x:Name="FlowList"
+                Grid.Row="0"
+                Margin="6,6,6,0"
+                HorizontalContentAlignment="Stretch"
+                Background="Transparent"
+                BorderThickness="0"
+                ItemsSource="{Binding Workspace.CurrentSolution.Flows}"
+                PreviewMouseRightButtonUp="FlowList_PreviewMouseRightButtonUp"
+                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                SelectedItem="{Binding SelectFlow}">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="2" />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Margin" Value="0,0,4,4" />
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border
+                                        x:Name="ItemBorder"
+                                        Height="22"
+                                        Padding="6,0"
+                                        Background="{StaticResource DialogSurfaceBrush}"
+                                        BorderBrush="{StaticResource DialogBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4">
+                                        <ContentPresenter VerticalAlignment="Center" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                            <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{StaticResource DialogBorderStrongBrush}" />
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource LogicIfSoftBrush}" />
+                                            <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{StaticResource LogicIfBorderBrush}" />
+                                            <Setter Property="TextElement.FontWeight" Value="SemiBold" />
+                                        </Trigger>
+                                        <!--  键盘焦点必须可见（R115）  -->
+                                        <Trigger Property="IsKeyboardFocused" Value="True">
+                                            <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+                                            <Setter TargetName="ItemBorder" Property="BorderThickness" Value="2" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <!--  单行：状态点 + 名称 + 角色徽标 + 运行脉冲点 + 步数  -->
+                        <Grid Background="Transparent" ToolTip="{Binding Description}">
+                            <Grid.ContextMenu>
+                                <ContextMenu FontFamily="{StaticResource Icon}">
+                                    <MenuItem Header="流程" Icon="&#xf0e8;">
+                                        <MenuItem
+                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                            CommandParameter="{x:Static enums:FlowAction.Create}"
+                                            Header="添加"
+                                            Icon="&#xf56f;" />
+                                        <MenuItem
+                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                            CommandParameter="{x:Static enums:FlowAction.Delete}"
+                                            Header="删除"
+                                            Icon="&#xf2ed;" />
+                                        <MenuItem
+                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                            CommandParameter="{x:Static enums:FlowAction.Rename}"
+                                            Header="重命名"
+                                            Icon="&#xf044;" />
+                                        <MenuItem
+                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                            CommandParameter="{x:Static enums:FlowAction.EditComment}"
+                                            Header="编辑注释"
+                                            Icon="&#xf075;" />
+                                        <Separator />
+                                        <MenuItem
+                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                            CommandParameter="{x:Static enums:FlowAction.ToggleEnabled}"
+                                            Header="{Binding Data.FlowToggleHeader, Source={StaticResource MyViewModelProxy}}"
+                                            Icon="ban" />
+                                        <MenuItem
+                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                            CommandParameter="{x:Static enums:FlowAction.Compile}"
+                                            Header="编译本流程"
+                                            Icon="&#xf0e7;" />
+                                        <Separator />
+                                        <MenuItem
+                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                            CommandParameter="{x:Static enums:FlowAction.RunOnce}"
+                                            Header="运行一次"
+                                            Icon="&#xf04b;" />
+                                        <MenuItem
+                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                            CommandParameter="{x:Static enums:FlowAction.RunContinuous}"
+                                            Header="循环运行"
+                                            Icon="&#xf021;" />
+                                        <MenuItem
+                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                            CommandParameter="{x:Static enums:FlowAction.Stop}"
+                                            Header="停止本流程"
+                                            Icon="&#xf04d;" />
+                                    </MenuItem>
                                     <MenuItem
                                         Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                        CommandParameter="{x:Static enums:FlowAction.Create}"
-                                        Header="添加"
-                                        Icon="&#xf56f;" />
+                                        CommandParameter="{x:Static enums:FlowAction.Manager}"
+                                        Header="流程管理"
+                                        Icon="&#xf09c;" />
                                     <MenuItem
                                         Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                        CommandParameter="{x:Static enums:FlowAction.Delete}"
-                                        Header="删除"
-                                        Icon="&#xf2ed;" />
-                                    <MenuItem
-                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                        CommandParameter="{x:Static enums:FlowAction.Rename}"
-                                        Header="重命名"
-                                        Icon="&#xf044;" />
-                                    <MenuItem
-                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                        CommandParameter="{x:Static enums:FlowAction.EditComment}"
-                                        Header="编辑注释"
-                                        Icon="&#xf075;" />
-                                    <Separator />
-                                    <MenuItem
-                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                        CommandParameter="{x:Static enums:FlowAction.ToggleEnabled}"
-                                        Header="{Binding Data.FlowToggleHeader, Source={StaticResource MyViewModelProxy}}"
-                                        Icon="ban" />
-                                    <MenuItem
-                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                        CommandParameter="{x:Static enums:FlowAction.Compile}"
-                                        Header="编译本流程"
-                                        Icon="&#xf0e7;" />
-                                    <Separator />
-                                    <!--
-                                        单流程运行/停止（非调试路径：与 HTTP 触发同口径，断点不生效）。
-                                        停止放在运行下面：先跑后停的阅读顺序，与主界面停机键的位置无关，
-                                        这里只服务于"我就想单独把这条流程跑起来看看"的场景。
-                                    -->
-                                    <MenuItem
-                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                        CommandParameter="{x:Static enums:FlowAction.RunOnce}"
-                                        Header="运行一次"
-                                        Icon="&#xf04b;" />
-                                    <MenuItem
-                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                        CommandParameter="{x:Static enums:FlowAction.RunContinuous}"
-                                        Header="循环运行"
-                                        Icon="&#xf021;" />
-                                    <MenuItem
-                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                        CommandParameter="{x:Static enums:FlowAction.Stop}"
-                                        Header="停止本流程"
-                                        Icon="&#xf04d;" />
-                                </MenuItem>
-                                <MenuItem
-                                    Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                    CommandParameter="{x:Static enums:FlowAction.Manager}"
-                                    Header="流程管理"
-                                    Icon="&#xf09c;" />
-                                <MenuItem
-                                    Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                    CommandParameter="{x:Static enums:FlowAction.VariableEvents}"
-                                    Header="变量事件（方案级）"
-                                    Icon="&#xf0f3;" />
-                            </ContextMenu>
-                        </Grid.ContextMenu>
-                    </Grid>
-                    <!--  禁用态放 DataTemplate.Triggers：本仓库实测 ControlTemplate.Triggers 里的 DataTrigger 对模板内元素静默失效  -->
-                    <DataTemplate.Triggers>
-                        <!--  运行中：名称加粗 + 右侧「运行中」标记。
-                              状态点表达的是"启用 / 禁用"（绿点 / 灰点 + 禁用标签），不再兼任运行态——
-                              两者语义不同：一个说"这条流程能不能跑"，一个说"它现在是不是在跑"。  -->
-                        <DataTrigger Binding="{Binding RunState}" Value="Running">
-                            <Setter TargetName="NameText" Property="FontWeight" Value="SemiBold" />
-                            <Setter TargetName="RunningTag" Property="Visibility" Value="Visible" />
-                        </DataTrigger>
-                        <!--  已暂停：同位置换「已暂停」，点与文字转主色（与运行条的暂停色一致）  -->
-                        <DataTrigger Binding="{Binding RunState}" Value="Paused">
-                            <Setter TargetName="NameText" Property="FontWeight" Value="SemiBold" />
-                            <Setter TargetName="FlowDot" Property="Fill" Value="{StaticResource DialogAccentBrush}" />
-                            <Setter TargetName="RunningTag" Property="Visibility" Value="Visible" />
-                            <Setter TargetName="RunningTag" Property="Text" Value="已暂停" />
-                            <Setter TargetName="RunningTag" Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                            <Setter TargetName="FlowDot" Property="Fill" Value="{StaticResource ScadaDisabledTextBrush}" />
-                            <Setter TargetName="NameText" Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
-                            <Setter TargetName="NameText" Property="TextDecorations" Value="Strikethrough" />
-                            <Setter TargetName="CountText" Property="Foreground" Value="{StaticResource ScadaFaintTextBrush}" />
-                            <Setter TargetName="DisabledTag" Property="Visibility" Value="Visible" />
-                            <!--  禁用流程不可能在跑；万一模型里留着旧的 Running 镜像，也不许和「禁用」挤在同一格  -->
-                            <Setter TargetName="RunningTag" Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </DataTemplate.Triggers>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
+                                        CommandParameter="{x:Static enums:FlowAction.VariableEvents}"
+                                        Header="变量事件（方案级）"
+                                        Icon="&#xf0f3;" />
+                                </ContextMenu>
+                            </Grid.ContextMenu>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!--  状态点只表达"启用/禁用"（运行态在后面的脉冲点）  -->
+                            <Ellipse
+                                x:Name="FlowDot"
+                                Grid.Column="0"
+                                Width="6"
+                                Height="6"
+                                Margin="0,0,5,0"
+                                VerticalAlignment="Center"
+                                Fill="{StaticResource FlowCanvasSuccessBrush}" />
+
+                            <TextBlock
+                                x:Name="NameText"
+                                Grid.Column="1"
+                                VerticalAlignment="Center"
+                                FontSize="11.5"
+                                Foreground="{StaticResource ScadaTextBrush}"
+                                Text="{Binding FlowName}"
+                                TextTrimming="CharacterEllipsis" />
+
+                            <!--  角色徽标：Home/Main/End 三条骨架流程各一个字，完整名称进 ToolTip  -->
+                            <Border
+                                x:Name="RoleBadge"
+                                Grid.Column="2"
+                                Margin="4,0,0,0"
+                                Padding="3,0"
+                                VerticalAlignment="Center"
+                                CornerRadius="2"
+                                Visibility="Collapsed">
+                                <TextBlock
+                                    x:Name="RoleText"
+                                    FontSize="9"
+                                    Text="" />
+                            </Border>
+
+                            <!--
+                                调用关系徽标：与角色徽标分开表达“能不能直接拉起”。
+                                · 循环 = 主流程，工具栏「循环运行主流程」可直接启动；
+                                · 外部 = 定时/变量/HTTP，可被对应触发源直接拉起；
+                                · 子   = 仅勾了子程序且无外部触发，只能由其它流程调用。
+                                颜色与角色徽标同族（复用现有令牌，不新增全局资源）。
+                            -->
+                            <Border
+                                x:Name="CallBadge"
+                                Grid.Column="3"
+                                Margin="3,0,0,0"
+                                Padding="4,0"
+                                VerticalAlignment="Center"
+                                CornerRadius="2"
+                                ToolTip="{Binding CallBadgeToolTip}"
+                                Visibility="Collapsed">
+                                <TextBlock
+                                    x:Name="CallText"
+                                    FontSize="9"
+                                    Text="{Binding CallBadgeText}" />
+                            </Border>
+
+                            <!--  运行标记：6px 脉冲点（单行式没有第二行放"运行中"三个字）  -->
+                            <Ellipse
+                                x:Name="RunDot"
+                                Grid.Column="4"
+                                Width="6"
+                                Height="6"
+                                Margin="4,0,0,0"
+                                VerticalAlignment="Center"
+                                Fill="{StaticResource FlowCanvasSuccessBrush}"
+                                Visibility="Collapsed" />
+
+                            <TextBlock
+                                x:Name="CountText"
+                                Grid.Column="5"
+                                Margin="5,0,0,0"
+                                VerticalAlignment="Center"
+                                FontFamily="Consolas"
+                                FontSize="10"
+                                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                Text="{Binding Steps.Count}" />
+                        </Grid>
+                        <!--  禁用态放 DataTemplate.Triggers：本仓库实测 ControlTemplate.Triggers 里的 DataTrigger 对模板内元素静默失效  -->
+                        <DataTemplate.Triggers>
+                            <!--  角色徽标：三种角色各自着色（复用逻辑容器族，不新增令牌）  -->
+                            <DataTrigger Binding="{Binding Role}" Value="Home">
+                                <Setter TargetName="RoleBadge" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="RoleBadge" Property="Background" Value="{StaticResource LogicCaseSoftBrush}" />
+                                <Setter TargetName="RoleBadge" Property="BorderBrush" Value="{StaticResource LogicCaseBorderBrush}" />
+                                <Setter TargetName="RoleBadge" Property="BorderThickness" Value="1" />
+                                <Setter TargetName="RoleText" Property="Foreground" Value="{StaticResource LogicCaseTextBrush}" />
+                                <Setter TargetName="RoleText" Property="Text" Value="零" />
+                                <Setter TargetName="RoleBadge" Property="ToolTip" Value="回零（Home）" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Role}" Value="Main">
+                                <Setter TargetName="RoleBadge" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="RoleBadge" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                                <Setter TargetName="RoleBadge" Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
+                                <Setter TargetName="RoleBadge" Property="BorderThickness" Value="1" />
+                                <Setter TargetName="RoleText" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                                <Setter TargetName="RoleText" Property="Text" Value="主" />
+                                <Setter TargetName="RoleBadge" Property="ToolTip" Value="主流程 · 工具栏「循环运行主流程」可直接启动" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Role}" Value="End">
+                                <Setter TargetName="RoleBadge" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="RoleBadge" Property="Background" Value="{StaticResource LogicWhileSoftBrush}" />
+                                <Setter TargetName="RoleBadge" Property="BorderBrush" Value="{StaticResource LogicWhileBorderBrush}" />
+                                <Setter TargetName="RoleBadge" Property="BorderThickness" Value="1" />
+                                <Setter TargetName="RoleText" Property="Foreground" Value="{StaticResource LogicWhileTextBrush}" />
+                                <Setter TargetName="RoleText" Property="Text" Value="尾" />
+                                <Setter TargetName="RoleBadge" Property="ToolTip" Value="收尾（End）" />
+                            </DataTrigger>
+
+                            <!--  调用关系徽标：循环 / 外部 / 子；空串保持 Collapsed  -->
+                            <DataTrigger Binding="{Binding CallBadgeText}" Value="循环">
+                                <Setter TargetName="CallBadge" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="CallBadge" Property="Background" Value="{StaticResource LogicIfSoftBrush}" />
+                                <Setter TargetName="CallBadge" Property="BorderBrush" Value="{StaticResource LogicIfBorderBrush}" />
+                                <Setter TargetName="CallBadge" Property="BorderThickness" Value="1" />
+                                <Setter TargetName="CallText" Property="Foreground" Value="{StaticResource LogicIfTextBrush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding CallBadgeText}" Value="外部">
+                                <Setter TargetName="CallBadge" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="CallBadge" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                                <Setter TargetName="CallBadge" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                                <Setter TargetName="CallBadge" Property="BorderThickness" Value="1" />
+                                <Setter TargetName="CallText" Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding CallBadgeText}" Value="子">
+                                <Setter TargetName="CallBadge" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="CallBadge" Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+                                <Setter TargetName="CallBadge" Property="BorderBrush" Value="{StaticResource DialogWarningBorderBrush}" />
+                                <Setter TargetName="CallBadge" Property="BorderThickness" Value="1" />
+                                <Setter TargetName="CallText" Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                            </DataTrigger>
+                            <!--
+                                Main 已经由角色徽标“主”（绿色）表达“可循环”，单行 22px 放不下第二个徽标；
+                                这里显式收起 CallBadge，避免“主 + 循环”互相挤占把流程名截断。
+                                必须排在“循环”触发器之后（后者先把 CallBadge 置为 Visible）。
+                            -->
+                            <DataTrigger Binding="{Binding IsDirectlyLoopable}" Value="True">
+                                <Setter TargetName="CallBadge" Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+
+                            <!--  运行中：名称加粗 + 绿脉冲点  -->
+                            <DataTrigger Binding="{Binding RunState}" Value="Running">
+                                <Setter TargetName="NameText" Property="FontWeight" Value="SemiBold" />
+                                <Setter TargetName="RunDot" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="RunDot" Property="ToolTip" Value="运行中" />
+                            </DataTrigger>
+                            <!--  已暂停：点与文字转主色  -->
+                            <DataTrigger Binding="{Binding RunState}" Value="Paused">
+                                <Setter TargetName="NameText" Property="FontWeight" Value="SemiBold" />
+                                <Setter TargetName="FlowDot" Property="Fill" Value="{StaticResource DialogAccentBrush}" />
+                                <Setter TargetName="RunDot" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="RunDot" Property="Fill" Value="{StaticResource DialogAccentBrush}" />
+                                <Setter TargetName="RunDot" Property="ToolTip" Value="已暂停" />
+                            </DataTrigger>
+
+                            <!--  禁用：点灰 + 删除线 + 去饱和；运行标记强制隐藏（禁用流程不可能在跑）  -->
+                            <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                <Setter TargetName="FlowDot" Property="Fill" Value="{StaticResource ScadaDisabledTextBrush}" />
+                                <Setter TargetName="NameText" Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                                <Setter TargetName="NameText" Property="TextDecorations" Value="Strikethrough" />
+                                <Setter TargetName="CountText" Property="Foreground" Value="{StaticResource ScadaDisabledTextBrush}" />
+                                <Setter TargetName="RunDot" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="RoleBadge" Property="Opacity" Value="0.5" />
+                                <Setter TargetName="CallBadge" Property="Opacity" Value="0.5" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!--
+                禁用提示条：只在选中一条禁用流程时出现。
+                文案必须与代码行为一致——FlowListViewModel.cs:278-282 对禁用流程是**直接拦截**
+                （"已禁用，请先启用再运行"），所以不能写"手动运行仍可用"。
+            -->
+            <Border
+                Grid.Row="1"
+                Margin="6,4,6,0"
+                Padding="6,2"
+                Background="{StaticResource DialogDangerSubtleBrush}"
+                BorderBrush="{StaticResource DialogDangerBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="4"
+                ToolTip="已禁用：不参与自动触发，右键「启用」后才能运行">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SelectFlow.IsEnabled}" Value="False">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock
+                    FontSize="10"
+                    Foreground="{StaticResource DialogDangerTextBrush}"
+                    Text="⚠ 已禁用：右键「启用」后才能运行"
+                    TextTrimming="CharacterEllipsis" />
+            </Border>
+        </Grid>
+
+        <!--  底栏：流程条数 + 当前选中  -->
+        <Border
+            Grid.Row="1"
+            Height="26"
+            Padding="8,0"
+            Background="{StaticResource DialogRowAlternateBrush}"
+            BorderBrush="{StaticResource DialogBorderBrush}"
+            BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel
+                    Grid.Column="0"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center">
+                    <TextBlock
+                        FontFamily="Consolas"
+                        FontSize="10.5"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource ScadaTextBrush}"
+                        Text="{Binding Workspace.CurrentSolution.Flows.Count}" />
+                    <TextBlock
+                        Margin="3,0,0,0"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                        Text="条流程" />
+                </StackPanel>
+
+                <TextBlock
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    FontSize="10.5"
+                    Foreground="{StaticResource DialogTextTertiaryBrush}"
+                    Text="{Binding SelectFlow.FlowName, StringFormat=选中：{0}}"
+                    TextTrimming="CharacterEllipsis" />
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

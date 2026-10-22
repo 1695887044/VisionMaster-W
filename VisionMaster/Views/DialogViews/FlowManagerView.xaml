@@ -300,6 +300,53 @@
                     Header="状态"
                     IsReadOnly="True" />
 
+                <!--
+                    调用关系：把“能不能直接拉起”放在表格里一眼可见。
+                    循环 = 主流程（工具栏循环）；外部 = 定时/变量/HTTP；子 = 仅子程序，由主流程调用。
+                    颜色复用弹窗现有令牌，不新增全局资源。
+                -->
+                <DataGridTemplateColumn Width="150" Header="调用关系">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Border
+                                x:Name="CallKindChip"
+                                Padding="6,2"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource DialogSurfaceBrush}"
+                                CornerRadius="3"
+                                ToolTip="{Binding Flow.CallBadgeToolTip}">
+                                <TextBlock
+                                    x:Name="CallKindText"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="{Binding Flow.CallSummaryText}"
+                                    TextTrimming="CharacterEllipsis" />
+                            </Border>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Flow.CallBadgeText}" Value="循环">
+                                    <Setter TargetName="CallKindChip" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                                    <Setter TargetName="CallKindChip" Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
+                                    <Setter TargetName="CallKindChip" Property="BorderThickness" Value="1" />
+                                    <Setter TargetName="CallKindText" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Flow.CallBadgeText}" Value="外部">
+                                    <Setter TargetName="CallKindChip" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                                    <Setter TargetName="CallKindChip" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                                    <Setter TargetName="CallKindChip" Property="BorderThickness" Value="1" />
+                                    <Setter TargetName="CallKindText" Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Flow.CallBadgeText}" Value="子">
+                                    <Setter TargetName="CallKindChip" Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+                                    <Setter TargetName="CallKindChip" Property="BorderBrush" Value="{StaticResource DialogWarningBorderBrush}" />
+                                    <Setter TargetName="CallKindChip" Property="BorderThickness" Value="1" />
+                                    <Setter TargetName="CallKindText" Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
                 <DataGridTemplateColumn Width="230" Header="操作">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -383,6 +430,11 @@
                     Margin="0,3,0,0"
                     Style="{StaticResource DialogHintText}"
                     Text="· 调用方式（多选）：HTTP = 允许经 /flow/{流程名} 触发；定时 = 按间隔周期跑（下限 20ms）；变量 = 指定变量由假变真时跑；子程序 = 允许被其它流程的「调用流程」步骤调用"
+                    TextWrapping="Wrap" />
+                <TextBlock
+                    Margin="0,3,0,0"
+                    Style="{StaticResource DialogHintText}"
+                    Text="· 调用关系：绿色=主流程（工具栏循环运行）；蓝色=外部触发（定时/变量/HTTP）；琥珀=仅子程序（由主流程调用）；灰色=手动"
                     TextWrapping="Wrap" />
                 <TextBlock
                     Margin="0,3,0,0"

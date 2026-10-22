@@ -6,6 +6,8 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Prism.Mvvm;
 using VisionMaster.Models;
 using VisionMaster.Scada;
@@ -13,6 +15,7 @@ using VisionMaster.Scada.Controls;
 using VisionMaster.Services;
 using VisionMaster.ViewModels;
 using VisionMaster.Views;
+using VisionMaster.Views.DialogViews;
 
 namespace ScadaUiProbe
 {
@@ -44,6 +47,15 @@ namespace ScadaUiProbe
 
                 if (mode is "--glyphs")
                     ProbeGlyphs();
+
+                if (mode is "--solution")
+                    RenderSolutionPages(dir, args.Length > 1 ? args[1] : null);
+
+                if (mode is "--flow-manager")
+                    RenderFlowManager(dir);
+
+                if (mode is "--flow-list")
+                    RenderFlowList(dir);
 
                 Console.WriteLine($"出图目录: {dir}");
                 Console.WriteLine("RESULT: OK");
@@ -187,6 +199,146 @@ namespace ScadaUiProbe
             for (int i = 0; i < count; i++)
                 list.AddRange(FindAll<T>(VisualTreeHelper.GetChild(root, i)));
             return list;
+        }
+
+        // ================================================================ 流程条：调用关系徽标
+
+        /// <summary>
+        /// 用 340×112 的真实尺寸渲染流程条，检查新增的“循环 / 外部 / 子”徽标会不会挤掉流程名。
+        /// </summary>
+        private static void RenderFlowList(string dir)
+        {
+            var flows = new[]
+            {
+                new FlowModel { FlowName = "Main", Role = FlowRole.Main, InvokeType = FlowInvokeType.Manual },
+                new FlowModel { FlowName = "Station_Load", Role = FlowRole.None, InvokeType = FlowInvokeType.Subroutine },
+                new FlowModel { FlowName = "Line2_HTTP", Role = FlowRole.None, InvokeType = FlowInvokeType.Http },
+            };
+
+            var view = new FlowListView
+            {
+                DataContext = new
+                {
+                    Workspace = new
+                    {
+                        CurrentSolution = new { Flows = flows },
+                    },
+                },
+            };
+            var window = Show(view, 340, 112);
+            Pump(600);
+
+            Save(Render(view, (int)view.ActualWidth, (int)view.ActualHeight),
+                Path.Combine(dir, "flow-list-call-badges.png"));
+            Console.WriteLine($"  flow-list-call-badges.png  {view.ActualWidth:0}×{view.ActualHeight:0}");
+
+            window.Close();
+        }
+
+        // ================================================================ 流程管理：调用关系徽标
+
+        /// <summary>
+        /// 用四条假流程渲染流程管理表格，专门看“循环 / 外部 / 子 / 手动”四种调用关系徽标。
+        /// 只做视觉探针：DataContext 是一个最小匿名对象，不依赖 FlowManagerViewModel 的 DI。
+        /// </summary>
+        private static void RenderFlowManager(string dir)
+        {
+            var flows = new object[]
+            {
+                new { Flow = new FlowModel { FlowName = "Main", Role = FlowRole.Main, InvokeType = FlowInvokeType.Manual } },
+                new { Flow = new FlowModel { FlowName = "Station_Load", Role = FlowRole.None, InvokeType = FlowInvokeType.Subroutine } },
+                new { Flow = new FlowModel { FlowName = "Line2_HTTP", Role = FlowRole.None, InvokeType = FlowInvokeType.Http } },
+                new { Flow = new FlowModel { FlowName = "ManualFlow", Role = FlowRole.None, InvokeType = FlowInvokeType.Manual } },
+            };
+
+            var view = new FlowManagerView { DataContext = new { Flows = flows } };
+            var window = Show(view, 1500, 760);
+            Pump(600);
+
+            Save(Render(view, (int)view.ActualWidth, (int)view.ActualHeight),
+                Path.Combine(dir, "flow-manager-call-badges.png"));
+            Console.WriteLine($"  flow-manager-call-badges.png  {view.ActualWidth:0}×{view.ActualHeight:0}");
+
+            window.Close();
+        }
+
+        // ================================================================ 方案组态出图
+
+        /// <summary>
+        /// 从 .vms 里只取 Scada 段，逐页渲染成 PNG。
+        /// 不整份反序列化方案：流程步骤里带插件类型，需要先把 Modules 下的插件程序集装进来；
+        /// 组态预览与算子无关，只解析画面/图元就够了。
+        /// </summary>
+        private static void RenderSolutionPages(string dir, string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                Console.WriteLine($"找不到方案文件: {path}");
+                return;
+            }
+
+            var root = JObject.Parse(File.ReadAllText(path));
+            var token = root["Scada"];
+            if (token == null)
+            {
+                Console.WriteLine("方案里没有 Scada 段");
+                return;
+            }
+
+            var settings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto };
+            var doc = token.ToObject<ScadaDocument>(JsonSerializer.Create(settings));
+            if (doc == null)
+            {
+                Console.WriteLine("Scada 段反序列化失败");
+                return;
+            }
+
+            doc.EnsureIdentity();
+            VisionMaster.Scada.Controls.Charts.ScadaChartElements.Register();
+
+            var theme = new ResourceDictionary
+            {
+                Source = new Uri("/VM.Scada.Controls;component/Themes/Generic.xaml", UriKind.Relative),
+            };
+
+            string solution = Path.GetFileNameWithoutExtension(path);
+            int index = 1;
+            foreach (var page in doc.Pages)
+            {
+                var canvas = new ScadaCanvas
+                {
+                    PageWidth = page.Width,
+                    PageHeight = page.Height,
+                    GridSize = page.GridSize,
+                    SnapToGrid = page.SnapToGrid,
+                    ItemsSource = page.Elements,
+                    Page = page,
+                    ShowGrid = false,
+                };
+                canvas.Style = (Style)theme[typeof(ScadaCanvas)];
+
+                // 放屏幕外：HwndHost/渲染目标照常建立，但不会在桌面上闪。
+                var window = new Window
+                {
+                    Width = Math.Max(200, page.Width + 2),
+                    Height = Math.Max(200, page.Height + 2),
+                    WindowStartupLocation = WindowStartupLocation.Manual,
+                    Left = -10000,
+                    Top = 0,
+                    ShowInTaskbar = false,
+                    Content = canvas,
+                };
+                window.Show();
+                Pump(600);
+
+                string safeName = string.Join("_", page.Name.Split(Path.GetInvalidFileNameChars()));
+                string file = $"{solution}-{index:00}-{safeName}.png";
+                Save(Render(canvas, (int)canvas.ActualWidth, (int)canvas.ActualHeight), Path.Combine(dir, file));
+                Console.WriteLine($"  {file}  {canvas.ActualWidth:0}×{canvas.ActualHeight:0}  图元 {page.Elements.Count}");
+
+                window.Close();
+                index++;
+            }
         }
 
         // ================================================================ 组态编辑器

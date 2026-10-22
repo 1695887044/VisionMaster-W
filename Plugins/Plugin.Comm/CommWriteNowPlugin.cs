@@ -103,7 +103,7 @@ namespace Plugin.Comm
             // 这里先拦是为了在界面上给出更贴近当前步骤的原因，不占用插队队列。
             if (info.IsReadOnly)
             {
-                Fail($"变量「{name}」位于只读存储区（离散输入 / S7 输入映像 I），不能写入");
+                Fail($"变量「{name}」位于只读存储区（离散输入 / 输入寄存器 / S7 输入映像 I），不能写入");
                 context.Logger.Error($"{InstanceName} {ErrorMessage.Value}");
                 return;
             }
