@@ -1,8 +1,0 @@
-Unhandled exception. System.UnauthorizedAccessException: Access to the path 'D:\C#\VM\_help_preview\01-插件手册页.png' is denied.
-   at Microsoft.Win32.SafeHandles.SafeFileHandle.CreateFile(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options)
-   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)
-   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)
-   at System.IO.Strategies.FileStreamHelpers.ChooseStrategyCore(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)
-   at System.IO.File.Create(String path)
-   at HelpProbe.Program.Render(FrameworkElement view, String path) in D:\C#\VM\HelpProbe\Program.cs:line 1107
-   at HelpProbe.Program.Main(String[] args) in D:\C#\VM\HelpProbe\Program.cs:line 387
