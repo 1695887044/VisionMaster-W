@@ -123,6 +123,34 @@ namespace Plugin.HandEye
             quality = default;
             error = null;
 
+            if (!TryBuildRelativeXB(samples, out List<Mat4> relA, out List<Mat4> relB, out error))
+            {
+                return false;
+            }
+
+            return SolveRelative(relA, relB, out x, out quality, out error);
+        }
+
+        /// <summary>
+        /// eye-in-hand 的相对运动：A_rel = A_0⁻¹·A_i，B_rel = B_0·B_i⁻¹。
+        ///
+        /// 推导：靶标固定在基座上 ⇒ A_i·X·B_i = const（A_i = T_base←gripper，B_i = T_camera←target，
+        /// X = T_gripper←camera）。取 i 与 0 相消得
+        ///     (A_0⁻¹·A_i)·X = X·(B_0·B_i⁻¹)
+        /// **两边都必须是"后项取逆"的同一侧**；写成 B_i·B_0⁻¹ 会得到一个自洽但错误的方程
+        /// （实测：合成数据上解出的 X 旋转差 1 rad，而残差只有 3.6e-8 —— 残差小不代表解对，
+        ///  这正是必须用"已知 X 往返"而不是"残差小"来验收的原因）。
+        /// </summary>
+        private static bool TryBuildRelativeXB(
+            IReadOnlyList<Sample> samples,
+            out List<Mat4> relA,
+            out List<Mat4> relB,
+            out string? error)
+        {
+            relA = new List<Mat4>();
+            relB = new List<Mat4>();
+            error = null;
+
             if (samples == null || samples.Count < MinPairs)
             {
                 error = $"样本不足：至少需要 {MinPairs} 组（当前 {(samples?.Count ?? 0)} 组）";
@@ -130,17 +158,6 @@ namespace Plugin.HandEye
             }
 
             int n = samples.Count;
-
-            // 相对运动：A_i = A_0⁻¹·A_i，B_i = B_0·B_i⁻¹（i ≥ 1）
-            //
-            // 推导（eye-in-hand）：靶标固定在基座上 ⇒ A_i·X·B_i = const（A_i = T_base←gripper，
-            // B_i = T_camera←target，X = T_gripper←camera）。取 i 与 0 相消得
-            //     (A_0⁻¹·A_i)·X = X·(B_0·B_i⁻¹)
-            // **两边都必须是"后项取逆"的同一侧**；写成 B_i·B_0⁻¹ 会得到一个自洽但错误的方程
-            // （实测：合成数据上解出的 X 旋转差 1 rad，而残差只有 3.6e-8 —— 残差小不代表解对，
-            //  这正是必须用"已知 X 往返"而不是"残差小"来验收的原因）。
-            var relA = new List<Mat4>(n - 1);
-            var relB = new List<Mat4>(n - 1);
             Mat4 a0Inv = Mat4.InverseRigid(samples[0].Robot);
             Mat4 b0 = samples[0].Camera;
 
@@ -150,6 +167,72 @@ namespace Plugin.HandEye
                 relB.Add(Mat4.Multiply(b0, Mat4.InverseRigid(samples[i].Camera)));
             }
 
+            return true;
+        }
+
+        /// <summary>
+        /// eye-to-hand（眼在手外）的相对运动：A_rel = A_0⁻¹·A_i，**B_rel = B_0⁻¹·B_i**。
+        ///
+        /// 注意它和 eye-in-hand 的 B 侧**不是同一个式子**（那里是 B_0·B_i⁻¹）。推导：
+        /// 靶标装在法兰上、相机固定 ⇒ A_i·Z = X·B_i（Z = T_flange←target，X = T_base←camera）。
+        /// 由 A_0·Z = X·B_0 得 A_0⁻¹·X = Z·B_0⁻¹，代回 A_0⁻¹·A_i·Z = A_0⁻¹·X·B_i 得
+        ///     (A_0⁻¹·A_i)·Z = Z·(B_0⁻¹·B_i)
+        /// 写成 B_0·B_i⁻¹ 也能"解出个数"，但那是另一个方程的答案：合成数据上旋转差 2.7 rad、
+        /// 残差 0.94 rad（实测 2026-10-23）。**两个装法的 B 侧差一个取逆位置，是这套数学最容易写错的一处。**
+        /// </summary>
+        private static bool TryBuildRelativeZB(
+            IReadOnlyList<Sample> samples,
+            out List<Mat4> relA,
+            out List<Mat4> relB,
+            out string? error)
+        {
+            relA = new List<Mat4>();
+            relB = new List<Mat4>();
+            error = null;
+
+            if (samples == null || samples.Count < MinPairs)
+            {
+                error = $"样本不足：至少需要 {MinPairs} 组（当前 {(samples?.Count ?? 0)} 组）";
+                return false;
+            }
+
+            int n = samples.Count;
+            Mat4 a0Inv = Mat4.InverseRigid(samples[0].Robot);
+            Mat4 b0Inv = Mat4.InverseRigid(samples[0].Camera);
+
+            for (int i = 1; i < n; i++)
+            {
+                relA.Add(Mat4.Multiply(a0Inv, samples[i].Robot));
+                relB.Add(Mat4.Multiply(b0Inv, samples[i].Camera));
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 解相对运动形式的 A_rel·W = W·B_rel。
+        ///
+        /// 两种装法在这里汇合：eye-in-hand 求出的 W 就是 X（T_gripper←camera）；
+        /// eye-to-hand 求出的 W 是 Z（T_flange←target），再换算成 X。
+        /// 退化检查（旋转激励 / 旋转轴共线 / 平移病态 / det(R)）与残差统计只写这一份，
+        /// **所以"什么算解不出来"对两种装法是同一套判据**，不会各写一份慢慢漂开。
+        /// </summary>
+        private static bool SolveRelative(
+            List<Mat4> relA,
+            List<Mat4> relB,
+            out Mat4 x,
+            out Quality quality,
+            out string? error)
+        {
+            x = Mat4.Identity;
+            quality = default;
+            error = null;
+
+            if (relA.Count == 0)
+            {
+                error = $"样本不足：至少需要 {MinPairs} 组（当前 1 组）";
+                return false;
+            }
             // 旋转激励检查：**至少要有一组相对旋转"转得够多"**。
             //
             // 判据刻意用 Max 而不是 (Max − Min)：转轴是否张开由下面的奇异值比把关，这里只回答
@@ -328,6 +411,123 @@ namespace Plugin.HandEye
                 trMax,
                 s[2] / s[0],
                 used);
+            return true;
+        }
+
+        /// <summary>
+        /// 求解 A·Z = X·B（eye-to-hand，中文"眼在手外"：相机固定、靶标装在法兰上）。
+        ///
+        /// **记号**（和 AX=XB 不是同一套，别混）：
+        ///   · A_i = T_base←flange  机器人给的法兰位姿
+        ///   · B_i = T_camera←target 相机看到的靶标位姿
+        ///   · Z   = T_flange←target 靶标在法兰上的安装位姿（固定不变、未知）
+        ///   · X   = T_base←camera   要交付的那个 4×4（相机在基座下的位姿）
+        ///
+        /// **化归**（这是本方法只多 30 行、却能复用整套 Park-Martin 的原因）：
+        /// 靶标在世界里的位姿有两种算法 —— 走机器人是 A_i·Z，走相机是 X·B_i，两者必须相等：
+        ///     A_i·Z = X·B_i
+        /// 拿第 0 组消掉绝对值：
+        ///     (A_0⁻¹·A_i)·Z = Z·(B_0·B_i⁻¹)
+        /// 右边这半截与 <see cref="SolveAXEqualsXB"/> 内部构造的相对运动**逐字相同**，
+        /// 于是"眼在手外"就是"把 AX=XB 解出来的那个 X 叫 Z"，再用 Z 换算出真正的 X：
+        ///     X = A_0·Z·B_0⁻¹
+        ///
+        /// **为什么不用 HALCON 的 calibrate_hand_eye**：见 Help/05-dev-solver-theory.md 第 5 节。
+        /// </summary>
+        /// <param name="samples">成对数据，至少 <see cref="MinPairs"/> 组</param>
+        /// <param name="cameraInBase">求得的 X = T_base←camera（失败时为 Identity）</param>
+        /// <param name="targetOnFlange">求得的 Z = T_flange←target（失败时为 Identity；只用于诊断与复核）</param>
+        /// <param name="quality">质量指标（失败时为零值）</param>
+        /// <param name="error">失败原因（中文，直接可上屏；成功时为 null）</param>
+        /// <returns>成功返回 true</returns>
+        public static bool SolveAXEqualsZB(
+            IReadOnlyList<Sample> samples,
+            out Mat4 cameraInBase,
+            out Mat4 targetOnFlange,
+            out Quality quality,
+            out string? error)
+        {
+            cameraInBase = Mat4.Identity;
+            targetOnFlange = Mat4.Identity;
+            quality = default;
+            error = null;
+
+            if (samples == null || samples.Count < MinPairs)
+            {
+                error = $"样本不足：至少需要 {MinPairs} 组（当前 {(samples?.Count ?? 0)} 组）";
+                return false;
+            }
+
+            // 第一步：解 Z。相对运动取 eye-to-hand 那一套（B 侧是 B_0⁻¹·B_i，不是 B_0·B_i⁻¹）；
+            // 退化检查（旋转激励 / 共线 / 平移病态 / det）与 AX=XB 共用同一份 SolveRelative，
+            // 所以两种装法"什么算解不出来"是同一套判据。
+            if (!TryBuildRelativeZB(samples, out List<Mat4> relA, out List<Mat4> relB, out error))
+            {
+                return false;
+            }
+
+            if (!SolveRelative(relA, relB, out Mat4 z, out Quality coreQuality, out string? solveError))
+            {
+                error = solveError;
+                return false;
+            }
+
+            // 第二步：Z → X。用第 0 组（与上面消元选的基准一致；数据自洽时任意 i 等价）。
+            Mat4 x = Mat4.Multiply(Mat4.Multiply(samples[0].Robot, z), Mat4.InverseRigid(samples[0].Camera));
+
+            double detErr = Math.Abs(x.Rotation.Determinant - 1.0);
+            if (detErr > MaxDetError)
+            {
+                error = $"换算出相机位姿后旋转矩阵非法：det(R) = {x.Rotation.Determinant:0.######}（应接近 1，偏差 {detErr:0.######e+0}）";
+                return false;
+            }
+
+            if (!IsFinite(x.Rotation) || !IsFinite(x.Translation))
+            {
+                error = "求解结果含非有限数（NaN/Inf）";
+                return false;
+            }
+
+            // 第三步：**绝对式重新验算**，不复用第一步的残差。
+            //     E_i = (X·B_i)⁻¹·(A_i·Z) 应为单位阵
+            // 这一步专门给"Z → X 换算"兜底：相对式恒等式在 Z 上成立，换算式若写错（例如把
+            // B_0⁻¹ 写成 B_0），相对式残差照样接近 0，但绝对式会立刻炸开。
+            // 同理必须从 i = 1 起算：i = 0 那组是换算的基准，残差恒为 0，算进去会把 RMS 拉低。
+            double rotSumSq = 0, rotMax = 0, trSumSq = 0, trMax = 0;
+            int used = 0;
+
+            for (int i = 1; i < samples.Count; i++)
+            {
+                Mat4 left = Mat4.Multiply(samples[i].Robot, z);   // A_i·Z：靶标在世界里（走机器人）
+                Mat4 right = Mat4.Multiply(x, samples[i].Camera); // X·B_i：靶标在世界里（走相机）
+                Mat4 e = Mat4.Multiply(Mat4.InverseRigid(right), left);
+
+                double rotErr = RotationAngle(e.Rotation);
+                double trErr = e.Translation.Length;
+
+                rotSumSq += rotErr * rotErr;
+                trSumSq += trErr * trErr;
+                if (rotErr > rotMax) rotMax = rotErr;
+                if (trErr > trMax) trMax = trErr;
+                used++;
+            }
+
+            if (used == 0)
+            {
+                error = $"样本不足：至少需要 {MinPairs} 组才谈得上验算（当前 {samples.Count} 组）";
+                return false;
+            }
+
+            quality = new Quality(
+                Math.Sqrt(rotSumSq / used),
+                rotMax,
+                Math.Sqrt(trSumSq / used),
+                trMax,
+                coreQuality.SingularRatio,
+                used);
+
+            cameraInBase = x;
+            targetOnFlange = z;
             return true;
         }
 

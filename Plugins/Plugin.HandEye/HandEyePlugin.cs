@@ -99,6 +99,7 @@ namespace Plugin.HandEye
             OnPropertyChanged(nameof(IsEyeInHand));
             OnPropertyChanged(nameof(IsEyeToHand));
             OnPropertyChanged(nameof(PreviewMatrixCaption));
+            OnPropertyChanged(nameof(PoseKindText));
             ClearPreview();
         }
 
@@ -270,6 +271,14 @@ namespace Plugin.HandEye
         public string PreviewMatrixCaption => PoseKind == HandEyePoseKind.EyeToHand
             ? "X = T_base←camera · 单位 mm · 行主序 16 元"
             : "X = T_gripper←camera · 单位 mm · 行主序 16 元";
+
+        /// <summary>
+        /// 装法的中文名。失败文案里必须带它：同一句"旋转激励不足"在两种装法下
+        /// 指的物理动作不同（一次是相机跟着动、一次是靶标跟着动），
+        /// 现场照文案去改取点方式时，不能让他猜是哪种。
+        /// </summary>
+        [JsonIgnore]
+        public string PoseKindText => PoseKind == HandEyePoseKind.EyeToHand ? "眼在手外" : "眼在手上";
 
         /// <summary>加一行空行（12 个值全 0，求解时会被判"还没填"）</summary>
         public void AddBlankSample() => Samples.Add(new HandEyeSample());
@@ -466,9 +475,29 @@ namespace Plugin.HandEye
                 return false;
             }
 
-            if (!HandEyeMath.SolveAXEqualsXB(samples, out Mat4 x, out HandEyeMath.Quality q, out string? solveError))
+            // 装法决定解哪个方程，**不是**同一套数学换个名字：
+            //   · 眼在手上 → A·X = X·B，X = T_gripper←camera
+            //   · 眼在手外 → A·Z = X·B，X = T_base←camera
+            // 这两条在数值上给出**完全不同**的 4×4。曾经这里不分装法、一律调 AX=XB，
+            // 于是"眼在手外"会拿到一个眼在手上的解，还被标成 T_base←camera —— 残差漂亮、
+            // 抓取点整体偏一个安装距离，是那种查三天的错。分装法就是防它。
+            bool solved;
+            Mat4 x;
+            HandEyeMath.Quality q;
+            string? solveError;
+
+            if (PoseKind == HandEyePoseKind.EyeToHand)
             {
-                qualityError = $"手眼求解失败：{solveError}";
+                solved = HandEyeMath.SolveAXEqualsZB(samples, out x, out Mat4 _, out q, out solveError);
+            }
+            else
+            {
+                solved = HandEyeMath.SolveAXEqualsXB(samples, out x, out q, out solveError);
+            }
+
+            if (!solved)
+            {
+                qualityError = $"手眼求解失败（{PoseKindText}）：{solveError}";
                 return false;
             }
 
@@ -478,13 +507,18 @@ namespace Plugin.HandEye
 
             if (rotationRmsDeg > MaxRotationRmsDeg)
             {
-                qualityError = $"旋转残差 {rotationRmsDeg:0.###}° 超过上限 {MaxRotationRmsDeg:0.###}°：姿态数据可能含错点/角度单位不对/欧拉约定不符";
+                // 残差超限最常见的两个原因，一个是数据脏，另一个就是**装法选错**（把眼在手外的数据
+                // 按眼在上来解，残差会大到几十度）。所以文案里必须点出"按哪种装法算的"——
+                // 不写清楚的话，用户只会去翻姿态数据和欧拉约定，永远想不到是上面那个开关。
+                qualityError = $"旋转残差 {rotationRmsDeg:0.###}° 超过上限 {MaxRotationRmsDeg:0.###}°（按「{PoseKindText}」求解）：" +
+                               "姿态数据可能含错点/角度单位不对/欧拉约定不符；也可能是装法选错了——先核对「眼在手上 / 眼在手外」";
                 return true;
             }
 
             if (q.TranslationRms > MaxTranslationRmsMm)
             {
-                qualityError = $"平移残差 {q.TranslationRms:0.###} mm 超过上限 {MaxTranslationRmsMm:0.###} mm：点位数据可能含错点，或机器人未回零";
+                qualityError = $"平移残差 {q.TranslationRms:0.###} mm 超过上限 {MaxTranslationRmsMm:0.###} mm（按「{PoseKindText}」求解）：" +
+                               "点位数据可能含错点、机器人未回零，或装法选错了";
                 return true;
             }
 

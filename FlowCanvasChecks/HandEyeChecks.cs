@@ -135,6 +135,7 @@ namespace FlowCanvasChecks
             MathLayer();
             EulerLayer();
             PluginLayer();
+            ZBLayer();
             CsvLayer();
         }
 
@@ -414,7 +415,8 @@ namespace FlowCanvasChecks
             IEnumerable<HandEyeSample> rows,
             bool requireRecommended = true,
             double maxTrans = 1.0,
-            double maxRot = 0.5)
+            double maxRot = 0.5,
+            HandEyePoseKind pose = HandEyePoseKind.EyeInHand)
         {
             // ⚠ 这些属性都带 [DefaultValue]，但只有走 Initialize 才会被填；
             // 断言里直接 new 出来必须**逐个显式赋值**，否则默认是 0/false 而不是 1.0/true。
@@ -423,7 +425,7 @@ namespace FlowCanvasChecks
                 RequireRecommendedPairs = requireRecommended,
                 MaxTranslationRmsMm = maxTrans,
                 MaxRotationRmsDeg = maxRot,
-                PoseKind = HandEyePoseKind.EyeInHand,
+                PoseKind = pose,
             };
             foreach (var r in rows)
                 plugin.Samples.Add(r);
@@ -432,6 +434,137 @@ namespace FlowCanvasChecks
 
         private static string Err(HandEyePlugin plugin)
             => plugin.ErrorMessage.Value as string ?? string.Empty;
+
+        #endregion
+
+        #region 眼在手外（AX=ZB）
+
+        /// <summary>
+        /// 按 eye-to-hand 的物理模型造样本：靶标装在法兰上、相机固定 ⇒ A_i·Z = X·B_i，
+        /// 故 B = X⁻¹·A·Z。<b>不要</b>套用眼在手上的 B = X⁻¹·A⁻¹·C —— 那是另一组数据，
+        /// 拿它喂 AX=ZB 会解出一个自洽但错误的答案。
+        /// </summary>
+        private static List<HandEyeMath.Sample> MakeZBSamples(
+            Mat4 x, Mat4 z, double[][] robotPoses, bool withNoise = false)
+        {
+            var list = new List<HandEyeMath.Sample>(robotPoses.Length);
+            for (int i = 0; i < robotPoses.Length; i++)
+            {
+                double[] p = robotPoses[i];
+                Mat4 a = HandEyeMath.PoseFromXyzEulerZyxDeg(p[0], p[1], p[2], p[3], p[4], p[5]);
+                if (withNoise)
+                {
+                    double jitter = (i % 2 == 0 ? 1.0 : -1.0) * 0.05;
+                    Vec3 t = a.Translation;
+                    a = Mat4.FromRt(a.Rotation, new Vec3(t.X + jitter, t.Y - jitter, t.Z));
+                }
+
+                Mat4 b = Mat4.Multiply(Mat4.InverseRigid(x), Mat4.Multiply(a, z));
+                list.Add(new HandEyeMath.Sample(a, b));
+            }
+            return list;
+        }
+
+        private static Mat4 TrueZ() => HandEyeMath.PoseFromXyzEulerZyxDeg(30.0, -80.0, 15.0, 5.0, 25.0, -12.0);
+
+        private static void ZBLayer()
+        {
+            Mat4 xTrue = TrueX2();
+            Mat4 zTrue = TrueZ();
+
+            // ---- ① 合成往返：交付物 X 与中间量 Z 都要还原 ----
+            var s = MakeZBSamples(xTrue, zTrue, RobotPoses);
+            bool ok = HandEyeMath.SolveAXEqualsZB(s, out Mat4 xGot, out Mat4 zGot, out HandEyeMath.Quality q, out string? err);
+            double rotErr = ok ? RotErrRad(xGot, xTrue) : double.NaN;
+            double transErr = ok ? TransErr(xGot, xTrue) : double.NaN;
+            Check("[HE] 眼在手外①：合成数据往返，解出的相机位姿与真值一致（< 1e-9）",
+                ok && rotErr < 1e-9 && transErr < 1e-9,
+                ok ? $"旋转误差 {rotErr:0.###e+0} rad / 平移误差 {transErr:0.###e+0} mm" : (err ?? "求解失败但没给原因"));
+
+            double zRotErr = ok ? RotErrRad(zGot, zTrue) : double.NaN;
+            double zTransErr = ok ? TransErr(zGot, zTrue) : double.NaN;
+            Check("[HE] 眼在手外②：中间量 Z（靶标在法兰）也还原（< 1e-9）",
+                ok && zRotErr < 1e-9 && zTransErr < 1e-9,
+                ok ? $"Z 旋转误差 {zRotErr:0.###e+0} rad / 平移误差 {zTransErr:0.###e+0} mm" : (err ?? "求解失败但没给原因"));
+
+            Check("[HE] 眼在手外③：参与组数 = 样本数 − 1（第一组作基准）",
+                ok && q.UsedPairs == s.Count - 1,
+                ok ? $"参与 {q.UsedPairs} 组（共 {s.Count} 组）" : (err ?? "求解失败但没给原因"));
+
+            // ---- ② 噪声：0.05 mm 抖动下的精度 ----
+            var sNoise = MakeZBSamples(xTrue, zTrue, RobotPoses, withNoise: true);
+            bool okNoise = HandEyeMath.SolveAXEqualsZB(sNoise, out Mat4 xNoise, out Mat4 _, out HandEyeMath.Quality qNoise, out string? errNoise);
+            Check("[HE] 眼在手外④：机器人侧 0.05 mm 抖动，相机位姿误差仍 < 0.1 mm",
+                okNoise && TransErr(xNoise, xTrue) < 0.1,
+                okNoise ? $"平移误差 {TransErr(xNoise, xTrue):0.####} mm / 残差 {qNoise.TranslationRms:0.####} mm" : (errNoise ?? "求解失败但没给原因"));
+
+            // ---- ③ 退化必须失败（复用同一套判据，不是另写一份）----
+            bool noRotOk = HandEyeMath.SolveAXEqualsZB(MakeZBSamples(xTrue, zTrue, RobotPosesNoRotation), out Mat4 _, out Mat4 _, out HandEyeMath.Quality _, out string? noRotErr);
+            Check("[HE] 眼在手外⑤：机器人不动姿态 → 必须失败",
+                !noRotOk && (noRotErr ?? "").Contains("旋转激励不足"),
+                noRotOk ? "竟然解出来了" : (noRotErr ?? ""));
+
+            bool collOk = HandEyeMath.SolveAXEqualsZB(MakeZBSamples(xTrue, zTrue, RobotPosesCollinear), out Mat4 _, out Mat4 _, out HandEyeMath.Quality _, out string? collErr);
+            Check("[HE] 眼在手外⑥：旋转轴共线 → 必须失败",
+                !collOk && ((collErr ?? "").Contains("共线") || (collErr ?? "").Contains("奇异")),
+                collOk ? "竟然解出来了" : (collErr ?? ""));
+
+            bool fewOk = HandEyeMath.SolveAXEqualsZB(MakeZBSamples(xTrue, zTrue, RobotPoses.Take(2).ToArray()), out Mat4 _, out Mat4 _, out HandEyeMath.Quality _, out string? fewErr);
+            Check("[HE] 眼在手外⑦：只有 2 组 → 必须失败并说清要几组",
+                !fewOk && (fewErr ?? "").Contains("至少需要 3 组"),
+                fewOk ? "竟然解出来了" : (fewErr ?? ""));
+
+            // ---- ④ 装法选错：这是本层最重要的一条 ----
+            // 把 eye-to-hand 的数据喂给 eye-in-hand 求解器，它照样"求解成功"并给出一个数，
+            // 只是那个数与真值差上百毫米。所以**不能靠"求解成功"判断装法选对**，
+            // 唯一的兜底是残差门 —— 下面 ⑧ ⑨ 两条分别钉住"差得远"和"残差门拦得住"。
+            bool xbOk = HandEyeMath.SolveAXEqualsXB(s, out Mat4 wrongX, out HandEyeMath.Quality wq, out string? xbErr);
+            double wrongRotDeg = xbOk ? RotErrRad(wrongX, xTrue) * 180.0 / Math.PI : double.NaN;
+            double wrongTrans = xbOk ? TransErr(wrongX, xTrue) : double.NaN;
+            Check("[HE] 眼在手外⑧：把眼在手外的数据喂给眼在手上的求解器，解出的 X 与真值差很远（「求解成功」证明不了装法选对）",
+                xbOk && (wrongRotDeg > 30.0 || wrongTrans > 10.0),
+                xbOk ? $"旋转差 {wrongRotDeg:0.###}° / 平移差 {wrongTrans:0.###} mm" : $"连解都没解出：{xbErr}");
+
+            double wrongResidualDeg = xbOk ? wq.RotationRmsRad * 180.0 / Math.PI : double.NaN;
+            Check("[HE] 眼在手外⑨：装法选错时残差门拦得住（残差远超默认上限 0.5°）",
+                xbOk && wrongResidualDeg > 0.5,
+                xbOk ? $"它的残差 {wrongResidualDeg:0.###}° > 上限 0.5°" : $"连解都没解出：{xbErr}");
+
+            // ---- ⑤ 插件层：装法路由真的生效 ----
+            var ctx = new ExecutionContext(
+                new StubLog(), new FlowSession { FlowName = "手眼标定断言（眼在手外）" },
+                new WorkspaceContext(), CancellationToken.None);
+
+            var pZb = NewPlugin(RowsFrom(MakeZBSamples(xTrue, zTrue, RobotPoses)), pose: HandEyePoseKind.EyeToHand);
+            pZb.RunAlgorithm(ctx);
+            if (pZb.Transform.Value is CalibrationTransform gotZb)
+            {
+                Check("[HE] 眼在手外⑩：插件按装法路由（PoseKind=EyeToHand 走 AX=ZB），产物标记眼在手外且矩阵与真值一致",
+                    pZb.Success.Value is true
+                        && gotZb.HandEyePose == HandEyePoseKind.EyeToHand
+                        && gotZb.HandEyeMatrix != null
+                        && MatchesMatrix(gotZb.HandEyeMatrix, xTrue, 1e-6),
+                    pZb.Success.Value is false
+                        ? Err(pZb)
+                        : $"装法={gotZb.HandEyePose} " + DescribeDiff(gotZb.HandEyeMatrix!, xTrue));
+            }
+            else
+            {
+                Check("[HE] 眼在手外⑩：插件按装法路由（PoseKind=EyeToHand 走 AX=ZB），产物标记眼在手外且矩阵与真值一致",
+                    false,
+                    $"Transform 为空：{Err(pZb)}");
+            }
+
+            var pWrongPose = NewPlugin(RowsFrom(MakeZBSamples(xTrue, zTrue, RobotPoses)), pose: HandEyePoseKind.EyeInHand);
+            pWrongPose.RunAlgorithm(ctx);
+            Check("[HE] 眼在手外⑪：同一批数据若把装法选成「眼在手上」，插件必须失败而不是给出一个偏的解",
+                pWrongPose.Success.Value is false
+                    && pWrongPose.Transform.Value == null
+                    && Err(pWrongPose).Contains("眼在手上"),
+                pWrongPose.Success.Value is false
+                    ? Err(pWrongPose)
+                    : "竟然成功了：残差门太松或装法路由没生效");
+        }
 
         #endregion
 
