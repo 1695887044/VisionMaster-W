@@ -10,6 +10,6 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\VisionMaster\VisionMaster.csproj" />
+    <ProjectReference Include="..\..\..\VisionMaster\VisionMaster.csproj" />
   </ItemGroup>
 </Project>

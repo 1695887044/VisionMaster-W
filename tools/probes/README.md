@@ -46,6 +46,7 @@ $project = Join-Path (Join-Path 'tools\probes' $p.dir) $p.project
 | `FocusProbe` | `tools/probes/_FocusProbe` | `_FocusProbe.csproj` | `dotnet run` | 焦点视觉与输入态 |
 | `BeadViewProbe` | `tools/probes/_BeadViewProbe` | `_BeadViewProbe.csproj` | `dotnet run` | 胶路检测配置视图 |
 | `ScadaEditorProbe` | `tools/probes/_ScadaEditorProbe` | `_ScadaEditorProbe.csproj` | `dotnet run` | 组态编辑器框选 / 拖拽 / 版式 |
+| `ScadaUiProbe` | `tools/probes/_ScadaUiProbe` | `_ScadaUiProbe.csproj` | `dotnet run` | 组态 UI 出图（`--all` / `--toolbox` / `--editor` / `--glyphs` / `--solution` / `--flow-manager` / `--flow-list`），出图落 `docs/UI设计基线/app-shell/evidence/` |
 | `ChartProbe5` | `tools/probes/_ChartProbe5` | `_ChartProbe5.csproj` | 构建后启 exe（net48） | 趋势曲线（ScottPlot）渲染 |
 | `WebProbe5` | `tools/probes/_WebProbe5` | `WebProbe5.csproj` | `dotnet run` | SCADA 运行态 Web 客户端（M0 初版） |
 | `WebProbe6` | `tools/probes/_WebProbe6` | `WebProbe6.csproj` | `dotnet run` | SCADA 运行态 Web 客户端（当前版） |

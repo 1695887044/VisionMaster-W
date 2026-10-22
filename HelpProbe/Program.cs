@@ -31,7 +31,7 @@ namespace HelpProbe
     /// 帮助系统离屏探针：走**真实**链路（PluginService 扫 Modules\ → HelpCatalogService 合并 →
     /// 真 HelpView + HelpViewModel），断言合并结果与渲染通不通，并把帮助窗渲染成 PNG 供人工看效果。
     ///
-    /// 用法：HelpProbe.exe [输出目录]     默认输出到 &lt;仓库根&gt;\_help_preview\
+    /// 用法：HelpProbe.exe [输出目录]     默认输出到 &lt;仓库根&gt;\artifacts\render\&lt;yyyyMMdd&gt;\help_preview\
     /// </summary>
     internal static class Program
     {
@@ -44,14 +44,14 @@ namespace HelpProbe
         private static int Main(string[] args)
         {
             var repoRoot = FindRepoRoot();
-            var outputDir = args.Length > 0 ? args[0] : Path.Combine(repoRoot, "_help_preview");
+            var outputDir = args.Length > 0 ? args[0] : Path.Combine(repoRoot, "artifacts", "render", DateTime.Now.ToString("yyyyMMdd"), "help_preview");
             Directory.CreateDirectory(outputDir);
 
             // P0 设计验收：只渲染事件编辑器确认行 + Warning/Danger 确认弹窗，不跑帮助目录扫描。
             // 用法：HelpProbe.exe --p0-render [输出目录]
             if (args.Length > 0 && args[0] == "--p0-render")
             {
-                var p0Dir = args.Length > 1 ? args[1] : Path.Combine(repoRoot, "_p0_preview");
+                var p0Dir = args.Length > 1 ? args[1] : Path.Combine(repoRoot, "artifacts", "render", DateTime.Now.ToString("yyyyMMdd"), "p0_preview");
                 Directory.CreateDirectory(p0Dir);
                 var p0App = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
                 MergeAppResources(p0App, repoRoot);

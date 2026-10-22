@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-10-21",
+  "updated": "2026-10-22",
   "note": "探针登记表：dir/project 均相对本文件所在目录。运行中的任务必须通过 run-probe.ps1 或本表解析路径，禁止按记忆拼旧路径。",
   "probes": [
     {
@@ -51,6 +51,13 @@
       "project": "_ScadaEditorProbe.csproj",
       "runMode": "dotnet",
       "description": "组态编辑器探针（框选、拖拽、版式渲染）"
+    },
+    {
+      "name": "ScadaUiProbe",
+      "dir": "_ScadaUiProbe",
+      "project": "_ScadaUiProbe.csproj",
+      "runMode": "dotnet",
+      "description": "组态 UI 出图探针（--all / --toolbox / --editor / --glyphs / --solution / --flow-manager / --flow-list）；出图落 docs/UI设计基线/app-shell/evidence/"
     },
     {
       "name": "ChartProbe5",

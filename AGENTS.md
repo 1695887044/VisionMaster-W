@@ -41,7 +41,7 @@
 | ② | 契约程序集（`Core.Interfaces`/`Core.Controls` 等）不许拷进 `Modules\` | 两份静态状态，图投进去取不出来 |
 | ③ | 改了插件源码必须重建该插件工程 | `Modules\` 不由宿主带出，只重建宿主仍是旧 DLL |
 
-> 红线 ③ 家族：R16/R42/R55/R62/R71（生成器与资源）、R28（索引）、R65（验证工具自身）。判据统一"看产物内容，不看构建退出码"：**DLL mtime ≥ 该工程源码 mtime；`Help` 内嵌资源数 = 磁盘 .md 数**。这两条目前**无自动闸**，应固化为 `tools\` 脚本接进收尾（t7 建议）。
+> 红线 ③ 家族：R16/R42/R55/R62/R71（生成器与资源）、R28（索引）、R65（验证工具自身）。判据统一"看产物内容，不看构建退出码"：**DLL mtime ≥ 该工程源码 mtime；`Help` 内嵌资源数 = 磁盘 .md 数**。**自动闸已落地（2026-10-22）**：`tools\audit_artifacts.ps1` 逐插件工程核这两条，`tools\run_gates.ps1` 是唯一收尾入口（见 §39 R182）。
 
 ## 4. 派工与协作（R10-R15）
 
@@ -369,7 +369,7 @@
 | R169 | **`packages\` 不许删**：`tools\DeviceSimulator\DeviceSimulator.csproj` 用 HintPath 直引 `..\..\packages\Newtonsoft.Json.13.0.4\...`（非 PackageReference）。删根目录前先 `findstr /s /i "..\..\packages\" *.csproj`，命中必须保留。 |
 | R170 | **迁移验收（不看退出码）**：① 根文件恰好 8 个、`audit_root.ps1` 退出 0；② 全部登记探针 `-BuildOnly` 通过；③ `ResProbe` 出 `RESULT: ALL_OK`；④ 解决方案 `--no-incremental` 重建通过；⑤ 断言宿主跑完记条数（无基线要求 0 FAIL 且条数非 0）。**清 bin/obj 后必须重建**（否则 `Modules\` 与 `bin` 是空的，红线③）。 |
 
-> **待还（2026-10-22 两次独立盘点：182 / 195 条目，不在白名单 146 / 48——差异在计数口径，以 `audit_root.ps1` 输出为准）**：根目录仍有大量 `_*.log`、`_ScadaUiProbe`、`_help_preview`、`--nologo`、`commit_msg.txt`；`audit_root.ps1` 未接入任何 gate → R166/R168 有规则无守门人。
+> **已闭环（2026-10-22）**：`audit_root.ps1` 已接进 `tools\run_gates.ps1`（R182）。当次清出 **145 条**：142 个根日志/`.out`/`commit_msg.txt` → `artifacts\logs\2026-10-22-root-sweep\`；`_help_preview`（5 张 PNG）→ `artifacts\render\20261022\help_preview\`，同时把 `HelpProbe` 默认输出目录改到 `artifacts\render\<yyyyMMdd>\{help_preview,p0_preview}`（否则每次跑完又落回根目录）；`_ScadaUiProbe` 按 R167 三步迁移到 `tools\probes\_ScadaUiProbe\` 并登记 `probes.json`；空目录 `--nologo` 删除。现输出 `ROOT LAYOUT OK: 8 files / 41 dirs`。
 
 ## 37. 工具箱拖放与循环控制（R171-R174）
 
@@ -396,6 +396,7 @@
 | R179 | **本机 `dotnet build`/`restore` 默认多进程会静默失败**（报"生成失败 / 0 个错误"、退出码 1）。**一律加 `-m:1 -nodeReuse:false`**。判据：`0 个错误` **且退出码 0** 才算构建通过。 |
 | R180 | **`File.Replace` 在受限环境一律被拒**（Move/Copy/Delete 正常）。`AppSettingsService.WriteReplacing` 只 `catch (IOException)` → `UnauthorizedAccessException` **带崩断言宿主**（ScadaChecks/FlowCanvasChecks 各崩一次）。替换式写文件必须同时 catch `IOException` + `UnauthorizedAccessException`。 |
 | R181 | **AgentTeams 成员可能写不了子目录**（沙箱只在仓库根授权、子目录不继承）→ **构建与跑测归主会话**，成员只做读/编辑/静态分析。成员报 `MSB3491 … is denied` 时**不要重试、不要换路径绕过**，直接交回主会话。 |
+| R182 | **收尾验证只有一个入口：`tools\run_gates.ps1`**。它按顺序跑 `audit_root.ps1`（R166/R168 根目录白名单）→ `audit_artifacts.ps1`（红线③产物）→ 六个断言宿主**逐个按自己的 csproj 构建再跑**（`UIThemeSmokeTest`/`HelpProbe` **不在 sln**，`dotnet build VisionMaster.sln` 根本不重建它们），最后聚合退出码：任一红即 exit 1。日志 `artifacts\logs\<yyyyMMdd>\{build,gate}-<名>.log`（UTF-8 无 BOM）。**它自带陈旧 exe 检测**：exe 比该宿主源码旧直接判红，不跑旧 exe（R65）。`-SkipBuild` 只用于"刚构建完立刻复跑"，不是日常用法。 |
 
 ---
 
