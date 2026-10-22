@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.37027.9
@@ -120,6 +120,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plugin.Camera.Network", "Plugins\Plugin.Camera.Network\Plugin.Camera.Network.csproj", "{F3F0EDD4-D015-428E-AE61-7B52B770A66A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plugin.ImageAssign", "Plugins\Plugin.ImageAssign\Plugin.ImageAssign.csproj", "{0A0587E4-758D-4619-885A-C9ABAE12783D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plugin.DlClassify", "Plugins\Plugin.DlClassify\Plugin.DlClassify.csproj", "{AF6853DF-9704-4521-8EE0-3DAE4E9940A0}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Web", "Web", "{256F4E96-6A73-9ABE-786F-840C672A50F4}"
 EndProject
@@ -815,6 +817,18 @@ Global
 		{0A0587E4-758D-4619-885A-C9ABAE12783D}.Release|x64.Build.0 = Release|Any CPU
 		{0A0587E4-758D-4619-885A-C9ABAE12783D}.Release|x86.ActiveCfg = Release|Any CPU
 		{0A0587E4-758D-4619-885A-C9ABAE12783D}.Release|x86.Build.0 = Release|Any CPU
+		{AF6853DF-9704-4521-8EE0-3DAE4E9940A0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AF6853DF-9704-4521-8EE0-3DAE4E9940A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AF6853DF-9704-4521-8EE0-3DAE4E9940A0}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{AF6853DF-9704-4521-8EE0-3DAE4E9940A0}.Debug|x64.Build.0 = Debug|Any CPU
+		{AF6853DF-9704-4521-8EE0-3DAE4E9940A0}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{AF6853DF-9704-4521-8EE0-3DAE4E9940A0}.Debug|x86.Build.0 = Debug|Any CPU
+		{AF6853DF-9704-4521-8EE0-3DAE4E9940A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AF6853DF-9704-4521-8EE0-3DAE4E9940A0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AF6853DF-9704-4521-8EE0-3DAE4E9940A0}.Release|x64.ActiveCfg = Release|Any CPU
+		{AF6853DF-9704-4521-8EE0-3DAE4E9940A0}.Release|x64.Build.0 = Release|Any CPU
+		{AF6853DF-9704-4521-8EE0-3DAE4E9940A0}.Release|x86.ActiveCfg = Release|Any CPU
+		{AF6853DF-9704-4521-8EE0-3DAE4E9940A0}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -867,6 +881,7 @@ Global
 		{ECAE6F96-9259-4558-8C7D-2C1261927D1F} = {256F4E96-6A73-9ABE-786F-840C672A50F4}
 		{F3F0EDD4-D015-428E-AE61-7B52B770A66A} = {256A5736-FBE4-45B4-B16A-CE75EB3F1B6C}
 		{0A0587E4-758D-4619-885A-C9ABAE12783D} = {256A5736-FBE4-45B4-B16A-CE75EB3F1B6C}
+		{AF6853DF-9704-4521-8EE0-3DAE4E9940A0} = {256A5736-FBE4-45B4-B16A-CE75EB3F1B6C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {B65F7027-912C-4508-AF09-E1435EEC2173}

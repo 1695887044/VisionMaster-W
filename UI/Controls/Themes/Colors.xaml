@@ -427,4 +427,34 @@
     <SolidColorBrush x:Key="BrandCardBrush" Color="#14FFFFFF" />
     <SolidColorBrush x:Key="BrandCardBorderBrush" Color="#26FFFFFF" />
     <SolidColorBrush x:Key="BrandDividerBrush" Color="#33FFFFFF" />
+
+    <!--  ====================  组态运行态窗口（深色语境）  ====================  -->
+    <!--
+        2026-10-22 从 ScadaRuntimeWindow.xaml 收口上来（原先 17 个色值写死在视图里，
+        R140 基线由 14 被顶到 22）。
+
+        为什么单独一组而不复用 Dialog*/Scada*：运行态窗口是**深色**语境（操作员在车间
+        大屏前看），与编辑态的浅色面板语义相反。混用会让"改面板底色"顺手把运行窗口
+        也改浅 —— 那正是 R140 想避免的连带。
+
+        命名带 Run 前缀，与编辑态那组 Scada* 分开；改深色配色只改这一节，视图里不留色值。
+        视图 ScadaRuntimeWindow.xaml 就地合并本字典（断言宿主没有应用级资源，R22/R94）。
+    -->
+    <SolidColorBrush x:Key="ScadaRunWindowBrush" Color="#FF16191D" />
+    <SolidColorBrush x:Key="ScadaRunBarBrush" Color="#FF22262C" />
+    <SolidColorBrush x:Key="ScadaRunBarLineBrush" Color="#FF33383F" />
+    <SolidColorBrush x:Key="ScadaRunTextBrush" Color="#FFD6DAE0" />
+    <SolidColorBrush x:Key="ScadaRunMutedTextBrush" Color="#FF8A929E" />
+    <SolidColorBrush x:Key="ScadaRunStopBrush" Color="#FFC0392B" />
+    <SolidColorBrush x:Key="ScadaRunStopBorderBrush" Color="#FFE05A4A" />
+    <SolidColorBrush x:Key="ScadaRunStopHoverBrush" Color="#FFD9453A" />
+    <SolidColorBrush x:Key="ScadaRunStopPressedBrush" Color="#FFA5342A" />
+    <SolidColorBrush x:Key="ScadaRunControlBrush" Color="#FF2A2F36" />
+    <SolidColorBrush x:Key="ScadaRunControlBorderBrush" Color="#FF3A4048" />
+    <SolidColorBrush x:Key="ScadaRunControlHoverBrush" Color="#FF323841" />
+    <SolidColorBrush x:Key="ScadaRunToggleOnBrush" Color="#FF2B4C7E" />
+    <SolidColorBrush x:Key="ScadaRunAccentBrush" Color="#FF4A8FE0" />
+    <SolidColorBrush x:Key="ScadaRunBackdropBrush" Color="#A603070C" />
+    <SolidColorBrush x:Key="ScadaRunPopupBrush" Color="#FF151C23" />
+    <SolidColorBrush x:Key="ScadaRunPopupBorderBrush" Color="#FF3A4A5C" />
 </ResourceDictionary>

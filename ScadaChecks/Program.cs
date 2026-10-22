@@ -21420,11 +21420,37 @@ namespace ScadaChecks
                 return;
             }
 
-            var flowList = File.ReadAllText(Path.Combine(root, "VisionMaster", "Views", "FlowListView.xaml"));
+            var flowListRaw = File.ReadAllText(Path.Combine(root, "VisionMaster", "Views", "FlowListView.xaml"));
+            // 注释里出现同样的字符串会假绿，先剥注释再判（R165 同款教训）。
+            var flowList = System.Text.RegularExpressions.Regex.Replace(
+                flowListRaw, "<!--.*?-->", string.Empty, System.Text.RegularExpressions.RegexOptions.Singleline);
+
+            // 判据收在"RunState 的两个取值各自把某个命名元素显示出来"，不钉具体元素名：
+            // 这条闸要挡的是"运行态根本没上屏"，不是"实现把那个点叫 RunDot 还是 RunningTag"。
+            // 2026-10-22 实测：实现用 RunDot 且功能完整（加粗 + 点 + tooltip），旧断言钉死
+            // RunningTag 于是一直红 —— 属于过期断言，不能反过来逼实现加个没人用的名字。
+            var runStateTriggers = System.Text.RegularExpressions.Regex.Matches(
+                flowList,
+                "<DataTrigger\\s+Binding=\"\\{Binding RunState\\}\"\\s+Value=\"(Running|Paused)\">(.*?)</DataTrigger>",
+                System.Text.RegularExpressions.RegexOptions.Singleline);
+
+            var runStateShown = new List<string>();
+            foreach (System.Text.RegularExpressions.Match trigger in runStateTriggers)
+            {
+                string body = trigger.Groups[2].Value;
+                bool namesAnElement = body.Contains("TargetName=", StringComparison.Ordinal);
+                bool reveals = System.Text.RegularExpressions.Regex.IsMatch(body, "Property=\"Visibility\"\\s+Value=\"Visible\"");
+                if (namesAnElement && reveals) runStateShown.Add(trigger.Groups[1].Value);
+            }
+
+            bool showsRunning = runStateShown.Contains("Running");
+            bool showsPaused = runStateShown.Contains("Paused");
             Check("流程卡片：按 FlowModel.RunState 出「运行中 / 已暂停」标记（不是只认 IsEnabled）",
-                flowList.Contains("Binding=\"{Binding RunState}\"", StringComparison.Ordinal)
-                && flowList.Contains("x:Name=\"RunningTag\"", StringComparison.Ordinal),
-                "FlowListView.xaml");
+                showsRunning && showsPaused,
+                showsRunning && showsPaused
+                    ? "RunState 两个取值各自驱动命名元素显示（元素名不钉）"
+                    : $"FlowListView.xaml：RunState 驱动的可见标记 Running={showsRunning} / Paused={showsPaused}"
+                      + "（期望两个取值都能把某个 TargetName 元素置 Visible；只认 IsEnabled 不算）");
 
             var shell = File.ReadAllText(Path.Combine(root, "VisionMaster", "Shell.xaml"));
             var cockpit = File.ReadAllText(Path.Combine(root, "VisionMaster", "Views", "RunCockpitView.xaml"));

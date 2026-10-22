@@ -7,7 +7,6 @@
     Title="{Binding CurrentPage.Name, StringFormat=组态运行 - {0}}"
     Width="1280"
     Height="800"
-    Background="#FF16191D"
     PreviewKeyDown="OnWindowPreviewKeyDown"
     TextOptions.TextFormattingMode="Display"
     UseLayoutRounding="True"
@@ -30,35 +29,39 @@
     <!--  ============================================================  -->
 
     <Window.Resources>
-        <SolidColorBrush x:Key="BarBrush" Color="#FF22262C" />
-        <SolidColorBrush x:Key="BarLineBrush" Color="#FF33383F" />
-        <SolidColorBrush x:Key="TextBrush" Color="#FFD6DAE0" />
-        <SolidColorBrush x:Key="MutedTextBrush" Color="#FF8A929E" />
-        <SolidColorBrush x:Key="StopBrush" Color="#FFC0392B" />
+        <ResourceDictionary>
+            <!--
+                就地合并 Colors.xaml：本窗口在断言宿主里也会被 new 出来（ScadaChecks 多处），
+                那些宿主没有 Application、没有应用级资源字典，不合并会在解析期抛「找不到资源」（R22/R94）。
+                深色配色令牌全部在 UI/Controls/Themes/Colors.xaml 的「组态运行态窗口」一节（R140）。
+            -->
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+            </ResourceDictionary.MergedDictionaries>
 
-        <!--  顶条「报警历史」徽标的显隐转换器：有未确认报警时才亮出来  -->
+            <!--  顶条「报警历史」徽标的显隐转换器：有未确认报警时才亮出来  -->
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
 
         <!--  顶/底条上的普通文字：统一字号与颜色，省得每处写一遍  -->
         <Style x:Key="BarText" TargetType="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource ScadaRunTextBrush}" />
         </Style>
 
         <Style x:Key="MutedText" TargetType="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="FontFamily" Value="Consolas, Microsoft YaHei UI" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource ScadaRunMutedTextBrush}" />
         </Style>
 
         <!--  停止运行：唯一出口，所以做成实心红色块，一眼能看到  -->
         <Style TargetType="Button" x:Key="StopButton">
             <Setter Property="Height" Value="26" />
             <Setter Property="Padding" Value="14,0" />
-            <Setter Property="Background" Value="{StaticResource StopBrush}" />
-            <Setter Property="BorderBrush" Value="#FFE05A4A" />
+            <Setter Property="Background" Value="{StaticResource ScadaRunStopBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ScadaRunStopBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Foreground" Value="White" />
             <Setter Property="FontSize" Value="12" />
@@ -80,10 +83,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#FFD9453A" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaRunStopHoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#FFA5342A" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaRunStopPressedBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -101,9 +104,9 @@
             <Setter Property="Height" Value="26" />
             <Setter Property="Padding" Value="12,0" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
-            <Setter Property="Background" Value="#FF2A2F36" />
-            <Setter Property="BorderBrush" Value="#FF3A4048" />
+            <Setter Property="Foreground" Value="{StaticResource ScadaRunTextBrush}" />
+            <Setter Property="Background" Value="{StaticResource ScadaRunControlBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ScadaRunControlBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
@@ -123,11 +126,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#FF323841" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaRunControlHoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#FF2B4C7E" />
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="#FF4A8FE0" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaRunToggleOnBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource ScadaRunAccentBrush}" />
                                 <Setter Property="Foreground" Value="White" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -144,7 +147,7 @@
             <Setter Property="Padding" Value="8,0" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource ScadaRunTextBrush}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="1" />
@@ -166,11 +169,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#FF2A2F36" />
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="#FF3A4048" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaRunControlBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource ScadaRunControlBorderBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#FF323841" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaRunControlHoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.55" />
@@ -188,13 +191,13 @@
             浅底浅字的默认模板（2026-10-21 评审实测）。这里给一份完整的深色模板。
         -->
         <Style x:Key="PageMenuContextStyle" TargetType="ContextMenu">
-            <Setter Property="Background" Value="{StaticResource BarBrush}" />
-            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource BarLineBrush}" />
+            <Setter Property="Background" Value="{StaticResource ScadaRunBarBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource ScadaRunTextBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ScadaRunBarLineBrush}" />
             <Setter Property="Padding" Value="4" />
         </Style>
         <Style x:Key="PageMenuItemStyle" TargetType="MenuItem">
-            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource ScadaRunTextBrush}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Padding" Value="10,4" />
             <Setter Property="Template">
@@ -216,7 +219,7 @@
                                     Grid.Column="0"
                                     VerticalAlignment="Center"
                                     FontSize="11"
-                                    Foreground="#FF4A8FE0"
+                                    Foreground="{StaticResource ScadaRunAccentBrush}"
                                     Text="✓"
                                     Visibility="Collapsed" />
                                 <!--  RecognizesAccessKey=False：页名里的 "_" 原样显示，不当访问键  -->
@@ -232,7 +235,7 @@
                                 <Setter TargetName="Check" Property="Visibility" Value="Visible" />
                             </Trigger>
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#FF2A2F36" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaRunControlBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.55" />
@@ -242,9 +245,16 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        </ResourceDictionary>
     </Window.Resources>
 
-    <Grid>
+    <!--
+        底色挂在根 Grid 上，不写在 <Window Background=...>：Window 自身的属性在解析期先于
+        Window.Resources 求值，StaticResource 看不见同一元素后面定义的键（实测抛
+        「无法找到名为 ScadaRunWindowBrush 的资源」并带崩 5 段断言）。根 Grid 是子元素，
+        资源此时已就绪。无边框最大化时 Grid 铺满客户区，观感与挂在 Window 上一致。
+    -->
+    <Grid Background="{StaticResource ScadaRunWindowBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -257,8 +267,8 @@
         <!--  （Alt+F4 之类的系统关闭路径不拦：它同样会走 Closed，宿主在那里收尾，状态不会脏。）  -->
         <Border
             Grid.Row="0"
-            Background="{StaticResource BarBrush}"
-            BorderBrush="{StaticResource BarLineBrush}"
+            Background="{StaticResource ScadaRunBarBrush}"
+            BorderBrush="{StaticResource ScadaRunBarLineBrush}"
             BorderThickness="0,0,0,1">
             <Grid Margin="12,0">
                 <Grid.ColumnDefinitions>
@@ -272,7 +282,7 @@
                     Grid.Column="0"
                     Margin="0,0,6,0"
                     FontSize="12"
-                    Foreground="{StaticResource MutedTextBrush}"
+                    Foreground="{StaticResource ScadaRunMutedTextBrush}"
                     Text="运行画面"
                     VerticalAlignment="Center" />
                 <StackPanel
@@ -296,7 +306,7 @@
                                 Margin="6,0,0,0"
                                 VerticalAlignment="Center"
                                 FontSize="11"
-                                Foreground="{StaticResource MutedTextBrush}"
+                                Foreground="{StaticResource ScadaRunMutedTextBrush}"
                                 Text="▾" />
                         </StackPanel>
                     </Button>
@@ -307,7 +317,7 @@
                         Content="← 返回"
                         FontSize="12"
                         FontWeight="Normal"
-                        Foreground="{StaticResource TextBrush}"
+                        Foreground="{StaticResource ScadaRunTextBrush}"
                         IsEnabled="{Binding CanGoBack}"
                         Style="{StaticResource PageMenuButton}"
                         ToolTip="回到进入当前页之前的那一页" />
@@ -332,7 +342,7 @@
                             Height="16"
                             Margin="6,0,0,0"
                             VerticalAlignment="Center"
-                            Background="{StaticResource StopBrush}"
+                            Background="{StaticResource ScadaRunStopBrush}"
                             CornerRadius="8"
                             Visibility="{Binding DataContext.HasUnacknowledged, ElementName=AlarmHistory, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock
@@ -386,7 +396,7 @@
                 <!--  模态遮罩：挡住背景控件的命中；非模态时收起，主画面仍可操作。  -->
                 <Border
                     x:Name="PopupBackdrop"
-                    Background="#A603070C"
+                    Background="{StaticResource ScadaRunBackdropBrush}"
                     Visibility="{Binding CurrentPopup.PopupModal, Converter={StaticResource BoolToVisibility}}" />
 
                 <Border
@@ -395,8 +405,8 @@
                     MaxHeight="{Binding ActualHeight, ElementName=PopupLayer}"
                     MaxWidth="{Binding ActualWidth, ElementName=PopupLayer}"
                     VerticalAlignment="Center"
-                    Background="#FF151C23"
-                    BorderBrush="#FF3A4A5C"
+                    Background="{StaticResource ScadaRunPopupBrush}"
+                    BorderBrush="{StaticResource ScadaRunPopupBorderBrush}"
                     BorderThickness="1"
                     ClipToBounds="True"
                     CornerRadius="8">
@@ -408,8 +418,8 @@
 
                         <Border
                             Grid.Row="0"
-                            Background="{StaticResource BarBrush}"
-                            BorderBrush="{StaticResource BarLineBrush}"
+                            Background="{StaticResource ScadaRunBarBrush}"
+                            BorderBrush="{StaticResource ScadaRunBarLineBrush}"
                             BorderThickness="0,0,0,1">
                             <Grid Margin="12,0">
                                 <TextBlock
@@ -417,7 +427,7 @@
                                     VerticalAlignment="Center"
                                     FontSize="13"
                                     FontWeight="SemiBold"
-                                    Foreground="{StaticResource TextBrush}"
+                                    Foreground="{StaticResource ScadaRunTextBrush}"
                                     Text="{Binding CurrentPopup.Name}"
                                     TextTrimming="CharacterEllipsis"
                                     ToolTip="{Binding CurrentPopup.Name}" />
@@ -471,8 +481,8 @@
         <Border
             Grid.Row="2"
             Height="26"
-            Background="{StaticResource BarBrush}"
-            BorderBrush="{StaticResource BarLineBrush}"
+            Background="{StaticResource ScadaRunBarBrush}"
+            BorderBrush="{StaticResource ScadaRunBarLineBrush}"
             BorderThickness="0,1,0,0">
             <Grid Margin="12,0">
                 <StackPanel HorizontalAlignment="Left" Orientation="Horizontal">
@@ -510,7 +520,7 @@
                 <TextBlock
                     x:Name="ElapsedText"
                     HorizontalAlignment="Right"
-                    Foreground="{StaticResource MutedTextBrush}"
+                    Foreground="{StaticResource ScadaRunMutedTextBrush}"
                     FontSize="12"
                     FontFamily="Consolas, Microsoft YaHei UI"
                     VerticalAlignment="Center"

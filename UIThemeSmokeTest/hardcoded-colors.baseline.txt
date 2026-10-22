@@ -52,5 +52,4 @@ VisionMaster\Views\ScadaAlarmHistoryView.xaml|29
 VisionMaster\Views\ScadaEditorView.xaml|15
 VisionMaster\Views\ScadaLayerView.xaml|26
 VisionMaster\Views\ScadaPropertyView.xaml|3
-VisionMaster\Views\ScadaRuntimeWindow.xaml|14
 VisionMaster\Views\ToolView.xaml|6

@@ -106,7 +106,7 @@
 | R31 | 跨册只有两条出路：能同文件就同文件；共用令牌搬到 `UI\Controls\Themes\Colors.xaml`。**禁止改 `DynamicResource` 绕过，禁止新增分册 merge 兄弟分册的边。** |
 | R32 | 守门：`FlowCanvasChecks` 的【资源断链】两条契约（`VariableBindingCheck.RunDictionaryScopeContract`，进常规 gate）；不构建时 `tools\audit_resource_scope.ps1`（两处必须同步）；运行期 `_ResProbe` 出 `RESULT: ALL_OK`。 |
 
-> 盲区（仓内零实例）：同文件"后置键"不判；引用与开标签同行归 SILENT 桶。
+> **"同文件后置键"已不是零实例（2026-10-22 实测）**：元素**自身属性**（`<Window Background="{StaticResource K}">`）在解析期**先于**该元素的 `Resources` 求值，K 即便就定义在同一元素的 Resources 里也查不到 → `XamlParseException: 无法找到名为 K 的资源`，在无 `Application` 的断言宿主里连带崩掉 5 段断言。**修法：把该属性挪到子元素（根 Grid）上**；**不要**改成 `DynamicResource`（R31）。静态扫描的 SILENT 桶仍不覆盖这一格。
 
 ## 10. 端口语义（R33-R35）
 
@@ -328,7 +328,7 @@
 
 | # | 判据 |
 |---|---|
-| R140 | **第一方 XAML 除颜色定义文件外不许 `#RRGGBB`/`#AARRGGBB`**。颜色文件只有四个：`Colors.xaml`（第一层令牌，**新令牌只加这里**）、`Fluent\FluentTokens.xaml`、`PluginConfigColors.xaml`、`VisionMaster\Themes\DockThemes\*`。**存量只减不增**：`hardcoded-colors.baseline.txt` 记 `路径\|数量`，新文件必须 0、老文件不许上涨。守门：`RunHardcodedColorChecks()`（进冒烟返回码）。**边界**：① 现无运行时主题切换（`StaticResource` 加载期解析；要即时变需迁 `DynamicResource`，独立批次）；② `Shell.xaml.cs` 换 `DarkTheme.xaml` 是 **AvalonDock 的 `dockManager.Theme`**，不是 WPF 资源字典。 |
+| R140 | **第一方 XAML 除颜色定义文件外不许 `#RRGGBB`/`#AARRGGBB`**。颜色文件只有**五个**（口径以 `UIThemeSmokeTest/Program.cs:3055-3138` 的豁免表为准，别按记忆数）：`Colors.xaml`（第一层令牌，**新令牌只加这里**）、`Fluent\FluentTokens.xaml`、`PluginConfigColors.xaml`、`Scada.Controls\Themes\ScadaTokens.xaml`、`VisionMaster\Themes\DockThemes\*`。**存量只减不增**：`hardcoded-colors.baseline.txt` 记 `路径\|数量`，新文件必须 0、老文件不许上涨。守门：`RunHardcodedColorChecks()`（进冒烟返回码）。**边界**：① 现无运行时主题切换（`StaticResource` 加载期解析；要即时变需迁 `DynamicResource`，独立批次）；② `Shell.xaml.cs` 换 `DarkTheme.xaml` 是 **AvalonDock 的 `dockManager.Theme`**，不是 WPF 资源字典。 |
 | R141 | **可复用 UI 一律抽进 `UI\Controls\Themes\Dialog\` 分册**：同一视觉结构**第二次出现**就下沉。先查 `DialogColumnCard`/`DialogColumnHeader`/`DialogColumnTitle`/`DialogOptionItem`/`DialogTag`/`DialogChip*`/`DialogEmptyState*`/`DialogIconButton`/`DialogInput`/`DialogCheckBox`。① 跨册 `StaticResource` 仍禁止；② 视图只写布局与绑定；③ 不改既有键语义（变体加 `...Accent`/`...Danger`，`BasedOn` 基础键）。守门：人工评审。 |
 
 ## 31. 流程栏 v2 视觉（R139/R140/R141 的 B 义 + R142-R146）→ 分册《SCADA与图元》
