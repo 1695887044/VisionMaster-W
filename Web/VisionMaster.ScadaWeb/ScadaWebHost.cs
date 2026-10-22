@@ -209,6 +209,14 @@ namespace VisionMaster.ScadaWeb
         /// <summary>值帧/快照消息序号（宿主级单调递增；客户端按缺号判断"漏了一帧"）</summary>
         private long _seq;
 
+        /// <summary>
+        /// 结构消息的单调戳（每准备发一份 snapshot/page 自增一次）：客户端只接受更大的值，
+        /// 用来丢弃迟到的旧快照（分片/重同步/切页竞态下会同时存在两份）。
+        /// <b>它不是结构身份</b>：发送失败/超限也会烧号，跨会话也不连续（16 会话时步长可能 &gt;1）。
+        /// 与 <see cref="_seq"/> 分开：`_seq` 是整条消息的诊断序号，同样会在构建时跳号。
+        /// </summary>
+        private long _structureSeq;
+
         /// <summary>轴数据发送分频（每 2 拍发一次 = 5Hz）</summary>
         private int _axisTick;
 
@@ -225,6 +233,9 @@ namespace VisionMaster.ScadaWeb
 
         /// <summary>值帧循环上一拍看到的状态（只由循环线程写；<c>RunStopped</c> 处理器也会清它）</summary>
         private volatile bool _loopSawRunning;
+
+        /// <summary>最近一次已知的运行轮次（OnRunStarted/Stopped 写；帧循环兜底 stopped/idle 用）</summary>
+        private long _lastRunGeneration;
 
         /// <param name="hub">运行态事实出口；<c>null</c> = 未注册（status 一律按"未运行"回）</param>
         /// <param name="authenticator">账号校验出口；<c>null</c> = 无法登录（匿名只读仍可用）</param>
@@ -1865,6 +1876,10 @@ namespace VisionMaster.ScadaWeb
                     HandleResultQuery(session, json);
                     return;
 
+                case ScadaWebCommandKinds.Resync:
+                    HandleResyncRequest(session, json);
+                    return;
+
                 case ScadaWebCommandKinds.LeaseAcquire:
                 case ScadaWebCommandKinds.LeaseRenew:
                 case ScadaWebCommandKinds.LeaseRelease:
@@ -1879,12 +1894,18 @@ namespace VisionMaster.ScadaWeb
                     return;
 
                 default:
-                    session.TrySendControl(Json(new
+                    // 回显 id/kind：新客户端据此把“服务端不支持 view.resync”关联到自己的请求，
+                    // 而不是只能落一条通用 toast（旧服务端没有这两个字段时客户端仍能兜底）。
+                    var unknownId = json.Value<string>("id") ?? json.Value<string>("requestId");
+                    TrySendControlOrClose(session, Json(new
                     {
                         type = "error",
+                        id = unknownId,
+                        requestId = unknownId,
+                        kind = type,
                         code = ScadaWebErrorCodes.Unsupported,
                         message = $"本版本不处理该消息类型：{type ?? "<无 type>"}（命令面支持 cmd.* 与 lease.acquire/renew/release）"
-                    }));
+                    }), "unsupported kind");
                     return;
             }
         }
@@ -2056,6 +2077,135 @@ namespace VisionMaster.ScadaWeb
                 result = result?.Result,
                 ageMs
             }));
+        }
+
+        /// <summary>
+        /// <c>view.resync</c>：客户端发现结构丢失/首屏超时后请求重同步。
+        ///
+        /// <b>为什么在 WS 线程只置标志</b>：结构状态（CurrentPageKey / LastValues / FrameSeq）
+        /// 只有帧循环一个写者；WS 线程直接清页键会与 SendFrame 并发写 LastValues（Dictionary 损坏），
+        /// 而且帧循环下一拍还会再发一份快照（双发）。这里只置 <see cref="ScadaWebSession.ResyncRequested"/>，
+        /// 由帧循环在下一拍消费。
+        ///
+        /// <b>两种 scope</b>：<c>structure</c> 重发整份结构；<c>frames</c> 只要求下一帧 keyframe
+        /// （值帧缺口是正常背压，不该整份重发——这是 R4 评审否决“frameSeq 跳变触发结构重发”的原因）。
+        /// </summary>
+        private void HandleResyncRequest(ScadaWebSession session, JObject json)
+        {
+            var requestId = json.Value<string>("id") ?? json.Value<string>("requestId") ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(requestId) || requestId.Length > MaxRequestIdLength)
+            {
+                ReplyCommandError(session, requestId, ScadaWebCommandKinds.Resync,
+                    ScadaWebErrorCodes.BadRequest,
+                    $"view.resync 的 id 缺失或超长（上限 {MaxRequestIdLength} 个字符）");
+                return;
+            }
+
+            if (!TryValidateSessionAlive(session, out var code, out var message))
+            {
+                if (code == ScadaWebTicketService.ErrorSessionRevoked)
+                    CloseRevokedSession(session, message ?? "会话已被撤销");
+                else
+                    CloseExpiredSession(session, message ?? "会话已过期");
+                return;
+            }
+
+            var scope = (json.Value<string>("scope") ?? "structure").Trim().ToLowerInvariant();
+            if (scope != "structure" && scope != "frames")
+            {
+                ReplyCommandError(session, requestId, ScadaWebCommandKinds.Resync,
+                    ScadaWebErrorCodes.BadRequest, "view.resync 的 scope 只能是 structure 或 frames");
+                return;
+            }
+
+            var reason = json.Value<string>("reason") ?? string.Empty;
+            if (reason.Length > 64)
+                reason = reason.Substring(0, 64);
+
+            var now = DateTime.UtcNow;
+            var lastTicks = Interlocked.Read(ref session.LastResyncUtcTicks);
+            var last = lastTicks <= 0 ? DateTime.MinValue : new DateTime(lastTicks, DateTimeKind.Utc);
+            var retryAfter = TimeSpan.FromSeconds(1) - (now - last);
+
+            if (retryAfter > TimeSpan.Zero)
+            {
+                TrySendControlOrClose(session, Json(new
+                {
+                    type = "error",
+                    id = requestId,
+                    requestId,
+                    kind = ScadaWebCommandKinds.Resync,
+                    ok = false,
+                    code = ScadaWebErrorCodes.RateLimited,
+                    message = $"重同步过于频繁，请 {(int)retryAfter.TotalMilliseconds}ms 后重试",
+                    retryAfterMs = (int)retryAfter.TotalMilliseconds
+                }), "resync rate-limit");
+                return;
+            }
+
+            Interlocked.Exchange(ref session.LastResyncUtcTicks, now.Ticks);
+
+            var clientPage = json.Value<string>("pageId") ?? "<none>";
+            var clientVersion = json.Value<long?>("pageVersion");
+            var clientGeneration = json.Value<long?>("runGeneration");
+
+            if (scope == "frames")
+            {
+                // 未运行：没有下一帧 keyframe 可发，必须明确回 idle，不能让客户端一直等。
+                if (!ReadRunSnapshot().Running)
+                {
+                    TrySendControlOrClose(session, Json(new
+                    {
+                        type = "ack",
+                        id = requestId,
+                        requestId,
+                        kind = ScadaWebCommandKinds.Resync,
+                        ok = true,
+                        result = new { accepted = true, scope, idle = true }
+                    }), "resync frames idle ack");
+
+                    TrySendControlOrClose(session,
+                        Json(new { type = "idle", runGeneration = _lastRunGeneration }),
+                        "resync frames idle");
+                    return;
+                }
+
+                Interlocked.Exchange(ref session.ForceKeyframe, 1);
+                TrySendControlOrClose(session, Json(new
+                {
+                    type = "ack",
+                    id = requestId,
+                    requestId,
+                    kind = ScadaWebCommandKinds.Resync,
+                    ok = true,
+                    result = new { accepted = true, scope }
+                }), "resync frames ack");
+
+                _log.Info($"[ScadaWeb] view.resync(frames) 受理：ref={session.SessionRef}，"
+                    + $"reason={reason}，request={ShortToken(requestId)}，"
+                    + $"clientPage={clientPage}@{clientVersion?.ToString() ?? "<none>"} "
+                    + $"gen={clientGeneration?.ToString() ?? "<none>"}");
+                return;
+            }
+
+            // 已在途的 structure resync 合并：只保留一个待处理标志，避免同一会话叠两份快照。
+            var coalesced = Interlocked.Exchange(ref session.ResyncRequested, 1) != 0;
+
+            TrySendControlOrClose(session, Json(new
+            {
+                type = "ack",
+                id = requestId,
+                requestId,
+                kind = ScadaWebCommandKinds.Resync,
+                ok = true,
+                result = new { accepted = true, scope, coalesced }
+            }), "resync structure ack");
+
+            _log.Info($"[ScadaWeb] view.resync(structure) 受理：ref={session.SessionRef}，"
+                + $"reason={reason}，coalesced={coalesced}，request={ShortToken(requestId)}，"
+                + $"clientPage={clientPage}@{clientVersion?.ToString() ?? "<none>"} "
+                + $"gen={clientGeneration?.ToString() ?? "<none>"}");
         }
 
         /// <summary>
@@ -2345,6 +2495,15 @@ namespace VisionMaster.ScadaWeb
         }
 
         /// <summary>一条命令的失败回执（<c>id</c> 必须回给客户端——它靠它配对 pending 命令）</summary>
+        private void TrySendControlOrClose(ScadaWebSession session, string json, string what)
+        {
+            if (session.TrySendControl(json))
+                return;
+
+            _log.Warn($"[ScadaWeb] 控制消息未能入队（ref={session.SessionRef}，{what}）：控制队列已满，关闭连接");
+            _ = session.CloseAsync(WebSocketCloseStatus.InternalServerError, "control delivery failed");
+        }
+
         private void ReplyCommandError(
             ScadaWebSession session,
             string requestId,
@@ -2453,6 +2612,8 @@ namespace VisionMaster.ScadaWeb
                 user = session.UserName,
                 role = session.Role.ToString(),
                 running = snapshot.Running,
+                runGeneration = snapshot.Generation,
+                structureSeq = Volatile.Read(ref _structureSeq),
                 pageId = snapshot.PageId,
                 pageName = snapshot.PageName,
                 pageVersion = snapshot.PageVersion,
@@ -2504,6 +2665,7 @@ namespace VisionMaster.ScadaWeb
         {
             try
             {
+                _lastRunGeneration = generation;
                 _structureKey = null;
                 _structurePage = null;
 
@@ -2528,6 +2690,7 @@ namespace VisionMaster.ScadaWeb
         {
             try
             {
+                _lastRunGeneration = generation;
                 _loopSawRunning = false;
                 _structureKey = null;
                 _structurePage = null;
@@ -2617,11 +2780,27 @@ namespace VisionMaster.ScadaWeb
                 _structureKey = null;
                 _structurePage = null;
 
+                // 未运行时收到 structure resync：没有快照可发，回 idle（客户端据此停止等待）。
+                // 这一步必须在 _loopSawRunning 分支之外：运行本来就没起来时也要回。
+                var idle = Json(new { type = "idle", runGeneration = _lastRunGeneration });
+                foreach (var session in _sessions.Values)
+                {
+                    var wantedStructure = Interlocked.Exchange(ref session.ResyncRequested, 0) != 0;
+                    Interlocked.Exchange(ref session.ForceKeyframe, 0);
+
+                    if (wantedStructure && !session.TrySendControl(idle))
+                    {
+                        _ = session.CloseAsync(
+                            System.Net.WebSockets.WebSocketCloseStatus.EndpointUnavailable,
+                            "control-full");
+                    }
+                }
+
                 if (_loopSawRunning)
                 {
                     _loopSawRunning = false;
 
-                    var stopped = Json(new { type = "stopped" });
+                    var stopped = Json(new { type = "stopped", runGeneration = _lastRunGeneration });
                     foreach (var session in _sessions.Values)
                     {
                         session.ResetPageKey();
@@ -2654,19 +2833,38 @@ namespace VisionMaster.ScadaWeb
             // 值帧的增量基线仍是每会话：共享序列化结果，但"已送达"状态各记各的。
             foreach (var session in _sessions.Values)
             {
+                // 首屏还没发：不要让帧循环抢先发一份 snapshot（首屏变两份）。
+                if (Volatile.Read(ref session.InitialStatePending) != 0)
+                    continue;
+
+                // 已因超限拒绝：连接正在 1009 关闭，不再每拍重试/重发 error。
+                if (Volatile.Read(ref session.StructureTooLarge) != 0)
+                    continue;
+
+                // resync 标志只在这里消费：结构状态（CurrentPageKey/LastValues/FrameSeq）只有帧循环写。
+                var resyncStructure = Interlocked.Exchange(ref session.ResyncRequested, 0) != 0;
+                if (Interlocked.Exchange(ref session.ForceKeyframe, 0) != 0)
+                    session.NeedsKeyframe = true;
+
+                // 强制重发：把页键置空，让下面的 previousKey is null 分支走 snapshot；
+                // 发送失败时页键保持 null，下一拍自动重试（不会双发，也不会永久冻结）。
+                if (resyncStructure)
+                    session.CurrentPageKey = null;
+
                 var previousKey = session.CurrentPageKey;
 
                 if (!string.Equals(previousKey, pageKey, StringComparison.Ordinal))
                 {
                     // 第一次拿到页面 → snapshot（客户端要整份结构）；同一轮里结构变了 → page（增量结构）
+                    var structureSeq = Interlocked.Increment(ref _structureSeq);
                     bool sent;
                     if (previousKey is null)
                     {
-                        sent = SendStructure(session, BuildSnapshotMessage(state, session));
+                        sent = SendStructure(session, BuildSnapshotMessage(state, session, structureSeq));
                     }
                     else
                     {
-                        sent = SendStructure(session, BuildPageMessage(state, session));
+                        sent = SendStructure(session, BuildPageMessage(state, session, structureSeq));
                     }
 
                     // 只有真的入队成功才推进页键；失败（出站队列满）就保持旧键，下一拍重试。
@@ -2927,24 +3125,34 @@ namespace VisionMaster.ScadaWeb
         /// <summary>握手后的首屏：运行中给 <c>snapshot</c>，否则给 <c>idle</c></summary>
         private async Task SendInitialStateAsync(ScadaWebSession session, CancellationToken token)
         {
-            var state = await RunOnUiAsync(CaptureLiveState, token).ConfigureAwait(false);
-
-            if (!state.Running || state.Page is null)
+            try
             {
-                session.ResetPageKey();
-                session.TrySendControl(Json(new { type = "idle" }));
-                return;
+                var state = await RunOnUiAsync(CaptureLiveState, token).ConfigureAwait(false);
+
+                if (!state.Running || state.Page is null)
+                {
+                    session.ResetPageKey();
+                    TrySendControlOrClose(session, Json(new { type = "idle", runGeneration = _lastRunGeneration }), "idle");
+                    return;
+                }
+
+                // 先发、成功才推进页键：失败（出站队列满）时下一拍必须重试整份快照，
+                // 先推进会让客户端永远停在"没有结构"的状态上。
+                if (SendStructure(session, BuildSnapshotMessage(state, session,
+                        Interlocked.Increment(ref _structureSeq))))
+                {
+                    session.CurrentPageKey = state.PageKey;
+
+                    // 本方法在 WS 线程：只请求重置，真正清 LastValues/FrameSeq 由帧循环执行
+                    // （LastValues 是普通 Dictionary，跨线程 Clear + SendFrame 写会损坏）。
+                    session.RequestDeltaReset();
+                }
             }
-
-            // 先发、成功才推进页键：失败（出站队列满）时下一拍必须重试整份快照，
-            // 先推进会让客户端永远停在"没有结构"的状态上。
-            if (SendStructure(session, BuildSnapshotMessage(state, session)))
+            finally
             {
-                session.CurrentPageKey = state.PageKey;
-
-                // 本方法在 WS 线程：只请求重置，真正清 LastValues/FrameSeq 由帧循环执行
-                // （LastValues 是普通 Dictionary，跨线程 Clear + SendFrame 写会损坏）。
-                session.RequestDeltaReset();
+                // 无论成功失败/异常都放行帧循环：失败时由帧循环按 previousKey 为空重试整份快照；
+                // 不放行会让这条会话永远收不到结构（帧循环一直跳过 InitialStatePending）。
+                Interlocked.Exchange(ref session.InitialStatePending, 0);
             }
         }
 
@@ -2953,10 +3161,11 @@ namespace VisionMaster.ScadaWeb
         /// 与命令执行走同一个判据（<see cref="ScadaWebAccessPolicy.CanOperate(ScadaWebSession, VisionMaster.Scada.Snapshots.ScadaElementSnapshot, out string)"/>），
         /// 所以"界面上能点、点下去被拒"这类不一致在源头就不存在。
         /// </summary>
-        private string BuildSnapshotMessage(LiveState state, ScadaWebSession session) => JsonWire(new
+        private string BuildSnapshotMessage(LiveState state, ScadaWebSession session, long structureSeq) => JsonWire(new
         {
             type = "snapshot",
             seq = Interlocked.Increment(ref _seq),
+            structureSeq,
             runGeneration = state.Generation,
             pageId = state.Page!.PageId,
             pageVersion = state.Page.PageVersion,
@@ -2964,10 +3173,11 @@ namespace VisionMaster.ScadaWeb
             page = ApplyCaps(state.Page, session)
         });
 
-        private string BuildPageMessage(LiveState state, ScadaWebSession session) => JsonWire(new
+        private string BuildPageMessage(LiveState state, ScadaWebSession session, long structureSeq) => JsonWire(new
         {
             type = "page",
             seq = Interlocked.Increment(ref _seq),
+            structureSeq,
             runGeneration = state.Generation,
             pageId = state.Page!.PageId,
             pageVersion = state.Page.PageVersion,
@@ -3113,6 +3323,9 @@ namespace VisionMaster.ScadaWeb
 
             if (bytes > _effectiveSnapshotMaxBytes)
             {
+                // 只拒绝一次：帧循环下一拍还会看到 previousKey 为空，不置标志就会 10Hz 重发 error。
+                Interlocked.Exchange(ref session.StructureTooLarge, 1);
+
                 _log.Error($"[ScadaWeb] 快照超过硬上限：{bytes} 字节 > {_effectiveSnapshotMaxBytes} 字节"
                     + $"（page={session.CurrentPageKey ?? "<first>"}，ref={session.SessionRef}）；已拒绝发送并按 1009 关闭");
 
@@ -3618,6 +3831,9 @@ namespace VisionMaster.ScadaWeb
                     if (page.BasePage != null)
                         CollectCaps(page.BasePage.Elements, deny, allow);
 
+                    var lease = _lease.Snapshot();
+                    var readOnly = IsSessionReadOnly(session);
+
                     var json = JsonWire(new
                     {
                         type = "caps",
@@ -3627,15 +3843,15 @@ namespace VisionMaster.ScadaWeb
                             runGeneration = state.Generation,
                             pageId = page.PageId,
                             pageVersion = page.PageVersion,
-                            readOnly = IsSessionReadOnly(session),
+                            readOnly,
                             lease = new
                             {
                                 enabled = _settings.OperationLeaseEnabled,
                                 required = _settings.OperationLeaseEnabled && _settings.AllOperatorsRequiresLease,
-                                held = _lease.Snapshot().Held,
-                                holder = _lease.Snapshot().Holder,
-                                holderSessionRef = _lease.Snapshot().HolderSessionRef,
-                                remainingSeconds = _lease.Snapshot().RemainingSeconds
+                                held = lease.Held,
+                                holder = lease.Holder,
+                                holderSessionRef = lease.HolderSessionRef,
+                                remainingSeconds = lease.RemainingSeconds
                             },
                             @default = false,
                             defaultReason = "当前角色没有操作权限",
@@ -3646,12 +3862,32 @@ namespace VisionMaster.ScadaWeb
 
                     // 内容没变就不发：3000 图元全量 deny/allow 约 200KB/会话，
                     // 每 2 秒重发一次本身就是队头问题（与分片要解决的队头是同一类）。
-                    var hash = Fnv(0, json);
+                    // 哈希必须排除 policyVersion（每拍都变）与 remainingSeconds（租约期间每拍变），
+                    // 否则“变化才发”永远命中不了。
+                    var hashJson = JsonWire(new
+                    {
+                        runGeneration = state.Generation,
+                        pageId = page.PageId,
+                        pageVersion = page.PageVersion,
+                        readOnly,
+                        leaseEnabled = _settings.OperationLeaseEnabled,
+                        leaseRequired = _settings.OperationLeaseEnabled && _settings.AllOperatorsRequiresLease,
+                        leaseHeld = lease.Held,
+                        leaseHolder = lease.Holder,
+                        leaseHolderRef = lease.HolderSessionRef,
+                        deny,
+                        allow
+                    });
+
+                    var hash = Fnv(0, hashJson);
                     if (session.LastCapsHash == hash)
                         continue;
 
+                    // 入队失败不记哈希：下一拍还要重发这一版 caps。
+                    if (!session.TrySend(json))
+                        continue;
+
                     session.LastCapsHash = hash;
-                    session.TrySend(json);
                 }
                 catch (Exception ex)
                 {
@@ -3923,9 +4159,10 @@ namespace VisionMaster.ScadaWeb
 
                 var page = _hub.Session?.CurrentPage;
                 if (page == null)
-                    return new RunSnapshot(true, null, null, 0);
+                    return new RunSnapshot(true, _hub.RunGeneration, null, null, 0);
 
-                return new RunSnapshot(true, page.PageId.ToString(), page.Name, page.Version);
+                return new RunSnapshot(
+                    true, _hub.RunGeneration, page.PageId.ToString(), page.Name, page.Version);
             }
             catch (Exception ex)
             {
@@ -3935,9 +4172,9 @@ namespace VisionMaster.ScadaWeb
             }
         }
 
-        private sealed record RunSnapshot(bool Running, string? PageId, string? PageName, int PageVersion)
+        private sealed record RunSnapshot(bool Running, long Generation, string? PageId, string? PageName, int PageVersion)
         {
-            public static readonly RunSnapshot NotRunning = new(false, null, null, 0);
+            public static readonly RunSnapshot NotRunning = new(false, 0, null, null, 0);
         }
 
         #endregion

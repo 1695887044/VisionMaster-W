@@ -83,6 +83,27 @@ namespace VisionMaster.ScadaWeb
         /// <summary>上一次回 hello.ok 的时刻（ticks）：同上</summary>
         internal long LastHelloReplyTicks;
 
+        /// <summary>view.resync(scope=structure) 待处理标志（WS 线程置，帧循环消费）</summary>
+        internal int ResyncRequested;
+
+        /// <summary>view.resync(scope=frames) 待处理标志（WS 线程置，帧循环消费）</summary>
+        internal int ForceKeyframe;
+
+        /// <summary>上一次受理 resync 的时刻（ticks；每会话 1 秒限速）</summary>
+        internal long LastResyncUtcTicks;
+
+        /// <summary>
+        /// 首屏状态还没发（1 = 待发）。帧循环必须跳过这种会话：
+        /// 否则它会在 hello 的 SendInitialStateAsync 之前先发一份 snapshot，首屏变两份。
+        /// </summary>
+        internal int InitialStatePending = 1;
+
+        /// <summary>
+        /// 结构已超过硬上限（1 = 已拒绝）。帧循环看到后不再每 100ms 重试/重发 error，
+        /// 连接由 SendStructure 的 1009 关闭收尾。
+        /// </summary>
+        internal int StructureTooLarge;
+
         /// <summary>最近一次"真正发出去"的 UTC ticks（45 秒死连接判据的一半；TrySend 只是入队，不算）</summary>
         internal long LastSendSucceededUtcTicks => Volatile.Read(ref _lastSendSucceededUtcTicks);
 
@@ -297,6 +318,13 @@ namespace VisionMaster.ScadaWeb
                 await foreach (var message in _control.Reader.ReadAllAsync(token).ConfigureAwait(false))
                     await SendOneAsync(message, token).ConfigureAwait(false);
             }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested)
+            {
+                // 每消息 SendTimeout 到期（不是停服/Dispose）：不能当正常收尾，
+                // 否则这条发送循环静默死掉、另一条还在刷 MarkSendSucceeded，会话永远不被回收。
+                HandleSendFault(new TimeoutException(
+                    $"发送超时（{SendTimeout.TotalSeconds:0} 秒未完成）"));
+            }
             catch (OperationCanceledException)
             {
                 // 正常收尾（停服 / 客户端断开 / Dispose 取消）
@@ -313,6 +341,11 @@ namespace VisionMaster.ScadaWeb
             {
                 await foreach (var message in _outbound.Reader.ReadAllAsync(token).ConfigureAwait(false))
                     await SendOneAsync(message, token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested)
+            {
+                HandleSendFault(new TimeoutException(
+                    $"发送超时（{SendTimeout.TotalSeconds:0} 秒未完成）"));
             }
             catch (OperationCanceledException)
             {
@@ -357,14 +390,15 @@ namespace VisionMaster.ScadaWeb
             {
                 try
                 {
+                    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
                     await _socket.CloseAsync(
                         System.Net.WebSockets.WebSocketCloseStatus.InternalServerError,
                         "send failed",
-                        CancellationToken.None).ConfigureAwait(false);
+                        timeout.Token).ConfigureAwait(false);
                 }
                 catch
                 {
-                    // 连接已经坏了
+                    // 连接已经坏了 / 关闭超时
                 }
             });
         }

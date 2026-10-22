@@ -49,6 +49,9 @@
   var COMMAND_TIMEOUT_MS = 5000;       // M2 命令回执超时（5 秒）
   var RESULT_QUERY_TIMEOUT_MS = 2000;  // cmd.result 单次查询超时
   var RESULT_QUERY_MAX_ATTEMPTS = 3;   // running 状态下最多追问几次（含首次）
+  var FIRST_SCREEN_TIMEOUT_MS = 5000;  // hello 说 running 但 5s 没快照 → view.resync(structure)
+  var RESYNC_RETRY_MS = 6000;          // resync 发出后 6s 无快照 → 退避重试
+  var RESYNC_MAX_ATTEMPTS = 2;         // 最多重试 2 次，之后终态提示（不无限循环）
   // 业务自定义关闭码（ScadaWebHost）：4401 = 会话过期、4403 = 会话被撤销。
   // 两者都退回登录卡片；区别只在文案与"是否允许自动重连"（撤销 = 绝不重连）。
   var CLOSE_EXPIRED = 4401;
@@ -108,6 +111,25 @@
     lastSeq: 0,
     frameSeq: 0,
     lastFrameAt: 0,
+    // 结构消息序号（服务端每发一份 snapshot/page 自增）：只接受更大的，丢弃迟到旧快照
+    structureSeq: 0,
+    // 已停止的运行轮次：generation <= 它的快照一律丢弃（stopped 之后迟到的旧快照不能复活画面）
+    stoppedGeneration: -1,
+    // 已收到（不要求应用成功）的最大 frameSeq：空帧也算，避免把正常背压误判成缺口
+    lastReceivedFrameSeq: 0,
+    // view.resync 单飞/重试状态
+    resyncPending: false,
+    resyncAttempts: 0,
+    resyncId: '',
+    resyncScope: 'structure',
+    resyncReason: '',
+    resyncTimer: null,
+    resyncLastAt: 0,
+    firstScreenTimer: null,
+    gotStructureThisConnection: false,
+    // 致命错误（E_SNAPSHOT_TOO_LARGE / 1009）：停止自动重连，只留手动重试
+    fatal: false,
+    fatalMessage: '',
     lastCloseReason: '',
     overlayKind: '',
     renderedRendererCount: 0,
@@ -2557,11 +2579,26 @@
   function handleSocketClosed(event) {
     if (state.demo) return;
 
+    clearFirstScreenTimer();
+    clearResync('closed');
+
+    // 页面过大是终态：重连只会再撞一次 1009，形成无限重连风暴。
+    if (state.fatal) {
+      setConnection('idle', '页面过大，已停止自动重连');
+      return;
+    }
+
     var code = event && event.code !== undefined ? Number(event.code) : 0;
     // bye 的 message 是服务端给人看的文案；event.reason 是协议层关闭原因（多为英文），只用于判定
     var serverText = state.lastCloseReason;
     var closeReason = event && event.reason ? String(event.reason) : '';
     state.lastCloseReason = '';
+
+    // 1009 是服务端快照硬闸的关闭码：不能等 error 帧（它可能被 close 抢在前面丢掉）。
+    if (code === 1009 || /snapshot-too-large/i.test(closeReason)) {
+      enterFatal('页面结构超过 Web 上限');
+      return;
+    }
 
     // 连接已经没了：挂起的确认框按"取消"收尾（此刻重发注定 E_OFFLINE）
     settleConfirmDialogs(false);
@@ -2660,10 +2697,14 @@
   function manualReconnect() {
     if (state.demo) return;
 
+    clearFatal();
+    clearFirstScreenTimer();
+    clearResync('manual');
     clearReconnectTimer();
     state.attempt = 0;
     state.lastCloseReason = '';
     hideOverlay('disconnect');
+    hideOverlay('fatal');
 
     var old = state.ws;
     if (old) {
@@ -2715,14 +2756,28 @@
     if (message.seq !== undefined) state.lastSeq = toNumber(message.seq, state.lastSeq);
     if (message.online !== undefined) state.online = toNumber(message.online, state.online);
     if (message.readOnly !== undefined) state.readOnly = toBool(message.readOnly, state.readOnly);
-    if (message.runGeneration !== undefined) {
-      state.runGeneration = toNumber(pick(message, 'runGeneration', 'RunGeneration'), state.runGeneration);
-    }
+
+    // runGeneration 不在这里全局写：必须先过各 handler 的陈旧校验再写
+    // （旧写法在 switch 之前赋值，applyFrame 的轮次闸永远相等 = 死代码）。
 
     switch (type) {
       case 'hello':
         state.attempt = 0;
         state.running = toBool(pick(message, 'running', 'Running'), state.running);
+
+        // 新连接：服务端重启后 structureSeq 会归零，客户端必须一起归零；
+        // 旧连接的 stoppedGeneration 也不能继续压着新一轮。
+        clearFatal();
+        clearFirstScreenTimer();
+        clearResync('hello');
+        state.stoppedGeneration = -1;
+        state.gotStructureThisConnection = false;
+
+        // 采纳服务端的当前轮次/结构戳（不能沿用旧连接的值：服务端进程重启后 generation 从 1 重来，
+        // 沿用旧值会让所有新快照被 stoppedGeneration/runGeneration 永久拒绝）。
+        state.structureSeq = toNumber(pick(message, 'structureSeq', 'StructureSeq'), 0);
+        state.runGeneration = toNumber(pick(message, 'runGeneration', 'RunGeneration'), 0);
+
         if (message.pageName !== undefined && message.pageName !== null) {
           state.helloPageName = String(message.pageName);
         }
@@ -2754,10 +2809,13 @@
         }
 
         if (!state.running) {
+          clearFirstScreenTimer();
           setConnection('online', '已连接 · 未运行');
           showIdleOverlay();
         } else {
           setConnection('online', '已连接 · 等待画面');
+          // 首屏兜底：hello 说 running、5 秒还没快照 → view.resync(structure)
+          startFirstScreenTimer();
         }
         break;
 
@@ -2775,7 +2833,18 @@
         break;
 
       case 'stopped':
+        var stoppedGeneration = toNumber(
+          pick(message, 'runGeneration', 'RunGeneration'), 0);
+
+        // 旧轮次的停运行事件不能盖在新画面上（stopped 走控制、快照走数据，顺序不保证）。
+        if (stoppedGeneration > 0 && stoppedGeneration < state.runGeneration) {
+          break;
+        }
+
+        state.stoppedGeneration = Math.max(state.stoppedGeneration, stoppedGeneration);
         state.running = false;
+        clearFirstScreenTimer();
+        clearResync('stopped');
         setConnection('online', '已连接 · 运行停止');
         showOverlay({
           kind: 'stopped',
@@ -2788,7 +2857,16 @@
         break;
 
       case 'idle':
+        var idleGeneration = toNumber(pick(message, 'runGeneration', 'RunGeneration'), 0);
+
+        if (idleGeneration > 0 && idleGeneration < state.runGeneration) {
+          break;
+        }
+
         state.running = false;
+        state.stoppedGeneration = Math.max(state.stoppedGeneration, idleGeneration);
+        clearFirstScreenTimer();
+        clearResync('idle');
         setConnection('online', '已连接 · 空闲');
         showIdleOverlay();
         break;
@@ -2845,6 +2923,11 @@
 
       case 'ack':
         var ackId = toText(pick(message, 'id', 'Id'), '');
+        var ackKind = toText(pick(message, 'kind', 'Kind'), '');
+
+        // view.resync 的回执不是命令回执：走自己的单飞状态，不能落进 pendingCommands
+        if (ackKind === 'view.resync' && handleResyncAck(message)) break;
+
         var ackOk = pick(message, 'ok', 'Ok');
 
         if (ackId && ackOk !== undefined && toBool(ackOk, true) === false) {
@@ -2871,6 +2954,9 @@
         break;
 
       case 'bye':
+        clearFirstScreenTimer();
+        clearResync('bye');
+
         var byeText = toText(
           pick(message, 'message', 'Message', 'reason', 'Reason'),
           '服务端已断开连接'
@@ -2909,6 +2995,18 @@
           break;
         }
 
+        // view.resync 的限速/拒绝：按 retryAfterMs 退避，不落进命令 pending
+        var errorKind = toText(pick(message, 'kind', 'Kind'), '');
+        if (errorKind === 'view.resync' && handleResyncError(message)) {
+          break;
+        }
+
+        // 页面超过服务端硬上限：终态，停止自动重连（否则每次重连都 1009，形成风暴）
+        if (/^E_SNAPSHOT_TOO_LARGE$/i.test(errorCode)) {
+          enterFatal(errorText);
+          break;
+        }
+
         // 命令回执：有 id 且 pending 里有它 → reject 给渲染器（行内/toast 由渲染器负责）
         var errorId = toText(pick(message, 'id', 'Id'), '');
         if (errorId && rejectPendingCommand(errorId, errorCode || 'E_COMMAND', errorText)) {
@@ -2929,11 +3027,37 @@
   }
 
   function applySnapshot(message) {
+    var structureSeq = toNumber(pick(message, 'structureSeq', 'StructureSeq'), 0);
+    var generation = toNumber(pick(message, 'runGeneration', 'RunGeneration'), state.runGeneration);
+
+    // 迟到/乱序的结构不能上屏：分片、resync、切页竞态下会同时存在两份快照。
+    // structureSeq 由服务端每发一份结构自增；同值/更小 = 旧传输。
+    if (structureSeq > 0 && state.structureSeq > 0 && structureSeq <= state.structureSeq) {
+      warnOnce('stale-structure:' + structureSeq,
+        '[SCADA Web] 忽略迟到的旧结构（structureSeq=' + structureSeq + ' <= ' + state.structureSeq + '）');
+      return;
+    }
+
+    // 运行已停止后迟到的旧快照不能把画面复活（stopped 与 snapshot 可能交错到达）。
+    if (state.stoppedGeneration >= 0 && generation > 0 && generation <= state.stoppedGeneration) {
+      warnOnce('stale-stopped:' + generation,
+        '[SCADA Web] 忽略已停止轮次的旧快照（generation=' + generation + '）');
+      return;
+    }
+
+    if (state.runGeneration > 0 && generation > 0 && generation < state.runGeneration) {
+      warnOnce('stale-generation:' + generation,
+        '[SCADA Web] 忽略旧运行轮次的快照（generation=' + generation + ' < ' + state.runGeneration + '）');
+      return;
+    }
+
     var raw = pick(message, 'page', 'Page', 'snapshot', 'Snapshot');
     var pageRaw = raw || (pick(message, 'elements', 'Elements') ? message : null);
 
     if (!pageRaw) {
       state.running = false;
+      clearFirstScreenTimer();
+      clearResync('snapshot-empty');
       setConnection('online', '已连接 · 未运行');
       showIdleOverlay();
       return;
@@ -2945,11 +3069,19 @@
       return;
     }
 
+    state.structureSeq = Math.max(state.structureSeq, structureSeq);
+    state.runGeneration = generation;
     state.running = true;
     state.attempt = 0;
     state.readOnly = toBool(pick(message, 'readOnly', 'ReadOnly'), state.readOnly);
     state.online = toNumber(pick(message, 'online', 'Online'), state.online);
-    state.runGeneration = toNumber(pick(message, 'runGeneration', 'RunGeneration'), state.runGeneration);
+
+    // 首屏/重同步已经拿到结构：取消超时与重试。
+    // fatal 只由 hello/手动重试清除：1009 关闭前可能还有一条快照排在消息队列里，
+    // 在这里清掉 fatal 会让终态保证被绕过。
+    state.gotStructureThisConnection = true;
+    clearFirstScreenTimer();
+    clearResync('snapshot');
 
     renderSnapshot(page);
 
@@ -2964,6 +3096,168 @@
     hideOverlay();
     setConnection('online', '已连接');
     updateTopbar();
+  }
+
+  // ---- view.resync / 首屏超时 / 致命错误 ------------------------------------
+  //
+  //   结构丢失（首屏没来、旧快照被拒、切页竞态）不能靠“等下一帧”自愈：值帧只带变化项，
+  //   没有结构就没有节点。客户端主动发 view.resync：
+  //     · scope=structure → 服务端在帧循环里整份重发（不跨线程清页键）；
+  //     · scope=frames    → 只要求下一帧 keyframe（值帧缺口是正常背压，不整份重发）。
+  //   单飞 + 1.5s 客户端限速 + 6s 无进展退避，最多 2 次；之后终态提示，不无限循环。
+
+  function clearFirstScreenTimer() {
+    if (state.firstScreenTimer) {
+      clearTimeout(state.firstScreenTimer);
+      state.firstScreenTimer = null;
+    }
+  }
+
+  function startFirstScreenTimer() {
+    clearFirstScreenTimer();
+    if (state.demo || !state.running) return;
+
+    state.firstScreenTimer = setTimeout(function () {
+      state.firstScreenTimer = null;
+      if (state.demo || state.fatal) return;
+      if (state.gotStructureThisConnection) return;
+      if (!state.ws || state.ws.readyState !== 1) return;
+      requestResync('first-screen-timeout', 'structure');
+    }, FIRST_SCREEN_TIMEOUT_MS);
+  }
+
+  function clearResync(reason) {
+    if (state.resyncTimer) {
+      clearTimeout(state.resyncTimer);
+      state.resyncTimer = null;
+    }
+    state.resyncPending = false;
+    state.resyncId = '';
+    state.resyncAttempts = 0;
+    state.resyncScope = 'structure';
+    state.resyncReason = reason || '';
+    // 清掉限速时间：下一次首屏超时/缺口不能被上一次的 1.5s 窗口静默吞掉。
+    state.resyncLastAt = 0;
+  }
+
+  function requestResync(reason, scope) {
+    if (state.demo || state.fatal) return;
+    if (!state.ws || state.ws.readyState !== 1) return;
+    if (state.resyncPending) return;
+    if (Date.now() - state.resyncLastAt < 1500) return;
+
+    state.resyncPending = true;
+    state.resyncLastAt = Date.now();
+    state.resyncAttempts += 1;
+    state.resyncId = newRequestId();
+    state.resyncScope = scope || 'structure';
+    state.resyncReason = reason || 'manual';
+
+    var message = {
+      type: 'view.resync',
+      id: state.resyncId,
+      scope: state.resyncScope,
+      reason: state.resyncReason,
+      pageId: state.page ? state.page.PageId : '',
+      pageVersion: state.page ? state.page.PageVersion : 0,
+      runGeneration: state.runGeneration
+    };
+
+    try {
+      state.ws.send(JSON.stringify(message));
+    } catch (err) {
+      clearResync('send-failed');
+      return;
+    }
+
+    state.resyncTimer = setTimeout(function () {
+      state.resyncTimer = null;
+      if (!state.resyncPending) return;
+
+      if (state.resyncAttempts < RESYNC_MAX_ATTEMPTS) {
+        state.resyncPending = false;
+        state.resyncLastAt = 0;   // 退避重试不受 1.5s 限速影响
+        requestResync(state.resyncReason, state.resyncScope);
+        return;
+      }
+
+      clearResync('timeout');
+      showToast('画面同步失败，请点「重连」重试', 'error');
+    }, RESYNC_RETRY_MS);
+  }
+
+  function handleResyncAck(message) {
+    var id = toText(pick(message, 'id', 'Id'), '');
+    if (!state.resyncId || id !== state.resyncId) return false;
+
+    // accepted=true：继续等快照；coalesced=true 表示服务端已有一份在途，不会重复发。
+    if (toBool(pick(message, 'ok', 'Ok'), true) === false) {
+      clearResync('ack-failed');
+    }
+    return true;
+  }
+
+  function handleResyncError(message) {
+    var id = toText(pick(message, 'id', 'Id'), '');
+
+    // 有 id 但与当前请求不符 = 迟到错误：一律吞掉，不能弹到用户面前。
+    if (id && id !== state.resyncId) return true;
+
+    var code = toText(pick(message, 'code', 'Code'), '');
+    var text = toText(pick(message, 'message', 'Message'), '重同步失败');
+
+    if (/^E_RATE_LIMITED$/i.test(code)) {
+      var retryAfter = toNumber(pick(message, 'retryAfterMs', 'RetryAfterMs'), 800);
+      if (state.resyncTimer) {
+        clearTimeout(state.resyncTimer);
+        state.resyncTimer = null;
+      }
+      state.resyncTimer = setTimeout(function () {
+        state.resyncTimer = null;
+        if (!state.resyncPending) return;
+        state.resyncPending = false;
+        state.resyncLastAt = 0;
+        requestResync(state.resyncReason, state.resyncScope);
+      }, Math.max(200, retryAfter));
+      return true;
+    }
+
+    clearResync('error');
+    showToast(text, 'warn');
+    return true;
+  }
+
+  function enterFatal(message) {
+    state.fatal = true;
+    state.fatalMessage = message || '页面结构超过 Web 上限';
+    clearReconnectTimer();
+    clearFirstScreenTimer();
+    clearResync('fatal');
+
+    if (state.ws) {
+      try { state.ws.close(); } catch (err) { /* 已经断开 */ }
+    }
+
+    showOverlay({
+      kind: 'fatal',
+      tone: 'error',
+      icon: '!',
+      title: '页面过大，无法显示',
+      text: state.fatalMessage + ' 点「重试」可重新加载；若仍失败，请联系工程师拆分页面。',
+      actions: [{
+        label: '重试',
+        primary: true,
+        onClick: function () {
+          clearFatal();
+          manualReconnect();
+        }
+      }],
+    });
+  }
+
+  function clearFatal() {
+    state.fatal = false;
+    state.fatalMessage = '';
   }
 
   /** keyframe 到达时给渲染器一次"清本地派生状态"的机会；没声明 reset 的渲染器无操作。 */
@@ -2982,6 +3276,13 @@
   }
 
   function applyFrame(message) {
+    // 先记录“收到过”（空帧/被丢弃的帧也算）：旧写法只在应用成功后更新，
+    // 空帧会让基线停住，下一次值变化看起来像跳号（正常背压被误判成缺口）。
+    var receivedFrameSeq = toNumber(pick(message, 'frameSeq', 'FrameSeq'), 0);
+    if (receivedFrameSeq > 0) {
+      state.lastReceivedFrameSeq = Math.max(state.lastReceivedFrameSeq, receivedFrameSeq);
+    }
+
     if (!state.page) return;
 
     // runGeneration 闸必须在写 state 之前：旧轮的帧既不能上屏，也不能污染命令信封。

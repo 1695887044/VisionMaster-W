@@ -30,6 +30,9 @@ namespace VisionMaster.ScadaWeb
         /// <summary>按 targetRequestId 查询一条命令的结果（ack 丢失后的只读查询）</summary>
         public const string Result = "cmd.result";
 
+        /// <summary>请求重同步：structure = 重发整份结构；frames = 下一帧 keyframe</summary>
+        public const string Resync = "view.resync";
+
         /// <summary>取得操作权租约（M2b）</summary>
         public const string LeaseAcquire = "lease.acquire";
 

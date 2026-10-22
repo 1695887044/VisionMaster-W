@@ -949,6 +949,9 @@ namespace ScadaWebChecks
             // ---------------- B57：/api/catalog 暴露 DefaultValue + 客户端首帧补键 ----------------
             await RunCatalogChecksAsync(http);
 
+            // ---------------- B58-B61：structureSeq + view.resync（帧循环单写者） ----------------
+            await RunResyncChecksAsync(http, baseUrl, wsBase, page, hub);
+
             // ---------------- B45：死连接回收（判死阈值压到 1s；运行已停止，双向都无进展） ----------------
             {
                 hub.Stop();
@@ -1888,6 +1891,203 @@ namespace ScadaWebChecks
                 normalizeAt > 0 && createAt > normalizeAt && loadAt > 0,
                 $"appJs={(appJs == null ? "<未找到>" : appJs)} normalizeAt={normalizeAt} "
                 + $"createAt={createAt} loadAt={loadAt}");
+
+            // 客户端陈旧快照闸 / 致命态 / 值帧基线：这些是纯 JS 状态机，没有 DOM 时只能静态钉住关键分支。
+            var staleGuard = text.Contains("structureSeq <= state.structureSeq", StringComparison.Ordinal)
+                             && text.Contains("generation <= state.stoppedGeneration", StringComparison.Ordinal);
+            var fatalGuard = text.Contains("E_SNAPSHOT_TOO_LARGE", StringComparison.Ordinal)
+                             && text.Contains("code === 1009", StringComparison.Ordinal)
+                             && text.Contains("function enterFatal(", StringComparison.Ordinal)
+                             && text.Contains("if (state.fatal)", StringComparison.Ordinal);
+            var frameBaseline = text.Contains("state.lastReceivedFrameSeq", StringComparison.Ordinal);
+
+            Check("B62",
+                staleGuard && fatalGuard && frameBaseline,
+                $"staleGuard={staleGuard} fatalGuard={fatalGuard} frameBaseline={frameBaseline}");
+        }
+
+        /// <summary>
+        /// B58-B61：结构序号与 view.resync。
+        /// 用主宿主（运行中）单独开一条连接：
+        /// ① 改页版本 → page 的 structureSeq 必须更大；
+        /// ② scope=frames → ack + 下一帧 keyframe；
+        /// ③ scope=structure → ack + 新 snapshot，structureSeq 继续增大；
+        /// ④ 紧接着第二次 structure → E_RATE_LIMITED + retryAfterMs（不产生第二份快照）。
+        /// </summary>
+        private static async Task RunResyncChecksAsync(
+            HttpClient http,
+            string baseUrl,
+            string wsBase,
+            ScadaPage page,
+            FakeRunHub hub)
+        {
+            var issue = await IssueTicketAsync(http, baseUrl);
+            var (connected, error, socket) = await ConnectAsync($"{wsBase}/ws?ticket={issue.Ticket}");
+
+            if (!connected || socket == null)
+            {
+                Check("B58", false, $"连接失败 err={error ?? "<none>"}");
+                Check("B59", false, $"连接失败 err={error ?? "<none>"}");
+                Check("B60", false, $"连接失败 err={error ?? "<none>"}");
+                Check("B61", false, $"连接失败 err={error ?? "<none>"}");
+                Check("B63", false, $"连接失败 err={error ?? "<none>"}");
+                Check("B64", false, $"连接失败 err={error ?? "<none>"}");
+                Check("B65", false, $"连接失败 err={error ?? "<none>"}");
+                return;
+            }
+
+            using (socket)
+            {
+                // 首帧必须是 hello：客户端在 hello 里归零 structureSeq/generation，
+                // 任何 presence/snapshot 抢先都会让这条前提失效。
+                var firstText = await ReceiveTextAsync(socket, 3000);
+                var first = TryJson(firstText);
+                Check("B65",
+                    TypeOf(first) == "hello"
+                    && first?["runGeneration"] != null
+                    && first["structureSeq"] != null,
+                    first == null
+                        ? "未收到首帧"
+                        : $"firstType={TypeOf(first)} "
+                          + $"gen={first["runGeneration"]} seq={first["structureSeq"]}");
+
+                var snapshot = await ReceiveUntilAsync(socket, m => TypeOf(m) == "snapshot", 8000);
+                var snapshotSeq = snapshot?.Value<long?>("structureSeq") ?? 0;
+
+                // ① 结构变更 → page
+                page.Version = page.Version + 1;
+                var pageMessage = await ReceiveUntilAsync(socket, m => TypeOf(m) == "page", 5000);
+                var pageSeq = pageMessage?.Value<long?>("structureSeq") ?? 0;
+
+                Check("B58",
+                    snapshotSeq > 0 && pageSeq > snapshotSeq,
+                    $"snapshotSeq={snapshotSeq} pageSeq={pageSeq}");
+
+                // ② frames：只要求下一帧 keyframe
+                var framesId = Guid.NewGuid().ToString("N");
+                await SendTextAsync(socket, JsonConvert.SerializeObject(new
+                {
+                    type = "view.resync",
+                    id = framesId,
+                    scope = "frames",
+                    reason = "test"
+                }));
+
+                var framesAck = await ReceiveUntilAsync(
+                    socket,
+                    m => TypeOf(m) == "ack" && m.Value<string>("id") == framesId,
+                    3000);
+                var keyframe = await ReceiveUntilAsync(
+                    socket,
+                    m => TypeOf(m) == "frame" && m.Value<bool?>("keyframe") == true,
+                    5000);
+
+                Check("B59",
+                    framesAck?.Value<string>("kind") == "view.resync"
+                    && framesAck?.Value<bool?>("ok") == true
+                    && keyframe != null,
+                    framesAck == null
+                        ? "未收到 resync ack"
+                        : $"ackOk={framesAck.Value<bool?>("ok")} keyframe={keyframe != null}");
+
+                // ③ structure：等过 1s 限速窗口，再要整份结构
+                await Task.Delay(1100);
+
+                var structureId = Guid.NewGuid().ToString("N");
+                await SendTextAsync(socket, JsonConvert.SerializeObject(new
+                {
+                    type = "view.resync",
+                    id = structureId,
+                    scope = "structure",
+                    reason = "test"
+                }));
+
+                var structureAck = await ReceiveUntilAsync(
+                    socket,
+                    m => TypeOf(m) == "ack" && m.Value<string>("id") == structureId,
+                    3000);
+                var resynced = await ReceiveUntilAsync(socket, m => TypeOf(m) == "snapshot", 5000);
+                var resyncedSeq = resynced?.Value<long?>("structureSeq") ?? 0;
+
+                Check("B60",
+                    structureAck?.Value<bool?>("ok") == true
+                    && resynced != null
+                    && resyncedSeq > pageSeq,
+                    $"ackOk={structureAck?.Value<bool?>("ok")} "
+                    + $"pageSeq={pageSeq} resyncedSeq={resyncedSeq}");
+
+                // ④ 紧接着第二次 structure：限速
+                var rateId = Guid.NewGuid().ToString("N");
+                await SendTextAsync(socket, JsonConvert.SerializeObject(new
+                {
+                    type = "view.resync",
+                    id = rateId,
+                    scope = "structure",
+                    reason = "test-rate"
+                }));
+
+                var rateError = await ReceiveUntilAsync(
+                    socket,
+                    m => TypeOf(m) == "error" && m.Value<string>("id") == rateId,
+                    3000);
+
+                Check("B61",
+                    rateError?.Value<string>("kind") == "view.resync"
+                    && rateError?.Value<string>("code") == "E_RATE_LIMITED"
+                    && (rateError.Value<int?>("retryAfterMs") ?? 0) > 0,
+                    rateError == null
+                        ? "未收到 E_RATE_LIMITED"
+                        : $"code={rateError.Value<string>("code")} "
+                          + $"retryAfterMs={rateError.Value<int?>("retryAfterMs")}");
+
+                // ⑤ 未运行：structure resync 回 idle；frames resync 明确 ack.idle=true + idle
+                hub.Stop();
+                await Task.Delay(1100);   // 等过 B60/B61 的 1s resync 限速窗口
+
+                var idleId = Guid.NewGuid().ToString("N");
+                await SendTextAsync(socket, JsonConvert.SerializeObject(new
+                {
+                    type = "view.resync",
+                    id = idleId,
+                    scope = "structure",
+                    reason = "test-idle"
+                }));
+
+                var idleAck = await ReceiveUntilAsync(
+                    socket,
+                    m => TypeOf(m) == "ack" && m.Value<string>("id") == idleId,
+                    3000);
+                var idleMessage = await ReceiveUntilAsync(socket, m => TypeOf(m) == "idle", 3000);
+
+                Check("B63",
+                    idleAck?.Value<bool?>("ok") == true && idleMessage != null,
+                    $"ackOk={idleAck?.Value<bool?>("ok")} idle={idleMessage != null}");
+
+                await Task.Delay(1100);   // B64 也要一个干净的限速窗口
+
+                var framesIdleId = Guid.NewGuid().ToString("N");
+                await SendTextAsync(socket, JsonConvert.SerializeObject(new
+                {
+                    type = "view.resync",
+                    id = framesIdleId,
+                    scope = "frames",
+                    reason = "test-frames-idle"
+                }));
+
+                var framesIdleAck = await ReceiveUntilAsync(
+                    socket,
+                    m => TypeOf(m) == "ack" && m.Value<string>("id") == framesIdleId,
+                    3000);
+                var framesIdleMessage = await ReceiveUntilAsync(socket, m => TypeOf(m) == "idle", 3000);
+
+                Check("B64",
+                    framesIdleAck?["result"]?["idle"]?.Value<bool?>() == true
+                    && framesIdleMessage != null,
+                    framesIdleAck == null
+                        ? "未收到 frames ack"
+                        : $"ackIdle={framesIdleAck["result"]?["idle"]} "
+                          + $"idle={framesIdleMessage != null}");
+            }
         }
 
         private sealed class FakeRenderCatalog : IScadaRenderCatalog
