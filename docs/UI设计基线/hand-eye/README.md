@@ -136,30 +136,37 @@ v2 因此改为：**表格是主入口，CSV 降级为成批进出的扩展功�
 |---|---|
 | 表格数据源 | `HandEyePlugin.Samples`（`ObservableCollection<HandEyeSample>`，`[StepConfig]`） |
 | 单元格绑定 | `HandEyeSample.RobotX` … `CameraRz`（12 个 `double`，`ObservableObject` + `SetProperty`） |
-| 行序号 | `AlternationCount` 或用 `ItemsControl.AlternationIndex`（不写进模型） |
-| 行尾 ✕ | `ICommand` 绑到视图 VM，`Samples.Remove(row)` |
-| `＋ 加一行` | `Samples.Add(new HandEyeSample())`（新行 12 值全 0 = `IsBlank`，会被求解器点名） |
-| `导入 CSV` / `导出 CSV` | `HandEyeCsv.TryParse` / `HandEyeCsv.Format` + `OpenFileDialog`/`SaveFileDialog`（**文件 IO 只在视图层**） |
-| 计数文案 | `SampleCountHint`（`[JsonIgnore]` 计算属性，模型已有） |
-| 装法 | `PoseKind`（`HandEyePoseKind`，`[Display]` 中文） |
-| 两个上限 | `MaxTranslationRmsMm` / `MaxRotationRmsDeg`（`[StepConfig]`，`[DefaultValue]` 1.0 / 0.5） |
-| 矩阵 16 格 | `MatrixCellConverter` + `ConverterParameter` 0~15，绑 `Transform.HandEyeMatrix`（`double[]?`，16 元行主序） |
-| 语义副标题 | 由 `Transform.HandEyePose` 决定两句话（眼在手上 / 眼在手外），不新建字段 |
+| 数值格式 | 每个 `Binding` 带 `StringFormat="{}{0:F3}"`（**必须带引号**，裸写 `StringFormat=F3` 报 MC3000） |
+| 单元格样式 | `NumCellStyle`（等宽右对齐，`Margin=0`）+ `NumCellHostStyle`（`BasedOn` `DialogDataGridCell`，`Padding="6,0,4,0"`）——`DialogDataGridCell` 自带 `Padding="12,0,0,0"`，不减掉会把负号裁没 |
+| 列宽 | `Width="*"` + `MinWidth="72"`（8 字符 `-511.280` 的最小宽度；窄档靠横向滚动，不压列宽） |
+| 行序号 | `DataGrid.LoadingRow` 里 `e.Row.Header = (e.Row.GetIndex() + 1)`；`HeadersVisibility="All"`（**不能写 `Row`**，那会连列头一起关掉），序号不进模型 |
+| 行尾 ✕ | `RemoveSampleCommand`（`Core.Commands.RelayCommand`，`CommandParameter` 是行对象），字形 `×`（U+00D7）**不用 Font Awesome 私有区字形**——删除这种歧义代价高的操作不该赌字体命中 |
+| `＋ 加一行` | `AddSampleCommand` → `Samples.Add(new HandEyeSample())`（新行 12 值全 0 = `IsBlank`，求解时被点名） |
+| `导入 CSV` / `导出 CSV` | `HandEyeCsv.TryParse` / `HandEyeCsv.Format` + `OpenFileDialog`/`SaveFileDialog`（**文件 IO 只在视图层**）；导出写 BOM，Excel 双击中文表头才不乱码 |
+| 计数文案 | `SampleCountHint`（`[JsonIgnore]` 计算属性） |
+| 装法 | `PoseKind` + 两个布尔投影 `IsEyeInHand`/`IsEyeToHand`（RadioButton 绑布尔，不绑枚举） |
+| 两个上限 | `MaxTranslationRmsMm` / `MaxRotationRmsDeg`（`[StepConfig]`，`[DefaultValue]` 1.0 / 0.5，`ui:NumericBox`） |
+| 矩阵 16 格 | `string[] PreviewMatrixCells` 索引绑定（`PreviewMatrixCells[0]` … `[15]`）。**不用 `IMultiValueConverter`/`ConverterParameter`**：那要求 XAML 里写 `ConverterParameter="7"` 再在 `Convert` 里转 int，写错只会静默不显示 |
+| 语义副标题 | `PreviewMatrixCaption`（由 `PoseKind` 决定两句话，不新建字段） |
+| 三态切换 | `IsPreviewOk` / `IsPreviewFailed` 两个**布尔投影**驱动 `DataTrigger Value="True"`（枚举直接做 `DataTrigger` 要靠字符串→枚举转换，猜不中时 XAML 不报错、只是永不触发） |
+| 求解结论 | `SolveForPreview()` 只写 `Preview*` 只读属性，**不动输出端口**；端口只在 `RunAlgorithm` 里写（界面看结果 ≠ 流程拿结果） |
+| 窄档 | `UpdateNarrowLayout()`：`ActualWidth < 720` 时把表尾计数换成「窄窗口：表格可左右滑动，右侧还有 4 列」 |
 
 > `HandEyePlugin` **没有输入端口**（数据住在 `Samples` 列表里），所以视图不需要"端口绑定"控件。CSV 只是搬运。
 
 ## 9. 复刻证据
 
-**设计稿已出图（四态），WPF 复刻尚未开始。**
+**WPF 已复刻（2026-10-23），四态由探针实渲染截图。**
 
-| 状态 | 截图 |
-|---|---|
-| 默认（求解通过） | `evidence/design-v2-default.png` |
-| 空态 | `evidence/design-v2-empty.png` |
-| 失败 | `evidence/design-v2-failed.png` |
-| 窄档 640 | `evidence/design-v2-narrow-640.png` |
+| 状态 | WPF 实渲染 | 设计稿 |
+|---|---|---|
+| 默认（8 组求解通过） | `evidence/wpf-v2-ok.png` | `evidence/design-v2-default.png` |
+| 空态 | `evidence/wpf-v2-empty.png` | `evidence/design-v2-empty.png` |
+| 空表按过求解（红块） | `evidence/wpf-v2-empty-solved.png` | —（设计稿未单列此态） |
+| 失败（旋转激励不足） | `evidence/wpf-v2-failed.png` | `evidence/design-v2-failed.png` |
+| 窄档 640 | `evidence/wpf-v2-narrow-640.png` | `evidence/design-v2-narrow-640.png` |
 
-复刻完成后在此补"设计稿 vs 实际渲染"的并排对照与逐项差异。
+产出方式：`artifacts/tmp-viewprobe/`（临时探针，用完即删）离屏 `Window`（`Left=-4000`）+ `Dispatcher.PushFrame` + `RenderTargetBitmap`，24 条断言落在"看得见"（`TextBlock.IsVisible` 为真）而不是"控件存在"。断言覆盖：XAML 能解析 / 13 列 / 空态可见且自带入口 / 空表求解的文案是人话 / 未填行报「还没填」而不是拿 0 去算 / 8 组成功出 16 格矩阵与三枚 KPI / 姿态不变必失败 / 失败时矩阵清空 / 数字列不被裁（负号不能消失）/ 窄档也不被裁 / 没有绑定到 `HandEye*` 的错误。
 
 ## 10. 已知偏差
 
@@ -169,6 +176,10 @@ v2 因此改为：**表格是主入口，CSV 降级为成批进出的扩展功�
 | 2 | HTML 表格滚动条被截图为 `--hide-scrollbars` 隐藏 | 允许；WPF 用 `ScrollViewer` 默认滚动条 |
 | 3 | HTML 的 `input` 无 IME/输入法行为 | 允许；WPF 复刻时数值格需挡住非数字输入 |
 | 4 | 矩阵卡在 960 档只占 1.35 份宽，超长数字（如 `-1234.567`）会挤 | 复刻时按实际列宽微调或缩短小数位（3 位→2 位） |
+| 5 | 13 列在窗口默认 960 宽下约 900px，**行尾 ✕ 要横向滚一点才完全露出**（12×72 + 行头 ≈ 900 > 内容区 940 减去左侧无、实际可见） | 接受：默认窗口能直接看到前 12 列与行号，删除走滚动或键盘；下一步选项是把 ✕ 挪进行头（需改 `RowHeaderTemplate`） |
+| 6 | **窄档「表格可左右滑动」提示是复刻时新加的**，设计稿只有滚动条 | 接受并回写进 §4.4：浅色主题下 12px 滚动条几乎看不见，不给一句话用户会以为后面没列了 |
+| 7 | 设计稿里"求解中禁用按钮"未做 | 求解是同步的且只算 SVD，毫秒级；等出现真卡顿再加（不先造无用的禁用逻辑） |
+| 8 | **设计稿的两级表头（`机器人位姿` / `相机位姿` 分组行）未复刻** | `DataGrid` 没有原生双层表头，做要叠 `Grid` 假表头并与真实列头对齐（窗口缩放必然错位）。改为**列名自带前缀**：`机器人 X` … `相机 Rz`，分组语义不丢 |
 
 ## 11. 未纳入本版
 

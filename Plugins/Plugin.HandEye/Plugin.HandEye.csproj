@@ -6,6 +6,8 @@
     <AssemblyName>Plugin.HandEye</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- 配置界面是 WPF 视图（HandEyeView.xaml），必须开 UseWPF -->
+    <UseWPF>true</UseWPF>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,13 +18,21 @@
     <Using Include="Core.Interfaces" />
   </ItemGroup>
 
-  <!-- 工程必须放在 Plugins\ 子树内：Directory.Build.targets 按目录生效，负责把 DLL 投递到 Modules\ -->
+  <!-- 工程必须放在 Plugins\\ 子树内：Directory.Build.targets 按目录生效，负责把 DLL 投递到 Modules\\ -->
   <ItemGroup>
-    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+    <ProjectReference Include="..\\..\\Shard\\Core.Interfaces\\Core.Interfaces.csproj" />
+    <!-- 命令基类 RelayCommand（Core.Commands）：本仓公共基础设施，不许各插件自带副本 -->
+    <ProjectReference Include="..\\..\\Shard\\Core.Controls\\Core.Controls.csproj" />
+    <!--
+      视图就地合并 /UI;component/Themes/Generic.xaml（颜色令牌 + DataGrid/对话框样式）。
+      与 Plugin.CaliperMeasure / Plugin.DlClassify 同一写法：引用它，Pack URI 才能在
+      没有 Application 的断言宿主里也解析到（R22 同族）。
+    -->
+    <ProjectReference Include="..\\..\\UI\\Controls\\UI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Help\**\*" />
+    <EmbeddedResource Include="Help\\**\\*" />
   </ItemGroup>
 
 </Project>
