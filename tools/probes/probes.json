@@ -81,6 +81,20 @@
       "project": "WebProbe6.csproj",
       "runMode": "dotnet",
       "description": "SCADA 运行态 Web 客户端探针（当前版）"
+    },
+    {
+      "name": "MotionSimProbe",
+      "dir": "_MotionSimProbe",
+      "project": "MotionSimProbe.csproj",
+      "runMode": "dotnet",
+      "description": "产线仿真 P0 出口验证：起 LineSim --serve，用真驱动 SimMotionCard 走 使能/回零/绝对定位到位/点动/停止/软限位拒绝（输出 RESULT: ALL_OK）"
+    },
+    {
+      "name": "CameraSimProbe",
+      "dir": "_CameraSimProbe",
+      "project": "CameraSimProbe.csproj",
+      "runMode": "dotnet",
+      "description": "产线仿真 P1 出口验证：起 LineSim --serve，用真驱动 SimCameraDevice 走 打开/采流/软触发即渲染/取帧/像素与身份/曝光生效/仿真器侧计数（输出 RESULT: ALL_OK）"
     }
   ]
 }

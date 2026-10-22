@@ -42,6 +42,11 @@ namespace VisionMaster.Engine
             var engine = container.Resolve<IFlowEngine>();
             var runtime = container.Resolve<IRuntimeManager>();
 
+            // 「调用流程」目标流程名的候选来源：只有宿主知道"当前方案里哪些流程勾了子程序"。
+            // 注册必须早于任何参数面板（本方法在启动链上），解析工作区放在委托里现做 ——
+            // 切方案后候选要跟着变，不能在注册时取一次快照。
+            SubroutineFlowOptions.Register(() => container.Resolve<IWorkspaceManager>());
+
             // 「调用流程」步骤的能力注入：引擎建执行上下文时把调用器递给插件。
             // 属性注入而不是构造参数：调用器自己要用引擎跑子流程，两者互为引用（环）没法在构造期解
             if (engine is FlowEngineService concreteEngine)

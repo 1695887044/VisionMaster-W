@@ -15,6 +15,9 @@ namespace VisionMaster.Plugins.RunFlow
     ///  · 目标流程必须存在 / 启用 / 未加密，且**调用方式勾选了「子程序」**；
     ///  · 目标正在运行 → 直接失败（不排队，防止流程互等挂死；自身递归调用也由此拦住）。
     ///
+    /// 配置界面：目标流程名是**封闭候选**（宿主按当前方案现取，只列勾了「子程序」的流程），
+    /// 不是手打文本框、也不挂变量绑定 —— 流程名是"名字"不是"值"（R33）。
+    ///
     /// 为什么"等待"是默认且唯一的模式：引擎按节点顺序执行，父流程在等子流程时本来就没法往下走；
     /// 不做"不等待"分支，是为了避免出现"子流程还在往回写全局变量、父流程已经往下跑"的竞态
     /// （真要并行，应该用两条独立流程 + 各自的调用方式，而不是一个"不等待的调用"开关）。
@@ -27,9 +30,22 @@ namespace VisionMaster.Plugins.RunFlow
     )]
     public class RunFlowPlugin : VisionPluginBase
     {
-        /// <summary>目标流程名（必填；按名查找，与 HTTP 路由 / 运行状态镜像同口径）</summary>
+        /// <summary>
+        /// 目标流程名（必填；按名查找，与 HTTP 路由 / 运行状态镜像同口径）。
+        ///
+        /// 候选由宿主提供（<see cref="StepConfigOptionKind.SubroutineFlowName"/>）：
+        /// 只列当前方案里勾了「子程序」的流程。IsFunctionalEnum=true 让通用参数面板把它
+        /// 渲染成"只能选"的下拉并隐藏 🔗 —— 流程名是"名字"不是"值"，挂绑定等于允许上游
+        /// 在运行期给一个方案里不存在的名字（R33）。
+        /// 方案里还没有子程序时控件退化成可手填并给出提示（见 LinkableValueEditor）。
+        /// </summary>
         public InputPort<string> TargetFlowPort { get; } =
-            new InputPort<string>("FlowName", "", "目标流程名") { IsRequired = true };
+            new InputPort<string>("FlowName", "", "目标流程名")
+            {
+                IsRequired = true,
+                IsFunctionalEnum = true,
+                OptionKind = StepConfigOptionKind.SubroutineFlowName,
+            };
 
         /// <summary>等待超时（毫秒，下限 1000）：超时只报错、不打断目标</summary>
         public InputPort<int> TimeoutPort { get; } =

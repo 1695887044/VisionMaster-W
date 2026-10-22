@@ -22,6 +22,9 @@ Plugins\Plugin.RunFlow\
   两个名字都不能随手改。
 - 基类：`VisionPluginBase`。**不实现**任何视图接口（csproj 注释写明：没有 WPF、没有 `Core.Controls`），
   宿主发现没有自定义视图接口时自动包一层通用参数面板；**没有** `[StepConfig]`、**没有** `[ParallelSafe]`。
+- `TargetFlowPort` 声明了 `IsFunctionalEnum = true` + `OptionKind = StepConfigOptionKind.SubroutineFlowName`：
+  通用面板据此把它渲染成**封闭候选下拉**（并隐藏 🔗/✕）。插件只说"要哪一类候选"，
+  候选内容由宿主算（见第七节）——插件仍然不碰 WPF、不碰方案模型。
 - `Initialize()` 与 `Dispose()` 都是**空重写**：本插件无自有状态、无自有句柄，也不接管任何资源的释放。
 
 ## 二、`RunAlgorithm` 逐步（执行时间线）
@@ -73,7 +76,7 @@ Plugins\Plugin.RunFlow\
 | --- | --- | --- |
 | 端口发现与注册 | `VisionPluginBase` 反射 public 端口属性 | 端口名可省略（自动取属性名）。本插件 `TargetFlowPort` 显式写成 `FlowName`、`InvokeMessage` 显式写成 `Message`——**存档键是端口名** |
 | 灌值 / 写回 | 基类 `ApplyConfigValues` + `OnConfirm` | 面板显示已保存值而非默认值；已链接的口写回时移除常量键 |
-| 通用参数面板 | 宿主自动端口面板 | 不实现自定义视图接口就自动有，两行 = 标签 + 值 + 链接 + 清除 |
+| 通用参数面板 | 宿主自动端口面板 | 不实现自定义视图接口就自动有：`FlowName` 一行是封闭候选下拉（无链接/清除），`TimeoutMs` 一行是值 + 链接 + 清除 |
 | 业务成功判定 | `VisionPluginBase.Execute` 读 `Success.Value` | 所以第 2 步必须显式压 `false`，否则提前 return 的分支会被当成成功 |
 | 异常兜底 | 基类 `Execute` 包裹 `RunAlgorithm` | 调用器抛出的异常转成失败与错误文案，不把流程线程带崩；**门禁失败不走异常**（是正常返回值） |
 | 流程调用能力 | `IFlowInvoker` / `FlowInvokeResult`（`Shard\Core.Interfaces\IFlowInvoker.cs`） | 结果用只读结构体而不是 `bool` + `out`，就是为了"三件事实齐全"；宿主没引擎时给 `NullFlowInvoker` |
@@ -94,7 +97,36 @@ Plugins\Plugin.RunFlow\
 - **改名连锁**：被调流程改名 = 所有调用点的 `FlowName` 失配；`FlowName` 与 HTTP 路由、运行状态镜像
   共用同一个"按名 Ordinal 查找"口径，不会出现"面板里找到了、引擎找不到会话"的自相矛盾。
 
-## 七、A 组不变量（违反就编译/闸门红）
+## 七、目标流程名的候选来源（宿主侧）
+
+插件只声明"要哪一类候选"，真正的列表由宿主算 —— 链路四跳：
+
+```
+RunFlowPlugin.TargetFlowPort
+  OptionKind = StepConfigOptionKind.SubroutineFlowName      ← 契约层只放类别
+        ↓
+Engine\SubroutineFlowOptions.Build(workspace)               ← 宿主算候选（本仓唯一一份）
+  只留 (InvokeType & Subroutine) != 0；禁用/加密/当前流程照列，只加显示后缀
+        ↓
+FlowEngineModule.Initialize → SubroutineFlowOptions.Register(...)
+  StepConfigOptionSource.RegisterAdditional(...)            ← 启动期注册，UI 每次打开现取
+        ↓
+LinkableValueEditor（Core.Controls）→ IsOptionPort → 下拉
+```
+
+四条不变量：
+
+| # | 判据 | 为什么 |
+| --- | --- | --- |
+| 1 | **候选必须现取**（用 `OptionKind`，不是 `PresetOptions`） | 插件实例在方案打开前就被反射 new 出来，那一刻的 `PresetOptions` 必然是空的；`OptionKind` 让界面每次打开都问一次 |
+| 2 | **只列 `InvokeType` 含 `Subroutine` 位的流程** | 与 `FlowInvoker` 的门禁同一条判据；列出没勾的等于递给用户一个"选了必然失败"的选项 |
+| 3 | **值 = 流程名本体**，显示文本只加后缀 | `FlowInvoker.FindFlow` 按名 `Ordinal` 查找；把显示文本当值写进 `.vms`，改一次后缀就断链 |
+| 4 | **禁用 / 加密 / 当前流程照列并标注** | 剔掉会让已配好的值在下拉里显示空白（值还在、只是选不到），用户会以为配置丢了；标注才看得出失败原因 |
+
+`RegisterAdditional` 而不是 `Register`：运动模块（轴名/卡名）与通讯模块（通讯变量名）也各注册一份，
+谁也不该顶掉谁。解析工作区放在委托里现做，切方案后候选自动跟着变。
+
+## 八、A 组不变量（违反就编译/闸门红）
 
 本插件的守门断言**真实分布**（逐条回源码抄）：
 `FlowCanvasChecks\FlowAutomationChecks.cs` 的分节 `[E16] 子程序调用：门禁`（门禁单元 + Modules 装载 + 端到端父子跑通）、
@@ -113,10 +145,11 @@ Plugins\Plugin.RunFlow\
 | 插件产物没进 `Modules`，宿主加载不到类型 | 红线①：插件工程必须放 `Plugins\` 下并由构建约定投递 | `Plugin.RunFlow.dll 已投递到 Modules 且类型可解析（红线①：插件产物必经 Modules 投递）`、`父流程（含「调用流程」步骤）编译通过`（同上）、`（前提）Plugin.RunFlow.dll 可装载`（`FlowContainerChecks.cs`） |
 | 并行分支里一次门禁失败把整条并行链拖崩 | 门禁失败被写成抛异常（会被登记成故障源） | `P23：门禁失败不抛异常（并行分支里是普通业务失败，不触发故障源登记）`、`P23：Invoked=false 且 Message 如实带回门禁原因`（`ParallelExecutionChecks.cs`） |
 | 老 `.vms` 的调用方式被读成另一种触发 | 新位值与老单选值撞号 | `老值 3（子程序）→ Subroutine 位（32）`、`★新位值全部避开老单选值 1/2/3（撞号 = 老文件被读成另一种调用方式）`、`已是位集的值原样保留（高版本 → 低版本不丢调用方式）`（`FlowInvokeChecks.cs`） |
+| 目标流程名又能手打成不存在的名字 / 没勾子程序也配得下去 | 候选来源没接上或类别写错，界面退回自由文本 | `★FlowName 端口声明为封闭候选（IsFunctionalEnum + SubroutineFlowName）`、`★候选只列勾了「子程序」的流程`、`注册后从契约层来源表取到同一份候选`（`FlowAutomationChecks.cs`） |
 | 「勾了却没生效」在界面上看不出来 | 显示文本回落到"手动"或被吞 | `认不出的位值显示成「未知(4)」而不是「手动」`、`★四个调用位全部接通 → PendingReason 全为 null（界面不再提示「待接通」）`（同上） |
 | 手册被自动生成页顶掉 / 串页 / 不达标 | Help 页没进 DLL 或命名不合骨架 | `HM4 有 Help/*.md 的工程都带 EmbeddedResource（手册进得了 DLL）`、`HM2 多插件程序集不许放扁平手册（防串页）`、`HM8`（用户册合计 ≥70 行）、`HM9`（禁占位词）、`HM12` / `HM12b`（`NN-dev-` 命名、不许另立子目录）、`HM13`（本档 S：开发页 1 页、合计 ≥100 行）、`HM16`（档位表与带 `GroupName` 的插件类一一对应）（`FlowCanvasChecks\HelpManualCheck.cs`） |
 
-## 八、B 组不变量（不报错，只出诡异现象）
+## 九、B 组不变量（不报错，只出诡异现象）
 
 | 症状 | 机理 | 守门断言名 |
 | --- | --- | --- |
@@ -129,11 +162,12 @@ Plugins\Plugin.RunFlow\
 | 图纸整树状态复位漏了嵌套层，失败计数吃到历史轮 | 递归收集不彻底 | `嵌套的循环体节点同样挂对图纸`、`分支里的第二层步骤也进 Blueprints（递归到底）`（`FlowCanvasChecks\ExecutionChecks.cs`）；**复位动作本身无专属断言** |
 | 改端口名后老方案静默失效 | `InputValues` 的键随端口名变（`FlowName` / `TimeoutMs`），旧键没人读 | 无断言，靠人工核对（改键必须同步用户册《端口与参数》） |
 
-## 九、改完这个文件必须做的动作
+## 十、改完这个文件必须做的动作
 
 | 改了什么 | 必须同步 |
 | --- | --- |
 | 端口名 / 默认值 / 必填性 | 用户册《端口与参数》的端口表与第六节存档键；`FlowAutomationChecks` 里用 `SetInputValue("FlowName", …)` 的夹具 |
+| 端口候选类别 / 宿主候选来源 | `StepConfigOptionKind` 的类别、`Engine\SubroutineFlowOptions.cs`、`FlowEngineModule.Initialize` 的注册、用户册《端口与参数》的候选说明、`FlowAutomationChecks` 的候选断言（四处必须同口径） |
 | 输出端口集合 | `ParallelExecutionChecks` P23 的三件判据（它按属性名反射取 `TargetFlowPort` / `Invoked` / `InvokeMessage`） |
 | 门禁判据或判定顺序 | **只能改宿主 `Engine\FlowInvoker.cs`**，不要在本插件里加二次判定；同步 `FlowAutomationChecks` [E16] 与用户册《字段与排错》的消息原文表 |
 | 错误文案 / 等待与超时语义 | 《字段与排错》的原文表与超时口径表、《排错》的判定树（三处要求逐字一致） |

@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>数据库页（SQLite 优先）· 设计基线 v1</title>
+<style>
+  :root{
+    --db-surface:#FFFFFF; --db-surface-2:#F8FAFC; --db-surface-3:#F1F5F9;
+    --db-border:#E2E8F0; --db-border-soft:#EEF2F7; --db-border-strong:#CBD5E1;
+    --db-text:#0F172A; --db-text-2:#475569; --db-text-3:#94A3B8; --db-text-4:#64748B;
+    --db-primary:#0EA5E9; --db-primary-strong:#0284C7; --db-primary-text:#0369A1;
+    --db-primary-soft:#F0F9FF; --db-primary-light:#E0F2FE; --db-primary-border:#BAE6FD;
+    --db-success:#22C55E; --db-success-text:#15803D; --db-success-soft:#F0FDF4; --db-success-border:#BBF7D0;
+    --db-danger:#EF4444; --db-danger-text:#B91C1C; --db-danger-soft:#FEF2F2; --db-danger-border:#FECACA;
+    --db-warning:#F59E0B; --db-warning-text:#B45309; --db-warning-soft:#FFF4E5; --db-warning-border:#FDE68A;
+    --shadow:0 18px 50px rgba(15,23,42,.12);
+    color-scheme:light;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:#EEF2F7;color:var(--db-text);
+    font-family:"Segoe UI","Microsoft YaHei UI",system-ui,-apple-system,sans-serif}
+  body{padding:28px 32px 56px}
+  .page-head{max-width:1100px;margin:0 auto 22px}
+  .page-head h1{font-size:22px;margin:0 0 6px;font-weight:650;letter-spacing:.2px}
+  .page-head p{margin:0;color:var(--db-text-2);font-size:12.5px;line-height:1.7}
+  .page-head .meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .meta span{font-size:10.5px;padding:4px 9px;border-radius:999px;background:var(--db-surface);
+    border:1px solid var(--db-border);color:var(--db-text-2)}
+  .frame-label{max-width:1100px;margin:26px auto 8px;font-size:12px;font-weight:600;color:var(--db-text-2)}
+  .frame-label small{font-weight:400;color:var(--db-text-3);margin-left:8px}
+
+  .frame{width:1100px;height:820px;margin:0 auto;background:var(--db-surface);border:1px solid var(--db-border);
+    border-radius:14px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+  .titlebar{height:52px;flex:0 0 52px;border-bottom:1px solid var(--db-border-soft);
+    display:flex;align-items:center;padding:0 24px;gap:10px;background:var(--db-surface)}
+  .titlebar .logo{width:28px;height:28px;border-radius:8px;background:var(--db-primary-soft);
+    display:grid;place-items:center;color:var(--db-primary-text)}
+  .titlebar .title{font-size:13px;font-weight:650}
+  .titlebar .hint{font-size:10.5px;color:var(--db-text-3)}
+  .titlebar .spacer{flex:1}
+  .win-actions{display:flex;gap:14px;color:var(--db-text-3);font-size:13px}
+
+  .body{flex:1;display:flex;min-height:0}
+  .nav{width:210px;flex:0 0 210px;background:var(--db-surface-2);border-right:1px solid var(--db-border-soft);
+    padding:16px 12px 14px;display:flex;flex-direction:column}
+  .nav h2{font-size:14px;margin:0;font-weight:650}
+  .nav .sub{font-size:10.5px;color:var(--db-text-3);margin:2px 0 12px}
+  .nav-item{display:flex;align-items:center;gap:8px;padding:9px 9px;border-radius:8px;font-size:12.5px;
+    color:var(--db-text-2);margin-bottom:3px;cursor:default}
+  .nav-item .ico{width:16px;text-align:center;color:var(--db-text-3);font-size:13px}
+  .nav-item.active{background:var(--db-primary-soft);color:var(--db-primary-text);font-weight:600}
+  .nav-item.active .ico{color:var(--db-primary-text)}
+  .nav .count{margin-left:auto;font-size:9.5px;color:var(--db-text-3);background:var(--db-surface);
+    border:1px solid var(--db-border-soft);border-radius:5px;padding:1px 5px}
+  .nav .bottom{margin-top:auto;padding-top:10px;border-top:1px solid var(--db-border-soft)}
+  .solution-card{background:var(--db-surface);border:1px solid var(--db-border-soft);border-radius:10px;padding:12px}
+  .solution-card .k{font-size:10px;color:var(--db-text-3)}
+  .solution-card .v{font-size:11.5px;font-weight:600;margin-top:3px}
+  .solution-card .t{font-size:10px;color:var(--db-text-3);margin-top:3px}
+
+  .content{flex:1;min-width:0;display:flex;flex-direction:column}
+  .page{padding:18px 24px 0;display:flex;flex-direction:column;min-height:0;flex:1}
+  .page-head-row{display:flex;align-items:flex-start;gap:12px}
+  .page-title{font-size:18px;font-weight:650;margin:0}
+  .page-sub{font-size:10.5px;color:var(--db-text-3);margin-top:3px;line-height:1.5}
+  .page-actions{margin-left:auto;display:flex;gap:8px}
+  .btn{height:32px;padding:0 12px;border-radius:8px;border:1px solid transparent;font-size:11.5px;
+    display:inline-flex;align-items:center;gap:6px;background:transparent;color:var(--db-text-2);cursor:default}
+  .btn.primary{background:var(--db-primary);color:#fff;border-color:var(--db-primary)}
+  .btn.primary:hover{background:var(--db-primary-strong)}
+  .btn.secondary{background:var(--db-surface);border-color:var(--db-border-strong)}
+  .btn.ghost{color:var(--db-text-2)}
+  .btn.danger{background:var(--db-danger-soft);color:var(--db-danger-text);border-color:var(--db-danger-border)}
+  .btn.small{height:28px;padding:0 9px;font-size:10.5px}
+  .btn[disabled]{opacity:.5}
+
+  .split{display:flex;gap:0;flex:1;min-height:0;margin-top:14px;border:1px solid var(--db-border-soft);
+    border-radius:12px;overflow:hidden;background:var(--db-surface)}
+  .profile-list{width:280px;flex:0 0 280px;border-right:1px solid var(--db-border-soft);background:var(--db-surface-2);
+    padding:10px;overflow:auto}
+  .profile-item{display:flex;gap:10px;padding:10px;border-radius:10px;border:1px solid transparent;margin-bottom:6px}
+  .profile-item.active{background:var(--db-surface);border-color:var(--db-primary-border);
+    box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .db-ico{width:34px;height:34px;flex:0 0 34px;border-radius:9px;background:var(--db-primary-soft);
+    display:grid;place-items:center;color:var(--db-primary-text);font-size:15px}
+  .profile-item .name{font-size:12px;font-weight:650;display:flex;align-items:center;gap:6px}
+  .profile-item .path{font-size:10px;color:var(--db-text-3);margin-top:3px;word-break:break-all}
+  .profile-item .stats{font-size:9.5px;color:var(--db-text-3);margin-top:5px;display:flex;gap:6px;align-items:center}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--db-text-3);display:inline-block}
+  .dot.ok{background:var(--db-success)} .dot.warn{background:var(--db-warning)} .dot.err{background:var(--db-danger)}
+  .chip{font-size:9px;padding:2px 6px;border-radius:999px;background:var(--db-surface-3);
+    color:var(--db-text-2);border:1px solid var(--db-border-soft);white-space:nowrap}
+  .chip.blue{background:var(--db-primary-soft);color:var(--db-primary-text);border-color:var(--db-primary-border)}
+  .chip.green{background:var(--db-success-soft);color:var(--db-success-text);border-color:var(--db-success-border)}
+  .chip.red{background:var(--db-danger-soft);color:var(--db-danger-text);border-color:var(--db-danger-border)}
+  .chip.amber{background:var(--db-warning-soft);color:var(--db-warning-text);border-color:var(--db-warning-border)}
+
+  .detail{flex:1;min-width:0;display:flex;flex-direction:column}
+  .profile-card{padding:14px 16px;border-bottom:1px solid var(--db-border-soft);display:flex;gap:12px;align-items:center}
+  .profile-card .db-ico{width:40px;height:40px;flex-basis:40px;font-size:18px}
+  .profile-card .name{font-size:14px;font-weight:650;display:flex;align-items:center;gap:8px}
+  .profile-card .path{font-size:10.5px;color:var(--db-text-3);margin-top:4px}
+  .profile-card .status{font-size:10px;color:var(--db-text-2);margin-top:5px;display:flex;gap:6px;align-items:center}
+  .profile-card .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+  .tabs{height:40px;flex:0 0 40px;display:flex;align-items:flex-end;gap:18px;padding:0 16px;
+    border-bottom:1px solid var(--db-border-soft)}
+  .tab{font-size:11.5px;color:var(--db-text-2);padding:0 2px 10px;border-bottom:2px solid transparent;cursor:default}
+  .tab.active{color:var(--db-primary-text);font-weight:650;border-bottom-color:var(--db-primary)}
+  .tab .badge{font-size:9px;background:var(--db-surface-3);border-radius:5px;padding:1px 5px;margin-left:5px;color:var(--db-text-3)}
+
+  .tab-body{flex:1;min-height:0;overflow:auto;padding:14px 16px 16px}
+  .form-grid{display:grid;grid-template-columns:120px 1fr;gap:10px 14px;align-items:center;max-width:760px}
+  .label{font-size:11px;color:var(--db-text-2)}
+  .label .req{color:var(--db-danger);margin-left:3px}
+  .input,.select{height:34px;border:1px solid var(--db-border-strong);border-radius:8px;background:var(--db-surface);
+    padding:0 10px;font-size:11.5px;color:var(--db-text);display:flex;align-items:center;gap:8px}
+  .input.mono{font-family:"Cascadia Mono",Consolas,monospace;font-size:11px}
+  .input .hint{color:var(--db-text-3);font-size:10px}
+  .input .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row-actions{display:flex;gap:6px;margin-left:auto}
+  .hint-line{grid-column:2;font-size:10px;color:var(--db-text-3);margin-top:-4px;line-height:1.5}
+  .divider{height:1px;background:var(--db-border-soft);margin:16px 0}
+  .section-title{font-size:12px;font-weight:650;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+  .section-title .hint{font-weight:400;font-size:10px;color:var(--db-text-3)}
+
+  .banner{border-radius:9px;padding:9px 11px;font-size:10.5px;line-height:1.55;display:flex;gap:8px;
+    border:1px solid var(--db-border);background:var(--db-surface-2);color:var(--db-text-2)}
+  .banner .bico{font-weight:700}
+  .banner.success{background:var(--db-success-soft);border-color:var(--db-success-border);color:var(--db-success-text)}
+  .banner.danger{background:var(--db-danger-soft);border-color:var(--db-danger-border);color:var(--db-danger-text)}
+  .banner.warning{background:var(--db-warning-soft);border-color:var(--db-warning-border);color:var(--db-warning-text)}
+  .banner.info{background:var(--db-primary-soft);border-color:var(--db-primary-border);color:var(--db-primary-text)}
+
+  .stmt-layout{display:flex;gap:0;flex:1;min-height:0;margin-top:12px;border:1px solid var(--db-border-soft);
+    border-radius:12px;overflow:hidden}
+  .stmt-list{width:220px;flex:0 0 220px;background:var(--db-surface-2);border-right:1px solid var(--db-border-soft);padding:9px}
+  .stmt-item{padding:9px;border-radius:8px;border:1px solid transparent;margin-bottom:5px}
+  .stmt-item.active{background:var(--db-surface);border-color:var(--db-primary-border)}
+  .stmt-item .n{font-size:11.5px;font-weight:650;display:flex;align-items:center;gap:6px}
+  .stmt-item .m{font-size:9.5px;color:var(--db-text-3);margin-top:4px;display:flex;gap:6px;align-items:center}
+  .stmt-editor{flex:1;min-width:0;padding:12px 14px;overflow:auto}
+  .editor-head{display:flex;gap:10px;align-items:center}
+  .editor-head .input{flex:1}
+  .sql-editor{margin-top:10px;border:1px solid var(--db-border-strong);border-radius:9px;overflow:hidden;background:#0F172A}
+  .sql-editor .bar{height:26px;background:#111C2E;display:flex;align-items:center;padding:0 10px;gap:6px}
+  .sql-editor .bar span{width:7px;height:7px;border-radius:50%;background:#334155}
+  .sql-editor pre{margin:0;padding:11px 13px;color:#E2E8F0;font-family:"Cascadia Mono",Consolas,monospace;
+    font-size:11px;line-height:1.65;white-space:pre-wrap}
+  .sql-editor .kw{color:#7DD3FC} .sql-editor .fn{color:#C4B5FD} .sql-editor .p{color:#FDE68A} .sql-editor .s{color:#86EFAC}
+
+  table.params{width:100%;border-collapse:collapse;margin-top:8px;font-size:10.5px}
+  table.params th{text-align:left;font-weight:600;color:var(--db-text-3);padding:7px 8px;border-bottom:1px solid var(--db-border-soft)}
+  table.params td{padding:7px 8px;border-bottom:1px solid var(--db-border-soft);color:var(--db-text-2)}
+  table.params td.mono{font-family:"Cascadia Mono",Consolas,monospace;color:var(--db-text)}
+  table.params tr:last-child td{border-bottom:none}
+
+  .options-row{display:flex;gap:14px;align-items:center;margin-top:10px;flex-wrap:wrap}
+  .options-row .field{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--db-text-2)}
+  .options-row .mini{height:30px;min-width:72px;border:1px solid var(--db-border-strong);border-radius:7px;
+    display:flex;align-items:center;padding:0 8px;font-size:10.5px;background:var(--db-surface)}
+  .editor-foot{display:flex;gap:8px;align-items:center;margin-top:12px}
+  .editor-foot .right{margin-left:auto;display:flex;gap:8px}
+  .callout{margin-top:10px;font-size:10px;color:var(--db-text-3);line-height:1.55;background:var(--db-surface-2);
+    border:1px dashed var(--db-border-strong);border-radius:8px;padding:8px 10px}
+
+  .page-footer{height:52px;flex:0 0 52px;border-top:1px solid var(--db-border-soft);display:flex;align-items:center;
+    padding:0 24px;gap:10px;font-size:10.5px;color:var(--db-text-3)}
+  .page-footer .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+  .state-grid{max-width:1100px;margin:14px auto 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+  .state-card{background:var(--db-surface);border:1px solid var(--db-border);border-radius:12px;
+    box-shadow:0 8px 24px rgba(15,23,42,.06);padding:14px 16px;min-height:230px}
+  .state-card h3{font-size:12px;margin:0 0 4px;font-weight:650}
+  .state-card .sub{font-size:10px;color:var(--db-text-3);margin-bottom:10px}
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:150px;text-align:center;gap:7px}
+  .empty .eico{width:46px;height:46px;border-radius:14px;background:var(--db-primary-soft);display:grid;
+    place-items:center;color:var(--db-primary-text);font-size:22px}
+  .empty .t{font-size:12.5px;font-weight:650}
+  .empty .d{font-size:10px;color:var(--db-text-3);line-height:1.6;max-width:320px}
+  .steps{display:flex;gap:8px;margin-top:4px}
+  .step-pill{font-size:9.5px;color:var(--db-text-2);background:var(--db-surface-2);border:1px solid var(--db-border-soft);
+    border-radius:999px;padding:3px 8px}
+  .modal{background:var(--db-surface);border:1px solid var(--db-border);border-radius:12px;
+    box-shadow:0 12px 30px rgba(15,23,42,.14);padding:16px;margin-top:4px}
+  .modal h4{margin:0 0 6px;font-size:12.5px}
+  .modal p{margin:0;font-size:10.5px;color:var(--db-text-2);line-height:1.65}
+  .modal .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+  .preview-table{width:100%;border-collapse:collapse;font-size:10px;margin-top:8px}
+  .preview-table th{background:var(--db-surface-2);color:var(--db-text-3);font-weight:600;text-align:left;
+    padding:6px 7px;border:1px solid var(--db-border-soft)}
+  .preview-table td{padding:6px 7px;border:1px solid var(--db-border-soft);color:var(--db-text-2)}
+  .notes{max-width:1100px;margin:26px auto 0;background:var(--db-surface);border:1px solid var(--db-border);
+    border-radius:12px;padding:16px 18px;font-size:11px;color:var(--db-text-2);line-height:1.75}
+  .notes b{color:var(--db-text)}
+  .notes code{font-family:"Cascadia Mono",Consolas,monospace;font-size:10.5px;background:var(--db-surface-2);
+    border:1px solid var(--db-border-soft);border-radius:4px;padding:1px 5px}
+  .notes ul{margin:8px 0 0;padding-left:18px}
+  .notes li{margin:3px 0}
+  @media (max-width:1180px){ body{padding:18px} .frame{transform-origin:top left} }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>数据库页（SQLite 优先）· 设计基线 v1</h1>
+  <p>硬件管理新增「数据库」页：配置数据库 profile、封装命名语句、测试连接/语句。插件层只选 profile + 语句名 + 参数，SQL 不进入 <code>.vms</code>。</p>
+  <div class="meta">
+    <span>1100 × 820</span><span>SQLite v1</span><span>命名语句封装</span><span>只读 / 权限 / 审计</span><span>待用户确认</span>
+  </div>
+</div>
+
+<div class="frame-label">① 默认 · 连接页签 <small>数据库列表 + 连接配置 + 测试连接</small></div>
+<section class="frame">
+  <div class="titlebar">
+    <div class="logo">▤</div>
+    <div class="title">综合测试台（测试员版）</div>
+    <div class="hint">硬件管理</div>
+    <div class="spacer"></div>
+    <div class="win-actions"><span>—</span><span>□</span><span>✕</span></div>
+  </div>
+  <div class="body">
+    <aside class="nav">
+      <h2>硬件管理</h2>
+      <div class="sub">相机 · 通讯 · 运动控制 · 数据库</div>
+      <div class="nav-item"><span class="ico">◫</span>概览</div>
+      <div class="nav-item"><span class="ico">◉</span>相机 <span class="count">2</span></div>
+      <div class="nav-item"><span class="ico">⇄</span>通讯 <span class="count">4</span></div>
+      <div class="nav-item"><span class="ico">⌁</span>运动控制 <span class="count">1</span></div>
+      <div class="nav-item active"><span class="ico">▤</span>数据库 <span class="count">3</span></div>
+      <div class="bottom">
+        <div class="solution-card">
+          <div class="k">当前方案</div>
+          <div class="v">综合测试台.vms</div>
+          <div class="t">数据库配置随方案保存</div>
+        </div>
+      </div>
+    </aside>
+    <main class="content">
+      <div class="page">
+        <div class="page-head-row">
+          <div>
+            <h1 class="page-title">数据库</h1>
+            <div class="page-sub">SQLite 优先 · 命名语句封装 · 插件只调用语句，不写 SQL</div>
+          </div>
+          <div class="page-actions">
+            <button class="btn primary">＋ 添加数据库</button>
+            <button class="btn secondary">⟳ 刷新</button>
+          </div>
+        </div>
+
+        <div class="split">
+          <div class="profile-list">
+            <div class="profile-item active">
+              <div class="db-ico">▤</div>
+              <div style="min-width:0">
+                <div class="name">生产追溯 <span class="chip blue">SQLite</span></div>
+                <div class="path">D:\Data\trace.db</div>
+                <div class="stats"><span class="dot ok"></span>已连接 · 3 条语句</div>
+              </div>
+            </div>
+            <div class="profile-item">
+              <div class="db-ico">▤</div>
+              <div style="min-width:0">
+                <div class="name">配方库 <span class="chip blue">SQLite</span></div>
+                <div class="path">D:\Data\recipe.db</div>
+                <div class="stats"><span class="dot warn"></span>未测试 · 2 条语句</div>
+              </div>
+            </div>
+            <div class="profile-item">
+              <div class="db-ico">▤</div>
+              <div style="min-width:0">
+                <div class="name">离线缓存 <span class="chip blue">SQLite</span></div>
+                <div class="path">D:\Data\offline.db</div>
+                <div class="stats"><span class="dot err"></span>文件不存在 · 0 条语句</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="detail">
+            <div class="profile-card">
+              <div class="db-ico">▤</div>
+              <div style="min-width:0">
+                <div class="name">生产追溯 <span class="chip blue">SQLite</span></div>
+                <div class="path">D:\Data\trace.db</div>
+                <div class="status"><span class="dot ok"></span>已连接 · SQLite 3.45.1 · 12 ms</div>
+              </div>
+              <div class="right">
+                <button class="btn secondary small">测试连接</button>
+                <button class="btn danger small">删除</button>
+              </div>
+            </div>
+
+            <div class="tabs">
+              <div class="tab active">连接</div>
+              <div class="tab">命名语句 <span class="badge">3</span></div>
+            </div>
+
+            <div class="tab-body">
+              <div class="form-grid">
+                <div class="label">数据库类型</div>
+                <div class="select">SQLite <span class="chip">v1 唯一</span><span style="margin-left:auto;color:var(--db-text-3)">▾</span></div>
+                <div class="hint-line">SQL Server / MySQL / PostgreSQL 后续版本；v1 只发 SQLite。</div>
+
+                <div class="label">文件路径<span class="req">*</span></div>
+                <div class="input mono"><span class="grow">D:\Data\trace.db</span><span class="row-actions"><button class="btn small secondary">浏览…</button><button class="btn small ghost">新建…</button></span></div>
+                <div class="hint-line">不存在时提示「将在保存时创建」，不静默创建；扩展名 .db / .sqlite / .sqlite3。</div>
+
+                <div class="label">打开方式</div>
+                <div class="select">读写（ReadWrite）<span style="margin-left:auto;color:var(--db-text-3)">▾</span></div>
+                <div class="hint-line">只读 profile 只允许 Query 语句；Execute / WriteRow 禁用。</div>
+
+                <div class="label">命令超时</div>
+                <div class="input"><span class="grow">5 秒</span><span class="hint">每次调用必须有上限</span></div>
+
+                <div class="label">最大返回行数</div>
+                <div class="input"><span class="grow">1000</span><span class="hint">Query 结果上限</span></div>
+              </div>
+
+              <div class="divider"></div>
+              <div class="banner success"><span class="bico">✓</span><span><b>测试连接成功</b> · SQLite 3.45.1 · D:\Data\trace.db · 12 ms</span></div>
+              <div class="callout">配置随方案保存；<b>连接串与密码不进入 .vms</b>（SQLite v1 无密码）。插件步骤只存 ProfileId + StatementId + 参数值。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="page-footer">
+        <span>最近修改：admin · 2026-10-23 10:12</span>
+        <span class="chip green">已保存</span>
+        <div class="right">
+          <button class="btn ghost">取消</button>
+          <button class="btn primary">保存</button>
+        </div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<div class="frame-label">② 命名语句页签 <small>语句列表 + SQL + 参数表 + 测试（写操作回滚）</small></div>
+<section class="frame">
+  <div class="titlebar">
+    <div class="logo">▤</div>
+    <div class="title">综合测试台（测试员版）</div>
+    <div class="hint">硬件管理</div>
+    <div class="spacer"></div>
+    <div class="win-actions"><span>—</span><span>□</span><span>✕</span></div>
+  </div>
+  <div class="body">
+    <aside class="nav">
+      <h2>硬件管理</h2>
+      <div class="sub">相机 · 通讯 · 运动控制 · 数据库</div>
+      <div class="nav-item"><span class="ico">◫</span>概览</div>
+      <div class="nav-item"><span class="ico">◉</span>相机 <span class="count">2</span></div>
+      <div class="nav-item"><span class="ico">⇄</span>通讯 <span class="count">4</span></div>
+      <div class="nav-item"><span class="ico">⌁</span>运动控制 <span class="count">1</span></div>
+      <div class="nav-item active"><span class="ico">▤</span>数据库 <span class="count">3</span></div>
+      <div class="bottom">
+        <div class="solution-card">
+          <div class="k">当前方案</div>
+          <div class="v">综合测试台.vms</div>
+          <div class="t">数据库配置随方案保存</div>
+        </div>
+      </div>
+    </aside>
+    <main class="content">
+      <div class="page">
+        <div class="page-head-row">
+          <div>
+            <h1 class="page-title">数据库</h1>
+            <div class="page-sub">SQLite 优先 · 命名语句封装 · 插件只调用语句，不写 SQL</div>
+          </div>
+          <div class="page-actions">
+            <button class="btn primary">＋ 添加数据库</button>
+            <button class="btn secondary">⟳ 刷新</button>
+          </div>
+        </div>
+
+        <div class="split">
+          <div class="profile-list">
+            <div class="profile-item active">
+              <div class="db-ico">▤</div>
+              <div style="min-width:0">
+                <div class="name">生产追溯 <span class="chip blue">SQLite</span></div>
+                <div class="path">D:\Data\trace.db</div>
+                <div class="stats"><span class="dot ok"></span>已连接 · 3 条语句</div>
+              </div>
+            </div>
+            <div class="profile-item">
+              <div class="db-ico">▤</div>
+              <div style="min-width:0">
+                <div class="name">配方库 <span class="chip blue">SQLite</span></div>
+                <div class="path">D:\Data\recipe.db</div>
+                <div class="stats"><span class="dot warn"></span>未测试 · 2 条语句</div>
+              </div>
+            </div>
+            <div class="profile-item">
+              <div class="db-ico">▤</div>
+              <div style="min-width:0">
+                <div class="name">离线缓存 <span class="chip blue">SQLite</span></div>
+                <div class="path">D:\Data\offline.db</div>
+                <div class="stats"><span class="dot err"></span>文件不存在 · 0 条语句</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="detail">
+            <div class="profile-card">
+              <div class="db-ico">▤</div>
+              <div style="min-width:0">
+                <div class="name">生产追溯 <span class="chip blue">SQLite</span></div>
+                <div class="path">D:\Data\trace.db</div>
+                <div class="status"><span class="dot ok"></span>已连接 · SQLite 3.45.1 · 12 ms</div>
+              </div>
+              <div class="right">
+                <button class="btn secondary small">测试连接</button>
+                <button class="btn danger small">删除</button>
+              </div>
+            </div>
+
+            <div class="tabs">
+              <div class="tab">连接</div>
+              <div class="tab active">命名语句 <span class="badge">3</span></div>
+            </div>
+
+            <div class="tab-body" style="padding-bottom:10px;display:flex;flex-direction:column;overflow:hidden">
+              <div class="stmt-layout">
+                <div class="stmt-list">
+                  <div class="stmt-item active">
+                    <div class="n">WriteResult <span class="chip green">写一行</span></div>
+                    <div class="m">4 参数 · 已测试</div>
+                  </div>
+                  <div class="stmt-item">
+                    <div class="n">ReadRecipe <span class="chip blue">查询一行</span></div>
+                    <div class="m">2 参数 · 未测试</div>
+                  </div>
+                  <div class="stmt-item">
+                    <div class="n">QueryWorkOrder <span class="chip blue">查询</span></div>
+                    <div class="m">1 参数 · 已测试</div>
+                  </div>
+                  <button class="btn secondary small" style="width:100%;margin-top:6px">＋ 新建语句</button>
+                </div>
+
+                <div class="stmt-editor" style="display:flex;flex-direction:column;overflow:hidden">
+                  <div class="stmt-scroll" style="flex:1;min-height:0;overflow:auto">
+                    <div class="editor-head">
+                      <div class="input"><span class="grow">WriteResult</span></div>
+                      <div class="select" style="width:130px">写一行 <span style="margin-left:auto;color:var(--db-text-3)">▾</span></div>
+                      <span class="chip green">已启用</span>
+                    </div>
+                    <div class="sql-editor">
+                      <div class="bar"><span></span><span></span><span></span></div>
+<pre><span class="kw">INSERT INTO</span> InspectionResult
+  (SerialNo, Result, Score, CreatedAt)
+<span class="kw">VALUES</span>
+  (<span class="p">@SerialNo</span>, <span class="p">@Result</span>, <span class="p">@Score</span>, <span class="p">@CreatedAt</span>);</pre>
+                    </div>
+
+                    <table class="params">
+                      <thead><tr><th>参数</th><th>类型</th><th>必填</th><th>默认值</th><th>说明</th></tr></thead>
+                      <tbody>
+                        <tr><td class="mono">@SerialNo</td><td>Text</td><td><span class="chip red">必填</span></td><td>—</td><td>产品序列号</td></tr>
+                        <tr><td class="mono">@Result</td><td>Text</td><td><span class="chip red">必填</span></td><td>—</td><td>OK / NG</td></tr>
+                        <tr><td class="mono">@Score</td><td>Real</td><td><span class="chip">可选</span></td><td>0</td><td>匹配分数</td></tr>
+                        <tr><td class="mono">@CreatedAt</td><td>DateTime</td><td><span class="chip">可选</span></td><td>now</td><td>检测时间</td></tr>
+                      </tbody>
+                    </table>
+
+                    <div class="options-row">
+                      <div class="field">超时 <span class="mini">5 秒</span></div>
+                      <div class="field">最大影响行数 <span class="mini">1</span></div>
+                      <div class="field"><span style="width:14px;height:14px;border-radius:4px;background:var(--db-primary);color:#fff;display:inline-grid;place-items:center;font-size:9px">✓</span> 测试后回滚</div>
+                      <div class="field" style="color:var(--db-text-3)">单条语句 · 参数化 · 一调用一事务</div>
+                    </div>
+
+                    <div class="callout">插件调用：流程里只选「生产追溯 / WriteResult」+ 填参数；SQL 不进入 .vms。改语句名不断链（身份是 StatementId）。</div>
+                  </div>
+
+                  <div class="banner success" style="margin-top:8px"><span class="bico">✓</span><span><b>测试通过</b> · 影响 1 行 · 12 ms · <b>已回滚（未写入数据，可取消勾选）</b></span></div>
+
+                  <div class="editor-foot" style="margin-top:8px">
+                    <button class="btn secondary">▷ 测试语句</button>
+                    <div class="right">
+                      <button class="btn ghost">复制</button>
+                      <button class="btn danger small">删除语句</button>
+                      <button class="btn primary">保存</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="page-footer">
+        <span>最近修改：admin · 2026-10-23 10:14</span>
+        <span class="chip amber">未保存</span>
+        <div class="right">
+          <button class="btn ghost">取消</button>
+          <button class="btn primary">保存</button>
+        </div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<div class="frame-label">③ 关键状态 <small>空态 / 只读 / 测试失败 / 删除确认 / 查询结果预览</small></div>
+<div class="state-grid">
+  <div class="state-card">
+    <h3>空态 · 还没有数据库</h3>
+    <div class="sub">首次进入或删除全部 profile 后</div>
+    <div class="empty">
+      <div class="eico">▤</div>
+      <div class="t">还没有数据库</div>
+      <div class="d">数据库页负责配置与封装；流程插件只能调用这里封装好的命名语句。</div>
+      <div class="steps"><span class="step-pill">① 添加 SQLite 文件</span><span class="step-pill">② 新建命名语句</span><span class="step-pill">③ 流程里调用</span></div>
+      <button class="btn primary small">＋ 添加 SQLite 数据库</button>
+    </div>
+  </div>
+
+  <div class="state-card">
+    <h3>只读 · 流程运行中 / 无配置权限</h3>
+    <div class="sub">编辑控件禁用；测试连接仍可用</div>
+    <div class="banner warning"><span class="bico">⚠</span><span><b>当前只读</b>：流程「Test_Vision」正在运行，或当前账号没有硬件配置权限。停止流程 / 切换管理员后可编辑。</span></div>
+    <div class="callout" style="margin-top:8px">只读 profile 允许 SELECT / WITH 与只读 PRAGMA（table_info 等）；禁止 ATTACH / DETACH 与写 PRAGMA。</div>
+    <div class="form-grid" style="grid-template-columns:110px 1fr;margin-top:10px;opacity:.55">
+      <div class="label">文件路径</div><div class="input mono"><span class="grow">D:\Data\trace.db</span></div>
+      <div class="label">打开方式</div><div class="select">读写（ReadWrite）</div>
+      <div class="label">命令超时</div><div class="input"><span class="grow">5 秒</span></div>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="btn secondary small">测试连接</button>
+      <button class="btn primary small" disabled>保存</button>
+    </div>
+  </div>
+
+  <div class="state-card">
+    <h3>测试失败 · 约束冲突</h3>
+    <div class="sub">写操作测试同样回滚；错误定位到语句/参数</div>
+    <div class="banner danger"><span class="bico">✕</span><span><b>SQLite Error 19: UNIQUE constraint failed: InspectionResult.SerialNo</b><br>语句「WriteResult」第 1 行 · 参数 @SerialNo = "SN-0001" 已存在。请改用 UPSERT，或确认序列号唯一。</span></div>
+    <div class="sql-editor" style="margin-top:10px">
+      <div class="bar"><span></span><span></span><span></span></div>
+<pre><span class="kw">INSERT INTO</span> InspectionResult
+  (SerialNo, Result, Score, CreatedAt)
+<span class="kw">VALUES</span>
+  (<span class="p">@SerialNo</span>, <span class="p">@Result</span>, <span class="p">@Score</span>, <span class="p">@CreatedAt</span>);</pre>
+    </div>
+    <div class="callout" style="margin-top:8px">测试在事务中执行并回滚；不会写入真实数据。保存前必须测试通过。</div>
+  </div>
+
+  <div class="state-card">
+    <h3>删除确认 · 有流程引用（推荐禁止删除）</h3>
+    <div class="sub">删除 profile 会同时删除其命名语句</div>
+    <div class="modal">
+      <h4>删除数据库「生产追溯」？</h4>
+      <p>将同时删除 <b>3 条命名语句</b>。<br>当前方案有 <b>2 个步骤</b>引用 <code>WriteResult</code>（Test_Report.写追溯、Test_Vision.写结果）。删除后这些步骤会编译失败。</p>
+      <div class="banner danger" style="margin-top:8px"><span class="bico">!</span><span>有引用时禁止删除：请先在流程里解除引用，或保留该数据库。</span></div>
+      <div class="acts"><button class="btn ghost">取消</button><button class="btn danger" disabled>仍然删除</button></div>
+    </div>
+  </div>
+
+  <div class="state-card" style="grid-column:1 / -1">
+    <h3>查询结果预览 · QueryWorkOrder</h3>
+    <div class="sub">Query 测试只读执行；最多预览 100 行，超出标记「已截断」</div>
+    <div class="banner success"><span class="bico">✓</span><span><b>测试通过</b> · 3 行 · 8 ms · 只读查询</span></div>
+    <table class="preview-table">
+      <thead><tr><th>SerialNo</th><th>ProductModel</th><th>Result</th><th>Score</th><th>CreatedAt</th></tr></thead>
+      <tbody>
+        <tr><td>SN-0001</td><td>TYPE-A</td><td>OK</td><td>0.982</td><td>2026-10-23 10:12:01</td></tr>
+        <tr><td>SN-0002</td><td>TYPE-A</td><td>NG</td><td>0.641</td><td>2026-10-23 10:12:07</td></tr>
+        <tr><td>SN-0003</td><td>TYPE-B</td><td>OK</td><td>0.975</td><td>2026-10-23 10:12:15</td></tr>
+      </tbody>
+    </table>
+    <div class="callout">结果只用于测试预览；流程里由 Query 步骤输出 Scalar / RowsJson / RowCount / Columns / ElapsedMs。</div>
+  </div>
+</div>
+
+<div class="notes">
+  <b>设计边界（与 R3 架构评审一致）</b>
+  <ul>
+    <li><b>数据库页负责配置 + 封装</b>：添加/编辑/删除 profile；管理命名语句（SQL + 参数定义 + 测试）；不做流程执行。</li>
+    <li><b>插件层只调用</b>：<code>Plugin.Database</code> 只选 <code>ProfileId</code> + <code>StatementId</code> + 填参数；SQL / 连接串不进入 <code>.vms</code>。</li>
+    <li><b>身份稳定</b>：ProfileId / StatementId 用 GUID；显示名可改，改名不断链；删除前检查当前方案引用。</li>
+    <li><b>SQLite v1</b>：文件路径 + 读写/只读；无密码。SQL Server/MySQL 后续版本；密码走 DPAPI，<code>.vms</code> 只存 CredentialId。</li>
+    <li><b>安全硬闸</b>：只允许命名语句 + 参数化；单条语句；只读 profile 只允许 Query；测试写操作回滚；日志不记参数值。</li>
+    <li><b>视觉</b>：全部走 <code>Dialog*</code> 令牌；不新增硬编码颜色；圆角/间距按 README 刻度。</li>
+  </ul>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- 探针：与被测驱动同框架（net9.0），不引入 WPF -->
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>MotionSimProbe</AssemblyName>
+    <RootNamespace>MotionSimProbe</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 只引被测驱动；驱动本身只引契约层，故这里等于"上位机侧最薄的客户端" -->
+    <ProjectReference Include="..\..\..\Plugins\Plugin.Motion.Sim\Plugin.Motion.Sim.csproj" />
+  </ItemGroup>
+
+</Project>

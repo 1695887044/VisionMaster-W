@@ -36,6 +36,7 @@ namespace FlowCanvasChecks
             InvokerGates();
             InvokerLosesRaceReportsFailure();
             RunFlowPluginEndToEnd();
+            RunFlowTargetCandidates();
             TickSources();
             SchedulerWithRealClockRunsAndStops();
         }
@@ -58,6 +59,18 @@ namespace FlowCanvasChecks
                 Thread.Sleep(10);
             }
             return condition();
+        }
+
+        /// <summary>从输出目录向上找仓库内文件（与其它 Check 类同款；断言宿主不在仓库根运行）。</summary>
+        private static string? ResolveRepoFile(string relative)
+        {
+            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            for (int i = 0; i < 6 && dir != null; i++, dir = dir.Parent)
+            {
+                var candidate = Path.Combine(dir.FullName, relative);
+                if (File.Exists(candidate)) return candidate;
+            }
+            return null;
         }
 
         private static FlowEngineService NewEngine(WorkspaceContext workspace, StubLog log)
@@ -433,6 +446,138 @@ namespace FlowCanvasChecks
             Check("★子流程未勾「子程序」→ 调用被门禁拦下（这一步失败、子流程没跑）",
                 callStep.State != StepState.Success && CountD.Runs == 0,
                 $"State={callStep.State} Runs={CountD.Runs}");
+        }
+
+        // ==================================================================
+        //  [E16] ⑦b 目标流程名：宿主候选（只列子程序 + 状态后缀 + 注册接线）
+        // ==================================================================
+        private static void RunFlowTargetCandidates()
+        {
+            Section("[E16] 「调用流程」目标流程名：宿主候选");
+
+            var modulesDir = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..\Modules"));
+            var pluginDll = Path.Combine(modulesDir, "Plugin.RunFlow.dll");
+
+            Type pluginType = null;
+            string loadError = string.Empty;
+            try
+            {
+                pluginType = Assembly.LoadFrom(pluginDll)
+                    .GetType("VisionMaster.Plugins.RunFlow.RunFlowPlugin", throwOnError: false);
+            }
+            catch (Exception ex)
+            {
+                loadError = ex.Message;
+            }
+
+            Check("（前提）Plugin.RunFlow.dll 可装载（候选断言）", pluginType != null,
+                pluginType == null ? loadError : pluginType.AssemblyQualifiedName!);
+            if (pluginType == null) return;
+
+            // ---- ① 端口声明：封闭候选 + 候选类别 ----
+            IInputPort port = null;
+            try
+            {
+                var instance = Activator.CreateInstance(pluginType);
+                port = pluginType.GetProperty("TargetFlowPort")?.GetValue(instance) as IInputPort;
+            }
+            catch (Exception ex)
+            {
+                Check("（前提）能创建插件实例读端口", false, ex.Message);
+            }
+
+            Check("★FlowName 端口声明为封闭候选（IsFunctionalEnum + SubroutineFlowName）",
+                port != null && port.IsFunctionalEnum && port.OptionKind == StepConfigOptionKind.SubroutineFlowName,
+                port == null
+                    ? "端口反射失败"
+                    : $"IsFunctionalEnum={port.IsFunctionalEnum} OptionKind={port.OptionKind}");
+
+            // ---- ② 候选过滤：只列子程序位；禁用/加密/当前流程照列并标注 ----
+            var workspace = new WorkspaceContext();
+            var solution = new SolutionModel();
+            solution.Flows.Clear();
+
+            var sub = new FlowModel { FlowName = "回原", InvokeType = FlowInvokeType.Subroutine };
+            var disabled = new FlowModel { FlowName = "禁用子流程", InvokeType = FlowInvokeType.Subroutine, IsEnabled = false };
+            var encrypted = new FlowModel { FlowName = "加密子流程", InvokeType = FlowInvokeType.Subroutine, StepsEncrypted = true };
+            var manual = new FlowModel { FlowName = "普通流程", InvokeType = FlowInvokeType.Manual };
+            var timer = new FlowModel { FlowName = "定时流程", InvokeType = FlowInvokeType.Timer };
+            solution.Flows.Add(sub);
+            solution.Flows.Add(disabled);
+            solution.Flows.Add(encrypted);
+            solution.Flows.Add(manual);
+            solution.Flows.Add(timer);
+            workspace.SwitchSolution(solution);
+            // 当前流程选普通流程：先测"正常子程序显示纯名字"，当前流程后缀单独测
+            workspace.SwitchFlow(manual);
+
+            var options = SubroutineFlowOptions.Build(workspace);
+            var values = options.Select(o => o.Value).ToList();
+            var displays = options.ToDictionary(o => o.Value, o => o.Display, StringComparer.Ordinal);
+
+            Check("★候选只列勾了「子程序」的流程（手动/定时不出现）",
+                values.Count == 3
+                && values.Contains("回原") && values.Contains("禁用子流程") && values.Contains("加密子流程")
+                && !values.Contains("普通流程") && !values.Contains("定时流程"),
+                string.Join(",", values));
+
+            Check("★禁用 / 加密仍列出且后缀写明原因（剔掉会让已配好的值显示空白）",
+                displays.TryGetValue("回原", out var plainText) && plainText == "回原"
+                && displays.TryGetValue("禁用子流程", out var disabledText) && disabledText == "禁用子流程（已禁用）"
+                && displays.TryGetValue("加密子流程", out var encryptedText) && encryptedText == "加密子流程（步序已加密）",
+                string.Join(" | ", options.Select(o => o.Display)));
+
+            // 当前流程：照列 + 后缀（自己调自己会被"正在运行中"拦下，界面上先说清）
+            workspace.SwitchFlow(sub);
+            var selfOptions = SubroutineFlowOptions.Build(workspace);
+            var selfDisplay = selfOptions.FirstOrDefault(o => o.Value == "回原")?.Display;
+            Check("当前流程照列并标注「不能调用自己」",
+                selfDisplay == "回原（当前流程，不能调用自己）", selfDisplay ?? "(null)");
+
+            // ---- ③ 注册接线：契约层来源表能取到同一份候选，且不顶掉其它来源 ----
+            StepConfigOptionSource.RegisterAdditional(kind =>
+                kind == StepConfigOptionKind.MotionAxisName
+                    ? new[] { new StepConfigOption("X", "X") }
+                    : Array.Empty<StepConfigOption>());
+            SubroutineFlowOptions.Register(() => workspace);
+
+            var viaSource = StepConfigOptionSource.GetOptionItems(StepConfigOptionKind.SubroutineFlowName);
+            Check("★注册后从契约层来源表取到同一份候选（RegisterAdditional 接线）",
+                viaSource.Count == selfOptions.Count
+                && viaSource.Select(o => o.Value).SequenceEqual(selfOptions.Select(o => o.Value), StringComparer.Ordinal),
+                string.Join(",", viaSource.Select(o => o.Value)));
+
+            var axisOptions = StepConfigOptionSource.GetOptionItems(StepConfigOptionKind.MotionAxisName);
+            Check("★RegisterAdditional 不顶掉其它来源（轴名候选仍在）",
+                axisOptions.Any(o => o.Value == "X"), $"MotionAxisName=[{string.Join(",", axisOptions.Select(o => o.Value))}]");
+
+            // ---- ③b 真控件形态：端口进 LinkableValueEditor 必须渲染成"只能选"下拉 ----
+            // 只断端口标志还不够：面板到底渲染成下拉还是文本框，取决于控件里的
+            // IsOptionPort（= 封闭集合 ∧ 候选非空）。这一条把"用户看到的形态"钉住。
+            string editorProbe = "未执行";
+            var editorThread = new Thread(() =>
+            {
+                var editor = new Core.Controls.LinkableValueEditor { Port = port };
+                editor.Measure(new System.Windows.Size(520, 40));
+                editor.Arrange(new System.Windows.Rect(0, 0, 520, 40));
+                editor.UpdateLayout();
+                editorProbe = $"只能选={editor.IsOptionPort} 候选数={editor.EnumOptions.Count}"
+                              + $" 首项={editor.EnumOptions.FirstOrDefault()?.Display ?? "-"}";
+            });
+            editorThread.SetApartmentState(ApartmentState.STA);
+            editorThread.Start();
+            editorThread.Join(8000);
+
+            Check("★FlowName 端口在真控件里渲染成「只能选」下拉（候选来自方案）",
+                editorProbe.Contains("只能选=True") && editorProbe.Contains($"候选数={selfOptions.Count}"),
+                editorProbe);
+
+            // ---- ④ 宿主真接线：FlowEngineModule 启动时必须注册这个来源 ----
+            var modulePath = ResolveRepoFile(@"Engine\FlowEngineModule.cs");
+            var moduleText = modulePath == null ? string.Empty : File.ReadAllText(modulePath);
+            Check("★FlowEngineModule 启动时注册流程候选来源（静态扫描：没接上等于面板永远退回手填）",
+                moduleText.Contains("SubroutineFlowOptions.Register(", StringComparison.Ordinal),
+                modulePath == null ? "定位不到 Engine\\FlowEngineModule.cs" : "已找到注册调用");
         }
 
         // ==================================================================

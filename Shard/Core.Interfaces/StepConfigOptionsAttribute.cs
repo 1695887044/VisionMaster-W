@@ -42,6 +42,19 @@ namespace Core.Interfaces
         /// 手输 true/false 的错误率也远高于选一次。
         /// </summary>
         BooleanChoice,
+
+        /// <summary>
+        /// 「调用流程」的目标流程名：只列当前方案里**勾了「子程序」**的流程（值 = 流程名本体）。
+        ///
+        /// 【为什么必须是宿主给】插件只引用 Core.Interfaces，物理上看不到方案里的流程表；
+        /// 而"哪条流程允许被当子程序调用"由 <c>FlowModel.InvokeType</c> 的 Subroutine 位决定，
+        /// 那是宿主的领域。让用户手打名字的代价是：拼错/漏勾都只在运行期以一句
+        /// "当前方案中没有名为「X」的流程"暴露，配错与拼错在日志里长得一模一样。
+        ///
+        /// 【为什么值仍是流程名】FlowInvoker 按名 Ordinal 查找（与 HTTP 路由、运行状态镜像同口径），
+        /// 改成 Id 会与既有 .vms、日志、HTTP 路径全部脱节；显示文本只加状态后缀，不参与寻址。
+        /// </summary>
+        SubroutineFlowName,
     }
 
     /// <summary>

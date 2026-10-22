@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 纯托管驱动插件：只做"上位机命令 → 仿真器 TCP 协议 → 世界推进"，不需要 WPF、不需要厂商 SDK。
+         刻意停在 net9.0（不带 -windows）：与 Plugin.Camera.Network / Plugin.Motion.Virtual 同一考虑。 -->
+    <TargetFrameworks>net9.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 只引用契约层：MotionDeviceBase / IMotionDevice / MotionDescriptor 都在这里。
+         驱动插件不该引用宿主 exe，也不该引用 tools\LineSim（那是独立进程，只通过协议说话，设计 §2 约束 C1）。 -->
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 插件自带帮助手册：编进本程序集（宿主 HelpCatalogService 按 "<程序集名>.Help." 前缀约定发现）。
+         改手册 = 重建本插件工程（红线③：Modules\ 不由宿主带出）。 -->
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
+</Project>
