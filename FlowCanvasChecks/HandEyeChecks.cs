@@ -137,6 +137,7 @@ namespace FlowCanvasChecks
             PluginLayer();
             ZBLayer();
             CsvLayer();
+            PersistLayer();
         }
 
         #endregion
@@ -638,6 +639,117 @@ namespace FlowCanvasChecks
         }
 
         #endregion
+
+        #region 上次结论的持久化（数据指纹）
+
+        /// <summary>
+        /// 现场不是每次都标定：标一次、存档、之后只跑生产。所以「重开方案还能看见上次矩阵」
+        /// 是需求，「重开方案看见一个已经不对应当前数据的矩阵」是事故。
+        /// 这一层就是这两句话的判据。
+        /// </summary>
+        private static void PersistLayer()
+        {
+            var step = new CheckStepData();
+
+            // ---- ① 确认后结果真的进了方案（Samples + SavedResult 都在 InputValues 里） ----
+            var rows = RowsFrom(MakeSamples(TrueX1(), RobotPoses));
+            var p1 = NewPlugin(rows);
+            p1.SolveForPreview();
+            bool solved1 = p1.IsPreviewOk;
+            p1.OnConfirm(step);
+
+            bool hasSaved = step.InputValues.TryGetValue(nameof(HandEyePlugin.SavedResult), out object? savedObj)
+                            && savedObj is string s1 && s1.Length > 0;
+            bool hasSamples = step.InputValues.ContainsKey(nameof(HandEyePlugin.Samples));
+
+            Check("[HE] 持久化①：点「确定」后结果与数据都进了方案（SavedResult 非空 + Samples 在册）",
+                hasSaved && hasSamples,
+                $"SavedResult {(hasSaved ? "有" : "无")} / Samples {(hasSamples ? "有" : "无")}");
+
+            Check("[HE] 持久化①：这次求解本身是成功的（否则后面几条没意义）",
+                solved1, p1.PreviewError);
+
+            // ---- ② 重开方案：新实例灌回配置后直接就是「完成」且 16 格一致 ----
+            var reopened = new HandEyePlugin();
+            reopened.ApplyConfigValues(step);
+
+            bool okMatrix = reopened.IsPreviewOk
+                            && reopened.PreviewMatrixCells.Length == 16
+                            && reopened.PreviewMatrixCells[0] == p1.PreviewMatrixCells[0]
+                            && reopened.PreviewMatrixCells[5] == p1.PreviewMatrixCells[5]
+                            && reopened.PreviewMatrixCells[15] == p1.PreviewMatrixCells[15]
+                            && reopened.PreviewMatrixCells[3] == p1.PreviewMatrixCells[3];
+
+            Check("[HE] 持久化②：重开方案立刻显示上次结果（不用再算一遍）",
+                reopened.IsPreviewOk, $"状态={reopened.PreviewStatusText}");
+
+            Check("[HE] 持久化②：16 格与关前逐格一致",
+                okMatrix,
+                $"重开 [{string.Join(" ", reopened.PreviewMatrixCells)}] / 关前 [{string.Join(" ", p1.PreviewMatrixCells)}]");
+
+            Check("[HE] 持久化②：数据表也回来了（8 行）",
+                reopened.Samples.Count == rows.Count, $"重开 {reopened.Samples.Count} 行 / 原 {rows.Count} 行");
+
+            Check("[HE] 持久化②：文案说明「数据未变，未重算」",
+                reopened.PreviewMeta.Contains("未重算", StringComparison.Ordinal), reopened.PreviewMeta);
+
+            // ---- ③ 改一个数字 → 过期，且**不显示**那 16 个数 ----
+            // 先记下方案里存着的第一行数值：改界面上的行**不能**连带改掉方案里那份
+            // （否则点「取消」也留下了改动）。这条与下一条一起把"集合是引用"这个坑钉住。
+            var storedRows = (ObservableCollection<HandEyeSample>)step.InputValues[nameof(HandEyePlugin.Samples)];
+            double storedRobotX = storedRows[0].RobotX;
+
+            reopened.Samples[0].RobotX += 1.0;
+            bool stale = reopened.IsPreviewStale;
+            bool hidden = reopened.PreviewMatrixCells.All(c => c == "—");
+
+            Check("[HE] 持久化③：改界面上的行不会连带改掉方案里存着的那份（集合必须克隆）",
+                Math.Abs(storedRows[0].RobotX - storedRobotX) < 1e-12,
+                $"方案里 {storedRobotX:0.###} / 现在 {storedRows[0].RobotX:0.###}");
+
+            Check("[HE] 持久化③：改一行数字 → 结论转为「已过期」", stale, $"状态={reopened.PreviewStatusText}");
+            Check("[HE] 持久化③：过期时 16 个数全部隐藏（旧矩阵摆出来就是在骗人）",
+                hidden, $"首格={reopened.PreviewMatrixCells[0]} 末格={reopened.PreviewMatrixCells[15]}");
+            Check("[HE] 持久化③：过期说明里写清是哪一次标定",
+                reopened.PreviewStaleText.Contains("上次标定", StringComparison.Ordinal), reopened.PreviewStaleText);
+
+            // ---- ④ 改门槛同样作废（判定依据变了，结论也就不作数） ----
+            var p2 = new HandEyePlugin();
+            p2.ApplyConfigValues(step);
+            bool fresh2 = p2.IsPreviewOk;
+            p2.MaxTranslationRmsMm = 2.0;
+            Check("[HE] 持久化④：改平移上限 → 同样过期（不只是改数据才作废）",
+                fresh2 && p2.IsPreviewStale, $"改前={fresh2} / 改后状态={p2.PreviewStatusText}");
+
+            // ---- ⑤ 失败态点确定 → 方案里不留任何结论 ----
+            var p3 = NewPlugin(RowsFrom(MakeSamples(TrueX1(), RobotPoses)).Take(2).ToList());
+            p3.SolveForPreview();
+            bool failed3 = p3.IsPreviewFailed;
+            var step3 = new CheckStepData();
+            p3.OnConfirm(step3);
+
+            bool noSaved = !step3.InputValues.TryGetValue(nameof(HandEyePlugin.SavedResult), out object? s3obj)
+                           || s3obj is not string s3 || s3.Length == 0;
+
+            Check("[HE] 持久化⑤：失败态点确定 → SavedResult 被清空（不留旧结论）",
+                failed3 && noSaved, $"失败={failed3} / SavedResult={(noSaved ? "空" : "有")}");
+
+            // ---- ⑥ 过期后重算再确认 → 回到「完成」 ----
+            reopened.SolveForPreview();
+            bool resolvOk = reopened.IsPreviewOk;
+            var step6 = new CheckStepData();
+            reopened.OnConfirm(step6);
+
+            var reopened6 = new HandEyePlugin();
+            reopened6.ApplyConfigValues(step6);
+
+            Check("[HE] 持久化⑥：过期后重算再确认 → 重开又回到「完成」",
+                resolvOk && reopened6.IsPreviewOk && reopened6.PreviewMatrixCells[0] != "—",
+                $"重算={resolvOk} / 重开状态={reopened6.PreviewStatusText} / 首格={reopened6.PreviewMatrixCells[0]}");
+        }
+
+        #endregion
+
         private static bool MatchesMatrix(double[] flat, Mat4 want, double tol)
         {
             if (flat.Length != 16) return false;

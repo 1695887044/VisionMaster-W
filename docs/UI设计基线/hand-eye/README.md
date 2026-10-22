@@ -1,7 +1,7 @@
 # 手眼标定（`Plugin.HandEye`）配置窗口 · 设计基线 v2
 
-> 版本：**v2**　｜　确认日期：待确认　｜　确认人：待确认　｜　状态：**设计稿已出图，WPF 复刻尚未开始**
-> 设计文件：`design.html`（自包含可点击，无外部依赖）　｜　证据：`evidence/design-v2-*.png`（四态）
+> 版本：**v2**　｜　确认日期：待确认　｜　确认人：待确认　｜　状态：**设计稿已出图，WPF 已复刻（含"已过期"态，见 4.5）**
+> 设计文件：`design.html`（自包含可点击，无外部依赖）　｜　证据：`evidence/design-v2-*.png`（四态）+ `evidence/wpf-v2-*.png`（WPF 五态）
 > 覆盖范围：`HandEyePlugin` 的插件配置视图（`IPluginCustomViewProvider.GetConfigView` 返回的 `IPluginConfigView`）。
 > 不覆盖：流程栏步骤卡片、结果比较节点、`PoseTransform` 的运行期换算界面。
 
@@ -86,6 +86,19 @@ v2 因此改为：**表格是主入口，CSV 降级为成批进出的扩展功�
 - 工具条换行成两行：第一行 4 个参数，第二行三个按钮（`导入 CSV` / `导出 CSV` / `求解`）。
 - KPI 三列降两列，第三枚「参与组数」与矩阵卡各占整行。
 
+### 4.5 过期态（方案里存着上次结论，但数据/门槛改过）
+
+复刻时新增的第五态（设计稿 v2 只有四态）。触发场景：**点过「确定」的方案里存着一份标定结果，重开时数据指纹对不上**——换了装法、改了某个数字、动了两个门槛、加减了行。
+
+- 头部 chip 转琥珀「已过期」，**不是**灰「未求解」：后者会让人以为从没标定过，跑去重标一次。
+- **16 个数字故意不显示**（全 `—`）。旧矩阵已经不对应当前数据，摆出来就是在骗人——这比"不显示"危险得多。
+- 琥珀说明块写清是哪一次标定 + 为什么作废：`上次标定 2026-10-23 01:02。成对数据或门槛在那之后改过，所以旧矩阵不显示。`
+- 块内右侧一个「重新求解」按钮（`SolveCommand`），提示语「用当前数据重算一遍（改完数据后点这个）」。
+- 数据表与表尾计数照常；失败块与过期块**同格互斥**（`IsPreviewFailed` / `IsPreviewStale`）。
+- 复算成功后点「确定」→ 写回新结论 → 重开回到「完成」（断言⑥钉住）。
+
+判据：**结果必须与产生它的数据同生共死**。只存结果不存指纹 = 数据一改就成了假绿；只存指纹不存结果 = 每次重开都要重算，而现场重算要去连机器人。
+
 ## 5. 设计要点
 
 1. **网格不用裸 `ContentPresenter`，用 `GridView` + `GridViewRowPresenter`**（见 §7 C1）。
@@ -151,12 +164,17 @@ v2 因此改为：**表格是主入口，CSV 降级为成批进出的扩展功�
 | 三态切换 | `IsPreviewOk` / `IsPreviewFailed` 两个**布尔投影**驱动 `DataTrigger Value="True"`（枚举直接做 `DataTrigger` 要靠字符串→枚举转换，猜不中时 XAML 不报错、只是永不触发） |
 | 求解结论 | `SolveForPreview()` 只写 `Preview*` 只读属性，**不动输出端口**；端口只在 `RunAlgorithm` 里写（界面看结果 ≠ 流程拿结果） |
 | 窄档 | `UpdateNarrowLayout()`：`ActualWidth < 720` 时把表尾计数换成「窄窗口：表格可左右滑动，右侧还有 4 列」 |
+| 上次结论持久化 | `[StepConfig] SavedResult`（JSON 字符串）+ `SavedResultPayload`（`Fingerprint` / `Pose` / 三个指标 / `Matrix[16]` / `SavedAtLocal`）；**只在 `OnConfirm` 写**，非「完成」态一律清空 |
+| 数据指纹 | `ComputeFingerprint()`：`PoseKind` + 两个上限 + 组数门 + 每行 12 值，全部用 **`R` 格式**（用 `F3` 会把 0.0004 与 0.0001 认成同一个数 → 改了数据结论却不作废），`SHA256` 取前 8 字节 = 16 字符 |
+| 过期态切换 | `PreviewStateKind.Stale` + 布尔投影 `IsPreviewStale` + 文案 `PreviewStaleText`；`ApplyConfigValues` 里 `RestoreSavedResult()` 比对指纹 |
+| 作废触发 | 行级 `PropertyChanged` 订阅（`HookRow`/`UnhookRow`/`HookAllRows`，忽略派生的 `IsBlank`）+ 三个生成器钩子 `OnMaxTranslationRmsMmChanged`/`OnMaxRotationRmsDegChanged`/`OnRequireRecommendedPairsChanged` + `OnPoseKindChanged` |
+| 集合隔离 | `ApplyConfigValues` 之后 `Samples = CloneRows(...)` —— `base` 只对标量做值拷贝，集合是**引用**，不克隆则界面改一个数字就改掉了方案里存的那份（点「取消」也留下改动） |
 
 > `HandEyePlugin` **没有输入端口**（数据住在 `Samples` 列表里），所以视图不需要"端口绑定"控件。CSV 只是搬运。
 
 ## 9. 复刻证据
 
-**WPF 已复刻（2026-10-23），四态由探针实渲染截图。**
+**WPF 已复刻（2026-10-23），前四态由探针实渲染截图；第五态（已过期）只有断言覆盖，截图待补。**
 
 | 状态 | WPF 实渲染 | 设计稿 |
 |---|---|---|
@@ -165,6 +183,7 @@ v2 因此改为：**表格是主入口，CSV 降级为成批进出的扩展功�
 | 空表按过求解（红块） | `evidence/wpf-v2-empty-solved.png` | —（设计稿未单列此态） |
 | 失败（旋转激励不足） | `evidence/wpf-v2-failed.png` | `evidence/design-v2-failed.png` |
 | 窄档 640 | `evidence/wpf-v2-narrow-640.png` | `evidence/design-v2-narrow-640.png` |
+| **已过期（4.5）** | 待补（探针尚未覆盖此态） | —（设计稿 v2 无此态） |
 
 产出方式：`artifacts/tmp-viewprobe/`（临时探针，用完即删）离屏 `Window`（`Left=-4000`）+ `Dispatcher.PushFrame` + `RenderTargetBitmap`，24 条断言落在"看得见"（`TextBlock.IsVisible` 为真）而不是"控件存在"。断言覆盖：XAML 能解析 / 13 列 / 空态可见且自带入口 / 空表求解的文案是人话 / 未填行报「还没填」而不是拿 0 去算 / 8 组成功出 16 格矩阵与三枚 KPI / 姿态不变必失败 / 失败时矩阵清空 / 数字列不被裁（负号不能消失）/ 窄档也不被裁 / 没有绑定到 `HandEye*` 的错误。
 

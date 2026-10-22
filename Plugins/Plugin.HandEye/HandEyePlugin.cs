@@ -9,6 +9,9 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Windows.Input;
 
 namespace Plugin.HandEye
@@ -104,6 +107,17 @@ namespace Plugin.HandEye
         }
 
         /// <summary>
+        /// 门槛与组数门一变，上一次结论的判定依据就变了 → 一并作废。
+        /// 作废不是"清空"，而是回到 Stale：方案里若存着已确认的结论，界面要说清"它过期了"，
+        /// 而不是假装从没标定过（那样现场会重标一次，白花一小时）。
+        /// </summary>
+        partial void OnMaxTranslationRmsMmChanged(double value) => ClearPreview();
+
+        partial void OnMaxRotationRmsDegChanged(double value) => ClearPreview();
+
+        partial void OnRequireRecommendedPairsChanged(bool value) => ClearPreview();
+
+        /// <summary>
         /// 两选一的分段控件绑这两个布尔（`RadioButton.IsChecked`）。
         /// 不把 `RadioButton` 直接绑到 <see cref="PoseKind"/>：单选按钮给的是 bool，
         /// 要给枚举配三处转换器（枚举→bool、bool→枚举、参数传枚举）才能工作，
@@ -148,6 +162,10 @@ namespace Plugin.HandEye
                 _samples = value ?? new ObservableCollection<HandEyeSample>();
                 _samples.CollectionChanged += OnSamplesCollectionChanged;
 
+                // 反序列化灌进来的行不会触发 CollectionChanged（集合是整份塞的），
+                // 必须在这里把每一行的 PropertyChanged 挂上，否则"重开方案→改一个数字"不会被发现。
+                HookAllRows();
+
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasSamples));
                 OnPropertyChanged(nameof(SampleCountHint));
@@ -191,19 +209,39 @@ namespace Plugin.HandEye
         [StepConfig, DefaultValue(true)]
         public partial bool RequireRecommendedPairs { get; set; }
 
+        /// <summary>
+        /// 上一次**已确认**的标定结果（序列化后的 JSON，含数据指纹）。
+        ///
+        /// 为什么要存结果：现场不是每次都标定——标定一次、存档、之后只跑生产。
+        /// 没有它，重开方案就是「未求解」，而"这个方案到底标定过没有"这件事
+        /// 只有矩阵能回答。存的是**数据指纹 + 结果**，不是裸结果：
+        /// 打开时指纹对得上才认这份结论，对不上就明确说"过期了，请重算"，
+        /// 绝不把旧矩阵摆在一个已经改过数据的面板上（那是本页最容易骗人的形态）。
+        ///
+        /// 为什么只在这里存、不在 <see cref="SolveForPreview"/> 里存：求解只是看一眼，
+        /// 落盘跟其它配置一样必须走「确定」。点「取消」不该改方案里任何东西。
+        /// </summary>
+        [StepConfig, DefaultValue("")]
+        public partial string SavedResult { get; set; }
+
         #endregion
 
         #region 配置界面（预览结论 + 命令 + 视图）
 
-        /// <summary>本页的三种结论态。空表/改过数据/没点求解都算 None</summary>
+        /// <summary>本页的四种结论态。空表/改过数据/没点求解都不算结论</summary>
         public enum PreviewStateKind
         {
-            /// <summary>未求解（或数据改过，上次结论已作废）</summary>
+            /// <summary>未求解（空表，或还没点过求解）</summary>
             None = 0,
             /// <summary>解出来了且残差在门槛内</summary>
             Ok = 1,
             /// <summary>解不出来，或解出来但超过门槛（文案在 PreviewError 里）</summary>
-            Failed = 2
+            Failed = 2,
+            /// <summary>
+            /// 方案里存着一份已确认的结果，但当前数据/门槛跟它存的时候不一样了。
+            /// **此时不显示那 16 个数**——它已经不对应当前数据，摆出来就是在骗人。
+            /// </summary>
+            Stale = 3
         }
 
         private PreviewStateKind _previewState = PreviewStateKind.None;
@@ -225,12 +263,13 @@ namespace Plugin.HandEye
         /// <summary>结论态（界面用它切三块显隐：结果区 / 错误块 / 提示条）</summary>
         [JsonIgnore] public PreviewStateKind Preview => _previewState;
 
-        /// <summary>状态胶囊文案：完成 / 失败 / 未求解</summary>
+        /// <summary>状态胶囊文案：完成 / 失败 / 已过期 / 未求解</summary>
         [JsonIgnore]
         public string PreviewStatusText => _previewState switch
         {
             PreviewStateKind.Ok => "完成",
             PreviewStateKind.Failed => "失败",
+            PreviewStateKind.Stale => "已过期",
             _ => "未求解"
         };
 
@@ -243,6 +282,9 @@ namespace Plugin.HandEye
 
         /// <summary>失败态（解不出来 / 超门槛）</summary>
         [JsonIgnore] public bool IsPreviewFailed => _previewState == PreviewStateKind.Failed;
+
+        /// <summary>过期态（方案里存着上次结论，但数据/门槛已经变了）</summary>
+        [JsonIgnore] public bool IsPreviewStale => _previewState == PreviewStateKind.Stale;
 
         /// <summary>旋转残差文案（失败或无解时为破折号：没有可读的数就别编一个）</summary>
         [JsonIgnore] public string PreviewRotationRmsText => _previewRotationText;
@@ -262,6 +304,15 @@ namespace Plugin.HandEye
 
         /// <summary>失败原因（只在 Failed 态显示；文案与流程失败时完全同一句）</summary>
         [JsonIgnore] public string PreviewError => _previewError;
+
+        /// <summary>
+        /// 过期说明（只在 Stale 态显示）。说清"有旧结论、但它不对应当前数据、所以不显示数字"，
+        /// 而不是简单一句"未求解"——后者会让人以为从没标定过，跑去重标一次。
+        /// </summary>
+        [JsonIgnore]
+        public string PreviewStaleText => string.IsNullOrEmpty(_previewMeta)
+            ? "方案里存着的上次标定结果，与当前数据已经不是同一份了。"
+            : $"{_previewMeta}。成对数据或门槛在那之后改过，所以旧矩阵不显示。";
 
         /// <summary>求解元信息（数据源 / 耗时）</summary>
         [JsonIgnore] public string PreviewMeta => _previewMeta;
@@ -328,8 +379,28 @@ namespace Plugin.HandEye
         /// <summary>
         /// 数据一变就把上次结论作废。留着旧矩阵是本页最容易骗人的一处：
         /// 用户改了一行数字，屏上那 16 个数还会一直"看着没问题"。
+        ///
+        /// 两种作废方式不同：
+        ///   · 方案里**没有**存过结果 → None（"未求解"）；
+        ///   · 方案里**存过**结果（<see cref="SavedResult"/> 非空）→ Stale（"已过期"），
+        ///     文案说清"有旧结论但不再对应这份数据"，且不显示那 16 个数。
         /// </summary>
         private void ClearPreview()
+        {
+            ResetPreviewFields();
+
+            SavedResultPayload? saved = TryParseSavedPayload();
+            if (saved is not null)
+            {
+                _previewState = PreviewStateKind.Stale;
+                _previewMeta = DescribeSaved(saved);
+            }
+
+            RaisePreviewChanged();
+        }
+
+        /// <summary>把 Preview* 全部清成"没有结论"，不碰状态机（由调用方决定置于哪种态）</summary>
+        private void ResetPreviewFields()
         {
             _previewState = PreviewStateKind.None;
             _previewError = string.Empty;
@@ -338,7 +409,6 @@ namespace Plugin.HandEye
             _previewTranslationText = "—";
             _previewPairsText = "—";
             _previewMatrixCells = NewBlankCells();
-            RaisePreviewChanged();
         }
 
         private void RaisePreviewChanged()
@@ -347,6 +417,8 @@ namespace Plugin.HandEye
             OnPropertyChanged(nameof(PreviewStatusText));
             OnPropertyChanged(nameof(IsPreviewOk));
             OnPropertyChanged(nameof(IsPreviewFailed));
+            OnPropertyChanged(nameof(IsPreviewStale));
+            OnPropertyChanged(nameof(PreviewStaleText));
             OnPropertyChanged(nameof(PreviewRotationRmsText));
             OnPropertyChanged(nameof(PreviewTranslationRmsText));
             OnPropertyChanged(nameof(PreviewUsedPairsText));
@@ -356,10 +428,74 @@ namespace Plugin.HandEye
             OnPropertyChanged(nameof(PreviewMeta));
         }
 
+        /// <summary>
+        /// 集合增删：维护行级订阅，然后作废上次结论。
+        /// **行的增删不经过 <see cref="Samples"/> 的 setter**（集合实例没换），
+        /// 所以这里必须自己挂/摘，否则"加了一行改数字"这条路径不会被发现。
+        /// </summary>
         private void OnSamplesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
+            if (e.OldItems is not null)
+            {
+                foreach (object? item in e.OldItems)
+                {
+                    if (item is HandEyeSample row) UnhookRow(row);
+                }
+            }
+
+            if (e.NewItems is not null)
+            {
+                foreach (object? item in e.NewItems)
+                {
+                    if (item is HandEyeSample row) HookRow(row);
+                }
+            }
+
+            if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                // Reset 不告诉旧项是谁：按当前集合重建订阅关系（先全摘再全勾）。
+                HookAllRows();
+            }
+
             OnPropertyChanged(nameof(HasSamples));
             OnPropertyChanged(nameof(SampleCountHint));
+            ClearPreview();
+        }
+
+        /// <summary>已挂钩的行（HashSet 防重复挂：重复挂会让一次改动触发多次作废）</summary>
+        private readonly HashSet<HandEyeSample> _hookedRows = new();
+
+        private void HookRow(HandEyeSample row)
+        {
+            if (_hookedRows.Add(row)) row.PropertyChanged += OnSampleRowChanged;
+        }
+
+        private void UnhookRow(HandEyeSample row)
+        {
+            if (_hookedRows.Remove(row)) row.PropertyChanged -= OnSampleRowChanged;
+        }
+
+        /// <summary>按当前集合重建设订阅（集合被整体替换或 Reset 后调用）</summary>
+        private void HookAllRows()
+        {
+            foreach (HandEyeSample row in _hookedRows.ToArray()) row.PropertyChanged -= OnSampleRowChanged;
+            _hookedRows.Clear();
+
+            if (_samples is null) return;
+            foreach (HandEyeSample row in _samples) HookRow(row);
+        }
+
+        /// <summary>
+        /// 某一行改了数字 → 上次结论作废。
+        /// 这就是"只订阅 CollectionChanged 不够"的那一半：`HandEyeSample` 的 12 个分量
+        /// 各走 `SetProperty` 发 PropertyChanged，改一个数字集合本身不会变，
+        /// 不在这里作废的话，屏上那 16 个数会一直以「完成」态挂着。
+        /// `IsBlank` 是派生属性（由 12 个分量算出来的），它自己的通知不构成数据变化 —— 但
+        /// 12 个分量变的时候 `IsBlank` 也跟着变，所以**跳过它**才不会被重复触发。
+        /// </summary>
+        private void OnSampleRowChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(HandEyeSample.IsBlank)) return;
             ClearPreview();
         }
 
@@ -378,6 +514,198 @@ namespace Plugin.HandEye
             for (int i = 0; i < 16; i++) cells[i] = v[i].ToString("0.000");
             return cells;
         }
+
+        #region 上次结论的持久化（数据指纹 + 结果）
+
+        /// <summary>
+        /// 存进 <see cref="SavedResult"/> 的载荷。
+        /// 带 <see cref="Fingerprint"/> 是这套东西的全部要害：没有它，
+        /// 打开一份改过数据的方案照样会把旧矩阵当"已完成"显示出来。
+        /// </summary>
+        private sealed class SavedResultPayload
+        {
+            public string? Fingerprint { get; set; }
+            public HandEyePoseKind Pose { get; set; }
+            public double RotationRmsDeg { get; set; }
+            public double TranslationRmsMm { get; set; }
+            public int UsedPairs { get; set; }
+            public double[]? Matrix { get; set; }
+            public string? SavedAtLocal { get; set; }
+        }
+
+        /// <summary>
+        /// 数据指纹：装法 + 两个门槛 + 组数门 + 每一行的 12 个分量。
+        /// 用 `R`（往返格式）而不是 `F3`：`F3` 会把 `0.0004` 与 `0.0001` 认成同一个数，
+        /// 于是"改了数据但结论没作废"——正是这个机制要防的事。
+        /// 取 SHA256 前 8 字节（16 位十六进制）足够区分一份方案里的两份数据。
+        /// </summary>
+        private string ComputeFingerprint()
+        {
+            var sb = new StringBuilder();
+            sb.Append(PoseKind.ToString()).Append('|')
+              .Append(MaxTranslationRmsMm.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+              .Append(MaxRotationRmsDeg.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+              .Append(RequireRecommendedPairs ? '1' : '0');
+
+            foreach (HandEyeSample row in _samples)
+            {
+                sb.Append(';');
+                double[] v = row.ToRow();
+                for (int i = 0; i < v.Length; i++)
+                {
+                    if (i > 0) sb.Append(',');
+                    sb.Append(v[i].ToString("R", CultureInfo.InvariantCulture));
+                }
+            }
+
+            byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
+            var hex = new StringBuilder(16);
+            for (int i = 0; i < 8; i++) hex.Append(hash[i].ToString("x2"));
+            return hex.ToString();
+        }
+
+        /// <summary>把当前结论序列化（只在 OnConfirm 调用；调用前必须确认是 Ok 态）</summary>
+        private string SerializeSavedResult()
+        {
+            double[] matrix = new double[16];
+            for (int i = 0; i < 16; i++)
+            {
+                matrix[i] = double.TryParse(_previewMatrixCells[i], NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+                    ? v
+                    : double.NaN;
+            }
+
+            var payload = new SavedResultPayload
+            {
+                Fingerprint = ComputeFingerprint(),
+                Pose = PoseKind,
+                RotationRmsDeg = ParseOrNaN(_previewRotationText, "°"),
+                TranslationRmsMm = ParseOrNaN(_previewTranslationText, " mm"),
+                UsedPairs = int.TryParse(_previewPairsText, out int used) ? used : 0,
+                Matrix = matrix,
+                SavedAtLocal = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
+            };
+
+            return JsonConvert.SerializeObject(payload);
+        }
+
+        /// <summary>从 "0.021°" / "0.147 mm" 这类展示串里取回数值（取不回就存 NaN，读回时按无效处理）</summary>
+        private static double ParseOrNaN(string text, string suffix)
+        {
+            if (string.IsNullOrEmpty(text)) return double.NaN;
+            string s = text.EndsWith(suffix, StringComparison.Ordinal)
+                ? text[..^suffix.Length]
+                : text;
+            return double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double v) ? v : double.NaN;
+        }
+
+        /// <summary>解析 <see cref="SavedResult"/>；空串、脏 JSON、缺字段、矩阵不是 16 个都返回 null（当没有存过）</summary>
+        private SavedResultPayload? TryParseSavedPayload()
+        {
+            if (string.IsNullOrWhiteSpace(SavedResult)) return null;
+
+            try
+            {
+                SavedResultPayload? payload = JsonConvert.DeserializeObject<SavedResultPayload>(SavedResult);
+                if (payload is null) return null;
+                if (string.IsNullOrEmpty(payload.Fingerprint)) return null;
+                if (payload.Matrix is null || payload.Matrix.Length != 16) return null;
+                foreach (double v in payload.Matrix)
+                {
+                    if (!double.IsFinite(v)) return null;
+                }
+                return payload;
+            }
+            catch (JsonException)
+            {
+                // 方案被手改坏 / 旧版本格式：当没存过，界面上退回"未求解"。不在这里抛——
+                // 打开方案的路径上抛异常会让整个步骤配置窗口打不开。
+                return null;
+            }
+        }
+
+        private static string DescribeSaved(SavedResultPayload payload) =>
+            string.IsNullOrEmpty(payload.SavedAtLocal)
+                ? "方案里存着上次标定结果"
+                : $"上次标定 {payload.SavedAtLocal}";
+
+        /// <summary>
+        /// 打开方案后：指纹对得上就认这份结论（Ok 态，直接显示矩阵，不必重算）；
+        /// 对不上就是 Stale —— 说清"有旧结论、但数据变了、所以不显示那 16 个数"。
+        /// </summary>
+        private void RestoreSavedResult()
+        {
+            ResetPreviewFields();
+
+            SavedResultPayload? saved = TryParseSavedPayload();
+            if (saved is null)
+            {
+                RaisePreviewChanged();
+                return;
+            }
+
+            if (!string.Equals(saved.Fingerprint, ComputeFingerprint(), StringComparison.Ordinal))
+            {
+                _previewState = PreviewStateKind.Stale;
+                _previewMeta = DescribeSaved(saved);
+                RaisePreviewChanged();
+                return;
+            }
+
+            _previewState = PreviewStateKind.Ok;
+            _previewRotationText = double.IsFinite(saved.RotationRmsDeg) ? $"{saved.RotationRmsDeg:0.###}°" : "—";
+            _previewTranslationText = double.IsFinite(saved.TranslationRmsMm) ? $"{saved.TranslationRmsMm:0.###} mm" : "—";
+            _previewPairsText = saved.UsedPairs > 0 ? saved.UsedPairs.ToString(CultureInfo.InvariantCulture) : "—";
+
+            var cells = new string[16];
+            for (int i = 0; i < 16; i++) cells[i] = saved.Matrix![i].ToString("0.000", CultureInfo.InvariantCulture);
+            _previewMatrixCells = cells;
+
+            _previewMeta = $"{DescribeSaved(saved)} · 数据未变，未重算";
+            RaisePreviewChanged();
+        }
+
+        /// <summary>
+        /// 只在这里落盘结果：求解只是看一眼，「确定」才改方案。
+        /// 非 Ok 态（失败 / 未求解 / 过期）一律清空 —— 方案里绝不留下与当前数据不匹配的旧矩阵。
+        /// </summary>
+        public override void OnConfirm(IStepConfigData stepData)
+        {
+            SavedResult = IsPreviewOk ? SerializeSavedResult() : string.Empty;
+            base.OnConfirm(stepData);
+        }
+
+        /// <summary>打开方案 / 切步骤时把上次结论读回界面（指纹对得上才认）</summary>
+        public override void ApplyConfigValues(IStepConfigData stepData)
+        {
+            base.ApplyConfigValues(stepData);
+
+            // base 只对**标量**做值拷贝；集合是引用 —— 灌进来的那份就是方案 InputValues 里存着的那一份。
+            // 不克隆的话，界面上改一个数字会同时改掉方案里存的数据：点「取消」也留下了改动，
+            // 而且下一次 ApplyConfigValues 拿到的已经是被改过的数据（指纹自然对不上）。
+            Samples = CloneRows(_samples);
+
+            RestoreSavedResult();
+        }
+
+        /// <summary>逐行复制（保留 12 个分量的原值，不共享 HandEyeSample 实例）</summary>
+        private static ObservableCollection<HandEyeSample> CloneRows(IEnumerable<HandEyeSample> rows)
+        {
+            var copy = new ObservableCollection<HandEyeSample>();
+            if (rows is null) return copy;
+
+            foreach (HandEyeSample row in rows)
+            {
+                if (row is null) continue;
+                var clone = new HandEyeSample();
+                clone.SetRow(row.ToRow());
+                copy.Add(clone);
+            }
+
+            return copy;
+        }
+
+        #endregion
 
         /// <summary>宿主取配置视图（IPluginCustomViewProvider）：先灌配置再造视图，DataContext = 插件实例</summary>
         public object GetConfigView(IStepConfigData stepData)
