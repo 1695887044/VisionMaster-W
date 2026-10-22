@@ -167,25 +167,85 @@ namespace Plugin.HandEye
                 HookAllRows();
 
                 OnPropertyChanged();
-                OnPropertyChanged(nameof(HasSamples));
-                OnPropertyChanged(nameof(SampleCountHint));
+                RaiseSampleStatsChanged();
                 ClearPreview();
             }
         }
 
         private ObservableCollection<HandEyeSample> _samples = new();
 
-        /// <summary>概况文案（界面直接绑）：只陈述事实，不给建议</summary>
+        /// <summary>
+        /// 有效组数：12 个分量不全为 0 的行。
+        /// <para>
+        /// 采集进度只认有效组，不认行数 —— 加了行没填不算"采到了"。这一条和 <see cref="HandEyeSample.IsBlank"/>
+        /// 是同一个判据，两处口径必须一致，否则会出现"进度条满了但一求解就报第 N 行还没填"。
+        /// </para>
+        /// </summary>
+        [JsonIgnore]
+        public int ValidSampleCount
+        {
+            get
+            {
+                if (_samples is null) return 0;
+                int n = 0;
+                foreach (HandEyeSample? row in _samples)
+                {
+                    if (row is not null && !row.IsBlank) n++;
+                }
+                return n;
+            }
+        }
+
+        /// <summary>加了行但 12 个值全为 0 的行数（界面要提示"还有几行没填"）</summary>
+        [JsonIgnore]
+        public int BlankSampleCount => (_samples?.Count ?? 0) - ValidSampleCount;
+
+        /// <summary>
+        /// 进度条目标刻度 = <see cref="HandEyeMath.RecommendedPairs"/>（建议组数）。
+        /// <para>
+        /// 刻意不跟 <see cref="RequireRecommendedPairs"/> 走：那个开关是"少于建议值要不要判失败"，
+        /// 进度条说的是"建议采到几组"。把两者绑在一起，关掉从严之后进度条会突然变成 3 格满，
+        /// 看起来像"已经采够了"，而实际上解出来的旋转几乎全靠噪声。
+        /// </para>
+        /// </summary>
+        [JsonIgnore]
+        public int SampleProgressTarget => HandEyeMath.RecommendedPairs;
+
+        /// <summary>采集进度 0..1（界面进度条绑 <c>Value</c>；<c>Minimum=0</c> <c>Maximum=1</c>）</summary>
+        [JsonIgnore]
+        public double SampleProgress
+        {
+            get
+            {
+                int target = SampleProgressTarget;
+                if (target <= 0) return 0.0;
+                return Math.Min(1.0, ValidSampleCount / (double)target);
+            }
+        }
+
+        /// <summary>建议组数是否已够（进度条换色用）</summary>
+        [JsonIgnore]
+        public bool HasEnoughSamples => ValidSampleCount >= SampleProgressTarget;
+
+        /// <summary>概况文案（界面直接绑）：只陈述事实，不给建议。</summary>
+        /// <remarks>
+        /// 数字用**有效组数**而不是行数，和进度条同一口径；另外单独点出空白行，
+        /// 否则"加了 7 行、只填了 3 行"时用户会以为进度条坏了。
+        /// </remarks>
         [JsonIgnore]
         public string SampleCountHint
         {
             get
             {
-                int n = _samples?.Count ?? 0;
-                if (n == 0) return "还没有成对数据";
-                return n < HandEyeMath.RecommendedPairs
-                    ? $"已录入 {n} 组 · 建议 ≥ {HandEyeMath.RecommendedPairs} 组"
-                    : $"已录入 {n} 组 · 达到建议组数";
+                if ((_samples?.Count ?? 0) == 0) return "还没有成对数据";
+
+                int valid = ValidSampleCount;
+                int blank = BlankSampleCount;
+                string head = valid < SampleProgressTarget
+                    ? $"已采集 {valid} / {SampleProgressTarget} 组"
+                    : $"已采集 {valid} 组 · 达到建议";
+
+                return blank > 0 ? $"{head} · 另有 {blank} 行没填" : head;
             }
         }
 
@@ -457,8 +517,7 @@ namespace Plugin.HandEye
                 HookAllRows();
             }
 
-            OnPropertyChanged(nameof(HasSamples));
-            OnPropertyChanged(nameof(SampleCountHint));
+            RaiseSampleStatsChanged();
             ClearPreview();
         }
 
@@ -496,7 +555,32 @@ namespace Plugin.HandEye
         private void OnSampleRowChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(HandEyeSample.IsBlank)) return;
+
+            // 改一个数字也会改变"这行还算不算已采集"（全 0 ↔ 有值），
+            // 所以统计与进度必须跟着刷，否则进度条会停在旧数字上。
+            RaiseSampleStatsChanged();
             ClearPreview();
+        }
+
+        /// <summary>
+        /// 刷"采集统计"这一族派生属性（行数 / 有效组数 / 空白行数 / 进度 / 是否够建议组数）。
+        /// <para>
+        /// 单点封装的理由：这几项是同一份数据的五种说法，散在增删行、改数字、整体替换三处各写一遍，
+        /// 迟早漏掉一处 —— 而漏掉的症状是"进度条不动"，没人会去怀疑通知。
+        /// </para>
+        /// </summary>
+        private void RaiseSampleStatsChanged()
+        {
+            // 注意：这里**不能**再写 RaiseSampleStatsChanged()。曾经用 replace_all 把
+            // OnPropertyChanged(HasSamples)/OnPropertyChanged(SampleCountHint) 这对调用统一替换成
+            // RaiseSampleStatsChanged()，连本方法体里那两行也被换掉了 → 方法自己调自己，
+            // 栈溢出（实测重复 24074 次后 "Stack overflow"，整个断言宿主崩掉）。
+            OnPropertyChanged(nameof(HasSamples));
+            OnPropertyChanged(nameof(SampleCountHint));
+            OnPropertyChanged(nameof(ValidSampleCount));
+            OnPropertyChanged(nameof(BlankSampleCount));
+            OnPropertyChanged(nameof(SampleProgress));
+            OnPropertyChanged(nameof(HasEnoughSamples));
         }
 
         private static string[] NewBlankCells()

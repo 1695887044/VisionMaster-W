@@ -51,6 +51,46 @@
             </Style>
 
             <!--
+              采集进度条（设计基线 §12 Q2 落地）。
+
+              为什么不直接用默认 ProgressBar：WPF 自带的模板带 3D 斜面与渐变，跟本页的扁平卡片不是一路；
+              本仓 Fluent 分册里那个 `FluentProgressBarStyle` 又没进 UI/Controls/Themes/Generic.xaml 的合并链
+              （只有 FluentAliases.xaml 在链上），在这里 StaticResource 它会在解析期抛"找不到资源"。
+              所以就地写一个 6px 细条：外框 Track + 内部 PART_Indicator（ProgressBar 自己按 Value 算宽度）。
+
+              颜色走令牌：未采够 = 主色，够了 = 成功色。两个都只引 Colors.xaml，视图内零十六进制（R140）。
+            -->
+            <Style x:Key="SampleProgressStyle" TargetType="ProgressBar">
+                <Setter Property="Height" Value="6" />
+                <Setter Property="Width" Value="88" />
+                <Setter Property="Minimum" Value="0" />
+                <Setter Property="Maximum" Value="1" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Background" Value="{StaticResource DialogAccentBrush}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ProgressBar">
+                            <Border x:Name="Track"
+                                    CornerRadius="3"
+                                    Background="{StaticResource DialogBorderLightBrush}">
+                                <Border x:Name="PART_Indicator"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        CornerRadius="3"
+                                        Background="{TemplateBinding Background}" />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <!-- 采够建议组数就转绿：这里改的是 Background，它被 TemplateBinding 透到 PART_Indicator -->
+                    <DataTrigger Binding="{Binding HasEnoughSamples}" Value="True">
+                        <Setter Property="Background" Value="{StaticResource DialogSuccessBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!--
               装法两选一：分段按钮。不用 RadioButton 的默认圆点 —— 圆点与本页的卡片边线视觉打架，
               也没法让两项等宽铺满（设计基线 §4.1）。
               模板里的 Border / ContentPresenter 显式声明对齐（R148：自定义模板里的 ToggleButton 系
@@ -532,6 +572,25 @@
                                Style="{StaticResource HintTextStyle}"
                                Visibility="Collapsed"
                                Text="窄窗口：表格可左右滑动，右侧还有 4 列" />
+                    <!--
+                        采集进度：条 + 文字同一口径（都算"有效组数"，不含加了行没填的）。
+                        空表时整块不显示 —— 没有数据就没有进度可言，摆一条空槽只是在占地方。
+                    -->
+                    <Border Background="Transparent" Margin="0,0,8,0">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSamples}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <ProgressBar Style="{StaticResource SampleProgressStyle}"
+                                     Value="{Binding SampleProgress, Mode=OneWay}"
+                                     ToolTip="{Binding SampleCountHint}" />
+                    </Border>
                     <TextBlock x:Name="TableFootHint"
                                Style="{StaticResource HintTextStyle}"
                                Text="{Binding SampleCountHint}" />

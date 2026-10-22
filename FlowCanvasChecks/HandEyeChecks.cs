@@ -138,6 +138,7 @@ namespace FlowCanvasChecks
             ZBLayer();
             CsvLayer();
             PasteLayer();
+            ProgressLayer();
             PersistLayer();
         }
 
@@ -723,6 +724,67 @@ namespace FlowCanvasChecks
         /// 是需求，「重开方案看见一个已经不对应当前数据的矩阵」是事故。
         /// 这一层就是这两句话的判据。
         /// </summary>
+        /// <summary>
+        /// 采集进度（界面那条 6px 细条的数据源）。
+        /// <para>
+        /// 判据的核心是**口径**：进度只认"12 个分量不全为 0 的行"，不认行数。
+        /// 否则"加了 7 行只填了 3 行"会显示成满格，而一求解就报第 4 行还没填 ——
+        /// 进度条说没问题、求解说没数据，用户只会认为工具在骗他。
+        /// </para>
+        /// </summary>
+        private static void ProgressLayer()
+        {
+            // ---- ① 空表：没有数据就没有进度可言 ----
+            var empty = NewPlugin(Array.Empty<HandEyeSample>());
+            Check("[HE] 进度①：空表 → 0 组、进度 0、未达建议，文案说「还没有成对数据」",
+                empty.ValidSampleCount == 0 && empty.SampleProgress == 0.0 && !empty.HasEnoughSamples
+                && empty.SampleCountHint.Contains("还没有成对数据"),
+                $"有效={empty.ValidSampleCount} 进度={empty.SampleProgress:0.###} 文案={empty.SampleCountHint}");
+
+            // ---- ② 3 行填了 + 1 行空着：空白行不算采集进度 ----
+            var half = NewPlugin(Array.Empty<HandEyeSample>());
+            for (int i = 0; i < 3; i++) half.Samples.Add(new HandEyeSample { RobotX = 100 + i });
+            half.Samples.Add(new HandEyeSample());
+            Check("[HE] 进度②：3 行填了 + 1 行空着 → 有效 3 / 6（半格），空白行单独点名",
+                half.ValidSampleCount == 3 && half.BlankSampleCount == 1
+                && Math.Abs(half.SampleProgress - 0.5) < 1e-12 && !half.HasEnoughSamples
+                && half.SampleCountHint.Contains("3 / 6") && half.SampleCountHint.Contains("1 行没填"),
+                $"有效={half.ValidSampleCount} 空白={half.BlankSampleCount} 进度={half.SampleProgress:0.###} 文案={half.SampleCountHint}");
+
+            // ---- ③ 采够 6 组：满格，HasEnoughSamples 驱动进度条转成功色 ----
+            var full = NewPlugin(Array.Empty<HandEyeSample>());
+            for (int i = 0; i < 6; i++) full.Samples.Add(new HandEyeSample { RobotX = 200 + i });
+            Check("[HE] 进度③：6 组有效 → 满格、HasEnoughSamples=true（进度条由主色转成功色）",
+                full.ValidSampleCount == 6 && Math.Abs(full.SampleProgress - 1.0) < 1e-12 && full.HasEnoughSamples
+                && full.SampleCountHint.Contains("达到建议"),
+                $"有效={full.ValidSampleCount} 进度={full.SampleProgress:0.###} 文案={full.SampleCountHint}");
+
+            // ---- ④ 目标刻度不跟「要求 ≥ 6 组」开关走 ----
+            // 关掉从严只影响"少于 6 组要不要判失败"，不影响"建议采几组"。
+            // 若把两者绑在一起，关掉从严后 3 行会显示满格，看起来像"已经采够了"。
+            var loose = NewPlugin(Array.Empty<HandEyeSample>(), requireRecommended: false);
+            for (int i = 0; i < 3; i++) loose.Samples.Add(new HandEyeSample { RobotX = 300 + i });
+            Check("[HE] 进度④：关掉「要求 ≥ 6 组」也不改进度刻度（3 组仍是半格，不是满格）",
+                Math.Abs(loose.SampleProgress - 0.5) < 1e-12 && !loose.HasEnoughSamples
+                && loose.SampleProgressTarget == HandEyeMath.RecommendedPairs,
+                $"进度={loose.SampleProgress:0.###} 目标={loose.SampleProgressTarget}");
+
+            // ---- ⑤ 把空白行填上一个数 → 进度立刻涨（行级 PropertyChanged 生效） ----
+            double progressBefore = half.SampleProgress;
+            half.Samples[3].RobotX = 42;
+            Check("[HE] 进度⑤：把空白行填上一个数 → 有效 4 组、进度跟着涨（行级通知生效）",
+                half.ValidSampleCount == 4 && half.BlankSampleCount == 0
+                && Math.Abs(half.SampleProgress - progressBefore - 1.0 / 6.0) < 1e-12,
+                $"改前={progressBefore:0.###} 改后={half.SampleProgress:0.###} 有效={half.ValidSampleCount}");
+
+            // ---- ⑥ 删掉一行有效数据 → 进度回落 ----
+            double progressBefore2 = half.SampleProgress;
+            half.Samples.RemoveAt(0);
+            Check("[HE] 进度⑥：删掉一行有效数据 → 有效 3 组、进度回落",
+                half.ValidSampleCount == 3 && half.SampleProgress < progressBefore2,
+                $"删前={progressBefore2:0.###} 删后={half.SampleProgress:0.###} 有效={half.ValidSampleCount}");
+        }
+
         private static void PersistLayer()
         {
             var step = new CheckStepData();
