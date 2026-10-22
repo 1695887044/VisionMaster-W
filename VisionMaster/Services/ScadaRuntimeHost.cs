@@ -76,7 +76,8 @@ namespace VisionMaster.Services
     /// <c>ContentRendered</c> 知道。所以领域层只交出一个事实（该显示这一页），
     /// 由宿主把"什么时候真画出来了"补上——两边都不越界。
     /// </summary>
-    public sealed class ScadaRuntimeHost : IScadaRuntimeHost, IScadaRunHub, IScadaAlarmCommands, IScadaAlarmFeed
+    public sealed class ScadaRuntimeHost : IScadaRuntimeHost, IScadaRunHub, IScadaAlarmCommands, IScadaAlarmFeed,
+        IScadaRuntimeDataProvider
     {
         private readonly ILogService _log;
         private readonly IUserNotifier _notifier;
@@ -98,6 +99,49 @@ namespace VisionMaster.Services
 
         private ScadaRuntime? _session;
         private ScadaRuntimeWindow? _window;
+
+        /// <summary>
+        /// 取 DataGrid 图元的行/列快照（Web 运行态的只读数据出口）。
+        ///
+        /// 只在 UI 线程调用：运行窗口的画布与控件都是 UI 单线程语义。
+        /// 只找运行窗口（含弹窗画布）里的控件——编辑器画布也有一份同名 ElementId 的控件，
+        /// 遍历 Application.Windows 会读错对象。
+        /// </summary>
+        public bool TryGetGrid(Guid elementId, out ScadaGridSnapshot snapshot)
+        {
+            snapshot = null!;
+            var window = _window;
+            if (window == null)
+                return false;
+
+            return TryFindGrid(window.CanvasHost, elementId, out snapshot)
+                   || TryFindGrid(window.PopupCanvasHost, elementId, out snapshot);
+        }
+
+        private static bool TryFindGrid(ScadaCanvas? canvas, Guid elementId, out ScadaGridSnapshot snapshot)
+        {
+            snapshot = null!;
+            if (canvas == null)
+                return false;
+
+            foreach (var control in canvas.EnumerateControls())
+            {
+                if (control is DataGridElement grid
+                    && grid.Element != null
+                    && grid.Element.ElementId == elementId)
+                {
+                    snapshot = new ScadaGridSnapshot
+                    {
+                        Columns = grid.Columns,
+                        Rows = grid.Buffer,
+                        RecordedCount = grid.RecordedCount
+                    };
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         /// <summary>方案级监控（报警/变量事件/节拍）。窗口只是它的消费者，关窗不停它。</summary>
         private readonly ScadaMonitoringHost _monitoring;

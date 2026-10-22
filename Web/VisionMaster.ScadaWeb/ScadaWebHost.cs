@@ -191,6 +191,7 @@ namespace VisionMaster.ScadaWeb
         private readonly IScadaAuditSink? _audit;
         private readonly IScadaFlowTriggerQuery? _flowTriggerQuery;
         private readonly IScadaAxisSource? _axisSource;
+        private readonly IScadaRuntimeDataProvider? _dataProvider;
         private readonly ScadaWebSecurityGate _securityGate;
         private readonly ScadaWebPresence _presence;
         private readonly ScadaWebAccessPolicy _policy;
@@ -210,6 +211,9 @@ namespace VisionMaster.ScadaWeb
 
         /// <summary>轴数据发送分频（每 2 拍发一次 = 5Hz）</summary>
         private int _axisTick;
+
+        /// <summary>DataGrid 行数据发送分频（每 5 拍发一次 = 2Hz）</summary>
+        private int _gridTick;
 
         /// <summary>
         /// 已占用的活跃会话名额。用原子预占替代"先数 Count 再 TryAdd"的 TOCTOU：
@@ -258,7 +262,8 @@ namespace VisionMaster.ScadaWeb
             IScadaAuditSink? audit = null,
             IScadaAlarmFeed? alarmFeed = null,
             IScadaFlowTriggerQuery? flowTriggerQuery = null,
-            IScadaAxisSource? axisSource = null)
+            IScadaAxisSource? axisSource = null,
+            IScadaRuntimeDataProvider? dataProvider = null)
         {
             _hub = hub;
             _authenticator = authenticator;
@@ -303,6 +308,7 @@ namespace VisionMaster.ScadaWeb
             _audit = audit;
             _flowTriggerQuery = flowTriggerQuery;
             _axisSource = axisSource;
+            _dataProvider = dataProvider;
 
             // 票表是身份的唯一来源：安全闸必须委托**同一份**票表（两份 = 撤销一边、放行另一边）。
             _tickets.AllowAnonymousView = _settings.AllowAnonymousView;
@@ -2553,6 +2559,71 @@ namespace VisionMaster.ScadaWeb
                         session.TrySend(state.AxisJson);
                 }
             }
+
+            // DataGrid 行数据 2Hz（每 5 拍一次）：行是控件采样缓冲，不是标量绑定。
+            if (state.GridJson != null && (Interlocked.Increment(ref _gridTick) % 5) == 0)
+            {
+                foreach (var session in _sessions.Values)
+                {
+                    if (string.Equals(session.CurrentPageKey, pageKey, StringComparison.Ordinal))
+                        session.TrySend(state.GridJson);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 把当前页 DataGrid 控件的行/列快照投影成一条 <c>grid</c> 消息（2Hz）。
+        /// 行来自控件采样缓冲（<see cref="IScadaRuntimeDataProvider"/>），不是模型属性袋。
+        /// </summary>
+        private string? BuildGridJson(ScadaRuntime session, ScadaPageSnapshot page, long generation)
+        {
+            var runtimePage = session.CurrentPage;
+            if (runtimePage == null)
+                return null;
+
+            var elements = new List<object>();
+
+            foreach (var element in runtimePage.Elements)
+            {
+                if (element is null || element.TypeKey != "Hmi.DataGrid")
+                    continue;
+
+                if (!_dataProvider!.TryGetGrid(element.ElementId, out var snapshot))
+                    continue;
+
+                elements.Add(new
+                {
+                    elementId = element.ElementId.ToString("D"),
+                    columns = snapshot.Columns.Select(column => new
+                    {
+                        header = string.IsNullOrWhiteSpace(column.Header) ? column.Variable : column.Header,
+                        width = column.Width,
+                        align = column.Align,
+                        format = column.Format,
+                        monospace = column.Monospace
+                    }).ToArray(),
+                    rows = snapshot.Rows.Select(row => new
+                    {
+                        cells = row.Cells,
+                        errorCell = row.ErrorCell,
+                        timestamp = row.Timestamp
+                    }).ToArray(),
+                    recorded = snapshot.RecordedCount
+                });
+            }
+
+            if (elements.Count == 0)
+                return null;
+
+            return Json(new
+            {
+                type = "grid",
+                seq = Interlocked.Increment(ref _seq),
+                runGeneration = generation,
+                pageId = page.PageId,
+                pageVersion = page.PageVersion,
+                elements
+            });
         }
 
         /// <summary>
@@ -2703,8 +2774,9 @@ namespace VisionMaster.ScadaWeb
                 // 轴面板/轴控台/点位表的只读数据：与快照同一次 UI 调度里取，
                 // 5Hz 发送（见 PumpFrameAsync）。没有 IScadaAxisSource 时为 null。
                 var axisJson = _axisSource == null ? null : BuildAxisJson(session, page, generation);
+                var gridJson = _dataProvider == null ? null : BuildGridJson(session, page, generation);
 
-                return new LiveState(true, generation, page, items, key, axisJson);
+                return new LiveState(true, generation, page, items, key, axisJson, gridJson);
             }
             catch (Exception ex)
             {
@@ -3110,10 +3182,11 @@ namespace VisionMaster.ScadaWeb
             ScadaPageSnapshot? Page,
             IReadOnlyList<ScadaFrameItemDto> Items,
             string PageKey,
-            string? AxisJson)
+            string? AxisJson,
+            string? GridJson)
         {
             public static readonly LiveState NotRunning =
-                new(false, 0, null, Array.Empty<ScadaFrameItemDto>(), string.Empty, null);
+                new(false, 0, null, Array.Empty<ScadaFrameItemDto>(), string.Empty, null, null);
         }
 
         /// <summary>一拍里已序列化好的一个值项（跨会话共享；Key 用于每会话的增量基线）</summary>

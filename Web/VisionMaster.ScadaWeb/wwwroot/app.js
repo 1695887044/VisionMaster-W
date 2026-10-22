@@ -66,6 +66,7 @@
     sessionToken: '',
     imageToken: '',
     axis: null,
+    grid: null,
     user: '',
     refreshing: false,
     loginBusy: false,
@@ -1354,6 +1355,7 @@
       update: typeof result.update === 'function' ? result.update : null,
       reset: typeof result.reset === 'function' ? result.reset : null,
       updateAxis: typeof result.updateAxis === 'function' ? result.updateAxis : null,
+      updateGrid: typeof result.updateGrid === 'function' ? result.updateGrid : null,
       dispose: typeof result.dispose === 'function' ? result.dispose : null,
       childrenHost: result.childrenHost || null,
       childrenOrigin: result.childrenOrigin || null,
@@ -1510,13 +1512,21 @@
     fit();
     updateTopbar();
 
-    // 轴消息可能先于结构重建到达；重建后把最近一份轴数据补发给新渲染器。
-    if (state.axis) {
+    // 轴/表格消息可能先于结构重建到达；重建后把最近一份补发给新渲染器。
+    if (state.axis || state.grid) {
       for (var ar = 0; ar < state.records.length; ar++) {
         var axisRec = state.records[ar];
-        if (!axisRec || typeof axisRec.updateAxis !== 'function') continue;
-        try { axisRec.updateAxis(state.axis); }
-        catch (err) { warnOnce('axis:' + (axisRec.el && axisRec.el.TypeKey), '[SCADA Web] 轴渲染失败：', err); }
+        if (!axisRec) continue;
+
+        if (state.axis && typeof axisRec.updateAxis === 'function') {
+          try { axisRec.updateAxis(state.axis); }
+          catch (err) { warnOnce('axis:' + (axisRec.el && axisRec.el.TypeKey), '[SCADA Web] 轴渲染失败：', err); }
+        }
+
+        if (state.grid && typeof axisRec.updateGrid === 'function') {
+          try { axisRec.updateGrid(state.grid); }
+          catch (err) { warnOnce('grid:' + (axisRec.el && axisRec.el.TypeKey), '[SCADA Web] 表格渲染失败：', err); }
+        }
       }
     }
 
@@ -2667,6 +2677,20 @@
           catch (err) {
             warnOnce('axis:' + (axisRecord.el && axisRecord.el.TypeKey),
               '[SCADA Web] 轴渲染失败：', err);
+          }
+        }
+        return;
+
+      case 'grid':
+        if (state.page && message.pageId && String(message.pageId) !== String(state.page.PageId)) return;
+        state.grid = message;
+        for (var gridIndex = 0; gridIndex < state.records.length; gridIndex++) {
+          var gridRecord = state.records[gridIndex];
+          if (!gridRecord || typeof gridRecord.updateGrid !== 'function') continue;
+          try { gridRecord.updateGrid(message); }
+          catch (err) {
+            warnOnce('grid:' + (gridRecord.el && gridRecord.el.TypeKey),
+              '[SCADA Web] 表格渲染失败：', err);
           }
         }
         return;

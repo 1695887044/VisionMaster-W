@@ -351,6 +351,8 @@ namespace VisionMaster
                 c.Resolve<AppSettingsService>()));
             containerRegistry.RegisterSingleton<IScadaRuntimeHost>(c => c.Resolve<ScadaRuntimeHost>());
             containerRegistry.RegisterSingleton<IScadaRunHub>(c => c.Resolve<ScadaRuntimeHost>());
+            // DataGrid 行数据的只读出口：与运行宿主同一实例（它才拿得到运行窗口画布）。
+            containerRegistry.RegisterSingleton<IScadaRuntimeDataProvider>(c => c.Resolve<ScadaRuntimeHost>());
             // 报警命令出口（M2）：Web 命令层「确认报警 / 全部确认」只认 VM.Scada 里的接口，
             // 引擎实例由本宿主按"当前运行的那一轮"现取（见 ScadaRuntimeHost.CurrentAlarmEngine），
             // 所以这里也必须映射到**同一个**单例——另建一份实例会拿不到运行中的引擎。

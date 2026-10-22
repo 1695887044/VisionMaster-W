@@ -800,6 +800,9 @@ namespace ScadaWebChecks
             // ---------------- B52：轴只读数据（独立宿主 + 假 IScadaAxisSource） ----------------
             await RunAxisChecksAsync(http);
 
+            // ---------------- B53：DataGrid 行数据（独立宿主 + 假 IScadaRuntimeDataProvider） ----------------
+            await RunGridChecksAsync(http);
+
             // ---------------- B45：死连接回收（判死阈值压到 1s；运行已停止，双向都无进展） ----------------
             {
                 hub.Stop();
@@ -1464,6 +1467,138 @@ namespace ScadaWebChecks
             finally
             {
                 await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// B53：DataGrid 行数据。独立宿主 + 假 IScadaRuntimeDataProvider，
+        /// 断言 grid 消息里的列/行/errorCell/recorded。
+        /// </summary>
+        private static async Task RunGridChecksAsync(HttpClient http)
+        {
+            var port = GetFreePort();
+            var document = new ScadaDocument();
+            var page = document.AddPage("表格页");
+            page.Version = 1;
+
+            var element = new ScadaElement
+            {
+                TypeKey = "Hmi.DataGrid",
+                Name = "数据表格",
+                X = 10,
+                Y = 10,
+                Width = 360,
+                Height = 240
+            };
+            page.Elements.Add(element);
+            document.SetStartupPage(page);
+
+            var runtime = new ScadaRuntime(document);
+            runtime.Start();
+
+            var hub = new FakeRunHub();
+            hub.SetRunning(runtime, document, 1);
+
+            var provider = new FakeRuntimeDataProvider { ElementId = element.ElementId };
+
+            var settings = new ScadaWebSettings
+            {
+                Enabled = true,
+                Port = port,
+                BindAddress = "127.0.0.1",
+                AllowAnonymousView = true,
+                MaxSessions = 4
+            };
+
+            var host = new ScadaWebHost(
+                hub,
+                authenticator: null,
+                catalog: null,
+                new FakeLog(),
+                settings,
+                values: null,
+                dataProvider: provider);
+
+            host.Start();
+
+            if (!host.IsListening)
+            {
+                Check("B53", false, $"表格宿主未启动：{host.LastError ?? "<none>"}");
+                return;
+            }
+
+            var baseUrl = $"http://127.0.0.1:{port}";
+
+            try
+            {
+                var issue = await IssueTicketAsync(http, baseUrl);
+                var (connected, connectError, socket) = await ConnectAsync($"{baseUrl.Replace("http", "ws")}/ws?ticket={issue.Ticket}");
+
+                if (!connected || socket == null)
+                {
+                    Check("B53", false, $"表格宿主 WS 连接失败：{connectError ?? "<none>"}");
+                    return;
+                }
+
+                using (socket)
+                {
+                    await ReceiveUntilAsync(socket, m => TypeOf(m) == "hello", 3000);
+                    await ReceiveUntilAsync(socket, m => TypeOf(m) == "snapshot", 5000);
+
+                    var gridMessage = await ReceiveUntilAsync(socket, m => TypeOf(m) == "grid", 6000);
+                    var elements = gridMessage?["elements"] as JArray;
+                    var first = elements?.FirstOrDefault() as JObject;
+                    var columns = first?["columns"] as JArray;
+                    var rows = first?["rows"] as JArray;
+                    var secondRow = rows?.Count > 1 ? rows[1] as JObject : null;
+
+                    Check("B53",
+                        gridMessage != null
+                        && columns?.Count == 2
+                        && rows?.Count == 2
+                        && secondRow?.Value<int?>("errorCell") == 1
+                        && first?.Value<int?>("recorded") == 2,
+                        gridMessage == null
+                            ? "未收到 grid"
+                            : $"columns={columns?.Count} rows={rows?.Count} "
+                              + $"errorCell={secondRow?.Value<int?>("errorCell")} "
+                              + $"recorded={first?.Value<int?>("recorded")}");
+                }
+            }
+            finally
+            {
+                await host.StopAsync();
+            }
+        }
+
+        private sealed class FakeRuntimeDataProvider : IScadaRuntimeDataProvider
+        {
+            public Guid ElementId { get; set; }
+
+            public bool TryGetGrid(Guid elementId, out ScadaGridSnapshot snapshot)
+            {
+                if (elementId != ElementId)
+                {
+                    snapshot = null!;
+                    return false;
+                }
+
+                snapshot = new ScadaGridSnapshot
+                {
+                    Columns = new[]
+                    {
+                        new ScadaGridColumn("时间", "time", 80, "left", string.Empty, true),
+                        new ScadaGridColumn("角度", "angle", 0, "right", "F2", true)
+                    },
+                    Rows = new[]
+                    {
+                        new ScadaGridRow(new[] { "08:00:00", "12.34" }, -1, DateTime.Now),
+                        new ScadaGridRow(new[] { "08:00:01", "?" }, 1, DateTime.Now)
+                    },
+                    RecordedCount = 2
+                };
+
+                return true;
             }
         }
 

@@ -2239,4 +2239,144 @@
     registry['Hmi.AxisPanel'] = createAxisRenderer;
     registry['Hmi.AxisConsole'] = createAxisRenderer;
     registry['Hmi.AxisPointTable'] = createAxisRenderer;
+
+    // ----------------------------------------------------------------------
+    //  Hmi.DataGrid 只读数据表格（列 + 最近行；2Hz grid 消息）
+    //
+    //  行来自 DataGridElement 的采样缓冲（服务端 IScadaRuntimeDataProvider 投影），
+    //  Web 不做二次采样、不写确认变量。没有 grid 消息时显示“等待第一条记录”。
+    // ----------------------------------------------------------------------
+    registry['Hmi.DataGrid'] = function (el, ctx) {
+        var node = global.document.createElement('div');
+        node.className = 'hmi-data-grid';
+        node.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;'
+            + 'display:flex;flex-direction:column;background:rgba(14,19,24,0.55);'
+            + 'border:1px solid #2A3745;border-radius:4px;box-sizing:border-box;'
+            + 'font:11px "Microsoft YaHei",sans-serif;color:#E6EEF7;';
+
+        var head = global.document.createElement('div');
+        head.style.cssText = 'display:flex;flex:0 0 26px;border-bottom:1px solid #3A4A5C;'
+            + 'background:rgba(42,55,69,0.55);font-weight:600;overflow:hidden;';
+        var body = global.document.createElement('div');
+        body.style.cssText = 'flex:1;overflow:auto;';
+        var foot = global.document.createElement('div');
+        foot.style.cssText = 'flex:0 0 18px;padding:0 4px;color:#7C8A99;font-size:10px;'
+            + 'display:flex;justify-content:space-between;align-items:center;';
+
+        node.appendChild(head);
+        node.appendChild(body);
+        node.appendChild(foot);
+
+        function fallbackColumns() {
+            try {
+                var parsed = JSON.parse(rawProp(el, 'GridColumns') || '[]');
+                if (!Array.isArray(parsed)) return [];
+
+                return parsed.map(function (column) {
+                    return {
+                        header: column.Header || column.Variable || '',
+                        width: Number(column.Width) || 0,
+                        align: column.Align || 'left',
+                        monospace: !!column.Monospace
+                    };
+                });
+            } catch (err) {
+                return [];
+            }
+        }
+
+        function cellStyle(column, isHeader) {
+            var width = Number(column.width) || 0;
+            return 'flex:' + (width > 0 ? '0 0 ' + width + 'px' : '1 1 0')
+                + ';min-width:0;padding:0 4px;overflow:hidden;text-overflow:ellipsis;'
+                + 'white-space:nowrap;text-align:' + (column.align || 'left')
+                + ';font-family:' + (column.monospace ? '"Cascadia Mono",Consolas,monospace' : 'inherit')
+                + ';' + (isHeader ? 'line-height:26px;' : 'line-height:24px;');
+        }
+
+        function render(message) {
+            head.replaceChildren();
+            body.replaceChildren();
+            foot.replaceChildren();
+
+            var entry = null;
+            if (message && Array.isArray(message.elements)) {
+                for (var i = 0; i < message.elements.length; i++) {
+                    if (String(message.elements[i].elementId) === String(el.ElementId)) {
+                        entry = message.elements[i];
+                        break;
+                    }
+                }
+            }
+
+            var columns = entry && entry.columns && entry.columns.length
+                ? entry.columns
+                : fallbackColumns();
+
+            if (columns.length === 0) {
+                var noColumns = global.document.createElement('div');
+                noColumns.style.cssText = 'padding:8px;color:#7C8A99;';
+                noColumns.textContent = '未配置列（GridColumns）';
+                body.appendChild(noColumns);
+                foot.textContent = 'Web 只读';
+                return;
+            }
+
+            for (var c = 0; c < columns.length; c++) {
+                var headerCell = global.document.createElement('div');
+                headerCell.style.cssText = cellStyle(columns[c], true);
+                headerCell.textContent = columns[c].header || columns[c].variable || '';
+                head.appendChild(headerCell);
+            }
+
+            var rows = entry && Array.isArray(entry.rows) ? entry.rows : [];
+
+            if (rows.length === 0) {
+                var empty = global.document.createElement('div');
+                empty.style.cssText = 'padding:8px;color:#7C8A99;';
+                empty.textContent = '等待第一条记录';
+                body.appendChild(empty);
+            } else {
+                var maxRows = Math.min(rows.length, 100);
+
+                for (var r = 0; r < maxRows; r++) {
+                    var row = global.document.createElement('div');
+                    row.style.cssText = 'display:flex;border-bottom:1px solid rgba(42,55,69,0.5);'
+                        + (r % 2 === 0 ? '' : 'background:rgba(42,55,69,0.18);');
+
+                    var cells = Array.isArray(rows[r].cells) ? rows[r].cells : [];
+
+                    for (var k = 0; k < columns.length; k++) {
+                        var cell = global.document.createElement('div');
+                        cell.style.cssText = cellStyle(columns[k], false);
+                        if (rows[r].errorCell === k) cell.style.color = '#EF4444';
+                        cell.textContent = cells[k] === undefined || cells[k] === null ? '' : String(cells[k]);
+                        row.appendChild(cell);
+                    }
+
+                    body.appendChild(row);
+                }
+
+                if (rows.length > maxRows) {
+                    var more = global.document.createElement('div');
+                    more.style.cssText = 'padding:2px 6px;color:#7C8A99;';
+                    more.textContent = '… 还有 ' + (rows.length - maxRows) + ' 行（Web 最多显示 100 行）';
+                    body.appendChild(more);
+                }
+            }
+
+            var status = global.document.createElement('span');
+            status.textContent = entry && entry.recorded !== undefined
+                ? '已记录 ' + entry.recorded + ' 条'
+                : 'Web 只读';
+            foot.appendChild(status);
+
+            var note = global.document.createElement('span');
+            note.textContent = '只读';
+            foot.appendChild(note);
+        }
+
+        render(null);
+        return { node: node, update: function () { }, updateGrid: render };
+    };
 })(window);

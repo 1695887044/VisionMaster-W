@@ -32,9 +32,9 @@ namespace ScadaChecks
         /// <summary>已知缺口：实现一个就从这里删一个（只许变短）。</summary>
         private static readonly string[] KnownMissingWebRenderers =
         {
-            // Hmi.ChartTrend 用 Value 值帧、Hmi.ImageView 用 /img、Hmi.AxisPanel/AxisConsole/
-            // AxisPointTable 用 axis 消息，均已实现；只剩 DataGrid 需要行数据 Hub。
-            "Hmi.DataGrid",
+            // 2026-10-22：ChartTrend（Value 帧）、ImageView（/img）、Axis 三键（axis 消息）、
+            // DataGrid（grid 消息 + IScadaRuntimeDataProvider）全部实现；例外清单为空。
+            // 保留空数组是为了让 [WR2]/[WR3] 的反向断言继续生效（只许变短）。
             // 注意：Hmi.AxisPointTable 是 ShowInToolbox=false 的兼容别名，不在"工具箱图元"集合里，
             // 因此不列入本闸；老页面里出现它时客户端仍按未知类型画占位盒（已知偏差）。
         };
@@ -108,8 +108,8 @@ namespace ScadaChecks
                     ? $"例外 {exceptions.Count} 项全部仍然缺失且仍在注册表"
                     : "过期例外：" + string.Join("、", staleExceptions));
 
-            Check("[WR3] 例外清单只许变短（当前上限 1）",
-                KnownMissingWebRenderers.Length <= 1,
+            Check("[WR3] 例外清单只许变短（当前上限 0）",
+                KnownMissingWebRenderers.Length <= 0,
                 $"例外清单 {KnownMissingWebRenderers.Length} 项：" + string.Join("、", KnownMissingWebRenderers));
 
             Check("[WR4] 例外清单每项都仍是已注册图元（防止改名后例外悬空）",

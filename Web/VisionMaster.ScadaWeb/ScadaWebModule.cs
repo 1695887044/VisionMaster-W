@@ -152,6 +152,9 @@ namespace VisionMaster.ScadaWeb
             // 轴图元仍能显示候选轴名，但实时值显示“—”）。
             var axisSource = TryResolve<IScadaAxisSource>(container, log, "IScadaAxisSource");
 
+            // DataGrid 行数据的只读出口（宿主实现；无运行窗口时为 null，表格显示“等待数据”）。
+            var runtimeDataProvider = TryResolve<IScadaRuntimeDataProvider>(container, log, "IScadaRuntimeDataProvider");
+
             // AllOperators 的监管闸门：缺项不是“少一层”，而是“配置看着放开了、实际没有护栏”。
             // 缺项时拒绝启用该策略，回退 HighestRoleOnly（默认策略，不需要监管项）。
             //
@@ -207,7 +210,8 @@ namespace VisionMaster.ScadaWeb
                 audit,
                 alarmFeed,
                 flowTriggerQuery,
-                axisSource);
+                axisSource,
+                runtimeDataProvider);
 
             Host = host;
 
