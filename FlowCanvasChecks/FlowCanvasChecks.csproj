@@ -108,6 +108,13 @@
     -->
     <ProjectReference Include="..\Plugins\Plugin.PoseTransform\Plugin.PoseTransform.csproj" />
     <!--
+      手眼标定：直接引用（不走 Modules\ 反射加载）。
+      断言两层——纯托管数学（HandEyeMath：合成往返/三类退化必须失败/噪声精度/欧拉往返）
+      与插件层（HandEyePlugin：CSV 12 列每种坏法的文案、组数门、残差门、失败清场）。
+      引用它也让构建顺带把 Plugin.HandEye.dll 刷新到 Modules。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.HandEye\Plugin.HandEye.csproj" />
+    <!--
       几何工具：直接引用（不走 Modules\ 反射加载）。
       断言 GeometryMath 纯托管几何（距离/求交/垂足/三点构圆/夹角 [0,90]）与 GeometryParam 契约
       （不可变工厂 / JSON 往返 / Phi 归一化）。引用它也让构建顺带把两个几何 DLL 刷新到 Modules。

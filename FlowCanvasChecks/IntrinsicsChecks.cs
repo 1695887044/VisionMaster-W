@@ -195,16 +195,14 @@ namespace FlowCanvasChecks
             Check("[IC] 契约：旧 CalibrationTransform（未设 Intrinsics）为 null —— 历史路径零变化",
                 legacy.Intrinsics == null, "");
 
-            // ---- 七个 Kind 不得撞值（撞了就是静默走错分支）----
-            var kinds = new[]
-            {
-                (int)CalibrationKind.PixelScale, (int)CalibrationKind.NinePoint,
-                (int)CalibrationKind.Perspective, (int)CalibrationKind.Mesh,
-                (int)CalibrationKind.NinePointUndistorted, (int)CalibrationKind.PerspectiveUndistorted,
-                (int)CalibrationKind.MeshUndistorted,
-            };
-            Check("[IC] 契约：七个 CalibrationKind 取值两两不重复",
-                kinds.Distinct().Count() == kinds.Length, string.Join("/", kinds));
+            // ---- Kind 取值不得撞值（撞了就是静默走错分支）----
+            // 取值集从枚举自己取，不再手抄一份：手抄会在加成员时漏掉（本仓已踩过一次——
+            // 工具箱分类映射表硬编码 13 项与注册表自比对，恒绿）。这里改成"枚举有几个就查几个"。
+            var kindValues = Enum.GetValues<CalibrationKind>();
+            var kindInts = Array.ConvertAll(kindValues, v => (int)v);
+            Check("[IC] 契约：所有 CalibrationKind 取值两两不重复",
+                kindInts.Distinct().Count() == kindInts.Length,
+                string.Join("/", kindValues));
 
             // ---- DTO 是插件命名空间（`.vms` 白名单只放行 Plugin.*）----
             var dtoType = typeof(CameraIntrinsicsDto);

@@ -356,6 +356,11 @@ namespace FlowCanvasChecks
             // 需 HALCONROOT\calib 的标定板描述文件；缺失时按 R38 明确跳过并写反证依据。
             IntrinsicsChecks.Run();
 
+            // 手眼标定（6-DOF 刚体变换）：数学层用**已知 X 的合成往返**（残差小不代表解对，
+            // 2026-10-22 实测错过一次：旋转差 1 rad 而残差只有 3.6e-8）+ 三类退化必须失败；
+            // 插件层覆盖 CSV 12 列每种坏法的文案、组数门、残差门、失败清场。纯托管，不碰 HALCON/真机。
+            HandEyeChecks.Run();
+
             Finish();
             return Environment.ExitCode;
         }

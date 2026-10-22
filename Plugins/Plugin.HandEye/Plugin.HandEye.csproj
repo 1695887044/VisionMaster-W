@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0-windows</TargetFrameworks>
+    <RootNamespace>Plugin.HandEye</RootNamespace>
+    <AssemblyName>Plugin.HandEye</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      源生成器产出的 StepConfig partial 文件不带 using，
+      [StepConfig] 用到 Core.Interfaces 里的枚举（HandEyePoseKind）时必须让全局可见。
+    -->
+    <Using Include="Core.Interfaces" />
+  </ItemGroup>
+
+  <!-- 工程必须放在 Plugins\ 子树内：Directory.Build.targets 按目录生效，负责把 DLL 投递到 Modules\ -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
+</Project>

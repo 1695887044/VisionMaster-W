@@ -874,6 +874,9 @@ namespace Plugin.PoseTransform
             CalibrationKind.NinePointUndistorted => "九点标定（已去畸变）",
             CalibrationKind.PerspectiveUndistorted => "透视标定（已去畸变）",
             CalibrationKind.MeshUndistorted => "网格标定（已去畸变）",
+            // 手眼标定给的是相机系→机器人系的三维刚体变换，不是像素→毫米的平面映射，
+            // 本插件用不了它；这里只把名字显示成人话，避免落到 _ 分支露出 "HandEye"。
+            CalibrationKind.HandEye => "手眼标定（三维，本插件不适用）",
             _ => kind.ToString()
         };
 

@@ -64,7 +64,35 @@ namespace Core.Interfaces
         /// 内参是"显式建模后整个视野一致"（可外推）——两者都做时，去畸变把畸变拿掉、
         /// 网格只负责平面单应性，格内残差更小。
         /// </summary>
-        MeshUndistorted = 6
+        MeshUndistorted = 6,
+
+        /// <summary>
+        /// **手眼标定**（2026-10-22 新增，纯加法）：成对 (机器人位姿 A_i, 相机位姿 B_i) 求出的
+        /// **6-DOF 刚体变换** X，满足 A_i·X·B_i = const。产出用
+        /// <see cref="CalibrationTransform.HandEyeMatrix"/>（16 元 4×4 行主序）；
+        /// <see cref="CalibrationTransform.Matrix"/> 保持零（故意，与透视/网格同一纪律）：
+        /// 未升级的消费者走 6 元矩阵会**明确失败**，绝不允许把 6-DOF 静默降成平面仿射。
+        ///
+        /// 为什么不是 9 元：投影矩阵（Perspective）表达的是**平面到平面**的射影映射，
+        /// 手眼要的是三维刚体变换（旋转 + 平移），数学上不是一回事，不能用同一个数组装。
+        /// </summary>
+        HandEye = 7
+    }
+
+    /// <summary>
+    /// 手眼装法：决定 <see cref="CalibrationTransform.HandEyeMatrix"/> 里那个 4×4 的物理含义。
+    /// 两种装法的求解方程同形（A·X·B = const），**差别全在 B 是谁**——
+    /// 所以消费方拿不准装法时，矩阵看起来"完全正常"，错的是物理语义。
+    /// </summary>
+    public enum HandEyePoseKind
+    {
+        /// <summary>眼在手上（相机随机器人动）：X = T_gripper←camera，B_i = T_camera←target（靶标固定不动）</summary>
+        [System.ComponentModel.DataAnnotations.Display(Name = "眼在手上")]
+        EyeInHand = 0,
+
+        /// <summary>眼在手外（相机固定）：X = T_base←camera，B_i = T_target←gripper（靶标装在机器人上）</summary>
+        [System.ComponentModel.DataAnnotations.Display(Name = "眼在手外")]
+        EyeToHand = 1
     }
 
     /// <summary>
@@ -267,5 +295,35 @@ namespace Core.Interfaces
         /// 没有计数就无法区分"残差真的是 0"与"这个带根本没点"。
         /// </summary>
         public int[] ResidualBandCounts { get; set; } = new int[3];
+
+        /// <summary>
+        /// 手眼 4×4 刚体变换（**仅 Kind = HandEye 有效**，其余模式为 null），**16 元行主序**
+        /// [r11 r12 r13 tx, r21 r22 r23 ty, r31 r32 r33 tz, 0 0 0 1]。
+        ///
+        /// 语义按 <see cref="HandEyePoseKind"/> 区分：
+        /// · <c>EyeInHand</c>：X = T_gripper←camera（相机装在手上），满足 A_i·X·B_i = const，
+        ///   A_i = T_base←gripper（机器人控制器给的位姿）、B_i = T_camera←target（靶标在相机里的位姿）；
+        /// · <c>EyeToHand</c>：X = T_base←camera（相机固定），满足 A_i·X·B_i = const，
+        ///   其中 A_i = T_base←gripper、B_i = T_target←gripper（靶标装在手上）。
+        ///
+        /// **消费方必须自己判 Kind 再解释 X**：同一个 4×4 在两种装法下物理含义不同，
+        /// 混用不会报错，只会让抓取点整体偏一个常数——这类错误在单站调试里看不出来。
+        /// </summary>
+        public double[]? HandEyeMatrix { get; set; }
+
+        /// <summary>手眼装法（**仅 Kind = HandEye 有效**）：决定 <see cref="HandEyeMatrix"/> 的物理含义</summary>
+        public HandEyePoseKind HandEyePose { get; set; }
+
+        /// <summary>
+        /// 手眼求解的旋转残差 RMS（**弧度**，仅 Kind = HandEye 有效）。
+        /// 与 <see cref="ResidualRmsPx"/> 不同单位：那个是像素，这个是弧度——别混着判阈值。
+        /// </summary>
+        public double HandEyeRotationRmsRad { get; set; }
+
+        /// <summary>手眼求解的平移残差 RMS（**毫米**，仅 Kind = HandEye 有效）</summary>
+        public double HandEyeTranslationRmsMm { get; set; }
+
+        /// <summary>手眼求解实际参与的成对数据组数（仅 Kind = HandEye 有效）</summary>
+        public int HandEyeSampleCount { get; set; }
     }
 }
