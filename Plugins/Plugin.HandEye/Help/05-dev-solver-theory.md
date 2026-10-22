@@ -184,7 +184,9 @@ SVD 走 `AᵀA` 的特征分解：`AᵀA = V Σ² Vᵀ`，`U = A V Σ⁻¹`（σ
 | 文件 | 内容 |
 |---|---|
 | `HandEyeMath.cs` | 纯数学：`SolveAXEqualsXB`、`EulerZyxDegToMat3`、`PoseFromXyzEulerZyxDeg`、`Svd3`、`JacobiEigenSymmetric`、`Vec3`/`Mat3`/`Mat4` |
-| `HandEyePlugin.cs` | 端口、配置、CSV 读取、残差门、组装 `CalibrationTransform` |
+| `HandEyePlugin.cs` | 配置（含成对数据表 `Samples`）、表格 → 数学样本、残差门、组装 `CalibrationTransform` |
+| `Models/HandEyeSample.cs` | 表格一行的模型（12 个 double + `IsBlank` + `ToMathSample`）；`ToMathSample` 是全仓唯一的「一行 → 数学样本」入口 |
+| `HandEyeCsv.cs` | CSV 文本 ↔ 行集合，**不碰文件**（选文件、编码、覆盖确认归视图层） |
 
 `HandEyeMath.cs` **不引任何外部依赖**，可以直接被断言工程 `Compile Include` 进去跑，
 这是它刻意保持独立的原因。

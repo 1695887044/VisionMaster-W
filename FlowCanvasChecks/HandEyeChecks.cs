@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -7,6 +8,7 @@ using System.Text;
 using System.Threading;
 using Core.Interfaces;
 using Plugin.HandEye;
+using Plugin.HandEye.Models;
 using VisionMaster.Models;
 using VisionMaster.Services;
 using static FlowCanvasChecks.Program;
@@ -133,6 +135,7 @@ namespace FlowCanvasChecks
             MathLayer();
             EulerLayer();
             PluginLayer();
+            CsvLayer();
         }
 
         #endregion
@@ -282,185 +285,102 @@ namespace FlowCanvasChecks
                 new StubLog(), new FlowSession { FlowName = "手眼标定断言" },
                 new WorkspaceContext(), CancellationToken.None);
 
-            string dir = Path.Combine(Path.GetTempPath(), "vm-handeye-checks");
-            try
-            {
-                Directory.CreateDirectory(dir);
+            // ---- ⑦ 空表 ----
+            var empty = NewPlugin(Array.Empty<HandEyeSample>());
+            empty.RunAlgorithm(ctx);
+            Check("[HE] 插件①：表格为空 → 失败，且说清去哪儿加数据",
+                empty.Success.Value is false && Err(empty).Contains("还没有成对数据"), Err(empty));
 
-                // ---- ⑦ 空路径 ----
-                var noPath = NewPlugin(string.Empty);
-                noPath.RunAlgorithm(ctx);
-                Check("[HE] 插件①：没给路径 → 失败，且说清要填哪儿",
-                    noPath.Success.Value is false && Err(noPath).Contains("没有成对数据文件"), Err(noPath));
+            // ---- ⑧ 有一行没填（12 个值全 0）----
+            var blank = RowsFrom(MakeSamples(TrueX1(), RobotPoses));
+            blank.Insert(1, new HandEyeSample());
+            var pBlank = NewPlugin(blank);
+            pBlank.RunAlgorithm(ctx);
+            Check("[HE] 插件②：有一行没填 → 失败，点名「第 2 行还没填」而不是含糊报退化",
+                pBlank.Success.Value is false
+                && Err(pBlank).Contains("第 2 行") && Err(pBlank).Contains("还没填"),
+                Err(pBlank));
 
-                // ---- ⑧ 文件不存在 ----
-                var missing = NewPlugin(Path.Combine(dir, "不存在的文件.csv"));
-                missing.RunAlgorithm(ctx);
-                Check("[HE] 插件②：文件不存在 → 失败，且文案带完整路径",
-                    missing.Success.Value is false && Err(missing).Contains("不存在"), Err(missing));
+            // ---- ⑨ 成功路径的产物形态 ----
+            var pGood = NewPlugin(RowsFrom(MakeSamples(TrueX1(), RobotPoses)));
+            pGood.RunAlgorithm(ctx);
 
-                // ---- ⑨ 列数不对：必须报行号 + 实际列数 ----
-                string badCols = WriteText(dir, "bad-cols.csv",
-                    "1,2,3,4,5,6,7,8,9,10,11");
-                var pBadCols = NewPlugin(badCols);
-                pBadCols.RunAlgorithm(ctx);
-                Check("[HE] 插件③：11 列 → 失败，报出「有 11 列，应为 12 列」且带行号",
-                    pBadCols.Success.Value is false
-                    && Err(pBadCols).Contains("11 列") && Err(pBadCols).Contains("12 列")
-                    && Err(pBadCols).Contains("第 1 行"),
-                    Err(pBadCols));
+            bool isHe = pGood.Transform.Value is CalibrationTransform;
+            CalibrationTransform? got = isHe ? (CalibrationTransform?)pGood.Transform.Value : null;
 
-                // ---- ⑩ 非数字：必须报行号 + 列号 + 原文 ----
-                string badCell = WriteText(dir, "bad-cell.csv",
-                    "1,2,3,abc,5,6,7,8,9,10,11,12");
-                var pBadCell = NewPlugin(badCell);
-                pBadCell.RunAlgorithm(ctx);
-                Check("[HE] 插件④：第 4 列非数字 → 失败，报出「第 1 行第 4 列不是数字：「abc」」",
-                    pBadCell.Success.Value is false
-                    && Err(pBadCell).Contains("第 1 行第 4 列不是数字") && Err(pBadCell).Contains("abc"),
-                    Err(pBadCell));
+            Check("[HE] 插件③：8 行 → 成功，Kind = HandEye、矩阵 16 元、组数 8",
+                isHe && got!.Kind == CalibrationKind.HandEye
+                && got.HandEyeMatrix != null && got.HandEyeMatrix.Length == 16
+                && got.HandEyeSampleCount == 8,
+                isHe ? $"Kind={got!.Kind} 长度={got.HandEyeMatrix?.Length ?? -1} 组数={got.HandEyeSampleCount}"
+                     : "Transform 为 null");
 
-                // ---- ⑪ 表头 / 空行 / # 注释必须被忽略 ----
-                var clean = MakeSamples(TrueX1(), RobotPoses);
-                string good = WriteCsv(dir, "good.csv", clean, withHeader: true, withNoise: false);
-                var pGood = NewPlugin(good);
-                pGood.RunAlgorithm(ctx);
+            Check("[HE] 插件④：4×4 与数学层解出的 X 一致（插件没在中间改过它）",
+                got?.HandEyeMatrix != null && MatchesMatrix(got.HandEyeMatrix, TrueX1(), 1e-6),
+                got?.HandEyeMatrix == null ? "无矩阵" : DescribeDiff(got.HandEyeMatrix, TrueX1()));
 
-                Check("[HE] 插件⑤：表头 + 空行 + # 注释被忽略，8 组数据全部读入",
-                    pGood.Success.Value is true, Err(pGood));
+            Check("[HE] 插件⑤：三个指标端口都有值（残差与组数不是摆设）",
+                pGood.UsedPairs.Value is int used && used == 7
+                && pGood.TranslationRmsMm.Value is double tr && tr >= 0.0
+                && pGood.RotationRmsDeg.Value is double rr && rr >= 0.0,
+                $"组数={pGood.UsedPairs.Value} 平移RMS={pGood.TranslationRmsMm.Value} 旋转RMS(度)={pGood.RotationRmsDeg.Value}");
 
-                // ---- ⑫ 成功路径的产物形态 ----
-                bool isHe = pGood.Transform.Value is CalibrationTransform he;
-                CalibrationTransform? got = isHe ? (CalibrationTransform?)pGood.Transform.Value : null;
+            // ---- ⑩ 组数门：4 行默认判失败（建议 6 组），关掉开关后放行 ----
+            var pFourStrict = NewPlugin(
+                RowsFrom(MakeSamples(TrueX1(), RobotPoses.Take(4).ToArray())),
+                requireRecommended: true);
+            pFourStrict.RunAlgorithm(ctx);
+            Check("[HE] 插件⑥：4 行 + 默认从严 → 失败，文案点明「少于建议的 6 组」",
+                pFourStrict.Success.Value is false && Err(pFourStrict).Contains("少于建议的 6 组"),
+                Err(pFourStrict));
 
-                Check("[HE] 插件⑥：成功时 Transform 的 Kind = HandEye、矩阵 16 元、组数 8",
-                    isHe && got!.Kind == CalibrationKind.HandEye
-                    && got.HandEyeMatrix != null && got.HandEyeMatrix.Length == 16
-                    && got.HandEyeSampleCount == 8,
-                    isHe ? $"Kind={got!.Kind} 长度={got.HandEyeMatrix?.Length ?? -1} 组数={got.HandEyeSampleCount}"
-                         : "Transform 为 null");
+            var pFourLoose = NewPlugin(
+                RowsFrom(MakeSamples(TrueX1(), RobotPosesFourSpread)),
+                requireRecommended: false);
+            pFourLoose.RunAlgorithm(ctx);
+            Check("[HE] 插件⑦：4 行（旋转激励拉开）+ 关掉从严 → 成功，组数如实报 3",
+                pFourLoose.Success.Value is true
+                && pFourLoose.UsedPairs.Value is int u4 && u4 == 3,
+                pFourLoose.Success.Value is true ? $"组数={pFourLoose.UsedPairs.Value}" : Err(pFourLoose));
 
-                Check("[HE] 插件⑥：4×4 与数学层解出的 X 一致（插件没在中间改过它）",
-                    got?.HandEyeMatrix != null && MatchesMatrix(got.HandEyeMatrix, TrueX1(), 1e-6),
-                    got?.HandEyeMatrix == null ? "无矩阵" : DescribeDiff(got.HandEyeMatrix, TrueX1()));
+            // ---- ⑪ 残差门：脏数据必须被拦，且文案指到「点位数据」 ----
+            var noisyRows = RowsFrom(MakeSamples(TrueX1(), RobotPoses), withNoise: true);
+            var pNoisy = NewPlugin(noisyRows, maxTrans: 1e-6);
+            pNoisy.RunAlgorithm(ctx);
+            Check("[HE] 插件⑧：平移残差超上限 → 失败，文案点明「点位数据可能含错点」",
+                pNoisy.Success.Value is false
+                && Err(pNoisy).Contains("超过上限") && Err(pNoisy).Contains("点位数据"),
+                Err(pNoisy));
 
-                Check("[HE] 插件⑥：三个指标端口都有值（残差与组数不是摆设）",
-                    pGood.UsedPairs.Value is int used && used == 7
-                    && pGood.TranslationRmsMm.Value is double tr && tr >= 0.0
-                    && pGood.RotationRmsDeg.Value is double rr && rr >= 0.0,
-                    $"组数={pGood.UsedPairs.Value} 平移RMS={pGood.TranslationRmsMm.Value} 旋转RMS(度)={pGood.RotationRmsDeg.Value}");
+            // 同样的脏数据，把上限放宽到 1 mm 就该放行 —— 证明拦它的是门，不是别的东西
+            var pNoisyLoose = NewPlugin(noisyRows, maxTrans: 1.0);
+            pNoisyLoose.RunAlgorithm(ctx);
+            Check("[HE] 插件⑨：同数据把上限放宽到 1 mm → 放行（拦它的是残差门，不是别的）",
+                pNoisyLoose.Success.Value is true, Err(pNoisyLoose));
 
-                // ---- ⑬ 组数门：4 组默认判失败（建议 6 组），关掉开关后放行 ----
-                string four = WriteCsv(dir, "four.csv", MakeSamples(TrueX1(), RobotPoses.Take(4).ToArray()),
-                    withHeader: false, withNoise: false);
-
-                var pFourStrict = NewPlugin(four, requireRecommended: true);
-                pFourStrict.RunAlgorithm(ctx);
-                Check("[HE] 插件⑦：4 组 + 默认从严 → 失败，文案点明「少于建议的 6 组」",
-                    pFourStrict.Success.Value is false && Err(pFourStrict).Contains("少于建议的 6 组"),
-                    Err(pFourStrict));
-
-                var pFourLoose = NewPlugin(
-                    WriteCsv(dir, "four-spread.csv", MakeSamples(TrueX1(), RobotPosesFourSpread),
-                        withHeader: false, withNoise: false),
-                    requireRecommended: false);
-                pFourLoose.RunAlgorithm(ctx);
-                Check("[HE] 插件⑦：4 组（旋转激励拉开）+ 关掉从严 → 成功，组数如实报 3",
-                    pFourLoose.Success.Value is true
-                    && pFourLoose.UsedPairs.Value is int u4 && u4 == 3,
-                    pFourLoose.Success.Value is true ? $"组数={pFourLoose.UsedPairs.Value}" : Err(pFourLoose));
-
-                // ---- ⑭ 残差门：脏数据必须被拦，且文案指到「点位数据」 ----
-                string noisy = WriteCsv(dir, "noisy.csv", clean, withHeader: false, withNoise: true);
-                var pNoisy = NewPlugin(noisy, maxTrans: 1e-6);
-                pNoisy.RunAlgorithm(ctx);
-                Check("[HE] 插件⑧：平移残差超上限 → 失败，文案点明「点位数据可能含错点」",
-                    pNoisy.Success.Value is false
-                    && Err(pNoisy).Contains("超过上限") && Err(pNoisy).Contains("点位数据"),
-                    Err(pNoisy));
-
-                // 同样的脏数据，把上限放宽到 1 mm 就该放行 —— 证明拦它的是门，不是别的东西
-                var pNoisyLoose = NewPlugin(noisy, maxTrans: 1.0);
-                pNoisyLoose.RunAlgorithm(ctx);
-                Check("[HE] 插件⑧：同数据把上限放宽到 1 mm → 放行（拦它的是残差门，不是别的）",
-                    pNoisyLoose.Success.Value is true, Err(pNoisyLoose));
-
-                // ---- ⑮ 失败时必须把上一轮的结果清掉 ----
-                var pStale = NewPlugin(good);
-                pStale.RunAlgorithm(ctx);
-                bool firstOk = pStale.Success.Value is true;
-                pStale.SamplesFilePath = Path.Combine(dir, "又不存在.csv");
-                pStale.RunAlgorithm(ctx);
-                Check("[HE] 插件⑨：失败后 Transform 置空、指标归零（下游不会读到上一轮残留）",
-                    firstOk
-                    && pStale.Success.Value is false
-                    && pStale.Transform.Value is null
-                    && pStale.UsedPairs.Value is int zero && zero == 0,
-                    $"Transform={(pStale.Transform.Value == null ? "null" : "非 null")} 组数={pStale.UsedPairs.Value}");
-            }
-            finally
-            {
-                try
-                {
-                    if (Directory.Exists(dir))
-                        Directory.Delete(dir, recursive: true);
-                }
-                catch (Exception)
-                {
-                    // 临时目录删不掉不影响断言结论，留给人手清
-                }
-            }
-        }
-
-        private static HandEyePlugin NewPlugin(
-            string path,
-            bool requireRecommended = true,
-            double maxTrans = 1.0,
-            double maxRot = 0.5)
-        {
-            // ⚠ 这些属性都带 [DefaultValue]，但只有走 Initialize 才会被填；
-            // 断言里直接 new 出来必须**逐个显式赋值**，否则默认是 0/false 而不是 1.0/true。
-            return new HandEyePlugin
-            {
-                SamplesFilePath = path,
-                RequireRecommendedPairs = requireRecommended,
-                MaxTranslationRmsMm = maxTrans,
-                MaxRotationRmsDeg = maxRot,
-                PoseKind = HandEyePoseKind.EyeInHand,
-            };
-        }
-
-        private static string Err(HandEyePlugin plugin)
-            => plugin.ErrorMessage.Value as string ?? string.Empty;
-
-        #endregion
-
-        #region CSV 写入（与插件的读取口径一致）
-
-        private static string WriteText(string dir, string name, params string[] lines)
-        {
-            string path = Path.Combine(dir, name);
-            File.WriteAllText(path, string.Join(Environment.NewLine, lines) + Environment.NewLine,
-                new UTF8Encoding(false));
-            return path;
+            // ---- ⑫ 失败时必须把上一轮的结果清掉 ----
+            var pStale = NewPlugin(RowsFrom(MakeSamples(TrueX1(), RobotPoses)));
+            pStale.RunAlgorithm(ctx);
+            bool firstOk = pStale.Success.Value is true;
+            pStale.Samples.Clear();
+            pStale.RunAlgorithm(ctx);
+            Check("[HE] 插件⑩：失败后 Transform 置空、指标归零（下游不会读到上一轮残留）",
+                firstOk
+                && pStale.Success.Value is false
+                && pStale.Transform.Value is null
+                && pStale.UsedPairs.Value is int zero && zero == 0,
+                $"Transform={(pStale.Transform.Value == null ? "null" : "非 null")} 组数={pStale.UsedPairs.Value}");
         }
 
         /// <summary>
-        /// 把样本写成插件要的 12 列 CSV。表头、空行、`#` 注释一起写进去，
-        /// 是为了让"读取器该忽略什么"也有覆盖。
+        /// 造插件要的行集合。落成 12 个数走 <see cref="HandEyeMath.Mat4ToXyzEulerZyxDeg"/>，
+        /// 与界面手填的输入是同一形状 —— 只喂 <see cref="HandEyeMath.Sample"/> 就测不到
+        /// "行 → 数学样本"这段换算（那正是 ZYX 约定最容易分叉的地方）。
         /// </summary>
-        private static string WriteCsv(
-            string dir, string name, IReadOnlyList<HandEyeMath.Sample> samples,
-            bool withHeader, bool withNoise)
+        private static ObservableCollection<HandEyeSample> RowsFrom(
+            IReadOnlyList<HandEyeMath.Sample> samples, bool withNoise = false)
         {
-            var sb = new StringBuilder();
-            if (withHeader)
-            {
-                sb.AppendLine("robotX,robotY,robotZ,robotRx,robotRy,robotRz,camX,camY,camZ,camRx,camRy,camRz");
-                sb.AppendLine("# 位置单位 mm、姿态 ZYX 欧拉（度）；本行与空行都会被忽略");
-                sb.AppendLine();
-            }
-
+            var rows = new ObservableCollection<HandEyeSample>();
             for (int i = 0; i < samples.Count; i++)
             {
                 Mat4 robot = samples[i].Robot;
@@ -471,24 +391,120 @@ namespace FlowCanvasChecks
                     robot = Mat4.FromRt(robot.Rotation, new Vec3(t.X + jitter, t.Y - jitter, t.Z));
                 }
 
-                HandEyeMath.Mat4ToXyzEulerZyxDeg(robot,
-                    out double rx, out double ry, out double rz,
-                    out double rrx, out double rry, out double rrz);
-                HandEyeMath.Mat4ToXyzEulerZyxDeg(samples[i].Camera,
-                    out double cx, out double cy, out double cz,
-                    out double crx, out double cry, out double crz);
-
-                sb.AppendLine(string.Join(",", new[]
-                {
-                    rx, ry, rz, rrx, rry, rrz, cx, cy, cz, crx, cry, crz
-                }.Select(v => v.ToString("R", CultureInfo.InvariantCulture))));
+                AppendRow(rows, robot, samples[i].Camera);
             }
-
-            string path = Path.Combine(dir, name);
-            File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
-            return path;
+            return rows;
         }
 
+        private static void AppendRow(ObservableCollection<HandEyeSample> rows, Mat4 robot, Mat4 camera)
+        {
+            HandEyeMath.Mat4ToXyzEulerZyxDeg(robot,
+                out double rx, out double ry, out double rz,
+                out double rrx, out double rry, out double rrz);
+            HandEyeMath.Mat4ToXyzEulerZyxDeg(camera,
+                out double cx, out double cy, out double cz,
+                out double crx, out double cry, out double crz);
+
+            var row = new HandEyeSample();
+            row.SetRow(new[] { rx, ry, rz, rrx, rry, rrz, cx, cy, cz, crx, cry, crz });
+            rows.Add(row);
+        }
+
+        private static HandEyePlugin NewPlugin(
+            IEnumerable<HandEyeSample> rows,
+            bool requireRecommended = true,
+            double maxTrans = 1.0,
+            double maxRot = 0.5)
+        {
+            // ⚠ 这些属性都带 [DefaultValue]，但只有走 Initialize 才会被填；
+            // 断言里直接 new 出来必须**逐个显式赋值**，否则默认是 0/false 而不是 1.0/true。
+            var plugin = new HandEyePlugin
+            {
+                RequireRecommendedPairs = requireRecommended,
+                MaxTranslationRmsMm = maxTrans,
+                MaxRotationRmsDeg = maxRot,
+                PoseKind = HandEyePoseKind.EyeInHand,
+            };
+            foreach (var r in rows)
+                plugin.Samples.Add(r);
+            return plugin;
+        }
+
+        private static string Err(HandEyePlugin plugin)
+            => plugin.ErrorMessage.Value as string ?? string.Empty;
+
+        #endregion
+
+        #region CSV 导入导出
+
+        /// <summary>
+        /// CSV 是扩展功能 —— 数据住在表格（<c>Samples</c>）里，CSV 只负责把一批行搬进搬出。
+        /// 这里只验「文本 ↔ 行」这一段，不碰文件（选文件、编码、覆盖确认归视图层）。
+        /// </summary>
+        private static void CsvLayer()
+        {
+            // ---- ① 解析：表头 / 空行 / # 注释都要让过去 ----
+            var lines = new[]
+            {
+                HandEyeCsv.Header,
+                "1,2,3,4,5,6,7,8,9,10,11,12",
+                "",
+                "# 现场备注：这一批是 10-22 上午采的",
+                "13.5,-2,3.25,0,0,0,100,200,300,0,0,90",
+            };
+
+            bool parsedOk = HandEyeCsv.TryParse(lines, out List<HandEyeSample> parsed, out string? parseErr);
+            Check("[HE] CSV①：表头 / 空行 / # 注释都跳过，两行数据都读进来",
+                parsedOk && parsed.Count == 2,
+                parsedOk ? $"行数={parsed.Count}" : parseErr ?? "解析失败但没给原因");
+
+            bool placed = parsedOk && parsed.Count == 2
+                && Math.Abs(parsed[0].RobotX - 1.0) < 1e-12
+                && Math.Abs(parsed[0].CameraRz - 12.0) < 1e-12
+                && Math.Abs(parsed[1].RobotX - 13.5) < 1e-12
+                && Math.Abs(parsed[1].CameraZ - 300.0) < 1e-12
+                && Math.Abs(parsed[1].CameraRz - 90.0) < 1e-12;
+            Check("[HE] CSV②：12 个数各就各位（第 1 行 robotX=1 cameraRz=12，第 2 行 robotX=13.5 cameraZ=300 cameraRz=90）",
+                placed, parsedOk && parsed.Count == 2 ? "首行与末列取值已核对" : "行数不对，跳过");
+
+            // ---- ② 少一列必须点名行号与应有列数 ----
+            bool colRejected = HandEyeCsv.TryParse(new[] { "1,2,3" }, out _, out string? colErr);
+            Check("[HE] CSV③：只给 3 列 → 失败，文案点名「第 1 行有 3 列，应为 12 列」",
+                !colRejected && colErr != null && colErr.Contains("3 列") && colErr.Contains("12"),
+                colErr ?? "居然通过了");
+
+            // ---- ③ 写了字母必须点名第几列、原值是什么 ----
+            bool numRejected = HandEyeCsv.TryParse(
+                new[] { "1,2,3,abc,5,6,7,8,9,10,11,12" }, out _, out string? numErr);
+            Check("[HE] CSV④：第 4 列写 abc → 失败，文案点名「第 4 列」并带上原值",
+                !numRejected && numErr != null && numErr.Contains("第 4 列") && numErr.Contains("abc"),
+                numErr ?? "居然通过了");
+
+            // ---- ④ 导出再导入：每行 12 个数逐位回来 ----
+            var rows = RowsFrom(MakeSamples(TrueX1(), RobotPoses));
+            string text = HandEyeCsv.Format(rows);
+            var textLines = text.Split(new[] { "\r\n" }, StringSplitOptions.None);
+
+            bool roundOk = HandEyeCsv.TryParse(textLines, out List<HandEyeSample> back, out string? roundErr);
+            bool same = roundOk && back.Count == rows.Count;
+            if (same)
+            {
+                for (int i = 0; i < rows.Count && same; i++)
+                {
+                    double[] a = rows[i].ToRow();
+                    double[] b = back[i].ToRow();
+                    for (int k = 0; k < a.Length; k++)
+                    {
+                        if (Math.Abs(a[k] - b[k]) > 1e-9) { same = false; break; }
+                    }
+                }
+            }
+
+            Check("[HE] CSV⑤：导出再导入，每行 12 个数逐位一致（不丢精度、不串列）",
+                same, roundOk ? $"导出 {back.Count} 行 / 原 {rows.Count} 行" : roundErr ?? "解析失败");
+        }
+
+        #endregion
         private static bool MatchesMatrix(double[] flat, Mat4 want, double tol)
         {
             if (flat.Length != 16) return false;
@@ -512,6 +528,5 @@ namespace FlowCanvasChecks
             return at < 0 ? "长度不足 16" : $"最大偏差 {max:0.###e+0}（第 {at} 个元素）";
         }
 
-        #endregion
     }
 }

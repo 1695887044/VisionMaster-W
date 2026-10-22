@@ -1,10 +1,11 @@
 using Core.Interfaces;
+using Newtonsoft.Json;
+using Plugin.HandEye.Models;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
-using System.Globalization;
-using System.IO;
 
 namespace Plugin.HandEye
 {
@@ -39,19 +40,10 @@ namespace Plugin.HandEye
     )]
     public partial class HandEyePlugin : VisionPluginBase
     {
-        #region 输入端口
-
-        /// <summary>
-        /// 成对数据文件路径（可选）：接了就用端口值，不接用配置里的 <see cref="SamplesFilePath"/>。
-        /// 做成端口是为了让"同一套流程跑不同站位"不必改步骤配置。
-        /// </summary>
-        public InputPort<string> SamplesPath { get; } = new(
-            "SamplesPath",
-            "",
-            "成对数据文件路径（可选；不接则用步骤配置里的路径）")
-        { IsRequired = false };
-
-        #endregion
+        // 本插件**没有输入端口**（2026-10-22 改版）：成对数据住在步骤配置的 Samples 列表里。
+        // 原来那个 `SamplesPath` 端口（把 CSV 路径接进来）已删除 —— 数据在磁盘上意味着
+        // 方案换台机器就断，而且"改一个错数字"要跑出去改文件。CSV 降级为导入/导出功能，
+        // 由视图负责选文件，见 HandEyeCsv。
 
         #region 输出端口
 
@@ -79,13 +71,42 @@ namespace Plugin.HandEye
         public partial HandEyePoseKind PoseKind { get; set; }
 
         /// <summary>
-        /// 成对数据文件（CSV，UTF-8）：12 列
-        /// robotX,robotY,robotZ,robotRx,robotRy,robotRz,camX,camY,camZ,camRx,camRy,camRz
-        /// 位置单位 mm、角度单位度、姿态按 **ZYX 欧拉**；首行可写表头（非数字开头即跳过），
-        /// 空行与 `#` 开头的行忽略。
+        /// 成对数据表：每行一组「机器人位姿 ↔ 相机位姿」（12 个分量，位置 mm / 角度度 / ZYX 欧拉）。
+        /// **数据的家在这里**，不是磁盘上的 csv：
+        ///   · 方案（.vms）要能独立拷走，路径指向的文件一换机器就断；
+        ///   · 现场最常见的操作是"改一个错数字 / 删一行离群 / 补一组"，不该要求用户去 Excel 改完再回来；
+        ///   · 采集时逐组加一行本身就是要留的台账。
+        /// CSV 是导入/导出的扩展功能（<see cref="HandEyeCsv"/>），不是主入口。
+        /// setter 里 `?? new(...)`：反序列化遇到 null 时不许把列表变成 null，
+        /// 否则视图绑定与 RunAlgorithm 都要各自判空（CaliperMeasure 同款写法）。
         /// </summary>
-        [StepConfig, DefaultValue("")]
-        public partial string SamplesFilePath { get; set; }
+        [StepConfig]
+        public ObservableCollection<HandEyeSample> Samples
+        {
+            get => _samples;
+            set
+            {
+                _samples = value ?? new ObservableCollection<HandEyeSample>();
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SampleCountHint));
+            }
+        }
+
+        private ObservableCollection<HandEyeSample> _samples = new();
+
+        /// <summary>概况文案（界面直接绑）：只陈述事实，不给建议</summary>
+        [JsonIgnore]
+        public string SampleCountHint
+        {
+            get
+            {
+                int n = _samples?.Count ?? 0;
+                if (n == 0) return "还没有成对数据";
+                return n < HandEyeMath.RecommendedPairs
+                    ? $"已录入 {n} 组 · 建议 ≥ {HandEyeMath.RecommendedPairs} 组"
+                    : $"已录入 {n} 组 · 达到建议组数";
+            }
+        }
 
         /// <summary>平移残差上限（毫米）：超了判失败。默认 1.0 —— 抓取类应用的常用量级</summary>
         [StepConfig, DefaultValue(1.0)]
@@ -121,23 +142,7 @@ namespace Plugin.HandEye
             TranslationRmsMm.Value = 0;
             UsedPairs.Value = 0;
 
-            string path = SamplesPath.ActualValue;
-            if (string.IsNullOrWhiteSpace(path))
-                path = SamplesFilePath ?? string.Empty;
-
-            if (string.IsNullOrWhiteSpace(path))
-            {
-                Fail("没有成对数据文件：请填写「成对数据文件」路径，或把上游的路径接到 SamplesPath 端口");
-                return;
-            }
-
-            if (!File.Exists(path))
-            {
-                Fail($"成对数据文件不存在：{path}");
-                return;
-            }
-
-            if (!TryLoadSamples(path, out List<HandEyeMath.Sample> samples, out string? loadError))
+            if (!TryBuildSamples(out List<HandEyeMath.Sample> samples, out string? loadError))
             {
                 Fail(loadError!);
                 return;
@@ -184,7 +189,7 @@ namespace Plugin.HandEye
                 HandEyeTranslationRmsMm = q.TranslationRms,
                 HandEyeSampleCount = q.UsedPairs + 1,
                 CreatedAtUtc = DateTime.UtcNow,
-                SourceTag = Path.GetFileName(path)
+                SourceTag = "成对数据表"
             };
 
             Transform.Value = transform;
@@ -192,85 +197,53 @@ namespace Plugin.HandEye
 
         #endregion
 
-        #region CSV 读取
+        #region 成对数据表 → 数学样本
 
         /// <summary>
-        /// 读 12 列 CSV。**逐行给出行号与原始文本**：现场最常见的错是"某一行少一列"
-        /// 或"角度单位混用"，只说"格式错误"会让人从头数到尾。
+        /// 把配置里的 <see cref="Samples"/> 表转成数学层样本。
+        ///
+        /// 两条判据各自有独立的失败文案（别合并成一句"数据有问题"）：
+        ///   · 表是空的 → 用户还没录，"去表格里加行或导入 CSV"能直接指导动作；
+        ///   · 某行 12 个值全为 0 → 加了行但没填。这是最容易发生也最难自查的一步：
+        ///     不拦的话它会混进求解，报出来的却是"旋转激励不足"，人只会去怀疑姿态数据。
+        ///
+        /// 先快照再算：表格由界面线程编辑，求解可能不在同一线程；
+        /// 直接遍历 `Samples` 会在用户删行的瞬间抛 InvalidOperationException。
         /// </summary>
-        private static bool TryLoadSamples(
-            string path,
+        private bool TryBuildSamples(
             out List<HandEyeMath.Sample> samples,
             out string? error)
         {
             samples = new List<HandEyeMath.Sample>();
             error = null;
 
-            string[] lines;
-            try
+            HandEyeSample[] rows = _samples is null ? Array.Empty<HandEyeSample>() : _samples.ToArray();
+
+            if (rows.Length == 0)
             {
-                lines = File.ReadAllLines(path);
-            }
-            catch (Exception ex)
-            {
-                error = $"成对数据文件读不出来：{ex.Message}";
+                error = "还没有成对数据：在表格里加一行，或点「导入 CSV」";
                 return false;
             }
 
-            for (int i = 0; i < lines.Length; i++)
+            for (int i = 0; i < rows.Length; i++)
             {
-                string line = lines[i].Trim();
-                if (line.Length == 0 || line[0] == '#')
-                    continue;
-
-                string[] cells = line.Split(',');
-                if (cells.Length != 12)
+                if (rows[i] is null)
                 {
-                    // 表头（首列不是数字）跳过；其余按错误报
-                    if (samples.Count == 0 && i < 3 && !LooksNumeric(cells[0]))
-                        continue;
-
-                    error = $"成对数据第 {i + 1} 行有 {cells.Length} 列，应为 12 列：{line}";
+                    error = $"成对数据第 {i + 1} 行是空的：删掉这一行再求解";
                     return false;
                 }
 
-                var v = new double[12];
-                bool ok = true;
-                for (int c = 0; c < 12; c++)
+                if (rows[i].IsBlank)
                 {
-                    if (!double.TryParse(cells[c].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out v[c]))
-                    {
-                        // 表头：首列不是数字
-                        if (samples.Count == 0 && c == 0 && i < 3)
-                        {
-                            ok = false;
-                            break;
-                        }
-
-                        error = $"成对数据第 {i + 1} 行第 {c + 1} 列不是数字：「{cells[c].Trim()}」";
-                        return false;
-                    }
+                    error = $"成对数据第 {i + 1} 行还没填（12 个值全为 0）：填完或删掉这一行再求解";
+                    return false;
                 }
 
-                if (!ok)
-                    continue;
-
-                var robot = HandEyeMath.PoseFromXyzEulerZyxDeg(v[0], v[1], v[2], v[3], v[4], v[5]);
-                var camera = HandEyeMath.PoseFromXyzEulerZyxDeg(v[6], v[7], v[8], v[9], v[10], v[11]);
-                samples.Add(new HandEyeMath.Sample(robot, camera));
-            }
-
-            if (samples.Count == 0)
-            {
-                error = "成对数据文件里没有有效数据行（应为 12 列 CSV，空行与 # 开头的行会被忽略）";
-                return false;
+                samples.Add(rows[i].ToMathSample());
             }
 
             return true;
         }
-
-        private static bool LooksNumeric(string text)
-            => double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out _);
 
         #endregion
     }

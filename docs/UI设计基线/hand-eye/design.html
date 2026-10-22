@@ -2,555 +2,403 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>手眼标定配置窗口 · 设计基线 v1</title>
+<title>手眼标定 · 配置窗口设计基线 v2</title>
 <style>
   :root{
-    --he-surface:#FFFFFF; --he-surface-2:#F8FAFC; --he-surface-3:#F1F5F9; --he-input:#F8FAFC;
-    --he-border:#E2E8F0; --he-border-soft:#EEF2F7; --he-border-strong:#CBD5E1; --he-card-border:#E3E9F2;
-    --he-text:#0F172A; --he-text-2:#475569; --he-text-3:#64748B; --he-text-4:#94A3B8;
-    --he-primary:#0EA5E9; --he-primary-dark:#0284C7; --he-primary-text:#0369A1;
-    --he-primary-soft:#F0F9FF; --he-primary-light:#E0F2FE; --he-primary-border:#BAE6FD;
-    --he-success:#22C55E; --he-success-text:#15803D; --he-success-soft:#F0FDF4; --he-success-border:#BBF7D0;
-    --he-warning:#F59E0B; --he-warning-text:#B45309; --he-warning-soft:#FFF4E5; --he-warning-border:#FDE68A;
-    --he-danger:#EF4444; --he-danger-text:#B91C1C; --he-danger-soft:#FEF2F2; --he-danger-border:#FECACA;
-    --he-mono:"Consolas","Cascadia Mono",ui-monospace,monospace;
+    --surface:#FFFFFF; --row-alt:#F8FAFC; --row-hover:#F1F5F9; --input-bg:#F8FAFC;
+    --bd:#E2E8F0; --bd-l:#EEF2F7; --bd-s:#CBD5E1; --card-bd:#E3E9F2;
+    --t1:#0F172A; --t2:#475569; --t3:#64748B; --t4:#94A3B8;
+    --ac:#0EA5E9; --ac-d:#0284C7; --ac-t:#0369A1; --ac-soft:#F0F9FF; --ac-l:#E0F2FE; --ac-bd:#BAE6FD;
+    --ok:#22C55E; --ok-t:#15803D; --ok-s:#F0FDF4; --ok-bd:#BBF7D0;
+    --wn:#F59E0B; --wn-t:#B45309; --wn-s:#FFF4E5; --wn-bd:#FDE68A;
+    --dg:#EF4444; --dg-t:#B91C1C; --dg-s:#FEF2F2; --dg-bd:#FECACA;
   }
-  *{box-sizing:border-box}
-  html,body{margin:0;padding:0}
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
   body{
-    background:#EEF1F5; color:var(--he-text);
-    font-family:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
-    font-size:13px; -webkit-font-smoothing:antialiased;
-    padding:28px 24px 64px;
+    background:#EEF1F5; font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    color:var(--t1); font-size:13px; padding:18px; display:flex; justify-content:center;
   }
-  .doc-head{max-width:1000px;margin:0 auto 18px}
-  .doc-head h1{font-size:17px;margin:0 0 6px;font-weight:600}
-  .doc-head p{margin:0;color:var(--he-text-3);font-size:12px;line-height:1.7}
-  .doc-head code{font-family:var(--he-mono);font-size:11.5px;background:#fff;border:1px solid var(--he-border);border-radius:4px;padding:1px 5px}
+  .page{width:960px;max-width:100%;background:var(--surface);border:1px solid var(--bd);
+    border-radius:10px;box-shadow:0 1px 2px rgba(15,23,42,.06);overflow:hidden;display:flex;flex-direction:column;}
+  body[data-width="640"] .page{width:640px;}
 
-  .bar{max-width:1000px;margin:0 auto 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .bar .lbl{font-size:12px;color:var(--he-text-3);margin-right:2px}
-  .bar button{
-    font:inherit;font-size:12px;height:30px;padding:0 12px;border-radius:6px;cursor:pointer;
-    background:#fff;border:1px solid var(--he-border-strong);color:var(--he-text-2);
-  }
-  .bar button:hover{background:var(--he-surface-3)}
-  .bar button[aria-pressed="true"]{background:var(--he-primary);border-color:var(--he-primary);color:#fff}
-  .bar .sep{width:1px;height:22px;background:var(--he-border-strong);margin:0 6px}
+  /* ---------- 头部 ---------- */
+  .hdr{display:flex;align-items:flex-start;gap:12px;padding:16px 18px 12px;border-bottom:1px solid var(--bd-l);}
+  .hdr h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.2px;}
+  .hdr .sub{margin:3px 0 0;font-size:11.5px;color:var(--t3);}
+  .hdr .chip{margin-left:auto;flex:0 0 auto;}
+  .chip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:12px;
+    font-size:11.5px;font-weight:600;border:1px solid transparent;}
+  .chip .dot{width:6px;height:6px;border-radius:50%;}
+  .chip.ok{background:var(--ok-s);border-color:var(--ok-bd);color:var(--ok-t);}
+  .chip.ok .dot{background:var(--ok);}
+  .chip.err{background:var(--dg-s);border-color:var(--dg-bd);color:var(--dg-t);}
+  .chip.err .dot{background:var(--dg);}
+  .chip.muted{background:var(--row-alt);border-color:var(--bd);color:var(--t3);}
+  .chip.muted .dot{background:var(--t4);}
+  body:not([data-state="failed"]) .only-failed{display:none;}
+  body:not([data-state="default"]) .only-ok{display:none;}
+  body:not([data-state="empty"]) .only-empty{display:none;}
+  body[data-state="empty"] .has-rows{display:none;}
 
-  /* ---------- window ---------- */
-  .win{
-    max-width:1000px;margin:0 auto;background:var(--he-surface);
-    border:1px solid var(--he-border-strong);border-radius:10px;overflow:hidden;
-    box-shadow:0 10px 30px rgba(15,23,42,.10);
-  }
-  .win-title{
-    height:40px;display:flex;align-items:center;gap:8px;padding:0 14px;
-    background:var(--he-surface-2);border-bottom:1px solid var(--he-border);
-    font-size:12.5px;color:var(--he-text-2);
-  }
-  .win-title .dot{width:8px;height:8px;border-radius:50%;background:var(--he-primary)}
-  .win-title .name{font-weight:600;color:var(--he-text)}
-  .win-title .spacer{flex:1}
-  .win-title .step{font-family:var(--he-mono);font-size:11px;color:var(--he-text-4)}
+  /* ---------- 工具条 ---------- */
+  .toolbar{display:flex;align-items:flex-end;gap:14px;padding:12px 18px;border-bottom:1px solid var(--bd-l);background:#FCFDFE;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:11px;color:var(--t3);font-weight:600;}
+  .seg{display:inline-flex;border:1px solid var(--bd-s);border-radius:6px;overflow:hidden;background:var(--surface);}
+  .seg button{border:0;background:transparent;padding:0 12px;height:30px;font:inherit;font-size:12px;
+    color:var(--t2);cursor:default;}
+  .seg button+button{border-left:1px solid var(--bd-s);}
+  .seg button.on{background:var(--ac-soft);color:var(--ac-t);font-weight:600;}
+  .num{display:inline-flex;align-items:center;height:30px;border:1px solid var(--bd-s);border-radius:6px;
+    background:var(--input-bg);padding:0 8px;gap:4px;}
+  .num input{border:0;background:transparent;width:52px;font:inherit;font-size:12.5px;color:var(--t1);
+    text-align:right;outline:none;}
+  .num span{font-size:11px;color:var(--t4);}
+  .cb{display:inline-flex;align-items:center;gap:6px;height:30px;font-size:12px;color:var(--t2);}
+  .cb .box{width:14px;height:14px;border-radius:3px;border:1px solid var(--bd-s);background:var(--surface);
+    position:relative;}
+  .cb.on .box{background:var(--ac);border-color:var(--ac);}
+  .cb.on .box:after{content:"";position:absolute;left:3.5px;top:1px;width:5px;height:8px;
+    border:2px solid #fff;border-top:0;border-left:0;transform:rotate(42deg);}
+  .grow{flex:1 1 auto;}
+  .btn{height:30px;padding:0 12px;border-radius:6px;border:1px solid var(--bd-s);background:var(--surface);
+    color:var(--t2);font:inherit;font-size:12px;cursor:default;white-space:nowrap;}
+  .btn.primary{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600;}
+  .btn.primary:hover{background:var(--ac-d);}
+  .btn.ghost{border-style:dashed;color:var(--ac-t);border-color:var(--ac-bd);background:var(--ac-soft);}
 
-  .body{display:flex;height:600px;background:var(--he-surface)}
-  body[data-width="640"] .body{height:600px}
+  /* ---------- 表格 ---------- */
+  .tblwrap{max-height:296px;overflow:auto;border-bottom:1px solid var(--bd-l);}
+  /* min-width 是硬要求：12 个数值列挤到 600px 会变成 512.3C（末位被裁），
+     看起来像数据错，实际是列宽不够。低于这个宽度走横向滚动 + 首列冻结。 */
+  table{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;font-size:12px;}
+  thead th{position:sticky;top:0;z-index:2;background:var(--row-alt);color:var(--t3);font-weight:600;
+    font-size:10.5px;letter-spacing:.3px;border-bottom:1px solid var(--bd);padding:5px 4px;text-align:right;
+    white-space:nowrap;}
+  thead tr.grp th{top:0;text-align:center;font-size:10.5px;padding:5px 4px 3px;border-bottom:1px solid var(--bd-l);}
+  thead tr.cols th{top:26px;}
+  thead th.idx,td.idx{width:34px;text-align:center;color:var(--t4);position:sticky;left:0;z-index:3;
+    background:var(--row-alt);border-right:1px solid var(--bd-l);}
+  thead th.op,td.op{width:32px;text-align:center;}
+  th.g-robot{color:var(--ac-t);}
+  th.g-cam{color:#7C3AED;}
+  tbody td{padding:3px 4px;text-align:right;border-bottom:1px solid var(--bd-l);color:var(--t1);
+    font-variant-numeric:tabular-nums;}
+  tbody tr:nth-child(even) td{background:var(--row-alt);}
+  tbody tr:nth-child(even) td.idx{background:#F1F5F9;}
+  tbody tr:hover td{background:var(--row-hover);}
+  tbody tr:hover td.idx{background:var(--row-hover);}
+  td.cell input{border:1px solid transparent;border-radius:4px;background:transparent;width:100%;
+    text-align:right;font:inherit;font-size:12px;color:inherit;padding:2px 3px;outline:none;}
+  td.cell:hover input{border-color:var(--bd);background:var(--surface);}
+  td.op .del{width:20px;height:20px;border:0;background:transparent;color:var(--t4);cursor:default;
+    border-radius:4px;font-size:13px;line-height:1;}
+  tbody tr:hover td.op .del{color:var(--dg);background:var(--dg-s);}
+  .blank input{color:var(--t4);}
+  tr.isblank td.cell{background:var(--wn-s);}
+  .tblfoot{display:flex;align-items:center;gap:12px;padding:8px 18px;border-bottom:1px solid var(--bd-l);}
+  .tblfoot .cnt{margin-left:auto;font-size:11.5px;color:var(--t3);}
+  .tblfoot .cnt b{color:var(--ac-t);}
 
-  /* ---------- left rail ---------- */
-  .rail{
-    width:360px;flex:0 0 360px;padding:14px;display:flex;flex-direction:column;overflow:hidden;
-    background:var(--he-surface-2);border-right:1px solid var(--he-border);
-  }
-  body[data-width="640"] .rail{width:300px;flex:0 0 300px;padding:12px}
-  .rail-scroll{flex:1;overflow:auto;padding-right:2px}
-  .rail-foot{flex:0 0 auto;padding-top:2px}
-  .rail-foot .card{margin-bottom:0}
+  /* ---------- 空态 ---------- */
+  .empty{padding:34px 18px;text-align:center;}
+  .empty .box{border:1px dashed var(--bd-s);border-radius:8px;padding:22px 18px;background:#FCFDFE;}
+  .empty h3{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--t2);}
+  .empty p{margin:0 0 14px;font-size:11.5px;color:var(--t3);}
+  .empty-actions{display:flex;justify-content:center;gap:8px;margin:0 0 14px;}
+  .steps{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;}
+  .step{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--t2);
+    background:var(--surface);border:1px solid var(--bd);border-radius:14px;padding:4px 10px;}
+  .step i{width:16px;height:16px;border-radius:50%;background:var(--ac-l);color:var(--ac-t);
+    font-style:normal;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;}
 
-  .card{
-    background:var(--he-surface);border:1px solid var(--he-border-soft);border-radius:8px;
-    padding:14px;margin-bottom:12px;
-  }
-  .card-hd{display:flex;align-items:baseline;gap:8px;margin-bottom:10px}
-  .card-hd .t{font-size:12px;font-weight:600;color:var(--he-text-2)}
-  .card-hd .n{font-size:10.5px;color:var(--he-text-4);margin-left:auto}
+  /* ---------- 结果 ---------- */
+  .result{padding:14px 18px 4px;}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr) 1.35fr;gap:10px;}
+  /* 三枚 KPI 与矩阵卡同处一行，高度按最高的那个拉伸；内容垂直居中，
+     否则矮卡下面会空出一大片，看着像漏了内容。 */
+  .kpi{border:1px solid var(--card-bd);border-radius:8px;padding:9px 11px;background:var(--surface);
+    display:flex;flex-direction:column;justify-content:center;}
+  .kpi .k{font-size:10.5px;color:var(--t3);font-weight:600;}
+  .kpi .v{font-size:17px;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums;}
+  .kpi .v small{font-size:11px;font-weight:500;color:var(--t3);margin-left:2px;}
+  .kpi .lim{margin-top:2px;font-size:10.5px;color:var(--t4);}
+  .kpi.warn{border-color:var(--wn-bd);background:var(--wn-s);}
+  .kpi.warn .v{color:var(--wn-t);}
+  .kpi.mx .mat{margin-top:4px;}
+  /* 矩阵用表格而不是空格对齐：16 个数字长度不同，等宽字体也排不齐，
+     而这一页的价值就是让人能逐格核对。 */
+  table.mini{border-collapse:collapse;width:auto;min-width:0;font-family:ui-monospace,Consolas,monospace;font-size:11px;}
+  table.mini td{border:0;padding:1px 8px 1px 0;text-align:right;color:var(--t1);background:transparent!important;
+    white-space:nowrap;}
+  table.mini td.ax{color:var(--t4);padding-right:4px;text-align:left;width:12px;}
+  .kpi.mx .cap{margin-top:5px;font-size:10.5px;color:var(--t3);}
+  .matrixwrap{display:flex;gap:14px;align-items:stretch;}
+  .matcard{flex:1 1 auto;border:1px solid var(--card-bd);border-radius:8px;padding:9px 11px;background:var(--surface);}
+  .matcard .k{font-size:10.5px;color:var(--t3);font-weight:600;margin-bottom:5px;}
+  .matcard table.mini{border-collapse:collapse;width:auto;font-family:ui-monospace,Consolas,monospace;font-size:11px;}
+  .matcard table.mini td{border:0;padding:1px 9px 1px 0;text-align:right;color:var(--t1);background:transparent!important;}
+  .matcard table.mini td.ax{color:var(--t4);padding-right:5px;text-align:left;}
+  .matcard .cap{margin-top:6px;font-size:10.5px;color:var(--t3);}
+  .sent{font-family:ui-monospace,Consolas,monospace;background:var(--ac-soft);color:var(--ac-t);
+    border:1px solid var(--ac-bd);border-radius:3px;padding:0 4px;}
 
-  .seg{display:flex;gap:0;border:1px solid var(--he-border);border-radius:6px;overflow:hidden}
-  .seg .o{
-    flex:1;height:34px;display:flex;align-items:center;justify-content:center;
-    font-size:12px;color:var(--he-text-2);background:var(--he-surface);cursor:default;
-  }
-  .seg .o + .o{border-left:1px solid var(--he-border)}
-  .seg .o[aria-pressed="true"]{background:var(--he-primary);color:#fff;font-weight:600}
-  .help{
-    display:flex;gap:6px;margin-top:8px;font-size:11.5px;line-height:1.65;color:var(--he-text-4);
-  }
-  .help svg{flex:0 0 12px;margin-top:2px}
+  /* ---------- 失败 ---------- */
+  .failed-stack{display:flex;flex-direction:column;gap:12px;padding:14px 18px 4px;}
+  .errbox{border:1px solid var(--dg-bd);background:var(--dg-s);border-radius:8px;padding:11px 13px;}
+  .errbox .hd{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--dg-t);}
+  .errbox .msg{margin-top:7px;font-family:ui-monospace,Consolas,monospace;font-size:11.5px;
+    color:var(--dg-t);background:#fff;border:1px solid var(--dg-bd);border-radius:5px;padding:7px 9px;
+    line-height:1.55;white-space:pre-wrap;}
+  .errbox .fix{margin-top:8px;font-size:11.5px;color:var(--t2);line-height:1.6;}
+  .errbox .fix b{color:var(--dg-t);}
 
-  .fld{margin-bottom:10px}
-  .fld:last-child{margin-bottom:0}
-  .fld .lb{display:block;font-size:12px;color:var(--he-text-2);margin-bottom:5px}
-  .link-row{
-    display:flex;align-items:center;gap:6px;height:36px;padding:0 10px;
-    border:1px dashed var(--he-border-strong);border-radius:6px;background:var(--he-surface);
-    font-size:12px;color:var(--he-text-4);
-  }
-  .link-row .chip{
-    font-family:var(--he-mono);font-size:11px;color:var(--he-primary-text);
-    background:var(--he-primary-soft);border:1px solid var(--he-primary-border);
-    border-radius:4px;padding:1px 6px;
-  }
-  .path-row{display:flex;gap:8px;margin-top:8px}
-  .path-row .box{
-    flex:1;min-width:0;height:36px;display:flex;align-items:center;padding:0 10px;
-    border:1px solid var(--he-border-strong);border-radius:6px;background:var(--he-input);
-    font-family:var(--he-mono);font-size:11.5px;color:var(--he-text);
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  }
-  .path-row .box.empty{color:var(--he-text-4);font-family:inherit;font-size:12px}
-  .path-row .btn{flex:0 0 auto}
-  .btn{
-    height:36px;padding:0 12px;border-radius:6px;border:1px solid var(--he-border-strong);
-    background:var(--he-surface);color:var(--he-text-2);font:inherit;font-size:12px;
-    display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
-  }
-  .btn.primary{width:100%;justify-content:center;background:var(--he-primary);border-color:var(--he-primary);color:#fff;font-weight:600}
-  .btn.ghost{height:30px;padding:0 10px}
+  /* ---------- 提示条 / 页脚 ---------- */
+  .hintrow{margin:8px 18px 14px;border:1px dashed var(--bd-s);border-radius:6px;background:#FCFDFE;
+    padding:7px 10px;font-size:11.5px;color:var(--t3);line-height:1.55;display:flex;gap:7px;align-items:flex-start;}
+  .hintrow .ic{color:var(--ac);flex:0 0 auto;font-weight:700;}
+  .host-foot{display:flex;align-items:center;gap:8px;padding:9px 18px;border-top:1px solid var(--bd-l);
+    background:var(--row-alt);font-size:11px;color:var(--t3);}
+  .host-foot .fake{display:inline-flex;align-items:center;gap:5px;border:1px dashed var(--bd-s);
+    border-radius:5px;padding:2px 7px;color:var(--t4);white-space:nowrap;flex:0 0 auto;}
+  .host-foot .sp{flex:1 1 auto;}
+  .host-foot .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);flex:0 0 auto;}
+  .host-foot .dot.red{background:var(--dg);}
+  .host-foot .dot.gray{background:var(--t4);}
 
-  .stat{display:flex;align-items:center;gap:7px;margin-top:10px;font-size:11.5px;line-height:1.6}
-  .stat .d{width:7px;height:7px;border-radius:50%;flex:0 0 7px}
-  .stat.ok{color:var(--he-success-text)} .stat.ok .d{background:var(--he-success)}
-  .stat.warn{color:var(--he-warning-text)} .stat.warn .d{background:var(--he-warning)}
-  .stat.err{color:var(--he-danger-text)} .stat.err .d{background:var(--he-danger)}
-  .stat.idle{color:var(--he-text-4)} .stat.idle .d{background:var(--he-text-4)}
+  /* ---------- 窄档 640 ---------- */
+  /* 必须 flex-wrap：否则「装法」分段控件被压到文字竖排（「眼/在/上」），
+     .grow 撑满一整行 = 在它之后强制换行，三个按钮才不会被拆到两行去。 */
+  body[data-width="640"] .toolbar{flex-wrap:wrap;gap:10px 12px;}
+  body[data-width="640"] .field{flex:0 0 auto;}
+  body[data-width="640"] .seg,body[data-width="640"] .seg button,
+  body[data-width="640"] .cb{flex:0 0 auto;white-space:nowrap;}
+  body[data-width="640"] .grow{display:block;flex:1 1 100%;height:0;}
+  body[data-width="640"] .toolbar .btn{flex:0 0 auto;}
+  body[data-width="640"] .kpis{grid-template-columns:1fr 1fr;align-items:start;}
+  body[data-width="640"] .kpis .kpi:nth-child(3),
+  body[data-width="640"] .kpis .kpi.mx{grid-column:1 / -1;}
+  body[data-width="640"] .matcard{width:100%;}
+  body[data-width="640"] .tblwrap{max-height:240px;}
+  body[data-width="640"] thead th,body[data-width="640"] tbody td{padding-left:2px;padding-right:2px;font-size:11px;}
+  body[data-width="640"] .host-foot{flex-wrap:wrap;row-gap:6px;}
+  body[data-width="640"] .host-foot .sp{display:none;}
 
-  .num{display:flex;gap:8px;align-items:center}
-  .num .inp{
-    flex:1;height:36px;display:flex;align-items:center;justify-content:flex-end;padding:0 10px;
-    border:1px solid var(--he-border-strong);border-radius:6px;background:var(--he-input);
-    font-family:var(--he-mono);font-size:12px;font-variant-numeric:tabular-nums;
-  }
-  .num .unit{font-size:11.5px;color:var(--he-text-4);width:26px}
-  .chk{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--he-text-2)}
-  .chk .b{width:16px;height:16px;border-radius:3px;border:1px solid var(--he-border-strong);background:var(--he-surface);display:flex;align-items:center;justify-content:center}
-  .chk .b.on{background:var(--he-primary);border-color:var(--he-primary)}
-
-  .tipbar{
-    margin-top:10px;padding:8px 10px;border-radius:6px;font-size:11.5px;line-height:1.6;
-    background:var(--he-surface-3);color:var(--he-text-3);
-  }
-
-  /* ---------- right workspace ---------- */
-  .work{flex:1;min-width:0;padding:14px;display:flex;flex-direction:column;gap:12px;overflow:auto}
-  body[data-width="640"] .work{padding:12px}
-  /* 640 窄档：路径框整行、按钮换行、页脚按钮不压扁（960 是真实对话框宽度，640 是压力档） */
-  body[data-width="640"] .path-row{flex-wrap:wrap}
-  body[data-width="640"] .path-row .box{flex:1 1 100%}
-  body[data-width="640"] .kpis{grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px 0}
-  body[data-width="640"] .kpi:last-child{grid-column:1 / -1}
-  body[data-width="640"] .thr{padding:10px 12px}
-  body[data-width="640"] .host-foot{flex-wrap:wrap;row-gap:8px}
-  body[data-width="640"] .host-foot > span:first-child{flex:1 1 100%}
-
-  .panel{
-    background:var(--he-surface);border:1px solid var(--he-border);border-radius:8px;
-  }
-  .panel-hd{
-    display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--he-border-soft);
-  }
-  .panel-hd .t{font-size:12px;font-weight:600;color:var(--he-text-2)}
-  .panel-hd .spacer{flex:1}
-  .chip{
-    font-size:11px;line-height:1;padding:5px 9px;border-radius:999px;border:1px solid transparent;
-  }
-  .chip.ok{background:var(--he-success-soft);border-color:var(--he-success-border);color:var(--he-success-text)}
-  .chip.warn{background:var(--he-warning-soft);border-color:var(--he-warning-border);color:var(--he-warning-text)}
-  .chip.err{background:var(--he-danger-soft);border-color:var(--he-danger-border);color:var(--he-danger-text)}
-  .chip.idle{background:var(--he-surface-3);border-color:var(--he-border);color:var(--he-text-3)}
-
-  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px 14px 0}
-  .thr{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;padding:12px 14px}
-  .thr .fld{margin-bottom:0}
-  .thr .wide{grid-column:1 / -1}
-  .kpi{background:var(--he-surface-2);border:1px solid var(--he-border-soft);border-radius:8px;padding:10px 12px}
-  .kpi .k{font-size:11px;color:var(--he-text-4);margin-bottom:4px}
-  .kpi .v{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;font-family:var(--he-mono);color:var(--he-text)}
-  .kpi .v small{font-size:11px;font-weight:400;color:var(--he-text-3);margin-left:2px}
-  .kpi .lim{font-size:10.5px;color:var(--he-text-4);margin-top:3px}
-  .kpi.bad .v{color:var(--he-danger-text)}
-  .kpi.bad .lim{color:var(--he-danger-text)}
-
-  .matrix-wrap{padding:12px 14px 14px}
-  .matrix{
-    background:var(--he-surface-2);border:1px solid var(--he-border-soft);border-radius:8px;
-    padding:12px;font-family:var(--he-mono);font-size:11.5px;font-variant-numeric:tabular-nums;
-    display:grid;grid-template-columns:34px repeat(4,minmax(0,1fr));gap:6px 10px;
-  }
-  .matrix .h{font-size:10.5px;color:var(--he-text-4);text-align:right;font-family:"Segoe UI","Microsoft YaHei UI",sans-serif}
-  .matrix .rh{font-size:10.5px;color:var(--he-text-4);display:flex;align-items:center}
-  .matrix .c{text-align:right;color:var(--he-text)}
-  .matrix .c.dim{color:var(--he-text-4)}
-  .matrix-note{display:flex;gap:8px;align-items:center;margin-top:8px;font-size:11px;color:var(--he-text-4);flex-wrap:wrap}
-  .matrix-note .k{font-family:var(--he-mono);color:var(--he-text-3)}
-
-  .foot{
-    margin-top:auto;display:flex;align-items:center;gap:8px;padding:9px 14px;
-    border-top:1px solid var(--he-border-soft);font-size:11.5px;color:var(--he-text-4);
-  }
-  .foot .spacer{flex:1}
-  .hintrow{
-    display:flex;gap:8px;align-items:flex-start;padding:10px 14px;border-radius:8px;
-    border:1px dashed var(--he-border-strong);background:var(--he-surface-2);
-    font-size:11.5px;line-height:1.7;color:var(--he-text-3);
-  }
-  .hintrow b{color:var(--he-text-2);font-weight:600}
-  .hintrow svg{flex:0 0 13px;margin-top:2px}
-
-  /* empty state */
-  .empty{
-    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
-    border:1.5px dashed var(--he-border-strong);border-radius:10px;background:var(--he-surface-2);
-    padding:28px;text-align:left;
-  }
-  .empty .ico{width:44px;height:44px;border-radius:12px;background:var(--he-primary-soft);border:1px solid var(--he-primary-border);display:flex;align-items:center;justify-content:center}
-  .empty .t{font-size:13px;font-weight:600;color:var(--he-text-2)}
-  .empty ol{margin:0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:8px;max-width:420px}
-  .empty li{display:flex;gap:9px;font-size:12px;line-height:1.65;color:var(--he-text-3)}
-  .empty li b{color:var(--he-text-2);font-weight:600}
-  .empty li .idx{
-    flex:0 0 18px;height:18px;border-radius:5px;background:var(--he-surface);border:1px solid var(--he-border);
-    display:flex;align-items:center;justify-content:center;font-family:var(--he-mono);font-size:10.5px;color:var(--he-text-3);
-  }
-
-  /* error state */
-  .errbox{
-    background:var(--he-danger-soft);border:1px solid var(--he-danger-border);border-radius:8px;
-    padding:12px;position:relative;
-  }
-  .errbox .hd{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-  .errbox .hd .t{font-size:12px;font-weight:600;color:var(--he-danger-text)}
-  .errbox .hd .spacer{flex:1}
-  .errbox .body-txt{
-    font-family:var(--he-mono);font-size:11px;line-height:1.75;color:var(--he-danger-text);
-    max-height:132px;overflow:auto;white-space:pre-wrap;word-break:break-word;
-  }
-  .errbox .next{margin-top:10px;padding-top:10px;border-top:1px solid var(--he-danger-border);font-size:11.5px;color:var(--he-danger-text);line-height:1.7}
-  .errbox.warn{background:var(--he-warning-soft);border-color:var(--he-warning-border)}
-  .errbox.warn .hd .t,.errbox.warn .body-txt,.errbox.warn .next{color:var(--he-warning-text)}
-  .errbox.warn .next{border-top-color:var(--he-warning-border)}
-  .iconbtn{
-    width:30px;height:30px;border-radius:6px;border:1px solid transparent;background:transparent;
-    display:flex;align-items:center;justify-content:center;cursor:default;
-  }
-  .iconbtn:hover{background:rgba(15,23,42,.06)}
-
-  /* state visibility */
-  [data-state="default"] .only-empty,[data-state="default"] .only-failed{display:none}
-  [data-state="empty"] .only-default,[data-state="empty"] .only-failed{display:none}
-  [data-state="failed"] .only-default,[data-state="failed"] .only-empty{display:none}
-  [data-state="failed"] .hide-on-fail{display:none}
-  [data-state="empty"] .hide-on-empty{display:none}
-  .failed-stack{display:flex;flex-direction:column;gap:12px}
-
-  .host-foot{
-    max-width:1000px;margin:10px auto 0;padding:10px 14px;border:1.5px dashed var(--he-border-strong);
-    border-radius:8px;font-size:11.5px;color:var(--he-text-4);display:flex;gap:10px;align-items:center;
-    background:rgba(255,255,255,.6);
-  }
-  .host-foot .spacer{flex:1}
-  .host-foot .fake{height:30px;padding:0 16px;border-radius:6px;border:1px solid var(--he-border-strong);background:#fff;color:var(--he-text-4);display:flex;align-items:center;font-size:12px;white-space:nowrap;flex:0 0 auto}
-  .host-foot .fake.p{background:var(--he-primary);border-color:var(--he-primary);color:#fff}
-
-  .legend{max-width:1000px;margin:22px auto 0;font-size:11.5px;color:var(--he-text-3);line-height:1.8}
-  .legend h2{font-size:13px;margin:0 0 8px;color:var(--he-text-2)}
-  .legend table{border-collapse:collapse;width:100%;background:#fff;border:1px solid var(--he-border);border-radius:8px;overflow:hidden}
-  .legend th,.legend td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--he-border-soft);font-size:11.5px}
-  .legend th{background:var(--he-surface-2);color:var(--he-text-2);font-weight:600}
-  .legend tr:last-child td{border-bottom:none}
-  .legend code{font-family:var(--he-mono);font-size:11px;color:var(--he-primary-text)}
+  /* ---------- 演示用状态说明 ---------- */
+  .spec{margin:0;padding:10px 18px 12px;border-top:1px solid var(--bd-l);background:#FAFBFC;
+    font-size:11px;color:var(--t3);line-height:1.7;}
+  .spec b{color:var(--t2);}
+  .spec code{font-family:ui-monospace,Consolas,monospace;font-size:10.5px;background:var(--row-hover);
+    border-radius:3px;padding:0 3px;color:var(--t2);}
 </style>
 </head>
 <body data-state="default" data-width="960">
+<div class="page">
 
-<div class="doc-head">
-  <h1>手眼标定配置窗口 · 设计基线 v1</h1>
-  <p>
-    设计媒介，不进入构建、不部署（R126）。目标视图 <code>Plugins\Plugin.HandEye\HandEyeView.xaml</code>，尚未复刻。
-    点上方按钮切换四态；窗口内所有颜色均映射到 <code>Colors.xaml</code> 既有 <code>Dialog*</code> 令牌，本页不新增公共令牌。
-  </p>
-</div>
+  <!-- ===== 头部 ===== -->
+  <header class="hdr">
+    <div>
+      <h1>手眼标定</h1>
+      <p class="sub">成对记录机器人位姿与相机位姿，求 6-DOF 刚体变换 · 输出 4×4 与旋转/平移残差</p>
+    </div>
+    <span class="chip ok only-ok"><span class="dot"></span>完成</span>
+    <span class="chip err only-failed"><span class="dot"></span>失败</span>
+    <span class="chip muted only-empty"><span class="dot"></span>未求解</span>
+  </header>
 
-<div class="bar">
-  <span class="lbl">状态</span>
-  <button data-s="default" aria-pressed="true">默认（求解完成）</button>
-  <button data-s="empty" aria-pressed="false">空态（未求解）</button>
-  <button data-s="failed" aria-pressed="false">失败（数据退化）</button>
-  <span class="sep"></span>
-  <span class="lbl">宽度</span>
-  <button data-w="960" aria-pressed="true">960</button>
-  <button data-w="640" aria-pressed="false">640 窄档</button>
-</div>
-
-<div class="win">
-  <div class="win-title">
-    <span class="dot"></span>
-    <span class="name">手眼标定</span>
-    <span>· 步骤参数</span>
-    <span class="spacer"></span>
-    <span class="step">Main / 步骤 7</span>
+  <!-- ===== 工具条 ===== -->
+  <div class="toolbar">
+    <div class="field">
+      <label>装法</label>
+      <div class="seg"><button class="on">眼在手上</button><button>眼在手外</button></div>
+    </div>
+    <div class="field">
+      <label>平移上限</label>
+      <div class="num"><input value="1.00" readonly><span>mm</span></div>
+    </div>
+    <div class="field">
+      <label>旋转上限</label>
+      <div class="num"><input value="0.50" readonly><span>°</span></div>
+    </div>
+    <div class="field">
+      <label>组数</label>
+      <label class="cb on"><span class="box"></span>要求 ≥ 6 组</label>
+    </div>
+    <div class="grow"></div>
+    <button class="btn">导入 CSV</button>
+    <button class="btn">导出 CSV</button>
+    <button class="btn primary">求解</button>
   </div>
 
-  <div class="body">
-    <!-- ================= LEFT RAIL ================= -->
-    <div class="rail">
-      <div class="rail-scroll">
+  <!-- ===== 表格（本页主体） ===== -->
+  <div class="tblwrap has-rows">
+    <table>
+      <thead>
+        <tr class="grp">
+          <th class="idx" rowspan="2">#</th>
+          <th colspan="6" class="g-robot">机器人位姿</th>
+          <th colspan="6" class="g-cam">相机位姿</th>
+          <th class="op" rowspan="2"></th>
+        </tr>
+        <tr class="cols">
+          <th>X</th><th>Y</th><th>Z</th><th>RX</th><th>RY</th><th>RZ</th>
+          <th>X</th><th>Y</th><th>Z</th><th>RX</th><th>RY</th><th>RZ</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="idx">1</td>
+          <td class="cell"><input value="512.300" readonly></td><td class="cell"><input value="120.800" readonly></td><td class="cell"><input value="340.000" readonly></td>
+          <td class="cell"><input value="178.200" readonly></td><td class="cell"><input value="-3.100" readonly></td><td class="cell"><input value="45.600" readonly></td>
+          <td class="cell"><input value="12.440" readonly></td><td class="cell"><input value="-88.020" readonly></td><td class="cell"><input value="410.600" readonly></td>
+          <td class="cell"><input value="179.900" readonly></td><td class="cell"><input value="0.800" readonly></td><td class="cell"><input value="-44.100" readonly></td>
+          <td class="op"><button class="del">✕</button></td></tr>
+        <tr><td class="idx">2</td>
+          <td class="cell"><input value="498.700" readonly></td><td class="cell"><input value="203.400" readonly></td><td class="cell"><input value="338.500" readonly></td>
+          <td class="cell"><input value="165.400" readonly></td><td class="cell"><input value="12.700" readonly></td><td class="cell"><input value="52.300" readonly></td>
+          <td class="cell"><input value="18.910" readonly></td><td class="cell"><input value="-71.400" readonly></td><td class="cell"><input value="405.200" readonly></td>
+          <td class="cell"><input value="171.200" readonly></td><td class="cell"><input value="2.400" readonly></td><td class="cell"><input value="-38.600" readonly></td>
+          <td class="op"><button class="del">✕</button></td></tr>
+        <tr><td class="idx">3</td>
+          <td class="cell"><input value="540.100" readonly></td><td class="cell"><input value="158.200" readonly></td><td class="cell"><input value="402.700" readonly></td>
+          <td class="cell"><input value="-171.800" readonly></td><td class="cell"><input value="-8.900" readonly></td><td class="cell"><input value="61.500" readonly></td>
+          <td class="cell"><input value="-3.270" readonly></td><td class="cell"><input value="-92.610" readonly></td><td class="cell"><input value="452.900" readonly></td>
+          <td class="cell"><input value="-178.300" readonly></td><td class="cell"><input value="1.700" readonly></td><td class="cell"><input value="-31.200" readonly></td>
+          <td class="op"><button class="del">✕</button></td></tr>
+        <tr><td class="idx">4</td>
+          <td class="cell"><input value="470.900" readonly></td><td class="cell"><input value="176.500" readonly></td><td class="cell"><input value="296.400" readonly></td>
+          <td class="cell"><input value="182.600" readonly></td><td class="cell"><input value="21.300" readonly></td><td class="cell"><input value="38.700" readonly></td>
+          <td class="cell"><input value="27.150" readonly></td><td class="cell"><input value="-80.330" readonly></td><td class="cell"><input value="368.100" readonly></td>
+          <td class="cell"><input value="176.800" readonly></td><td class="cell"><input value="6.100" readonly></td><td class="cell"><input value="-49.300" readonly></td>
+          <td class="op"><button class="del">✕</button></td></tr>
+        <tr><td class="idx">5</td>
+          <td class="cell"><input value="565.400" readonly></td><td class="cell"><input value="241.700" readonly></td><td class="cell"><input value="371.900" readonly></td>
+          <td class="cell"><input value="158.900" readonly></td><td class="cell"><input value="-14.500" readonly></td><td class="cell"><input value="67.200" readonly></td>
+          <td class="cell"><input value="8.640" readonly></td><td class="cell"><input value="-64.280" readonly></td><td class="cell"><input value="431.400" readonly></td>
+          <td class="cell"><input value="160.500" readonly></td><td class="cell"><input value="-1.900" readonly></td><td class="cell"><input value="-26.700" readonly></td>
+          <td class="op"><button class="del">✕</button></td></tr>
+        <tr><td class="idx">6</td>
+          <td class="cell"><input value="488.200" readonly></td><td class="cell"><input value="139.600" readonly></td><td class="cell"><input value="325.800" readonly></td>
+          <td class="cell"><input value="-176.400" readonly></td><td class="cell"><input value="4.800" readonly></td><td class="cell"><input value="29.100" readonly></td>
+          <td class="cell"><input value="19.770" readonly></td><td class="cell"><input value="-95.060" readonly></td><td class="cell"><input value="392.500" readonly></td>
+          <td class="cell"><input value="-174.900" readonly></td><td class="cell"><input value="3.600" readonly></td><td class="cell"><input value="-58.400" readonly></td>
+          <td class="op"><button class="del">✕</button></td></tr>
+        <tr><td class="idx">7</td>
+          <td class="cell"><input value="523.600" readonly></td><td class="cell"><input value="196.100" readonly></td><td class="cell"><input value="356.200" readonly></td>
+          <td class="cell"><input value="172.300" readonly></td><td class="cell"><input value="-19.200" readonly></td><td class="cell"><input value="48.900" readonly></td>
+          <td class="cell"><input value="14.380" readonly></td><td class="cell"><input value="-73.950" readonly></td><td class="cell"><input value="423.700" readonly></td>
+          <td class="cell"><input value="174.100" readonly></td><td class="cell"><input value="-4.700" readonly></td><td class="cell"><input value="-41.800" readonly></td>
+          <td class="op"><button class="del">✕</button></td></tr>
+        <tr class="isblank"><td class="idx">8</td>
+          <td class="cell blank"><input value="" placeholder="—" readonly></td><td class="cell blank"><input value="" placeholder="—" readonly></td><td class="cell blank"><input value="" placeholder="—" readonly></td>
+          <td class="cell blank"><input value="" placeholder="—" readonly></td><td class="cell blank"><input value="" placeholder="—" readonly></td><td class="cell blank"><input value="" placeholder="—" readonly></td>
+          <td class="cell blank"><input value="" placeholder="—" readonly></td><td class="cell blank"><input value="" placeholder="—" readonly></td><td class="cell blank"><input value="" placeholder="—" readonly></td>
+          <td class="cell blank"><input value="" placeholder="—" readonly></td><td class="cell blank"><input value="" placeholder="—" readonly></td><td class="cell blank"><input value="" placeholder="—" readonly></td>
+          <td class="op"><button class="del">✕</button></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="tblfoot has-rows">
+    <button class="btn ghost">＋ 加一行</button>
+    <span class="cnt">已录入 <b>7</b> 组 · 建议 ≥ 6 组 · 第 8 行<b>还没填</b></span>
+  </div>
 
-      <div class="card">
-        <div class="card-hd"><span class="t">装法</span><span class="n">决定解出的 X 是什么</span></div>
-        <div class="seg">
-          <div class="o" aria-pressed="true">眼在手上</div>
-          <div class="o" aria-pressed="false">眼在手外</div>
-        </div>
-        <div class="help">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#94A3B8" stroke-width="1.3"/><path d="M8 7.2v4M8 5.1v.1" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round"/></svg>
-          <span>相机装在机器人末端，随手一起动；解出的 <b>X = 夹爪←相机</b>。选错会让抓取点整体镜像。</span>
-        </div>
+  <!-- ===== 空态 ===== -->
+  <div class="empty only-empty">
+    <div class="box">
+      <h3>还没有成对数据</h3>
+      <p>手采：点「＋ 加一行」逐组填；成批：点「导入 CSV」把整批灌进来。</p>
+      <!-- 空态下表尾整行是隐藏的，所以「加一行」必须在这里再出现一次，
+           否则文案让人点一个不存在的按钮。 -->
+      <div class="empty-actions">
+        <button class="btn primary">＋ 加一行</button>
+        <button class="btn">导入 CSV</button>
       </div>
-
-      <div class="card">
-        <div class="card-hd"><span class="t">成对数据</span><span class="n">12 列 CSV</span></div>
-
-        <div class="fld">
-          <span class="lb">绑定上游路径（可选）</span>
-          <div class="link-row">
-            <span class="chip">SamplesPath</span>
-            <span class="hide-on-empty">未绑定 · 点右侧 🔗 可绑上游或变量</span>
-            <span class="only-empty">未绑定 · 可绑上游或变量</span>
-          </div>
-        </div>
-
-        <div class="fld">
-          <span class="lb">文件路径</span>
-          <div class="path-row">
-            <div class="box hide-on-empty">D:\data\handeye-20261022.csv</div>
-            <div class="box empty only-empty">选择机器人导出的成对位姿 CSV</div>
-            <div class="btn">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.2 5.4h3.1l1.1 1.5h7.4v6.1a1 1 0 0 1-1 1H3.2a1 1 0 0 1-1-1V5.4Z" stroke="#475569" stroke-width="1.3" stroke-linejoin="round"/></svg>
-              浏览…
-            </div>
-          </div>
-        </div>
-
-        <div class="stat ok hide-on-empty"><span class="d"></span><span>已读取 8 组 · 建议 ≥ 6 组 · 12 列校验通过</span></div>
-        <div class="stat idle only-empty"><span class="d"></span><span>尚未选择数据</span></div>
+      <div class="steps">
+        <span class="step"><i>1</i>选装法</span>
+        <span class="step"><i>2</i>加行或导入 CSV</span>
+        <span class="step"><i>3</i>点「求解」</span>
       </div>
-
-      <div class="card">
-        <div class="card-hd"><span class="t">求解</span></div>
-        <div class="btn primary">求解手眼变换</div>
-        <div class="tipbar">求解只读数据，不改机器人；结果同时写入 <b>Transform</b> 端口。</div>
-      </div>
-
-      </div><!-- /rail-scroll -->
-    </div>
-
-    <!-- ================= RIGHT WORKSPACE ================= -->
-    <div class="work">
-
-      <!-- 质量门槛：常驻，与实测并排对照 -->
-      <div class="panel">
-        <div class="panel-hd">
-          <span class="t">质量门槛</span>
-          <span class="spacer"></span>
-          <span style="font-size:10.5px;color:var(--he-text-4)">超限即判失败 · 与下方实测并排对照</span>
-        </div>
-        <div class="thr">
-          <div class="fld">
-            <span class="lb">平移残差 RMS 上限</span>
-            <div class="num"><div class="inp">1.00</div><span class="unit">mm</span></div>
-          </div>
-          <div class="fld">
-            <span class="lb">旋转残差 RMS 上限</span>
-            <div class="num"><div class="inp">0.50</div><span class="unit">°</span></div>
-          </div>
-          <div class="fld wide">
-            <div class="chk"><span class="b on"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2.5 6.2 4.7 8.4 9.5 3.6" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>组数少于 6 组时判失败</span><span style="color:var(--he-text-4);font-size:11.5px">关掉后 3 组也能解，但解可能不稳</span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- default -->
-      <div class="panel only-default">
-        <div class="panel-hd">
-          <span class="t">标定结果</span>
-          <span class="spacer"></span>
-          <span class="chip ok">完成</span>
-        </div>
-
-        <div class="kpis">
-          <div class="kpi">
-            <div class="k">旋转残差 RMS</div>
-            <div class="v">0.021<small>°</small></div>
-            <div class="lim">上限 0.50</div>
-          </div>
-          <div class="kpi">
-            <div class="k">平移残差 RMS</div>
-            <div class="v">0.147<small>mm</small></div>
-            <div class="lim">上限 1.00</div>
-          </div>
-          <div class="kpi">
-            <div class="k">参与组数</div>
-            <div class="v">8</div>
-            <div class="lim">建议 ≥ 6</div>
-          </div>
-        </div>
-
-        <div class="matrix-wrap">
-          <div class="matrix">
-            <div class="h"></div>
-            <div class="h">X</div><div class="h">Y</div><div class="h">Z</div><div class="h">平移</div>
-
-            <div class="rh">X</div>
-            <div class="c">0.997</div><div class="c">-0.052</div><div class="c">0.061</div><div class="c">112.482</div>
-
-            <div class="rh">Y</div>
-            <div class="c">0.053</div><div class="c">0.998</div><div class="c">-0.031</div><div class="c">-34.117</div>
-
-            <div class="rh">Z</div>
-            <div class="c">-0.059</div><div class="c">0.034</div><div class="c">0.998</div><div class="c">240.005</div>
-
-            <div class="rh">t</div>
-            <div class="c dim">0</div><div class="c dim">0</div><div class="c dim">0</div><div class="c dim">1</div>
-          </div>
-          <div class="matrix-note">
-            <span>眼在手上 · <span class="k">X = T_gripper←camera</span> · 单位 mm · 行主序 16 元</span>
-            <span class="spacer" style="flex:1"></span>
-            <span>求解耗时 3 ms · 数据源 handeye-20261022.csv</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="hintrow only-default">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#94A3B8" stroke-width="1.3"/><path d="M8 7.2v4M8 5.1v.1" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round"/></svg>
-        <span>下一步：把 <b>Transform</b> 接到 <b>PoseTransform</b> 做运行期换算；或在结果比较节点里核对抓取点偏差。矩阵核对不了时，先怀疑<b>装法</b>选错（症状是抓取点整体镜像）。</span>
-      </div>
-
-      <!-- empty -->
-      <div class="empty only-empty">
-        <div class="ico">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5v-9Z" stroke="#0284C7" stroke-width="1.5" stroke-linejoin="round"/>
-            <path d="M4 7.5 12 12l8-4.5M12 12v9" stroke="#0284C7" stroke-width="1.5" stroke-linejoin="round"/>
-          </svg>
-        </div>
-        <div class="t">还没有求解结果</div>
-        <ol>
-          <li><span class="idx">1</span><span><b>选装法</b> —— 眼在手上 / 眼在手外。选错会让抓取点整体镜像。</span></li>
-          <li><span class="idx">2</span><span><b>给数据</b> —— 12 列 CSV（机器人 XYZ+rxryrz，相机 XYZ+rxryrz），至少 3 组、建议 ≥ 6 组。</span></li>
-          <li><span class="idx">3</span><span><b>点求解</b> —— 4×4 矩阵与旋转 / 平移残差会出现在这里。</span></li>
-        </ol>
-      </div>
-
-      <!-- failed -->
-      <div class="only-failed failed-stack">
-        <div class="panel">
-          <div class="panel-hd">
-            <span class="t">标定结果</span>
-            <span class="spacer"></span>
-            <span class="chip err">失败</span>
-          </div>
-
-          <div class="kpis">
-            <div class="kpi bad">
-              <div class="k">旋转残差 RMS</div>
-              <div class="v">—</div>
-              <div class="lim">上限 0.50</div>
-            </div>
-            <div class="kpi bad">
-              <div class="k">平移残差 RMS</div>
-              <div class="v">—</div>
-              <div class="lim">上限 1.00</div>
-            </div>
-            <div class="kpi">
-              <div class="k">参与组数</div>
-              <div class="v">0</div>
-              <div class="lim">未参与求解</div>
-            </div>
-          </div>
-
-          <div class="matrix-wrap">
-            <div class="errbox">
-              <div class="hd">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#B91C1C" stroke-width="1.4"/><path d="M8 4.6v4.2M8 10.9v.1" stroke="#B91C1C" stroke-width="1.6" stroke-linecap="round"/></svg>
-                <span class="t">求解失败 · 数据退化</span>
-                <span class="spacer"></span>
-                <span class="iconbtn"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5.2" y="5.2" width="7.6" height="7.6" rx="1.4" stroke="#B91C1C" stroke-width="1.3"/><path d="M3.2 10.4V4.1a1 1 0 0 1 1-1h6.3" stroke="#B91C1C" stroke-width="1.3" stroke-linecap="round"/></svg></span>
-              </div>
-              <div class="body-txt">旋转激励不足：相机侧最大旋转只有 0°（要求 ≥ 5°）。请让机器人以不同姿态取点（只平移或每次都回到同一姿态无法解出旋转）</div>
-              <div class="next">
-                <b>怎么办</b>：让机器人带相机走到至少 3 个明显不同的姿态再采一遍；只平移、或每次都回到同一姿态，都解不出旋转。
-              </div>
-            </div>
-            <div class="matrix-note"><span>失败时 <span class="k">Transform</span> 被置空，<span class="k">UsedPairs</span> 归零 —— 下游不会拿到上一次的旧矩阵。</span></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="foot">
-        <span class="d only-default" style="width:7px;height:7px;border-radius:50%;background:#22C55E"></span>
-        <span class="only-default">已求解 · 眼在手上 · 8 组</span>
-        <span class="only-empty">未求解</span>
-        <span class="d only-failed" style="width:7px;height:7px;border-radius:50%;background:#EF4444"></span>
-        <span class="only-failed">求解失败 · 数据退化</span>
-        <span class="spacer"></span>
-        <span>只读结果区 · 由端口驱动</span>
-      </div>
-
     </div>
   </div>
-</div>
 
-<div class="host-foot">
-  <span>以下属于宿主 <code style="font-family:var(--he-mono);font-size:11px">PluginConfigShellView</code> 的页脚，插件视图不实现（R135：焦点与 ToolTip 由宿主统一提供）</span>
-  <span class="spacer"></span>
-  <span class="fake">执行</span>
-  <span class="fake">取消</span>
-  <span class="fake p">确认</span>
-</div>
+  <!-- ===== 结果（默认态） ===== -->
+  <div class="result only-ok">
+    <div class="kpis">
+      <div class="kpi">
+        <div class="k">旋转残差 RMS</div>
+        <div class="v">0.021<small>°</small></div>
+        <div class="lim">上限 0.50 °</div>
+      </div>
+      <div class="kpi">
+        <div class="k">平移残差 RMS</div>
+        <div class="v">0.147<small>mm</small></div>
+        <div class="lim">上限 1.00 mm</div>
+      </div>
+      <div class="kpi">
+        <div class="k">参与组数</div>
+        <div class="v">7<small>组</small></div>
+        <div class="lim">首组作基准 · 建议 ≥ 6</div>
+      </div>
+      <div class="kpi mx">
+        <div class="k">变换矩阵 X（4×4 行主序 16 元）</div>
+        <div class="mat">
+          <table class="mini">
+            <tr><td class="ax">X</td><td>0.998</td><td>-0.052</td><td>0.031</td><td>120.44</td></tr>
+            <tr><td class="ax">Y</td><td>0.053</td><td>0.998</td><td>-0.014</td><td>-35.02</td></tr>
+            <tr><td class="ax">Z</td><td>-0.030</td><td>0.016</td><td>0.999</td><td>240.31</td></tr>
+            <tr><td class="ax"></td><td>0</td><td>0</td><td>0</td><td>1</td></tr>
+          </table>
+        </div>
+        <div class="cap"><span class="sent">X = T_gripper←camera</span> · 单位 mm · 求解耗时 3 ms</div>
+      </div>
+    </div>
+  </div>
 
-<div class="legend">
-  <h2>四态与判据</h2>
-  <table>
-    <thead><tr><th style="width:130px">状态</th><th style="width:210px">触发</th><th>右栏表现</th></tr></thead>
-    <tbody>
-      <tr><td>默认 / 完成</td><td><code>Transform != null</code> 且 <code>LastError</code> 为空</td><td>绿 chip + 三枚 KPI + 4×4 矩阵 + 语义副标题</td></tr>
-      <tr><td>空态 / 未求解</td><td><code>Transform == null</code> 且 <code>LastError</code> 为空</td><td>虚线空态卡 + 三步指引</td></tr>
-      <tr><td>失败 · 解不出（红）</td><td><code>LastError</code> 非空，原因是数据/数学问题</td><td>红 chip + KPI 转 <code>—</code> + 红色错误块（等宽全文 + 复制）+ 「怎么办」</td></tr>
-      <tr><td>失败 · 不达标（黄）</td><td>解出来了，但残差超上限</td><td>黄 chip + KPI 数值标红 + 「上限」小字并排 + 放宽门槛入口</td></tr>
-      <tr><td>窄档 640</td><td>窗口宽度 ≤ 640</td><td>左栏 300 + 右栏最小 260；矩阵字号 11.5→11，列间距 10→8</td></tr>
-    </tbody>
-  </table>
-  <p style="margin:12px 0 0">
-    红 / 黄的判据：<b>红 = 解不出来</b>（必须改数据）；<b>黄 = 解出来了但不达标</b>（可能只是门槛设紧了，用户有权放宽）。
-    两者都拦住结果，但只有黄态允许"放宽门槛"这个合法动作。
-  </p>
-</div>
+  <!-- ===== 失败态 ===== -->
+  <div class="failed-stack only-failed">
+    <div class="errbox">
+      <div class="hd"><span>⚠</span>求解失败 · 数据退化</div>
+      <div class="msg">旋转激励不足：相机侧最大旋转只有 2.1°（要求 ≥ 5°）。
+请让机器人以不同姿态取点（只平移或每次都回到同一姿态无法解出旋转）。</div>
+      <div class="fix"><b>怎么办：</b>回表格看 RX/RY/RZ 三列——如果三个方向都挤在同一个值附近，
+        说明取点时机器人没换姿态。补 3~5 组姿态明显不同的数据再求解。</div>
+    </div>
+    <div class="errbox" style="background:#fff;border-color:var(--bd);">
+      <div class="hd" style="color:var(--t2);"><span>ⓘ</span>失败时输出端口的状态</div>
+      <div class="fix">失败时 <span class="sent">Transform</span> 被置空、<span class="sent">UsedPairs</span> 归零 ——
+        下游不会读到上一轮残留的矩阵。</div>
+    </div>
+  </div>
 
-<script>
-  var bs = document.querySelectorAll('.bar button[data-s]');
-  var bw = document.querySelectorAll('.bar button[data-w]');
-  bs.forEach(function(b){
-    b.addEventListener('click', function(){
-      document.body.dataset.state = b.dataset.s;
-      bs.forEach(function(x){ x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
-    });
-  });
-  bw.forEach(function(b){
-    b.addEventListener('click', function(){
-      document.body.dataset.width = b.dataset.w;
-      bw.forEach(function(x){ x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
-    });
-  });
-</script>
+  <!-- 只要没有解出矩阵，「下一步接 PoseTransform」就没有对象可说 -->
+  <div class="hintrow only-ok">
+    <span class="ic">→</span>
+    <span>下一步：把 <span class="sent">Transform</span> 接到 <b>PoseTransform</b> 做运行期换算；或在结果比较节点里核对抓取点偏差。
+      矩阵核对不了时，先怀疑<b>装法</b>选错（症状是抓取点整体镜像）。</span>
+  </div>
+
+  <footer class="host-foot">
+    <span class="fake">宿主页脚 · 插件视图不实现</span>
+    <span class="sp"></span>
+    <span class="dot only-ok"></span><span class="only-ok">就绪 · 求解成功</span>
+    <span class="dot red only-failed"></span><span class="only-failed">求解失败 · 数据退化</span>
+    <span class="dot gray only-empty"></span><span class="only-empty">等待成对数据</span>
+  </footer>
+
+  <!-- ===== 设计说明（评审用，不实现） ===== -->
+  <div class="spec">
+    <b>设计基线 v2 · 四态判据</b>　
+    <code>data-state=default</code> 有 ≥ 3 组有效数据且求解通过（绿 chip + 三枚 KPI + 矩阵）；
+    <code>empty</code> 表格 0 行（虚线空态 + 三步指引，结果区整块不出）；
+    <code>failed</code> 求解返回失败（红 chip + 错误块 + 端口状态说明，结果卡整块不出）；
+    <code>data-width=640</code> 窄档（表格横向滚动、首列冻结、KPI 三列降两列）。
+    <br>
+    <b>为什么表格是主体：</b>现场真正要改的是数据本身——改一个错数字、删一组离群、补一组刚采的。
+    文件路径只能"整批换"，改一个数要回去开 Excel，而 Excel 打开时会锁文件、会改编码、会把 <code>45.600</code> 显示成 <code>45.6</code>。
+    CSV 仍然保留，但只做<b>成批进出</b>，不承担编辑。
+  </div>
+</div>
 </body>
 </html>

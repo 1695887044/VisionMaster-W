@@ -46,7 +46,7 @@ docs/UI设计基线/
 | `auto-port-config/` | v1 | `VisionMaster\Views\DialogViews\AutoPortConfigView.xaml`（无自定义视图插件的框架兜底参数面板：步骤卡 + 输入端口清单 + 空态/执行态） | 已复刻（2026-10-20）；设计证据 `auto-port-config/evidence/design-v1-*.png`；WPF 证据 `wpf-after-render-v1-*.png`；待用户确认 |
 | `yolo/` | v1 | `Plugin.Yolo\YoloView.xaml`（YOLO 目标检测配置：图像输入 / 模型 / 检测参数 / 高级参数 / 试算 + 只读预览） | 已复刻，证据 `_batch-evidence/Plugin.Yolo-YoloPlugin.png`；待用户确认 |
 | `dl-classify/` | v1 | `Plugin.DlClassify\ClassifyView.xaml`（深度学习分类配置：图像输入 / ONNX 模型 / 缩放模式与 TopK / 试算 + 只读预览） | 已复刻，证据 `dl-classify/evidence/initial-render-920x520.png`；待用户确认 |
-| `hand-eye/` | v1 | `Plugin.HandEye\HandEyeView.xaml`（**拟建**，插件当前无视图）：装法分段 / 成对数据（端口绑定 + CSV 路径）/ 质量门槛（旋转与平移残差上限 + 组数门）/ 只读结果区（4×4 矩阵 + 三枚残差 KPI + 红黄两档失败态） | **仅设计基线，尚未复刻**；四态可点（默认 / 空态 / 失败 / 窄档 640）；待用户确认 §12 五项交互决策 |
+| `hand-eye/` | v2 | `Plugin.HandEye\HandEyeView.xaml`（**拟建**，插件当前无视图）：顶部工具条（装法 / 两个残差上限 / 组数门 / 导入导出 CSV / 求解）+ **全宽 12 列成对数据表（本页主体，可手填）** + 只读结果区（4×4 矩阵 + 三枚残差 KPI + 红黄两档失败态） | **仅设计基线，尚未复刻**；四态可点（默认 / 空态 / 失败 / 窄档 640）；Q1 已由用户拍板改为"表格为主、CSV 为扩展"，其余五项待确认 |
 | `variable-assignment/` | v1 | `Plugin.Utility\VariableAssignmentView.xaml`（变量赋值配置） | 已复刻，证据 `variable-assignment/evidence/`；待用户确认 |
 | `code-reader/` | v1 | `Plugin.CodeReader\CodeReaderView.xaml`（读码配置：图像输入 / 码制 / 参数 / 试算） | 已复刻，证据 `code-reader/evidence/`；待用户确认 |
 | `excel-export/` | v1 | `Plugin.ExcelExport\ExcelExportView.xaml`（报表导出配置） | 已复刻，证据 `excel-export/evidence/`；待用户确认 |
