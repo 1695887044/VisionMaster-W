@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -3596,7 +3596,7 @@ namespace UIThemeSmokeTest
                     $"rows={configRowsAfterSecondInit.Count}");
 
                 const string repoRoot = @"d:\C#\VM";
-                var outDir = Path.Combine(repoRoot, "docs", "UI设计基线", "auto-port-config", "evidence");
+                var outDir = EvidencePaths.Dir(repoRoot, "auto-port-config");
                 Directory.CreateDirectory(outDir);
                 RenderElement(host, Path.Combine(outDir, "wpf-after-render-v1-default.png"));
 
@@ -4065,7 +4065,7 @@ namespace UIThemeSmokeTest
             try
             {
                 const string repoRoot = @"d:\C#\VM";
-                var outDir = Path.Combine(repoRoot, "docs", "UI设计基线", "image-acquisition", "evidence");
+                var outDir = EvidencePaths.Dir(repoRoot, "image-acquisition");
                 Directory.CreateDirectory(outDir);
 
                 var stepData = new StubStepConfigData();

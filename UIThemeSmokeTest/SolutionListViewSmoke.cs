@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
@@ -285,7 +285,7 @@ namespace UIThemeSmokeTest
                         && Math.Abs(dialogWindow.MinHeight - 560) < 1
                         && dialogWindow.SizeToContent == SizeToContent.Manual,
                         $"size={dialogWindow.Width}x{dialogWindow.Height} min={dialogWindow.MinWidth}x{dialogWindow.MinHeight}");
-                    var windowShot = Path.Combine(RepoRoot, "docs", "UI设计基线", "solution-list", "evidence", "after-render-v1-window.png");
+                    var windowShot = Path.Combine(EvidencePaths.Dir(RepoRoot, "solution-list"), "after-render-v1-window.png");
                     RenderElement(windowView, windowShot);
                     Check("宿主窗口内容渲染 960×640", File.Exists(windowShot), windowShot);
                     dialogWindow.Close();
@@ -319,7 +319,7 @@ namespace UIThemeSmokeTest
 
             try
             {
-                var outDir = Path.Combine(RepoRoot, "docs", "UI设计基线", "solution-list", "evidence");
+                var outDir = EvidencePaths.Dir(RepoRoot, "solution-list");
                 Directory.CreateDirectory(outDir);
 
                 var vm = new SolutionListViewModel(

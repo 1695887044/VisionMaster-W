@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -645,7 +645,7 @@ namespace ScadaChecks
                 $"canOperate={ack.CanOperate} enabled={ackButton?.IsEnabled}");
 
             // ---------------- ⑦ 渲染证据 ----------------
-            string evidenceDir = Path.Combine(repoRoot, "docs", "UI设计基线", "scada-controls", "evidence");
+            string evidenceDir = EvidencePaths.Dir(repoRoot, "scada-controls");
             Directory.CreateDirectory(evidenceDir);
 
             TextBlock Label(string text, Brush brush) => new()

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -429,7 +429,7 @@ namespace ScadaChecks
                 $"{BrushColor(selectionField)} / {BrushColor(lockedField)} / {BrushColor(warningField)} / {BrushColor(errorField)}");
 
             // ---------------- ④ PNG 证据 ----------------
-            string evidenceDir = Path.Combine(repoRoot, "docs", "UI设计基线", "scada-controls", "evidence");
+            string evidenceDir = EvidencePaths.Dir(repoRoot, "scada-controls");
             Directory.CreateDirectory(evidenceDir);
 
             RenderComposition(Path.Combine(evidenceDir, "after-phase1-core.png"), 1120, 520,

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -50,7 +50,7 @@ namespace UIThemeSmokeTest
                 : new List<string>();
 
             Check("找到待检插件 DLL", dlls.Count > 0, $"count={dlls.Count} filter={filter ?? "(all)"}");
-            var evidenceDir = Path.Combine(RepoRoot, "docs", "UI设计基线", "_batch-evidence");
+            var evidenceDir = EvidencePaths.Dir(RepoRoot, "_batch-evidence");
             Directory.CreateDirectory(evidenceDir);
 
             foreach (var dll in dlls)

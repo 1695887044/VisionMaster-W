@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -498,7 +498,7 @@ namespace UIThemeSmokeTest
 
             try
             {
-                var outDir = Path.Combine(RepoRoot, "docs", "UI设计基线", "global-variables", "evidence");
+                var outDir = EvidencePaths.Dir(RepoRoot, "global-variables");
                 Directory.CreateDirectory(outDir);
 
                 using var fixture = new Fixture();

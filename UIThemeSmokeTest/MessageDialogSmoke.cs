@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -116,7 +116,7 @@ namespace UIThemeSmokeTest
 
             try
             {
-                var outDir = Path.Combine(RepoRoot, "docs", "UI设计基线", "message-dialog", "evidence");
+                var outDir = EvidencePaths.Dir(RepoRoot, "message-dialog");
                 Directory.CreateDirectory(outDir);
 
                 RenderScene(CreateRecoveryOptions(), Path.Combine(outDir, "after-render-v1-recovery.png"), Check);
