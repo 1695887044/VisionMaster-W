@@ -167,6 +167,8 @@ public OutputPort<HImage> Image { get; } = new("Image", "预处理后的图像")
 public OutputPort<int> StepCount { get; } = new("StepCount", "算子总步数");
 public OutputPort<int> ActiveCount { get; } = new("ActiveCount", "启用的算子个数");
 public OutputPort<string> ActiveOperators { get; } = new("ActiveOperators", "启用的算子（按执行顺序）");
+public OutputPort<string> FailedOperators { get; } = new("FailedOperators", "失败的算子（序号:算子名: 原因）");
+public OutputPort<int> FailedCount { get; } = new("FailedCount", "失败算子个数");
 ```
 
 - `InputPort` 用无参构造 → 端口名取属性名 `SrcImage`；`OutputPort` 显式给 `(name, description)`，
@@ -174,6 +176,11 @@ public OutputPort<string> ActiveOperators { get; } = new("ActiveOperators", "启
 - 读上游一律用 `SrcImage.ActualValue`（它负责"链接值 / 固定值 / 变量值"三态归一），
   不要读 `SrcImage.Value`。
 - 写 HImage 输出用 `Image.TypedValue`（强类型），写 int/string 统计用 `.Value`。
+- `FailedCount` / `FailedOperators` 是 P0-6 新增的失败端口：格式 `序号:算子名: 错误消息`（步号 1 基、`；` 分隔），
+  **每轮 `RunAlgorithm` 开头先清零**，避免上一轮的失败残留到"这一轮没跑成"的场合。
+  它们与 `Success` 语义不同：默认口径下 `Success=true` + `FailedCount>0` 是合法组合（失败步被跳过）。
+- `FailOnOperatorError` 是 `[StepConfig]` 配置属性（不是端口），走 `InputValues` 落盘；
+  默认 `false` 保持历史行为，视图左栏的「算子失败即失败」勾选框直接绑它。
 - **`null` 是端口的合法状态**：`DisposeOldOutput` 里 `Image.Value = null!;` 就是靠 object 通道置空，
   别为了消警告改成赋空图。
 - 本插件**没有** `HRegion` 输出端口，也没有实现 `IDynamicOutputProvider`；

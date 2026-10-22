@@ -1,4 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using Core.Interfaces;
 using HalconDotNet;
 using VisionMaster.Helpers;
 using static FlowCanvasChecks.Program;
@@ -62,6 +66,135 @@ namespace FlowCanvasChecks
             Check("【判据】取元素类型：数组给元素类型、非数组给自身",
                 TypeHelper.GetBindableElementType(typeof(double[])) == typeof(double)
                 && TypeHelper.GetBindableElementType(typeof(HImage)) == typeof(HImage), "");
+
+            // ---- ⑤ 空候选陷阱（P0-2）----
+            RunEmptyOptionFallback();
+        }
+
+        // ==================================================================
+        //  ⑤ 空候选陷阱：IsFunctionalEnum 端口取不到候选时必须可手填
+        // ==================================================================
+
+        /// <summary>
+        /// 探针用枚举：带 <c>[Display]</c> 才能同时验"显示中文、值仍是成员名"（R40）。
+        /// 不用插件里的枚举，免得本类多一条对插件的依赖。
+        /// </summary>
+        private enum ProbeOption
+        {
+            [System.ComponentModel.DataAnnotations.Display(Name = "圆")]
+            Circle,
+
+            [System.ComponentModel.DataAnnotations.Display(Name = "直线")]
+            Line,
+        }
+
+        /// <summary>
+        /// 【P0-2 空候选陷阱】`IsFunctionalEnum` 端口在候选为空时必须退化成**可手填**。
+        ///
+        /// 此前的行为：`IsOptionPort` 对任意 `IsFunctionalEnum` 置 true，而 XAML 在
+        /// `IsOptionPort` 为真时折叠 TextBox、只留一个**不可编辑**的 ComboBox ——
+        /// 候选为空时（最常见的原因就是"还没配运动卡 / 宿主没注册候选来源"）
+        /// 这一行是一个打不开的空下拉：既选不了也输不了，用户只能先去别处配好方案再回来。
+        /// 控件注释里写的"取不到就空着退化成可手填"从来没有实现过。
+        ///
+        /// 判据必须落在**真控件**上：`IsOptionPort` 由"端口类型 + 候选数"共同决定，
+        /// 静态读源码证明不了 DataTrigger 真的把 TextBox 切了回来。
+        /// STA 线程 + 手动 Measure/Arrange（同 MotionZMotionChecks 的探针写法），
+        /// **不 new Application**（断言宿主不是 WPF 应用）。
+        /// </summary>
+        private static void RunEmptyOptionFallback()
+        {
+            Section("[PortBind] 空候选退化：没有候选时回到可手填（不再把人堵在空下拉里）");
+
+            string probe = "未执行";
+            var thread = new Thread(() =>
+            {
+                try
+                {
+                    // ---- ① 空候选：IsFunctionalEnum，但方案里还没有任何轴（未配卡 / 未注册来源）----
+                    var port = new InputPort<string>("Axis", string.Empty, "轴名") { IsFunctionalEnum = true };
+                    var editor = new Core.Controls.LinkableValueEditor { Port = port };
+                    editor.Measure(new System.Windows.Size(520, 40));
+                    editor.Arrange(new System.Windows.Rect(0, 0, 520, 40));
+                    editor.UpdateLayout();
+
+                    var valueBox = editor.FindName("PART_ValueBox") as System.Windows.Controls.TextBox;
+                    var enumBox = editor.FindName("PART_EnumBox") as System.Windows.Controls.ComboBox;
+                    var hint = editor.FindName("PART_NoOptionHint") as System.Windows.Controls.TextBlock;
+                    var linkBtn = editor.FindName("PART_LinkBtn") as System.Windows.Controls.Button;
+                    string linkVisibility = linkBtn == null ? "null" : linkBtn.Visibility.ToString();
+
+                    var parts = new List<string>
+                    {
+                        $"空候选只能选={editor.IsOptionPort}",
+                        $"空候选手填={editor.IsHandFillFallback}",
+                        $"空候选数={editor.EnumOptions.Count}",
+                        $"主值框={valueBox?.Visibility}",
+                        $"主下拉={enumBox?.Visibility}",
+                        $"提示={hint?.Visibility}",
+                        $"提示语={hint?.Text}",
+                        $"链接按钮={linkVisibility}",
+                    };
+
+                    // 走真实写路径：PortValue 就是 TextBox 的绑定目标（用户敲进去的那一路）
+                    editor.PortValue = "X";
+                    parts.Add($"写回={port.Value}");
+
+                    // ---- ② 有候选：仍必须是下拉，且写回的是成员名（显示中文、值稳定键）----
+                    var enumPort = new InputPort<ProbeOption>("Kind", ProbeOption.Line, "查找类型");
+                    editor.Port = enumPort;
+                    editor.UpdateLayout();
+
+                    var enumOptions = string.Join("/", editor.EnumOptions.Select(o => $"{o.Value}→{o.Display}"));
+                    editor.PortValue = "Circle";
+                    parts.Add($"枚举只能选={editor.IsOptionPort}");
+                    parts.Add($"枚举值框={valueBox?.Visibility}");
+                    parts.Add($"枚举下拉={enumBox?.Visibility}");
+                    parts.Add($"枚举候选={enumOptions}");
+                    parts.Add($"枚举写回={enumPort.Value}");
+
+                    // ---- ③ 候选被清空（模拟方案变化后重取候选）----
+                    //  形态要跟着退回手填，且**端口已有值不许被清空**（R35：重填候选不能抹掉用户值）。
+                    editor.EnumOptions.Clear();
+                    parts.Add($"清空后只能选={editor.IsOptionPort}");
+                    parts.Add($"清空后手填={editor.IsHandFillFallback}");
+                    parts.Add($"清空后端口值={enumPort.Value}");
+
+                    probe = string.Join(" ", parts);
+                }
+                catch (Exception ex)
+                {
+                    probe = "探测异常：" + ex.GetType().Name + "：" + ex.Message;
+                }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join(8000);
+
+            Check("★空候选的 IsFunctionalEnum 端口退化为可手填（输入框可见 / 下拉折叠 / 有「无候选，可手填」提示）",
+                probe.Contains("空候选只能选=False") && probe.Contains("空候选手填=True")
+                && probe.Contains("空候选数=0")
+                && probe.Contains("主值框=Visible") && probe.Contains("主下拉=Collapsed")
+                && probe.Contains("提示=Visible") && probe.Contains("无候选"),
+                probe);
+
+            Check("★空候选不是死路：手填的值真的写进了端口",
+                probe.Contains("写回=X"), probe);
+
+            Check("★空候选仍不许链接（名字类端口挂绑定弹窗 = 运行期拿值当名字，R33）",
+                probe.Contains("链接按钮=Collapsed"), probe);
+
+            Check("★有候选的枚举端口仍是下拉，写回的是成员名（显示中文、值稳定键 —— R40 口径不变）",
+                probe.Contains("枚举只能选=True") && probe.Contains("枚举值框=Collapsed")
+                && probe.Contains("枚举下拉=Visible")
+                && probe.Contains("Circle→圆") && probe.Contains("Line→直线")
+                && probe.Contains("枚举写回=Circle"),
+                probe);
+
+            Check("★候选被清空后形态自动退回手填，且端口已有值不被清空（R35：重填候选不能抹掉用户值）",
+                probe.Contains("清空后只能选=False") && probe.Contains("清空后手填=True")
+                && probe.Contains("清空后端口值=Circle"),
+                probe);
         }
     }
 }

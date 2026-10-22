@@ -5,11 +5,12 @@
 **改这个插件前逐条对照**：每条都是"必须成立的事实 + 不成立时的症状 + 现在由谁守"。
 分两类：**A 类违反后立刻抛或闸门红**（好查），**B 类违反后静默出错**（难查，多数是仓库实测踩出来的）。
 
-本插件在 `FlowCanvasChecks\` 里**没有专属 checks 文件**（`PreProcessingChecks.cs` 不存在）。
-能引到的真实守门断言只有这几处，下面逐条注明：
+本插件在 `FlowCanvasChecks\` 里**有专属 checks 文件** `PreProcessingChecks.cs`（算子注册/像素口径/参数收敛/存盘往返/失败口径）。
+能引到的真实守门断言如下，下面逐条注明：
 
 | 守门文件 | 覆盖的东西 | 对本插件是否有效 |
 | --- | --- | --- |
+| `FlowCanvasChecks\PreProcessingChecks.cs` | 算子注册表口径、顶帽/黑帽/Sobel/Laplace 像素级、参数收敛与存盘往返、链端到端、试运行桥接预览、**算子失败口径（P0-6）** | 有效（算法与失败信号的主守门） |
 | `FlowCanvasChecks\HelpManualCheck.cs` | 手册打包约定 HM0~HM11、命名 HM12/HM12b、开发页数 HM13、分层装载 HM14、台账 HM15/HM17、档位登记 HM16 | 有效（管手册，不管算法） |
 | `FlowCanvasChecks\PortBindChecks.cs` | 端口类型可绑判据（`【判据】…` 系列） | 间接有效：`SrcImage` 是 `InputPort<HImage>`，`HImage → 数值端口不可绑` 等判据保护接线期 |
 | `FlowCanvasChecks\ExecutionChecks.cs` | 流程层执行契约（`图纸编译通过`、闸门与会话锁、`运行状态连改 7 次不递增 Version`） | 间接有效：只保证"节点被正常调度"，不看链内部 |
@@ -24,11 +25,16 @@
 
 ## A 组：违反会当场抛、红或静默失败但可复现
 
-**A1 "没有输入图"是唯一判失败的出口**
-`RunAlgorithm` 首行 `src == null || !src.IsInitialized()` → `Fail("输入图像为空或未初始化")` 并 `return`；
-链上任何算子抛异常一律降级为"跳过这一步 + 一条 Warn"，整步仍算成功。
-症状：改成"某步失败就 Fail" → 现场一个算子参数填错把整条流程拖红，下游全部不执行。
-守门：无专属断言（`ExecutionChecks` 只看流程调度，不看链内部）。
+**A1 判失败的三个出口，与"默认跳过"的边界**
+`RunAlgorithm` 里只有三处 `Fail`：
+① `src == null || !src.IsInitialized()` → `输入图像为空或未初始化`；
+② `ExecuteChain` 外层 catch → `图像预处理失败：…`；
+③ `failures.Count > 0 && FailOnOperatorError` → `预处理算子失败：…`（**链跑完之后**才判，先记录全部失败）。
+除此之外，链上算子抛异常一律降级为"跳过这一步 + 一条 Warn + 一条 `OperatorFailure`"，整步仍算成功。
+症状：把 ③ 写成无条件（或把默认值改成 true）→ 现场一个算子参数填错把整条流程拖红，下游全部不执行，
+既有方案升级后集体变红。反过来，把 `FailedOperators` / `FailedCount` 删掉 → 又回到"少跑几步却毫无信号"的老毛病。
+守门：`PreProcessingChecks.RunOperatorFailureContract()`（默认口径 Success=true/FailedCount>0/摘要格式、
+开关口径 Success=false/ErrorMessage 含全部算子名、正常链路 FailedCount=0）。
 
 **A2 枚举成员数值手写死、只许末尾追加**
 `Models\OperatorEnums.cs` 每个成员都显式写值（`Gray = 0`、`Angle90 = 90`、`First = 1`…），
@@ -165,7 +171,7 @@ tr '\0' '\n' < Modules\Plugin.PreProcessing.dll | grep -a "\.Help\."
 守门：无专属断言。
 
 **B10 `_stepImages` 里故意不存透传帧**
-`ApplyStepResults(results, passthroughBase)` 只收 `!ReferenceEquals(img, passthroughBase)` 的帧。
+`ApplyStepResults(PreviewRun run, passthroughBase)` 只收 `!ReferenceEquals(img, passthroughBase)` 的帧。
 症状：把透传帧也存进去 → `DisposeStepImages()` 释放的是**别人（上游端口或副本）的图**，
 下一句就在画布上访问已销毁句柄。后台预览路径里那个 `passthroughBase` 就是自己拷的副本（马上要释放）。
 守门：无专属断言。
@@ -354,6 +360,17 @@ tr '\0' '\n' < Modules\Plugin.PreProcessing.dll | grep -a "\.Help\."
 要同时补、不要替换；且补完 `Summary`（`PreprocessOperator.Desc` 读 `[Description]`）与下拉会分家，两边都要验。
 守门：`HelpManualCheck` 与 R40 的 6 条（`MotionZMotionChecks`）都不覆盖本插件；无专属断言。
 
+**B35 失败信号三条出口必须同批写，且失败端口每轮清零**
+`ExecuteChain` 的算子 catch 里三件事缺一不可：`logger?.Warn(...)`（流程日志/预览记录）、
+`failures?.Add(new OperatorFailure(i + 1, op.DisplayName, ex.Message))`（端口与黄色信息条）、
+`stepResults[i] = current`（预览继续显示"这一步没改图"而不是空白）。
+`RunAlgorithm` 开头必须 `FailedCount.Value = 0; FailedOperators.Value = string.Empty;`——
+否则"这一轮输入图为空/链为空"时会原样带着上一轮的失败清单，下游误判。
+预览侧不许再把 `logger: null` 传给 `ExecuteChain`（P0-6 之前就是这样，失败连 Warn 都没有）；
+`PreviewWarningDetail` 无内容时必须是 `null`（空串会弹出一个空 ToolTip）。
+症状（反向）：删掉任一条出口 → 现场表现回到"图少跑了几步但流程没红、日志也没话"，最难查的一类。
+守门：`PreProcessingChecks.RunOperatorFailureContract()`（端口格式/开关判定/预览 `PreviewFailure` 与 `PreviewWarningDetail`）。
+
 ---
 
 ## 并行安全声明的依据（`[ParallelSafe]`）
@@ -372,6 +389,6 @@ tr '\0' '\n' < Modules\Plugin.PreProcessing.dll | grep -a "\.Help\."
 | --- | --- |
 | 重建插件工程 | 改了源码不重建，`Modules\` 里仍是旧 DLL（红线③）；改到手册也要重建（R41/R42） |
 | 收尾那一次用 `--no-incremental` | 增量构建会静默漏打包 `Help` 资源（R42，A10 那条命令对账） |
-| 跑 gate | `HelpManualCheck` 全套 + `PortBindChecks` + `ExecutionChecks`；本插件无专属 checks，算法侧靠人工核对 |
+| 跑 gate | `HelpManualCheck` 全套 + `PreProcessingChecks`（注册/像素/参数/失败口径）+ `PortBindChecks` + `ExecutionChecks`；算法侧其余仍靠人工核对 |
 | 动了 `Services\Core.Halcon` 或共享画布 | Debug 与 Release 都重建（R55，`pack.ps1` 打 Release） |
 | 大改动后重建 CodeGraph 索引 | 不重建 = 影响面查询静默少项（R28）；XAML 与生成器产物一律 grep（R29） |

@@ -5,6 +5,9 @@ using System.Linq;
 using System.Threading;
 using Core.Interfaces;
 using Plugin.Motion.Virtual;
+using VisionMaster;
+using VisionMaster.Models;
+using VisionMaster.Services;
 using static FlowCanvasChecks.Program;
 
 namespace FlowCanvasChecks
@@ -20,6 +23,11 @@ namespace FlowCanvasChecks
     ///   ③ <b>报警中不许运动</b>：对着报警轴下发 Move 是真机上撞机的直接原因；
     ///   ④ <b>失联要安全停机并让位置失效</b>：增量编码器失联后位置不可信，必须要求重新回零。
     /// 这四条都只有真跑一遍（虚拟卡 + 时间推进 + 故障注入）才看得出来。
+    ///
+    /// 2026-10-22（P0-5）追加的三条安全语义，同样只有真跑才看得出来：
+    ///   ⑤ <b>相对运动也受软限位约束</b>：目标 = 当前位置 + 增量，越界拒绝；
+    ///   ⑥ <b>流程停止即停轴</b>：引擎在取消令牌之前发 <c>SessionStopRequested</c>（宿主据此 CancelAll）；
+    ///   ⑦ <b>清报警解锁安全停机</b>：底层没报警且位置可信才回在线，报警还在就保持安全停机。
     /// </summary>
     internal static class MotionChecks
     {
@@ -29,9 +37,12 @@ namespace FlowCanvasChecks
 
             RunGateAndAsyncSemantics();
             RunSoftLimitGate();
+            RunRelativeSoftLimitGate();
             RunEmergencyInterrupt();
             RunWatchdogAndSafeStop();
             RunAlarmGate();
+            RunClearAlarmUnlocksSafeStop();
+            RunFlowStopCancelsMotion();
             RunHoming();
         }
 
@@ -144,6 +155,59 @@ namespace FlowCanvasChecks
             Check("被软限位拒绝后设备仍是可用的（不进报警/安全停机）",
                 card.State == MotionCardState.Online,
                 "状态=" + card.State);
+        }
+
+        // ==================================================================
+        //  ②b 相对运动同样受软限位约束（S5）
+        // ==================================================================
+
+        /// <summary>
+        /// 相对运动的软限位：目标 = **当前位置 + 增量**。
+        ///
+        /// 为什么单列一条：旧实现只判 <see cref="MotionCommandKind.MoveAbsolute"/>，
+        /// 相对运动可以一路走出软限位（轴在 190、限位 200，"+50" 直接冲到 240）。
+        /// 这类漏洞在现场表现为"配了软限位还是撞了"，而软件层一句话都不说。
+        /// </summary>
+        private static void RunRelativeSoftLimitGate()
+        {
+            Section("[M] 软限位：相对运动也受约束（目标 = 当前位置 + 增量）");
+
+            using var card = NewCard(softLimitMax: 200);
+            card.Connect();
+            EnableAxis(card, 0);
+
+            // 把轴摆到 190mm（软限位上限 200），等轮询把快照刷成 190
+            card.SetSimulatedPosition(0, 190);
+            Check("前置：轴在 190mm（软限位上限 200）",
+                WaitFor(() => Math.Abs((card.GetAxisStatus(0)?.PositionMm ?? double.NaN) - 190) < 0.5, 1000),
+                $"位置={(card.GetAxisStatus(0)?.PositionMm ?? double.NaN):F2}mm");
+
+            using var over = MoveRelative(0, 50);
+            var overResult = card.Enqueue(over);
+
+            Check("★相对 +50 越界被拒绝（190 + 50 = 240 > 200）",
+                overResult == MotionCommandResult.Rejected_InvalidArgument,
+                $"返回={overResult} 建议={card.LastFault?.Suggestion}");
+
+            Check("相对越界也记 Notice 级（业务上正常，不该当成设备故障）",
+                card.LastFault?.Severity == MotionFaultSeverity.Notice,
+                $"级别={card.LastFault?.Severity} 说明={card.LastFault?.Suggestion}");
+
+            Check("相对越界被拒后设备仍可用（不进报警/安全停机）",
+                card.State == MotionCardState.Online, "状态=" + card.State);
+
+            using var inside = MoveRelative(0, -20);
+            var insideResult = card.Enqueue(inside);
+
+            Check("★相对 -20 在限位内被接受（190 - 20 = 170）",
+                insideResult == MotionCommandResult.Accepted,
+                $"返回={insideResult} 目标≈170mm");
+
+            // 绝对运动分支保持原样（回归：不能因为加了相对分支把绝对判据弄坏）
+            using var absolute = Move(0, 500);
+            Check("绝对运动越界仍然被拒绝（回归）",
+                card.Enqueue(absolute) == MotionCommandResult.Rejected_InvalidArgument,
+                "返回=" + card.Enqueue(absolute));
         }
 
         // ==================================================================
@@ -362,6 +426,186 @@ namespace FlowCanvasChecks
         }
 
         // ==================================================================
+        //  ⑤b 清报警解锁安全停机（S7）
+        // ==================================================================
+
+        /// <summary>
+        /// 清报警 → 从「已安全停机」回到「在线」。
+        ///
+        /// 两条判据缺一不可：
+        ///  ① 正例：底层确实没报警了 → 放行（旧实现要求"断开再连接"，流程无法自愈）；
+        ///  ② 反例：底层还报着警 → **保持安全停机**并返回失败原因（不许绕过真实报警）。
+        /// 反例必须用可控的假设备：虚拟卡的清报警会真的把注入开关复位，造不出
+        /// "驱动接受了清除请求、报警位却没落"这个组合。
+        /// </summary>
+        private static void RunClearAlarmUnlocksSafeStop()
+        {
+            Section("[M] 清报警解锁：安全停机 → 清报警 → 回在线（底层还报警就不放行）");
+
+            // ---------- ① 正例（虚拟卡） ----------
+            using (var card = NewCard())
+            {
+                card.Connect();
+                EnableAxis(card, 0);
+
+                // 制造安全停机：让一条运动命令在卡侧失败（基类据此退 SafeStopped）
+                card.SimulateCommandFailure = true;
+                using (var failing = Move(0, 10))
+                {
+                    card.Enqueue(failing);
+                    failing.Completion.Wait(2000);
+                }
+
+                Check("前置：运动命令失败后进入安全停机",
+                    WaitFor(() => card.State == MotionCardState.SafeStopped, 2000),
+                    $"状态={card.State} 说明={card.StateDetail}");
+
+                using (var blocked = Move(0, 5))
+                {
+                    var blockedResult = card.Enqueue(blocked);
+                    Check("前置：安全停机后运动命令被拒绝",
+                        blockedResult == MotionCommandResult.Rejected_NotConnected, "返回=" + blockedResult);
+                }
+
+                card.SimulateCommandFailure = false;
+
+                var cleared = card.ClearAlarm(out var clearError);
+                Check("★安全停机下清报警被接受（旧实现连命令都进不了队列）",
+                    cleared, $"清报警={cleared} 原因={clearError}");
+
+                Check("★清报警成功且底层无报警 → 回到在线",
+                    card.State == MotionCardState.Online,
+                    $"状态={card.State} 说明={card.StateDetail}");
+
+                Check("恢复在线时清掉那条「安全停机」故障记录（界面不再显示过期建议）",
+                    card.LastFault == null, $"LastFault={card.LastFault?.Message}");
+
+                using var again = Move(0, 5);
+                var againResult = card.Enqueue(again);
+                Check("★恢复后可以再次下发运动命令",
+                    againResult == MotionCommandResult.Accepted, "返回=" + againResult);
+            }
+
+            // ---------- ② 反例（可控假设备：报警位不随清报警落下） ----------
+            var fake = new FakeAlarmCard(NewFakeDescriptor());
+            try
+            {
+                fake.Log = new StubLog();
+                fake.Connect();
+                EnableAxis(fake, 0);
+
+                fake.FailMove = true;
+                using (var failing = Move(0, 10))
+                {
+                    fake.Enqueue(failing);
+                    failing.Completion.Wait(2000);
+                }
+
+                Check("前置：假设备命令失败后进入安全停机",
+                    WaitFor(() => fake.State == MotionCardState.SafeStopped, 2000),
+                    $"状态={fake.State} 说明={fake.StateDetail}");
+
+                fake.FailMove = false;
+                fake.ReportAlarm = true;   // 底层报警还挂着（安全停机期间不轮询，只能靠复核现读发现）
+
+                var stubborn = fake.ClearAlarm(out var stubbornError);
+                Check("★底层仍报警时清报警不放行：保持安全停机 + 给出原因",
+                    !stubborn && fake.State == MotionCardState.SafeStopped
+                    && stubbornError.Contains("仍在报警"),
+                    $"清报警={stubborn} 状态={fake.State} 原因={stubbornError}");
+
+                // 报警真清掉之后，同一个入口必须能恢复 —— 拒绝不是"永久拉黑"
+                fake.ReportAlarm = false;
+                var recovered = fake.ClearAlarm(out var recoveredError);
+                Check("★底层报警清掉后可以恢复在线（拒绝不是永久的）",
+                    recovered && fake.State == MotionCardState.Online,
+                    $"清报警={recovered} 状态={fake.State} 原因={recoveredError}");
+            }
+            finally
+            {
+                fake.Dispose();
+            }
+        }
+
+        // ==================================================================
+        //  ⑥b 流程停止 → 会话停止事件（S6）
+        // ==================================================================
+
+        /// <summary>
+        /// 流程停止必须能在"取消令牌之前"通知到订阅方（宿主据此 CancelAll 停轴）。
+        ///
+        /// 为什么这条不能靠真卡验：运动步骤只下发不等待，流程停止时轴不会自己停 ——
+        /// 而"停轴"这件事发生在宿主（MotionModule）里，本断言只钉**引擎这一侧的挂点**：
+        /// 事件发不发、发几次、在 Cancel 之前还是之后、正常跑完会不会误发。
+        /// </summary>
+        private static void RunFlowStopCancelsMotion()
+        {
+            Section("[M] 流程停止 → SessionStopRequested（停轴钩子的挂点）");
+
+            var runtime = new RuntimeManager();
+            var log = new StubLog();
+            var workspace = new WorkspaceContext();
+            var engine = new FlowEngineService(
+                runtime, log, workspace, null, new ResourceLockService(), NullCameraProvider.Instance);
+
+            var fired = 0;
+            FlowSession? seen = null;
+            var cancelledWhenFired = false;
+
+            engine.SessionStopRequested += (_, session) =>
+            {
+                fired++;
+                seen = session;
+                // 判"事件是否在 Cancel 之前"：此刻令牌若已取消，说明顺序反了
+                cancelledWhenFired = session?.CancellationTokenSource?.IsCancellationRequested ?? false;
+            };
+
+            var cts = new CancellationTokenSource();
+            var running = new FlowSession
+            {
+                FlowName = "断言用流程",
+                State = SessionState.Running,
+                IsRunning = true,
+                CancellationTokenSource = cts,
+            };
+
+            engine.StopSession(running);
+
+            Check("★StopSession 触发 SessionStopRequested（流程停止即停轴的唯一挂点）",
+                fired == 1 && ReferenceEquals(seen, running),
+                $"触发次数={fired} 会话={(seen == null ? "null" : seen.FlowName)}");
+
+            Check("★事件在取消令牌**之前**触发（先停轴，再让流程退栈）",
+                !cancelledWhenFired && cts.IsCancellationRequested,
+                $"触发时已取消={cancelledWhenFired} 调用后已取消={cts.IsCancellationRequested}");
+
+            engine.StopSession(running);
+            Check("重复 StopSession 不再触发（同一次运行只通知一次，不重复下发停轴）",
+                fired == 1, "触发次数=" + fired);
+
+            var paused = new FlowSession
+            {
+                FlowName = "暂停中的流程",
+                State = SessionState.Paused,
+                IsRunning = true,
+                CancellationTokenSource = new CancellationTokenSource(),
+            };
+            engine.StopSession(paused);
+            Check("暂停中的会话同样触发（暂停不是结束，轴还在按最后一条命令走）",
+                fired == 2, "触发次数=" + fired);
+
+            var finished = new FlowSession { FlowName = "已跑完的流程", State = SessionState.Stopped, IsRunning = false };
+            engine.StopSession(finished);
+            Check("正常跑完的会话不触发（跑完的一轮不该去停别人的运动）",
+                fired == 2, "触发次数=" + fired);
+
+            var starting = new FlowSession { FlowName = "启动窗口中的会话", State = SessionState.Idle, IsRunning = true };
+            engine.StopSession(starting);
+            Check("IsRunning 但状态还没到 Running/Paused（启动窗口）不触发",
+                fired == 2, "触发次数=" + fired);
+        }
+
+        // ==================================================================
         //  ⑥ 回零
         // ==================================================================
 
@@ -408,7 +652,7 @@ namespace FlowCanvasChecks
         //  构造与辅助
         // ==================================================================
 
-        private static MotionDescriptor NewDescriptor(bool absoluteEncoder = true) => new()
+        private static MotionDescriptor NewDescriptor(bool absoluteEncoder = true, double softLimitMax = 100) => new()
         {
             Id = Guid.NewGuid(),
             DriverTypeKey = typeof(VirtualMotionCard).AssemblyQualifiedName ?? nameof(VirtualMotionCard),
@@ -424,14 +668,14 @@ namespace FlowCanvasChecks
             },
             Axes = new List<AxisMapping>
             {
-                new() { LogicalName = "X", PhysicalIndex = 0, UnitsPerMm = 1000, SoftLimitMinMm = -100, SoftLimitMaxMm = 100 },
-                new() { LogicalName = "Y", PhysicalIndex = 1, UnitsPerMm = 1000, SoftLimitMinMm = -100, SoftLimitMaxMm = 100 },
+                new() { LogicalName = "X", PhysicalIndex = 0, UnitsPerMm = 1000, SoftLimitMinMm = -100, SoftLimitMaxMm = softLimitMax },
+                new() { LogicalName = "Y", PhysicalIndex = 1, UnitsPerMm = 1000, SoftLimitMinMm = -100, SoftLimitMaxMm = softLimitMax },
             },
         };
 
-        private static VirtualMotionCard NewCard(bool absoluteEncoder = true)
+        private static VirtualMotionCard NewCard(bool absoluteEncoder = true, double softLimitMax = 100)
         {
-            var card = new VirtualMotionCard(NewDescriptor(absoluteEncoder))
+            var card = new VirtualMotionCard(NewDescriptor(absoluteEncoder, softLimitMax))
             {
                 Log = new StubLog(),
             };
@@ -439,12 +683,44 @@ namespace FlowCanvasChecks
             return card;
         }
 
+        /// <summary>假设备用的卡配置（1 轴、软限位放宽，避免干扰"报警/状态机"这两条断言）</summary>
+        private static MotionDescriptor NewFakeDescriptor() => new()
+        {
+            Id = Guid.NewGuid(),
+            DriverTypeKey = "FlowCanvasChecks.MotionChecks+FakeAlarmCard",
+            DisplayName = "断言用假运动卡",
+            Address = "fake://" + Guid.NewGuid().ToString("N").Substring(0, 6),
+            Params = new MotionParams
+            {
+                PollIntervalMs = 5,
+                WatchdogTimeoutMs = 500,
+                CommandTimeoutMs = 2000,
+                DefaultVelocityMmPerS = 100,
+                MaxQueueDepth = 16,
+            },
+            Axes = new List<AxisMapping>
+            {
+                new() { LogicalName = "F", PhysicalIndex = 0, UnitsPerMm = 1000, SoftLimitMinMm = -1000, SoftLimitMaxMm = 1000 },
+            },
+        };
+
         private static MotionCommand Move(int axis, double target, double velocity = 200) => new()
         {
             Kind = MotionCommandKind.MoveAbsolute,
             PhysicalAxis = axis,
             LogicalAxis = axis == 0 ? "X" : "Y",
             TargetMm = target,
+            VelocityMmPerS = velocity,
+            Timeout = TimeSpan.FromSeconds(2),
+        };
+
+        /// <summary>相对运动命令（目标端口里放的是**增量**，可为负）</summary>
+        private static MotionCommand MoveRelative(int axis, double delta, double velocity = 200) => new()
+        {
+            Kind = MotionCommandKind.MoveRelative,
+            PhysicalAxis = axis,
+            LogicalAxis = axis == 0 ? "X" : "Y",
+            TargetMm = delta,
             VelocityMmPerS = velocity,
             Timeout = TimeSpan.FromSeconds(2),
         };
@@ -488,7 +764,7 @@ namespace FlowCanvasChecks
             Timeout = TimeSpan.FromSeconds(2),
         };
 
-        private static void EnableAxis(VirtualMotionCard card, int axis)
+        private static void EnableAxis(MotionDeviceBase card, int axis)
         {
             using var enable = new MotionCommand
             {
@@ -526,6 +802,80 @@ namespace FlowCanvasChecks
                 Thread.Sleep(5);
             }
             return condition();
+        }
+
+        // ==================================================================
+        //  断言用假设备
+        // ==================================================================
+
+        /// <summary>
+        /// 只服务于 S7 反例的假设备：**清报警永远返回成功**，但报警位由测试开关决定是否落下。
+        ///
+        /// 为什么不用虚拟卡造这个组合：<c>VirtualMotionCard</c> 的卡级清报警会真的把
+        /// <c>SimulateAlarm</c> 复位，于是"驱动接受了清除请求、底层报警却还在"这个
+        /// 最需要防的场景根本造不出来（那正是"不要绕过真实报警"要守的东西）。
+        ///
+        /// 另外它刻意声明为绝对编码器：把"位置不可信"这条守卫排除掉，
+        /// 让这条断言只考"报警有没有真的清掉"。
+        /// </summary>
+        private sealed class FakeAlarmCard : MotionDeviceBase
+        {
+            public FakeAlarmCard(MotionDescriptor descriptor) : base(descriptor) { }
+
+            /// <summary>轮询时是否上报报警（= 底层真实报警位）</summary>
+            public volatile bool ReportAlarm;
+
+            /// <summary>下一条运动命令是否失败（把设备打进安全停机用）</summary>
+            public volatile bool FailMove;
+
+            protected override bool ConnectCore()
+            {
+                SetCapabilities(new MotionCapabilities
+                {
+                    AxisCount = 1,
+                    DigitalInputCount = 0,
+                    DigitalOutputCount = 0,
+                    SupportsHardLimit = true,
+                    SupportsAbsoluteEncoder = true,
+                    SupportsJog = false,
+                    SupportedHomeModes = new[] { HomeMode.Origin },
+                });
+                MarkHomed(true);
+                SetDetail("断言用假运动卡");
+                return true;
+            }
+
+            protected override void DisconnectCore() { }
+
+            protected override void PollStatusCore(CancellationToken ct)
+            {
+                UpdateAxisStatus(new AxisStatus
+                {
+                    PhysicalIndex = 0,
+                    PositionMm = 0,
+                    Enabled = true,
+                    InPosition = true,
+                    Alarm = ReportAlarm,
+                    AlarmMessage = ReportAlarm ? "模拟：报警未清除" : string.Empty,
+                });
+            }
+
+            protected override MotionCommandOutcome ExecuteCommandCore(
+                MotionCommand command, CancellationToken ct, out string error)
+            {
+                error = string.Empty;
+
+                if (command.Kind == MotionCommandKind.MoveAbsolute && FailMove)
+                {
+                    error = "模拟：运动命令执行失败";
+                    return MotionCommandOutcome.Failed;
+                }
+
+                // 清报警"成功"但 ReportAlarm 仍为 true = 驱动接受了请求、报警位没落
+                return MotionCommandOutcome.Done;
+            }
+
+            protected override void SafeStopCore() { }
         }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -217,18 +218,50 @@ namespace Core.Interfaces
 
         private List<ConfigProp> _configProps;
 
+        /// <summary>
+        /// 与 <see cref="_configProps"/> 一一对应的只读描述（面板渲染用）。
+        /// 同样懒构建、与属性缓存同生共死。
+        /// </summary>
+        private List<StepConfigPropertyDescriptor> _configPropDescriptors;
+
         private void EnsureConfigPropsDiscovered()
         {
             if (_configProps != null) return;
 
             _configProps = new List<ConfigProp>();
-            foreach (var prop in GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            _configPropDescriptors = new List<StepConfigPropertyDescriptor>();
+
+            // 按 MetadataToken 排序 = 按声明顺序（界面上的行序必须稳定，
+            // 且不能随反射实现/运行时版本漂移）。
+            var properties = GetType()
+                .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .OrderBy(p => p.MetadataToken);
+
+            foreach (var prop in properties)
             {
                 if (prop.GetCustomAttribute<StepConfigAttribute>() == null) continue;
                 if (typeof(IInputPort).IsAssignableFrom(prop.PropertyType)) continue;
                 if (typeof(IOutputPort).IsAssignableFrom(prop.PropertyType)) continue;
 
                 var captured = prop;
+
+                // 显示名/说明读属性上的 [Display]：插件作者已经用它写中文名，
+                // 面板不必再猜（没标就回退属性名——绝不回退成空白）。
+                // 资源型 [Display]（ResourceType）解析失败时回退属性名：一条元数据坏掉
+                // 不该让整个参数面板打不开。
+                var display = captured.GetCustomAttribute<DisplayAttribute>();
+                string? displayName = null;
+                var description = string.Empty;
+                try
+                {
+                    displayName = display?.GetName();
+                    description = display?.GetDescription() ?? string.Empty;
+                }
+                catch
+                {
+                    // 回退：displayName 保持 null → 描述为空
+                }
+
                 _configProps.Add(new ConfigProp
                 {
                     Name = prop.Name,
@@ -236,7 +269,28 @@ namespace Core.Interfaces
                     Get = () => captured.GetValue(this),
                     Set = v => captured.SetValue(this, v),
                 });
+
+                _configPropDescriptors.Add(new StepConfigPropertyDescriptor(
+                    prop.Name,
+                    displayName,
+                    description,
+                    prop.PropertyType,
+                    () => captured.GetValue(this),
+                    v => captured.SetValue(this, v)));
             }
+        }
+
+        /// <summary>
+        /// 取 [StepConfig] 配置属性的只读快照（按声明顺序），供没有自定义视图的插件
+        /// 在通用参数面板（AutoPortConfigView）里渲染。
+        ///
+        /// 返回**每次一份新数组**：调用方拿不到内部缓存，也就无法通过它改动插件的配置面；
+        /// 键名仍是属性名（与 <see cref="ApplyConfigValues"/> / <see cref="OnConfirm"/> 同一口径）。
+        /// </summary>
+        public IReadOnlyList<StepConfigPropertyDescriptor> GetConfigProperties()
+        {
+            EnsureConfigPropsDiscovered();
+            return _configPropDescriptors.ToArray();
         }
 
         /// <summary>

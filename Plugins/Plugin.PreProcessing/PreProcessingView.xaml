@@ -580,6 +580,25 @@
                             </ComboBox.ItemTemplate>
                         </ComboBox>
                         <TextBlock Style="{StaticResource HelpTextStyle}" Text="0 = 不显示；1~9 对应主界面视图窗口。" />
+
+                        <Border
+                            Margin="0,14,0,12"
+                            BorderBrush="{StaticResource DialogBorderBrush}"
+                            BorderThickness="0,1,0,0" />
+
+                        <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="失败处理" />
+                        <!--
+                            算子失败口径：默认 false = 跳过失败步继续（历史行为），
+                            勾选 = 任一算子失败就判本步失败。默认必须保持 false，否则既有方案升级后会突然红掉。
+                        -->
+                        <CheckBox
+                            Margin="0,9,0,0"
+                            VerticalContentAlignment="Center"
+                            IsChecked="{Binding FailOnOperatorError, Mode=TwoWay}"
+                            ToolTip="默认不勾选：某个算子报错只跳过那一步，图像继续往下流，本步骤仍算成功（失败会记进 FailedOperators / FailedCount）。勾选后：只要有一个算子失败，整步判失败，ErrorMessage 列出全部失败算子。">
+                            <TextBlock FontSize="12" Text="算子失败即失败" />
+                        </CheckBox>
+                        <TextBlock Style="{StaticResource HelpTextStyle}" Text="默认不勾：失败步跳过并记录，本步仍成功。勾选：任一算子失败即判本步失败。" />
                     </StackPanel>
                 </Border>
             </Grid>
@@ -778,6 +797,32 @@
                                 FontSize="11.5"
                                 Foreground="{StaticResource DialogWarningTextBrush}"
                                 Text="{Binding LoadWarning}"
+                                TextWrapping="Wrap" />
+                        </Grid>
+                    </Border>
+                    <Border
+                        Style="{StaticResource WarningBannerStyle}"
+                        ToolTip="{Binding PreviewWarningDetail}"
+                        Visibility="{Binding PreviewFailure, Converter={StaticResource StringNotEmptyToVisibility}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                Grid.Column="0"
+                                Margin="0,0,7,0"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="12"
+                                Foreground="{StaticResource DialogWarningTextBrush}"
+                                Text="&#xf071;" />
+                            <TextBlock
+                                Grid.Column="1"
+                                VerticalAlignment="Center"
+                                FontSize="11.5"
+                                Foreground="{StaticResource DialogWarningTextBrush}"
+                                Text="{Binding PreviewFailure}"
                                 TextWrapping="Wrap" />
                         </Grid>
                     </Border>

@@ -144,8 +144,16 @@ namespace Plugin.Motion.ZMotion
                 SupportsHardLimit = true,
                 // 保守取 false：正运动的轴是不是绝对值编码器取决于所配伺服，SDK 没有统一的查询接口。
                 // 取 false 的后果是"每次连接后都要回零"——多回一次零，好过在位置不可信时按错误坐标运动。
-                // 现场若确定是绝对式，应在流程里按需省略回零步骤（安全默认宁严勿松）。
-                SupportsAbsoluteEncoder = true,
+                //
+                // 【S4 / 2026-10-22 修正：这一行原来是 true，与上面三行注释自相矛盾】
+                // 这个能力位不只影响界面提示，它还被基类当作"连上即位置可信"的判据
+                // （MotionDeviceBase.Connect 里 `_isHomed = _capabilities.SupportsAbsoluteEncoder`）。
+                // 写成 true 的后果是：增量编码器的卡一连接就被当成已回零，
+                // 于是"按错误坐标走绝对运动"这道最危险的静默错误在软件层完全没人拦。
+                // 现在统一按**未回零**处理（ConnectCore 末尾另有显式 MarkHomed(false)，两处口径一致）。
+                // 现场确属绝对编码器时，后续以**配置项**显式开启（不要在驱动里改回 true）——
+                // 本轮刻意不加这个配置项：安全默认宁严勿松，多回一次零远好过按错坐标运动。
+                SupportsAbsoluteEncoder = false,
                 SupportsLineInterpolation = false,
                 SupportsArcInterpolation = false,
                 SupportsJog = true,
@@ -159,7 +167,9 @@ namespace Plugin.Motion.ZMotion
                     : new[] { HomeMode.NegativeLimitIndex, HomeMode.PositiveLimitIndex, HomeMode.Origin },
             });
 
-            // 连上不等于位置可信：本驱动声明为增量式，必须回零后才能按绝对坐标运动
+            // 连上不等于位置可信：本驱动声明为增量式（SupportsAbsoluteEncoder=false），
+            // 必须回零后才能按绝对坐标运动。基类 Connect() 也会按能力位算一次 IsHomed，
+            // 这里再显式写一次，是为了让"连接后的状态"在驱动自身也一眼可见（不依赖读者去翻基类）。
             MarkHomed(false);
 
             SetDetail($"已连接 {_model.Name} @ {Descriptor.Address}"

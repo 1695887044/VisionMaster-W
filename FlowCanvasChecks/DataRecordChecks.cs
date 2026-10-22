@@ -1,6 +1,8 @@
 using System.IO;
+using Core.Interfaces;
 using HalconDotNet;
 using Plugin.DataRecord;
+using Plugin.ExcelExport;
 
 namespace FlowCanvasChecks
 {
@@ -13,16 +15,18 @@ namespace FlowCanvasChecks
     ///  - 目录与文件名模板、跨月/跨天滚动；
     ///  - 全局序号与边车持久化；
     ///  - 保留期清理只删自己模式匹配的文件；
-    ///  - 仅NG存图（图与账本靠"图片路径"列关联）。
+    ///  - 仅NG存图（图与账本靠"图片路径"列关联）；
+    ///  - 异步写盘失败可见（阻断/不阻断两条路）与可等待 flush；
+    ///  - Excel 导出前的 flush 桥（未注册放行 / 卡住则导出失败）。
     ///
-    /// 所有用例都走真 RunAlgorithm + 真后台写线程；用 RecordingHub.FlushForTests 等队列排空，
+    /// 所有用例都走真 RunAlgorithm + 真后台写线程；用 RecordingHub.TryFlush 等队列排空，
     /// 不靠 Sleep 赌时序。
     /// </summary>
     internal static class DataRecordChecks
     {
         public static void Run()
         {
-            DataPipelineCheckSupport.Section("CSV记录：转义 / 来源 / 模板 / 序号 / 清理 / 存图");
+            DataPipelineCheckSupport.Section("CSV记录：转义 / 来源 / 模板 / 序号 / 清理 / 存图 / 写盘失败");
 
             DataPipelineCheckSupport.SafeRun("表头/行/转义", HeaderRowsAndEscaping);
             DataPipelineCheckSupport.SafeRun("运行期变量来源", VariableSource);
@@ -31,6 +35,11 @@ namespace FlowCanvasChecks
             DataPipelineCheckSupport.SafeRun("保留期清理", KeepDaysCleanupOnlyTouchesOwnFiles);
             DataPipelineCheckSupport.SafeRun("仅NG存图", OnlyNgImage);
             DataPipelineCheckSupport.SafeRun("无列明确失败", NoColumnsFails);
+            DataPipelineCheckSupport.SafeRun("异步写盘失败（阻断）", AsyncWriteFailureBlocks);
+            DataPipelineCheckSupport.SafeRun("异步写盘失败（不阻断）与即时日志", AsyncWriteFailureDoesNotBlockButLogs);
+            DataPipelineCheckSupport.SafeRun("TryFlush 正常路径", TryFlushSucceedsOnHealthyPath);
+            DataPipelineCheckSupport.SafeRun("flush 桥未注册", FlushBridgeUnregisteredPasses);
+            DataPipelineCheckSupport.SafeRun("导出前 flush 失败", ExcelExportFailsWhenFlushBridgeStuck);
         }
 
         // ------------------------------------------------------------------
@@ -271,6 +280,174 @@ namespace FlowCanvasChecks
                 plugin.ErrorMessage.Value as string ?? "(空)");
 
             DataPipelineCheckSupport.DeleteDir(dir);
+        }
+
+        /// <summary>
+        /// 坏路径（父目录被同名文件占住）→ Directory.CreateDirectory 必失败。
+        /// 这条失败发生在后台写线程，Enqueue 早已返回 Accepted：只有 flush + WriteErrorSeq 才拦得住。
+        /// </summary>
+        private static void AsyncWriteFailureBlocks()
+        {
+            string dir = DataPipelineCheckSupport.TempDir("csv_write_fail_block");
+            RecordingHub.ConfigureForTests(dir);
+            string blocker = Path.Combine(dir, "blocked");
+            File.WriteAllText(blocker, "x"); // 占住路径：blocked\sub 建不出来
+
+            var plugin = NewPlugin(dir, p =>
+            {
+                p.DirectoryTemplate = Path.Combine(blocker, "sub");
+                p.Columns.Add(Col("结果", ColumnSource.Port));
+                p.BlockOnFailure = true;
+            });
+            SetPort(plugin, "结果", "OK");
+
+            var log = new StubLog();
+            long seqBefore = RecordingHub.WriteErrorSeq;
+            plugin.Execute(DataPipelineCheckSupport.NewContext(log));
+
+            DataPipelineCheckSupport.Check("CSV：异步写盘失败 + 阻断 → 步骤失败",
+                plugin.Success.Value is false, $"{plugin.Success.Value}");
+            string message = plugin.ErrorMessage.Value as string ?? "";
+            DataPipelineCheckSupport.Check("CSV：失败原因点名数据写入失败与目标路径",
+                message.Contains("数据写入失败", StringComparison.Ordinal) &&
+                message.Contains("blocked", StringComparison.Ordinal),
+                message.Length == 0 ? "(空)" : message);
+            DataPipelineCheckSupport.Check("CSV：写盘失败计数递增（WriteErrorSeq）",
+                RecordingHub.WriteErrorSeq > seqBefore, $"{seqBefore} → {RecordingHub.WriteErrorSeq}");
+
+            DataPipelineCheckSupport.DeleteDir(dir);
+        }
+
+        /// <summary>
+        /// 不阻断：步骤仍成功，但错误必须即时进应用日志（插件在本次执行开头把 LogSink 指向 context.Logger）。
+        /// 另用临时 sink 直投一条坏记录，钉住 LogSink 本身（插件会把 sink 换成自己的 logger，故不混在一次执行里验）。
+        /// </summary>
+        private static void AsyncWriteFailureDoesNotBlockButLogs()
+        {
+            string dir = DataPipelineCheckSupport.TempDir("csv_write_fail_warn");
+            RecordingHub.ConfigureForTests(dir);
+            string blocker = Path.Combine(dir, "blocked");
+            File.WriteAllText(blocker, "x");
+
+            var plugin = NewPlugin(dir, p =>
+            {
+                p.DirectoryTemplate = Path.Combine(blocker, "sub");
+                p.Columns.Add(Col("结果", ColumnSource.Port));
+                p.BlockOnFailure = false;
+            });
+            SetPort(plugin, "结果", "OK");
+
+            var log = new StubLog();
+            plugin.Execute(DataPipelineCheckSupport.NewContext(log));
+            bool flushed = RecordingHub.TryFlush(3000, out string flushError);
+
+            DataPipelineCheckSupport.Check("CSV：异步写盘失败 + 不阻断 → 步骤仍成功",
+                plugin.Success.Value is true, $"{plugin.Success.Value}");
+            DataPipelineCheckSupport.Check("CSV：不阻断时队列仍能排空", flushed, flushError ?? "");
+            DataPipelineCheckSupport.Check("CSV：不阻断时写盘错误即时进宿主日志（sink）",
+                log.Errors.Any(e => e.Contains("[数据记录]", StringComparison.Ordinal) &&
+                                    e.Contains("blocked", StringComparison.Ordinal)),
+                log.Errors.Count == 0 ? "(无 ERROR)" : string.Join(" | ", log.Errors));
+
+            var captured = new List<string>();
+            var previousSink = RecordingHub.LogSink;
+            RecordingHub.LogSink = (level, msg) => { lock (captured) captured.Add(level + ":" + msg); };
+            try
+            {
+                var badTarget = new RecordingTarget
+                {
+                    OwnerName = "sink",
+                    DirectoryTemplate = Path.Combine(blocker, "sub2"),
+                    FileNamePattern = "sink.csv",
+                    Header = new[] { "值" },
+                    WriteHeader = true,
+                    FlushEveryRow = true
+                };
+                RecordingHub.Enqueue(badTarget, new[] { "1" }, 0);
+                bool sinkFlushed = RecordingHub.TryFlush(3000, out string sinkFlushError);
+
+                DataPipelineCheckSupport.Check("CSV：LogSink 收到后台写盘 ERROR（临时 sink 捕获）",
+                    sinkFlushed && captured.Any(c => c.StartsWith("ERROR:", StringComparison.Ordinal) &&
+                                                     c.Contains("blocked", StringComparison.Ordinal)),
+                    sinkFlushed ? (captured.Count == 0 ? "(无日志)" : string.Join(" | ", captured)) : sinkFlushError);
+            }
+            finally
+            {
+                RecordingHub.LogSink = previousSink;
+            }
+
+            DataPipelineCheckSupport.DeleteDir(dir);
+        }
+
+        private static void TryFlushSucceedsOnHealthyPath()
+        {
+            string dir = DataPipelineCheckSupport.TempDir("csv_flush_ok");
+            RecordingHub.ConfigureForTests(dir);
+
+            var plugin = NewPlugin(dir, p => p.Columns.Add(Col("结果", ColumnSource.Port)));
+            SetPort(plugin, "结果", "OK");
+            plugin.Execute(DataPipelineCheckSupport.NewContext(new StubLog()));
+
+            bool flushed = RecordingHub.TryFlush(5000, out string error);
+            DataPipelineCheckSupport.Check("CSV：TryFlush 正常路径返回 true 且无错误",
+                flushed && error == null, error ?? "(无错误)");
+
+            DataPipelineCheckSupport.DeleteDir(dir);
+        }
+
+        private static void FlushBridgeUnregisteredPasses()
+        {
+            var previous = DataRecordFlushBridge.FlushHandler;
+            DataRecordFlushBridge.FlushHandler = null;
+            try
+            {
+                DataPipelineCheckSupport.Check("Excel：flush 桥未注册时直接放行（不阻塞单独使用）",
+                    DataRecordFlushBridge.TryFlush(1), "(应为 true)");
+            }
+            finally
+            {
+                DataRecordFlushBridge.FlushHandler = previous;
+            }
+        }
+
+        /// <summary>
+        /// 桥卡住（队列排不空）时，Excel 导出必须失败并给出可读原因，不许静默读半截账本。
+        /// </summary>
+        private static void ExcelExportFailsWhenFlushBridgeStuck()
+        {
+            string dir = DataPipelineCheckSupport.TempDir("xlsx_flush_stuck");
+            string csv = Path.Combine(dir, "ledger.csv");
+            File.WriteAllText(csv, "序号,结果\r\n1,OK\r\n");
+            string report = Path.Combine(dir, "report.xlsx");
+
+            var previous = DataRecordFlushBridge.FlushHandler;
+            DataRecordFlushBridge.FlushHandler = _ => false; // 模拟 CSV 队列排不空
+            try
+            {
+                var plugin = new ExcelExportPlugin();
+                plugin.Initialize(new CheckStepData { StepName = "报表" });
+                plugin.SourcePathTemplate = csv;
+                plugin.OutputDirectoryTemplate = dir;
+                plugin.ReportFileNamePattern = "report.xlsx";
+                plugin.ExportPolicy = ExportPolicy.EachRun;
+                plugin.BlockOnFailure = true;
+
+                plugin.Execute(DataPipelineCheckSupport.NewContext(new StubLog()));
+
+                DataPipelineCheckSupport.Check("Excel：导出前 flush 失败 → 步骤失败",
+                    plugin.Success.Value is false, $"{plugin.Success.Value}");
+                string message = plugin.ErrorMessage.Value as string ?? "";
+                DataPipelineCheckSupport.Check("Excel：失败原因点名等待队列排空超时",
+                    message.Contains("排空超时", StringComparison.Ordinal),
+                    message.Length == 0 ? "(空)" : message);
+                DataPipelineCheckSupport.Check("Excel：flush 失败时不产出报表（不读半截账本）",
+                    !File.Exists(report), report);
+            }
+            finally
+            {
+                DataRecordFlushBridge.FlushHandler = previous;
+                DataPipelineCheckSupport.DeleteDir(dir);
+            }
         }
 
         // ------------------------------------------------------------------

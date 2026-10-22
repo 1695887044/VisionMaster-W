@@ -5,9 +5,10 @@
 两组：**A 组**违反就编译红/闸门红，**B 组**违反不报错、只出诡异现象。每条一律写成
 `症状 → 机理 → 守门断言名`。
 
-**先说清一件事**（决定了本页 B 组的分量）：`FlowCanvasChecks\` 里**没有任何针对 ExcelExport 业务逻辑的断言**
-——全目录检索 `ExcelExport` 只命中 `HelpManualCheck.cs` 的档位表登记（`["ExcelExportPlugin"] = ManualTier.M`）。
-所以 B 组那批 OOXML/CSV 细节**目前全部靠人工核对 + 真机抽点链接**，合并/移植时这一页就是唯一的网。
+**先说清一件事**（决定了本页 B 组的分量）：`FlowCanvasChecks\ExcelExportChecks.cs` 已覆盖
+列映射 / 超链接注入 / 仅图行 / 失败契约 / 仅手动模式；导出前的 flush 桥由 `DataRecordChecks.cs` 的
+`Excel：flush 桥未注册时直接放行`、`Excel：导出前 flush 失败 → 步骤失败` 两条守着。
+但 B 组那批 OOXML 细节（改 zip 的三处）**仍全部靠人工核对 + 真机抽点链接**，合并/移植时这一页就是唯一的网。
 要补断言时，优先把 B1/B3/B4 那三条（漏写回 sheet、rels 的 Type、克隆错样式）做成"打开包看 XML"的静态断言。
 
 ## 一、A 组：违反就编译红 / 闸门红
@@ -32,6 +33,7 @@
 | 关系建好了、单元格没变（点开不是图片） | 改过的 sheet 忘了写回条目表（`doc[sheetName] = …`），最后写包时用的还是旧 XML | 无断言，靠人工核对 |
 | 显示名看不出是 png 还是 jpg | 用了 `GetFileNameWithoutExtension`；现在固定 `Path.GetFileName`（带扩展名） | 无断言，靠人工核对 |
 | 整本报表是空的 / "只有表头？" | `MiniExcel.Query` 未显式给 `excelType: ExcelType.CSV`（默认按 xlsx 解析，CSV 会抛并被收成"导出异常"），或 `useHeaderRow` 漏了 | 无断言，靠人工核对 |
+| 报表少了最后几行 | 账本是「CSV记录」后台线程异步追加的；导出前必须先 `DataRecordFlushBridge.TryFlush(3000)`。桥未注册（流程里没有 CSV 记录步骤）时直接放行 | `Excel：flush 桥未注册时直接放行（不阻塞单独使用）`、`Excel：导出前 flush 失败 → 步骤失败`（`DataRecordChecks.cs`） |
 | 勾了「只导有图的行」但没过滤 | `OnlyRowsWithImage` 只在 `hasLinkColumn` 成立时生效，而该判定**只看第一条数据行的键集**；列名对不上时静默导出全量 | 无断言，靠人工核对（面板文本会提示"未找到列"，是唯一的线索） |
 | 报表里链接数 M 远小于行数 | 单元格值不满足三条判据（非空 / 无非法路径字符 / `Path.IsPathRooted`），相对路径一律不建链接 | 无断言，靠人工核对 |
 | 路径预览出现"未赋值" | `InstanceName` 由引擎注入、构造视图时还没有；`EffectiveStepName` 退回 `StepData.StepName`，并在视图 `Loaded` 时 `RefreshPreview()` 一次。少了这个回退，预览目录名就会带"未赋值"，而真跑又是另一条路径 | 无断言，靠人工核对 |

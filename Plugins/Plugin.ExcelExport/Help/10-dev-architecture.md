@@ -63,10 +63,11 @@ ExportNow()
 - `RunExport(null)`：手动导出**不写日志**（`context == null`），失败只体现在面板红字。
   这是设计，不是漏了日志。
 
-## 四、导出器内部的四段（`ExcelReportExporter.Export`）
+## 四、导出器内部的五步（`ExcelReportExporter.Export`）
 
 | 段 | 动作 | 关键细节 |
 | --- | --- | --- |
+| 0 等落盘 | `DataRecordFlushBridge.TryFlush(3000)`（`Core.Interfaces` 静态桥，未注册直接放行） | 账本是「CSV记录」后台线程异步追加的，不等就可能读到半截；排不空返回可读消息、**不读文件** |
 | ① 校验 | 路径/输出非空、`File.Exists(源)` | 校验顺序决定"看到哪条消息"，改动会影响现场排障表的对应关系 |
 | ② 读账本 | `MiniExcel.Query(path, useHeaderRow: true, excelType: ExcelType.CSV)` 收成 `List<IDictionary<string, object>>` | **`excelType` 必须显式给**，不给就按 xlsx 解析、当场抛 |
 | ③ 可选过滤 | `hasLinkColumn = 列名非空 && rows[0] 含该键`；仅当过滤开关与列都存在才筛行 | 判定只看**第一条数据行**；筛完为空则失败退出 |

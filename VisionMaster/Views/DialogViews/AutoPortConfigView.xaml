@@ -7,11 +7,16 @@
         框架给"没有自定义视图的插件"自动包的一层参数面板（Web 设计基线 v1）。
 
         结构（从上到下）：
-          步骤信息卡 → 「输入参数」区块头 → 端口清单（每行一个 AutoPortRow） / 空态。
+          步骤信息卡 → 「输入参数」区块头 → 端口清单（每行一个 AutoPortRow） / 空态
+                     → 「插件参数」区块头 → [StepConfig] 配置项清单（每行一个 code-behind 生成的行）。
 
         端口行仍然由 code-behind 按运行期端口动态生成 —— "有哪些端口"只有插件实例
         活起来才知道；但每行的视觉与编辑控件已收进 AutoPortRow，本视图只负责
         步骤上下文、统计与列表/空态切换。
+
+        插件参数行同理（descriptor 也只有插件实例知道）：bool→CheckBox、枚举→ComboBox、
+        数值/文本→TextBox、其它类型→只读文本 + 提示。编辑即时写回插件实例，
+        确认时由插件基类 OnConfirm 统一落到 InputValues。
 
         颜色全部走 Dialog* 语义令牌；本文件不出现十六进制色值。
     -->
@@ -143,6 +148,37 @@
             <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="12" />
+        </Style>
+
+        <!--  插件参数行（[StepConfig]）：行高/内边距与 AutoPortRow 同密度；
+              右侧只有编辑列（没有链接/清除），所以列宽 240 与端口行对齐。  -->
+        <Style x:Key="ConfigRowStyle" TargetType="Border">
+            <Setter Property="MinHeight" Value="48" />
+            <Setter Property="Padding" Value="12,4" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ConfigTypeBadgeStyle" TargetType="Border">
+            <Setter Property="Height" Value="16" />
+            <Setter Property="Padding" Value="5,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+
+        <Style x:Key="ConfigTypeBadgeTextStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="9.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
         </Style>
 
         <!--  空态：图标 + 原因 + 说明 + 提示 chip  -->
@@ -311,6 +347,57 @@
                 <StackPanel x:Name="PortPanel" />
             </Border>
 
+            <!--  ③b 插件参数区（[StepConfig]）：没有自定义视图的插件在这里改配置项。
+                   行的控件由 code-behind 按 descriptor 生成（bool / 枚举 / 数值 / 文本 / 只读）。  -->
+            <Grid
+                x:Name="ConfigSectionHeader"
+                MinHeight="22"
+                Margin="0,10,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    Grid.Column="0"
+                    Style="{StaticResource SectionTitleStyle}"
+                    Text="插件参数" />
+                <Border
+                    Grid.Column="1"
+                    Margin="8,0,0,0"
+                    Style="{StaticResource CountBadgeStyle}">
+                    <TextBlock x:Name="ConfigCountText" Style="{StaticResource CountBadgeTextStyle}" Text="0" />
+                </Border>
+
+                <StackPanel
+                    Grid.Column="2"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <TextBlock
+                        Margin="0,0,5,0"
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource Icon}"
+                        FontSize="11"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="&#xf05a;" />
+                    <TextBlock Style="{StaticResource SectionHintTextStyle}" Text="即时生效 · 确认后写入步骤" />
+                </StackPanel>
+            </Grid>
+
+            <Border x:Name="ConfigListBorder" Style="{StaticResource PortListStyle}">
+                <StackPanel x:Name="ConfigPanel" />
+            </Border>
+
+            <!--  插件参数空态：只有一行说明，不占一整张卡片（端口区已有大空态）  -->
+            <TextBlock
+                x:Name="ConfigEmptyText"
+                Margin="2,0,0,6"
+                Style="{StaticResource SectionHintTextStyle}"
+                Text="该插件没有 [StepConfig] 配置项"
+                Visibility="Collapsed" />
+
             <!--  ④ 空态  -->
             <Border
                 x:Name="EmptyState"
@@ -331,7 +418,7 @@
                     <TextBlock
                         x:Name="EmptyDescriptionText"
                         Style="{StaticResource EmptySubtitleStyle}"
-                        Text="插件没有声明任何输入端口，因此没有可编辑的参数。仍可执行、确认或取消；若该插件应有参数，请检查插件是否把配置写成了 [StepConfig]（本版兜底面板只渲染 InputPort）。" />
+                        Text="插件没有声明任何输入端口，也没有 [StepConfig] 配置项，因此没有可编辑的参数。仍可执行、确认或取消；若该插件应有参数，请检查插件是否声明了 InputPort 或 [StepConfig] 属性。" />
 
                     <Border Style="{StaticResource EmptyHintStyle}">
                         <StackPanel Orientation="Horizontal">

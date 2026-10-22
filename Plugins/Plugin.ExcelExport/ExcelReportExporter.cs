@@ -1,3 +1,4 @@
+using Core.Interfaces;
 using MiniExcelLibs;
 using MiniExcelLibs.OpenXml;
 using System;
@@ -44,6 +45,9 @@ namespace Plugin.ExcelExport
     /// </summary>
     internal static class ExcelReportExporter
     {
+        /// <summary>导出前等待数据记录队列排空的预算（毫秒）</summary>
+        private const int FlushTimeoutMs = 3000;
+
         /// <summary>
         /// 占位符展开：{StepName} 本步骤名、{源步骤} 源账本步骤名，
         /// 以及 {yyyy-MM-dd HH-mm-ss} {yyyy-MM-dd} {yyyy-MM} {yyyy} {MM} {dd} 日期族。
@@ -73,6 +77,11 @@ namespace Plugin.ExcelExport
                 if (req == null) return Fail(result, "导出参数为空");
                 if (string.IsNullOrWhiteSpace(req.SourceCsvPath)) return Fail(result, "源账本路径为空");
                 if (string.IsNullOrWhiteSpace(req.OutputXlsxPath)) return Fail(result, "输出报表路径为空");
+
+                // —— 0) 先等「CSV记录」的异步写盘队列排空：不等就可能读到少了最后几行的半截账 ——
+                if (!DataRecordFlushBridge.TryFlush(FlushTimeoutMs))
+                    return Fail(result, $"导出前等待 CSV 队列排空超时（{FlushTimeoutMs} ms）：{req.SourceCsvPath} 可能仍有记录未落盘，请稍后重试；持续超时请检查磁盘/文件占用");
+
                 if (!File.Exists(req.SourceCsvPath))
                     return Fail(result, $"源账本不存在：{req.SourceCsvPath}（请检查『源账本路径』模板与『源步骤名』）");
 

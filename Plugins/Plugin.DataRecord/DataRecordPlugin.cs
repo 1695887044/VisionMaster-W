@@ -36,7 +36,7 @@ namespace Plugin.DataRecord
     ///   否则 FlowCompiler 编译期报 [参数缺失]；
     /// - 值类型用 InputPort&lt;object&gt;：FlowCompiler 连线不做类型静态校验，
     ///   赋值经 ValueConverter 兜底，任何上游输出都接得进来；
-    /// - 失败契约：写队列满/被拒且勾选"写入失败阻断流程" → 显式 Success=false（宁停线不丢账）。
+    /// - 失败契约：写队列满/被拒、或异步写盘失败（有界等待队列落盘）且勾选"写入失败阻断流程" → 显式 Success=false（宁停线不丢账）。
     /// </summary>
     [Display(
         Name = "CSV记录",
@@ -56,6 +56,12 @@ namespace Plugin.DataRecord
             Columns.Add(new RecordColumnDef { Name = "序号", Source = ColumnSource.BuiltIn, BuiltIn = BuiltInField.Sequence });
             Columns.Add(new RecordColumnDef { Name = "结果", Source = ColumnSource.Port });
             HookColumns(Columns);
+        }
+
+        static DataRecordPlugin()
+        {
+            // 跨插件 flush 桥：Excel 报表读账本前等待本插件的 CSV 队列排空（经 Core.Interfaces，不引插件对插件）
+            DataRecordFlushBridge.FlushHandler = timeoutMs => RecordingHub.TryFlush(timeoutMs, out _);
         }
 
         #region 内嵌配置（随 .vms 持久化）
@@ -334,19 +340,20 @@ namespace Plugin.DataRecord
 
         public override void RunAlgorithm(IExecutionContext context)
         {
-            // —— Hub 暂存日志投递（静态 Hub 没有 context，随每次执行转交宿主日志）——
-            if (context?.Logger != null)
+            // —— 即时日志 sink：后台写线程的错误当场进应用日志（只捕获 logger 引用，不捕获整个 context）——
+            var logger = context?.Logger;
+            if (logger == null) RecordingHub.LogSink = null; // 没有 logger：回退到静态队列，下一次执行兜底转交
+            else RecordingHub.LogSink = (level, msg) => WriteLog(logger, level, msg);
+
+            // —— 兜底投递：sink 未生效时暂存的日志随本次执行转交宿主日志 ——
+            if (logger != null)
             {
                 foreach (var log in RecordingHub.TakeLogs())
-                {
-                    switch (log.Level)
-                    {
-                        case "ERROR": context.Logger.Error(log.Message); break;
-                        case "WARN": context.Logger.Warn(log.Message); break;
-                        default: context.Logger.Info(log.Message); break;
-                    }
-                }
+                    WriteLog(logger, log.Level, log.Message);
             }
+
+            // 写盘失败快照：flush 后比较，只认"本次步骤期间"新增的失败
+            long writeErrorSeqBefore = RecordingHub.WriteErrorSeq;
 
             var cols = EnabledColumns();
             if (cols.Count == 0)
@@ -431,8 +438,34 @@ namespace Plugin.DataRecord
             if (pendingImage != null)
                 RecordingHub.EnqueueImage(pendingImage.Image, pendingImage.PathNoExt, pendingImage.Format, InstanceName);
 
+            // —— 异步写盘阻断：有界等待落盘；本次步骤期间出现写盘错误或排不空即失败 ——
+            if (BlockOnFailure)
+            {
+                int flushTimeout = Math.Max(2000, 2 * RecordingHub.BatchWindowMs);
+                bool flushed = RecordingHub.TryFlush(flushTimeout, out string flushError);
+                if (!flushed || RecordingHub.WriteErrorSeq != writeErrorSeqBefore)
+                {
+                    string detail = RecordingHub.WriteErrorSeq != writeErrorSeqBefore
+                        ? RecordingHub.LastWriteError
+                        : flushError;
+                    Fail("CSV记录：数据写入失败：" + (detail ?? "未知原因"));
+                    return;
+                }
+            }
+
             Success.Value = true;
             ErrorMessage.Value = "";
+        }
+
+        /// <summary>按级别把中枢日志写进宿主日志（即时 sink 与兜底投递共用）。</summary>
+        private static void WriteLog(ILogService logger, string level, string message)
+        {
+            switch (level)
+            {
+                case "ERROR": logger.Error(message); break;
+                case "WARN": logger.Warn(message); break;
+                default: logger.Info(message); break;
+            }
         }
 
         /// <summary>本件是否该存图：每件模式恒真；仅NG模式看结果列是否等于 NG 判定值。</summary>

@@ -35,8 +35,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private readonly ILogService _logger;
         private readonly FlowCompiler _flowCompiler;
         private readonly HttpImageServer _httpServer;
+        private readonly IUserNotifier _notifier;
 
-        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger, FlowCompiler flowCompiler, HttpImageServer httpServer, ICameraProvider cameras, IMotionProvider motions, IFlowInvoker flowInvoker, ICommVariableAccess comms = null)
+        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger, FlowCompiler flowCompiler, HttpImageServer httpServer, ICameraProvider cameras, IMotionProvider motions, IFlowInvoker flowInvoker, ICommVariableAccess comms = null, IUserNotifier notifier = null)
         {
             _workspace = workspace;
             _logger = logger;
@@ -46,6 +47,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _motions = motions ?? NullMotionProvider.Instance;
             _flowInvoker = flowInvoker ?? NullFlowInvoker.Instance;
             _comms = comms ?? NullCommVariableAccess.Instance;
+            // 可选依赖：容器里已注册 IUserNotifier；断言宿主/设计器手工构造时可以不传，
+            // 此时只少一条非模态提示，日志仍然照记（不能因为提示缺失让异常隔离失效）。
+            _notifier = notifier;
             ExecuteCommand = new DelegateCommand(ExecutePlugin, () => CanExecute);
             ConfirmCommand = new DelegateCommand(Confirm);
             CancelCommand = new DelegateCommand(Cancel);
@@ -158,13 +162,33 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 PluginName = _stepData.StepName ?? "插件配置";
                 Title = _stepData.StepName ?? "插件配置";
                 PluginDescription = _stepData.Description ?? string.Empty;
-                _pluginView?.Initialize(_stepData);
+
+                // 插件视图是第三方代码：初始化失败不许把弹窗带崩（更不许冒到 UI 线程）。
+                // 失败时窗口仍然打开——用户至少能看到"插件参数初始化失败"的提示，
+                // 而不是点一下菜单什么都不发生。
+                try
+                {
+                    _pluginView?.Initialize(_stepData);
+                }
+                catch (Exception ex)
+                {
+                    ReportUiFailure("初始化插件参数面板", ex);
+                }
             }
 
             // 把宿主运行环境透传给需要它的插件视图（如采集插件的"本地图片推送测试"要拼真实 URL / 令牌）
             // 必须放在 Initialize 之后：插件 Initialize 可能写默认值，宿主透传的真实值应当最后落地
             if (_pluginView is IPluginConfigContextProvider contextProvider)
-                contextProvider.SetConfigContext(BuildConfigContext());
+            {
+                try
+                {
+                    contextProvider.SetConfigContext(BuildConfigContext());
+                }
+                catch (Exception ex)
+                {
+                    ReportUiFailure("透传宿主配置上下文", ex);
+                }
+            }
 
             RaisePropertyChanged(nameof(PluginIcon));
             RaisePropertyChanged(nameof(PluginName));
@@ -328,8 +352,19 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 return;
             }
 
-            // 先把界面上未确认的修改同步进流程（触发版本号递增），保证"所见即所试"
-            _pluginView?.OnConfirm(_stepData);
+            // 先把界面上未确认的修改同步进流程（触发版本号递增），保证"所见即所试"。
+            // 插件视图的 OnConfirm 是第三方代码：同步失败就中止本次试运行，
+            // 但**窗口不关**——用户改的值还在界面上，状态栏给出原因。
+            try
+            {
+                _pluginView?.OnConfirm(_stepData);
+            }
+            catch (Exception ex)
+            {
+                ReportUiFailure("同步界面参数", ex);
+                StatusText = $"状态: ❌ 参数同步失败 - {ex.Message}";
+                return;
+            }
 
             // 释放上一次试运行的会话（旧数据随本次试运行被替换，防非托管资源堆积）
             _trialSession?.Dispose();
@@ -426,14 +461,26 @@ namespace VisionMaster.ViewModels.DialogViewModels
             // 点过"取消"的：后台已收尾，现在才真正还原模型并关窗
             if (_closeAfterStop)
             {
-                _pluginView?.OnCancel();
+                CancelPluginViewSafely();
                 RequestClose.Invoke(ButtonResult.Cancel);
             }
         }
 
         private void Confirm()
         {
-            _pluginView?.OnConfirm(_stepData);
+            try
+            {
+                _pluginView?.OnConfirm(_stepData);
+            }
+            catch (Exception ex)
+            {
+                // 确认失败**不关窗**：用户刚改的值还在界面上，关掉就只剩"没保存成功"的空白，
+                // 而且再次打开时看到的是旧值（会以为"改了没生效"）。状态栏 + 非模态提示给原因。
+                ReportUiFailure("保存插件参数", ex);
+                StatusText = $"状态: ❌ 保存失败 - {ex.Message}";
+                return;
+            }
+
             RequestClose.Invoke(ButtonResult.OK);
         }
 
@@ -451,8 +498,49 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 return;
             }
 
-            _pluginView?.OnCancel();
+            CancelPluginViewSafely();
             RequestClose.Invoke(ButtonResult.Cancel);
+        }
+
+        /// <summary>
+        /// 取消插件视图的异常隔离：OnCancel 抛异常也必须把窗口关掉
+        ///（否则用户点"取消"毫无反应，比丢掉一次修改更糟）。
+        /// </summary>
+        private void CancelPluginViewSafely()
+        {
+            try
+            {
+                _pluginView?.OnCancel();
+            }
+            catch (Exception ex)
+            {
+                ReportUiFailure("取消插件配置", ex);
+            }
+        }
+
+        /// <summary>
+        /// 插件 UI 入口失败的统一出口：日志（含堆栈）+ 非模态提示。
+        /// 日志/提示自身失败绝不再抛——异常隔离层再炸一次就等于没隔离。
+        /// </summary>
+        private void ReportUiFailure(string action, Exception ex)
+        {
+            try
+            {
+                _logger?.Error($"[插件配置] {action}失败：{ex}");
+            }
+            catch
+            {
+                // 日志服务故障时忽略
+            }
+
+            try
+            {
+                _notifier?.ShowError($"插件参数{action}失败：{ex.Message}（详情见日志）");
+            }
+            catch
+            {
+                // 提示服务故障时忽略
+            }
         }
     }
 }

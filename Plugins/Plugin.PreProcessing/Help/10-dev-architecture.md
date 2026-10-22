@@ -98,7 +98,7 @@
 
 | 字段 | 线程 | 含义 | 谁写 |
 | --- | --- | --- | --- |
-| `SrcImage` / `Image` / `StepCount` / `ActiveCount` / `ActiveOperators` | 流程线程 | 端口，见 §6 | `RunAlgorithm` |
+| `SrcImage` / `Image` / `StepCount` / `ActiveCount` / `ActiveOperators` / `FailedOperators` / `FailedCount` | 流程线程 | 端口，见 §6 | `RunAlgorithm` |
 | `Operators` | UI | 活链 | 命令、粘贴、`RebuildOperators` |
 | `SelectedOperator` | UI | 选中项，setter 会联动预览步骤号 | 界面、`RebuildOperators` |
 | `_stepImages` | UI | `Dictionary<int, HImage>` 每步输出，**透传步故意不存** | `ApplyStepResults` |
@@ -112,6 +112,7 @@
 | `CanvasRois` | UI | `DrawingObjectInfo` 集合，同一时刻至多一个"编辑框" | `RefreshCanvasBox` |
 | `_syncingCanvas` / `_fromCanvas` | UI | 两个方向的防回环开关 | 画布同步 |
 | `LoadWarning` / `ActionHint` | UI | 提示文案（`SetHint` 写） | 各类命令 |
+| `PreviewFailure` / `PreviewWarningDetail` | UI | 预览失败摘要（黄色信息条）与本轮 Warn 原文（悬停详情） | `SetPreviewDiagnostics` |
 
 `UiDispatcher` 是 `Application.Current?.Dispatcher` 的只读封装；拿不到（关窗后、无 UI 的离线跑流程/单元测试）就走同步分支。
 
@@ -128,7 +129,8 @@
 4. `steps = Operators.ToArray();` —— **在流程线程上拍活链快照**。
    注释写得很直白：`ObservableCollection` 不是线程安全的，配置界面可能同时在增删步骤，
    流程线程绝不枚举活链，只读这份数组。后面算端口统计也只用 `steps`。
-5. `final = ExecuteChain(src, steps, stepResults: null, context.Logger);` —— `null` 表示不留中间图，跑一步扔一步。
+5. `final = ExecuteChain(src, steps, stepResults: null, context.Logger, failures);` —— `null` 表示不留中间图，跑一步扔一步；
+   `failures` 是本轮失败收集器（`List<OperatorFailure>`），端口与判定都从它出。
 6. `catch (Exception ex)` → `Fail($"图像预处理失败：{ex.Message}")` + `context.Logger.Error($"{InstanceName} {ErrorMessage.Value}")`。
    业务 catch 存在的意义是带上下文前缀，比基类兜底的"异常类型: 消息"好排查。
 7. `if (ReferenceEquals(final, src)) final = PreprocessHService.Clone(src);` —— **全禁用/全透传时必须复制**，
@@ -136,8 +138,14 @@
 8. `Image.TypedValue = final;` —— 唯一给输出图赋值的地方。
 9. 端口统计：`StepCount.Value = steps.Length`；`ActiveCount` 取 `steps` 里 `Enabled` 的个数；
    `ActiveOperators.Value = active.Count == 0 ? "(全部禁用)" : string.Join(" → ", active)`（显示名按执行顺序串起来）。
+   失败端口同批写：`FailedCount.Value = failures.Count`；
+   `FailedOperators.Value = FormatFailures(failures)`（`序号:算子名: 原因`，`；` 分隔，无失败为空串）。
+   **两条端口每轮开头先清零**（`RunAlgorithm` 首两行）：上一轮的失败不能残留到"这一轮没跑成"的情况。
 10. `if (DisplayViewIndex > 0) TryPublishPreview(final, context);` —— 推图到主界面视图 1~9。
-11. **结尾不写 `Success`**：基类进入本方法时已预置 true，只有失败路径需要显式写 false（`Fail` 已负责）。
+11. `if (failures.Count > 0 && FailOnOperatorError) Fail($"预处理算子失败：{failedText}")` ——
+    链**跑完**才判（要记录全部失败），且此时 `Image` 与统计已赋完值（输出端口照常可用）。
+    默认 `FailOnOperatorError=false` 时不走这一步：整步仍成功，失败只体现在两个失败端口上。
+12. **结尾不写 `Success`**：基类进入本方法时已预置 true，只有失败路径需要显式写 false（`Fail` 已负责）。
 
 `TryPublishPreview` 整个包在 try/catch 里，失败只 `Warn("{InstanceName} 预览推送失败：…")`。
 理由是推图属于"锦上添花"，投递失败绝不能把一次正常的预处理判成失败。
@@ -147,18 +155,20 @@
 
 ## 7. 链执行引擎 `ExecuteChain`
 
-签名：`HImage ExecuteChain(HImage src, IReadOnlyList<PreprocessOperator> steps, HImage?[]? stepResults, ILogService? logger)`
+签名：`HImage ExecuteChain(HImage src, IReadOnlyList<PreprocessOperator> steps, HImage?[]? stepResults, ILogService? logger, List<OperatorFailure>? failures = null)`
 
 循环内四种走向，顺序不能调整：
 
 1. **算子禁用** → `if (stepResults != null) stepResults[i] = current; continue;`
    原样透传。注释点名了参考实现的坑：那里"禁用就不给输出赋值"，于是下一个算子拿到的是**再上一步的陈旧图像**。
-2. **`op.Apply(current)` 抛异常** → `logger?.Warn($"{InstanceName} 算子[{op.DisplayName}] 执行失败，已跳过：{ex.Message}")`，
-   该步填 `current`，`continue`。图像继续往下流，**整条流程不会红**。
-   这是刻意设计：现场调参时某个算子参数填错，不该让整条链报废。
+2. **`op.Apply(current)` 抛异常** → 三条出口一起写：
+   `logger?.Warn($"{InstanceName} 算子[{op.DisplayName}] 执行失败，已跳过：{ex.Message}")`、
+   `failures?.Add(new OperatorFailure(i + 1, op.DisplayName, ex.Message))`、
+   该步填 `current` 后 `continue`。图像继续往下流；**是否因此判失败由调用方决定**（见 §6 第 11 步），
+   本方法只负责如实记录。步号是 `i + 1`（与界面步号一致，1 基）。
 3. **正常返回** → 先 `stepResults[i] = result`（若非 null），再查 `op is BoxOperatorBase { WasBoxClamped: true }`，
    命中就 `Warn("… 编辑框超出图像范围，已自动夹取到图内执行")`。
-   预览路径没有 logger，靠算子摘要里的"（越界已夹取）"提示，两边都有交代。
+   预览路径传的是记录型 logger（`PreviewLog`），这句会进黄色信息条的悬停详情；算子摘要另挂"（越界已夹取）"。
 4. **收口** → `if (ReferenceEquals(result, current)) continue;` 说明该算子对当前输入无从下手（透传）；
    否则 `if (currentOwned && stepResults == null) current.Dispose();` 用完即弃，
    然后 `current = result; currentOwned = true;`。
@@ -205,7 +215,8 @@
 
 1. `_sourceImage = SrcImage.ActualValue;` + `var steps = Operators.ToArray();`
    —— 快照时刻即结果：后台跑的同时用户还能继续加算子改参数。
-2. 空图 / 未初始化 / 链为空 → `DisposeStepImages()` + `OnPropertyChanged(nameof(DisplayImage))` 后返回。
+2. 空图 / 未初始化 / 链为空 → `DisposeStepImages()` + `SetPreviewDiagnostics(null)`（清掉上一轮的黄色失败条）
+   + `OnPropertyChanged(nameof(DisplayImage))` 后返回。
 3. `waitForResult` 或 `UiDispatcher == null` → 直接 `ApplyStepResults(ExecuteSteps(src, steps), src)` 同步跑
    （导出路径 `RefreshPreviewSync` 要的就是"此刻链跑完的中间图"，`WriteExport` 会读 `_stepImages`）。
 4. `_previewRunning` 已为真 → 只置 `_previewDirty = true` 后返回（不叠加，也不丢最后一次）。
@@ -217,7 +228,15 @@
    仅当 `task.IsCompletedSuccessfully && generation == _previewGeneration` 才 `ApplyStepResults`；
    最后若 `_previewDirty` 则清标志并补跑一轮。
 
-`ExecuteSteps` 把整轮包在 try/catch 里，**预览路径的异常不弹框**，能显示多少步就显示多少步，剩下的步留空。
+`ExecuteSteps` 把整轮包在 try/catch 里，**预览路径的异常不弹框**，能显示多少步就显示多少步，剩下的步留空；
+返回的是 `PreviewRun`（各步图 + `PreviewLog`），不再是裸的 `HImage?[]`。
+
+**预览的失败信号（P0-6）**：`ExecuteSteps` 不再给 `ExecuteChain` 传 `logger: null`，而是传内部
+`PreviewLog : ILogService`——`Warn` 原文收进 `Warnings`，算子失败另以结构化 `OperatorFailure` 收进 `Failures`
+（`ExecuteChain` 的 `failures` 形参就是 `run.Log.Failures`）。`ApplyStepResults` 换图时一并调
+`SetPreviewDiagnostics(run.Log)`，把两样东西交给界面：
+`PreviewFailure`（黄色信息条，`N 个算子执行失败：序号:算子名: 原因；…`）与
+`PreviewWarningDetail`（同一信息条的 `ToolTip`，本轮全部 Warn 原文，无内容时必须是 `null`——空串会弹空提示框）。
 
 `DisplayImage` 的来源三分支：`Source` 给 `_sourceImage`；`Input` 给 `InputImage`；
 默认（`Output`）查 `_stepImages[_previewStepIndex]`，查不到退回 `_sourceImage`——画面不会"空白"。

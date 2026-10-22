@@ -160,5 +160,19 @@ namespace Core.Interfaces
         /// </summary>
         public static IReadOnlyList<string> GetOptions(StepConfigOptionKind kind)
             => GetOptionItems(kind).Select(o => o.Value).ToList();
+
+        /// <summary>
+        /// 某类别**当前是否取得到候选**。
+        ///
+        /// 【为什么要这个辅助】"取不到候选"是一个**正常的业务状态**（还没配运动卡、方案里没有
+        /// 已启用的轴、宿主没注册来源），而界面在两种状态下要渲染成两种东西：
+        /// 有候选 → 下拉（值只能从候选里选）；无候选 → 可手填的输入框 + "无候选，可手填"提示。
+        /// 判据只有这一个入口，别让各处自己写"Count &gt; 0"再各自解释一遍。
+        ///
+        /// 【口径】只做判定时调它；**要显示候选列表请直接 <see cref="GetOptionItems"/> 后判 Count**
+        /// —— 候选由宿主现算（可能查方案），连着调两次会取两遍、还可能取到不一致的两份。
+        /// 本方法不改变任何既有语义：未注册/取不到仍是空列表（不是异常、不是 null）。
+        /// </summary>
+        public static bool HasOptions(StepConfigOptionKind kind) => GetOptionItems(kind).Count > 0;
     }
 }

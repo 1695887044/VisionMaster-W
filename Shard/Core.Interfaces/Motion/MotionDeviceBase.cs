@@ -70,6 +70,17 @@ namespace Core.Interfaces
         private readonly ConcurrentDictionary<int, AxisStatus> _axisCache = new();
         private readonly ConcurrentDictionary<int, bool> _inputCache = new();
 
+        /// <summary>
+        /// 状态采样互斥：轮询线程与"验证用一次性刷新"共用。
+        ///
+        /// 为什么需要：<see cref="PollStatusCore"/> 会直接跟卡通信并写快照。平时只有轮询线程进它，
+        /// 但"清报警后确认底层报警是否真的落下"必须在**安全停机态**现读一次 ——
+        /// 而那个状态下轮询线程是停的（见 <see cref="PollLoop"/>），只能由
+        /// **调用 ClearAlarm 的那条线程**（UI / 流程线程）代劳。
+        /// 两者互斥，避免同一个驱动同时被两条线程进状态采样。
+        /// </summary>
+        private readonly object _pollGate = new();
+
         /// <summary>每个轴"上一次已上报的致命信号"（去重：同一原因不重复刷故障）</summary>
         private readonly Dictionary<int, string> _lastCriticalByAxis = new();
 
@@ -395,14 +406,162 @@ namespace Core.Interfaces
                 return false;
             }
 
-            // 清报警成功：从报警态回到在线（若之前是安全停机则不自动回 —— 那需要重新连接）
+            // 清报警命令完成 ≠ 设备真的可以动了：报警位有没有落下、位置还可不可信，
+            // 都要在这里复核一次才决定状态机往哪儿走（见两个分支的注释）。
+            bool fromAlarm;
+            bool fromSafeStopped;
             lock (_gate)
             {
-                if (_state == MotionCardState.Alarm)
-                    SetStateLocked(MotionCardState.Online, "报警已清除");
+                fromAlarm = _state == MotionCardState.Alarm;
+                fromSafeStopped = _state == MotionCardState.SafeStopped;
             }
-            RaiseStateChanged();
+
+            if (fromAlarm)
+            {
+                // 报警态：直接回在线。报警位是否真的落下由**下一拍轮询**确认
+                // （DetectCriticalSignals 会在报警位仍在时把状态再推回 Alarm）——
+                // 这是既有语义，断言依赖它，不要改成"在这里读一遍快照"。
+                bool changed;
+                lock (_gate) { changed = SetStateLocked(MotionCardState.Online, "报警已清除"); }
+                if (changed) RaiseStateChanged();
+            }
+            else if (fromSafeStopped)
+            {
+                // 安全停机态：必须复核"底层真的没报警了 + 位置可信"才放行，
+                // 否则等于绕过真实报警/按未知坐标运动（见方法注释）。
+                if (!TryLeaveSafeStoppedAfterAlarmCleared(out var recoveryError))
+                {
+                    error = recoveryError;
+                    return false;
+                }
+            }
+
             return true;
+        }
+
+        /// <summary>
+        /// 清报警成功后，尝试把设备从「已安全停机」放回「在线」。失败时给出可直接上屏的原因。
+        ///
+        /// 为什么要复核（这是 S7 的核心，不是保守到多余）：
+        ///   ① <b>安全停机期间轮询线程不采状态</b>（<see cref="PollLoop"/> 只在线/报警态轮询），
+        ///      缓存停在停机前那一拍。只看缓存会得出"没有报警"的**假结论**（报警可能正是停机之后才出现，
+        ///      或者清报警请求被驱动接受了但伺服报警其实还挂着）。所以这里**现读一次**；
+        ///   ② <b>位置不可信时不许回在线</b>：增量编码器 + 未回零 = 不知道轴在哪。
+        ///      放回在线等于允许绝对运动按错误坐标算行程（<see cref="IMotionDevice.IsHomed"/> 注释里
+        ///      写明的撞限位风险）。这种情况要求重新连接并回零，而不是清个报警就继续跑；
+        ///   ③ 复核失败一律**保持安全停机**并返回 false —— 绝不"先放行再让轮询纠正"。
+        /// </summary>
+        private bool TryLeaveSafeStoppedAfterAlarmCleared(out string error)
+        {
+            error = string.Empty;
+
+            bool positionTrusted;
+            lock (_gate)
+            {
+                // 复核期间状态可能已被别的路径改掉（断开 / 再次故障）：那就没什么要做的
+                if (_state != MotionCardState.SafeStopped) return true;
+
+                positionTrusted = _isHomed || _capabilities.SupportsAbsoluteEncoder;
+            }
+
+            if (!positionTrusted)
+            {
+                error = "报警已清除，但本卡为增量编码器且尚未回零：位置不可信，保持安全停机。"
+                        + "请重新连接后先执行「轴回零」（未回零就放行绝对运动会按错误坐标算行程）";
+                return false;
+            }
+
+            if (!TryRefreshSnapshotsForVerification(out var refreshError))
+            {
+                error = $"报警已清除，但无法确认底层报警是否真的消失（{refreshError}），保持安全停机";
+                return false;
+            }
+
+            List<string> stillCritical;
+            lock (_gate)
+            {
+                if (_state != MotionCardState.SafeStopped) return true;
+
+                stillCritical = _axisCache
+                    .Where(kv => kv.Value.HasCriticalSignal)
+                    .Select(kv => $"{AxisDisplayName(kv.Key)}：{kv.Value.Describe()}")
+                    .ToList();
+
+                // 一个轴快照都没有 = 没有任何证据能证明"报警已清除"（例如卡上没启用任何轴）。
+                // 这种情况按"无法确认"处理，宁可要求重新连接。
+                if (stillCritical.Count == 0 && _axisCache.IsEmpty)
+                {
+                    error = "报警已清除，但没有任何轴状态快照，无法确认底层报警已消失，保持安全停机（请重新连接）";
+                    return false;
+                }
+            }
+
+            if (stillCritical.Count > 0)
+            {
+                error = "底层仍在报警/限位/急停（" + string.Join("；", stillCritical) + "），保持安全停机。"
+                        + "请先排除触发原因并复位伺服，再清一次报警";
+                return false;
+            }
+
+            bool changed;
+            lock (_gate)
+            {
+                if (_state != MotionCardState.SafeStopped) return true;
+
+                changed = SetStateLocked(MotionCardState.Online, "报警已清除，已从安全停机恢复");
+
+                // "安全停机"这条故障已经由人工处理掉了：清掉，避免界面继续显示
+                // "请重新连接/检查网线"那类已经过期的建议（原始记录仍在日志里）。
+                _lastFault = null;
+            }
+
+            if (changed) RaiseStateChanged();
+            LogInfo($"[{Descriptor.Caption}] 清报警成功：已从安全停机恢复到在线（报警位复核通过）");
+            return true;
+        }
+
+        /// <summary>
+        /// 一次性状态采样（安全停机期间轮询线程不工作，缓存是停机前的旧值）。
+        /// 与轮询线程互斥；用 <see cref="Monitor.TryEnter(object, int)"/> 而不是无限等 ——
+        /// 轮询线程若正卡在一次 SDK 调用里，宁可放弃这次复核（保持安全停机），
+        /// 也不能把调用方（可能是 UI 线程）拖死。
+        /// </summary>
+        private bool TryRefreshSnapshotsForVerification(out string error)
+        {
+            error = string.Empty;
+
+            var timeout = Math.Clamp(Params.CommandTimeoutMs, 200, 3000);
+            if (!Monitor.TryEnter(_pollGate, timeout))
+            {
+                error = $"状态轮询占用中（>{timeout}ms）";
+                return false;
+            }
+
+            try
+            {
+                PollStatusCore(CancellationToken.None);
+                // 现读成功 = 通信正常：把看门狗计时推到当前，避免刚回在线就被旧时间戳判失联。
+                NotifyAlive();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = $"{ex.GetType().Name}: {ex.Message}";
+                return false;
+            }
+            finally
+            {
+                Monitor.Exit(_pollGate);
+            }
+        }
+
+        /// <summary>轴的显示名（逻辑名优先，与 DetectCriticalSignals 同一口径）</summary>
+        private string AxisDisplayName(int physicalIndex)
+        {
+            var mapping = Descriptor.FindAxis(physicalIndex);
+            return string.IsNullOrWhiteSpace(mapping?.LogicalName)
+                ? $"轴{physicalIndex}"
+                : mapping!.LogicalName;
         }
 
         #endregion
@@ -584,10 +743,17 @@ namespace Core.Interfaces
         {
             reason = string.Empty;
 
-            // 清报警：报警态与在线态都允许（报警态下它正是唯一该被允许的命令）
+            // 清报警：在线 / 报警 / 安全停机三种状态都允许。
+            // 报警态下它正是唯一该被允许的命令；安全停机态（命令失败、看门狗、失联）之后，
+            // 操作员排除原因、复位伺服，**清报警就是回在线的那一步**（旧实现把它挡在门禁外，
+            // 现场只能靠"断开再连接"脱身）。真正的放行判据不在门禁里，而在
+            // ClearAlarm 成功之后的复核（见 TryLeaveSafeStoppedAfterAlarmCleared）：
+            // 底层还有报警、或位置不可信，就保持安全停机。
             if (command.Kind == MotionCommandKind.ClearAlarm)
             {
-                if (_state == MotionCardState.Online || _state == MotionCardState.Alarm) return MotionCommandResult.Accepted;
+                if (_state is MotionCardState.Online or MotionCardState.Alarm or MotionCardState.SafeStopped)
+                    return MotionCommandResult.Accepted;
+
                 reason = _state == MotionCardState.Closed ? "运动卡未连接" : "当前状态不允许清除报警";
                 return MotionCommandResult.Rejected_NotConnected;
             }
@@ -652,13 +818,57 @@ namespace Core.Interfaces
             }
 
             // 软限位：软件层的最后一道防线（硬限位在卡上，由能力位表达）
-            if (command.Kind == MotionCommandKind.MoveAbsolute)
+            //
+            // 绝对运动直接比目标点；**相对运动必须先按当前位置算出目标点**再比 ——
+            // 只判绝对运动等于给相对运动开了一道后门：轴在 190mm、限位 200mm 时
+            // "相对 +50" 会一头撞到行程之外，而软件层一句话都不说（真机上就是撞机）。
+            if (command.Kind is MotionCommandKind.MoveAbsolute or MotionCommandKind.MoveRelative)
             {
                 var mapping = Descriptor.FindAxis(command.PhysicalAxis);
-                if (mapping != null && mapping.Enabled && !mapping.IsWithinSoftLimit(command.TargetMm))
+                if (mapping != null && mapping.Enabled)
                 {
-                    reason = $"目标 {command.TargetMm:F3} mm 超出软限位 [{mapping.SoftLimitMinMm:F1}, {mapping.SoftLimitMaxMm:F1}] mm";
-                    return MotionCommandResult.Rejected_InvalidArgument;
+                    if (command.Kind == MotionCommandKind.MoveAbsolute)
+                    {
+                        if (!mapping.IsWithinSoftLimit(command.TargetMm))
+                        {
+                            reason = $"目标 {command.TargetMm:F3} mm 超出软限位 [{mapping.SoftLimitMinMm:F1}, {mapping.SoftLimitMaxMm:F1}] mm";
+                            return MotionCommandResult.Rejected_InvalidArgument;
+                        }
+                    }
+                    else
+                    {
+                        var axisName = string.IsNullOrWhiteSpace(mapping.LogicalName)
+                            ? $"轴{mapping.PhysicalIndex}"
+                            : mapping.LogicalName;
+
+                        // 增量不是有限数（NaN / ±∞）：算出来的目标同样没有意义，直接拒。
+                        // 绝对分支保持原样（IsWithinSoftLimit 对 NaN 也是 false，同样会拒）。
+                        if (double.IsNaN(command.TargetMm) || double.IsInfinity(command.TargetMm))
+                        {
+                            reason = $"轴「{axisName}」的相对增量 {command.TargetMm} 不是有效数字，已拒绝";
+                            return MotionCommandResult.Rejected_InvalidArgument;
+                        }
+
+                        // 当前位置只从轮询快照里取（GetAxisStatus 口径一致：不在这里发通信）。
+                        // 取不到就**拒绝**，绝不放行 —— "不知道现在在哪"时允许相对运动，
+                        // 等于把越界判断交给运气。
+                        var current = GetAxisStatus(command.PhysicalAxis);
+                        if (current == null)
+                        {
+                            reason = $"无法读取轴「{axisName}」的当前位置，禁止相对运动"
+                                     + "（相对运动的目标 = 当前位置 + 增量，没有当前位置就算不出目标；"
+                                     + "请确认该卡已连接且状态轮询正常，或改用绝对运动）";
+                            return MotionCommandResult.Rejected_NotConnected;
+                        }
+
+                        var target = current.PositionMm + command.TargetMm;
+                        if (!mapping.IsWithinSoftLimit(target))
+                        {
+                            reason = $"相对运动目标 {target:F3} mm（当前 {current.PositionMm:F3} + 增量 {command.TargetMm:F3}）"
+                                     + $"超出软限位 [{mapping.SoftLimitMinMm:F1}, {mapping.SoftLimitMaxMm:F1}] mm";
+                            return MotionCommandResult.Rejected_InvalidArgument;
+                        }
+                    }
                 }
             }
 
@@ -914,7 +1124,9 @@ namespace Core.Interfaces
                 {
                     try
                     {
-                        PollStatusCore(ct);
+                        // 与"验证用一次性刷新"（TryRefreshSnapshotsForVerification）互斥：
+                        // 两者都会进驱动的状态采样，同一条线程语义不能被破坏
+                        lock (_pollGate) { PollStatusCore(ct); }
                         NotifyAlive();          // 问通了 = 活着
                         DetectCriticalSignals();
                         DetectWatchdog();

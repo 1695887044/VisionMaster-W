@@ -46,6 +46,30 @@ namespace Plugin.Motion.Steps
         /// <summary>等待超时（ms）。同样必须是端口，理由见 <see cref="Enable"/></summary>
         public InputPort<int> TimeoutMs { get; } = new InputPort<int>("Timeout", 10_000, "等待超时(ms)");
 
+        /// <summary>
+        /// 使能前先清一次报警（默认 false）。
+        ///
+        /// 【为什么需要它】"已安全停机"（命令失败 / 看门狗 / 失联）之后，状态机不会自己回在线：
+        /// 操作员排除原因、复位伺服之后，**清报警就是回在线的那一步**。没有这个开关时，
+        /// 现场只能先到调试面板手动清一次报警，流程无法自愈（换型/自动恢复场景就卡住了）。
+        ///
+        /// 【为什么是输入端口而不是 [StepConfig]】本插件没有自定义配置视图，宿主的参数面板
+        /// 只渲染输入端口 —— 写成 [StepConfig] 就没有编辑入口（与 <see cref="Enable"/> 同一理由）。
+        ///
+        /// 【只在使能时生效】失能是安全动作（撤力矩），不该以"清报警"为前提；
+        /// 填了 true 但 <see cref="Enable"/> 为 false 时，本开关被忽略。
+        /// 清报警**不会自动使能**（使能有机械后果），所以清完之后仍然照原逻辑走使能。
+        ///
+        /// 【IsRequired 必须为 false】它是**本轮新增的端口**：老流程的 InputValues 里没有
+        /// "ClearAlarmFirst" 这个键，若要求必填，编译器会报「必填参数未配置」——
+        /// 一条已经配好、正在跑的流程会因为升级而编不过。有默认值（false）即可运行。
+        /// </summary>
+        public InputPort<bool> ClearAlarmFirst { get; } = new InputPort<bool>(
+            "ClearAlarmFirst", false, "使能前先清报警（安全停机后恢复用；仅使能时生效）")
+        {
+            IsRequired = false,
+        };
+
         /// <summary>操作后的使能状态</summary>
         public OutputPort<bool> Enabled { get; } = new OutputPort<bool>("Enabled", "操作后的使能状态");
 
@@ -57,6 +81,7 @@ namespace Plugin.Motion.Steps
             // 取出后存进局部变量：整个步骤内用同一个值，避免中途有人改了常量框
             // 导致"前半句按使能、后半句按失能"这种自相矛盾的日志。
             var enable = Enable.ActualValue;
+            var clearAlarmFirst = ClearAlarmFirst.ActualValue;
             var timeout = Math.Max(500, TimeoutMs.ActualValue);
 
             Enabled.Value = false;
@@ -65,6 +90,22 @@ namespace Plugin.Motion.Steps
             {
                 Fail(resolveError);
                 return;
+            }
+
+            // ★ 清报警必须在门禁**之前**：CheckEnable 对「已安全停机」是拒绝的
+            //   （"请重新连接后再使能"），而清报警成功恰恰会把它拉回在线。
+            //   顺序反了，这个开关在最需要它的场景里永远走不到。
+            if (clearAlarmFirst && enable)
+            {
+                if (!device.ClearAlarm(out var clearError))
+                {
+                    // 底层报警没清干净时 ClearAlarm 返回 false 并给出原因（基类会复核报警位），
+                    // 这里如实失败：带着报警上电是真机上最不该发生的事之一。
+                    Fail($"轴「{axisName}」使能前清除报警失败：{clearError}");
+                    return;
+                }
+
+                context.Logger.Info($"{InstanceName} 轴「{axisName}」已清除报警（使能前）");
             }
 
             // 使能与失能的口径必须分家（与组态动作表共用 MotionCommandGate.CheckEnable）：

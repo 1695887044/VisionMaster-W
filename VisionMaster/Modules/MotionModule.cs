@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using VisionMaster.Binding;
 using VisionMaster.Lifetime;
+using VisionMaster.Models;
 using VisionMaster.Scada;
 using VisionMaster.Services;
 using VisionMaster.Services.Motion;
@@ -31,6 +32,15 @@ namespace VisionMaster
     /// </summary>
     public class MotionModule : IAppModule
     {
+        /// <summary>
+        /// 已订阅的流程引擎（退出时退订用）。null = 未订阅。
+        /// 模块是单例（App 的 _modules 里只 new 一次），所以这两个字段的生命周期 = 应用生命周期。
+        /// </summary>
+        private FlowEngineService? _subscribedEngine;
+
+        /// <summary>订阅时用的委托实例（退订必须用同一个实例，不能写 lambda 再减一次）</summary>
+        private EventHandler<FlowSession>? _flowStopHandler;
+
         public string Name => "运动卡模块";
 
         public void Register(IContainerRegistry registry)
@@ -131,6 +141,12 @@ namespace VisionMaster
             // 没有配置任何卡时它只是发布一张空表，不影响启动。
             container.Resolve<MotionStatePublisher>().Start();
 
+            // ★ 流程停止 → 停轴（S6）。
+            //   运动步骤是"只下发、不等待"的（「轴运动」的既定语义），所以流程被停止时，
+            //   卡上排队的命令与正在走的轴都不会自己消失 —— 只取消流程令牌不够，
+            //   必须由会话级钩子把轴停下来。订阅点必须在**流程引擎模块之后**（App 里已保证）。
+            SubscribeFlowStop(container, lifetime);
+
             // 退出收尾：先停发布器（它读的是设备缓存），再断开所有卡。
             // Disconnect 会先**安全停止所有轴**——少了它，关软件时正在运动的轴会按最后一条命令继续走完。
             // 运动执行器一并释放：它的看门狗表里若还有点动中的轴，Dispose 会补发停止。
@@ -140,6 +156,104 @@ namespace VisionMaster
                 container.Resolve<MotionStatePublisher>().Dispose();
                 provider.Dispose();
             }));
+        }
+
+        /// <summary>
+        /// 订阅"流程即将停止"，把它翻译成"取消所有运动卡上的待执行命令并停轴"。
+        ///
+        /// 三条纪律（改动时别弄丢）：
+        ///  ① <b>生命周期内只订阅一次</b>：模块初始化只走一次，这里再判一次 <c>_subscribedEngine</c>，
+        ///     防止将来重复调用 Initialize 时挂上两个处理器（那会 CancelAll 两遍）；
+        ///  ② <b>退出时退订</b>：事件挂在引擎（比模块活得久）上，不退订就会把整个模块钉在引擎的
+        ///     委托链上。退订必须用订阅时的**同一个委托实例**（`-=` 一个新建 lambda 是无效操作）；
+        ///  ③ <b>订阅失败不阻断开机</b>：这条保护缺位只意味着"流程停止不会自动停轴"，
+        ///     让整台设备开不了机代价更大 —— 但要留下明确的 Error，现场能查到。
+        /// </summary>
+        private void SubscribeFlowStop(IContainerProvider container, AppLifetimeService lifetime)
+        {
+            var log = container.Resolve<ILogService>();
+
+            if (_subscribedEngine != null) return;   // 已经订阅过（幂等）
+
+            try
+            {
+                var engine = container.Resolve<FlowEngineService>();
+                var motions = container.Resolve<IMotionProvider>();
+
+                // 事件在**非 UI 线程**触发（调用 StopSession 的那条），处理器只做"取消命令 + 停轴"，
+                // 不碰任何界面状态，因此不需要 Dispatcher 调度。
+                EventHandler<FlowSession> handler =
+                    (_, session) => CancelMotionForStoppedFlow(session, motions, log);
+
+                engine.SessionStopRequested += handler;
+                _subscribedEngine = engine;
+                _flowStopHandler = handler;
+
+                lifetime.RegisterExitTask(ExitTask.Of("退订流程停止事件（停轴钩子）", () =>
+                {
+                    if (_subscribedEngine == null || _flowStopHandler == null) return;
+
+                    _subscribedEngine.SessionStopRequested -= _flowStopHandler;
+                    _subscribedEngine = null;
+                    _flowStopHandler = null;
+                }));
+            }
+            catch (Exception ex)
+            {
+                log.Error($"[MotionModule] 订阅流程停止事件失败（流程停止时不会自动停轴）：{ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 流程被停止 → 取消所有运动卡上的待执行命令并安全停轴。
+        ///
+        /// 为什么用 <see cref="IMotionDevice.CancelAll"/> 而不是 <see cref="IMotionDevice.EmergencyStop"/>：
+        ///   · <c>CancelAll</c> = "这一轮结束了，把没做完的丢掉"：清队列 + 驱动侧安全停止，
+        ///     **保留使能**（伺服仍带电，机构不会掉下来）；
+        ///   · <c>EmergencyStop</c> = "出事了"：清队 + 立即停，用于人员/设备危险场合。
+        ///   流程停止是正常操作（换型、暂停产线），用急停语义会把"正常停止"变成"每次都要重新使能"。
+        ///
+        /// 异常一律只记日志：这里跑在"停止流程"的调用链上（可能是 UI 线程或退出链），
+        /// 停轴失败绝不能把停止流程本身弄失败（那会表现为"软件停不下来"）。
+        /// </summary>
+        private static void CancelMotionForStoppedFlow(FlowSession session, IMotionProvider motions, ILogService log)
+        {
+            var flowName = string.IsNullOrWhiteSpace(session?.FlowName) ? "(未知流程)" : session.FlowName;
+
+            try
+            {
+                // 遍历**方案里配置的卡**（而不是"解析出轴的卡"）：没有启用任何轴的卡上
+                // 也可能排着 IO 类命令，流程停止时同样应该清掉。
+                var cards = motions?.Cards;
+                if (cards == null || cards.Count == 0) return;   // 纯视觉方案：没有运动卡，什么都不用做
+
+                foreach (var card in cards)
+                {
+                    try
+                    {
+                        if (!motions!.TryGetDevice(card.Id, out var device) || device == null) continue;
+
+                        // 未连接 / 正在连接时命令线程不在跑，CancelAll 只会白记一条日志
+                        if (device.State is not (MotionCardState.Online or MotionCardState.Alarm
+                            or MotionCardState.SafeStopped))
+                            continue;
+
+                        device.CancelAll($"流程「{flowName}」已停止");
+                        log.Info($"[MotionModule] 流程「{flowName}」停止 → 已取消运动卡「{device.Descriptor.Caption}」"
+                                 + "的待执行命令并安全停轴（保留使能）");
+                    }
+                    catch (Exception ex)
+                    {
+                        log.Warn($"[MotionModule] 流程「{flowName}」停止时取消运动卡「{card.Caption}」失败"
+                                 + $"（已忽略，继续停其余卡）：{ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                log.Warn($"[MotionModule] 流程「{flowName}」停止时的停轴处理失败"
+                         + $"（已忽略，不影响停止流程）：{ex.Message}");
+            }
         }
 
         /// <summary>

@@ -50,6 +50,17 @@ namespace Plugin.PreProcessing
         [StepConfig, DefaultValue(1)]
         public partial int DisplayViewIndex { get; set; }
 
+        /// <summary>
+        /// 算子执行失败时是否让本步骤失败（配置界面左栏「输出」区可勾）。
+        ///
+        /// 默认 false = 保持历史行为：失败那一步被跳过、图像继续往下流、整步仍算成功。
+        /// 既有方案升级后不会突然红掉；代价是"链里有算子没干活"只能靠 FailedOperators/FailedCount 看。
+        /// 置 true = 任一算子失败 → 链跑完（记录全部失败）后 Fail，
+        /// 适合"错一步就必须停线"的产线，不必再让下游解析失败清单。
+        /// </summary>
+        [StepConfig, DefaultValue(false)]
+        public partial bool FailOnOperatorError { get; set; }
+
         private List<OperatorStepItem> _chain = new();
         /// <summary>
         /// 算子链的存盘快照（弱类型：Key + 参数字典）。
@@ -81,6 +92,16 @@ namespace Plugin.PreProcessing
 
         /// <summary>生效算子的名字串，便于日志与下游判断</summary>
         public OutputPort<string> ActiveOperators { get; } = new("ActiveOperators", "启用的算子（按执行顺序）");
+
+        /// <summary>
+        /// 本轮执行失败的算子摘要，格式 `序号:算子名: 错误消息`，多条用 `；` 分隔；无失败为空串。
+        /// 这是"本步仍成功、但链里其实跳过了几步"的唯一机器可读信号：
+        /// 默认开关下它必须自己看，别指望 Success 变 false。
+        /// </summary>
+        public OutputPort<string> FailedOperators { get; } = new("FailedOperators", "失败的算子（序号:算子名: 原因）", string.Empty);
+
+        /// <summary>本轮执行失败的算子个数（0 = 全部跑通）</summary>
+        public OutputPort<int> FailedCount { get; } = new("FailedCount", "失败算子个数");
 
         #endregion
 
@@ -149,6 +170,20 @@ namespace Plugin.PreProcessing
 
         /// <summary>链上各算子的输入原图（不持有所有权，来自 SrcImage.ActualValue）</summary>
         public HImage? SourceImage => _sourceImage;
+
+        /// <summary>
+        /// 最近一轮预览里失败的算子摘要（空串 = 没有失败）。
+        /// 预览路径没有 ILogService（以前传 logger:null，失败连 Warn 都没有），
+        /// 所以失败信号必须走界面：视图上那条黄色信息条绑它，内容是 `N 个算子执行失败：…`。
+        /// </summary>
+        public string PreviewFailure { get; private set; } = string.Empty;
+
+        /// <summary>
+        /// 最近一轮预览记录下来的 Warn 原文（多条换行；无则 null）。
+        /// 失败条目的结构化摘要走 <see cref="PreviewFailure"/>，这里额外留着越界夹取这类旁证，
+        /// 挂在黄色信息条的 ToolTip 上——空串会弹出一个空提示框，所以无内容时必须是 null。
+        /// </summary>
+        public string? PreviewWarningDetail { get; private set; }
 
         /// <summary>预览看哪一张：整张原图 / 选中那一步的输入图 / 选中那一步的输出图</summary>
         private enum PreviewTarget { Source, Input, Output }
@@ -398,6 +433,7 @@ namespace Plugin.PreProcessing
             if (src == null || !src.IsInitialized() || steps.Length == 0)
             {
                 DisposeStepImages();
+                SetPreviewDiagnostics(null);   // 没跑链就不该留着上一轮的失败提示
                 OnPropertyChanged(nameof(DisplayImage));
                 return;
             }
@@ -447,7 +483,7 @@ namespace Plugin.PreProcessing
         }
 
         /// <summary>后台结果回投（UI 线程）：换图 + 补跑被合并掉的请求</summary>
-        private void CompletePreview(Task<HImage?[]> task, int generation, HImage passthroughBase)
+        private void CompletePreview(Task<PreviewRun> task, int generation, HImage passthroughBase)
         {
             _previewRunning = false;
 
@@ -462,13 +498,106 @@ namespace Plugin.PreProcessing
             }
         }
 
-        /// <summary>跑一遍链并收下每一步的结果（异常不弹框：能显示多少步就显示多少步）</summary>
-        private HImage?[] ExecuteSteps(HImage src, PreprocessOperator[] steps)
+        /// <summary>一条算子失败记录（步号 1 基，与界面「共 N 步」的步号一致）</summary>
+        private readonly struct OperatorFailure
         {
-            var results = new HImage?[steps.Length];
-            try { ExecuteChain(src, steps, results, logger: null); }
-            catch { /* 预览路径的异常不弹框，剩下的步留空 */ }
-            return results;
+            public OperatorFailure(int stepNumber, string operatorName, string message)
+            {
+                StepNumber = stepNumber;
+                OperatorName = operatorName;
+                Message = message;
+            }
+
+            public int StepNumber { get; }
+            public string OperatorName { get; }
+            public string Message { get; }
+
+            /// <summary>`序号:算子名: 错误消息` —— 输出端口与界面提示共用这一种写法</summary>
+            public override string ToString() => $"{StepNumber}:{OperatorName}: {Message}";
+        }
+
+        /// <summary>失败摘要：多条用 `；` 分隔；无失败为空串（端口与界面同一口径）</summary>
+        private static string FormatFailures(IReadOnlyList<OperatorFailure> failures)
+            => failures.Count == 0
+                ? string.Empty
+                : string.Join("；", failures.Select(f => f.ToString()));
+
+        /// <summary>
+        /// 预览路径的"记录型日志"。
+        /// 以前预览传 logger:null，算子失败只剩一张空图、界面一句话都没有；
+        /// 现在 Warn 原文进 <see cref="Warnings"/>、算子失败进 <see cref="Failures"/>，
+        /// 跑完由 <see cref="SetPreviewDiagnostics"/> 一次性交给界面（黄色信息条 + 悬停详情）。
+        /// </summary>
+        private sealed class PreviewLog : ILogService
+        {
+            public List<string> Warnings { get; } = new();
+            public List<OperatorFailure> Failures { get; } = new();
+
+            public void Warn(params string[] messages)
+            {
+                foreach (var message in messages)
+                    if (!string.IsNullOrWhiteSpace(message)) Warnings.Add(message);
+            }
+
+            public void Error(params string[] messages) => Warn(messages);
+
+            public void Error(params Exception[] messages)
+            {
+                foreach (var e in messages)
+                    if (e != null) Warnings.Add(e.Message);
+            }
+
+            public void Success(params string[] messages) { }
+            public void Info(params string[] messages) { }
+        }
+
+        /// <summary>一轮预览的结果：各步输出图 + 本轮记录（失败摘要从记录里取）</summary>
+        private sealed class PreviewRun
+        {
+            public HImage?[] Images { get; init; } = Array.Empty<HImage?>();
+            public PreviewLog Log { get; } = new();
+        }
+
+        /// <summary>
+        /// 把一轮预览的失败/警告一次性交给界面。
+        /// 传 null 表示"这一轮没有可说的"（无输入图 / 空链），两条提示一起清空。
+        /// </summary>
+        private void SetPreviewDiagnostics(PreviewLog? log)
+        {
+            string failure = log == null || log.Failures.Count == 0
+                ? string.Empty
+                : $"{log.Failures.Count} 个算子执行失败：{FormatFailures(log.Failures)}";
+            if (PreviewFailure != failure)
+            {
+                PreviewFailure = failure;
+                OnPropertyChanged(nameof(PreviewFailure));
+            }
+
+            string? detail = log == null || log.Warnings.Count == 0
+                ? null
+                : string.Join(Environment.NewLine, log.Warnings);
+            if (PreviewWarningDetail != detail)
+            {
+                PreviewWarningDetail = detail;
+                OnPropertyChanged(nameof(PreviewWarningDetail));
+            }
+        }
+
+        /// <summary>跑一遍链并收下每一步的结果（异常不弹框：能显示多少步就显示多少步）</summary>
+        private PreviewRun ExecuteSteps(HImage src, PreprocessOperator[] steps)
+        {
+            var run = new PreviewRun { Images = new HImage?[steps.Length] };
+            try
+            {
+                // 预览不再传 logger:null —— 失败与越界提示都要能被界面拿到
+                ExecuteChain(src, steps, run.Images, run.Log, run.Log.Failures);
+            }
+            catch (Exception ex)
+            {
+                // 预览路径的异常不弹框，剩下的步留空；原因留在记录里（悬停黄色信息条能看到）
+                run.Log.Warn($"{InstanceName} 预览执行中断：{ex.Message}");
+            }
+            return run;
         }
 
         /// <summary>
@@ -477,16 +606,19 @@ namespace Plugin.PreProcessing
         /// 透传没产出新图（后台路径里它就是那张副本、马上要被释放），因此不入字典 ——
         /// 否则 DisposeStepImages 会把别人的图释放掉。
         /// </summary>
-        private void ApplyStepResults(HImage?[] results, HImage passthroughBase)
+        private void ApplyStepResults(PreviewRun run, HImage passthroughBase)
         {
             DisposeStepImages();
 
+            var results = run.Images;
             for (int i = 0; i < results.Length; i++)
             {
                 var img = results[i];
                 if (img != null && !ReferenceEquals(img, passthroughBase)) _stepImages[i] = img;
             }
 
+            // 失败信号与图一起回投：晚一轮就可能与画面上的链对不上
+            SetPreviewDiagnostics(run.Log);
             OnPropertyChanged(nameof(DisplayImage));
         }
 
@@ -1103,9 +1235,16 @@ namespace Plugin.PreProcessing
         /// <summary>
         /// 跑链并输出。
         /// 契约提醒：进入本方法时基类已把 Success 预置为 true，只有失败路径才需要显式写 false。
+        /// 失败口径有两种（由 <see cref="FailOnOperatorError"/> 选）：
+        /// · 默认：单个算子失败 = 跳过该步并记录，整步仍成功；
+        /// · 开关为 true：链跑完（记录全部失败）后整步判失败。
         /// </summary>
         public override void RunAlgorithm(IExecutionContext context)
         {
+            // 失败统计每轮从零开始：上一轮的失败不能残留到这一轮（下游会误判）
+            FailedCount.Value = 0;
+            FailedOperators.Value = string.Empty;
+
             var src = SrcImage.ActualValue;
             if (src == null || !src.IsInitialized())
             {
@@ -1117,13 +1256,14 @@ namespace Plugin.PreProcessing
 
             HImage final;
             PreprocessOperator[] steps;
+            var failures = new List<OperatorFailure>();
             try
             {
                 // 先拍快照再跑：本网关在流程线程执行，配置界面可能同时在往 Operators 里增删步骤。
                 // ObservableCollection 不是线程安全的，流程线程绝不碰活链，只读这份快照
                 steps = Operators.ToArray();
                 // 传 null 表示"不保留中间图"：跑一步扔一步，正式运行不会攒一堆大图在内存里
-                final = ExecuteChain(src, steps, stepResults: null, context.Logger);
+                final = ExecuteChain(src, steps, stepResults: null, context.Logger, failures);
             }
             catch (Exception ex)
             {
@@ -1145,8 +1285,21 @@ namespace Plugin.PreProcessing
             ActiveCount.Value = active.Count;
             ActiveOperators.Value = active.Count == 0 ? "(全部禁用)" : string.Join(" → ", active);
 
+            // 失败清单无论开关都要出：默认口径下它是"本步成功但链里跳过几步"的唯一机器可读信号
+            string failedText = FormatFailures(failures);
+            FailedCount.Value = failures.Count;
+            FailedOperators.Value = failedText;
+
             if (DisplayViewIndex > 0)
                 TryPublishPreview(final, context);
+
+            if (failures.Count > 0 && FailOnOperatorError)
+            {
+                // 输出端口已经照常赋完值，这里只把整步判失败：
+                // 现场要"错一步就停线"时，不必再让下游解析 FailedCount
+                Fail($"预处理算子失败：{failedText}");
+                context.Logger.Error($"{InstanceName} {ErrorMessage.Value}");
+            }
 
             // Success 基类已预置 true（默认成功、显式失败），无需再写
         }
@@ -1169,15 +1322,18 @@ namespace Plugin.PreProcessing
         /// · 入参 src 永远归调用方，本方法一个都不会释放它；
         /// · 算子返回新图 ⇒ 归本链；<see cref="stepResults"/> 非空时全部留住给界面逐步看，
         ///   为空时"用完即弃"，只把最后一张交出去；
-        /// · 算子抛异常 ⇒ 记日志、跳过这一步，图像继续往下流（现场调参时一条链里某个算子参数填错，
-        ///   不应该让整条流程红掉，这是参考实现最招骂的行为之一）。
+        /// · 算子抛异常 ⇒ 记日志、记一条 <see cref="OperatorFailure"/>、跳过这一步，图像继续往下流。
+        ///   是否因此把整步判失败由调用方（<see cref="RunAlgorithm"/> 的 FailOnOperatorError）决定，
+        ///   本方法只负责"跑完并把失败如实交出去"。
         /// </summary>
         /// <param name="src">输入图（不拥有）</param>
         /// <param name="steps">要执行的算子序列；流程线程必须传快照数组，UI 线程预览可直接传活的 Operators</param>
         /// <param name="stepResults">长度与 steps 一致的数组；传 null 表示不保留中间结果</param>
-        /// <param name="logger">日志通道，可为 null（预览路径）</param>
+        /// <param name="logger">日志通道，可为 null（预览路径现在传记录型 logger，不再传 null）</param>
+        /// <param name="failures">失败收集器；传 null 表示调用方不要失败清单</param>
         /// <returns>链的最终图像：可能仍是 src（全透传），此时由调用方决定是否复制</returns>
-        private HImage ExecuteChain(HImage src, IReadOnlyList<PreprocessOperator> steps, HImage?[]? stepResults, ILogService? logger)
+        private HImage ExecuteChain(HImage src, IReadOnlyList<PreprocessOperator> steps, HImage?[]? stepResults,
+            ILogService? logger, List<OperatorFailure>? failures = null)
         {
             var current = src;
             var currentOwned = false;
@@ -1200,7 +1356,12 @@ namespace Plugin.PreProcessing
                 }
                 catch (Exception ex)
                 {
+                    // 失败信号三条出口，缺一条现场就看不见：
+                    // ① Warn（正式运行进流程日志 / 预览进记录型 logger）
+                    // ② failures（输出端口 FailedOperators / FailedCount，预览的黄色信息条）
+                    // ③ stepResults 回填 current（预览继续显示"这一步没改图"，而不是空白）
                     logger?.Warn($"{InstanceName} 算子[{op.DisplayName}] 执行失败，已跳过：{ex.Message}");
+                    failures?.Add(new OperatorFailure(i + 1, op.DisplayName, ex.Message));
                     if (stepResults != null) stepResults[i] = current;
                     continue;
                 }
@@ -1209,7 +1370,7 @@ namespace Plugin.PreProcessing
 
                 // 框越界的处置是"自动夹取"而不是报错，所以必须留话：
                 // 现场最常见的现象是把框拖出图外，然后纳闷"裁出来的怎么是空的/偏的"。
-                // 预览路径没有 logger，靠算子摘要里的"（越界已夹取）"提示。
+                // 预览路径由记录型 logger 收下这句，悬停黄色信息条能看到；算子摘要另挂"（越界已夹取）"。
                 if (op is BoxOperatorBase { WasBoxClamped: true } clamped)
                     logger?.Warn($"{InstanceName} 算子[{clamped.DisplayName}] 编辑框超出图像范围，已自动夹取到图内执行");
 

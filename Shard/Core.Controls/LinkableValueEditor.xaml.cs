@@ -96,13 +96,18 @@ namespace Core.Controls
         }
 
         /// <summary>
-        /// 端口是否为「只能选」型（只读）：枚举、或声明了 IsFunctionalEnum（候选来自方案）。
+        /// 端口是否渲染成「只能选」的下拉（只读）：枚举、或声明了 IsFunctionalEnum（候选来自方案），
+        /// **且当前真的取到了候选**。
         ///
         /// 两类端口的共同点是**合法值是一个封闭集合**：
         ///   · 枚举的候选是成员本身，随时能从类型算出来；
         ///   · 卡地址 / 轴名的候选来自当前方案（有哪些卡、哪些轴），绑上游等于允许
         ///     流程去填一个方案里不存在的卡 —— 那是把编译期能发现的问题推到运行期。
-        /// 所以两者都走同一个下拉，且都不提供链接/清除（见 UpdateButtonVisibility）。
+        ///
+        /// ★ 候选为空时**不许**保持下拉：那是一个打不开的空下拉 —— 输入框已被折叠、
+        ///   ComboBox 里一个项都没有，用户既选不了也输不了，只能先去别处配好方案再回来
+        ///   （"还没配运动卡"这个最常见的第一步状态直接把人堵死）。
+        ///   所以判据必须连"候选非空"一起算，空候选退化成 <see cref="IsHandFillFallback"/>。
         /// </summary>
         private static readonly DependencyPropertyKey IsOptionPortPropertyKey =
             DependencyProperty.RegisterReadOnly(
@@ -118,10 +123,43 @@ namespace Core.Controls
         }
 
         /// <summary>
-        /// 下拉候选（IsOptionPort 为真时填充）。
+        /// 封闭集合端口**取不到候选**时的退化态（只读）：显示可编辑输入框 + 「无候选，可手填」提示。
+        ///
+        /// 【为什么要单列一个状态】"封闭集合"与"有下拉"是两件事：
+        ///   · 前者决定**不许链接/清除**（值只能来自枚举成员或方案里的名字，见 UpdateButtonVisibility）；
+        ///   · 后者决定**渲染成下拉**。
+        /// 候选来自方案，天然可能为空（还没配卡、宿主没注册来源、方案里没有已启用的轴）。
+        /// 那时唯一能落地的交互就是手填 —— 这也正是 <see cref="StepConfigOptionSource"/>
+        /// 注释里承诺的"未注册时返回空列表：界面退化成可自由输入的文本框，而不是把人堵死"。
+        /// </summary>
+        private static readonly DependencyPropertyKey IsHandFillFallbackPropertyKey =
+            DependencyProperty.RegisterReadOnly(
+                nameof(IsHandFillFallback), typeof(bool), typeof(LinkableValueEditor),
+                new PropertyMetadata(false));
+
+        public static readonly DependencyProperty IsHandFillFallbackProperty = IsHandFillFallbackPropertyKey.DependencyProperty;
+
+        public bool IsHandFillFallback
+        {
+            get => (bool)GetValue(IsHandFillFallbackProperty);
+            private set => SetValue(IsHandFillFallbackPropertyKey, value);
+        }
+
+        /// <summary>
+        /// 是否为「封闭集合端口」：枚举、或声明了 IsFunctionalEnum。
+        /// 与 <see cref="IsOptionPort"/> 的区别是**不看候选是否为空** ——
+        /// 它表达的是"这个值只能从枚举/方案的名字空间里来，不能由上游运行时决定"，
+        /// 所以链接（🔗）与清除（✕）对它们恒隐藏（见 UpdateButtonVisibility），
+        /// 空候选退化手填时同样不给链接（R33：名字类端口挂绑定弹窗 = 运行期拿值当名字）。
+        /// </summary>
+        private bool IsClosedValuePort => Port?.DataType?.IsEnum == true || Port?.IsFunctionalEnum == true;
+
+        /// <summary>
+        /// 下拉候选（封闭集合端口按需填充；<see cref="IsOptionPort"/> = 候选非空）。
         ///
         /// 用 ObservableCollection 而不是 List：控件是先绑好 ItemsSource、
         /// 之后再设置 Port 的，普通 List 清空重填不会通知界面，下拉会是空的。
+        /// 另：候选集合的每次变化都要重算"下拉还是手填"（见构造函数里的 CollectionChanged）。
         ///
         /// 元素用 StepConfigOption（值/显示分离）：枚举的显示是成员上的 <c>[Display(Name)]</c>
         /// （中文"圆"，值仍是成员名 Circle）；卡地址的显示是「设备名（IP）」——
@@ -192,10 +230,26 @@ namespace Core.Controls
 
         #endregion
 
+        /// <summary>
+        /// 重填候选期间为 true：此时 PortValue 的变更是 ComboBox 丢选中项推回来的**副作用**
+        /// （见 <see cref="OnPortValueChanged(DependencyObject, DependencyPropertyChangedEventArgs)"/> ①）。
+        /// </summary>
+        private bool _suppressPortWrite;
+
+        /// <summary>正在重填 <see cref="EnumOptions"/>：期间不逐项重算渲染形态</summary>
+        private bool _refillingOptions;
+
         public LinkableValueEditor()
         {
             InitializeComponent();
             UpdateButtonVisibility();
+
+            // 候选集合被重填/清空时也要重算"下拉还是手填"——
+            // 只在 Port 变化时算一次的话，候选后来有了（或没了）界面不会跟着变。
+            EnumOptions.CollectionChanged += (s, e) =>
+            {
+                if (!_refillingOptions) RecalculateOptionMode();
+            };
 
             // 未链接时双击输入框触发浏览命令（可选）
             PART_ValueBox.MouseDoubleClick += (s, e) =>
@@ -232,27 +286,55 @@ namespace Core.Controls
             if (port == null)
             {
                 editor.IsTextEditable = true;
+                editor._refillingOptions = true;
+                try { editor.EnumOptions.Clear(); }
+                finally { editor._refillingOptions = false; }
+                editor.RecalculateOptionMode();
+                editor.UpdateButtonVisibility();
                 return;
             }
 
             // 端口类型驱动可输入性
             editor.IsTextEditable = IsTextEditableType(port.DataType);
 
-            // 「只能选」的端口 → 下拉（候选现场取，不依赖任何快照）
-            editor.IsOptionPort = port.DataType?.IsEnum == true || port.IsFunctionalEnum;
-            editor.EnumOptions.Clear();
-            if (port.DataType?.IsEnum == true)
+            // ★ R35：重填候选之前记住端口值，重填之后顶回去。
+            //   候选与下拉是双向绑定的（SelectedValue ↔ PortValue）：ItemsSource 一清，
+            //   ComboBox 会把 SelectedValue 置 null 并沿 TwoWay 把空串推回 PortValue ——
+            //   不挡住的话，"换端口 / 重取候选"这一步就把端口值抹成默认值了
+            //   （用户看到的是"重新打开参数面板，之前填的轴名没了"）。
+            var keepValue = port.Value;
+            editor._suppressPortWrite = true;
+            editor._refillingOptions = true;
+            try
             {
-                foreach (var name in Enum.GetNames(port.DataType))
-                    editor.EnumOptions.Add(StepConfigOption.ForEnum(port.DataType, name));
+                editor.EnumOptions.Clear();
+
+                if (port.DataType?.IsEnum == true)
+                {
+                    foreach (var name in Enum.GetNames(port.DataType))
+                        editor.EnumOptions.Add(StepConfigOption.ForEnum(port.DataType, name));
+                }
+                else if (port.IsFunctionalEnum && port.OptionKind is { } kind)
+                {
+                    // 候选来自方案（有哪些卡、哪些轴）—— 绑定窗口同样每次打开都现取，
+                    // 这里保持同一份语义：不取快照，取不到就空着退化成可手填
+                    //（空候选的下拉是一个打不开的死路，判据见 IsOptionPort 的注释）。
+                    foreach (var option in StepConfigOptionSource.GetOptionItems(kind))
+                        editor.EnumOptions.Add(option);
+                }
             }
-            else if (port.IsFunctionalEnum && port.OptionKind is { } kind)
+            finally
             {
-                // 候选来自方案（有哪些卡、哪些轴）—— 绑定窗口同样每次打开都现取，
-                // 这里保持同一份语义：不取快照，取不到就空着退化成可手填。
-                foreach (var option in StepConfigOptionSource.GetOptionItems(kind))
-                    editor.EnumOptions.Add(option);
+                editor._refillingOptions = false;
+                editor._suppressPortWrite = false;
             }
+
+            // 候选变了 → 渲染形态跟着重算（空候选 = 可手填）
+            editor.RecalculateOptionMode();
+
+            // 万一端口值仍被绑定的副作用改掉，顶回原值（R35 的后半条）
+            if (!Equals(port.Value, keepValue))
+                port.Value = keepValue;
 
             // 订阅端口值变化，同步刷新输入框显示
             port.ValueChanged -= editor.OnPortValueChanged;
@@ -261,6 +343,25 @@ namespace Core.Controls
             editor.SyncPortValue();
             editor.RestoreLinkState();
             editor.UpdateButtonVisibility();
+        }
+
+        /// <summary>
+        /// 按「封闭集合 + 当前候选数」重算渲染形态。
+        /// 候选集合每次变化（换端口、重取候选、外部清空）都必须走这里 ——
+        /// 否则会出现"候选没了但还停在下拉"或反之。
+        /// </summary>
+        private void RecalculateOptionMode()
+        {
+            bool closedSet = IsClosedValuePort;
+            bool hasOptions = EnumOptions.Count > 0;
+
+            // 有候选才给下拉；空候选不能停在"打不开的空下拉"上
+            IsOptionPort = closedSet && hasOptions;
+
+            // 空候选 + 类型本身可文本输入 → 手填（注释里承诺的"取不到就退化成可手填"）
+            IsHandFillFallback = closedSet && !hasOptions && IsTextEditable;
+
+            UpdateButtonVisibility();
         }
 
         private static void OnRestoreStateChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -272,8 +373,21 @@ namespace Core.Controls
         {
             // 输入框编辑 → 写回端口
             var editor = (LinkableValueEditor)d;
+            editor.UpdateHandFillHint();
             if (editor.Port == null || !editor.IsTextEditable) return;
+
             var text = (string)e.NewValue;
+
+            // ① 重填候选期间：空串是 ComboBox 丢选中项推回来的副作用，不是用户编辑（R35）。
+            if (editor._suppressPortWrite) return;
+
+            // ② 封闭集合端口没有"清空"这个合法动作（✕ 对它们恒隐藏，理由同 UpdateButtonVisibility）：
+            //    空值只可能来自下拉因候选变化丢了选中项 —— 保留端口原值。
+            //    否则"重取一次候选 / 换一次端口"就把已配好的轴名、卡名抹成默认值了。
+            //    （手填退化态也走这条：轴名这类名字清空后没有任何合法值可表示，
+            //      要换轴直接改成另一个名字即可。）
+            if (editor.IsClosedValuePort && string.IsNullOrEmpty(text)) return;
+
             try
             {
                 // 必须走共享的 ValueConverter（不是裸 Convert.ChangeType）：
@@ -359,7 +473,11 @@ namespace Core.Controls
             // 那不是"灵活"，而是把一个编译期就能发现的问题推到运行期（"找不到运动卡"）。
             // IsFunctionalEnum 的原始语义正是"**不需要**链接上游变量"（见 InputPort 的注释），
             // 所以这里用它作判据，而不是只认枚举。
-            var enumLocked = IsOptionPort;
+            //
+            // ★ 判据是「封闭集合」（不看候选是否为空）：候选取不到时这一行退化成可手填，
+            //   但**依然不许链接** —— 轴名/卡名这类名字类端口挂绑定弹窗的后果是运行期
+            //   "拿值当名字"（R33），与候选有没有配好无关。清除同理：清空后没有合法值可表示。
+            var enumLocked = IsClosedValuePort;
 
             // 占位提示：不可文本输入 且 未链接 时显示
             PART_Placeholder.Visibility =
@@ -371,6 +489,27 @@ namespace Core.Controls
 
             // 🔗 按钮：枚举恒隐藏（理由见上）
             PART_LinkBtn.Visibility = enumLocked ? Visibility.Collapsed : Visibility.Visible;
+
+            // 空候选提示（占位文案 / ToolTip）跟着 IsLinked、IsHandFillFallback、PortValue 走
+            UpdateHandFillHint();
+        }
+
+        /// <summary>
+        /// 空候选提示：封闭集合端口取不到候选时，这一行是可手填的 —— 必须说明原因，
+        /// 否则看起来像"下拉坏了"。占位文案只在输入框为空时显示（不遮挡已填内容），
+        /// ToolTip 则一直挂着，已填内容时也能看到解释。
+        /// </summary>
+        private void UpdateHandFillHint()
+        {
+            if (PART_NoOptionHint == null || PART_ValueBox == null) return;
+
+            PART_NoOptionHint.Visibility =
+                IsHandFillFallback && !IsLinked && string.IsNullOrEmpty(PortValue)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+
+            // 文案只有 XAML 一处来源（避免两处字面量各改一半）
+            PART_ValueBox.ToolTip = IsHandFillFallback ? PART_NoOptionHint.Text : null;
         }
 
         private static object GetDefaultValue(Type type)

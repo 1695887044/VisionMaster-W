@@ -17,7 +17,7 @@
 
 | 序 | 动作 | 关键判据与坑 |
 | --- | --- | --- |
-| 1 | 投递中枢日志 | 静态类拿不到 `IExecutionContext`，只能在本步骤每次执行时 `TakeLogs()` 转交宿主；流程不跑就不外泄 |
+| 1 | 挂即时日志 sink + 补投暂存日志 | 静态类拿不到 `IExecutionContext`，所以把 `RecordingHub.LogSink` 指向本次的 `ILogService`（只捕获 logger 引用，不捕获 context）；后台写线程的 WARN/ERROR 当场进日志，sink 未生效时暂存队列由 `TakeLogs()` 兜底 |
 | 2 | `EnabledColumns()` | 过滤 `Enabled` 且列名非空白。空集 → `Fail` 文案 `CSV记录：未配置任何启用的列` 并直接返回 |
 | 3 | `BuildTarget(cols, now)` | **每次执行新建** target 对象；Hub 按引用分组，所以改配置自然走新目标，不需要通知 Hub 也不需要缓存失效 |
 | 4 | `needSeq` 判定 | 仅当存在内置序号列，或图片模板含 `{序号}`/`{Sequence}` 时才 `NextSequence()`；否则 `seq = 0`，不消耗全局号 |
@@ -26,7 +26,8 @@
 | 7 | 回填 ImagePath 列 | 只有真存图或上游给路径时非空；`colValues` 里也要同步，否则后续列引用它会取到空 |
 | 8 | 第三遍：`Enqueue` | `TryAdd(..., 0)` 非阻塞。返回非 `Accepted` 且 `BlockOnFailure` → **先释放未入队的图片副本**再写 `ErrorMessage` 返回 |
 | 9 | `EnqueueImage` | 账本已入队，图失败只 WARN，绝不回改账本行 |
-| 10 | 收尾 | `Success.Value = true` 且清空 `ErrorMessage`；基类 `Execute()` 进门已预置过这两项 |
+| 10 | 异步写盘阻断 | `BlockOnFailure` 时 `TryFlush(max(2000, 2×批窗))`：队列排不空，或本次步骤期间 `WriteErrorSeq` 变化 → `Fail("CSV记录：数据写入失败：…")`（错误含时间与目标文件） |
+| 11 | 收尾 | `Success.Value = true` 且清空 `ErrorMessage`；基类 `Execute()` 进门已预置过这两项 |
 
 ## 三、动态端口重建链路（最容易踩的一段）
 
@@ -48,7 +49,8 @@
 | 账本内容 | 磁盘 CSV 文件 | 内存不留行，落盘即结束 |
 | 全局序号 | `RecordingHub._sequence`（`Interlocked`）+ 边车 `DataRecord_seq.json` | 边车每前进 50 号落一次；退出与关停强刷 |
 | 端口集合 | `Columns` + `ImageSaveMode` | 由 `RebuildDynamicInputs` 单向派生，别试图在端口上反向改配置 |
-| 中枢日志 | `Logs` 队列（上限 2000，溢出丢最旧） | 只能借插件执行投递 |
+| 中枢日志 | `RecordingHub.LogSink`（即时）+ `Logs` 队列（兜底，上限 2000，溢出丢最旧） | sink 由插件每次执行时替换；已即时投递的条目（`LogItem.Delivered`）不会再被 `TakeLogs` 重复转交 |
+| 写盘失败 | `LastWriteError` + `WriteErrorSeq` | 每次写盘失败：seq 自增，`LastWriteError` 记时间/目标/原因；步骤用"开始快照 vs flush 后"比较 |
 | 清理进度 | `ProcessBatch` 里的 `cleanupDone`（target → 已清理日期） | 进程内状态，重启后当天会再扫一次 |
 
 ## 五、白拿的宿主行为（不要在本插件里重做）
@@ -69,6 +71,7 @@
 - **`DataRecord.ImageLayouter`**：逐张 `WriteImage`，`finally` 里 `Dispose` 副本。
 - **句柄纪律**：每批"开→写→关"，`FileMode.Append` + `FileShare.ReadWrite`，句柄只持有几毫秒，最大限度给 Excel 让路。
 - **IOException 处置**：退避 `120 * attempt`（120/240/360 毫秒）共 3 次 → 旁路 `_conflictN.csv`（N 试到 99，都占则用不带序号的 `_conflict.csv`）。
+- **flush 契约**：`TryFlush(timeout, out error)` 等两条队列排空 + `_busy` 归零（空/闲连看两次、间隔 20ms，避开"刚取走最后一条但还没置 `_busy`"的窗口）；`FlushForTests` 只是它的旧名转发。Excel 报表经 `Core.Interfaces.DataRecordFlushBridge` 调它。
 - **关停**：`AppDomain.CurrentDomain.ProcessExit` → `Shutdown()`：置 `_stopping`，轮询到队列空或 3 秒预算耗尽，最后 `PersistSeq(true)`。
   `DataLoop` 见到 `_stopping` 且队列空才退出循环，退出前再把残留冲一遍。
 - **图片副本三态**：`EnqueueImage` 成功 → 归 Hub；入队被拒 → Hub 立即 `Dispose`；行入队失败且阻断 → 插件自己 `Dispose`。任何一条路径漏掉就是内存泄漏或双重释放。
@@ -89,5 +92,6 @@
 | 新增内置字段 | `BuiltInField` 枚举 + 视图 `CnEnumLabelConverter` 字典 + 用户册 04 内置字段口径 |
 | 改日志/界面文案 | 用户册 05 的原文表（逐字改，日志检索靠它） |
 | 改队列/重试/水位/批量常量 | 用户册 04 容量表 + 本页第四、六节 |
+| 改 flush / 写盘失败口径 | 用户册 03/04/05 + 本页第二、四、六节 |
 | 改 `FormatCell` 分支 | 用户册 04 第三节格式化表 |
 | 改 Help 目录任何一页 | 闸门 HM 系列，见 `11-dev-invariants.md` |

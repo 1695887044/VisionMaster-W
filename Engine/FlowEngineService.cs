@@ -1,6 +1,7 @@
 using Core.Interfaces;
 using Core.Interfaces.Io;
 using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using VisionMaster.EventModel;
@@ -71,6 +72,39 @@ namespace VisionMaster.Services
         /// 并且订阅者异常就地隔离，绝不影响流程执行。
         /// </summary>
         public event Action<FlowSession> FlowRunStarted;
+
+        /// <summary>
+        /// 一轮流程**即将被停止**（<see cref="StopSession"/> 里、取消令牌 Cancel **之前**触发）。
+        ///
+        /// 【为什么需要它 —— 这是"流程停止即停轴"的唯一挂点】
+        /// 运动步骤是"只下发、不等待"的（见 <c>MotionMovePlugin</c> 的类注释）：命令进了卡的队列之后，
+        /// 流程侧就没有任何人在等它。所以"取消流程令牌"只能让**流程**退栈，卡上排队/正在走的轴
+        /// 不会自己消失 —— 轴会按最后一条命令继续走完，而软件以为这一轮已经结束了。
+        /// 宿主（<c>MotionModule</c>）订阅本事件后对运动卡执行 <c>CancelAll</c>
+        /// （停当前运动、保留使能），语义正是"这一轮结束了，把没做完的丢掉"。
+        ///
+        /// 【三条口径，改的时候别弄丢】
+        ///  ① <b>在 Cancel 之前触发</b>：取消会立刻唤醒执行线程，进程/会话可能先一步收尾；
+        ///     先把轴停下来，再让流程退栈，顺序反了就可能"流程没了、轴还在走"。
+        ///  ② <b>只对真正处于 Running/Paused 的会话发</b>：正常跑完（<c>IsRunning=false</c>）
+        ///     不触发 —— 跑完的一轮不该去停别人正在跑的运动。
+        ///  ③ <b>同一次运行只发一次</b>：StopSession 会被界面停止按钮 / <see cref="StopAll"/> /
+        ///     退出链重复调用；每次都去 CancelAll 虽幂等，但会重复下发停轴命令、重复刷日志。
+        ///     下一次运行开始时（两个 Run 入口置 IsRunning 处）摘掉标记，因此"停了再跑再停"照常触发。
+        ///
+        /// 订阅者异常就地隔离（只记 Warn）：停止流程是收尾路径，不能被订阅方拖住。
+        /// 触发线程 = 调用 <see cref="StopSession"/> 的那条（通常是 UI 线程或退出链）。
+        /// </summary>
+        public event EventHandler<FlowSession>? SessionStopRequested;
+
+        /// <summary>
+        /// 已经为哪一次"运行"发过停止通知（键是会话对象的**弱引用**：会话被回收后自动消失，不会泄漏）。
+        /// 用途见 <see cref="SessionStopRequested"/> 的口径③。
+        /// </summary>
+        private readonly ConditionalWeakTable<FlowSession, object> _stopNotified = new();
+
+        /// <summary><see cref="_stopNotified"/> 的占位值（ConditionalWeakTable 要求非 null）</summary>
+        private static readonly object StopNotifiedMarker = new();
 
         /// <summary>
         /// 流程调用器：由「调用流程」步骤经执行上下文取用（子程序调用）。
@@ -342,6 +376,9 @@ namespace VisionMaster.Services
                 // 二期真并行：调试会话并行组退化顺序执行（用户裁决 3）——与 DebugEnabled 同点位同时机
                 session.DebugDegradedParallel = debugSession;
                 session.IsRunning = true;
+                // 新一轮运行：摘掉上一轮"已发过停止通知"的标记（否则同一会话第二次运行时
+                // StopSession 不再通知运动轴 —— 见 SessionStopRequested 的口径③）
+                _stopNotified.Remove(session);
                 session.PauseLock.Set();
                 session.CancellationTokenSource = new CancellationTokenSource();
                 var token = session.CancellationTokenSource.Token;
@@ -533,6 +570,8 @@ namespace VisionMaster.Services
                 // 二期真并行：调试会话并行组退化顺序执行（与 RunSessionAsync 同点位同时机）
                 session.DebugDegradedParallel = debugSession;
                 session.IsRunning = true;
+                // 与连续执行同一口径：新一轮运行摘掉上一轮的"已发过停止通知"标记
+                _stopNotified.Remove(session);
 
                 // 单次执行同样需要取消令牌：否则 StopSession 因 CTS 为 null 而无法停止
                 session.CancellationTokenSource = new CancellationTokenSource();
@@ -737,6 +776,11 @@ namespace VisionMaster.Services
         {
             if (session == null || !session.IsRunning) return;
 
+            // ★ 先通知、再取消（顺序不能反，理由见 SessionStopRequested 的口径①）。
+            //   运动是"只下发不等待"的：流程一退栈，卡上排队/正在走的命令不会自己消失，
+            //   必须在执行体退出之前把"这一轮要停了"告诉关心运动轴的订阅方。
+            NotifySessionStopRequested(session);
+
             try
             {
                 var cts = session.CancellationTokenSource;
@@ -745,6 +789,38 @@ namespace VisionMaster.Services
             catch (ObjectDisposedException)
             {
                 // 循环线程已退出并释放了 CTS，取消动作已无意义，忽略即可
+            }
+        }
+
+        /// <summary>
+        /// 广播"这一轮要被停下来了"（<see cref="SessionStopRequested"/>）。
+        ///
+        /// 三条守卫逐字对应事件注释里的口径②③：
+        ///   · 会话必须真的在跑（<c>IsRunning</c> 已在调用方判过，这里再判状态）；
+        ///   · 只有 Running / Paused 算"真正在跑"—— Idle/Stopped/Faulted 是上一轮的残留状态；
+        ///   · 同一次运行只发一次（<see cref="_stopNotified"/>，下一次运行开始时摘除）。
+        /// </summary>
+        private void NotifySessionStopRequested(FlowSession session)
+        {
+            var state = session.State;
+            if (state != SessionState.Running && state != SessionState.Paused) return;
+
+            try { _stopNotified.Add(session, StopNotifiedMarker); }
+            catch (ArgumentException)
+            {
+                // 已经为这一次运行发过停止通知：重复的 StopSession（界面/StopAll/退出链）不再发
+                return;
+            }
+
+            try
+            {
+                SessionStopRequested?.Invoke(this, session);
+            }
+            catch (Exception ex)
+            {
+                // 订阅方（运动模块）的异常绝不能拖住停止流程
+                _logService.Warn(
+                    $"流程 {session.FlowName} 的停止通知处理异常（已隔离，停止照常继续）: {ex.Message}");
             }
         }
 

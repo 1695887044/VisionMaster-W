@@ -1,5 +1,6 @@
 using Core.Interfaces;
 using GongSolutions.Wpf.DragDrop;
+using Prism.Ioc;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -60,12 +61,28 @@ namespace VisionMaster.Services
                 var stepData = (IStepConfigData)stepModel;
 
                 // 有自定义视图就用插件的；没有则**框架包一层**（AutoPortConfigView）：
-                // 把输入端口逐个渲染成「标签 + 值 + 🔗 + ✕」的行。
+                // 把输入端口与 [StepConfig] 配置项逐个渲染成可编辑的行。
                 // 这样两种插件对外完全一致 —— 同一个外壳（标题 / 试运行 / 确认取消），
                 // 插件作者也不必为了"让参数能编辑"去写一遍视图。
-                FrameworkElement view = pluginInstance is IPluginCustomViewProvider viewProvider
-                    ? viewProvider.GetConfigView(stepData) as FrameworkElement
-                    : null;
+                //
+                // 【入口异常隔离】插件视图是第三方代码，GetConfigView / Initialize / 外壳打开
+                // 任何一步抛异常都不许冒到 UI 线程（那会触发全局兜底、整窗消失，用户看到的是
+                // "点开参数什么都没发生"甚至闪退）。三步各包一层：写日志（含堆栈）+ 非模态提示
+                // + 返回 false（不打开窗口）。日志/通知从容器按需解析——本类是静态帮助类，
+                // 断言宿主里没有 Prism 容器时解析会失败，必须容忍（拿不到就只少一条提示）。
+                FrameworkElement view = null;
+                if (pluginInstance is IPluginCustomViewProvider viewProvider)
+                {
+                    try
+                    {
+                        view = viewProvider.GetConfigView(stepData) as FrameworkElement;
+                    }
+                    catch (Exception ex)
+                    {
+                        ReportPluginUiFailure("创建插件配置视图", stepModel, ex);
+                        return false;
+                    }
+                }
 
                 if (view == null)
                 {
@@ -73,15 +90,34 @@ namespace VisionMaster.Services
                     // 插件自带的视图在 GetConfigView 里已经自己灌过一次，宿主再灌就是重复；
                     // 而框架生成的这层没有那一步，只能在这里补。
                     // 缺了它的表现是界面显示端口声明时的默认值 —— 看着像"上次改的没保存"。
-                    (pluginInstance as VisionPluginBase)?.Initialize(stepData);
-                    view = new AutoPortConfigView(pluginInstance as IVisionPlugin);
+                    try
+                    {
+                        (pluginInstance as VisionPluginBase)?.Initialize(stepData);
+                        view = new AutoPortConfigView(pluginInstance as IVisionPlugin);
+                    }
+                    catch (Exception ex)
+                    {
+                        ReportPluginUiFailure("初始化通用参数面板", stepModel, ex);
+                        return false;
+                    }
                 }
 
                 var parameters = new DialogParameters();
                 parameters.Add("StepData", stepData);
                 parameters.Add("PluginView", view);
                 parameters.Add("Plugin", pluginInstance);
-                dialogService.ShowDialog("PluginConfigShell", parameters);
+
+                try
+                {
+                    dialogService.ShowDialog("PluginConfigShell", parameters);
+                }
+                catch (Exception ex)
+                {
+                    // 外壳打开失败（XAML 解析 / 容器解析 VM 失败等）同样按"没打开"处理
+                    ReportPluginUiFailure("打开参数窗口", stepModel, ex);
+                    return false;
+                }
+
                 return true;
             }
 
@@ -126,6 +162,53 @@ namespace VisionMaster.Services
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// 插件 UI 入口失败的统一出口：日志（含堆栈）+ 非模态提示。
+        ///
+        /// 为什么从容器按需解析而不是改 <see cref="Open"/> 的签名：
+        /// 调用方（流程栏 / 画布 / 断点窗）都把本类当静态帮助类用，给它们加依赖等于为了
+        /// "异常时能提示"改三条调用链。容器取不到（断言宿主 / 设计器）就只少一条提示，
+        /// **绝不能因为提示失败再抛一次**——那会把"参数面板打不开"升级成"点一下崩一次"。
+        /// </summary>
+        private static void ReportPluginUiFailure(string action, ActionStep step, Exception ex)
+        {
+            var stepName = string.IsNullOrWhiteSpace(step?.StepName) ? "未知步骤" : step.StepName;
+            var pluginType = string.IsNullOrWhiteSpace(step?.PluginTypeName) ? "未知插件" : step.PluginTypeName;
+
+            try
+            {
+                TryResolveService<ILogService>()?.Error(
+                    $"[模块参数] {action}失败（{stepName} / {pluginType}）：{ex}");
+            }
+            catch
+            {
+                // 日志服务本身故障时只吞掉记录动作，异常信息仍由下面的提示兜住
+            }
+
+            try
+            {
+                TryResolveService<IUserNotifier>()?.ShowError(
+                    $"「{stepName}」的参数面板{action}失败，详情见日志。");
+            }
+            catch
+            {
+                // 提示失败不影响调用方：本次就是"不打开窗口"
+            }
+        }
+
+        /// <summary>按需解析宿主服务；容器未初始化（断言宿主 / 设计器）返回 null。</summary>
+        private static T? TryResolveService<T>() where T : class
+        {
+            try
+            {
+                return ContainerLocator.Container?.Resolve<T>();
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         /// <summary>

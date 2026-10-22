@@ -42,6 +42,7 @@ namespace FlowCanvasChecks
             RunNormalizeAndPersistence();
             RunChainEndToEnd();
             RunPreviewRefreshContract();
+            RunOperatorFailureContract();
         }
 
         // ==================================================================
@@ -324,6 +325,9 @@ namespace FlowCanvasChecks
 
                 Check("链执行成功（无异常/无 Fail）",
                     plugin.Success.Value is true, plugin.ErrorMessage.Value as string ?? "");
+                Check("无失败步：FailedCount=0 / FailedOperators 为空串",
+                    plugin.FailedCount.Value is 0 && (plugin.FailedOperators.Value as string) == "",
+                    $"count={plugin.FailedCount.Value} text={plugin.FailedOperators.Value as string ?? "null"}");
                 Check("统计端口：StepCount=2 / ActiveCount=2",
                     plugin.StepCount.Value is 2 && plugin.ActiveCount.Value is 2,
                     $"step={plugin.StepCount.Value} active={plugin.ActiveCount.Value}");
@@ -340,6 +344,149 @@ namespace FlowCanvasChecks
             finally
             {
                 plugin.Dispose();
+            }
+        }
+
+        // ==================================================================
+        //  ⑥ 算子失败不再静默吞成成功（P0-6）
+        // ==================================================================
+
+        /// <summary>
+        /// 失败口径：以前算子抛异常只写一条 Warn，Success 由基类预置 true，
+        /// 下游拿到的是一张"少跑了几步"的图却看不到任何失败信号。
+        /// 现在失败必须同时落到 FailedOperators / FailedCount；
+        /// FailOnOperatorError=true 时整步判失败（默认 false 保持旧行为，避免既有流程升级后红掉）。
+        ///
+        /// 失败参数选「均值滤波 999×999」：RangeValidation 允许 1~999、Normalize 只抬下限，
+        /// 而 HALCON mean_image 的硬限制是 MaskWidth &lt; width(Image)*2（100 宽图 → 上限 199），
+        /// 实测抛 #3033 Filter size exceeds image size —— 一个"界面填得进去、执行必抛"的合法输入。
+        /// </summary>
+        private static void RunOperatorFailureContract()
+        {
+            Section("[PRE] 算子失败：默认跳过并记录 / 开关=true 判失败 / 预览黄色提示");
+
+            using var image = MakeImage(100, (48, 48, 52, 52, 200));
+
+            // ① 默认开关（false）：跳过失败步继续，但失败必须记录到端口
+            var plugin = new PreProcessingPlugin { InstanceName = "预处理失败断言" };
+            try
+            {
+                plugin.Chain = new List<OperatorStepItem>
+                {
+                    new()
+                    {
+                        OperatorKey = "mean",
+                        Params = new Dictionary<string, string> { ["Width"] = "999", ["Height"] = "999" },
+                    },
+                };
+                plugin.Initialize(new FakeStepData());
+                plugin.SrcImage.Value = image;
+                plugin.Execute(MakeContext(new StubLog()));
+
+                string failed = plugin.FailedOperators.Value as string ?? "";
+                Check("默认开关=false：算子失败仍判成功（跳过失败步继续）",
+                    plugin.Success.Value is true, plugin.ErrorMessage.Value as string ?? "");
+                Check("默认开关=false：FailedCount=1",
+                    plugin.FailedCount.Value is 1, $"FailedCount={plugin.FailedCount.Value}");
+                Check("默认开关=false：FailedOperators 形如「1:均值滤波: 原因」",
+                    failed.StartsWith("1:均值滤波: ", StringComparison.Ordinal)
+                    && failed.Contains("Filter size", StringComparison.Ordinal),
+                    failed);
+                Check("默认开关=false：Image 照常赋值（失败步透传原图，尺寸不变）",
+                    plugin.Image.TypedValue is HImage passthrough
+                    && passthrough.IsInitialized()
+                    && PixelProbe.SizeOf(passthrough) == (ImgW, ImgH),
+                    plugin.Image.TypedValue == null ? "null" : PixelProbe.SizeOf((HImage)plugin.Image.TypedValue).ToString());
+            }
+            finally
+            {
+                plugin.Dispose();
+            }
+
+            // ② 开关=true：任一算子失败 → 跑完整链记录全部失败后判失败，输出端口照常赋值
+            var strict = new PreProcessingPlugin
+            {
+                InstanceName = "预处理失败断言（严格）",
+                FailOnOperatorError = true,
+            };
+            try
+            {
+                strict.Chain = new List<OperatorStepItem>
+                {
+                    new()
+                    {
+                        OperatorKey = "mean",
+                        Params = new Dictionary<string, string> { ["Width"] = "999", ["Height"] = "999" },
+                    },
+                    new()
+                    {
+                        OperatorKey = "illuminate",
+                        Params = new Dictionary<string, string>
+                        {
+                            ["Width"] = "999", ["Height"] = "999", ["Factor"] = "0.7",
+                        },
+                    },
+                };
+                strict.Initialize(new FakeStepData());
+                strict.SrcImage.Value = image;
+                strict.Execute(MakeContext(new StubLog()));
+
+                string failed = strict.FailedOperators.Value as string ?? "";
+                string error = strict.ErrorMessage.Value as string ?? "";
+                Check("开关=true：任一算子失败 → Success=false",
+                    strict.Success.Value is false, error);
+                Check("开关=true：ErrorMessage 含全部失败算子名（均值滤波 / 对比度）",
+                    error.StartsWith("预处理算子失败：", StringComparison.Ordinal)
+                    && error.Contains("均值滤波", StringComparison.Ordinal)
+                    && error.Contains("对比度", StringComparison.Ordinal),
+                    error);
+                Check("开关=true：FailedCount=2（跑完整链，记录全部失败）",
+                    strict.FailedCount.Value is 2, $"FailedCount={strict.FailedCount.Value}");
+                Check("开关=true：FailedOperators 两条用「；」分隔",
+                    failed.Contains("；", StringComparison.Ordinal)
+                    && failed.StartsWith("1:均值滤波: ", StringComparison.Ordinal)
+                    && failed.Contains("2:对比度: ", StringComparison.Ordinal),
+                    failed);
+                Check("开关=true：输出端口照常赋值（图 + 统计都在）",
+                    strict.Image.TypedValue is HImage output
+                    && output.IsInitialized()
+                    && strict.StepCount.Value is 2
+                    && strict.ActiveCount.Value is 2,
+                    $"image={(strict.Image.TypedValue == null ? "null" : "ok")} step={strict.StepCount.Value} active={strict.ActiveCount.Value}");
+            }
+            finally
+            {
+                strict.Dispose();
+            }
+
+            // ③ 配置预览：记录型 logger 把失败交到界面（黄色信息条），不再传 logger:null
+            var preview = new PreProcessingPlugin { InstanceName = "预处理预览失败断言" };
+            try
+            {
+                preview.Chain = new List<OperatorStepItem>
+                {
+                    new()
+                    {
+                        OperatorKey = "mean",
+                        Params = new Dictionary<string, string> { ["Width"] = "999", ["Height"] = "999" },
+                    },
+                };
+                preview.Initialize(new FakeStepData());
+                preview.OnViewLoaded();
+                // 断言宿主没有 Application → 这条走 SchedulePreview 的同步分支（与 ⑤ 同一前提）
+                preview.SrcImage.Value = image;
+
+                Check("预览：失败算子暴露给视图（黄色信息条「N 个算子执行失败：…」）",
+                    preview.PreviewFailure.StartsWith("1 个算子执行失败：", StringComparison.Ordinal)
+                    && preview.PreviewFailure.Contains("均值滤波", StringComparison.Ordinal),
+                    preview.PreviewFailure);
+                Check("预览：失败原文也进了记录型 logger（悬停可见）",
+                    (preview.PreviewWarningDetail ?? "").Contains("执行失败，已跳过", StringComparison.Ordinal),
+                    preview.PreviewWarningDetail ?? "null");
+            }
+            finally
+            {
+                preview.Dispose();
             }
         }
 

@@ -456,7 +456,17 @@ namespace Core.Interfaces
         private string HintNames()
         {
             lock (_gate)
-                return string.Join("、", _byName.Keys.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).Take(12));
+            {
+                var names = _byName.Keys.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+                if (names.Count == 0) return string.Empty;
+
+                // 不要只取前 12 个：逻辑轴往往排在物理轴名（A10…）之后，
+                // 截断后用户看到的“现有轴”里反而没有 X/Y/Z，会误判成轴没配置。
+                // 32 轴卡 + 3 个逻辑轴约 35 项，一次列全比“猜哪个被截掉”有用。
+                const int shown = 64;
+                var text = string.Join("、", names.Take(shown));
+                return names.Count > shown ? $"{text} 等 {names.Count} 个" : text;
+            }
         }
 
         #endregion

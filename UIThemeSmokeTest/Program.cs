@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -20,6 +21,9 @@ using Core.Halcon.Helpers;
 using Core.Halcon.Models;
 using Core.Interfaces;
 using HalconDotNet;
+using Prism.Dialogs;
+using VisionMaster.Models;
+using VisionMaster.Services;
 using VisionMaster.Views.DialogViews;
 using VisionMaster.Views.DialogViews.MotionBoard;
 using UI.AttachedProperties;
@@ -583,8 +587,12 @@ namespace UIThemeSmokeTest
                 int colorTokenFailures = RunHardcodedColorChecks();
                 int flowCanvasFailures = RunFlowCanvasChecks();
                 int logConsoleFailures = RunLogConsoleChecks();
+                int firstBatchFailures = RunFirstBatchViewChecks();
+                int loginFailures = RunLoginChecks();
+                int pluginEntryFailures = RunPluginEntryIsolationChecks();
                 return shellLayoutFailures + panelModeFailures + shellModeFailures + gridFailures + colorTokenFailures
-                     + flowCanvasFailures + logConsoleFailures == 0 ? 0 : 1;
+                     + flowCanvasFailures + logConsoleFailures + firstBatchFailures + loginFailures
+                     + pluginEntryFailures == 0 ? 0 : 1;
             }
             catch (Exception ex)
             {
@@ -2606,6 +2614,10 @@ namespace UIThemeSmokeTest
                 // ---- 来源为空的行不许留灰块 ----
                 // 真机截图里的症状：每行时间右边一个灰色小方块（来源胶囊空着仍然在画）。
                 // 现在来源为空整块 Collapsed，列宽不变所以正文起点仍然对齐。
+                //
+                // 判据按 Tag="SourceChip" 计数，不绑死背景色：2026-10-22 复刻把来源胶囊的
+                // 硬编码 #E9ECEF 换成了令牌（DialogBorderLightBrush = #EEF2F7），
+                // 按颜色数会假红——这条断言要守的是"空来源不画块"，不是"块是什么颜色"。
                 var chipLogs = new ObservableCollection<UI.Models.LogItem>
                 {
                     new UI.Models.LogItem(UI.Models.LogLevel.Info, "no source", null),
@@ -2616,9 +2628,8 @@ namespace UIThemeSmokeTest
                 chipHost.Measure(new Size(600, 120));
                 chipHost.Arrange(new Rect(0, 0, 600, 120));
                 chipHost.UpdateLayout();
-                var chipColor = Color.FromRgb(0xE9, 0xEC, 0xEF);
                 int visibleChips = Descendants<Border>(chipConsole).Count(b =>
-                    b.Visibility == Visibility.Visible && (b.Background as SolidColorBrush)?.Color == chipColor);
+                    b.Visibility == Visibility.Visible && (b.Tag as string) == "SourceChip");
                 Check("来源为空的行不再留一个灰块（有来源的行照旧显示来源胶囊）",
                     visibleChips == 1, $"可见来源块={visibleChips}（期望 1：只有那条有来源的）");
 
@@ -2705,6 +2716,284 @@ namespace UIThemeSmokeTest
                 ? "=== 日志控制台（LogConsole）冒烟：全部通过 ==="
                 : $"### 日志控制台（LogConsole）冒烟：{failures} 项失败");
             return failures == 0 ? 0 : 1;
+        }
+
+        /// <summary>
+        /// 第 1 批四视图 Web 化复刻的守门人（2026-10-22）。
+        ///
+        /// 这四页的共同风险是"改样式改掉了契约"：绑定名写错、命令漏挂、令牌又变回字面量——
+        /// 编译期全绿，只有运行时静默失效（下拉/按钮"看着有，其实没用"）。
+        /// 所以这里钉两件事：① 静态扫描契约字符串与 hex=0；② 真实例化证明 XAML 能解析、模板能套上。
+        /// </summary>
+        private static int RunFirstBatchViewChecks()
+        {
+            var failures = 0;
+            void Check(string name, bool ok, string detail)
+            {
+                Console.WriteLine($"[{(ok ? "PASS" : "FAIL")}] {name}  {detail}");
+                if (!ok) failures++;
+            }
+
+            const string root = @"d:\C#\VM\";
+            string Code(string rel)
+            {
+                var p = root + rel;
+                if (!File.Exists(p)) return string.Empty;
+                // 注释里的色号是说明，不是缺陷
+                return Regex.Replace(File.ReadAllText(p), "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+            }
+
+            var monitor = Code(@"VisionMaster\Views\MonitorView.xaml");
+            var flow = Code(@"VisionMaster\Views\FlowListView.xaml");
+            var cockpit = Code(@"VisionMaster\Views\RunCockpitView.xaml");
+            var logTheme = Code(@"UI\Controls\Themes\LogConsole.xaml");
+
+            Check("监视面板：零硬编码色（23 处已全部换令牌）",
+                monitor.Length > 0 && !Regex.IsMatch(monitor, "#[0-9A-Fa-f]{6,8}"),
+                monitor.Length == 0 ? "找不到 MonitorView.xaml"
+                    : (Regex.Matches(monitor, "#[0-9A-Fa-f]{6,8}").Count == 0 ? "hex=0" : "仍有字面量色"));
+
+            // 契约：四个命令 + 两个集合 + 失效计数 + 小图标按钮 Padding=0（R68）
+            var monitorWires = new[]
+            {
+                "{Binding AddWatchCommand}", "{Binding QuickAddCommand}", "{Binding ClearAllCommand}",
+                "DataContext.RemoveCommand", "ItemsSource=\"{Binding GroupedPorts}\"",
+                "ItemsSource=\"{Binding SuggestedItems}\"", "{Binding MissingCount}",
+                "{Binding DisplayPorts.Count}",
+            };
+            var monitorMissing = monitorWires.Where(w => !monitor.Contains(w, StringComparison.Ordinal)).ToList();
+            Check("监视面板：四个命令 + 分组/联想集合 + 失效计数全部还接在 VM 上（写错只静默失效）",
+                monitor.Length > 0 && monitorMissing.Count == 0,
+                monitorMissing.Count == 0 ? "8 处契约字符串齐" : ("缺：" + string.Join(" | ", monitorMissing)));
+
+            Check("监视面板：移除按钮 24×24 且 Padding=0（R68，不写就会被隐式内边距削掉字形）",
+                monitor.Contains("Width=\"24\"", StringComparison.Ordinal) &&
+                monitor.Contains("Padding=\"0\"", StringComparison.Ordinal),
+                "检查 Width=24 / Padding=0");
+
+            // 流程胶囊条：零 hex + 11 个 FlowAction 齐 + 菜单挂在胶囊上而不是 ListBox 上
+            var flowActions = new[]
+            {
+                "FlowAction.Create", "FlowAction.Delete", "FlowAction.Rename", "FlowAction.EditComment",
+                "FlowAction.ToggleEnabled", "FlowAction.Compile", "FlowAction.RunOnce",
+                "FlowAction.RunContinuous", "FlowAction.Stop", "FlowAction.Manager", "FlowAction.VariableEvents",
+            };
+            var flowMissing = flowActions.Where(a => !flow.Contains(a, StringComparison.Ordinal)).ToList();
+            Check("流程胶囊条：零硬编码色 + 11 个 FlowAction 全部保留",
+                flow.Length > 0 && !Regex.IsMatch(flow, "#[0-9A-Fa-f]{6,8}") && flowMissing.Count == 0,
+                flow.Length == 0 ? "找不到 FlowListView.xaml"
+                    : (flowMissing.Count > 0 ? ("缺：" + string.Join(" | ", flowMissing)) : "hex=0 + 11 项齐"));
+
+            Check("流程胶囊条：右键菜单挂在胶囊上（挂在 ListBox 上会让空白区也弹菜单、靶点错位）",
+                flow.Contains("<Grid.ContextMenu>", StringComparison.Ordinal) &&
+                !flow.Contains("<ListBox.ContextMenu>", StringComparison.Ordinal),
+                "检查 Grid.ContextMenu 存在且 ListBox.ContextMenu 不存在");
+
+            // 驾驶舱：零 hex + 停止命令 + 四张 KPI 标签
+            var kpiLabels = new[] { "节拍", "良率", "设备在线", "未确认报警" };
+            var kpiMissing = kpiLabels.Where(l => !cockpit.Contains(l, StringComparison.Ordinal)).ToList();
+            Check("运行驾驶舱：零硬编码色 + 停止命令 + 四张 KPI 卡齐",
+                cockpit.Length > 0 && !Regex.IsMatch(cockpit, "#[0-9A-Fa-f]{6,8}")
+                    && cockpit.Contains("ExecutionAction.Stop", StringComparison.Ordinal) && kpiMissing.Count == 0,
+                cockpit.Length == 0 ? "找不到 RunCockpitView.xaml"
+                    : (kpiMissing.Count > 0 ? ("缺 KPI：" + string.Join("/", kpiMissing)) : "hex=0 + 停止命令 + 4 卡"));
+
+            // 日志控件皮肤：零 hex + 模板部件 + 来源徽标标记（断言按它计数，不按颜色）
+            Check("日志控件皮肤：零硬编码色 + PART_ScrollViewer + 来源徽标 Tag 标记",
+                logTheme.Length > 0 && !Regex.IsMatch(logTheme, "#[0-9A-Fa-f]{6,8}")
+                    && logTheme.Contains("PART_ScrollViewer", StringComparison.Ordinal)
+                    && logTheme.Contains("Tag=\"SourceChip\"", StringComparison.Ordinal),
+                logTheme.Length == 0 ? "找不到 LogConsole.xaml" : "hex=0 + 两个标记齐");
+
+            // 真实例化：证明 XAML 解析、模板套用、StaticResource 解析都过（无 VM，绑定为空）
+            foreach (var (viewName, factory) in new (string, Func<FrameworkElement>)[]
+            {
+                ("MonitorView", () => new VisionMaster.Views.MonitorView()),
+                ("FlowListView", () => new VisionMaster.Views.FlowListView()),
+                ("RunCockpitView", () => new VisionMaster.Views.RunCockpitView()),
+            })
+            {
+                string detail;
+                bool ok;
+                try
+                {
+                    var v = factory();
+                    var host = new Border { Width = 640, Height = 480, Child = v };
+                    host.Measure(new Size(640, 480));
+                    host.Arrange(new Rect(0, 0, 640, 480));
+                    host.UpdateLayout();
+                    ok = v.ActualWidth > 0 && v.ActualHeight > 0;
+                    detail = $"实得 {v.ActualWidth:F0}×{v.ActualHeight:F0}";
+                }
+                catch (Exception ex)
+                {
+                    ok = false;
+                    detail = ex.GetType().Name + ": " + ex.Message;
+                }
+                Check($"第 1 批视图可实例化：{viewName}（XAML 解析 + 模板 + 令牌解析）", ok, detail);
+            }
+
+            Console.WriteLine(failures == 0
+                ? "=== 第 1 批四视图（日志/监视/流程条/驾驶舱）冒烟：全部通过 ==="
+                : $"### 第 1 批四视图冒烟：{failures} 项失败");
+            return failures;
+        }
+
+        /// <summary>
+        /// 用户登录（S12）端到端守门人（2026-10-22）。
+        ///
+        /// 这条链路跨三层：<c>ScadaUserStore</c>（验身份）→ <c>ScadaAccessPolicy</c>（记会话）→
+        /// <c>ScadaLoginView</c>（界面）。三层里任何一层断开，表现都是"点了登录没反应"：
+        /// 绑定名写错、命令漏挂、账号文件读不出来、验过了却没开会话。
+        ///
+        /// 所以这里分两段钉：
+        /// <list type="bullet">
+        /// <item>界面层：静态契约扫描（14 处绑定 + 7 个命令 + 三态判据 + hex=0）+ 真实例化。</item>
+        /// <item>后端两层：用<b>临时账号文件</b>跑真实实现（不碰程序目录的 ScadaUsers.json），
+        /// 验"出厂管理员能登 → 错密码被拒 → 改密后旧密码失效、新密码生效 → 最后一个管理员不能降权 → 会话开关"。</item>
+        /// </list>
+        /// </summary>
+        private static int RunLoginChecks()
+        {
+            var failures = 0;
+            void Check(string name, bool ok, string detail)
+            {
+                Console.WriteLine($"[{(ok ? "PASS" : "FAIL")}] {name}  {detail}");
+                if (!ok) failures++;
+            }
+
+            // ---------- 界面层：静态契约 ----------
+            const string viewPath = @"d:\C#\VM\VisionMaster\Views\DialogViews\ScadaLoginView.xaml";
+            string viewText = File.Exists(viewPath) ? File.ReadAllText(viewPath) : string.Empty;
+            string viewCode = Regex.Replace(viewText, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+
+            Check("登录视图零硬编码色（品牌色已上移 Brand* 令牌）",
+                viewText.Length > 0 && !Regex.IsMatch(viewCode, "#[0-9A-Fa-f]{6,8}"),
+                viewText.Length == 0 ? "找不到 ScadaLoginView.xaml"
+                    : (Regex.Matches(viewCode, "#[0-9A-Fa-f]{6,8}").Count == 0 ? "hex=0" : "仍有字面量色"));
+
+            var loginWires = new[]
+            {
+                "{Binding UserName", "{Binding Password", "{Binding ChangeUserName", "{Binding OldPassword",
+                "{Binding NewPassword", "{Binding ConfirmPassword", "{Binding LoginMessage}",
+                "{Binding ChangeMessage}", "{Binding LoginStateText}", "{Binding RolePermissionText}",
+                "{Binding IdleTimeoutText}", "{Binding SolutionName}", "{Binding ShowDefaultPasswordHint",
+                "{Binding CanManageUsers", "{Binding LoginCommand}", "{Binding LogoutCommand}",
+                "{Binding ChangePasswordCommand}", "{Binding SubmitCommand}", "{Binding CloseCommand}",
+                "{Binding OpenUserManagerCommand}", "{Binding OpenChangePasswordCommand}",
+                "{Binding IsLoggedOut}", "{Binding IsLoggedIn}", "{Binding SelectedTabIndex}",
+            };
+            var missingWires = loginWires.Where(w => !viewText.Contains(w, StringComparison.Ordinal)).ToList();
+            Check("登录视图的 14 处数据绑定 + 7 个命令 + 三态判据全部在（写错只静默失效，编译不报错）",
+                viewText.Length > 0 && missingWires.Count == 0,
+                missingWires.Count == 0 ? "24 处契约字符串齐" : ("缺：" + string.Join(" | ", missingWires)));
+
+            Check("登录视图品牌区走 Brand* 令牌、没有残留 LoginBrand* 局部键",
+                viewCode.Contains("BrandSurfaceGradientBrush", StringComparison.Ordinal)
+                    && !viewCode.Contains("LoginBrand", StringComparison.Ordinal),
+                "检查 BrandSurfaceGradientBrush 存在且 LoginBrand* 已清");
+
+            // ---------- 后端两层：真实账号存储 + 会话（临时文件） ----------
+            var tmpStore = Path.Combine(Path.GetTempPath(), "vm_login_check_" + Guid.NewGuid().ToString("N") + ".json");
+            try
+            {
+                var store = new VisionMaster.Services.ScadaUserStore(tmpStore);
+                var policy = new VisionMaster.Services.ScadaAccessPolicy();
+
+                Check("出厂账号就位：首次运行给出内置管理员（否则全新机器谁也登不进去）",
+                    store.Users.Any(u => u.Name == VisionMaster.Services.ScadaUserStore.DefaultAdminName
+                                         && u.Role == VisionMaster.Scada.ScadaRole.Administrator),
+                    "账号数=" + store.Users.Count);
+
+                Check("出厂密码检测：未改密时为真（登录窗据此亮「立即修改」提示条）",
+                    store.IsUsingDefaultPassword(VisionMaster.Services.ScadaUserStore.DefaultAdminName),
+                    "IsUsingDefaultPassword=true");
+
+                // 正确密码 → 角色
+                bool okAdmin = store.TryValidate(
+                    VisionMaster.Services.ScadaUserStore.DefaultAdminName,
+                    VisionMaster.Services.ScadaUserStore.DefaultAdminPassword,
+                    out var adminRole, out var adminError);
+                Check("正确账号密码通过校验并给出管理员角色",
+                    okAdmin && adminRole == VisionMaster.Scada.ScadaRole.Administrator && adminError == null,
+                    $"ok={okAdmin} role={adminRole} error={adminError ?? "null"}");
+
+                // 错密码：文案不区分"用户不存在"与"密码错误"（避免账号枚举）
+                bool okWrong = store.TryValidate(VisionMaster.Services.ScadaUserStore.DefaultAdminName, "wrong-pass",
+                                                 out _, out var wrongError);
+                Check("错误密码被拒，且文案不区分「无此账号 / 密码错误」（防账号枚举）",
+                    !okWrong && wrongError == "用户名或密码不正确", $"error={wrongError ?? "null"}");
+
+                // 空输入：由存储报可读原因（登录按钮不禁用，靠这句话解释）
+                bool okEmptyUser = store.TryValidate("", "x", out _, out var emptyUserError);
+                bool okEmptyPwd = store.TryValidate(VisionMaster.Services.ScadaUserStore.DefaultAdminName, "", out _, out var emptyPwdError);
+                Check("空用户名 / 空密码各有可读提示（按钮不禁用，全靠这两句解释）",
+                    !okEmptyUser && emptyUserError == "请输入用户名"
+                    && !okEmptyPwd && emptyPwdError == "请输入密码",
+                    $"用户='{emptyUserError}' 密码='{emptyPwdError}'");
+
+                // 改密 → 旧密码失效、新密码生效、出厂密码提示熄灭
+                bool okChange = store.TryChangePassword(
+                    VisionMaster.Services.ScadaUserStore.DefaultAdminName,
+                    VisionMaster.Services.ScadaUserStore.DefaultAdminPassword,
+                    "NewPass#2026", out var changeError);
+                bool oldStillWorks = store.TryValidate(
+                    VisionMaster.Services.ScadaUserStore.DefaultAdminName,
+                    VisionMaster.Services.ScadaUserStore.DefaultAdminPassword, out _, out _);
+                bool newWorks = store.TryValidate(
+                    VisionMaster.Services.ScadaUserStore.DefaultAdminName, "NewPass#2026", out _, out _);
+                bool hintAfter = store.IsUsingDefaultPassword(VisionMaster.Services.ScadaUserStore.DefaultAdminName);
+                Check("改密后：旧密码失效、新密码生效、出厂密码提示熄灭",
+                    okChange && !oldStillWorks && newWorks && !hintAfter,
+                    $"改密={okChange} 旧密码还能用={oldStillWorks} 新密码能用={newWorks} 提示仍亮={hintAfter} 错误={changeError ?? "null"}");
+
+                // 最后一个管理员不能被降权（否则"以后没人能再管理账号"）
+                bool okDemote = store.TrySetRole(
+                    VisionMaster.Services.ScadaUserStore.DefaultAdminName,
+                    VisionMaster.Scada.ScadaRole.Operator, out var demoteError);
+                Check("最后一个管理员不能被降权（守的是数据不变式，不是界面）",
+                    !okDemote && demoteError != null, $"ok={okDemote} error={demoteError ?? "null"}");
+
+                // 会话：验过之后必须真的开会话，登出后回到未登录
+                policy.Login(VisionMaster.Services.ScadaUserStore.DefaultAdminName,
+                             VisionMaster.Scada.ScadaRole.Administrator);
+                bool loggedIn = policy.IsLoggedIn;
+                string stateText = policy.LoginStateText;
+                policy.Logout();
+                bool loggedOut = !policy.IsLoggedIn;
+                Check("会话开关：登录后 IsLoggedIn/状态行成立，登出后回到未登录",
+                    loggedIn && loggedOut && stateText.Contains("管理员", StringComparison.Ordinal),
+                    $"登录={loggedIn} 登出={loggedOut} 状态行='{stateText}'");
+            }
+            catch (Exception ex)
+            {
+                Check("登录链路端到端（账号存储 + 会话）", false, ex.GetType().Name + ": " + ex.Message);
+            }
+            finally
+            {
+                try { if (File.Exists(tmpStore)) File.Delete(tmpStore); } catch { /* 临时文件删不掉不影响结论 */ }
+            }
+
+            // ---------- 视图实例化：XAML 解析 + 模板 + 令牌 ----------
+            try
+            {
+                var loginView = new ScadaLoginView();
+                loginView.Measure(new Size(820, 560));
+                loginView.Arrange(new Rect(0, 0, 820, 560));
+                loginView.UpdateLayout();
+                Check("登录视图可实例化并完成布局（XAML 解析 + 模板 + Brand 令牌解析）",
+                    loginView.ActualWidth > 0 && loginView.ActualHeight > 0,
+                    $"{loginView.ActualWidth:0}x{loginView.ActualHeight:0}");
+            }
+            catch (Exception ex)
+            {
+                Check("登录视图可实例化并完成布局（XAML 解析 + 模板 + Brand 令牌解析）", false, ex.GetType().Name + ": " + ex.Message);
+            }
+
+            Console.WriteLine(failures == 0
+                ? "=== 用户登录（S12）冒烟：全部通过 ==="
+                : $"### 用户登录冒烟：{failures} 项失败");
+            return failures;
         }
 
         /// <summary>数视图里过滤后还剩几条（枚举视图只会走过滤后的项）</summary>
@@ -2971,9 +3260,143 @@ namespace UIThemeSmokeTest
         }
 
         /// <summary>
+        /// UI 入口异常隔离的静态扫描（P0-3）。
+        ///
+        /// 为什么用静态扫描：这些隔离点的失败模式是"插件抛异常 → 冒到 UI 线程 → 窗口消失"，
+        /// 运行期要构造"每个入口都抛"的夹具才能覆盖，成本高且容易漏分支。
+        /// 静态判据只钉"调用点必须在 try 块内"这一条结构事实——判据用**花括号配对 + 块头**
+        /// 定位（不写行号、不写空白），改缩进/加注释不会误伤；`catch`/`finally` 块里的调用
+        /// 明确判负（否则"把调用搬到 catch 里"也会被当成已隔离）。
+        /// </summary>
+        private static int RunPluginEntryIsolationChecks()
+        {
+            int failures = 0;
+            void Check(string name, bool ok, string detail = "")
+            {
+                Console.WriteLine((ok ? "  [PASS] " : "  [FAIL] ") + name + (detail.Length > 0 ? $"  ({detail})" : ""));
+                if (!ok) failures++;
+            }
+
+            const string repoRoot = @"d:\C#\VM";
+            string Read(params string[] parts)
+            {
+                var path = Path.Combine(repoRoot, Path.Combine(parts));
+                return File.Exists(path) ? File.ReadAllText(path) : string.Empty;
+            }
+
+            var dialog = Read("VisionMaster", "Services", "StepParameterDialog.cs");
+            var shellVm = Read("VisionMaster", "ViewModels", "DialogViewModels", "PluginConfigShellViewModel.cs");
+            var app = Read("VisionMaster", "App.xaml.cs");
+
+            Check("StepParameterDialog.cs 可读", dialog.Length > 0);
+            Check("PluginConfigShellViewModel.cs 可读", shellVm.Length > 0);
+            Check("App.xaml.cs 可读", app.Length > 0);
+
+            Check("StepParameterDialog: GetConfigView 调用在 try 块内",
+                AllCallsInsideTry(dialog, "GetConfigView("),
+                "插件视图创建（第三方代码）必须隔离");
+            Check("StepParameterDialog: Initialize(stepData) 调用在 try 块内",
+                AllCallsInsideTry(dialog, "Initialize(stepData)"),
+                "插件灌值/通用面板创建必须隔离");
+            Check("StepParameterDialog: ShowDialog(\"PluginConfigShell\") 调用在 try 块内",
+                AllCallsInsideTry(dialog, "ShowDialog(\"PluginConfigShell\""),
+                "外壳打开失败按\"未打开\"处理");
+
+            Check("PluginConfigShellViewModel: Initialize 调用在 try 块内",
+                AllCallsInsideTry(shellVm, "_pluginView?.Initialize(_stepData)"),
+                "插件视图初始化必须隔离");
+            Check("PluginConfigShellViewModel: SetConfigContext 调用在 try 块内",
+                AllCallsInsideTry(shellVm, "SetConfigContext(BuildConfigContext())"),
+                "宿主上下文透传必须隔离");
+            Check("PluginConfigShellViewModel: OnConfirm 的全部调用在 try 块内",
+                AllCallsInsideTry(shellVm, "_pluginView?.OnConfirm(_stepData)"),
+                "确认失败不关窗（含试运行前的同步写回）");
+
+            Check("App.xaml.cs: 已订阅 DispatcherUnhandledException",
+                app.Contains("DispatcherUnhandledException += OnDispatcherUnhandledException", StringComparison.Ordinal));
+            Check("App.xaml.cs: 兜底置 e.Handled = true",
+                app.Contains("e.Handled = true", StringComparison.Ordinal));
+            Check("App.xaml.cs: 日志写完整异常（含堆栈）",
+                app.Contains("Environment.NewLine + ex", StringComparison.Ordinal));
+
+            Console.WriteLine(failures == 0
+                ? "=== UI 入口异常隔离静态扫描：全部通过 ==="
+                : $"### UI 入口异常隔离静态扫描：{failures} 项失败");
+            return failures == 0 ? 0 : 1;
+        }
+
+        /// <summary>token 的**每一次**出现都必须位于 try 块内（至少出现一次）。</summary>
+        private static bool AllCallsInsideTry(string source, string token)
+        {
+            int count = 0;
+            int index = 0;
+            while ((index = source.IndexOf(token, index, StringComparison.Ordinal)) >= 0)
+            {
+                count++;
+                if (!IsCallInsideTryAt(source, index)) return false;
+                index += token.Length;
+            }
+            return count > 0;
+        }
+
+        /// <summary>
+        /// 从调用点向前做花括号配对，找包裹它的最近一个块头：
+        ///  · 块头是 try → true；
+        ///  · 块头是 catch/finally → false（调用被搬进处理器里不算隔离）；
+        ///  · 其它块（if/for/方法体/对象初始化器/匿名块）继续向外找。
+        /// </summary>
+        private static bool IsCallInsideTryAt(string source, int index)
+        {
+            int depth = 0;
+            for (int i = index - 1; i >= 0; i--)
+            {
+                char c = source[i];
+                if (c == '}') { depth++; continue; }
+                if (c != '{') continue;
+
+                if (depth > 0) { depth--; continue; }
+
+                var header = ReadBlockHeader(source, i);
+                if (header == "try") return true;
+                if (header == "catch" || header == "finally") return false;
+            }
+            return false;
+        }
+
+        /// <summary>读 '{' 前面的块头关键字（跳过 catch (Exception ex) 这类括号）。</summary>
+        private static string ReadBlockHeader(string source, int braceIndex)
+        {
+            int i = braceIndex - 1;
+            while (i >= 0 && char.IsWhiteSpace(source[i])) i--;
+
+            if (i >= 0 && source[i] == ')')
+            {
+                int parenDepth = 0;
+                while (i >= 0)
+                {
+                    if (source[i] == ')') parenDepth++;
+                    else if (source[i] == '(')
+                    {
+                        parenDepth--;
+                        if (parenDepth == 0) { i--; break; }
+                    }
+                    i--;
+                }
+                while (i >= 0 && char.IsWhiteSpace(source[i])) i--;
+            }
+
+            int end = i;
+            while (i >= 0 && (char.IsLetterOrDigit(source[i]) || source[i] == '_')) i--;
+            return end >= i + 1 ? source.Substring(i + 1, end - i) : string.Empty;
+        }
+
+        /// <summary>
         /// 自动参数面板冒烟（--auto-port-config）：真实实例化 <see cref="AutoPortConfigView"/>，
         /// 用 8 个不同类型端口验证：行数/排序、步骤卡统计、链接态配色、枚举锁、类型徽章、
-        /// Initialize 幂等、空态与插件未注入文案，并输出默认/空态两张 WPF 证据 PNG。
+        /// Initialize 幂等、空态与插件未注入文案；再用 5 个 [StepConfig] 配置项验证
+        /// 枚举/布尔/数值/文本/其它类型的渲染与"编辑即写回"（含非法数值不写 0）；
+        /// 最后验证 StepParameterDialog 对"GetConfigView 抛异常"的入口隔离。
+        /// 输出默认/空态两张 WPF 证据 PNG。
         /// </summary>
         private static int RunAutoPortConfigViewSmoke()
         {
@@ -3077,15 +3500,97 @@ namespace UIThemeSmokeTest
                 Check("类型徽章：string→文本", typeTexts["Name"] == "文本", typeTexts["Name"]);
                 Check("类型徽章：object→参数", typeTexts["Any"] == "参数", typeTexts["Any"]);
 
+                // ================= [StepConfig] 插件参数区（P0-4） =================
+                // 这一段直接验"没有自定义视图的插件也能改配置项"：5 个 descriptor 覆盖
+                // 枚举 / 布尔 / 数值 / 文本 / 其它类型，改值必须即时落到插件实例上。
+                var configPanel = view.FindName("ConfigPanel") as StackPanel;
+                Check("插件参数计数 = 5", TextRoot(view, "ConfigCountText") == "5", TextRoot(view, "ConfigCountText"));
+                Check("插件参数行数 = 5", configPanel?.Children.Count == 5, $"rows={configPanel?.Children.Count}");
+
+                var configRowTags = configPanel?.Children.OfType<FrameworkElement>()
+                    .Select(c => c.Tag as string ?? string.Empty).ToList() ?? new List<string>();
+                Check("插件参数按声明顺序渲染（MetadataToken）",
+                    configRowTags.SequenceEqual(new[]
+                    {
+                        "Config:SortMode", "Config:FailOnMiss", "Config:Scale", "Config:Note", "Config:Payload"
+                    }),
+                    string.Join(",", configRowTags));
+
+                Check("[Display(Name)] 优先于属性名上屏",
+                    Descendants<TextBlock>(view).Any(t => t.Text == "查找类型")
+                    && Descendants<TextBlock>(view).Any(t => t.Text == "SortMode"),
+                    "显示名=查找类型 / 属性名=SortMode");
+
+                var enumEditor = EditorByTag<ComboBox>(view, "SortMode");
+                Check("枚举参数 → ComboBox（值=成员名）",
+                    enumEditor?.SelectedValue as string == nameof(StringComparison.Ordinal),
+                    enumEditor?.SelectedValue?.ToString() ?? "(null)");
+                if (enumEditor != null)
+                {
+                    enumEditor.SelectedValue = nameof(StringComparison.OrdinalIgnoreCase);
+                    view.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                }
+                Check("枚举参数选中即写回插件实例",
+                    plugin.SortMode == StringComparison.OrdinalIgnoreCase, plugin.SortMode.ToString());
+
+                var boolEditor = EditorByTag<CheckBox>(view, "FailOnMiss");
+                Check("布尔参数 → CheckBox", boolEditor?.IsChecked == true, boolEditor?.IsChecked?.ToString() ?? "(null)");
+                if (boolEditor != null) boolEditor.IsChecked = false;
+                Check("布尔参数勾选即写回插件实例", !plugin.FailOnMiss, plugin.FailOnMiss.ToString());
+
+                var scaleEditor = EditorByTag<TextBox>(view, "Scale");
+                Check("数值参数 → TextBox（InvariantCulture 显示）",
+                    scaleEditor?.Text == "0.75", scaleEditor?.Text ?? "(null)");
+                if (scaleEditor != null) scaleEditor.Text = "1.25";
+                Check("数值参数编辑即写回插件实例",
+                    Math.Abs(plugin.Scale - 1.25) < 1e-9, plugin.Scale.ToString(CultureInfo.InvariantCulture));
+
+                // 非法输入：绝不能静默写 0 / 写脏值；红框 + 行内提示，插件里保留上一次合法值
+                if (scaleEditor != null) scaleEditor.Text = "abc";
+                var scaleError = Descendants<TextBlock>(view).FirstOrDefault(t => (t.Tag as string) == "ConfigError:Scale");
+                var scaleShell = Descendants<Border>(view).FirstOrDefault(b => (b.Tag as string) == "ConfigShell:Scale");
+                Check("数值解析失败：保留上一次合法值（不写 0）",
+                    Math.Abs(plugin.Scale - 1.25) < 1e-9, plugin.Scale.ToString(CultureInfo.InvariantCulture));
+                Check("数值解析失败：行内提示可见",
+                    scaleError?.Visibility == Visibility.Visible
+                    && (scaleError.Text ?? string.Empty).Contains("不是合法"),
+                    $"{scaleError?.Visibility}/{scaleError?.Text}");
+                Check("数值解析失败：编辑框描边 = DialogDangerBrush",
+                    scaleShell?.BorderBrush is SolidColorBrush danger && danger.Color == ColorOf("DialogDangerBrush"),
+                    scaleShell?.BorderBrush?.ToString() ?? "(null)");
+
+                if (scaleEditor != null) scaleEditor.Text = "2.5";
+                Check("修正后红框消失且值写回",
+                    Math.Abs(plugin.Scale - 2.5) < 1e-9 && scaleError?.Visibility == Visibility.Collapsed,
+                    $"scale={plugin.Scale.ToString(CultureInfo.InvariantCulture)} error={scaleError?.Visibility}");
+
+                var noteEditor = EditorByTag<TextBox>(view, "Note");
+                if (noteEditor != null) noteEditor.Text = "hello";
+                Check("文本参数编辑即写回插件实例", plugin.Note == "hello", plugin.Note ?? "(null)");
+
+                var payloadEditor = EditorByTag<TextBox>(view, "Payload");
+                var payloadHint = Descendants<TextBlock>(view).FirstOrDefault(t => (t.Tag as string) == "ConfigHint:Payload");
+                Check("其它类型 → 只读文本 + 暂不支持提示",
+                    payloadEditor?.IsReadOnly == true && payloadHint?.Text == "该类型暂不支持在此编辑",
+                    $"readOnly={payloadEditor?.IsReadOnly} hint={payloadHint?.Text}");
+
+                var configRowsBeforeSecondInit = configPanel?.Children.OfType<FrameworkElement>().ToList()
+                    ?? new List<FrameworkElement>();
                 var rowsBeforeSecondInit = Descendants<AutoPortRow>(view).ToList();
                 view.Initialize(stepData);
                 host.UpdateLayout();
                 var rowsAfterSecondInit = Descendants<AutoPortRow>(view).ToList();
+                var configRowsAfterSecondInit = configPanel?.Children.OfType<FrameworkElement>().ToList()
+                    ?? new List<FrameworkElement>();
                 Check("Initialize 幂等（二次调用行数仍为 8）", rowsAfterSecondInit.Count == 8,
                     $"rows={rowsAfterSecondInit.Count}");
                 Check("Initialize 二次调用复用现有行（不重建，避免端口 ValueChanged 订阅累积）",
                     rowsBeforeSecondInit.SequenceEqual(rowsAfterSecondInit),
                     "行对象引用应保持不变");
+                Check("插件参数区 Initialize 幂等（复用行对象）",
+                    configRowsAfterSecondInit.Count == 5
+                    && configRowsBeforeSecondInit.SequenceEqual(configRowsAfterSecondInit),
+                    $"rows={configRowsAfterSecondInit.Count}");
 
                 const string repoRoot = @"d:\C#\VM";
                 var outDir = Path.Combine(repoRoot, "docs", "UI设计基线", "auto-port-config", "evidence");
@@ -3127,8 +3632,34 @@ namespace UIThemeSmokeTest
                 var nullView = new AutoPortConfigView(null);
                 nullView.Initialize(stepData);
                 Measure(nullView);
-                Check("插件未注入 → 空态标题 = 无法读取插件参数", TextRoot(nullView, "EmptyTitleText") == "无法读取插件参数",
+                Check("插件未注入 → 空态标题 = 无法读取插件参数",
+                    TextRoot(nullView, "EmptyTitleText") == "无法读取插件参数",
                     TextRoot(nullView, "EmptyTitleText"));
+
+                // ---- 入口隔离（P0-3）：插件 GetConfigView 抛异常 → 不冒泡、不打开外壳 ----
+                var throwingStep = new ActionStep(
+                    string.Empty,
+                    "抛异常探针",
+                    typeof(ThrowingViewProbePlugin).AssemblyQualifiedName,
+                    "抛异常探针_0");
+                var recordingDialog = new RecordingDialogService();
+
+                bool opened;
+                try
+                {
+                    opened = StepParameterDialog.Open(throwingStep, recordingDialog);
+                    Check("StepParameterDialog：GetConfigView 抛异常不冒泡", true);
+                }
+                catch (Exception ex)
+                {
+                    opened = true;
+                    Check("StepParameterDialog：GetConfigView 抛异常不冒泡", false,
+                        ex.GetType().Name + ": " + ex.Message);
+                }
+
+                Check("StepParameterDialog：视图创建失败 → 返回 false 且不打开外壳",
+                    !opened && recordingDialog.ShownDialogs.Count == 0,
+                    $"opened={opened} dialogs={string.Join(",", recordingDialog.ShownDialogs)}");
             }
             catch (Exception ex)
             {
@@ -3156,6 +3687,8 @@ namespace UIThemeSmokeTest
                 (row.FindName(name) as UIElement)?.Visibility ?? Visibility.Collapsed;
             static LinkableValueEditor Editor(AutoPortRow row) =>
                 (row.FindName("EditorHost") as ContentControl)?.Content as LinkableValueEditor;
+            static T EditorByTag<T>(FrameworkElement root, string name) where T : FrameworkElement =>
+                Descendants<T>(root).FirstOrDefault(e => (e.Tag as string) == "ConfigEditor:" + name);
             static Color ColorOf(string key) =>
                 ((SolidColorBrush)Application.Current.TryFindResource(key)).Color;
             static Color BrushColor(FrameworkElement root, string name) =>
@@ -3631,7 +4164,10 @@ namespace UIThemeSmokeTest
             encoder.Save(stream);
         }
 
-        /// <summary>自动参数面板探针：8 个端口覆盖图像/区域/枚举/数值/布尔/整数/文本/object。</summary>
+        /// <summary>
+        /// 自动参数面板探针：8 个端口覆盖图像/区域/枚举/数值/布尔/整数/文本/object，
+        /// 外加 5 个 [StepConfig] 配置项覆盖枚举/布尔/数值/文本/其它类型（只读）的渲染分支。
+        /// </summary>
         private sealed class AutoPortProbePlugin : VisionPluginBase
         {
             public InputPort<HImage> SrcImage { get; } = new("SrcImage", null, "待查找图像") { IsRequired = true };
@@ -3642,6 +4178,26 @@ namespace UIThemeSmokeTest
             public InputPort<int> Count { get; } = new("Count", 1, "显示窗口(0=不显示,1~9=窗口号)") { IsRequired = false };
             public InputPort<string> Name { get; } = new("Name", "x", "名称") { IsRequired = false };
             public InputPort<object> Any { get; } = new("Any", null, "任意值") { IsRequired = false };
+
+            // ---- [StepConfig] 配置项：没有自定义视图的插件靠 AutoPortConfigView 渲染 ----
+
+            /// <summary>[Display(Name)] 必须优先于属性名上屏（A1 口径）。</summary>
+            [Display(Name = "查找类型")]
+            [StepConfig]
+            public StringComparison SortMode { get; set; } = StringComparison.Ordinal;
+
+            [StepConfig]
+            public bool FailOnMiss { get; set; } = true;
+
+            [StepConfig]
+            public double Scale { get; set; } = 0.75;
+
+            [StepConfig]
+            public string Note { get; set; } = "abc";
+
+            /// <summary>其它类型（object）：面板只给只读文本 + "暂不支持"提示。</summary>
+            [StepConfig]
+            public object Payload { get; set; } = "opaque";
 
             public override void RunAlgorithm(IExecutionContext context) { }
         }
@@ -3707,6 +4263,63 @@ namespace UIThemeSmokeTest
                 cur = cur.InnerException;
             }
         }
+    }
+
+    /// <summary>
+    /// 入口隔离探针：GetConfigView 故意抛异常（模拟第三方插件视图构造失败）。
+    ///
+    /// 必须是**文件级**类型（不是 Program 的嵌套类）：StepParameterDialog 通过
+    /// Type.GetType(AssemblyQualifiedName) + Activator.CreateInstance 反射创建实例，
+    /// 文件级类型更接近真实插件形态（没有 `+` 嵌套限定名这层额外变量）。
+    /// </summary>
+    internal sealed class ThrowingViewProbePlugin : VisionPluginBase, IPluginCustomViewProvider
+    {
+        /// <summary>显式 public 无参构造：StepParameterDialog 走 Activator.CreateInstance(type)，只认公开构造。</summary>
+        public ThrowingViewProbePlugin() { }
+
+        public object GetConfigView(IStepConfigData stepData)
+            => throw new InvalidOperationException("冒烟探针：GetConfigView 故意抛异常");
+
+        public override void RunAlgorithm(IExecutionContext context) { }
+    }
+
+    /// <summary>
+    /// IDialogService 形状桩：只记录"弹了哪个窗口"，不真的开窗
+    ///（断言宿主没有 Prism 容器，真服务一 ShowDialog 就会去容器里解析视图）。
+    /// </summary>
+    internal sealed class RecordingDialogService : IDialogService
+    {
+        public List<string> ShownDialogs { get; } = new();
+
+        public void ShowDialog(string name, IDialogParameters parameters) => ShownDialogs.Add(name);
+
+        public void ShowDialog(string name, IDialogParameters parameters, DialogCallback callback)
+            => ShownDialogs.Add(name);
+
+        public void ShowDialog(string name, IDialogParameters parameters, string windowName)
+            => ShownDialogs.Add(name);
+
+        public void ShowDialog(
+            string name,
+            IDialogParameters parameters,
+            DialogCallback callback,
+            string windowName
+        ) => ShownDialogs.Add(name);
+
+        public void Show(string name, IDialogParameters parameters) => ShownDialogs.Add(name);
+
+        public void Show(string name, IDialogParameters parameters, DialogCallback callback)
+            => ShownDialogs.Add(name);
+
+        public void Show(string name, IDialogParameters parameters, string windowName)
+            => ShownDialogs.Add(name);
+
+        public void Show(
+            string name,
+            IDialogParameters parameters,
+            DialogCallback callback,
+            string windowName
+        ) => ShownDialogs.Add(name);
     }
 
     /// <summary>PasswordBoxHelper 双向绑定探针：只需要一个可通知的 Password。</summary>

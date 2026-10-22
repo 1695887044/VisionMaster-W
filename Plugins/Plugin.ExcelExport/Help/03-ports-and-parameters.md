@@ -49,7 +49,7 @@
 | 只导有图的行 | `OnlyRowsWithImage` | `bool` | `false` | 为 `true` 时只保留「图片走这里」那列是**有效绝对路径**的行（抽检看 NG 图用）。列不存在时过滤**不生效**，导出全量 |
 | 导出方式 | `ExportPolicy` | `ExportPolicy` 枚举 | `Manual`（界面显示"仅手动（点按钮才导）"） | 三档语义见下节；决定本步骤在流程里到底做不做事 |
 | 导出后打开报表 | `OpenAfterExport` | `bool` | `false` | 成功后用系统默认程序打开。仅手动导出时建议勾；自动导出时勾了会让 Excel 占住文件，**反过来**让下一次导出失败（本算子不旁路改名） |
-| 导出失败阻断流程 | `BlockOnFailure` | `bool` | `false` | 勾上才让本步骤失败（`Success=false` + `ErrorMessage`）；默认只写 WARN 日志，宁漏报表不停线 |
+| 导出失败阻断流程 | `BlockOnFailure` | `bool` | `false` | 勾上才让本步骤失败（`Success=false` + `ErrorMessage`），含"导出前等待 CSV 队列排空超时"；默认只写 WARN 日志，宁漏报表不停线 |
 
 ## 四、占位符（`{源步骤}` 与 `{StepName}` 最容易搞混）
 

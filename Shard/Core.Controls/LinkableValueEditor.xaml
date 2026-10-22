@@ -115,7 +115,7 @@
                             <DataTrigger Binding="{Binding IsTextEditable, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
                                 <Setter Property="Visibility" Value="Collapsed" />
                             </DataTrigger>
-                            <!--  「只能选」的端口（枚举/方案候选）：改用下拉，互斥否则会叠在一起  -->
+                            <!--  「只能选」的端口（枚举/方案候选，且候选非空）：改用下拉，互斥否则会叠在一起  -->
                             <DataTrigger Binding="{Binding IsOptionPort, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
                                 <Setter Property="Visibility" Value="Collapsed" />
                             </DataTrigger>
@@ -123,6 +123,22 @@
                     </Style>
                 </TextBox.Style>
             </TextBox>
+
+            <!--
+                空候选提示（占位文案）：IsFunctionalEnum 端口**取不到候选**时（还没配运动卡 /
+                方案里没有已启用的轴），这一行退化成可手填 —— 必须说明原因，
+                否则看起来像"下拉坏了"。只在"手填退化 + 未链接 + 输入框为空"时显示，
+                不遮挡已填内容；已填内容时同样的话挂在输入框的 ToolTip 上（见 UpdateHandFillHint）。
+            -->
+            <TextBlock
+                x:Name="PART_NoOptionHint"
+                Margin="12,0,0,0"
+                VerticalAlignment="Center"
+                FontSize="12"
+                Foreground="#94A3B8"
+                IsHitTestVisible="False"
+                Text="无候选，可手填"
+                Visibility="Collapsed" />
 
             <!--
                 枚举端口：下拉选择，候选即枚举成员。

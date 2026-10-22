@@ -60,6 +60,8 @@ namespace Plugin.DataRecord
     {
         public string Level;   // INFO / WARN / ERROR
         public string Message;
+        /// <summary>已经由即时 sink 投递过（TakeLogs 不再重复转交）</summary>
+        public bool Delivered;
     }
 
     /// <summary>
@@ -73,18 +75,31 @@ namespace Plugin.DataRecord
     /// - 队列有界：满则拒绝入队，由插件按"阻断/放行"契约处置（背压不压垮内存）；
     /// - 全局序列号：_seq.json 边车持久化，重启续号防图片撞名；
     /// - 磁盘水位：每 60 秒抽查一次剩余空间，低于 500MB 报警；
-    /// - 进程退出：ProcessExit 尽力冲刷队列（3 秒预算）。
+    /// - 进程退出：ProcessExit 尽力冲刷队列（3 秒预算）；
+    /// - 即时日志：LogSink 挂上后后台错误当场进应用日志，静态队列只做兜底；
+    /// - 可等待 flush：TryFlush 等队列排空 + 写盘结束；写盘失败记 LastWriteError / WriteErrorSeq。
     /// </summary>
     internal static class RecordingHub
     {
         public const int DataCapacity = 200000;   // 数据队列上限（行）
         public const int ImageCapacity = 2000;    // 图片队列上限（张）
+        public const int BatchWindowMs = 500;     // 空闲攒批窗口（写线程等第一条的时长）
         private const int MaxBatch = 5000;        // 单批最多出队行数
         private const long MinFreeBytes = 500L * 1024 * 1024; // 磁盘水位 500MB
 
         private static readonly BlockingCollection<DataEntry> DataQueue = new BlockingCollection<DataEntry>(DataCapacity);
         private static readonly BlockingCollection<ImageEntry> ImageQueue = new BlockingCollection<ImageEntry>(ImageCapacity);
         private static readonly ConcurrentQueue<LogItem> Logs = new ConcurrentQueue<LogItem>();
+
+        /// <summary>
+        /// 即时日志 sink（level, message）：插件执行时指向宿主 ILogService，后台写线程的错误当场进应用日志；
+        /// 为空时只进静态队列，等下一次执行 TakeLogs 兜底转交。
+        /// </summary>
+        public static volatile Action<string, string> LogSink;
+
+        private static readonly object WriteErrorLock = new object();
+        private static string _lastWriteError;   // 最近一次写盘失败（时间 + 目标文件 + 原因）
+        private static long _writeErrorSeq;      // 写盘失败单调计数（步骤用它区分"本次期间"）
 
         /// <summary>序列号边车（放在程序目录：全局唯一账本序号，跨步骤实例/跨重启单调）</summary>
         private static string SeqFilePath = Path.Combine(AppContext.BaseDirectory, "DataRecord_seq.json");
@@ -215,7 +230,7 @@ namespace Plugin.DataRecord
                 while (true)
                 {
                     DataEntry first = null;
-                    try { DataQueue.TryTake(out first, 500, CancellationToken.None); } // 500ms 攒批窗口：节拍快时合并、空闲时不空转（TryTake 超时返回 null，队列关死时抛 InvalidOperationException）
+                    try { DataQueue.TryTake(out first, BatchWindowMs, CancellationToken.None); } // 空闲攒批窗口：节拍快时合并、空闲时不空转（TryTake 超时返回 null，队列关死时抛 InvalidOperationException）
                     catch (InvalidOperationException) { break; }
 
                     if (first != null)
@@ -228,7 +243,11 @@ namespace Plugin.DataRecord
                     {
                         Interlocked.Increment(ref _busy);
                         try { ProcessBatch(batch, cleanupDone); }
-                        catch (Exception ex) { Log("ERROR", "[数据记录] 批量写入异常: " + ex.Message); }
+                        catch (Exception ex)
+                        {
+                            RecordWriteError("(批次)", ex.Message);
+                            Log("ERROR", "[数据记录] 批量写入异常: " + ex.Message);
+                        }
                         finally { Interlocked.Decrement(ref _busy); }
                         batch.Clear();
                         batches++;
@@ -291,14 +310,23 @@ namespace Plugin.DataRecord
 
                 foreach (var kvF in kvT.Value)
                 {
-                    if (t.FlushEveryRow)
+                    try
                     {
-                        foreach (var one in kvF.Value)
-                            WriteRows(t, kvF.Key, new List<DataEntry> { one });
+                        if (t.FlushEveryRow)
+                        {
+                            foreach (var one in kvF.Value)
+                                WriteRows(t, kvF.Key, new List<DataEntry> { one });
+                        }
+                        else
+                        {
+                            WriteRows(t, kvF.Key, kvF.Value);
+                        }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        WriteRows(t, kvF.Key, kvF.Value);
+                        // 单个目标失败不拖累同批其它账本；错误留给步骤按 WriteErrorSeq 判定
+                        RecordWriteError(kvF.Key, ex.Message);
+                        Log("ERROR", $"[数据记录] 批量写入异常: {ex.Message}（目标: {kvF.Key}）");
                     }
                 }
             }
@@ -351,6 +379,7 @@ namespace Plugin.DataRecord
             }
             catch (Exception ex)
             {
+                RecordWriteError(path, "旁路文件也写入失败: " + ex.Message);
                 Log("ERROR", $"[数据记录] 旁路文件也写入失败，丢失 {entries.Count} 行: {ex.Message}");
             }
         }
@@ -363,7 +392,7 @@ namespace Plugin.DataRecord
                 while (true)
                 {
                     ImageEntry e = null;
-                    try { ImageQueue.TryTake(out e, 500, CancellationToken.None); }
+                    try { ImageQueue.TryTake(out e, BatchWindowMs, CancellationToken.None); }
                     catch (InvalidOperationException) { break; }
 
                     if (e != null)
@@ -571,6 +600,56 @@ namespace Plugin.DataRecord
 
         #endregion
 
+        #region 写盘失败可见 / 可等待 flush
+
+        /// <summary>最近一次写盘失败详情（时间 + 目标文件 + 原因）；诊断用，成功不清空。</summary>
+        public static string LastWriteError
+        {
+            get { lock (WriteErrorLock) return _lastWriteError; }
+        }
+
+        /// <summary>写盘失败单调计数：步骤开始时记快照，flush 后比较，区分"本次步骤期间"。</summary>
+        public static long WriteErrorSeq => Interlocked.Read(ref _writeErrorSeq);
+
+        private static void RecordWriteError(string target, string message)
+        {
+            string text = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} 目标: {target} | {message}";
+            lock (WriteErrorLock) _lastWriteError = text;
+            Interlocked.Increment(ref _writeErrorSeq);
+        }
+
+        /// <summary>
+        /// 等两条队列排空且没有正在落盘的任务。返回 false = 超时，error 带剩余量。
+        /// 空/闲判定连看两次（间隔 20ms），避开"刚取走最后一条但还没置 _busy"的窗口。
+        /// </summary>
+        public static bool TryFlush(int timeoutMs, out string error)
+        {
+            long deadline = Environment.TickCount64 + Math.Max(0, timeoutMs);
+            bool idle = false;
+            while (Environment.TickCount64 < deadline)
+            {
+                if (IsIdle())
+                {
+                    if (idle) { error = null; return true; }
+                    idle = true;
+                }
+                else
+                {
+                    idle = false;
+                }
+                Thread.Sleep(20);
+            }
+
+            if (IsIdle()) { error = null; return true; }
+            error = $"数据记录队列未在 {timeoutMs} ms 内排空（剩余 数据 {DataQueue.Count} 行 / 图片 {ImageQueue.Count} 张）";
+            return false;
+        }
+
+        private static bool IsIdle()
+            => DataQueue.Count == 0 && ImageQueue.Count == 0 && Volatile.Read(ref _busy) == 0;
+
+        #endregion
+
         #region 断言钩子（仅供 FlowCanvasChecks；生产路径不调用）
 
         /// <summary>把序列号边车指到临时目录并复位序号（每个用例独立，避免互相污染）。</summary>
@@ -580,22 +659,12 @@ namespace Plugin.DataRecord
             Interlocked.Exchange(ref _sequence, 0);
             Interlocked.Exchange(ref _persistedSeq, 0);
             DiskCheckedAt.Clear();
+            lock (WriteErrorLock) _lastWriteError = null;
+            Interlocked.Exchange(ref _writeErrorSeq, 0);
         }
 
-        /// <summary>
-        /// 等两条队列排空且没有正在落盘的任务。返回 false = 超时（断言据此红，不许静默跳过）。
-        /// </summary>
-        internal static bool FlushForTests(int timeoutMs = 5000)
-        {
-            long deadline = Environment.TickCount64 + timeoutMs;
-            while (Environment.TickCount64 < deadline)
-            {
-                if (DataQueue.Count == 0 && ImageQueue.Count == 0 && Volatile.Read(ref _busy) == 0)
-                    return true;
-                Thread.Sleep(20);
-            }
-            return DataQueue.Count == 0 && ImageQueue.Count == 0 && Volatile.Read(ref _busy) == 0;
-        }
+        /// <summary>旧名转发（断言宿主既有调用点不改）。</summary>
+        internal static bool FlushForTests(int timeoutMs = 5000) => TryFlush(timeoutMs, out _);
 
         /// <summary>强制把当前序号写进边车（生产按 50 号步进落盘，断言不等）。</summary>
         internal static void PersistSequenceForTests() => PersistSeq(true);
@@ -606,15 +675,31 @@ namespace Plugin.DataRecord
 
         private static void Log(string level, string msg)
         {
-            Logs.Enqueue(new LogItem { Level = level, Message = msg });
+            var item = new LogItem { Level = level, Message = msg };
+            Logs.Enqueue(item);
             while (Logs.Count > 2000 && Logs.TryDequeue(out _)) { } // 防御：无人消费时丢弃最旧
+
+            var sink = LogSink;
+            if (sink == null) return;
+            try
+            {
+                sink(level, msg);
+                Volatile.Write(ref item.Delivered, true); // 已即时投递，TakeLogs 不再重复转交
+            }
+            catch
+            {
+                // 宿主日志失败不影响落盘；本条留在队列里等下次执行兜底转交
+            }
         }
 
-        /// <summary>插件执行时取走全部暂存日志转交宿主（同白名单审计的投递模式）。</summary>
+        /// <summary>插件执行时取走未即时投递的暂存日志（同白名单审计的投递模式）。</summary>
         public static List<LogItem> TakeLogs()
         {
             var list = new List<LogItem>();
-            while (Logs.TryDequeue(out var it)) list.Add(it);
+            while (Logs.TryDequeue(out var it))
+            {
+                if (!Volatile.Read(ref it.Delivered)) list.Add(it);
+            }
             return list;
         }
 

@@ -57,6 +57,8 @@ namespace FlowCanvasChecks
             RunStatusBits();
             RunFaultInterpretation();
             RunDeploymentContract();
+            RunAbsoluteEncoderCapabilityContract();
+            RunFlowStopHookContract();
             RunJogEndToEnd();
             RunJogWatchdog();
             RunDebugPanelContract();
@@ -1080,6 +1082,120 @@ namespace FlowCanvasChecks
 
             Check("sln 已登记运动插件工程（否则 sln 全量构建不产出，Modules\\ 里会缺 dll）",
                 sln != null && File.ReadAllText(sln).Contains("Plugin.Motion.ZMotion"), "");
+        }
+
+        // ==================================================================
+        //  ⑤b S4：能力位必须按"增量编码器 / 未回零"保守上报
+        // ==================================================================
+
+        /// <summary>
+        /// <c>SupportsAbsoluteEncoder</c> 必须是 false，且连接后仍显式 <c>MarkHomed(false)</c>。
+        ///
+        /// 为什么这条值得单列：这个能力位不只影响界面提示 —— 基类 <c>Connect()</c> 用它算
+        /// <c>_isHomed = SupportsAbsoluteEncoder</c>。写成 true 的后果是"增量编码器的卡一连上
+        /// 就被当成已回零"，于是"按错误坐标走绝对运动"这道最危险的静默错误在软件层没人拦。
+        /// 没有真卡时连不上，所以主判据落在**源码**（能力位字面量 + MarkHomed(false) 仍在），
+        /// 再加一条"未连接时 IsHomed 为 false"的运行期旁证。
+        /// </summary>
+        private static void RunAbsoluteEncoderCapabilityContract()
+        {
+            Section("[Z] S4：正运动按「增量编码器 / 未回零」保守上报能力");
+
+            var file = ResolveRepoFile(@"Plugins\Plugin.Motion.ZMotion\ZMotionCard.cs");
+            if (file == null)
+            {
+                // 定位不到源码 = 这条断言失去意义，必须红着说清（不许记成"跳过"）
+                Check("ZMotionCard 能力位保守上报", false, "定位不到 ZMotionCard.cs");
+                return;
+            }
+
+            string text = File.ReadAllText(file);
+
+            Check("★能力位 SupportsAbsoluteEncoder = false（写成 true 会让增量卡一连上就被当成已回零）",
+                text.Contains("SupportsAbsoluteEncoder = false"),
+                text.Contains("SupportsAbsoluteEncoder = true")
+                    ? "源码里仍有 SupportsAbsoluteEncoder = true"
+                    : "源码里找不到 = false");
+
+            Check("★连接后仍显式 MarkHomed(false)（驱动与基类两处口径一致，不靠兜底）",
+                text.Contains("MarkHomed(false)"), "");
+
+            // 运行期旁证：这里只 new，不 Connect —— ZAux_* 只在 ConnectCore 里调用，不会加载 native 库
+            var card = new ZMotionCard(new MotionDescriptor
+            {
+                Id = Guid.NewGuid(),
+                DriverTypeKey = typeof(ZMotionCard).AssemblyQualifiedName ?? nameof(ZMotionCard),
+                DisplayName = "断言用正运动卡（不连接）",
+                Address = "127.0.0.1",
+            });
+
+            try
+            {
+                Check("未连接时能力位为 false（Unknown）且 IsHomed=false",
+                    !card.Capabilities.SupportsAbsoluteEncoder && !card.IsHomed,
+                    $"绝对编码器={card.Capabilities.SupportsAbsoluteEncoder} IsHomed={card.IsHomed}");
+            }
+            finally
+            {
+                card.Dispose();   // 未连接，Dispose 不会碰 SDK
+            }
+        }
+
+        // ==================================================================
+        //  ⑤c S6：流程停止 → 停轴的接线必须两端都在
+        // ==================================================================
+
+        /// <summary>
+        /// 引擎发事件、宿主订阅并 <c>CancelAll</c> —— 缺任何一端，"流程停止即停轴"就静默失效。
+        ///
+        /// 为什么用源码断言而不是跑一遍：这条链的一端在宿主模块（<c>MotionModule</c>），
+        /// 要真跑起来得搭整个 DI 容器 + 流程引擎 + 运动卡；而它出错的形状全是
+        /// "少了一行订阅 / 退订写成新 lambda / 顺序反了"，静态判据足够且更稳。
+        /// 运行期行为（发几次、在 Cancel 之前、正常跑完不发）由 <c>MotionChecks</c> 钉。
+        /// </summary>
+        private static void RunFlowStopHookContract()
+        {
+            Section("[Z] S6：流程停止即停轴（引擎事件 + 宿主订阅 + CancelAll）");
+
+            var engineFile = ResolveRepoFile(@"Engine\FlowEngineService.cs");
+            var moduleFile = ResolveRepoFile(@"VisionMaster\Modules\MotionModule.cs");
+
+            if (engineFile == null || moduleFile == null)
+            {
+                Check("流程停止停轴接线", false,
+                    $"定位不到源码（引擎={engineFile ?? "null"} 模块={moduleFile ?? "null"}）");
+                return;
+            }
+
+            string engine = File.ReadAllText(engineFile);
+            string module = File.ReadAllText(moduleFile);
+
+            Check("引擎暴露 SessionStopRequested 事件",
+                engine.Contains("event EventHandler<FlowSession>? SessionStopRequested"), "");
+
+            var notifyIndex = engine.IndexOf("NotifySessionStopRequested(session);", StringComparison.Ordinal);
+            var cancelIndex = engine.IndexOf("cts?.Cancel();", Math.Max(0, notifyIndex), StringComparison.Ordinal);
+
+            Check("★事件在取消令牌**之前**触发（先停轴、再让流程退栈）",
+                notifyIndex > 0 && cancelIndex > notifyIndex,
+                $"通知位置={notifyIndex} 取消位置={cancelIndex}");
+
+            Check("同一次运行只通知一次（ConditionalWeakTable 去重，重复 StopSession 不重复停轴）",
+                engine.Contains("_stopNotified.Add(session") && engine.Contains("catch (ArgumentException)"), "");
+
+            var removeCount = Regex.Matches(engine, Regex.Escape("_stopNotified.Remove(session)")).Count;
+            Check("★两个运行入口都在开轮时摘除标记（否则同一会话第二次运行停止时不再通知）",
+                removeCount >= 2, "Remove 出现次数=" + removeCount);
+
+            Check("宿主订阅了流程停止事件",
+                module.Contains("SessionStopRequested += handler"), "");
+
+            Check("★宿主退出时退订（且用订阅时的同一个委托实例）",
+                module.Contains("SessionStopRequested -= _flowStopHandler"), "");
+
+            Check("★宿主用 CancelAll 停轴，而不是 EmergencyStop（流程停止要保留使能）",
+                module.Contains("device.CancelAll(") && !module.Contains("device.EmergencyStop("),
+                module.Contains("device.EmergencyStop(") ? "出现了 EmergencyStop" : "");
         }
 
         // ==================================================================

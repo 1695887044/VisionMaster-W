@@ -54,6 +54,77 @@ namespace VisionMaster
         /// </summary>
         private readonly List<string> _pendingModuleDiagnostics = new();
 
+        /// <summary>
+        /// UI 线程未处理异常的**最后一道兜底**（必须在任何窗口/启动代码之前挂上）。
+        ///
+        /// 【与 Core 的 <c>AppLifetimeService.RegisterGlobalExceptionHandlers</c> 的关系】
+        /// 那套分级接线（Core\Lifetime\AppLifetimeService.cs）同样订阅了
+        /// <see cref="Application.DispatcherUnhandledException"/>，但它走的是
+        /// "Warning 级 → 限流日志 + 状态栏" 的处置链，且只在 CreateShell 里才挂上。
+        /// 本处理器更早、更"笨"：**无条件**把完整 <see cref="Exception.ToString"/>（含堆栈）
+        /// 写进日志、给一条非模态提示、置 Handled。两者同时订阅并不冲突——WPF 会依次调用
+        /// 全部订阅者（Handled 只决定"事件之后是否终止进程"，不会跳过后续订阅者）。
+        ///
+        /// 【边界（写清楚，免得被当成万能兜底）】
+        ///  · 只兜 **UI 线程**的未处理异常；后台线程仍走 AppDomain.UnhandledException
+        ///    （Core 的分级接线已订阅，没有重复加）。
+        ///  · <see cref="StackOverflowException"/> / <see cref="OutOfMemoryException"/> 这类
+        ///    "进程状态已不可信"的异常**不主动 FailFast**：按本仓库既有口径只记录 + 提示，
+        ///    由用户决定是否重启（主动杀进程会让"现场还能不能救"变成零可能）。
+        ///  · 提示/日志服务自身可能正是故障源（容器未就绪、日志线程已死），两处都各自 try/catch，
+        ///    兜底层绝不允许再抛一次。
+        /// </summary>
+        private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+        {
+            var ex = e.Exception;
+
+            try
+            {
+                TryResolveService<ILogService>()?.Error(
+                    "[全局异常] UI 线程未处理异常（已拦截，界面继续运行）：" + Environment.NewLine + ex);
+            }
+            catch
+            {
+                // 日志服务故障时忽略：兜底层不能因为记录失败再抛
+            }
+
+            try
+            {
+                TryResolveService<IUserNotifier>()?.ShowError(
+                    $"界面操作出现异常：{ex.GetType().Name}：{ex.Message}（详情见日志）");
+            }
+            catch
+            {
+                // 提示服务故障时忽略
+            }
+
+            // 标记已处理：界面继续运行（与 Core 分级接线的 Dispatcher 分支口径一致）
+            e.Handled = true;
+        }
+
+        /// <summary>按需解析宿主服务；容器尚未初始化时返回 null（启动极早期可能发生）。</summary>
+        private static T? TryResolveService<T>() where T : class
+        {
+            try
+            {
+                return ContainerLocator.Container?.Resolve<T>();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 在 Prism 的启动流程之前挂上 UI 线程兜底：
+        /// RegisterTypes / CreateShell / Splash 期间的未处理异常也要被这一层接住。
+        /// </summary>
+        protected override void OnStartup(StartupEventArgs e)
+        {
+            DispatcherUnhandledException += OnDispatcherUnhandledException;
+            base.OnStartup(e);
+        }
+
         protected override Window CreateShell()
         {
             var thinFont = this.Resources["FA.Light"];

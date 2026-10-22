@@ -15,7 +15,7 @@ S 档一页承担三个角色：架构与数据流、宿主白拿的行为、改
 | 驱动层 | `Plugin.Motion.ZMotion` / `Plugin.Motion.Virtual` | 只写"这台设备怎么说话"：`ConnectCore` / `DisconnectCore` / `PollStatusCore` / `ExecuteCommandCore` |
 | 步骤层 | 本工程 7 个插件类 | 把一次设备交互摊成流程节点：解析名字 → 状态门禁 → 造命令 → 入队 → 等或不等 → 回报 |
 
-`MotionEnablePlugin.cs` 全文 119 行，**没有一行 SDK 相关**：它不知道正运动、也不知道雷赛，
+`MotionEnablePlugin.cs` 全文 157 行，**没有一行 SDK 相关**：它不知道正运动、也不知道雷赛，
 只认 `IMotionDevice.Enqueue(MotionCommand)`。这是刻意的高度差——步骤层一旦出现 `ZAux_*`，
 换一家卡就要改 7 个流程插件。
 
@@ -27,12 +27,13 @@ S 档一页承担三个角色：架构与数据流、宿主白拿的行为、改
 | 2 | `Math.Max(500, TimeoutMs.ActualValue)` | 下限写死在步骤侧（0/负数/极小值都按 500 ms 跑），而不是让基类去猜 |
 | 3 | `Enabled.Value = false` | **开头清零**：本轮失败时下游不能拿到上一轮的 true（流程可重复执行，输出端口不是"曾经成功过"的存证） |
 | 4 | `MotionAxisResolution.TryResolveAxis(...)` | 一次调用同时拿到"设备 + 轴配置"；失败原因文本由解析器给出，步骤不编自己的措辞 |
-| 5 | 判 `State` 是否为 Closed 或 SafeStopped → `Fail` | 使能/失能在**报警态**也允许（清报警前往往先失能），所以这里只拦两种状态；"其余命令要求 Online"由基类闸门负责，两层判据不同是设计而非疏漏 |
-| 6 | `new MotionCommand { WaitsForCompletion = true }` | 本步骤**会等待**：使能失败必须当场知道，否则后面每一步都以"轴未使能"失败，真因被淹没 |
-| 7 | `device.Enqueue(command)` 后判结果 | `Accepted` 只代表"收进队列"；拒绝时取 `LastFault?.Suggestion` 拼进文案（**闸门原因就存在这个字段里**） |
-| 8 | `command.Completion.Wait(timeout + 500)` | 多给 500 ms 余量：命令内部的超时判据与这里的等待不必严丝合缝，先到者胜 |
-| 9 | `command.State != Done` → `Fail` | 区分"没等到"（超时）与"等到的不是完成"（Failed / TimedOut / Canceled） |
-| 10 | `device.GetAxisStatus(mapping.PhysicalIndex)?.Enabled` | 成功与否以**设备回报**为准，不是"我发了使能所以它就该是使能"；卡可能延迟生效 |
+| 5 | `ClearAlarmFirst && enable` → `device.ClearAlarm(out …)` | **必须在状态门禁之前**：`CheckEnable` 对「已安全停机」是拒绝的，而清报警成功恰恰会把它拉回在线；顺序反了，这个开关在最需要它的场景里永远走不到。失败即 `Fail`（带着报警上电是最不该发生的事之一） |
+| 6 | `MotionCommandGate.CheckEnable(device, enable)` | 使能只放「在线」；失能是安全动作（报警/安全停机也放行）。"其余命令要求 Online"由基类闸门再兜一层，两层判据不同是设计而非疏漏 |
+| 7 | `new MotionCommand { WaitsForCompletion = true }` | 本步骤**会等待**：使能失败必须当场知道，否则后面每一步都以"轴未使能"失败，真因被淹没 |
+| 8 | `device.Enqueue(command)` 后判结果 | `Accepted` 只代表"收进队列"；拒绝时取 `LastFault?.Suggestion` 拼进文案（**闸门原因就存在这个字段里**） |
+| 9 | `command.Completion.Wait(timeout + 500)` | 多给 500 ms 余量：命令内部的超时判据与这里的等待不必严丝合缝，先到者胜 |
+| 10 | `command.State != Done` → `Fail` | 区分"没等到"（超时）与"等到的不是完成"（Failed / TimedOut / Canceled） |
+| 11 | `device.GetAxisStatus(mapping.PhysicalIndex)?.Enabled` | 成功与否以**设备回报**为准，不是"我发了使能所以它就该是使能"；卡可能延迟生效 |
 
 ## 三、状态有几份、谁是真源
 
@@ -81,6 +82,8 @@ S 档一页承担三个角色：架构与数据流、宿主白拿的行为、改
 | 输出端口留着上一轮的 true，条件分支"看着就对" | 开头没清零 | 无断言，靠人工核对（本步骤第 3 行就是这条） |
 | 使能明明失败却"过了" | 用"我发了命令"当结论，而不是读设备回报 | 无断言，靠人工核对 |
 | 报警态下这一步被自己的门禁提前拦掉，导致"清报警前先失能"的写法落不了地 | 步骤层只应拦 Closed/SafeStopped，报警态留给基类闸门统一口径 | `★报警态拒绝运动命令（不会对着报警中的轴下发 Move）`（`FlowCanvasChecks\MotionChecks.cs`） |
+| `ClearAlarmFirst=true` 却仍然被"已安全停机"挡住（开关等于没做） | 清报警被写在状态门禁**之后** —— 门禁先拒绝，永远走不到清报警 | `★安全停机下清报警被接受（旧实现连命令都进不了队列）`、`★清报警成功且底层无报警 → 回到在线`、`★恢复后可以再次下发运动命令`（`FlowCanvasChecks\MotionChecks.cs`） |
+| 清报警"成功"但底层报警还在，卡却回了在线 | 只看命令完成、不复核报警位（安全停机期间轮询不采状态，缓存是旧的） | `★底层仍报警时清报警不放行：保持安全停机 + 给出原因`、`★底层报警清掉后可以恢复在线（拒绝不是永久的）`（`FlowCanvasChecks\MotionChecks.cs`） |
 | 拒绝原因丢失，界面只剩"被拒绝（Rejected_NotConnected）" | 没拼 `LastFault?.Suggestion`（闸门原因就写在这个字段） | 无断言，靠人工核对 |
 | 慢上电的驱动器被 500 ms 下限"卡"成超时 | 下限在步骤侧写死；调小 `Timeout` 不会低于 500 | 无断言，靠人工核对 |
 
