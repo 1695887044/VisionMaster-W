@@ -240,6 +240,35 @@ namespace ScadaWebStress
                 }
             });
 
+            var serve = args.Any(a => string.Equals(a, "--serve", StringComparison.OrdinalIgnoreCase));
+            var serveSeconds = ArgInt(args, "--serveSeconds", 300, 1);
+
+            if (serve)
+            {
+                // 浏览器级验证入口：起真实宿主、打印地址后保持运行（不做压测客户端）。
+                // 目录为 null → /api/catalog 回空目录，客户端沿用渲染器字面默认值（不影响登录/渲染）。
+                Console.WriteLine($"SERVE http://127.0.0.1:{port}/  登录 stress / pw  （{serveSeconds}s 后自动退出）");
+                Console.Out.Flush();
+
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(serveSeconds)).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+
+                mutationCts.Cancel();
+                try { await mutation.ConfigureAwait(false); } catch { }
+
+                await host.StopAsync().ConfigureAwait(false);
+                ui.InvokeShutdown();
+                _raw?.Dispose();
+                _raw = null;
+                Console.WriteLine("SERVE_STOPPED");
+                return 0;
+            }
+
             var tasks = new List<Task>(clients);
             for (var i = 0; i < clients; i++)
             {

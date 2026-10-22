@@ -4,7 +4,7 @@
 - 被测产物：`Web\VisionMaster.ScadaWeb`（A′ 第一批 + 快照硬闸 + 容量预占 + ChartTrend 渲染器）
 - 测试夹具：`Web\ScadaWebStress`（2026-10-22 重写）
 - 证据目录：`docs/performance/evidence/S1-10pct-final/`、`S1-100pct/`、`S3-slow/`
-- 结论：**协议层通过**；浏览器/真实网络/分片/24 握手槽/重连风暴未覆盖，见 §7。
+- 结论：**协议层通过；浏览器级冒烟通过**；真实网络/分片/重连风暴/长稳未覆盖，见 §7 与 §11。
 
 ---
 
@@ -27,7 +27,7 @@
 | 构建 | Debug（夹具与被测 DLL 同批重建；**未使用 `--no-build`**） |
 | 拓扑 | 同进程：真实 `ScadaWebHost` + N 条真实 `ClientWebSocket`，绑定 `127.0.0.1` 随机端口 |
 | 网络 | 回环（**不能代表现场百兆/千兆、交换机、WiFi、丢包与重排**） |
-| 浏览器 | 无（**不测 DOM/布局/绘制/JSON.parse 阻塞**） |
+| 浏览器 | 补充冒烟：IAB 浏览器登录真实宿主、渲染 61 图元、值帧刷新、按钮命令（见 §11）；**不测真实网络与长稳** |
 | 值源 | `FakeValueSource`：1000 个 double 变量，绑定到前 1000 个图元（`Hmi.ProgressBar.Value`） |
 | 页面 | 3000 图元（1000 绑定 + 2000 静态 `Hmi.Text`）+ 1 个带 `Pressed→Log` 钩子的命令按钮 |
 | 配置 | `MaxSessions=16`、`AllowCommands=true`、`ClickPolicy=AllOperators`、`RequireConfirmForDangerous=false`、取票/命令/图元限速临时放宽到 10000（压测专用） |
@@ -186,22 +186,23 @@ dotnet run --project Web\ScadaWebStress\ScadaWebStress.csproj -c Debug -- ^
 3. **优化有效**：共享序列化 + 固定节拍把 7.92Hz 提到 10.08Hz，且增量 p95 从 20KB 降到 10KB。
 4. **结论边界**：以上全部是**回环、同进程、协议层**数字；不能外推为“现场百兆网络够用”
    或“16 个浏览器流畅”。浏览器 DOM/布局/绘制、真实交换机/WiFi、1.5MB 单消息 `JSON.parse`、
-   重连风暴、停服中压测、24 握手槽、分片、长稳、三端一致均未覆盖。
+   重连风暴、停服中压测、分片、长稳、三端一致均未覆盖。§11 的浏览器冒烟只证明
+   “客户端能登录、能渲染、值帧会动、按钮能发命令”，不证明高负载下的端到端流畅度。
 
 ## 7. 未覆盖与风险
 
 | 未覆盖项 | 影响哪个结论 | 说明 |
 | --- | --- | --- |
-| 浏览器 DOM/布局/绘制 | 端到端流畅度、首屏体感 | 夹具只 `JObject.Parse`，不执行 `wwwroot` JS |
-| 1.5MB 单消息 `JSON.parse` | 首屏主线程阻塞 | 快照平均 0.93–0.99MB，最坏接近 2MB；无浏览器测量 |
+| 浏览器 DOM/布局/绘制 | 端到端流畅度、首屏体感 | §11 做了回环冒烟（登录/渲染/值帧/按钮），但**不覆盖** 16 端 × 3000 图元下的绘制与主线程阻塞 |
+| 1.5MB 单消息 `JSON.parse` | 首屏主线程阻塞 | 快照平均 0.93–0.99MB，最坏接近 2MB；浏览器冒烟页只有 61 图元，未测大快照解析 |
 | 真实网卡/交换机/WiFi/丢包重排 | 现场带宽与延迟 | 回环无速率限制、无 RTT/MTU/重传 |
 | 重连风暴 / 停服中压测 | 恢复时间、会话回收 | 夹具未做；`ScadaWebChecks` 只覆盖单次重连/停服 |
-| 24 握手槽 | 并发握手容量 | 本批只做 16 活跃名额的原子预占；8 握手槽未实现 |
+| 24 握手槽 | 并发握手容量 | **已实现**（第五批 `ScadaWebAdmissionGate`）；`B55/B55b/B55c/B56/B56b` 覆盖槽满、TTL、幂等释放、第 17 端 1013 |
 | 分片 | 超大页面 | 未实现；用 4MB WS 上限 + 2MB 快照硬闸替代 |
 | 慢消费者精确丢帧/恢复 | “慢端丢多少、多久收敛” | 只观察到不断连；未逐端统计 Dropped/收敛帧数 |
 | 长稳 >60s | 内存/句柄/GC 长期行为 | 本批最长 60s |
 | DataGrid 行 / Axis 实时数据 | 已覆盖 | B52/B53 协议级：`axis` 5Hz、`grid` 2Hz；浏览器视觉/大表格渲染未测 |
-| 默认值一致性视觉 | 两端外观一致 | 未做 catalog 首帧归一化/视觉对照 |
+| 默认值一致性视觉 | 两端外观一致 | **已实现归一化 + `[WR5]` 读键闸 + `B57`**；仍缺“WPF 截图 vs Web 截图”的逐图元视觉对照 |
 | 三端一致 / TLS / 反代 / 审计磁盘 I/O | 部署验收 | 未覆盖 |
 
 ## 8. 复现
@@ -228,12 +229,35 @@ docs/performance/evidence/
 
 ## 10. 附：本批未完成的优化项（不冒充已完成）
 
-- `cmd.result`（WS 查询 ack 丢失后的结果）：设计已冻结，本批未实现；Dedup 只做了容量修正
-  （`MaxEntries` 65536 → 262144，避免 13.6 分钟静默失效）。
-- 快照分片/resync/控制通道：未实现；用 4MB WS 上限 + 2MB 快照硬闸替代。
-- 24 握手槽：未实现；只做了 16 活跃名额的原子预占。
+- `cmd.result`（WS 查询 ack 丢失后的结果）：**已实现**（`docs\code-changes\2026-10-22-SCADA运行态Web-cmd.result（ack丢失后的结果查询）.md`；
+  `M2-13h` + `B54/B54b`）；仍不做跨刷新/跨重连的在飞命令持久化。
+- 快照分片/resync/控制通道：未实现；用 4MB WS 上限 + 2MB 快照硬闸替代（作为不可拆单位延后，见 R3 §三）。
+- 24 握手槽：**已实现**（第五批 `ScadaWebAdmissionGate`；`B55/B55b/B55c/B56/B56b`）。
 - ImageView `/img` + token：**已实现**（第三批；`B51/B51b` 验 PNG 字节与坏 token 401）；
   仍缺浏览器 `<img>` 视觉验收、按显示尺寸降采样/JPEG、`ETag/304` 与 0.5Mbps 令牌桶。
 - DataGrid 行数据 / Axis 实时数据：**已实现**（第四批；`B52/B53` 协议级）；
   仍缺浏览器视觉验收、大表格 DOM 成本与轴点位数上限的现场压测。
-- 默认值一致性闸：未实现；23 个现有渲染器仍硬编码回退值。
+- 默认值一致性闸：**已实现**（第五批；catalog 归一化 + `[WR5]` 读键闸 + `B57`）；
+  仍缺 WPF/Web 逐图元截图对照。
+
+## 11. 浏览器级冒烟（2026-10-22 补充）
+
+目的：证明“协议层通过”不是客户端根本没跑起来。详细记录见
+`docs\performance\2026-10-22-SCADA-Web-A-prime-浏览器验证记录.md`。
+
+- 宿主：`ScadaWebStress --serve`（真实 `ScadaWebHost`，`127.0.0.1` 随机端口，
+  60 图元 / 12 变量 / 100% 变化 / 5Hz，`AllowCommands=true`）。
+- 浏览器：ZCode IAB（Chromium），登录 `stress/pw`。
+- 结果：
+  - 登录卡片 → 运行画面（标题「压测页」、在线 1、已连接、可操作）；
+  - 61 个 `.scada-el`、`0` 个 `.scada-placeholder`、29 个渲染器注册；
+  - 值帧刷新：1.2s 内前 6 个绑定值从 `580..585` → `802..807`，`frameSeq` 296→358；
+  - 静态资源 `/`、`/app.js`、`/elements-process.js`、`/elements-interactive.js`、`/api/catalog` 全部 200；
+  - 点击「按钮」发出 `cmd.element` `Pressed` + `Released`（带 pageId/pageVersion/runGeneration），
+    无 toast、无 `warned` 记录、WS 保持 open；
+  - 页面背景切白并 `rerender()` 后 48 个 `Hmi.Text` 与 12 个数值条全部可见。
+- 已知观察（不是本批回归）：默认 `Hmi.Text.Foreground=#FF202020` 与默认页面底色
+  `#FF1E1E1E` 对比度极低（`ScadaPage.cs:25` / `PropertyPacks.cs:191`），
+  默认配色的文本在深色页面上几乎不可见；压测夹具未设置页面底色，故首次截图只见数值条。
+  是否调整默认配色属于 UI 设计决策，本批不改。
+- 未覆盖：16 端 × 3000 图元下的浏览器绘制/主线程阻塞、真实网卡、长稳。
