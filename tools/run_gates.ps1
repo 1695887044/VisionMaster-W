@@ -36,7 +36,8 @@
 param(
     [string]$RepoRoot = '',
     [switch]$SkipBuild,
-    [string[]]$Only = @()
+    [string[]]$Only = @(),
+    [int]$StepTimeoutSec = 600
 )
 
 $ErrorActionPreference = 'Continue'
@@ -92,30 +93,60 @@ function Invoke-Captured {
     param([string]$FilePath, [string]$Arguments, [string]$Tag)
     $out = Join-Path $logDir ('raw-' + $Tag + '.out')
     $err = Join-Path $logDir ('raw-' + $Tag + '.err')
-    # -ArgumentList '' throws ParameterBindingValidationException (null/empty not
-    # allowed) - and because $ErrorActionPreference is Continue that used to fall
-    # through to Exit=0: a gate that reports green without running anything.
-    # Omit the parameter entirely when the child takes no arguments, and treat a
-    # failed launch as a hard red instead of a silent zero.
-    $sp = @{
-        FilePath               = $FilePath
-        NoNewWindow            = $true
-        Wait                   = $true
-        PassThru               = $true
-        WorkingDirectory       = $RepoRoot
-        RedirectStandardOutput = $out
-        RedirectStandardError  = $err
-    }
-    if (-not [string]::IsNullOrWhiteSpace($Arguments)) { $sp['ArgumentList'] = $Arguments }
 
+    # Why not Start-Process:
+    #   1. -ArgumentList '' throws ParameterBindingValidationException, and with
+    #      $ErrorActionPreference=Continue that used to fall through to Exit=0 -
+    #      a gate that reports green without running anything.
+    #   2. -Wait waits on the whole process tree: one lingering descendant blocks
+    #      the gate forever (2026-10-22: 11 minutes idle, no child alive, no log).
+    #   3. Without -Wait, -PassThru NEVER populates ExitCode in Windows PowerShell
+    #      5.1 - measured: raw / after WaitForExit / after Refresh all empty, even
+    #      though HasExited is True. A null exit code compares as "!= 0" but
+    #      coerces to 0, so every host looked green while printing BUILD FAILED.
+    # So: drive System.Diagnostics.Process directly. Raw bytes are copied to the
+    # log files through the child's stdout/stderr base streams, so nothing is
+    # decoded on the way in (R183) and there is no pipe buffer to deadlock on.
     $exit = 127
+    $fsOut = $null
+    $fsErr = $null
     try {
-        $p = Start-Process @sp
-        if ($null -ne $p) { $exit = $p.ExitCode }
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $FilePath
+        if (-not [string]::IsNullOrWhiteSpace($Arguments)) { $psi.Arguments = $Arguments }
+        $psi.WorkingDirectory = $RepoRoot
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.CreateNoWindow = $true
+
+        $p = [System.Diagnostics.Process]::Start($psi)
+        $fsOut = [IO.File]::Create($out)
+        $fsErr = [IO.File]::Create($err)
+        $tOut = $p.StandardOutput.BaseStream.CopyToAsync($fsOut)
+        $tErr = $p.StandardError.BaseStream.CopyToAsync($fsErr)
+
+        if ($p.WaitForExit($StepTimeoutSec * 1000)) {
+            $exit = $p.ExitCode
+        }
+        else {
+            & taskkill.exe /T /F /PID $p.Id 2>&1 | Out-Null
+            [void]$p.WaitForExit(5000)
+            [IO.File]::WriteAllText($err, ('[run_gates] TIMEOUT after ' + $StepTimeoutSec + 's; process tree killed'), $utf8NoBom)
+            $exit = 124
+        }
+        [void]$tOut.Wait(10000)
+        [void]$tErr.Wait(10000)
     }
     catch {
         [IO.File]::WriteAllText($err, ('[run_gates] launch failed: ' + $_.Exception.Message), $utf8NoBom)
+        $exit = 127
     }
+    finally {
+        if ($null -ne $fsOut) { $fsOut.Dispose() }
+        if ($null -ne $fsErr) { $fsErr.Dispose() }
+    }
+
     $text = Read-Captured -OutFile $out -ErrFile $err
     Remove-Item -LiteralPath $out, $err -Force -ErrorAction SilentlyContinue
     return [pscustomobject]@{ Exit = $exit; Text = $text }
@@ -130,10 +161,19 @@ function Get-Counts {
 }
 
 function Add-Row {
-    param([string]$Name, [int]$Exit, [string]$Note)
-    $script:rows.Add([pscustomobject]@{ Name = $Name; Exit = $Exit; Note = $Note })
-    $flag = if ($Exit -eq 0) { 'OK  ' } else { 'FAIL' }
-    Write-Host ('[{0}] {1,-20} exit={2,-3} {3}' -f $flag, $Name, $Exit, $Note)
+    param([string]$Name, $Exit, [string]$Note)
+    # An unknown exit code is RED, never green. A null used to coerce to 0, which
+    # is how "BUILD FAILED" rows once printed exit=0 and the gate said all green.
+    $code = 1
+    if ($null -ne $Exit) {
+        $code = [int]$Exit
+    }
+    elseif ([string]::IsNullOrWhiteSpace($Note)) {
+        $Note = 'exit code unknown'
+    }
+    $script:rows.Add([pscustomobject]@{ Name = $Name; Exit = $code; Note = $Note })
+    $flag = if ($code -eq 0) { 'OK  ' } else { 'FAIL' }
+    Write-Host ('[{0}] {1,-20} exit={2,-3} {3}' -f $flag, $Name, $code, $Note)
 }
 
 # --- Step 1: repo audits (loose scripts, now actually called) -----------------
@@ -215,7 +255,10 @@ foreach ($h in $hosts) {
         continue
     }
     $note = Get-Counts -Text $r.Text
-    if ([string]::IsNullOrWhiteSpace($note)) {
+    if ($r.Exit -eq 124) {
+        $note = 'TIMEOUT after ' + $StepTimeoutSec + 's (killed)'
+    }
+    elseif ([string]::IsNullOrWhiteSpace($note)) {
         $note = if ($r.Exit -eq 0) { 'exit 0 (no summary line)' } else { 'see gate-' + $h.N + '.log' }
     }
     Add-Row -Name $h.N -Exit $r.Exit -Note $note
