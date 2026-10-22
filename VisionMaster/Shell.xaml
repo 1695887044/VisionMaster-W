@@ -436,160 +436,479 @@
                     VerticalAlignment="Center"
                     FontFamily="{StaticResource Icon}"
                     WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Menu.Resources>
+                        <!--  ==========================================  -->
+                        <!--  📁 「文件」子菜单（设计稿 C：标题区 + 双行说明 + 页脚）  -->
+                        <!--  只挂给「文件」这一项；其余顶级菜单与竖排菜单行保持原样。  -->
+                        <!--  可见宽 360 = Popup 内 Border 的 Width；外圈 Margin 10 留给投影。  -->
+                        <!--  ==========================================  -->
+                        <Style x:Key="MenuFlyoutStyle" TargetType="MenuItem">
+                            <Setter Property="Padding" Value="12,8,24,8" />
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="MenuItem">
+                                        <Border
+                                            x:Name="Row"
+                                            Margin="2"
+                                            Background="Transparent"
+                                            CornerRadius="4"
+                                            SnapsToDevicePixels="True">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" SharedSizeGroup="Icon" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" SharedSizeGroup="Shortcut" />
+                                                    <ColumnDefinition Width="16" />
+                                                </Grid.ColumnDefinitions>
+                                                <ContentPresenter Margin="8,0" VerticalAlignment="Center" ContentSource="Icon" />
+                                                <ContentPresenter
+                                                    Grid.Column="1"
+                                                    Margin="{TemplateBinding Padding}"
+                                                    VerticalAlignment="Center"
+                                                    ContentSource="Header" />
+                                                <ContentPresenter
+                                                    Grid.Column="2"
+                                                    Margin="16,0,8,0"
+                                                    VerticalAlignment="Center"
+                                                    ContentSource="InputGestureText"
+                                                    TextElement.Foreground="#888888" />
+                                                <Path
+                                                    Grid.Column="3"
+                                                    HorizontalAlignment="Left"
+                                                    VerticalAlignment="Center"
+                                                    Data="M 0 0 L 4 4 L 0 8"
+                                                    IsHitTestVisible="False"
+                                                    Stroke="#888888"
+                                                    StrokeThickness="1.5" />
+                                                <Popup
+                                                    x:Name="PART_Popup"
+                                                    AllowsTransparency="True"
+                                                    Focusable="False"
+                                                    IsOpen="{TemplateBinding IsSubmenuOpen}"
+                                                    Placement="Right"
+                                                    PopupAnimation="Fade">
+                                                    <Border
+                                                        Width="360"
+                                                        Margin="10"
+                                                        Background="{StaticResource ScadaSurfaceBrush}"
+                                                        BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="16">
+                                                        <Border.Effect>
+                                                            <DropShadowEffect
+                                                                BlurRadius="28"
+                                                                Direction="270"
+                                                                Opacity="0.18"
+                                                                ShadowDepth="6"
+                                                                Color="Black" />
+                                                        </Border.Effect>
+                                                        <Grid>
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition Height="Auto" />
+                                                                <RowDefinition Height="*" />
+                                                                <RowDefinition Height="Auto" />
+                                                            </Grid.RowDefinitions>
+                                                            <!--  标题区：图标 / 标题 / 一句说明由 ui:MenuItemEx 提供（每支菜单各配一次）。  -->
+                                                            <StackPanel
+                                                                x:Name="Header"
+                                                                Grid.Row="0"
+                                                                Margin="9,9,9,10"
+                                                                Orientation="Horizontal">
+                                                                <Border
+                                                                    Width="32"
+                                                                    Height="32"
+                                                                    Background="{StaticResource ScadaAccentSoftBrush}"
+                                                                    CornerRadius="9">
+                                                                    <TextBlock
+                                                                        HorizontalAlignment="Center"
+                                                                        VerticalAlignment="Center"
+                                                                        FontFamily="{StaticResource Icon}"
+                                                                        FontSize="16"
+                                                                        Foreground="{StaticResource DialogAccentBrush}"
+                                                                        Text="{Binding Path=(ui:MenuItemEx.FlyoutIcon), RelativeSource={RelativeSource TemplatedParent}}" />
+                                                                </Border>
+                                                                <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                                                    <TextBlock
+                                                                        FontFamily="Microsoft YaHei"
+                                                                        FontSize="13"
+                                                                        FontWeight="Medium"
+                                                                        Foreground="{StaticResource ScadaTextBrush}"
+                                                                        Text="{Binding Path=(ui:MenuItemEx.FlyoutTitle), RelativeSource={RelativeSource TemplatedParent}}" />
+                                                                    <TextBlock
+                                                                        FontFamily="Microsoft YaHei"
+                                                                        FontSize="11"
+                                                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                                                        Text="{Binding Path=(ui:MenuItemEx.FlyoutDescription), RelativeSource={RelativeSource TemplatedParent}}" />
+                                                                </StackPanel>
+                                                            </StackPanel>
+                                                            <ScrollViewer
+                                                                Grid.Row="1"
+                                                                SnapsToDevicePixels="True"
+                                                                VerticalScrollBarVisibility="Auto">
+                                                                <ItemsPresenter Margin="6" />
+                                                            </ScrollViewer>
+                                                            <Border
+                                                                Grid.Row="2"
+                                                                Margin="6,0"
+                                                                Padding="9,7,9,7"
+                                                                BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                                                BorderThickness="0,1,0,0">
+                                                                <Grid>
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock
+                                                                            FontFamily="Microsoft YaHei"
+                                                                            FontSize="11"
+                                                                            Foreground="{StaticResource ScadaFaintTextBrush}"
+                                                                            Text="当前方案 · " />
+                                                                        <TextBlock
+                                                                            FontFamily="Microsoft YaHei"
+                                                                            FontSize="11"
+                                                                            Foreground="{StaticResource ScadaFaintTextBrush}"
+                                                                            Text="{Binding Workspace.CurrentSolution.SolutionName}" />
+                                                                    </StackPanel>
+                                                                    <TextBlock
+                                                                        HorizontalAlignment="Right"
+                                                                        FontFamily="Microsoft YaHei"
+                                                                        FontSize="11"
+                                                                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                                                                        Text="Esc 关闭" />
+                                                                </Grid>
+                                                            </Border>
+                                                        </Grid>
+                                                    </Border>
+                                                </Popup>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="ui:MenuItemEx.FlyoutTitle" Value="{x:Null}">
+                                                <Setter TargetName="Header" Property="Visibility" Value="Collapsed" />
+                                            </Trigger>
+                                            <Trigger Property="IsHighlighted" Value="True">
+                                                <Setter TargetName="Row" Property="Background" Value="#F0F0F0" />
+                                            </Trigger>
+                                            <Trigger Property="IsSubmenuOpen" Value="True">
+                                                <Setter TargetName="Row" Property="Background" Value="#F0F0F0" />
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Foreground" Value="#A0A0A0" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+
+                        <!--  子项：28px 图标底片 + 标题/说明双行 + 右侧快捷键字母。
+                              语气色由 ui:MenuItemEx.Tone 驱动；本样式只用于「文件」的 4 个子项。  -->
+                        <Style x:Key="MenuFlyoutItemStyle" TargetType="MenuItem">
+                            <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
+                            <Setter Property="FontFamily" Value="Microsoft YaHei" />
+                            <Setter Property="Padding" Value="8,6" />
+                            <Setter Property="SnapsToDevicePixels" Value="True" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="MenuItem">
+                                        <Border
+                                            x:Name="Row"
+                                            MinHeight="44"
+                                            Margin="0,1"
+                                            Padding="{TemplateBinding Padding}"
+                                            Background="Transparent"
+                                            CornerRadius="9"
+                                            SnapsToDevicePixels="True">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="28" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border
+                                                    x:Name="Chip"
+                                                    Width="28"
+                                                    Height="28"
+                                                    VerticalAlignment="Center"
+                                                    Background="{StaticResource ScadaBadgeBackgroundBrush}"
+                                                    CornerRadius="8"
+                                                    TextElement.FontSize="15"
+                                                    TextElement.Foreground="{StaticResource ScadaSecondaryTextBrush}">
+                                                    <ContentPresenter
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        ContentSource="Icon" />
+                                                </Border>
+                                                <StackPanel
+                                                    Grid.Column="1"
+                                                    Margin="10,0,10,0"
+                                                    VerticalAlignment="Center">
+                                                    <TextBlock
+                                                        FontSize="13"
+                                                        Text="{TemplateBinding Header}"
+                                                        TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock
+                                                        x:Name="Desc"
+                                                        Margin="0,1,0,0"
+                                                        FontSize="11"
+                                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                                        Text="{Binding Path=(ui:MenuItemEx.Description), RelativeSource={RelativeSource TemplatedParent}}"
+                                                        TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <TextBlock
+                                                    Grid.Column="2"
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11"
+                                                    Foreground="{StaticResource ScadaFaintTextBrush}"
+                                                    Text="{TemplateBinding InputGestureText}" />
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="ui:MenuItemEx.Description" Value="{x:Null}">
+                                                <Setter TargetName="Desc" Property="Visibility" Value="Collapsed" />
+                                            </Trigger>
+                                            <Trigger Property="IsHighlighted" Value="True">
+                                                <Setter TargetName="Row" Property="Background" Value="{StaticResource ScadaToolbarHoverBrush}" />
+                                            </Trigger>
+                                            <Trigger Property="ui:MenuItemEx.Tone" Value="Indigo">
+                                                <Setter TargetName="Chip" Property="Background" Value="{StaticResource LogicIfSoftBrush}" />
+                                                <Setter TargetName="Chip" Property="TextElement.Foreground" Value="{StaticResource LogicIfTextBrush}" />
+                                            </Trigger>
+                                            <Trigger Property="ui:MenuItemEx.Tone" Value="Slate">
+                                                <Setter TargetName="Chip" Property="Background" Value="{StaticResource ScadaBadgeBackgroundBrush}" />
+                                                <Setter TargetName="Chip" Property="TextElement.Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                                            </Trigger>
+                                            <Trigger Property="ui:MenuItemEx.Tone" Value="Amber">
+                                                <Setter TargetName="Chip" Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+                                                <Setter TargetName="Chip" Property="TextElement.Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                                            </Trigger>
+                                            <Trigger Property="ui:MenuItemEx.Tone" Value="Green">
+                                                <Setter TargetName="Chip" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                                                <Setter TargetName="Chip" Property="TextElement.Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Foreground" Value="{StaticResource ScadaFaintTextBrush}" />
+                                                <Setter TargetName="Chip" Property="Opacity" Value="0.55" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                        <!--  飞菜单分隔线：只用于这几支菜单；其它菜单仍走默认分隔线。  -->
+                        <Style x:Key="MenuFlyoutSeparatorStyle" TargetType="Separator">
+                            <Setter Property="Height" Value="1" />
+                            <Setter Property="Margin" Value="8,4" />
+                            <Setter Property="Background" Value="{StaticResource DialogBorderLightBrush}" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Separator">
+                                        <Border Height="1" Background="{TemplateBinding Background}" />
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Menu.Resources>
                     <MenuItem
                         Foreground="{StaticResource ScadaTextBrush}"
                         Header="&#xf0c9;">
-                        <MenuItem Header="文件(F)" FontFamily="Microsoft YaHei">
+                        <MenuItem
+                            Header="文件(F)"
+                            FontFamily="Microsoft YaHei"
+                            Style="{StaticResource MenuFlyoutStyle}"
+                            ui:MenuItemEx.FlyoutDescription="方案的新建、切换与保存"
+                            ui:MenuItemEx.FlyoutIcon="&#xf07b;"
+                            ui:MenuItemEx.FlyoutTitle="文件">
+                            <!--  子项走本菜单的隐式样式：Separator 按自己的类型查样式，不会被套上 MenuItem 模板。  -->
+                            <MenuItem.Resources>
+                                <Style BasedOn="{StaticResource MenuFlyoutItemStyle}" TargetType="MenuItem" />
+                            </MenuItem.Resources>
                             <MenuItem
                                 Command="{Binding SolutionCommand}"
                                 CommandParameter="{x:Static local:SolutionAction.Create}"
-                                Header="新建方案(N)"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf15b;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                Header="新建方案"
+                                InputGestureText="N"
+                                ui:MenuItemEx.Description="创建一个空白方案"
+                                ui:MenuItemEx.Tone="Indigo">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf15b;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{Binding SolutionCommand}"
                                 CommandParameter="{x:Static local:SolutionAction.BrowseList}"
-                                Header="方案列表(L)"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf0ca;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                Header="方案列表"
+                                InputGestureText="L"
+                                ui:MenuItemEx.Description="浏览与切换本机方案"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf0ca;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{Binding SolutionCommand}"
                                 CommandParameter="{x:Static local:SolutionAction.Open}"
-                                Header="打开方案(O)"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf07c;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                Header="打开方案"
+                                InputGestureText="O"
+                                ui:MenuItemEx.Description="从磁盘打开方案文件"
+                                ui:MenuItemEx.Tone="Amber">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf07c;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{Binding SolutionCommand}"
                                 CommandParameter="{x:Static local:SolutionAction.Save}"
-                                Header="保存方案(S)"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf0c7;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                Header="保存方案"
+                                InputGestureText="S"
+                                ui:MenuItemEx.Description="保存当前方案的全部修改"
+                                ui:MenuItemEx.Tone="Green">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf0c7;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                         </MenuItem>
 
-                        <MenuItem Header="视图(V)">
+                        <MenuItem
+                            Header="视图(V)"
+                            FontFamily="Microsoft YaHei"
+                            Style="{StaticResource MenuFlyoutStyle}"
+                            ui:MenuItemEx.FlyoutDescription="面板与文档的显示控制"
+                            ui:MenuItemEx.FlyoutIcon="&#xf06e;"
+                            ui:MenuItemEx.FlyoutTitle="视图">
+                            <MenuItem.Resources>
+                                <Style BasedOn="{StaticResource MenuFlyoutItemStyle}" TargetType="MenuItem" />
+                            </MenuItem.Resources>
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_ImageView"
                                 Header="视觉图像"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf030;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="显示视觉图像面板"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf030;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_ProcessView"
                                 Header="流程导航"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf0e8;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="显示流程导航面板"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf0e8;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_ToolView"
                                 Header="工具箱"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf552;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="显示算子工具箱"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf552;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_LogView"
                                 Header="控制台"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf15c;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="显示日志控制台"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf15c;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_DataView"
                                 Header="数据栏"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf080;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="显示数据栏"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf080;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_ModuleOutView"
                                 Header="模块输出"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf2f5;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="显示模块输出面板"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf2f5;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_FlowCanvasView"
                                 Header="流程画布"
-                                  >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf5cb;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="打开流程画布文档"
+                                ui:MenuItemEx.Tone="Indigo">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf5cb;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_ScadaEditorView"
                                 Header="组态画面"
-                                  >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf1fc;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="打开组态画面文档"
+                                ui:MenuItemEx.Tone="Indigo">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf1fc;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_ScadaToolboxView"
                                 Header="图元工具箱"
-                                  >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf552;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="显示图元工具箱"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf552;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_ScadaPropertyView"
                                 Header="检查器"
-                                  >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf013;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="显示属性检查器"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf013;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_ScadaLayerView"
                                 Header="图层"
-                                  >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf5fd;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="显示图层面板"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf5fd;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_DeviceStateView"
                                 Header="设备状态"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf108;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="显示设备状态面板"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf108;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                         </MenuItem>
 
-                        <MenuItem Header="画布(C)">
+                        <MenuItem
+                            Header="画布(C)"
+                            FontFamily="Microsoft YaHei"
+                            Style="{StaticResource MenuFlyoutStyle}"
+                            ui:MenuItemEx.FlyoutDescription="图像画面的分屏布局"
+                            ui:MenuItemEx.FlyoutIcon="&#xf009;"
+                            ui:MenuItemEx.FlyoutTitle="画布">
+                            <MenuItem.Resources>
+                                <Style BasedOn="{StaticResource MenuFlyoutItemStyle}" TargetType="MenuItem" />
+                            </MenuItem.Resources>
                             <!--
                                 每一格都是**一张完整的画布**（上行当前图 + 下行走马灯），不是老式"一路图钉死一个窗口"：
                                 格号 ↔ 插件的"显示窗口号"，第 N 格只收窗口号 N 的图，各自维护自己的列表。
@@ -598,194 +917,254 @@
                                 Command="{Binding SwitchCanvasCommand}"
                                 CommandParameter="1"
                                 Header="单画面 1×1"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf065;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="单个画面铺满画布"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf065;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{Binding SwitchCanvasCommand}"
                                 CommandParameter="2"
                                 Header="双画面 1×2"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf009;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="左右两路画面并排"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf009;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{Binding SwitchCanvasCommand}"
                                 CommandParameter="3"
                                 Header="主从 1+2 分屏"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf00a;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <Separator />
+                                ui:MenuItemEx.Description="主画面 + 两路从画面"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf00a;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <Separator Style="{StaticResource MenuFlyoutSeparatorStyle}" />
                             <MenuItem
                                 Command="{Binding SwitchCanvasCommand}"
                                 CommandParameter="4"
                                 Header="四宫格 2×2"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf009;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="四路画面等分"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf009;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{Binding SwitchCanvasCommand}"
                                 CommandParameter="5"
                                 Header="多视口 2+3 分屏"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf00a;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="两路 + 三路组合"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf00a;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{Binding SwitchCanvasCommand}"
                                 CommandParameter="6"
                                 Header="六宫格 2×3"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf00a;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <Separator />
+                                ui:MenuItemEx.Description="六路画面等分"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf00a;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <Separator Style="{StaticResource MenuFlyoutSeparatorStyle}" />
                             <MenuItem
                                 Command="{Binding SwitchCanvasCommand}"
                                 CommandParameter="7"
                                 Header="矩阵 3+4 分屏"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf00a;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="三路 + 四路组合"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf00a;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{Binding SwitchCanvasCommand}"
                                 CommandParameter="8"
                                 Header="矩阵 4+4 分屏"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf00a;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="四路 + 四路组合"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf00a;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{Binding SwitchCanvasCommand}"
                                 CommandParameter="9"
                                 Header="九宫格 3×3"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf00a;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
+                                ui:MenuItemEx.Description="九路画面等分"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf00a;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                         </MenuItem>
 
-                        </MenuItem>
-
-                        <MenuItem Header="工具(T)">
-                            <MenuItem Header="截屏"  >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf125;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                        <MenuItem
+                            Header="工具(T)"
+                            FontFamily="Microsoft YaHei"
+                            Style="{StaticResource MenuFlyoutStyle}"
+                            ui:MenuItemEx.FlyoutDescription="布局与界面工具"
+                            ui:MenuItemEx.FlyoutIcon="&#xf0ad;"
+                            ui:MenuItemEx.FlyoutTitle="工具">
+                            <MenuItem.Resources>
+                                <Style BasedOn="{StaticResource MenuFlyoutItemStyle}" TargetType="MenuItem" />
+                            </MenuItem.Resources>
+                            <MenuItem
+                                Header="截屏"
+                                ui:MenuItemEx.Description="抓取当前界面截图"
+                                ui:MenuItemEx.Tone="Amber">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf125;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{commands:SaveLayoutCommand}"
                                 Header="保存布局"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf00a;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="保存当前停靠布局"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf00a;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{commands:LoadLayoutCommand}"
                                 Header="加载布局"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf07b;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="从磁盘恢复布局"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf07b;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{commands:ResetLayoutCommand}"
                                 Header="恢复默认布局"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf2d2;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="回到出厂布局"
+                                ui:MenuItemEx.Tone="Amber">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf2d2;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                         </MenuItem>
 
-                        <MenuItem Header="系统(S)">
+                        <MenuItem
+                            Header="系统(S)"
+                            FontFamily="Microsoft YaHei"
+                            Style="{StaticResource MenuFlyoutStyle}"
+                            ui:MenuItemEx.FlyoutDescription="用户、变量与硬件设置"
+                            ui:MenuItemEx.FlyoutIcon="&#xf013;"
+                            ui:MenuItemEx.FlyoutTitle="系统">
+                            <MenuItem.Resources>
+                                <Style BasedOn="{StaticResource MenuFlyoutItemStyle}" TargetType="MenuItem" />
+                            </MenuItem.Resources>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.UserLogin}"
                                 Header="用户登录"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf4fe;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="登录或切换当前用户"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf4fe;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.GlobalVariables}"
                                 Header="全局变量"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf121;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <Separator />
+                                ui:MenuItemEx.Description="管理全局变量"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf121;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <Separator Style="{StaticResource MenuFlyoutSeparatorStyle}" />
                             <MenuItem
                                 Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.HardwareSettings}"
                                 Header="硬件管理"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf2db;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="相机、通讯与运动卡"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf2db;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.SystemSettings}"
                                 Header="系统设置"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf1de;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="软件级参数设置"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf1de;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.ReturnToZero}"
                                 Header="回零"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf015;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                ui:MenuItemEx.Description="全部轴回到原点"
+                                ui:MenuItemEx.Tone="Amber">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf015;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                         </MenuItem>
 
-                        <MenuItem Header="帮助(H)" FontFamily="Microsoft YaHei">
-                            <MenuItem Header="激活（未实现）" IsEnabled="False">
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf084;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem Header="建议及反馈（未实现）" IsEnabled="False">
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf4ad;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                        <MenuItem
+                            Header="帮助(H)"
+                            FontFamily="Microsoft YaHei"
+                            Style="{StaticResource MenuFlyoutStyle}"
+                            ui:MenuItemEx.FlyoutDescription="文档与版本信息"
+                            ui:MenuItemEx.FlyoutIcon="&#xf059;"
+                            ui:MenuItemEx.FlyoutTitle="帮助">
+                            <MenuItem.Resources>
+                                <Style BasedOn="{StaticResource MenuFlyoutItemStyle}" TargetType="MenuItem" />
+                            </MenuItem.Resources>
+                            <MenuItem
+                                Header="激活（未实现）"
+                                IsEnabled="False"
+                                ui:MenuItemEx.Description="功能尚未实现"
+                                ui:MenuItemEx.Tone="Gray">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf084;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem
+                                Header="建议及反馈（未实现）"
+                                IsEnabled="False"
+                                ui:MenuItemEx.Description="功能尚未实现"
+                                ui:MenuItemEx.Tone="Gray">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf4ad;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.Help}"
-                                Header="帮助文档"  >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf02d;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <Separator />
-                            <MenuItem Header="关于（未实现）" IsEnabled="False">
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf05a;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                Header="帮助文档"
+                                ui:MenuItemEx.Description="打开插件帮助手册"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf02d;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <Separator Style="{StaticResource MenuFlyoutSeparatorStyle}" />
+                            <MenuItem
+                                Header="关于（未实现）"
+                                IsEnabled="False"
+                                ui:MenuItemEx.Description="功能尚未实现"
+                                ui:MenuItemEx.Tone="Gray">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf05a;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                         </MenuItem>
                     </MenuItem>
                 </Menu>
@@ -980,17 +1359,17 @@
                     <Button
                         Command="{Binding ExecutionCommand}"
                         CommandParameter="{x:Static local:ExecutionAction.RunOnce}"
-                        Content="运行一次"
+                        Content="运行主流程"
                         Foreground="{StaticResource DialogSuccessBrush}"
                         Style="{StaticResource RunBarButton}"
-                        ToolTip="运行一次" />
+                        ToolTip="运行一次主流程（Role=Main）；工位/子流程请由主流程调用" />
                     <Button
                         Command="{Binding ExecutionCommand}"
                         CommandParameter="{x:Static local:ExecutionAction.RunContinuous}"
-                        Content="循环运行"
+                        Content="循环主流程"
                         Foreground="{StaticResource DialogSuccessBrush}"
                         Style="{StaticResource RunBarButton}"
-                        ToolTip="循环运行" />
+                        ToolTip="循环运行主流程（Role=Main）；工位/子流程不参与批量启动" />
                     <Button
                         Command="{Binding ExecutionCommand}"
                         CommandParameter="{x:Static local:ExecutionAction.Pause}"

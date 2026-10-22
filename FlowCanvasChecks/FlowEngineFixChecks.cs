@@ -38,6 +38,9 @@ namespace FlowCanvasChecks
             CSharpScriptRefusesNativeDlls();
             RunGuardsAreInPlace();
             ExcelExportManualDispatchIsGuarded();
+            StopIsObservableAndReachable();
+            StartupSolutionFailureIsObservable();
+            FlowBatchSelectionChecks.Run();
         }
 
         private static HubImageItem NewHubItem(string requestId, string flowName) => new()
@@ -553,6 +556,147 @@ namespace FlowCanvasChecks
                 vmFile == null ? "定位不到 FlowListViewModel.cs" : "");
             Check("★改名后回收旧名会话（生产代码里真的调用 UnregisterSession）",
                 text.Contains("UnregisterSession("), "");
+        }
+
+        // ==================================================================
+        //  [P1A-S6] 停止可观测：CanExecute / 日志 / 条数
+        // ==================================================================
+        /// <summary>
+        /// 2026-10-22 S6。三件事各自对应一个"现场说不清"的形状：
+        ///  ① Stop 的 CanExecute 只看 MainRunState —— 单流程运行 / HTTP 触发都不写它，
+        ///     于是"流程明明在跑、停止按钮是灰的"（与方案互锁 CanExecuteSolution 是同一口径问题）；
+        ///  ② 正常停止零日志 —— 用户说"点了停止没反应"，日志里查不到任何东西；
+        ///  ③ StopAll 不回报条数 —— 提示只能写死"已停止所有运行中的流程"，0 条时也是这句假话。
+        /// ①②③ 里只有 ③ 能纯运行时验（引擎侧）；①② 是界面层，用源码纪律断言兜住
+        /// （仓库既有做法：FlowListViewModel 的守卫、ExcelExport 的调度兜底都这么钉）。
+        /// </summary>
+        private static void StopIsObservableAndReachable()
+        {
+            Section("[P1A-S6] 停止可观测：CanExecute / 日志 / 条数");
+
+            // ---- ① 引擎侧真跑一遍：StopSession 留 Info、StopAll 返回条数 ----
+            GatePlugin.Reset();
+            var gate = new ActionStep(
+                "S6G", "闸门", typeof(GatePlugin).AssemblyQualifiedName!, "停止闸门");
+            var run = ExecHarness.Prepare(new StepModel[] { gate });
+            Check("S6 停止用例图纸编译通过", run.Compiled, run.Errors);
+            if (run.Compiled)
+            {
+                var log = new StubLog();
+                var manager = new RuntimeManager();
+                var engine = new FlowEngineService(
+                    manager, log, run.Workspace!, null,
+                    new ResourceLockService(), NullCameraProvider.Instance);
+                var session = run.Session!;
+                // 必须登记进 RuntimeManager：StopAll 走的是它的活动会话快照
+                // （没登记 = 快照里没有它 = 永远返回 0，断言会误判成"引擎不回报条数"）。
+                manager.RegisterSession(session);
+
+                var task = engine.RunSessionAsync(session);
+                bool arrived = GatePlugin.Reached.Wait(TimeSpan.FromSeconds(5));
+                Check("S6 执行线程已抵达闸门（构造出运行中的窗口）",
+                    arrived, arrived ? "" : "5 秒内没进到算子");
+
+                int stopped = engine.StopAll();
+                GatePlugin.Proceed.Set();
+                try { task.Wait(TimeSpan.FromSeconds(5)); } catch { /* 收尾异常由别的断言负责 */ }
+
+                Check("★S6-① StopAll 返回真实停止条数（1 条）",
+                    stopped == 1, $"stopped={stopped}（登记了 1 个运行中的会话）");
+                Check("★S6-② StopSession 在取消前写 Info（流程名 + 取消前状态）",
+                    log.Infos.Any(m => m.Contains("[停止]", StringComparison.Ordinal)
+                        && m.Contains(ExecHarness.FlowName, StringComparison.Ordinal)
+                        && m.Contains("Running", StringComparison.Ordinal)),
+                    log.Infos.Count == 0 ? "(无 Info 日志)" : string.Join(" | ", log.Infos));
+                Check("★S6-③ StopAll 写 Info（条数 + 流程名，文案不暗示只停当前流程）",
+                    log.Infos.Any(m => m.Contains("急停", StringComparison.Ordinal)
+                        && m.Contains("1 条", StringComparison.Ordinal)
+                        && m.Contains(ExecHarness.FlowName, StringComparison.Ordinal)),
+                    log.Infos.Count == 0 ? "(无 Info 日志)" : string.Join(" | ", log.Infos));
+
+                // 跑完之后再停一次：0 条也必须留痕（"点了没反应"时日志要能回答"当时确实没有在跑的"）
+                int none = engine.StopAll();
+                Check("S6-④ 没有流程在跑时 StopAll 返回 0", none == 0, $"stopped={none}");
+                Check("S6-⑤ 0 条也留一行 Info（不是静默空跑）",
+                    log.Infos.Any(m => m.Contains("当前没有运行中的流程", StringComparison.Ordinal)),
+                    log.Infos.Count == 0 ? "(无 Info 日志)" : string.Join(" | ", log.Infos.TakeLast(2)));
+            }
+
+            // ---- ② 界面层：Stop 的 CanExecute 必须补"是否真有流程在跑" ----
+            var shellFile = ResolveRepoFile(@"VisionMaster\ShellViewModel.cs");
+            string shell = shellFile != null ? StripComments(File.ReadAllText(shellFile)) : "";
+            string canExec = MethodBody(shell, "private bool CanExecuteExecution");
+            Check("★S6-⑥ 停止按钮判据含 AnyFlowRunning（单流程 / HTTP 运行时可点）",
+                canExec.Contains("case ExecutionAction.Stop", StringComparison.Ordinal)
+                && canExec.Contains("AnyFlowRunning()", StringComparison.Ordinal),
+                canExec.Length == 0 ? "CanExecuteExecution 没找到" : "只认 MainRunState 会让停止按钮灰着");
+
+            // ---- ③ 界面层：提示按返回条数，不写死"所有运行中的流程" ----
+            string stopAllBody = MethodBody(shell, "private void StopAllRunning");
+            Check("★S6-⑦ 停止提示按 StopAll 返回条数（0 条走 Info，不再写死成功文案）",
+                stopAllBody.Contains("_flowEngineService.StopAll()", StringComparison.Ordinal)
+                && stopAllBody.Contains("stopped", StringComparison.Ordinal)
+                && stopAllBody.Contains("Notifier.ShowInfo", StringComparison.Ordinal),
+                stopAllBody.Length == 0 ? "StopAllRunning 没找到" : stopAllBody);
+
+            // ---- ④ 契约纪律：Core\IFlowEngine 的 StopAll 仍是 void（没被顺手改成 int）----
+            var contractFile = ResolveRepoFile(@"Core\IFlowEngine.cs");
+            var engineFile = ResolveRepoFile(@"Engine\FlowEngineService.cs");
+            string contract = contractFile != null ? StripComments(File.ReadAllText(contractFile)) : "";
+            string engineSrc = engineFile != null ? StripComments(File.ReadAllText(engineFile)) : "";
+            Check("★S6-⑧ 公共契约未改：IFlowEngine.StopAll 仍是 void，实现用显式接口保住契约",
+                contract.Contains("void StopAll();", StringComparison.Ordinal)
+                && engineSrc.Contains("void IFlowEngine.StopAll()", StringComparison.Ordinal)
+                && engineSrc.Contains("public int StopAll()", StringComparison.Ordinal),
+                contract.Length == 0 || engineSrc.Length == 0 ? "源码定位失败"
+                    : "契约应保持 void，条数只在具体类型上暴露（Shell 已注入 FlowEngineService）");
+        }
+
+        // ==================================================================
+        //  [P1A-N3] 启动方案加载失败：日志 + 非模态提示，不许静默 return
+        // ==================================================================
+        /// <summary>
+        /// 2026-10-22 N3。旧实现两个 `return;` 都是静默的：文件不存在、解析失败，
+        /// 用户看到的只是"方案没加载"，既不知道为什么、也不知道去哪儿改。
+        /// 判据落在**分支归属**上（源码里的先后顺序就是分支结构），而不是"文件里出现过 Warn"：
+        ///  · File.Exists 之后、LoadAsync 之前必须有 Warn + ShowWarning（缺文件分支）；
+        ///  · LoadAsync 之后必须有 Error + ShowError，且文案带 loadResult.Message（解析失败分支）；
+        ///  · 全程不许写 StartupSolutionPath（不自动清配置：盘没挂上/文件暂时移走都可恢复）。
+        /// 另有一条反向前提：`log?.Warn(` / `log?.Error(` 必须在，否则"有提示"只是右下角弹一下，
+        /// 事后查日志什么都看不到（启动期弹泡 3 秒就消，R78 的同一教训）。
+        /// </summary>
+        private static void StartupSolutionFailureIsObservable()
+        {
+            Section("[P1A-N3] 启动方案加载失败：日志 + 非模态提示");
+
+            var shellFile = ResolveRepoFile(@"VisionMaster\ShellViewModel.cs");
+            string shell = shellFile != null ? StripComments(File.ReadAllText(shellFile)) : "";
+            string body = MethodBody(shell, "public async Task AutoLoadStartupSolutionAsync");
+            Check("N3 判据前提：AutoLoadStartupSolutionAsync 方法体可取",
+                body.Length > 0, $"体长={body.Length}");
+            if (body.Length == 0) return;
+
+            int existsAt = body.IndexOf("File.Exists(startupPath)", StringComparison.Ordinal);
+            int warnAt = body.IndexOf("ShowWarning", StringComparison.Ordinal);
+            int loadAt = body.IndexOf("LoadAsync(startupPath)", StringComparison.Ordinal);
+            int errAt = body.IndexOf("ShowError", StringComparison.Ordinal);
+
+            Check("★N3-① 文件不存在分支：判存在 → Warn 日志 + 非模态提示 → 才轮到 LoadAsync",
+                existsAt >= 0 && warnAt > existsAt && loadAt > warnAt,
+                $"exists@{existsAt} warn@{warnAt} load@{loadAt}（顺序即分支归属）");
+
+            Check("★N3-② 解析失败分支：LoadAsync 失败后 Error 日志 + 提示（文案含 loadResult.Message）",
+                loadAt > 0 && errAt > loadAt && body.Contains("loadResult.Message", StringComparison.Ordinal),
+                $"load@{loadAt} err@{errAt}");
+
+            Check("★N3-③ 两个分支都落 ILogService（Warn / Error 各一处，事后可查）",
+                body.Contains("log?.Warn(", StringComparison.Ordinal)
+                && body.Contains("log?.Error(", StringComparison.Ordinal),
+                "只弹泡不写日志 = 启动期弹泡 3 秒就消，事后无从排查");
+
+            Check("★N3-④ 不自动清 StartupSolutionPath（配置保留：盘没挂上 / 文件暂时移走都可恢复）",
+                !body.Contains("StartupSolutionPath =", StringComparison.Ordinal),
+                "替用户删配置 = 下次插上盘也不会再自动加载");
         }
     }
 }

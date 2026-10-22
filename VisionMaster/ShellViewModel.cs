@@ -1468,12 +1468,27 @@ namespace VisionMaster
                 return;
             }
 
+            var selection = FlowBatchSelector.Select(Workspace.CurrentSolution);
+            if (selection.Selected.Count == 0)
+            {
+                RunState = MainRunState.NotStarted;
+                Notifier.ShowWarning(selection.Warning ?? "没有可运行的主流程");
+                return;
+            }
+
+            if (selection.EnabledButExcluded.Count > 0)
+            {
+                Notifier.ShowInfo(
+                    "以下启用流程不参与批量运行（非主流程）："
+                    + string.Join("、", selection.EnabledButExcluded.Select(f => f.FlowName)));
+            }
+
             // 进入运行态：立即互锁"编译/启动/循环"，放开"停止"
             RunState = MainRunState.RunningOnce;
             int runCount = 0;
             var tasks = new List<Task>();
 
-            foreach (var flow in Workspace.CurrentSolution.Flows)
+            foreach (var flow in selection.Selected)
             {
                 if (!flow.IsEnabled)
                     continue;
@@ -1548,12 +1563,27 @@ namespace VisionMaster
                 return;
             }
 
+            var selection = FlowBatchSelector.Select(Workspace.CurrentSolution);
+            if (selection.Selected.Count == 0)
+            {
+                RunState = MainRunState.NotStarted;
+                Notifier.ShowWarning(selection.Warning ?? "没有可运行的主流程");
+                return;
+            }
+
+            if (selection.EnabledButExcluded.Count > 0)
+            {
+                Notifier.ShowInfo(
+                    "以下启用流程不参与批量运行（非主流程）："
+                    + string.Join("、", selection.EnabledButExcluded.Select(f => f.FlowName)));
+            }
+
             // 进入运行态：立即互锁"编译/启动/循环"，放开"停止"
             RunState = MainRunState.RunningContinuous;
             int runCount = 0;
             var tasks = new List<Task>();
 
-            foreach (var flow in Workspace.CurrentSolution.Flows)
+            foreach (var flow in selection.Selected)
             {
                 if (!flow.IsEnabled)
                     continue;
@@ -1600,11 +1630,15 @@ namespace VisionMaster
                     // 连续运行的"抢不到锁"没有返回值可判：引擎的抢锁与 IsRunning 置位都在首个 await
                     // 之前**同步**完成，所以调用返回后立刻取快照就是准的（不猜时序）
                     bool startedNow = session.IsRunning;
-                    tasks.Add(continuousTask);
-                    runCount++;
-
-                    if (!startedNow)
+                    if (startedNow)
+                    {
+                        tasks.Add(continuousTask);
+                        runCount++;
+                    }
+                    else
+                    {
                         Notifier.ShowWarning($"流程 [{flow.FlowName}] 未启动：会话正被其它触发占用（HTTP / 定时 / 手动）");
+                    }
                 }
             }
 

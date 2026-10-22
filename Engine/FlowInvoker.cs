@@ -90,9 +90,22 @@ namespace VisionMaster.Services
             {
                 if (cancellationToken.IsCancellationRequested)
                 {
+                    // 父流程停止/急停必须把子流程一起停掉。旧行为只返回失败，
+                    // 子流程继续在后台收尾——多工位产线上表现为“Main 停了、工位轴还在动”。
+                    try { _engine.StopSession(session); }
+                    catch (Exception ex)
+                    {
+                        _log.Warn($"[调用流程] 停止子流程「{name}」失败：{ex.Message}");
+                    }
+
                     ObserveFault(task);
+
+                    // 给子流程一个收尾窗口；不无限等，避免父流程线程被卡住。
+                    try { task.Wait(2000); }
+                    catch { /* 取消/失败由 ObserveFault 观察；这里只等收尾 */ }
+
                     return FlowInvokeResult.Fail(
-                        $"流程「{name}」执行中父流程被取消（急停），目标仍在后台收尾", (int)sw.ElapsedMilliseconds);
+                        $"流程「{name}」执行中父流程被取消（急停），已请求停止目标", (int)sw.ElapsedMilliseconds);
                 }
 
                 if (sw.Elapsed >= timeout)
