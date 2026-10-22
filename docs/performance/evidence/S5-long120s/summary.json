@@ -1,0 +1,70 @@
+{
+  "outDir": "docs\\performance\\evidence\\S5-long120s",
+  "clients": 8,
+  "elements": 1000,
+  "variables": 500,
+  "boundElements": 500,
+  "changePct": 10,
+  "changeHz": 10,
+  "holdMs": 120000,
+  "maxSessions": 16,
+  "effectiveFrameBudgetBytes": 46484,
+  "effectiveSnapshotMaxBytes": 2097152,
+  "connected": 8,
+  "snapshots": 8,
+  "frames": 9619,
+  "deltaFrames": 9523,
+  "keyframes": 96,
+  "items": 484250,
+  "acks": 0,
+  "errors": 0,
+  "totalBytes": 71027864,
+  "snapshotBytes": 3428680,
+  "meanMbps": 4.735,
+  "peak1sMbps": 12.327,
+  "fps": 10.02,
+  "deltaBytes": {
+    "p50": 5154,
+    "p95": 5155,
+    "p99": 5155,
+    "max": 5155
+  },
+  "keyframeBytes": {
+    "p50": 50152,
+    "p95": 50154,
+    "max": 50154
+  },
+  "ackMs": {
+    "p50": 0,
+    "p95": 0,
+    "max": 0
+  },
+  "firstScreenMs": {
+    "p50": 374,
+    "p95": 406,
+    "max": 406
+  },
+  "capacityProbe": {
+    "requested": 0,
+    "rejected": false
+  },
+  "abnormalProbe": {
+    "pass": true,
+    "skipped": true
+  },
+  "pass": true,
+  "checks": {
+    "connectedAll": true,
+    "acksAll": true,
+    "noErrors": true,
+    "framesSeen": true,
+    "deltaSeen": true,
+    "deltaP95WithinBudget": true,
+    "meanMbpsWithin70": true,
+    "peak1sWithin100": true,
+    "fpsWithin9_5": true,
+    "firstScreenP95Within3s": true,
+    "capacityRejected": true,
+    "abnormalHandled": true
+  }
+}

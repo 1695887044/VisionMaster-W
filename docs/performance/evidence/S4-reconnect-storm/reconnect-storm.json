@@ -1,0 +1,10 @@
+{
+  "rounds": 10,
+  "clients": 8,
+  "attempts": 80,
+  "ok": 80,
+  "failed": 0,
+  "elapsedMs": 459,
+  "pass": true,
+  "errorSamples": []
+}

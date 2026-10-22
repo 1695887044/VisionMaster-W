@@ -4,7 +4,8 @@
 - 被测产物：`Web\VisionMaster.ScadaWeb`（A′ 第一批 + 快照硬闸 + 容量预占 + ChartTrend 渲染器）
 - 测试夹具：`Web\ScadaWebStress`（2026-10-22 重写）
 - 证据目录：`docs/performance/evidence/S1-10pct-final/`、`S1-100pct/`、`S3-slow/`
-- 结论：**协议层通过；浏览器级冒烟通过**；真实网络/分片/重连风暴/长稳未覆盖，见 §7 与 §11。
+- 结论：**协议层通过；浏览器级冒烟通过；重连风暴 80/80、120 秒长稳通过**；
+  真实网络/分片/16 端长稳未覆盖，见 §7、§11-§13。
 
 ---
 
@@ -196,11 +197,11 @@ dotnet run --project Web\ScadaWebStress\ScadaWebStress.csproj -c Debug -- ^
 | 浏览器 DOM/布局/绘制 | 端到端流畅度、首屏体感 | §11 做了回环冒烟（登录/渲染/值帧/按钮），但**不覆盖** 16 端 × 3000 图元下的绘制与主线程阻塞 |
 | 1.5MB 单消息 `JSON.parse` | 首屏主线程阻塞 | 快照平均 0.93–0.99MB，最坏接近 2MB；浏览器冒烟页只有 61 图元，未测大快照解析 |
 | 真实网卡/交换机/WiFi/丢包重排 | 现场带宽与延迟 | 回环无速率限制、无 RTT/MTU/重传 |
-| 重连风暴 / 停服中压测 | 恢复时间、会话回收 | 夹具未做；`ScadaWebChecks` 只覆盖单次重连/停服 |
+| 重连风暴 / 停服中压测 | 恢复时间、会话回收 | 重连风暴**已覆盖**（`S4-reconnect-storm`：10 轮 × 8 端 = 80/80 成功，459ms）；停服中压测未覆盖 |
 | 24 握手槽 | 并发握手容量 | **已实现**（第五批 `ScadaWebAdmissionGate`）；`B55/B55b/B55c/B56/B56b` 覆盖槽满、TTL、幂等释放、第 17 端 1013 |
 | 分片 | 超大页面 | 未实现；用 4MB WS 上限 + 2MB 快照硬闸替代 |
 | 慢消费者精确丢帧/恢复 | “慢端丢多少、多久收敛” | 只观察到不断连；未逐端统计 Dropped/收敛帧数 |
-| 长稳 >60s | 内存/句柄/GC 长期行为 | 本批最长 60s |
+| 长稳 >60s | 内存/句柄/GC 长期行为 | **已补 120 秒**（`S5-long120s`：8 端 × 1000 图元，fps 10.02、errors 0、pass）；仍未做 16 端 × 3000 图元的 120 秒 |
 | DataGrid 行 / Axis 实时数据 | 已覆盖 | B52/B53 协议级：`axis` 5Hz、`grid` 2Hz；浏览器视觉/大表格渲染未测 |
 | 默认值一致性视觉 | 两端外观一致 | **已实现归一化 + `[WR5]` 读键闸 + `B57`**；仍缺“WPF 截图 vs Web 截图”的逐图元视觉对照 |
 | 三端一致 / TLS / 反代 / 审计磁盘 I/O | 部署验收 | 未覆盖 |
@@ -261,3 +262,33 @@ docs/performance/evidence/
   默认配色的文本在深色页面上几乎不可见；压测夹具未设置页面底色，故首次截图只见数值条。
   是否调整默认配色属于 UI 设计决策，本批不改。
 - 未覆盖：16 端 × 3000 图元下的浏览器绘制/主线程阻塞、真实网卡、长稳。
+
+## 12. 重连风暴（2026-10-22 补充）
+
+- 命令：`ScadaWebStress --reconnectStorm 10 --clients 8 --elements 40 --variables 8
+  --changePct 10 --changeHz 5 --holdMs 1000 --maxSessions 8`
+- 每轮 8 个客户端各自"取票 → 握手 → 收 hello/snapshot → 正常关闭"，连续 10 轮。
+- 结果：**attempts=80，ok=80，failed=0，elapsedMs=459，pass=true**；
+  证据 `docs/performance/evidence/S4-reconnect-storm/reconnect-storm.json`。
+- 意义：24 槽准入在持续 churn 下没有漏名额（漏一个，后续轮次会出现 401/1013）。
+  本项**不覆盖**停服中重连（host 不停止）。
+
+## 13. 120 秒长稳（2026-10-22 补充）
+
+- 命令：`ScadaWebStress --clients 8 --elements 1000 --variables 500 --boundElements 500
+  --changePct 10 --changeHz 10 --holdMs 120000 --commands 0 --maxSessions 16`
+- 结果（`docs/performance/evidence/S5-long120s/summary.json`，`pass=true`）：
+
+| 指标 | 值 |
+| --- | --- |
+| 连接 / 快照 | 8 / 8 |
+| 帧数（delta / keyframe） | 9,619（9,523 / 96） |
+| 帧率 | **10.02Hz** |
+| errors | **0** |
+| 均值 / 1s 峰值 | 4.735 / 12.327Mbps |
+| delta p95 | **5,155B**（预算 46,484B） |
+| 首屏 p95 | 406ms |
+| 总字节 / 快照字节 | 71,027,864 / 3,428,680 |
+
+- 意义：120 秒内帧率、预算、错误数都稳定，没有随时间劣化；仍未测 16 端 × 3000 图元
+  的 120 秒，也未记录进程私有内存/句柄曲线（夹具没有采）。

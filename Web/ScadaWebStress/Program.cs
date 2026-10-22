@@ -242,6 +242,7 @@ namespace ScadaWebStress
 
             var serve = args.Any(a => string.Equals(a, "--serve", StringComparison.OrdinalIgnoreCase));
             var serveSeconds = ArgInt(args, "--serveSeconds", 300, 1);
+            var reconnectRounds = ArgInt(args, "--reconnectStorm", 0, 0);
 
             if (serve)
             {
@@ -267,6 +268,23 @@ namespace ScadaWebStress
                 _raw = null;
                 Console.WriteLine("SERVE_STOPPED");
                 return 0;
+            }
+
+            if (reconnectRounds > 0)
+            {
+                // 重连风暴：反复"取票 → 握手 → 收 hello/snapshot → 正常关闭"，
+                // 专门验证 24 槽准入在持续 churn 下不漏名额（漏一个，后面就会 401/1013）。
+                var storm = await RunReconnectStormAsync(port, reconnectRounds, clients).ConfigureAwait(false);
+                WriteJson(Path.Combine(outDir, "reconnect-storm.json"), storm);
+                Console.WriteLine(JsonConvert.SerializeObject(storm, Formatting.Indented));
+
+                mutationCts.Cancel();
+                try { await mutation.ConfigureAwait(false); } catch { }
+                await host.StopAsync().ConfigureAwait(false);
+                ui.InvokeShutdown();
+                _raw?.Dispose();
+                _raw = null;
+                return storm.Value<bool>("pass") ? 0 : 1;
             }
 
             var tasks = new List<Task>(clients);
@@ -309,6 +327,77 @@ namespace ScadaWebStress
 
             var pass = summary.Value<bool>("pass");
             return pass ? 0 : 1;
+        }
+
+        private static async Task<JObject> RunReconnectStormAsync(int port, int rounds, int clients)
+        {
+            var attempts = 0;
+            var ok = 0;
+            var failures = new ConcurrentBag<string>();
+            var sw = Stopwatch.StartNew();
+
+            for (var round = 0; round < rounds; round++)
+            {
+                var tasks = new List<Task>(clients);
+
+                for (var i = 0; i < clients; i++)
+                {
+                    var index = i;
+                    tasks.Add(Task.Run(async () =>
+                    {
+                        Interlocked.Increment(ref attempts);
+
+                        try
+                        {
+                            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                            var ticket = await IssueTicketAsync(http, port).ConfigureAwait(false);
+                            if (string.IsNullOrWhiteSpace(ticket))
+                                throw new InvalidOperationException("ticket missing");
+
+                            using var socket = new ClientWebSocket();
+                            await socket.ConnectAsync(
+                                new Uri($"ws://127.0.0.1:{port}/ws?ticket={ticket}"),
+                                CancellationToken.None).ConfigureAwait(false);
+
+                            var (hello, _) = await ReceiveUntilWithBytesAsync(
+                                socket, m => m.Value<string>("type") == "hello", 5000).ConfigureAwait(false);
+                            var (initial, _) = await ReceiveUntilWithBytesAsync(
+                                socket,
+                                m => m.Value<string>("type") == "snapshot" || m.Value<string>("type") == "idle",
+                                10000).ConfigureAwait(false);
+
+                            if (hello == null || initial == null)
+                                throw new InvalidOperationException("hello/snapshot missing");
+
+                            await socket.CloseAsync(
+                                WebSocketCloseStatus.NormalClosure, "storm", CancellationToken.None)
+                                .ConfigureAwait(false);
+
+                            Interlocked.Increment(ref ok);
+                        }
+                        catch (Exception ex)
+                        {
+                            failures.Add($"r{round}c{index}: {ex.GetType().Name}: {ex.Message}");
+                        }
+                    }));
+                }
+
+                await Task.WhenAll(tasks).ConfigureAwait(false);
+            }
+
+            sw.Stop();
+
+            return new JObject
+            {
+                ["rounds"] = rounds,
+                ["clients"] = clients,
+                ["attempts"] = attempts,
+                ["ok"] = ok,
+                ["failed"] = attempts - ok,
+                ["elapsedMs"] = sw.ElapsedMilliseconds,
+                ["pass"] = attempts == ok,
+                ["errorSamples"] = new JArray(failures.Take(10).ToArray())
+            };
         }
 
         private static async Task RunClientAsync(
