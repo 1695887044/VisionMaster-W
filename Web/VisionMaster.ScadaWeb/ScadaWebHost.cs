@@ -796,10 +796,10 @@ namespace VisionMaster.ScadaWeb
                 result = result.Result
             });
 
-            if (!session.TrySend(reply))
+            if (!session.TrySendControl(reply))
             {
                 _log.Warn($"[ScadaWeb] 命令回执未能入队（ref={session.SessionRef}，"
-                    + $"request={ShortToken(command.RequestId)}，code={result.Code}）：出站队列已满或会话已断开");
+                    + $"request={ShortToken(command.RequestId)}，code={result.Code}）：控制队列已满或会话已断开");
 
                 // 回执丢了，客户端只会一直等到超时、却不知道动作是否已执行。
                 // 主动以 1011 关闭连接，让客户端立刻走"连接异常"分支（可重连并重新取快照），
@@ -1340,7 +1340,7 @@ namespace VisionMaster.ScadaWeb
         /// <b>为什么不复用 sessionToken</b>：sessionToken 是 8 小时可复用的登录凭据，
         /// 放进 URL 会经浏览器历史/代理/Referer 泄漏；imageToken 只读图、短命、可轮换。
         /// </summary>
-        private string IssueImageToken(ScadaWebSession session)
+        private string IssueImageToken(ScadaWebSession session, bool makeCurrent = true)
         {
             var now = DateTime.UtcNow;
 
@@ -1364,7 +1364,12 @@ namespace VisionMaster.ScadaWeb
 
             var token = Guid.NewGuid().ToString("N");
             _imageTokens[token] = new ImageTokenEntry(session.SessionId, now.AddSeconds(ImageTokenSeconds));
-            _currentImageToken[session.SessionId] = token;
+
+            // 轮换路径要等 token 真的入队后才算“当前”：否则入队失败后服务端以为客户端拿到了新
+            // token，下一次 tick 又因为剩余寿命 >15s 跳过补发，旧 token 到期后图片 401 最长 15 秒。
+            if (makeCurrent)
+                _currentImageToken[session.SessionId] = token;
+
             return token;
         }
 
@@ -1679,7 +1684,8 @@ namespace VisionMaster.ScadaWeb
                 socket,
                 grant,
                 socket.RemoteIp ?? string.Empty,
-                ctx.Request.Useragent ?? string.Empty);
+                ctx.Request.Useragent ?? string.Empty,
+                _log);
 
             if (!_sessions.TryAdd(socket.Id, session))
             {
@@ -1809,7 +1815,7 @@ namespace VisionMaster.ScadaWeb
 
             if (Encoding.UTF8.GetByteCount(text) > MaxInboundCommandBytes)
             {
-                session.TrySend(Json(new
+                session.TrySendControl(Json(new
                 {
                     type = "error",
                     code = ScadaWebErrorCodes.BadRequest,
@@ -1828,24 +1834,31 @@ namespace VisionMaster.ScadaWeb
             }
             catch (JsonException)
             {
-                session.TrySend(Json(new { type = "error", code = "E_BAD_JSON", message = "帧不是合法 JSON" }));
+                session.TrySendControl(Json(new { type = "error", code = "E_BAD_JSON", message = "帧不是合法 JSON" }));
                 return;
             }
 
             switch (type)
             {
                 case "ping":
-                    session.TrySend(Json(new { type = "pong", t = json.Value<string>("t") }));
+                    if (TryClaimReplySlot(ref session.LastPongReplyTicks, TimeSpan.FromMilliseconds(100)))
+                    {
+                        session.TrySendControl(Json(new { type = "pong", t = json.Value<string>("t") }));
+                    }
                     return;
 
                 case "hello":
-                    // 客户端也会发一条 hello（方案 §9.2）。服务端已经发过首帧 hello，这里只回确认
-                    session.TrySend(Json(new
+                    // 客户端也会发一条 hello（方案 §9.2）。服务端已经发过首帧 hello，这里只回确认。
+                    // 限 1 秒一次：重复 hello 不能把控制队列刷满（ack/bye 还要用）。
+                    if (TryClaimReplySlot(ref session.LastHelloReplyTicks, TimeSpan.FromSeconds(1)))
                     {
-                        type = "hello.ok",
-                        sessionRef = session.SessionRef,
-                        readOnly = IsSessionReadOnly(session)
-                    }));
+                        session.TrySendControl(Json(new
+                        {
+                            type = "hello.ok",
+                            sessionRef = session.SessionRef,
+                            readOnly = IsSessionReadOnly(session)
+                        }));
+                    }
                     return;
 
                 case ScadaWebCommandKinds.Result:
@@ -1866,7 +1879,7 @@ namespace VisionMaster.ScadaWeb
                     return;
 
                 default:
-                    session.TrySend(Json(new
+                    session.TrySendControl(Json(new
                     {
                         type = "error",
                         code = ScadaWebErrorCodes.Unsupported,
@@ -1956,7 +1969,7 @@ namespace VisionMaster.ScadaWeb
 
             if (ok)
             {
-                session.TrySend(Json(new
+                session.TrySendControl(Json(new
                 {
                     type = "ack",
                     id = requestId,
@@ -2000,7 +2013,7 @@ namespace VisionMaster.ScadaWeb
 
             if (string.IsNullOrWhiteSpace(target))
             {
-                session.TrySend(Json(new
+                session.TrySendControl(Json(new
                 {
                     type = "error",
                     id = queryId,
@@ -2032,7 +2045,7 @@ namespace VisionMaster.ScadaWeb
             else
                 state = result.Ok ? "succeeded" : "failed";
 
-            session.TrySend(Json(new
+            session.TrySendControl(Json(new
             {
                 type = "result",
                 id = queryId,
@@ -2043,6 +2056,21 @@ namespace VisionMaster.ScadaWeb
                 result = result?.Result,
                 ageMs
             }));
+        }
+
+        /// <summary>
+        /// 控制类回执的每会话限速（ping/hello 这类客户端可无限发的消息）：
+        /// 只有抢到时间片的那一次才回，防止刷满控制队列把 ack/bye 挤掉。
+        /// </summary>
+        private static bool TryClaimReplySlot(ref long lastTicks, TimeSpan minInterval)
+        {
+            var now = DateTime.UtcNow.Ticks;
+            var last = Interlocked.Read(ref lastTicks);
+
+            if (now - last < minInterval.Ticks)
+                return false;
+
+            return Interlocked.CompareExchange(ref lastTicks, now, last) == last;
         }
 
         /// <summary>
@@ -2317,7 +2345,7 @@ namespace VisionMaster.ScadaWeb
         }
 
         /// <summary>一条命令的失败回执（<c>id</c> 必须回给客户端——它靠它配对 pending 命令）</summary>
-        private static void ReplyCommandError(
+        private void ReplyCommandError(
             ScadaWebSession session,
             string requestId,
             string kind,
@@ -2342,7 +2370,12 @@ namespace VisionMaster.ScadaWeb
             if (retryAfterMs.HasValue)
                 payload["retryAfterMs"] = retryAfterMs.Value;
 
-            session.TrySend(Json(payload));
+            if (!session.TrySendControl(Json(payload)))
+            {
+                _log.Warn($"[ScadaWeb] 命令错误回执未能入队（ref={session.SessionRef}，"
+                    + $"request={ShortToken(requestId)}，code={code}）：控制队列已满，关闭连接");
+                _ = session.CloseAsync(WebSocketCloseStatus.InternalServerError, "error delivery failed");
+            }
         }
 
         /// <summary>
@@ -2350,13 +2383,16 @@ namespace VisionMaster.ScadaWeb
         /// </summary>
         private void CloseRevokedSession(ScadaWebSession session, string message)
         {
-            session.TrySend(Json(new
+            if (!session.TrySendControl(Json(new
             {
                 type = "bye",
                 reason = "revoked",
                 closeCode = RevokedCloseCode,
                 message
-            }));
+            })))
+            {
+                _log.Warn($"[ScadaWeb] 撤销 bye 未能入队（ref={session.SessionRef}）：控制队列已满，直接关闭");
+            }
 
             _ = session.CloseAsync((WebSocketCloseStatus)RevokedCloseCode, "session revoked");
         }
@@ -2366,13 +2402,16 @@ namespace VisionMaster.ScadaWeb
         /// </summary>
         private void CloseExpiredSession(ScadaWebSession session, string message)
         {
-            session.TrySend(Json(new
+            if (!session.TrySendControl(Json(new
             {
                 type = "bye",
                 reason = "expired",
                 closeCode = ExpiredCloseCode,
                 message
-            }));
+            })))
+            {
+                _log.Warn($"[ScadaWeb] 过期 bye 未能入队（ref={session.SessionRef}）：控制队列已满，直接关闭");
+            }
 
             _ = session.CloseAsync((WebSocketCloseStatus)ExpiredCloseCode, "session expired");
         }
@@ -2497,7 +2536,13 @@ namespace VisionMaster.ScadaWeb
                 foreach (var item in _sessions.Values)
                 {
                     item.ResetPageKey();
-                    item.TrySend(message);
+
+                    // stopped 走控制：它决定“画面是不是活的”，不能排在整批值帧/快照后面。
+                    if (!item.TrySendControl(message))
+                    {
+                        _log.Warn($"[ScadaWeb] stopped 未能入队（ref={item.SessionRef}）：控制队列已满，关闭连接");
+                        _ = item.CloseAsync((WebSocketCloseStatus)1013, "control-full");
+                    }
                 }
 
                 _log.Info($"[ScadaWeb] 运行结束（generation={generation}）：已通知 {_sessions.Count} 个会话");
@@ -2580,12 +2625,12 @@ namespace VisionMaster.ScadaWeb
                     foreach (var session in _sessions.Values)
                     {
                         session.ResetPageKey();
-                        if (!session.TrySend(stopped))
+                        if (!session.TrySendControl(stopped))
                         {
-                            // 队列满的慢消费者收不到停运行：直接断开，避免它停在旧画面继续显示。
+                            // 控制队列满的慢消费者收不到停运行：直接断开，避免它停在旧画面继续显示。
                             _ = session.CloseAsync(
                                 System.Net.WebSockets.WebSocketCloseStatus.EndpointUnavailable,
-                                "outbound-full");
+                                "control-full");
                         }
                     }
                 }
@@ -2887,7 +2932,7 @@ namespace VisionMaster.ScadaWeb
             if (!state.Running || state.Page is null)
             {
                 session.ResetPageKey();
-                session.TrySend(Json(new { type = "idle" }));
+                session.TrySendControl(Json(new { type = "idle" }));
                 return;
             }
 
@@ -2896,7 +2941,10 @@ namespace VisionMaster.ScadaWeb
             if (SendStructure(session, BuildSnapshotMessage(state, session)))
             {
                 session.CurrentPageKey = state.PageKey;
-                session.ResetDeltaForNewStructure();
+
+                // 本方法在 WS 线程：只请求重置，真正清 LastValues/FrameSeq 由帧循环执行
+                // （LastValues 是普通 Dictionary，跨线程 Clear + SendFrame 写会损坏）。
+                session.RequestDeltaReset();
             }
         }
 
@@ -3068,7 +3116,7 @@ namespace VisionMaster.ScadaWeb
                 _log.Error($"[ScadaWeb] 快照超过硬上限：{bytes} 字节 > {_effectiveSnapshotMaxBytes} 字节"
                     + $"（page={session.CurrentPageKey ?? "<first>"}，ref={session.SessionRef}）；已拒绝发送并按 1009 关闭");
 
-                session.TrySend(Json(new
+                session.TrySendControl(Json(new
                 {
                     type = "error",
                     code = ScadaWebErrorCodes.SnapshotTooLarge,
@@ -3100,6 +3148,11 @@ namespace VisionMaster.ScadaWeb
             ScadaWebSession session,
             IReadOnlyList<WireFrameItem> wireItems)
         {
+            // 首屏/停运行/结构变更可能在别的线程请求过重置：真正清 LastValues/FrameSeq 只在这里做
+            // （本方法是帧循环线程，独占 LastValues）。
+            if (session.ConsumeDeltaResetRequested())
+                session.ResetDeltaForNewStructure();
+
             var now = DateTime.UtcNow;
             var keyframe = session.NeedsKeyframe
                 || now - session.LastKeyframeUtc >= KeyframeInterval;
@@ -3371,13 +3424,18 @@ namespace VisionMaster.ScadaWeb
                     continue;
                 }
 
-                var fresh = IssueImageToken(session);
-                session.TrySend(Json(new
+                var fresh = IssueImageToken(session, makeCurrent: false);
+
+                if (session.TrySendControl(Json(new
                 {
                     type = "img.token",
                     token = fresh,
                     expiresIn = ImageTokenSeconds
-                }));
+                })))
+                {
+                    _currentImageToken[session.SessionId] = fresh;
+                }
+                // 入队失败：不更新 current，下一拍（2 秒后）会重新签发并补发。
             }
         }
 
@@ -3585,6 +3643,14 @@ namespace VisionMaster.ScadaWeb
                             allow
                         }
                     });
+
+                    // 内容没变就不发：3000 图元全量 deny/allow 约 200KB/会话，
+                    // 每 2 秒重发一次本身就是队头问题（与分片要解决的队头是同一类）。
+                    var hash = Fnv(0, json);
+                    if (session.LastCapsHash == hash)
+                        continue;
+
+                    session.LastCapsHash = hash;
                     session.TrySend(json);
                 }
                 catch (Exception ex)

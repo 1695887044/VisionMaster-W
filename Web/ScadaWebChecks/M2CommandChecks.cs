@@ -1067,6 +1067,34 @@ namespace ScadaWebChecks
                     $"执行={executed.Ok} 首查={firstFound} 复查={secondFound} "
                     + $"未知={missingFound} 缓存={cached?.Code ?? "<null>"}");
             }
+
+            // 控制队列与数据队列分开：控制满 64 条时数据仍可写；Dispose 后两者都拒绝。
+            // 这是“ack/bye 不排在 256 条值帧后面”的最小可测证据（发送顺序需真 WS，见 S1 ack p95）。
+            {
+                var session = NewSession("容量测试", ScadaRole.Operator);
+
+                var controlOk = 0;
+                for (var i = 0; i < ScadaWebSession.ControlCapacity; i++)
+                {
+                    if (session.TrySendControl("{}"))
+                        controlOk++;
+                }
+
+                var controlOverflow = session.TrySendControl("{}");
+                var dataStillWritable = session.TrySend("{}");
+
+                session.Dispose();
+                var afterDispose = session.TrySendControl("{}");
+
+                Check("M2-17",
+                    controlOk == ScadaWebSession.ControlCapacity
+                    && !controlOverflow
+                    && dataStillWritable
+                    && !afterDispose,
+                    $"控制入队={controlOk}/{ScadaWebSession.ControlCapacity} "
+                    + $"第{ScadaWebSession.ControlCapacity + 1}条={controlOverflow} "
+                    + $"数据队列仍可写={dataStillWritable} Dispose后={afterDispose}");
+            }
         }
 
         // ==================================================================
@@ -1232,17 +1260,24 @@ namespace ScadaWebChecks
             var ctor = typeof(ScadaWebSession).GetConstructor(
                 BindingFlags.Instance | BindingFlags.NonPublic,
                 binder: null,
-                new[] { typeof(WebSocketSession), typeof(ScadaWebTicketGrant), typeof(string), typeof(string) },
+                new[]
+                {
+                    typeof(WebSocketSession),
+                    typeof(ScadaWebTicketGrant),
+                    typeof(string),
+                    typeof(string),
+                    typeof(ILogService)
+                },
                 modifiers: null);
 
             if (ctor == null)
             {
                 throw new InvalidOperationException(
-                    "找不到 ScadaWebSession 的内部构造 (WebSocketSession, ScadaWebTicketGrant, string, string)；"
+                    "找不到 ScadaWebSession 的内部构造 (WebSocketSession, ScadaWebTicketGrant, string, string, ILogService)；"
                     + "会话形状变了，本组断言需要同步修改");
             }
 
-            return (ScadaWebSession)ctor.Invoke(new object?[] { null, grant, ip, "ScadaWebChecks" });
+            return (ScadaWebSession)ctor.Invoke(new object?[] { null, grant, ip, "ScadaWebChecks", null });
         }
 
         private static ScadaWebCommand NewCommand(ScadaWebSession session, string requestId)

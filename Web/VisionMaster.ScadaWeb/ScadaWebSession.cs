@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Core.Interfaces;
 using VisionMaster.Scada;
 using WatsonWebserver.Core.WebSockets;
 
@@ -29,8 +30,20 @@ namespace VisionMaster.ScadaWeb
         /// <summary>出站队列容量。满了 <see cref="TrySend"/> 返回 false；结构消息由调用方重试，值帧丢一拍</summary>
         public const int OutboundCapacity = 256;
 
+        /// <summary>控制队列容量（ack/error/bye/stopped 等；只等当前一条数据消息，不排整批）</summary>
+        public const int ControlCapacity = 64;
+
+        /// <summary>单条消息发送超时：慢消费者不能把发送循环永久挂住</summary>
+        public static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(15);
+
         private readonly WebSocketSession _socket;
         private readonly Channel<string> _outbound;
+        private readonly Channel<string> _control;
+        private readonly SemaphoreSlim _sendGate = new(1, 1);
+        private readonly CancellationTokenSource _lifetimeCts = new();
+        private readonly ILogService? _log;
+        private int _sendFaulted;
+        private int _deltaResetRequested;
         private long _sent;
         private long _dropped;
         private int _disposed;
@@ -58,12 +71,30 @@ namespace VisionMaster.ScadaWeb
         /// <summary>预算裁剪的轮转游标：保证 1000 项全变时尾部不会被永久饿死</summary>
         internal int DeltaCursor { get; set; }
 
+        /// <summary>
+        /// 上一次下发的 caps JSON 哈希：内容没变就不再发（3000 图元全量 deny/allow 约 200KB，
+        /// 每 2 秒发一次本身就是队头问题）。只在帧循环/广播循环线程读写。
+        /// </summary>
+        internal ulong? LastCapsHash { get; set; }
+
+        /// <summary>上一次回 pong 的时刻（ticks）：防止 ping 洪泛塞满控制队列</summary>
+        internal long LastPongReplyTicks;
+
+        /// <summary>上一次回 hello.ok 的时刻（ticks）：同上</summary>
+        internal long LastHelloReplyTicks;
+
         /// <summary>最近一次"真正发出去"的 UTC ticks（45 秒死连接判据的一半；TrySend 只是入队，不算）</summary>
         internal long LastSendSucceededUtcTicks => Volatile.Read(ref _lastSendSucceededUtcTicks);
 
-        internal ScadaWebSession(WebSocketSession socket, ScadaWebTicketGrant grant, string remoteIp, string userAgent)
+        internal ScadaWebSession(
+            WebSocketSession socket,
+            ScadaWebTicketGrant grant,
+            string remoteIp,
+            string userAgent,
+            ILogService? log = null)
         {
             _socket = socket;
+            _log = log;
             Grant = grant;
             RemoteIp = remoteIp ?? string.Empty;
             UserAgent = userAgent ?? string.Empty;
@@ -81,6 +112,13 @@ namespace VisionMaster.ScadaWeb
                 // 满时让 TryWrite 返回 false（不是 DropWrite）：结构消息必须由调用方看到"没发出去"，
                 // 否则页键已推进、客户端却永远收不到结构，画面会冻结到下一次结构变更或重连。
                 // 值帧仍然可以丢一拍；M2 的命令帧要显式回 E_BUSY。
+                FullMode = BoundedChannelFullMode.Wait
+            });
+
+            _control = Channel.CreateBounded<string>(new BoundedChannelOptions(ControlCapacity)
+            {
+                SingleReader = true,
+                SingleWriter = false,
                 FullMode = BoundedChannelFullMode.Wait
             });
         }
@@ -162,12 +200,23 @@ namespace VisionMaster.ScadaWeb
         internal void ResetPageKey()
         {
             CurrentPageKey = null;
-            ResetDeltaForNewStructure();
+
+            // 不在这里清 LastValues/FrameSeq：本方法可能由 UI 线程（OnRunStopped）或 WS 线程
+            // （首屏）调用，而 SendFrame 在帧循环线程写 LastValues。跨线程 Clear + 写会让
+            // Dictionary 损坏/死循环。真正的重置由帧循环在下一拍消费这个标志后执行。
+            RequestDeltaReset();
         }
 
+        /// <summary>请求"下一帧前重置增量基线"（线程安全；只有帧循环会真正执行重置）</summary>
+        internal void RequestDeltaReset() => Interlocked.Exchange(ref _deltaResetRequested, 1);
+
+        /// <summary>帧循环消费重置请求（返回 true = 本拍发送前必须重置）</summary>
+        internal bool ConsumeDeltaResetRequested()
+            => Interlocked.Exchange(ref _deltaResetRequested, 0) != 0;
+
         /// <summary>
-        /// 结构消息（snapshot/page）成功入队后调用：清空增量基线，下一帧必须是 keyframe。
-        /// 与 <see cref="ResetPageKey"/> 的区别是<b>不动页键</b>（页键由调用方在成功后推进）。
+        /// 真正重置增量基线。<b>只允许帧循环线程调用</b>（它独占 <see cref="LastValues"/>）；
+        /// 其它线程请用 <see cref="RequestDeltaReset"/>。
         /// </summary>
         internal void ResetDeltaForNewStructure()
         {
@@ -189,7 +238,8 @@ namespace VisionMaster.ScadaWeb
         internal void Touch() => LastSeenUtc = DateTime.UtcNow;
 
         /// <summary>
-        /// 入队一帧文本。返回 false = 队列满、这一帧被丢弃（<see cref="DroppedCount"/> 自增）。
+        /// 入队一帧数据（值帧/结构/axis/grid/presence/alarms/caps）。返回 false = 队列满、这一帧被丢弃
+        /// （<see cref="DroppedCount"/> 自增）。
         /// </summary>
         public bool TrySend(string json)
         {
@@ -206,42 +256,133 @@ namespace VisionMaster.ScadaWeb
         }
 
         /// <summary>
-        /// 单条发送循环：入队顺序 = 上屏顺序。连接关闭/服务停止时由取消令牌结束。
+        /// 入队一条控制消息（ack/error/result/bye/stopped/idle/img.token/pong/hello.ok）。
+        ///
+        /// <b>它不排整批数据</b>：控制循环只等"当前正在发的那一条"（共享发送闸），
+        /// 不会排在 256 条值帧/一整份快照后面。返回 false = 控制队列满（64 条）；
+        /// ack/error/bye/stopped 的调用方必须关连接，不能静默丢。
+        /// </summary>
+        public bool TrySendControl(string json)
+        {
+            if (Volatile.Read(ref _disposed) != 0) return false;
+
+            if (_control.Writer.TryWrite(json))
+            {
+                Interlocked.Increment(ref _sent);
+                return true;
+            }
+
+            Interlocked.Increment(ref _dropped);
+            return false;
+        }
+
+        /// <summary>
+        /// 两条发送循环（控制/数据）共用一个发送闸：入队顺序仍然是各自通道内的顺序，
+        /// 控制消息最多等"当前这一条"发完，不排整批。任一条异常都会记日志并关连接。
         /// </summary>
         internal async Task RunSendLoopAsync(CancellationToken token)
+        {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetimeCts.Token);
+            var linkedToken = linked.Token;
+
+            await Task.WhenAll(
+                RunControlSendLoopAsync(linkedToken),
+                RunDataSendLoopAsync(linkedToken)).ConfigureAwait(false);
+        }
+
+        private async Task RunControlSendLoopAsync(CancellationToken token)
+        {
+            try
+            {
+                await foreach (var message in _control.Reader.ReadAllAsync(token).ConfigureAwait(false))
+                    await SendOneAsync(message, token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // 正常收尾（停服 / 客户端断开 / Dispose 取消）
+            }
+            catch (Exception ex)
+            {
+                HandleSendFault(ex);
+            }
+        }
+
+        private async Task RunDataSendLoopAsync(CancellationToken token)
         {
             try
             {
                 await foreach (var message in _outbound.Reader.ReadAllAsync(token).ConfigureAwait(false))
-                {
-                    await _socket.SendTextAsync(message, token).ConfigureAwait(false);
-                    MarkSendSucceeded();
-                }
+                    await SendOneAsync(message, token).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
-                // 正常收尾（停服 / 客户端断开）
+                // 正常收尾
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // 发送失败 = 连接已坏，交给接收循环去收尾；这里吞掉是为了不让发送循环的异常
-                // 变成"未观察任务"（那个坑的表现是进程退出时静默丢栈）
+                HandleSendFault(ex);
             }
+        }
+
+        private async Task SendOneAsync(string json, CancellationToken token)
+        {
+            await _sendGate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+                timeout.CancelAfter(SendTimeout);
+                await _socket.SendTextAsync(json, timeout.Token).ConfigureAwait(false);
+                MarkSendSucceeded();
+            }
+            finally
+            {
+                _sendGate.Release();
+            }
+        }
+
+        /// <summary>
+        /// 发送循环异常：记日志 + 取消本会话 + 关连接。
+        /// 旧写法两条循环各自 `catch { }`，死一条完全静默（连接还在、结构永远发不出去）。
+        /// </summary>
+        private void HandleSendFault(Exception ex)
+        {
+            if (Interlocked.Exchange(ref _sendFaulted, 1) != 0)
+                return;
+
+            _log?.Warn($"[ScadaWeb] 会话发送失败（ref={SessionRef}）：{ex.GetType().Name}：{ex.Message}");
+
+            try { _lifetimeCts.Cancel(); } catch { /* 已取消 */ }
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _socket.CloseAsync(
+                        System.Net.WebSockets.WebSocketCloseStatus.InternalServerError,
+                        "send failed",
+                        CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // 连接已经坏了
+                }
+            });
         }
 
         /// <summary>直接发一帧（不排队）。<b>只给握手首帧 hello 用</b>——那一刻还没有第二个发送者</summary>
         internal Task SendDirectAsync(string json, CancellationToken token) => _socket.SendTextAsync(json, token);
 
-        /// <summary>主动关闭底层连接（容量拒绝 / 停服）</summary>
+        /// <summary>主动关闭底层连接（容量拒绝 / 停服）；最多等 2 秒，避免卡在阻塞发送后面</summary>
         internal async Task CloseAsync(System.Net.WebSockets.WebSocketCloseStatus status, string reason)
         {
             try
             {
-                await _socket.CloseAsync(status, reason, CancellationToken.None).ConfigureAwait(false);
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                await _socket.CloseAsync(status, reason, timeout.Token).ConfigureAwait(false);
             }
             catch
             {
-                // 已经断开 / 对端没回 close 帧：关闭失败没有补救动作
+                // 已经断开 / 对端没回 close 帧 / 发送锁被占：关闭失败没有补救动作
             }
         }
 
@@ -250,8 +391,12 @@ namespace VisionMaster.ScadaWeb
         {
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
-            // 让发送循环自然结束（ReadAllAsync 在通道完成后返回）
+            // 让两条发送循环自然结束（ReadAllAsync 在通道完成后返回）
             _outbound.Writer.TryComplete();
+            _control.Writer.TryComplete();
+
+            // 取消正在 await 的 SendTextAsync：否则关闭会话后发送任务会挂到宿主停止
+            try { _lifetimeCts.Cancel(); } catch { /* 已取消 */ }
         }
     }
 }
