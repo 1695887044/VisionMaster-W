@@ -389,7 +389,7 @@
 | R177 | **上下文不是记忆，工作区文件才是**：会话会被压缩，早期推理会丢 → **每轮结束必须留落盘物**（`docs/code-changes/` 或 `docs/交接报告-<日期>-<主题>.md`，五段：当前状态 / 已做 / 未做 / 下一步 / 踩过的坑）。没留 = 这轮结论等于没发生。 |
 | R178 | **按交付物边界拆会话，不按时间**；**一条构建串行的任务链不许中途换会话**；AgentTeams 团队绑会话，换会话前必须收尾或归档，不能带着团队换。 |
 
-## 39. 构建与产物（R179-R181）
+## 39. 构建、产物与收尾验证（R179-R183）
 
 | # | 判据 |
 |---|---|
@@ -397,6 +397,7 @@
 | R180 | **`File.Replace` 在受限环境一律被拒**（Move/Copy/Delete 正常）。`AppSettingsService.WriteReplacing` 只 `catch (IOException)` → `UnauthorizedAccessException` **带崩断言宿主**（ScadaChecks/FlowCanvasChecks 各崩一次）。替换式写文件必须同时 catch `IOException` + `UnauthorizedAccessException`。 |
 | R181 | **AgentTeams 成员可能写不了子目录**（沙箱只在仓库根授权、子目录不继承）→ **构建与跑测归主会话**，成员只做读/编辑/静态分析。成员报 `MSB3491 … is denied` 时**不要重试、不要换路径绕过**，直接交回主会话。 |
 | R182 | **收尾验证只有一个入口：`tools\run_gates.ps1`**。它按顺序跑 `audit_root.ps1`（R166/R168 根目录白名单）→ `audit_artifacts.ps1`（红线③产物）→ 六个断言宿主**逐个按自己的 csproj 构建再跑**（`UIThemeSmokeTest`/`HelpProbe` **不在 sln**，`dotnet build VisionMaster.sln` 根本不重建它们），最后聚合退出码：任一红即 exit 1。日志 `artifacts\logs\<yyyyMMdd>\{build,gate}-<名>.log`（UTF-8 无 BOM）。**它自带陈旧 exe 检测**：exe 比该宿主源码旧直接判红，不跑旧 exe（R65）。`-SkipBuild` 只用于"刚构建完立刻复跑"，不是日常用法。 |
+| R183 | **"没跑"和"跑绿了"必须能分开**。① 捕获子进程输出**不要走管道**：`& $exe 2>&1 \| Out-String` 按控制台代码页（本机 936）解码 .NET 宿主的 UTF-8 → 日志成了"合法 UTF-8 的乱码"，统计正则永不命中，每个宿主回落打印"全部通过"（**没人能验证的汇总行比没有汇总行更坏**）。改用 `Start-Process -RedirectStandardOutput/-RedirectStandardError` 让原始字节落盘，回读**严格 UTF-8 优先、失败回落 936**（`powershell.exe` 子进程确实吐 936）。② **子进程零输出 = 判红**。`Start-Process -ArgumentList ''` 抛参数绑定异常，而 `$ErrorActionPreference='Continue'` 会把它变成 `Exit=0` —— 2026-10-22 实测整个 gate 报 `8 steps green` 而六个宿主**一个都没跑**。守门：`run_gates.ps1` 的 `NO OUTPUT` 分支 + 启动失败记 `exit 127`。 |
 
 ---
 

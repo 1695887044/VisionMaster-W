@@ -16,6 +16,14 @@
 # Exit codes: 0 = every step green, 1 = at least one step red (see the summary).
 # Logs: artifacts\logs\<yyyyMMdd>\build-<name>.log and gate-<name>.log (UTF-8, no BOM).
 #
+# Encoding: child output is redirected to a file as RAW BYTES by Start-Process, so
+# nothing is decoded on the way in. On the way out each file is decoded strictly as
+# UTF-8 first (dotnet hosts) and falls back to codepage 936 (powershell.exe children).
+# The earlier version piped `& $exe 2>&1 | Out-String`, which decoded child stdout
+# with the console codepage and then wrote UTF-8: the log came out mojibake AND the
+# pass/fail counts never matched, so every host printed "all checks passed".
+# A summary line nobody can verify is worse than no summary line (R13).
+#
 # ASCII only on purpose (R1). Chinese only appears in captured output, never in
 # this file; the pass/fail markers are built from code points.
 #
@@ -48,10 +56,11 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 Set-Location $RepoRoot
 
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+$utf8Strict = New-Object System.Text.UTF8Encoding($false, $true)
+$ansi = [Text.Encoding]::GetEncoding(936)
 
 # Markers used by the hosts' own summary lines, built from code points so this
-# file stays ASCII (R1): the Chinese passed/failed marker pair is assembled
-# from code points below.
+# file stays ASCII (R1).
 $cnPass = [string][char]0x901A + [string][char]0x8FC7
 $cnFail = [string][char]0x5931 + [string][char]0x8D25
 $countPattern = $cnPass + '\s*:\s*(\d+)\s+' + $cnFail + '\s*:\s*(\d+)'
@@ -61,6 +70,55 @@ $script:rows = New-Object System.Collections.Generic.List[object]
 function Write-GateLog {
     param([string]$Path, [string]$Text)
     [IO.File]::WriteAllText($Path, $Text, $utf8NoBom)
+}
+
+function Read-Captured {
+    param([string]$OutFile, [string]$ErrFile)
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($f in @($OutFile, $ErrFile)) {
+        if (-not (Test-Path -LiteralPath $f)) { continue }
+        $bytes = [IO.File]::ReadAllBytes($f)
+        if ($bytes.Length -eq 0) { continue }
+        $text = $null
+        try { $text = $utf8Strict.GetString($bytes) } catch { $text = $ansi.GetString($bytes) }
+        [void]$sb.Append($text)
+        if (-not $text.EndsWith("`n")) { [void]$sb.Append("`r`n") }
+    }
+    return $sb.ToString()
+}
+
+# Runs a child, captures stdout+stderr as raw bytes, returns exit code.
+function Invoke-Captured {
+    param([string]$FilePath, [string]$Arguments, [string]$Tag)
+    $out = Join-Path $logDir ('raw-' + $Tag + '.out')
+    $err = Join-Path $logDir ('raw-' + $Tag + '.err')
+    # -ArgumentList '' throws ParameterBindingValidationException (null/empty not
+    # allowed) - and because $ErrorActionPreference is Continue that used to fall
+    # through to Exit=0: a gate that reports green without running anything.
+    # Omit the parameter entirely when the child takes no arguments, and treat a
+    # failed launch as a hard red instead of a silent zero.
+    $sp = @{
+        FilePath               = $FilePath
+        NoNewWindow            = $true
+        Wait                   = $true
+        PassThru               = $true
+        WorkingDirectory       = $RepoRoot
+        RedirectStandardOutput = $out
+        RedirectStandardError  = $err
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Arguments)) { $sp['ArgumentList'] = $Arguments }
+
+    $exit = 127
+    try {
+        $p = Start-Process @sp
+        if ($null -ne $p) { $exit = $p.ExitCode }
+    }
+    catch {
+        [IO.File]::WriteAllText($err, ('[run_gates] launch failed: ' + $_.Exception.Message), $utf8NoBom)
+    }
+    $text = Read-Captured -OutFile $out -ErrFile $err
+    Remove-Item -LiteralPath $out, $err -Force -ErrorAction SilentlyContinue
+    return [pscustomobject]@{ Exit = $exit; Text = $text }
 }
 
 function Get-Counts {
@@ -92,12 +150,12 @@ foreach ($a in $audits) {
         Add-Row -Name $a.N -Exit 1 -Note ('MISSING ' + $a.P)
         continue
     }
-    $text = (& powershell -NoProfile -ExecutionPolicy Bypass -File $path 2>&1 | Out-String)
-    $code = $LASTEXITCODE
-    Write-GateLog -Path (Join-Path $logDir ('gate-' + $a.N + '.log')) -Text $text
+    $r = Invoke-Captured -FilePath 'powershell.exe' -Tag $a.N `
+        -Arguments ('-NoProfile -ExecutionPolicy Bypass -File "' + $path + '"')
+    Write-GateLog -Path (Join-Path $logDir ('gate-' + $a.N + '.log')) -Text $r.Text
     $note = 'clean'
-    if ($code -ne 0) { $note = 'see gate-' + $a.N + '.log' }
-    Add-Row -Name $a.N -Exit $code -Note $note
+    if ($r.Exit -ne 0) { $note = 'see gate-' + $a.N + '.log' }
+    Add-Row -Name $a.N -Exit $r.Exit -Note $note
 }
 
 # --- Step 2: assertion hosts --------------------------------------------------
@@ -121,12 +179,11 @@ foreach ($h in $hosts) {
     }
 
     if (-not $SkipBuild) {
-        $buildLog = Join-Path $logDir ('build-' + $h.N + '.log')
-        $bout = (& dotnet build $proj -m:1 -nodeReuse:false 2>&1 | Out-String)
-        $bcode = $LASTEXITCODE
-        Write-GateLog -Path $buildLog -Text $bout
-        if ($bcode -ne 0) {
-            Add-Row -Name $h.N -Exit $bcode -Note ('BUILD FAILED, see build-' + $h.N + '.log')
+        $b = Invoke-Captured -FilePath 'dotnet' -Tag ('build-' + $h.N) `
+            -Arguments ('build "' + $proj + '" -m:1 -nodeReuse:false')
+        Write-GateLog -Path (Join-Path $logDir ('build-' + $h.N + '.log')) -Text $b.Text
+        if ($b.Exit -ne 0) {
+            Add-Row -Name $h.N -Exit $b.Exit -Note ('BUILD FAILED, see build-' + $h.N + '.log')
             continue
         }
     }
@@ -150,14 +207,18 @@ foreach ($h in $hosts) {
         continue
     }
 
-    $text = (& $exe 2>&1 | Out-String)
-    $code = $LASTEXITCODE
-    Write-GateLog -Path (Join-Path $logDir ('gate-' + $h.N + '.log')) -Text $text
-    $note = Get-Counts -Text $text
-    if ([string]::IsNullOrWhiteSpace($note)) {
-        $note = if ($code -eq 0) { 'all checks passed' } else { 'see gate-' + $h.N + '.log' }
+    $r = Invoke-Captured -FilePath $exe -Tag $h.N -Arguments ''
+    Write-GateLog -Path (Join-Path $logDir ('gate-' + $h.N + '.log')) -Text $r.Text
+    # A host that produced no output did not run. Never let that pass as green.
+    if ([string]::IsNullOrWhiteSpace($r.Text)) {
+        Add-Row -Name $h.N -Exit 1 -Note 'NO OUTPUT (host produced nothing)'
+        continue
     }
-    Add-Row -Name $h.N -Exit $code -Note $note
+    $note = Get-Counts -Text $r.Text
+    if ([string]::IsNullOrWhiteSpace($note)) {
+        $note = if ($r.Exit -eq 0) { 'exit 0 (no summary line)' } else { 'see gate-' + $h.N + '.log' }
+    }
+    Add-Row -Name $h.N -Exit $r.Exit -Note $note
 }
 
 # --- Summary ------------------------------------------------------------------

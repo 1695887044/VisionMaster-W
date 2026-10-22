@@ -508,11 +508,14 @@ namespace FlowCanvasChecks
                 using (var failing = Move(0, 10))
                 {
                     fake.Enqueue(failing);
-                    failing.Completion.Wait(2000);
+                    // 5s，不是 2s：2026-10-22 全量 gate（六个宿主连着构建+跑）在这两处
+                    // 超时判红，空载重跑同一条 exe 是 3298 通过 / 0 失败 —— 2s 量的是
+                    // 机器负载，不是状态机。WaitFor 条件一满足就返回，绿灯不付这个余量。
+                    failing.Completion.Wait(5000);
                 }
 
                 Check("前置：假设备命令失败后进入安全停机",
-                    WaitFor(() => fake.State == MotionCardState.SafeStopped, 2000),
+                    WaitFor(() => fake.State == MotionCardState.SafeStopped, 5000),
                     $"状态={fake.State} 说明={fake.StateDetail}");
 
                 fake.FailMove = false;
