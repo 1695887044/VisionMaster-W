@@ -137,6 +137,7 @@ namespace FlowCanvasChecks
             PluginLayer();
             ZBLayer();
             CsvLayer();
+            PasteLayer();
             PersistLayer();
         }
 
@@ -637,6 +638,81 @@ namespace FlowCanvasChecks
             Check("[HE] CSV⑤：导出再导入，每行 12 个数逐位一致（不丢精度、不串列）",
                 same, roundOk ? $"导出 {back.Count} 行 / 原 {rows.Count} 行" : roundErr ?? "解析失败");
         }
+
+        #region 从 Excel 粘贴一片
+
+        /// <summary>
+        /// 表格是数据的主入口，而现场数据多半先在 Excel 里排好 —— 所以 Ctrl+V 粘一片是主线操作。
+        /// 这一层钉三条规则：整片校验（错一格全不写）/ 空单元格保持原值 / 超宽丢弃并报数。
+        /// </summary>
+        private static void PasteLayer()
+        {
+            // ---- ① 单格不接管：交给单元格编辑器（逐格报错比整片失败精确，也有撤销） ----
+            Check("[HE] 粘贴①：单格纯数字不算「一片」，不接管",
+                !HandEyePaste.IsBlock("12.5")
+                && !HandEyePaste.IsBlock("  12.5\r\n")
+                && HandEyePaste.IsBlock("1\t2")
+                && HandEyePaste.IsBlock("1\n2"),
+                $"单格={HandEyePaste.IsBlock("12.5")} 制表符={HandEyePaste.IsBlock("1\t2")} 换行={HandEyePaste.IsBlock("1\n2")}");
+
+            // ---- ② 从左上角粘 2 行 × 3 列 ----
+            var p2 = NewPlugin(Array.Empty<HandEyeSample>());
+            bool ok2 = HandEyePaste.TryApply(p2, "1\t2\t3\n4\t5\t6", 0, 0, out var out2, out string? err2);
+            Check("[HE] 粘贴②：粘 2 行 × 3 列 → 自动补 2 行，12 个分量各就各位",
+                ok2 && p2.Samples.Count == 2 && out2.RowsWritten == 2 && out2.CellsWritten == 6
+                && Math.Abs(p2.Samples[0].RobotX - 1) < 1e-12 && Math.Abs(p2.Samples[0].RobotZ - 3) < 1e-12
+                && Math.Abs(p2.Samples[1].RobotX - 4) < 1e-12 && Math.Abs(p2.Samples[1].RobotZ - 6) < 1e-12,
+                ok2 ? $"行数={p2.Samples.Count} 写入={out2.RowsWritten} 行/{out2.CellsWritten} 格" : err2 ?? "失败但没给原因");
+
+            // ---- ③ 从中间一格开始粘：起点行列都要生效（不是永远贴到左上角） ----
+            // 第 5 列（0 基 4）= 机器人 Ry，第 6 列 = 机器人 Rz：粘的是 7 / 8，就落在后两个分量上。
+            var p3 = NewPlugin(Array.Empty<HandEyeSample>());
+            bool ok3 = HandEyePaste.TryApply(p3, "7\t8", 2, 4, out _, out string? err3);
+            Check("[HE] 粘贴③：从第 3 行第 5 列开始粘 → 落在机器人 Ry / Rz 上（起点生效，不是永远贴左上角）",
+                ok3 && p3.Samples.Count == 3
+                && Math.Abs(p3.Samples[2].RobotRy - 7) < 1e-12
+                && Math.Abs(p3.Samples[2].RobotRz - 8) < 1e-12,
+                ok3 ? $"第 3 行 Ry={p3.Samples[2].RobotRy:0.###} Rz={p3.Samples[2].RobotRz:0.###}" : err3 ?? "失败但没给原因");
+
+            // ---- ④ 空单元格保持原值：不当 0 写（"这一列没量"很常见，写 0 会变成有效但错误的样本） ----
+            var p4 = NewPlugin(Array.Empty<HandEyeSample>());
+            p4.Samples.Add(new HandEyeSample { RobotX = 99, RobotY = 88 });
+            bool ok4 = HandEyePaste.TryApply(p4, "\t5", 0, 0, out _, out string? err4);
+            Check("[HE] 粘贴④：空单元格保持原值（robotX 仍是 99，robotY 才被写成 5）",
+                ok4 && Math.Abs(p4.Samples[0].RobotX - 99) < 1e-12 && Math.Abs(p4.Samples[0].RobotY - 5) < 1e-12,
+                ok4 ? $"robotX={p4.Samples[0].RobotX:0.###} robotY={p4.Samples[0].RobotY:0.###}" : err4 ?? "失败但没给原因");
+
+            // ---- ⑤ 比表宽：超出 12 列的部分丢弃并计数，不环绕到下一行 ----
+            var p5 = NewPlugin(Array.Empty<HandEyeSample>());
+            string wide = string.Join("\t", Enumerable.Range(1, 14).Select(v => v.ToString()));
+            bool ok5 = HandEyePaste.TryApply(p5, wide, 0, 0, out var out5, out string? err5);
+            Check("[HE] 粘贴⑤：给 14 列 → 只写前 12 个，丢弃 2 个并计入 Dropped（不环绕、不静默）",
+                ok5 && out5.Dropped == 2 && p5.Samples.Count == 1
+                && Math.Abs(p5.Samples[0].CameraRz - 12) < 1e-12
+                && out5.CellsWritten == 12,
+                ok5 ? $"丢弃={out5.Dropped} 写入={out5.CellsWritten} 末格={p5.Samples[0].CameraRz:0.###}" : err5 ?? "失败但没给原因");
+
+            // ---- ⑥ 有一个格子不是数字 → 整片拒绝，一个都不写 ----
+            var p6 = NewPlugin(Array.Empty<HandEyeSample>());
+            double before = p6.Samples.Count;
+            bool ok6 = HandEyePaste.TryApply(p6, "1\t2\n3\tabc", 0, 0, out _, out string? err6);
+            bool untouched6 = p6.Samples.Count == (int)before;
+            Check("[HE] 粘贴⑥：第 2 行第 2 列写 abc → 失败，文案点名行列与原文，且一个字都没写",
+                !ok6 && untouched6
+                && err6 != null && err6.Contains("第 2 行") && err6.Contains("第 2 列") && err6.Contains("abc"),
+                (ok6 ? "居然通过了" : err6 ?? "失败但没给原因") + $"，行数 {p6.Samples.Count}");
+
+            // ---- ⑦ 粘完结论必须作废：不能把上一次的矩阵继续挂在屏上 ----
+            var p7 = NewPlugin(RowsFrom(MakeSamples(TrueX1(), RobotPoses)));
+            p7.SolveForPreview();
+            bool okBefore7 = p7.IsPreviewOk;
+            HandEyePaste.TryApply(p7, "1\t2", 0, 0, out _, out _);
+            Check("[HE] 粘贴⑦：粘贴改了数据之后，上一次的结论立即作废（不再显示为「完成」）",
+                okBefore7 && !p7.IsPreviewOk,
+                $"粘前={okBefore7} 粘后={p7.PreviewStatusText}");
+        }
+
+        #endregion
 
         #endregion
 

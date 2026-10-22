@@ -156,6 +156,7 @@ v2 因此改为：**表格是主入口，CSV 降级为成批进出的扩展功�
 | 行尾 ✕ | `RemoveSampleCommand`（`Core.Commands.RelayCommand`，`CommandParameter` 是行对象），字形 `×`（U+00D7）**不用 Font Awesome 私有区字形**——删除这种歧义代价高的操作不该赌字体命中 |
 | `＋ 加一行` | `AddSampleCommand` → `Samples.Add(new HandEyeSample())`（新行 12 值全 0 = `IsBlank`，求解时被点名） |
 | `导入 CSV` / `导出 CSV` | `HandEyeCsv.TryParse` / `HandEyeCsv.Format` + `OpenFileDialog`/`SaveFileDialog`（**文件 IO 只在视图层**）；导出写 BOM，Excel 双击中文表头才不乱码 |
+| `Ctrl+V` 粘一片（Q6） | `HandEyePaste.IsBlock`（单格不接管）+ `HandEyePaste.TryApply`（整片校验 / 空单元格保持原值 / 超 12 列计 `Dropped`）+ `HandEyePaste.DescribeOutcome`；视图只在 `DataGrid.PreviewKeyDown` 里读剪贴板、用 `CurrentCell` 定起点、弹错误。**规则住插件侧，断言能直接测** |
 | 计数文案 | `SampleCountHint`（`[JsonIgnore]` 计算属性） |
 | 装法 | `PoseKind` + 两个布尔投影 `IsEyeInHand`/`IsEyeToHand`（RadioButton 绑布尔，不绑枚举） |
 | 两个上限 | `MaxTranslationRmsMm` / `MaxRotationRmsDeg`（`[StepConfig]`，`[DefaultValue]` 1.0 / 0.5，`ui:NumericBox`） |
@@ -245,7 +246,7 @@ v1 设计稿写完后四态逐个渲染，发现并修掉 3 个**静态读 HTML 
 | Q3 | 残差超限：**拦住**但门槛可改，红黄两色区分"解不出"与"不达标" | 待确认（按推荐落笔） |
 | Q4 | 结果去向：只走 `Transform` 端口，不落盘 | 待确认（按推荐落笔） |
 | Q5 | 换装法时字段不变，只换结果语义文案 ⇒ 不触发 R106/R107 的互斥字段集 | 待确认（按推荐落笔） |
-| Q6 | 表格是否需要"粘贴 Excel 一片区域"导入（比 CSV 更贴现场） | 待确认（本版未做） |
+| Q6 | 表格是否需要"粘贴 Excel 一片区域"导入（比 CSV 更贴现场） | **已拍板并已实现**（2026-10-23）：选中左上角那一格按 `Ctrl+V` 粘一片；制表符分列、换行分行；整片校验（错一格全不写）、空单元格保持原值、超 12 列丢弃并报数。`HandEyeCsv` 仍是批量导入导出，两者不互相替代 |
 
 ## 13. 变更规则
 

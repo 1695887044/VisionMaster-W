@@ -317,7 +317,8 @@
                           SelectionUnit="CellOrRowHeader"
                           Style="{StaticResource DialogDataGrid}"
                           LoadingRow="SamplesGrid_LoadingRow"
-                          ToolTip="一行 = 一组「机器人位姿 ↔ 相机位姿」。位置 mm、角度度、姿态 ZYX 欧拉">
+                          PreviewKeyDown="SamplesGrid_PreviewKeyDown"
+                          ToolTip="一行 = 一组「机器人位姿 ↔ 相机位姿」。位置 mm、角度度、姿态 ZYX 欧拉&#10;可以从 Excel 复制一片单元格，选中左上角那一格按 Ctrl+V 粘贴">
                     <DataGrid.RowStyle>
                         <Style TargetType="DataGridRow" BasedOn="{StaticResource DialogDataGridRow}">
                             <Style.Triggers>

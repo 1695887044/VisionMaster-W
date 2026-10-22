@@ -20,6 +20,12 @@ namespace Plugin.HandEye.Models
     /// </summary>
     public class HandEyeSample : ObservableObject
     {
+        /// <summary>
+        /// 一行的格数（机器人 6 个 + 相机 6 个）。CSV 的列数、表格的数值列数、
+        /// 粘贴时的宽度上限都引用它 —— 三处各写一个 12 迟早会不一致。
+        /// </summary>
+        public const int ColumnCount = 12;
+
         private double _robotX;
         private double _robotY;
         private double _robotZ;

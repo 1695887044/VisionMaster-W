@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Microsoft.Win32;
 using Plugin.HandEye.Models;
 
@@ -190,6 +192,80 @@ namespace Plugin.HandEye
                 {
                     return new UTF8Encoding(false).GetString(bytes);
                 }
+            }
+        }
+
+        // ==================== 粘贴一片（从 Excel / WPS 复制多格） ====================
+
+        /// <summary>
+        /// Ctrl+V 粘贴一片单元格。剪贴板里的文本是「制表符分列、换行分行」的纯文本，
+        /// 解析与写入全部交给 <see cref="HandEyePaste"/>（数据规则留在插件侧，断言能测）；
+        /// 这里只做视图才能做的事：读剪贴板、定位起点、把结果/错误报给用户。
+        /// </summary>
+        private void SamplesGrid_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.V || (Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control) return;
+
+            string text = ReadClipboardText();
+            if (!HandEyePaste.IsBlock(text)) return;   // 单格：让 DataGrid 自己进编辑态
+            e.Handled = PasteBlock(text);
+        }
+
+        private bool PasteBlock(string text)
+        {
+            var plugin = Plugin;
+            if (plugin is null) return false;
+
+            (int startRow, int startColumn) = CurrentPasteAnchor(plugin);
+
+            if (!HandEyePaste.TryApply(plugin, text, startRow, startColumn, out var outcome, out string? error))
+            {
+                MessageBox.Show(Window.GetWindow(this), error ?? "粘贴失败", "粘贴",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return true;
+            }
+
+            // 只有真丢了格子才提示；正常粘贴让用户直接看到表格变了，不弹框。
+            if (outcome.Dropped > 0)
+            {
+                MessageBox.Show(Window.GetWindow(this), HandEyePaste.DescribeOutcome(outcome), "粘贴",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 粘贴起点：当前单元格。没选中任何格子时接在表尾，而不是覆盖第一行 ——
+        /// 第一行是构造所有相对运动的基准样本，悄悄换掉它比少粘一片更难查。
+        /// </summary>
+        private (int Row, int Column) CurrentPasteAnchor(HandEyePlugin plugin)
+        {
+            DataGridCellInfo cell = SamplesGrid.CurrentCell;
+            if (cell.IsValid && cell.Column is not null)
+            {
+                int column = cell.Column.DisplayIndex;
+                if (column < 0 || column >= HandEyeSample.ColumnCount) column = 0;
+
+                int row = SamplesGrid.Items.IndexOf(cell.Item);
+                if (row < 0) row = 0;
+
+                return (row, column);
+            }
+
+            return (plugin.Samples.Count, 0);
+        }
+
+        /// <summary>剪贴板可能被其它进程占着（剪贴板历史、远程桌面），读失败按空处理</summary>
+        private static string ReadClipboardText()
+        {
+            try
+            {
+                return Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty;
+            }
+            catch (Exception)
+            {
+                return string.Empty;
             }
         }
     }
