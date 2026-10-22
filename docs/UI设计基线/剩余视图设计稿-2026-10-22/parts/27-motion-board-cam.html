@@ -1,0 +1,123 @@
+<section class="view" id="view-27">
+  <div class="view-head">
+    <h2>运动板卡 · 电子凸轮（页签内容）</h2>
+    <span class="file">VisionMaster\Views\DialogViews\MotionBoard\MotionBoardCamView.xaml</span>
+    <span class="size">616 行 · 4 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：表栏 + 同步运行 + 轮廓预览 + 拐点表 + 保存条 -->
+    <div class="mock" style="width:1080px;max-width:100%;margin-bottom:14px">
+      <div class="mock-bar">
+        <span class="t">电子凸轮</span><span class="s">页签内容 · 嵌在 26 主窗工作区内（左侧卡列表 260px 不变）</span>
+        <span class="grow"></span><span class="tag warn">本页当前未挂入页签栏</span>
+      </div>
+      <div class="mock-body">
+        <div class="tabs" style="margin-bottom:14px"><span class="tab">卡设置</span><span class="tab">手动调试</span><span class="tab">点位列表</span></div>
+
+        <div class="card">
+          <div class="field" style="margin-bottom:0">
+            <span class="tool active">主凸轮表</span><span class="tool">回原凸轮</span><span class="tool">＋ 新建</span>
+            <span class="input" style="width:140px;flex:0 0 auto">主凸轮表</span>
+            <span style="flex:1 1 auto"></span><span class="tool danger">删除本表</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="field">
+            <span class="field-label left">主轴（发报）</span><span class="combo" style="width:180px;flex:0 0 auto">运动卡1 · X轴</span>
+            <span class="field-label left">从轴（跟随）</span><span class="combo" style="width:180px;flex:0 0 auto">运动卡1 · Y轴</span>
+            <span class="field-label left">主轴速度 (mm/s)</span><span class="input mono" style="width:110px;flex:0 0 auto">50.0</span>
+            <span style="flex:1 1 auto"></span><span class="tool danger">停止同步</span><span class="tool">复位</span>
+          </div>
+          <div class="card" style="margin-top:6px">
+            <div style="display:flex;align-items:center;gap:16px">
+              <div class="kv" style="flex:0 0 auto;display:block"><div class="k">主轴位置</div><div class="v mono" style="font-size:20px"><strong>151.200</strong> mm</div></div>
+              <span class="sep"></span>
+              <div class="kv" style="flex:0 0 auto;display:block"><div class="k">从轴位置</div><div class="v mono" style="font-size:20px"><strong>96.438</strong> mm</div></div>
+              <span class="sep"></span>
+              <div style="width:220px">
+                <div class="hint">本周期进度 <span style="float:right">42.0%</span></div>
+                <div style="height:8px;background:var(--border);border-radius:4px;margin-top:4px"><div style="width:42%;height:8px;background:var(--accent);border-radius:4px"></div></div>
+              </div>
+              <span style="flex:1 1 auto"></span>
+              <span class="tag info"><span class="dot info"></span>同步中</span>
+            </div>
+          </div>
+          <svg viewBox="0 0 600 180" style="width:100%;height:180px;margin-top:14px">
+            <line x1="20" y1="45" x2="580" y2="45" style="stroke:var(--border);stroke-dasharray:4 6"></line>
+            <line x1="20" y1="90" x2="580" y2="90" style="stroke:var(--border);stroke-dasharray:4 6"></line>
+            <line x1="20" y1="135" x2="580" y2="135" style="stroke:var(--border);stroke-dasharray:4 6"></line>
+            <polyline points="20,170 160,150 300,90 440,30 580,10" fill="none" style="stroke:var(--accent);stroke-width:2.5"></polyline>
+            <circle cx="160" cy="150" r="4" fill="none" style="stroke:var(--accent);stroke-width:2"></circle>
+            <circle cx="300" cy="90" r="4" fill="none" style="stroke:var(--accent);stroke-width:2"></circle>
+            <circle cx="440" cy="30" r="4" fill="none" style="stroke:var(--accent);stroke-width:2"></circle>
+            <line x1="265" y1="12" x2="265" y2="172" style="stroke:var(--accent-border);stroke-width:1"></line>
+            <circle cx="265" cy="104" r="5" style="fill:var(--accent)"></circle>
+          </svg>
+          <div class="hint" style="text-align:center">主轴 0 → 360 mm · 5 个拐点 · 末段回接首点形成周期 · 游标 42.0%</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">凸轮拐点 <span class="hint">主轴位置递增排列 · 插补决定本段（该点到下一点）的形状 · 末段回接首点形成周期</span></div>
+          <div class="table">
+            <div class="thead">
+              <div class="th" style="width:52px">#</div><div class="th" style="flex:1 1 auto">主轴位置 (mm)</div>
+              <div class="th" style="flex:1 1 auto">从轴位置 (mm)</div><div class="th" style="width:150px">到下一点插补</div><div class="th" style="width:52px"></div>
+            </div>
+            <div class="tr"><div class="td mono" style="width:52px">1</div><div class="td" style="flex:1 1 auto">0.000</div><div class="td" style="flex:1 1 auto">0.000</div><div class="td" style="width:150px"><span class="combo">直线</span></div><div class="td" style="width:52px"><span class="tool icon">✕</span></div></div>
+            <div class="tr"><div class="td mono" style="width:52px">2</div><div class="td" style="flex:1 1 auto">90.000</div><div class="td" style="flex:1 1 auto">45.000</div><div class="td" style="width:150px"><span class="combo">三次曲线</span></div><div class="td" style="width:52px"><span class="tool icon">✕</span></div></div>
+            <div class="tr"><div class="td mono" style="width:52px">3</div><div class="td" style="flex:1 1 auto">180.000</div><div class="td" style="flex:1 1 auto">180.000</div><div class="td" style="width:150px"><span class="combo">直线</span></div><div class="td" style="width:52px"><span class="tool icon">✕</span></div></div>
+            <div class="tr"><div class="td mono" style="width:52px">4</div><div class="td" style="flex:1 1 auto">270.000</div><div class="td" style="flex:1 1 auto">315.000</div><div class="td" style="width:150px"><span class="combo">三次曲线</span></div><div class="td" style="width:52px"><span class="tool icon">✕</span></div></div>
+            <div class="tr"><div class="td mono" style="width:52px">5</div><div class="td" style="flex:1 1 auto">360.000</div><div class="td" style="flex:1 1 auto">360.000</div><div class="td" style="width:150px"><span class="combo">直线</span></div><div class="td" style="width:52px"><span class="tool icon">✕</span></div></div>
+          </div>
+          <div class="tool" style="margin-top:10px">＋ 添加拐点</div>
+          <div class="hint" style="margin-top:6px">≤2 行时删除按钮禁用（末段要能回接首点）。</div>
+        </div>
+
+        <div class="card">
+          <div class="field" style="margin-bottom:0">
+            <span class="hint" style="flex:1 1 auto">改完点「保存凸轮表」落库；同步运行用的是当前表（仿真）</span>
+            <span class="tool primary">保存凸轮表</span>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>凸轮表是全局实体（跨卡任意主从组合），同步为纯软件仿真，不依赖卡连接。</span>
+        <span class="grow"></span><span class="tag">仿真实时</span>
+      </div>
+    </div>
+
+    <!-- 边界态：没有凸轮表 -->
+    <div class="mock" style="width:1080px;max-width:100%">
+      <div class="mock-bar">
+        <span class="t">电子凸轮</span><span class="s">空态</span>
+        <span class="grow"></span><span class="tag warn">本页当前未挂入页签栏</span>
+      </div>
+      <div class="mock-body">
+        <div class="empty">
+          <div class="empty-glyph">▤</div>
+          <div class="empty-title">当前还没有凸轮表</div>
+          <div class="empty-hint">新建一张表后即可填主/从轴与拐点；至少 2 个不同主位置的拐点才能预览曲线。</div>
+          <div class="tool primary" style="margin-top:14px">＋ 新建凸轮表</div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>预览占位原文：至少填写 2 个不同主位置的拐点后才能预览凸轮曲线</span>
+        <span class="grow"></span><span class="tag">无表</span>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>MotionBoardCamView.xaml</code>（表栏 chips + 同步运行卡 + 读数条 + 轮廓预览 Canvas + 拐点表 + 贴底保存条）、<code>MotionBoardCamTabViewModel</code>（<code>MasterCaption</code> / <code>ProgressText</code> / <code>PolylinePoints</code> / <code>CanPreview</code>）</li>
+        <li>关键结构事实：本页<b>不在</b> <code>TabLabels</code>（只有卡设置 / 手动调试 / 点位列表），<code>SelectedTabIndex</code> 被夹取到 0~2，所以 26 的页签栏里看不到它——分片 26 的页签条刻意不画第 4 项。</li>
+        <li>改动要点：4 处 hex 换令牌；读数条原来的 <code>#1A0DA2E7 → #66F1F5F9 → #00F1F5F9</code> 三段渐变改成「浅底 + 主色数字」，避免与主色身份抢焦点。</li>
+        <li>改动要点：拐点表从自绘 Grid 表头改成 <code>table/tr/td</code> 同构（与 29 点位表、30 轴映射表列宽口径一致）；删除按钮固定 28×28 且显式内边距（R68）。</li>
+        <li>改动要点：轮廓预览保留为内联矢量（网格 25/50/75% + 折线 + 拐点圆 + 游标），无表/拐点不足时整块换成一句占位文案。</li>
+        <li>需要新增的接口：<span class="warn">是</span>——要真正开放本页需三处：① <code>MotionBoardViewModel.TabLabels</code> 加第 4 项「电子凸轮」；② <code>SelectedTabIndex</code> 的夹取上界从 2 改为 3；③ <code>MotionBoardView.xaml</code> 增加 <code>mb:MotionBoardCamView DataContext="{Binding Cam}"</code> 并按 <code>SelectedTabIndex=3</code> 显隐。</li>
+      </ul>
+    </div>
+  </div>
+</section>

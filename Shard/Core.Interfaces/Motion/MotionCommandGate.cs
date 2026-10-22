@@ -155,7 +155,21 @@ namespace Core.Interfaces
             if (!status.Enabled)
                 return MotionGateResult.Reject($"{name} 未使能，请先伺服使能");
 
-            if (!device!.IsHomed)
+            // 位置是否可信 = 已回零，**或**这台卡 / 这根轴配了绝对编码器（掉电不丢位置）。
+            //
+            // 为什么必须与设备层 MotionDeviceBase.CheckGateLocked 逐字同口径（用户裁决 2026-10-22 B2）：
+            // 这一层是界面与 SCADA 动作表的**预检**，设备层是**硬门禁**。两处判据不一致时，
+            // 配了绝对编码器的轴会出现「界面/SCADA 拒绝、设备层放行」——操作员看到"需要回零"，
+            // 而其实根本不用回零，现场就会去反复回零、甚至改流程绕开，真正的问题永远查不出来。
+            //
+            // 逃生口两级，与设备层一一对应：
+            //   · 卡级 SupportsAbsoluteEncoder —— 整卡都是绝对式（混合编码器机台不用这个）；
+            //   · 每轴 HasAbsoluteEncoder      —— 只这一根轴是绝对式（默认 false，需显式开启）。
+            var positionTrusted = device!.IsHomed
+                                  || device.Capabilities.SupportsAbsoluteEncoder
+                                  || axis.HasAbsoluteEncoder;
+
+            if (!positionTrusted)
                 return MotionGateResult.Reject($"{name} 需要回零后才能运动");
 
             if (status.Moving)

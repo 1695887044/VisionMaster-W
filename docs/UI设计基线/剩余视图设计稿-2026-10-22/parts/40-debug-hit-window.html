@@ -1,0 +1,74 @@
+<section class="view" id="view-40">
+  <div class="view-head">
+    <h2>调试命中窗</h2>
+    <span class="file">VisionMaster\Views\DebugHitWindow.xaml</span>
+    <span class="size">169 行 · 12 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：断点命中（窗口标题 = Header） -->
+    <div class="mock" style="max-width:430px">
+      <div class="mock-bar">
+        <span class="t">断点命中</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body">
+        <div class="card-title">● 断点命中</div>
+        <div class="kv"><span class="k">流程</span><span class="v">Main</span></div>
+        <div class="kv"><span class="k">步骤</span><span class="v">匹配_1（模板匹配）</span></div>
+
+        <div class="toolbar">
+          <span class="tool primary">继续</span>
+          <span class="tool">单步</span>
+          <span class="tool">停止</span>
+          <span class="grow"></span>
+          <span class="tool">打开步骤参数</span>
+        </div>
+
+        <div class="hint">继续 = 放行全部暂停中的调试会话（F5）；单步 = 执行一个节点后再次停住（F10，仅当恰好一个会话暂停时可用）。</div>
+        <span class="check"><span class="box"></span>本次运行不再提示</span>
+      </div>
+      <div class="mock-foot">
+        <span>非模态：点 ✕ 只隐藏，下次命中复用同一窗（单实例）</span>
+      </div>
+    </div>
+
+    <!-- 边界态：单步暂停 + 未能定位命中步骤 -->
+    <div class="mock" style="max-width:430px">
+      <div class="mock-bar">
+        <span class="t">单步暂停</span>
+        <span class="s">PauseReason = Step</span>
+        <span class="grow"></span>
+        <span class="tag warn">步骤未定位</span>
+      </div>
+      <div class="mock-body">
+        <div class="card-title">● 单步暂停</div>
+        <div class="kv"><span class="k">流程</span><span class="v">GoHome</span></div>
+        <div class="kv"><span class="k">步骤</span><span class="v">（未能定位命中步骤）</span></div>
+
+        <div class="toolbar">
+          <span class="tool primary">继续</span>
+          <span class="tool">单步</span>
+          <span class="tool">停止</span>
+          <span class="grow"></span>
+          <span class="tool">打开步骤参数</span>
+        </div>
+
+        <div class="hint">「打开步骤参数」在 <code>CanOpenParameters = false</code> 时置灰（<code>_hitTargetStep == null</code>）；三个运行按钮仍可用 —— 执行动作与主界面共用同一条互锁矩阵。</div>
+        <span class="check"><span class="box on"></span>本次运行不再提示</span>
+        <div class="hint">勾选后断点 / 单步照常停，只是不再弹本窗；随新一轮运行自动复位。</div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>DebugHitWindow.xaml</code>（430 宽、按内容定高、标准窗框，<code>Title = Header</code>）+ <code>DebugHitViewModel</code>（<code>Header</code> / <code>FlowName</code> / <code>StepName</code> / <code>CanOpenParameters</code> / <code>SuppressThisRun</code>）。文案逐字取自 XAML 与 Shell：标题两态「断点命中」/「单步暂停」，上下文两行「流程：{0}」/「步骤：{0}」，按钮「继续」「单步」「停止」「打开步骤参数」，勾选框「本次运行不再提示」，未定位占位「（未能定位命中步骤）」。</li>
+        <li>改动要点：① 12 处硬编码色（<code>#409EFF / #606266 / #DCDFE6 / #F5F7FA / #ECF5FF / #E6A23C / #303133 / #909399 / #FFFFFF</code>）全部换 <code>Dialog*</code> 令牌，两套自绘按钮样式（<code>HitPrimaryButton</code> / <code>HitSecondaryButton</code>）改为 <code>DialogPrimaryButton</code> / <code>DialogSecondaryButton</code>；② 命中图标从橙色实心圆改为语义警示色圆点 + 标题同色，避免"橙 = 警告"与真故障混淆；③ 按钮行把「继续」放最左（建议动作），「打开步骤参数」靠右单独一组；④ 快捷键说明从 ToolTip 提升为一行 11px 辅助文字（现场不看 ToolTip）。</li>
+        <li>边界态：单步暂停 + 步骤未定位（参数按钮置灰、勾选框已勾）；两种标题态都画了。窗口是非模态单实例，点 ✕ 只 <code>Hide()</code>，应用退出链才真正销毁。</li>
+        <li>需要新增的接口：无（<code>Header / FlowName / StepName / CanOpenParameters / SuppressThisRun / ExecutionCommand / OpenParametersCommand</code> 均已存在）。</li>
+      </ul>
+    </div>
+  </div>
+</section>

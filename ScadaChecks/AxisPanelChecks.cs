@@ -1440,6 +1440,12 @@ namespace ScadaChecks
             /// <summary>预置结果：true = 用户确认，false = 取消</summary>
             public bool Result { get; set; } = true;
 
+            /// <summary>确认框打开期间要执行的动作（用来模拟模态期间数据泵回读改值）</summary>
+            public Action? OnConfirm { get; set; }
+
+            /// <summary>true = 确认时压一个 DispatcherFrame，让 Background 队列（数据泵）有机会跑</summary>
+            public bool PumpDispatcher { get; set; }
+
             public string? LastTitle { get; private set; }
 
             public string? LastMessage { get; private set; }
@@ -1449,6 +1455,22 @@ namespace ScadaChecks
                 Calls++;
                 LastTitle = title;
                 LastMessage = message;
+
+                if (PumpDispatcher)
+                {
+                    var frame = new DispatcherFrame();
+                    Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+                    {
+                        OnConfirm?.Invoke();
+                        frame.Continue = false;
+                    }));
+                    Dispatcher.PushFrame(frame);
+                }
+                else
+                {
+                    OnConfirm?.Invoke();
+                }
+
                 return Result;
             }
         }

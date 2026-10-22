@@ -1,0 +1,118 @@
+<section class="view" id="view-15">
+  <div class="view-head">
+    <h2>批量插入模板（参数编辑器）</h2>
+    <span class="file">VisionMaster\Views\Controls\ScadaBatchInsertTemplateEditor.xaml</span>
+    <span class="size">128 行 · 0 hex</span>
+  </div>
+  <div class="view-body">
+
+    <div class="mock" style="width:620px">
+      <div class="mock-bar">
+        <span class="t">批量插入模板</span>
+        <span class="s">EasyDialog 外壳（校验失败留在同一份编辑器上重试，不重建丢输入）</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body">
+        <div class="field">
+          <span class="field-label">模板</span>
+          <div class="combo">控制单元（4 按钮）</div>
+        </div>
+        <div class="split">
+          <div class="field" style="flex:1 1 0">
+            <span class="field-label">生成数量</span>
+            <div class="input mono">10</div>
+          </div>
+          <div class="field" style="flex:1 1 0">
+            <span class="field-label">起始序号</span>
+            <div class="input mono">3</div>
+          </div>
+        </div>
+        <div class="split">
+          <div class="field" style="flex:1 1 0">
+            <span class="field-label">每行列数</span>
+            <div class="input mono">5</div>
+          </div>
+          <div class="field" style="flex:1 1 0">
+            <span class="field-label">水平间距</span>
+            <div class="input mono">20</div>
+          </div>
+        </div>
+        <div class="split">
+          <div class="field" style="flex:1 1 0">
+            <span class="field-label">垂直间距</span>
+            <div class="input mono">20</div>
+          </div>
+          <div class="field" style="flex:1 1 0">
+            <span class="field-label">起点 X / Y</span>
+            <div class="split" style="flex:1 1 auto">
+              <div class="input mono" style="flex:1 1 0">0</div>
+              <div class="input mono" style="flex:1 1 0">0</div>
+            </div>
+          </div>
+        </div>
+
+        <p class="hint" style="margin:0 0 8px 92px">控制单元（4 按钮） · 12 个图元</p>
+
+        <div class="card">
+          <p class="card-title"><span class="dot info"></span> 校验 / 警告结果</p>
+          <p class="hint">确认后会在当前画面按上面的参数生成实例；任何一个变量解析失败都不会插入。</p>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>起始序号默认取模板保存时的下标（Control[3] 的模板默认从 3 起）</span>
+        <span class="grow"></span>
+        <span class="tool">取消</span>
+        <span class="tool primary">确定</span>
+      </div>
+    </div>
+
+    <div class="mock" style="width:620px">
+      <div class="mock-bar">
+        <span class="t">批量插入模板 · 校验失败</span>
+        <span class="s">整批不插入，原因逐条列出（最多 8 条 + 余数）</span>
+      </div>
+      <div class="mock-body">
+        <div class="split">
+          <div class="field" style="flex:1 1 0">
+            <span class="field-label">生成数量</span>
+            <div class="input mono">800</div>
+          </div>
+          <div class="field" style="flex:1 1 0">
+            <span class="field-label">起始序号</span>
+            <div class="input mono">0</div>
+          </div>
+        </div>
+        <div class="card">
+          <p class="card-title"><span class="tag err">校验失败</span> 模板校验失败，整批不会插入：</p>
+          <p class="hint">实例 3 / 图元「泵体」 / Control[2]：变量「FlowRate」不存在</p>
+          <p class="hint">实例 3 / 图元「启动」 / State[0]：变量「RunCmd」不存在</p>
+          <p class="hint">……另有 5 条错误</p>
+        </div>
+        <div class="card">
+          <p class="card-title"><span class="tag warn">数量越界</span> 生成数量必须在 1 ~ 500 之间</p>
+          <p class="hint">每个字段的越界与非法值都只落到这一块里，输入框本身不回灌、不纠正（用户打到一半不该被改）</p>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>模板为空时这一块显示「请先选择一个模板」</span>
+        <span class="grow"></span>
+        <span class="tool">取消</span>
+        <span class="tool primary">确定</span>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScadaBatchInsertTemplateEditor.xaml</code> + <code>.xaml.cs</code>（<code>ScadaBatchInsertTemplateViewModel</code>：CountText 10 / StartIndexText / ColumnsText 5 / GapXText 20 / GapYText 20 / OriginXText / OriginYText / TemplateSummary / StatusText）</li>
+        <li><span class="warn">尺寸事实纠正</span>：简报说按 340 设计，源码是 <code>Width="620"</code>、<code>MinHeight="360"</code>、<code>EasyDialog.ShowSync("批量插入模板", editor)</code> 的独立弹窗；340 里放不下「生成数量 + 起始序号」这一对（各 90 定宽 + 90 标签 = 360）。若真要嵌检查器，字段必须改成单列堆叠（本页不另出窄档，理由在此）</li>
+        <li>改动要点 1：字段是扁平七项（模板 / 数量 / 起始序号 / 列数 / 水平间距 / 垂直间距 / 起点 X Y），标签一律右对齐 90 定宽；两列成对排布时同行等高（<code>FieldBox</code> 统一 28）</li>
+        <li>改动要点 2：数值一律存文本、解析推迟到 <code>TryBuildPlan</code>——输入框不许做即时纠正，否则「打到一半」会被改成 0；错误只在状态块里说</li>
+        <li>改动要点 3：状态块现在是一块 <code>ScadaPanelBackgroundBrush</code> 灰底 + 次要色文字，成功/失败/警告三种结果长得一样；应按结果换语义令牌（成功 / 危险 / 警告）并保留「整批不插入」这句</li>
+        <li>改动要点 4：模板摘要（<code>TemplateSummary</code>）紧贴字段区左缩进 90，用次要色；模板为空时显示「请选择模板」</li>
+        <li>需要新增的接口：无（状态文案已由 VM 产出；若要给状态块加语义级别，需要在 VM 上补一个 <code>StatusLevel</code>，属可选增强）</li>
+      </ul>
+    </div>
+  </div>
+</section>

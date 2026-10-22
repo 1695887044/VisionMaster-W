@@ -26,7 +26,7 @@ S 档一页承担三个角色：架构与数据流、白拿的宿主/契约行�
 | 2 | `Homed.Value = false` | **开头清零**：本轮失败时下游不能拿到上一轮的 true。流程可重复执行，输出端口不是"曾经成功过"的存证 |
 | 3 | `MotionAxisResolution.TryResolveAxis(...)` | 一次调用同时拿到"设备 + 轴映射"；失败原因文本由解析器给出，步骤**不编自己的措辞**（同一句话在 7 个步骤里必须一致） |
 | 4 | `device.State != MotionCardState.Online` → `Fail` | 回零比使能严：报警态**不放行**。这里只判一个"非在线即拒"，冒号后直接用 `StateDetail`，步骤不再自己列举状态文案 |
-| 5 | `!device.Capabilities.SupportsHomeMode(Mode)` → `Fail` | 能力协商**前置**：不支持时把 `SupportedHomeModes` 用「、」拼出来告诉用户换哪个。空清单另给一句"尚未上报能力"，避免报错后半句是空白 |
+| 5 | 步骤侧**不做**能力协商；`device.Enqueue` 时由设备门禁 `CheckGateLocked` 检查 `SupportsHomeMode` | 能力协商只留一个落点（设备门禁）：两套判据必然漂移。拒绝原因由门禁拼出"它支持的是：…"清单，步骤原样拼进 `ErrorMessage` |
 | 6 | `var timeout = Math.Max(1000, TimeoutMs)` | 下限写在步骤侧，而不是让基类去猜；1000 ms 是"寻零动作的物理下限"，比它小的超时只会变成噪声 |
 | 7 | `new MotionCommand { Kind = Home, HomeMode = Mode, WaitsForCompletion = true, Retryable = false }` | 三个语义都在这里定：等（后面必须站在零点上）、**不许重试**（失败时轴可能正压在开关上，再来一次可能撞机械原点）、厂商码由驱动映射 |
 | 8 | `device.Enqueue(command)` 后判 `!= Accepted` | `Accepted` 只代表"收进队列"；拒绝时把 `LastFault?.Suggestion` 拼进文案（**闸门的原因就写在这个字段里**，漏拼就等于只报一个成员名） |
@@ -39,7 +39,8 @@ S 档一页承担三个角色：架构与数据流、白拿的宿主/契约行�
 | 状态 | 真源 | 本步骤读还是写 |
 | --- | --- | --- |
 | 卡状态机（Closed / Connecting / Online / Alarm / SafeStopped） | `MotionDeviceBase`（轮询线程 + 看门狗 + 急停） | 读 `State` / `StateDetail` |
-| 是否已回零 `IsHomed` | 基类在 `Done` 时 `MarkHomed(true)`；失联/断线时按能力位归 false | **不读**（本步骤自己报 `Homed`，基类那一份是给调试面板与后续判断用的） |
+| 是否已回零 `IsHomed` | 基类在 `Done` 时 `MarkHomed(true)`；失联/断线时按能力位归 false | **本步骤不读**（本步骤自己报 `Homed`，基类那一份是给调试面板与后续 Move 门禁用） |
+| 是否正在运动 `Moving` | 驱动轮询回填的轴状态快照 | **步骤不读**；设备门禁的 Home 前置条件读它（只挡 `Moving`） |
 | 命令生命周期 | `MotionCommand`（队列 + `Completion` 事件 + `State` / `Error`） | 造、入队、等，随后 `using` 释放 |
 | 能力表（含支持的 `HomeMode` 清单） | 驱动在连接成功后回填的 `MotionCapabilities` | 读（协商） |
 | 界面填的值 | 步骤的 `InputValues`（`.vms` 里） | 由基类 `ApplyConfigValues` 灌进端口与配置属性，`OnConfirm` 写回 |
@@ -60,7 +61,7 @@ S 档一页承担三个角色：架构与数据流、白拿的宿主/契约行�
 | 参数面板 | 宿主 `AutoPortConfigView`（`StepParameterDialog` 在没有自定义视图时包一层） | **只列输入端口、不列 `[StepConfig]`** —— 这就是本步骤的 `Mode` 没有编辑入口的原因（不是漏实现，是面板形态的既有约束） |
 | "只能选"下拉 | `LinkableValueEditor`：`IsOptionPort = DataType.IsEnum` 或 `IsFunctionalEnum` | `Axis` 因为显式 `IsFunctionalEnum = true` 落进这一档，链接/清除按钮都不出现 |
 | 动态候选 | `StepConfigOptionSource` + 宿主 `MotionModule` 注册表查询 | `OptionKind = MotionAxisName` 的候选来自**全局轴注册表**（只列 `Enabled` 且解析得到的名字），扫描期取一次存不下来 |
-| 命令排队 / 急停打断 / 能力校验 / 软限位 | `MotionDeviceBase.Enqueue` + `CheckGateLocked` | 步骤侧只需处理 `Accepted` 与否；回零在闸门里还会**再查一次** `SupportsHomeMode` |
+| 命令排队 / 急停打断 / 能力校验 / 软限位 / 运动前置条件 | `MotionDeviceBase.Enqueue` + `CheckGateLocked` | 步骤侧只需处理 `Accepted` 与否；能力协商与"只挡 Moving"都在门禁里，步骤不再重复 |
 | 取消与打断的区分 | 基类的 `_emergencyPending` | 急停打断的命令不记故障、不进安全停机，步骤侧只会看到 `Canceled` |
 | 流程失败语义 | `VisionPluginBase.Fail(...)` | `Success = false` + `ErrorMessage`，后续步骤照常执行（要不要停是流程的事） |
 
@@ -107,7 +108,8 @@ S 档一页承担三个角色：架构与数据流、白拿的宿主/契约行�
 | 流程里"轴由下拉选"失效，候选一片空白 | 端口没标 `OptionKind` / `IsFunctionalEnum`，编辑器认不出这是"方案候选"口 | `★全部 {N} 个运动插件的「轴」参数都标了动态候选`、`★运动插件里不再出现「卡地址」寻址（MotionCardAddress / CardKey 已删除）`（`FlowCanvasChecks\MotionZMotionChecks.cs`） |
 | 口声明了却不生效，链接上去读到的还是常量 | 只读常量、从不读 `ActualValue` | `★每个插件的「轴 / 卡」都有可链接的输入端口（只靠 [StepConfig] 常量的话，编辑流程时赋不了值——它不暴露为端口）`、`★端口在运行期真的被读取（有端口却只读常量 = 摆设，链接上去也不生效）` |
 | 老流程一编译就报"必填参数未配置" | 轴名口必须 `IsRequired = false` | `轴端口 IsRequired=false（老流程只填常量，不能因为没链接就判编译失败）` |
-| 不支持的回零方式跑到一半才失败（轴已经撞过去了） | 步骤侧协商与闸门校验被删掉一处 | `★不支持的回零方式在入队时就被拒绝（而不是运行到一半才失败）`（`FlowCanvasChecks\MotionChecks.cs`） |
+| 不支持的回零方式跑到一半才失败（轴已经撞过去了） | 设备门禁的能力校验被删掉（P1-A 起唯一落点） | `★不支持的回零方式在入队时就被拒绝（而不是运行到一半才失败）`（`FlowCanvasChecks\MotionChecks.cs`） |
+| 轴还在走就发回零，两个目标互相覆盖 | Home 的 `Moving` 前置条件被删 | `★运动中 Home 被拒`（`FlowCanvasChecks\MotionChecks.cs`）；反向由 `★未回零时 Home 不被拒` 钉住"只挡 Moving、不挡未回零" |
 | 回零"成功"了位置却不是零点 | 驱动完成判据或基类 `MarkHomed` 顺序被动过 | `回零命令完成`、`回零后位置归零（坐标系重建）`、`回零后 IsHomed=true` |
 | 手册被自动生成页顶掉、用户看到的不是我们写的那份 | Help 页没进 DLL / 放错目录 | `HM2 多插件程序集不许放扁平手册（防串页）`、`HM3 Help 子目录名逐字等于插件类名（分册能被认出）`、`HM4 有 Help/*.md 的工程都带 EmbeddedResource（手册进得了 DLL）`、`HM13 已交的开发章节达到所在档位的行数下限（L300/M150/S100，交了就不是随笔）`（`FlowCanvasChecks\HelpManualCheck.cs`） |
 
@@ -122,6 +124,7 @@ S 档一页承担三个角色：架构与数据流、白拿的宿主/契约行�
 | 报错后半句是空白，用户不知道能换成哪种方式 | 拼 `SupportedHomeModes` 时没处理空清单 | 无断言，靠人工核对（空清单必须落到"尚未上报能力"那句） |
 | 等待时间与命令内部超时差太小，偶发"步骤超时但卡其实刚完成" | `timeout + 1000` 的余量被改小或删掉 | 无断言，靠人工核对 |
 | 把"报警态也允许回零"当成一致性顺手加宽 | 本步骤与「轴使能」的门禁集合**刻意不同**：回零不许在报警态发起 | `★报警态拒绝运动命令（不会对着报警中的轴下发 Move）`（同族判据） |
+| 给 Home 顺手加上"必须先使能/必须先回零" | 把 Move 的三条前置条件套到 Home 上 | `★未回零时 Home 不被拒`、`★Home 不受「未使能」门禁影响`（`FlowCanvasChecks\MotionChecks.cs`） |
 
 ## 九、并行安全声明
 
@@ -136,6 +139,7 @@ S 档一页承担三个角色：架构与数据流、白拿的宿主/契约行�
 | --- | --- |
 | 端口/属性名或默认值 | `01-quickstart.md` 的默认值口径、本页第五节的存档键；`InputValues` 的键会变，老方案里的旧键静默失效 |
 | 门禁状态集合（比如放开报警态） | `05-troubleshooting.md` 第二节的分流表与用户页"卡状态要求比别的步骤严"那段 |
+| Home 的运动前置条件（只挡 Moving） | `05-troubleshooting.md` 的"正在运动"拒绝原文、`MotionChecks` 的 `★未回零时 Home 不被拒` / `★运动中 Home 被拒`；改判据必须改 `MotionDeviceBase.CheckMotionPreconditionsLocked`（唯一落点） |
 | 等待/超时余量或 `Retryable` | 用户页的"本步骤会等待""绝不盲目重试"整段口径 |
 | 错误文案 | `05-troubleshooting.md` 的原文对照表（那张表要求逐字一致，改了代码不改手册就是假绿） |
 | 新增 `HomeMode` 成员 | 驱动 `ZMotionHomeModes.ToSdk`、各驱动 `SupportedHomeModes`、`MotionEnumDisplay` 三个 switch、本页第六节的码表 |

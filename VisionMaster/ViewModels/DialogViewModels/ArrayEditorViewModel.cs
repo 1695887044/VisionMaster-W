@@ -1130,12 +1130,26 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var texts = Elements.Select(row => row.Value).ToList();
             Array? array = null;
 
+            // 数组域必须按**本次将要写入的档案**（pending）判断，不能按模型旧档案：
+            // 用户"清空换算 + 整组写入"时，旧档案是 double 域、新档案是声明类型域，
+            // 用旧档案构建 double[] 再按新档案 TryNormalizeArray 会把 105.5 静默舍成 106。
+            var pending = IsNetwork ? BuildPendingConversions() : null;
+            bool pendingHasConversion = HasEffectiveConversion(pending, _elementType);
+
+            // 整组写入前先把"镜像未完整且用户没填满"拦掉：否则会进入构建数组后
+            // 报一句"工程值不能为空"，让人误以为是自己填错了。
+            if (IsNetwork && IsWholeGroup && !HasCompleteMirror && !AllRowsFilled)
+            {
+                ErrorText = ConfirmHint;
+                return;
+            }
+
             // 只写修改项不需要整组数组：逐项写由 TryWriteElement 自己解析/校验。
             // 只有本地数组（回传整组）与网络整组写入才构建数组——
             // 否则"镜像未到、只填了一行"会被其它空行卡住（整组解析对空行必然失败）。
             if (!IsNetwork || IsWholeGroup)
             {
-                if (IsNetwork && NetworkModel?.HasElementConversion == true)
+                if (IsNetwork && pendingHasConversion)
                 {
                     // 换算生效：工程域是 double。按声明元素类型（int）解析会把 105.1 判成非法，
                     // 整组确认永远过不去；写路径也必须在反算之后才落声明类型。
@@ -1174,7 +1188,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 try
                 {
-                    await ConfirmNetworkAsync(array);
+                    await ConfirmNetworkAsync(array, pending);
                 }
                 catch (Exception ex)
                 {
@@ -1196,7 +1210,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RequestClose.Invoke(result, ButtonResult.OK);
         }
 
-        private async Task ConfirmNetworkAsync(Array? array)
+        private async Task ConfirmNetworkAsync(Array? array, ElementConversion?[]? pending)
         {
             if (_model is not NetworkVariableModel networkModel)
             {
@@ -1218,7 +1232,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 return;
             }
 
-            var pending = BuildPendingConversions();
+            // 用 ConfirmAsync 构建数组时的同一份档案（避免"构建用旧档案、写入用新档案"的域错位）
+            var effectivePending = pending ?? BuildPendingConversions();
 
             if (IsChangedOnly)
             {
@@ -1233,7 +1248,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                         return;
                     }
 
-                    networkModel.ElementConversions = pending;
+                    networkModel.ElementConversions = effectivePending;
                     RequestClose.Invoke(
                         new DialogParameters { { VariableKey, networkModel } },
                         ButtonResult.OK);
@@ -1246,7 +1261,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     return;
                 }
 
-                await WriteChangedElementsAsync(networkModel, pending, dirty);
+                await WriteChangedElementsAsync(networkModel, effectivePending, dirty);
                 return;
             }
 
@@ -1280,7 +1295,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 return;
             }
 
-            await WriteWholeGroupAsync(networkModel, array, pending);
+            await WriteWholeGroupAsync(networkModel, array, effectivePending);
         }
 
         /// <summary>逐项写入改过的元素（每项一个元素地址，不读改写、不碰邻居）</summary>
@@ -1423,9 +1438,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 string text = texts[i] ?? string.Empty;
                 if (string.IsNullOrWhiteSpace(text))
                 {
-                    error = $"第 {i + 1} 项：工程值不能为空（该元素配置了换算）";
-                    errorIndex = i;
-                    return false;
+                    // 整组写入的空行按类型默认值处理，与无换算的 TryBuildArray 口径一致；
+                    // 只写修改项的空行仍由 TryWriteElement 明确拒绝（那里"空"更像漏填）。
+                    array[i] = 0;
+                    continue;
                 }
 
                 if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
@@ -1453,6 +1469,17 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
             return result;
         }
+
+        /// <summary>
+        /// 数组域判定：pending 档案里是否有生效的数值换算。
+        /// <para>ConfirmAsync 必须用它（而不是模型旧档案）决定构建 double[] 还是声明类型数组——
+        /// 用户"清空换算 + 整组写入"时两者域不同，混用会把旧工程值静默舍成 raw。</para>
+        /// </summary>
+        public static bool HasEffectiveConversion(ElementConversion?[]? conversions, Type? elementType)
+            => conversions != null
+               && elementType != null
+               && ArrayConversion.IsNumericElement(elementType)
+               && conversions.Any(c => c != null && !c.IsIdentity);
 
         /// <summary>整组写入前的镜像冲突检查：当前镜像与打开时快照逐项比较</summary>
         private bool HasMirrorConflict(Array current)

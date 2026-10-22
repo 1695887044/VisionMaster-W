@@ -28,6 +28,7 @@
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/BitButtonElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/IndicatorElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ProgressBarElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/SliderElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/IOFieldElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/LampElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ClockElement.xaml" />

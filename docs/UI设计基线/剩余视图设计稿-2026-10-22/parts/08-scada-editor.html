@@ -1,0 +1,140 @@
+<section class="view" id="view-08">
+  <div class="view-head">
+    <h2>组态编辑器</h2>
+    <span class="file">VisionMaster\Views\ScadaEditorView.xaml</span>
+    <span class="size">724 行 · 4 hex</span>
+  </div>
+  <div class="view-body">
+
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="t">组态画面 · 主界面</span>
+        <span class="s">中央文档区 · 顶栏一行 44px（排不下时右组整组折第二行）</span>
+        <span class="grow"></span>
+        <span class="tag">已选中 1 个图元</span>
+      </div>
+
+      <div class="toolbar wrap">
+        <span class="hint">画面</span>
+        <span class="combo" style="width:150px;flex:0 0 auto">主界面</span>
+        <span class="hint">基座</span>
+        <span class="tool">公共页眉 ▾</span>
+        <span class="sep"></span>
+        <span class="tool">＋ 新建</span>
+        <span class="tool icon">▾</span>
+        <span class="tool icon danger">✕</span>
+        <span class="sep"></span>
+        <span class="tool">撤销</span>
+        <span class="tool">重做</span>
+        <span class="grow"></span>
+        <span class="check"><span class="box on"></span>网格</span>
+        <span class="check"><span class="box on"></span>吸附</span>
+        <span class="sep"></span>
+        <span class="tool icon">−</span>
+        <span class="hint">100%</span>
+        <span class="tool icon">＋</span>
+        <span class="tool">适应</span>
+        <span class="tool">1:1</span>
+        <span class="sep"></span>
+        <span class="tool primary">运行画面</span>
+        <span class="tool icon">…</span>
+      </div>
+
+      <div class="mock-body alt">
+        <div class="card">
+          <div class="toolbar">
+            <span class="hint">上下文工具条：选中图元时浮在外接框上方，未选中整条收起（无常驻格式栏）</span>
+            <span class="grow"></span>
+            <span class="tool icon">▤</span>
+            <span class="tool icon">▣</span>
+            <span class="tool icon">◈</span>
+            <span class="sep"></span>
+            <span class="tool icon">▸</span>
+            <span class="tool icon">▾</span>
+            <span class="sep"></span>
+            <span class="tool icon">…</span>
+          </div>
+
+          <div class="cards three">
+            <div class="card">
+              <div class="card-title">罐体/料仓</div>
+              <div class="hint">Hmi.Tank · 320 × 240 · 图层「工艺设备」</div>
+            </div>
+            <div class="card">
+              <div class="card-title">泵 P-101 <span class="tag info">已选中</span></div>
+              <div class="hint">Hmi.Pump · 72 × 72 · 绑定 PUMP01_RUN</div>
+            </div>
+            <div class="card">
+              <div class="card-title">趋势曲线</div>
+              <div class="hint">Hmi.ChartTrend · 320 × 160</div>
+            </div>
+          </div>
+
+          <p class="hint" style="margin:10px 0 0">画面 1920 × 1080 居中浮在浅色工作台上（工作台 ≠ 运行态那层近黑底）；网格与吸附是画面属性，落盘</p>
+        </div>
+      </div>
+
+      <div class="mock-foot">
+        <span class="tag">100%</span>
+        <span class="tag">1920 × 1080</span>
+        <span class="grow"></span>
+        <span>画布左下角浮层胶囊；本视图没有底部状态条</span>
+      </div>
+    </div>
+
+    <div class="mock" style="margin-top:14px">
+      <div class="mock-bar">
+        <span class="t">组态画面 · 空态</span>
+        <span class="s">SelectedPage == null：方案已打开，但一张画面都没有</span>
+        <span class="grow"></span>
+        <span class="tag warn">运行画面不可用</span>
+      </div>
+
+      <div class="toolbar wrap">
+        <span class="hint">画面</span>
+        <span class="combo" style="width:150px;flex:0 0 auto">（无画面）</span>
+        <span class="hint">基座</span>
+        <span class="tool">（无基座） ▾</span>
+        <span class="sep"></span>
+        <span class="tool">＋ 新建</span>
+        <span class="tool icon">▾</span>
+        <span class="tool icon danger">✕</span>
+        <span class="sep"></span>
+        <span class="tool">撤销</span>
+        <span class="tool">重做</span>
+        <span class="grow"></span>
+        <span class="check"><span class="box"></span>网格</span>
+        <span class="check"><span class="box"></span>吸附</span>
+        <span class="sep"></span>
+        <span class="tool icon">−</span><span class="hint">100%</span><span class="tool icon">＋</span>
+        <span class="tool">适应</span><span class="tool">1:1</span>
+        <span class="sep"></span>
+        <span class="tool">运行画面</span>
+        <span class="tool icon">…</span>
+      </div>
+
+      <div class="mock-body alt">
+        <div class="empty">
+          <div class="empty-glyph">▤</div>
+          <p class="empty-title">当前方案还没有组态画面</p>
+          <p class="empty-hint">新建一张画面后，就可以拖入图元开始组态。</p>
+          <p style="margin-top:16px"><span class="tool primary">＋ 新建画面</span></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScadaEditorView.xaml</code>（顶栏两组 WrapPanel + <code>ScadaCanvas</code> + 浮层 <code>SelectionToolbar</code> / 缩放胶囊 + 空态 Border）、<code>ScadaEditorViewModel.cs</code>（<code>BasePageSummary</code> / <code>UndoLabel</code> / <code>Pages</code>）</li>
+        <li>改动要点 1：顶栏保持<b>一行 44px</b>、按组折行（左组＝画面/基座 + 新建/删除 + 撤销/重做，右组＝网格/吸附 + 缩放 + 运行画面 + 更多）。现状已是两组 WrapPanel，设计稿只钉"排不下时右组整组掉第二行"，不逐个按钮折</li>
+        <li>改动要点 2：<b>不要恢复常驻格式栏</b>——选中时浮 6 颗（左/中/右对齐 ‖ 置顶/上移 ‖ 更多），其余排列命令留在"更多"与画布右键菜单（图层归属 / 叠放次序 / 对齐与分布 / 等尺寸等间距 / 剪贴板）</li>
+        <li>改动要点 3：顶栏唯一实心主按钮是「运行画面」；删除画面是图标按钮（<span class="warn">稿内用 ✕ 占位，落地是 FA 垃圾桶 U+F1F8</span>），撤销/重做用"图标 + 中文"两个 TextBlock（图标字体无中文字形）</li>
+        <li>改动要点 4：<span class="warn">本文件其实<b>零处真实色值</b>——"4 hex"是注释里出现的色号（<code>#E9EEF5</code> / <code>#E2E8F0</code> / <code>#F1F5F9</code>），代码里颜色全走 <code>Scada*</code> / <code>Dialog*</code> 令牌，这条不用改</span>。要守的是另一条：顶栏按钮必须自带 Template，否则吃应用级 Fluent 隐式样式（实测 21px、渐变描边、圆角 5）</li>
+        <li>改动要点 5：空态三件套（18px 标题 + 12px 正文 + 主按钮）现有，保留；禁用态统一 <code>Opacity 0.4</code>，不做"灰字 + 灰底"两套</li>
+        <li>需要新增的接口：无</li>
+        <li><span class="warn">未验证项：窄档折行宽度由 <code>UpdateToolbarLayout</code> 现算，设计稿只表达"允许两行"，不钉像素阈值</span></li>
+      </ul>
+    </div>
+  </div>
+</section>

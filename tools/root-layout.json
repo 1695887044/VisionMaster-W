@@ -52,6 +52,7 @@
     ".git",
     ".codebuddy",
     ".qoder",
-    ".loomy-attachments"
+    ".loomy-attachments",
+    ".agent-teams"
   ]
 }

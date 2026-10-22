@@ -176,6 +176,8 @@ namespace ScadaChecks
 
             Phase2UiChecks();
             ScadaMultiBasePopupChecks.Run();
+            ScadaSoftKeyboardChecks.Run();
+            SliderChecks.Run();
 
             Phase1UiChecks();
 
@@ -2435,14 +2437,14 @@ namespace ScadaChecks
             string[] builtIns =
             {
                 "Hmi.Rectangle", "Hmi.Ellipse", "Hmi.Text", "Hmi.Button", "Hmi.BitButton", "Hmi.Indicator",
-                "Hmi.ProgressBar", "Hmi.IOField", "Hmi.Lamp", "Hmi.Clock", "Hmi.Gauge",
+                "Hmi.ProgressBar", "Hmi.Slider", "Hmi.IOField", "Hmi.Lamp", "Hmi.Clock", "Hmi.Gauge",
                 "Hmi.Valve", "Hmi.Pump", "Hmi.Motor", "Hmi.Pipe", "Hmi.AlarmBanner", "Hmi.ImageView",
                 "Hmi.Panel", "Hmi.AxisConsole", "Hmi.AxisPanel", "Hmi.AxisPointTable",
                 "Hmi.Tank", "Hmi.KpiBoard",
                 "Hmi.SelectorSwitch", "Hmi.TextField", "Hmi.ComboBox", "Hmi.AckButton",
                 "Hmi.DataGrid",
             };
-            Check("28 个内置图元全部注册（含容器图元 Hmi.Panel、轴控台/轴面板/旧点位表、罐体/KPI 看板、Phase 2 输入四件套、数据表格）",
+            Check("29 个内置图元全部注册（含容器图元 Hmi.Panel、轴控台/轴面板/旧点位表、罐体/KPI 看板、Phase 2 输入四件套、数据表格、模拟量滑块）",
                 builtIns.All(ElementRegistry.IsRegistered),
                 string.Join("、", ElementRegistry.All.Select(d => d.TypeKey)));
 
@@ -2566,6 +2568,13 @@ namespace ScadaChecks
                     "Orientation:走向=Horizontal;TrackColor:空槽色=#FF3A3A3A;ShowValue:显示数值=True;" +
                     "Fill:填充色=#FF2D7DD2;Stroke:边框色=#FF5A5A5A;StrokeThickness:边框粗细=1;CornerRadius:圆角=2;" +
                     "Foreground:数值颜色=#FFFFFFFF;FontSize:数值字号=11;FontWeight:数值字重=Bold",
+                ["Hmi.Slider"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Value:当前值=0;Minimum:量程下限=0;Maximum:量程上限=100;Step:步长=1;ValueFormat:数值格式=0.#;" +
+                    "Orientation:走向=Horizontal;TrackColor:轨道色=#FF26313D;ShowValue:显示数值=True;" +
+                    "Mode:模式=InputOutput;WriteMode:写入时机=Release;ConfirmDanger:写入前确认=False;" +
+                    "Fill:填充色=#FF2D7DD2;Stroke:边框色=#FF5A5A5A;StrokeThickness:边框粗细=1;CornerRadius:圆角=4;" +
+                    "Foreground:数值颜色=#FFE6EEF7;FontSize:数值字号=12;FontWeight:字重=Normal",
                 ["Hmi.IOField"] =
                     "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
                     "Value:数值=0;ValueFormat:数值格式=0.##;Unit:单位=;Mode:模式=Output;FormatType:格式类型=Decimal;" +
@@ -2653,7 +2662,7 @@ namespace ScadaChecks
             // S7 的验收口径里有一条「描述符必须声明可绑变量类型」：指示 / 数值类图元的那个"输入"
             // 属性一定要 IsBindable，否则运行态接不上变量，图元就只是个静态装饰——
             // 而"图元画得出来但绑不了变量"正是 D2（组态 → 运行）最想避免的那种半成品。
-            string[] bindableInputs = { "Hmi.ProgressBar:Value", "Hmi.IOField:Value", "Hmi.Lamp:State", "Hmi.Gauge:Value", "Hmi.Valve:Opening", "Hmi.Pump:State", "Hmi.Motor:State", "Hmi.Pipe:State", "Hmi.ImageView:Source" };
+            string[] bindableInputs = { "Hmi.ProgressBar:Value", "Hmi.Slider:Value", "Hmi.IOField:Value", "Hmi.Lamp:State", "Hmi.Gauge:Value", "Hmi.Valve:Opening", "Hmi.Pump:State", "Hmi.Motor:State", "Hmi.Pipe:State", "Hmi.ImageView:Source" };
             Check("新增图元的「输入」属性都声明了 IsBindable（否则运行态接不上变量）",
                 bindableInputs.All(spec =>
                 {

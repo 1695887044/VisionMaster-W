@@ -1,4 +1,5 @@
 using Core.Interfaces;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -6,6 +7,7 @@ using System.Collections.Specialized;
 using System.Linq;
 using System.Windows;
 using UI.Models;
+using VisionMaster.Binding;
 using VisionMaster.Helpers;
 using VisionMaster.Models;
 using VisionMaster.Services;
@@ -39,7 +41,11 @@ namespace VisionMaster.ViewModels
         public string SearchText
         {
             get => _searchText;
-            set => SetProperty(ref _searchText, value);
+            set
+            {
+                if (SetProperty(ref _searchText, value))
+                    RaiseFilterCounters();   // 底栏计数与"无结果"态都跟着搜索词变
+            }
         }
 
         /// <summary>等级筹码（顺序即显示顺序）；第一项是"全部"</summary>
@@ -62,7 +68,10 @@ namespace VisionMaster.ViewModels
             {
                 // 派生属性 FilterLevel 要跟着变，否则控件那边的依赖属性不会更新
                 if (SetProperty(ref _levelOption, value))
+                {
                     RaisePropertyChanged(nameof(FilterLevel));
+                    RaiseFilterCounters();
+                }
             }
         }
 
@@ -77,11 +86,73 @@ namespace VisionMaster.ViewModels
             set => SetProperty(ref _autoScroll, value);
         }
 
+        /// <summary>
+        /// 清空筛选条件（搜索词 + 等级回到「全部」）。
+        ///
+        /// 为什么放在 VM 而不是视图的 code-behind：无结果态的出口按钮要同时改
+        /// <see cref="SearchText"/> 与 <see cref="LevelOption"/> 两个属性，其中后者还要
+        /// 带动 <see cref="FilterLevel"/> 的通知链；写在视图里就得手写两条赋值 + 一次通知，
+        /// 而这里复用 setter 已有的通知逻辑（设计基线 log-console §4b ①）。
+        /// </summary>
+        public DelegateCommand ClearFiltersCommand { get; }
+
+        /// <summary>
+        /// 当前筛选命中条数（底栏「显示 N / 共 M」里的 N）。
+        ///
+        /// 为什么放在 VM：筛选本身挂在 LogConsole 内部的集合默认视图上（控件私有），
+        /// 视图拿不到；而 VM 手里有完整的 <see cref="SystemLogs"/> 与两个筛选条件，
+        /// 复算一遍的代价可以忽略（面板上限几千条）。判定口径必须与
+        /// LogConsole.FilterLogic 逐字一致：等级精确匹配 + 关键字忽略大小写匹配正文或来源。
+        /// </summary>
+        public int FilteredCount => CountFiltered();
+
+        private int CountFiltered()
+        {
+            var level = FilterLevel;
+            var keyword = _searchText;
+            bool hasKeyword = !string.IsNullOrWhiteSpace(keyword);
+            if (hasKeyword) keyword = keyword.Trim();
+
+            if (!level.HasValue && !hasKeyword) return SystemLogs.Count;
+
+            int n = 0;
+            foreach (var log in SystemLogs)
+            {
+                if (level.HasValue && log.Level != level.Value) continue;
+                if (hasKeyword)
+                {
+                    bool matchMsg = log.Message?.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0;
+                    bool matchSrc = log.Source?.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0;
+                    if (!matchMsg && !matchSrc) continue;
+                }
+                n++;
+            }
+            return n;
+        }
+
+        /// <summary>筛选条件是否生效（用于「无结果」与「空态」二选一，绑视图的显隐）</summary>
+        public bool HasFilter => FilterLevel.HasValue || !string.IsNullOrWhiteSpace(_searchText);
+
+        /// <summary>无结果：有筛选条件、且一条都没命中（区别于"真的没有日志"）</summary>
+        public bool IsFilterEmpty => HasFilter && FilteredCount == 0;
+
+        /// <summary>真的没有日志（刚启动 / 已清空），与"筛没了"分开</summary>
+        public bool IsEmpty => SystemLogs.Count == 0;
+
+        private void RaiseFilterCounters()
+        {
+            RaisePropertyChanged(nameof(FilteredCount));
+            RaisePropertyChanged(nameof(HasFilter));
+            RaisePropertyChanged(nameof(IsFilterEmpty));
+            RaisePropertyChanged(nameof(IsEmpty));
+        }
+
         public LogViewModel(ILogService _logService, AppSettingsService? settings = null)
         {
             _settings = settings;
             _allOption = LevelOptions[0];
             _levelOption = _allOption;   // 默认「全部」
+            ClearFiltersCommand = new DelegateCommand(ExecuteClearFilters);
             SystemLogs.CollectionChanged += OnSystemLogsChanged;
 
             if (_logService is LogService logService)
@@ -149,6 +220,16 @@ namespace VisionMaster.ViewModels
                     RecountAll();
                     break;
             }
+
+            // 底栏「显示 N」与「无结果/空」三态都依赖集合内容
+            RaiseFilterCounters();
+        }
+
+        /// <summary>清空筛选条件：搜索词置空 + 等级回到「全部」</summary>
+        private void ExecuteClearFilters()
+        {
+            SearchText = string.Empty;
+            LevelOption = _allOption;
         }
 
         private void BumpCounts(IList items, int delta)

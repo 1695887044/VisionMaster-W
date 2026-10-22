@@ -38,7 +38,7 @@
 
 | 参数 | 类型 | 默认值 | 取值范围 / 口径 | 生效细节 |
 | --- | --- | --- | --- | --- |
-| `Mode` | `HomeMode`（契约枚举） | `NegativeLimitIndex` | 8 个成员：`NegativeLimitIndex` `PositiveLimitIndex` `Origin` `NegativeLimitOrigin` `PositiveLimitOrigin` `PresetZero` `NegativeLimit` `PositiveLimit` | 入队前先用**这张卡上报的能力表**做协商，不支持当场失败；驱动把它映射成厂商模式码（正运动是 1/2/19/27/23/37/17/18，与 C# 值 0~7 **互不相等**） |
+| `Mode` | `HomeMode`（契约枚举） | `NegativeLimitIndex` | 8 个成员：`NegativeLimitIndex` `PositiveLimitIndex` `Origin` `NegativeLimitOrigin` `PositiveLimitOrigin` `PresetZero` `NegativeLimit` `PositiveLimit` | **设备门禁**用这张卡上报的能力表做协商，不支持当场失败；驱动把它映射成厂商模式码（正运动是 1/2/19/27/23/37/17/18，与 C# 值 0~7 **互不相等**） |
 | `TimeoutMs` | 整数（ms） | `120000` | 代码里 `Math.Max(1000, 该值)`：填 0、负数、500 都按 **1000 ms** 跑 | 步骤侧的实际等待上限是 `TimeoutMs + 1000 ms`（先到者胜：驱动侧自己也可能先判超时） |
 
 ## 四、输出端口与下游怎么用
@@ -64,6 +64,10 @@
 - **0 基**：物理轴号是 0 基，但流程里看不到它。
 - **等待语义**：本步骤**等**。等待上限 = `TimeoutMs + 1000 ms`；到点没等到就返回失败，不会无限挂着。
 - **不可重试**：命令带"禁止重试"标记，队列侧不会替它再来一次。
+- **运动前置条件**：Home **只挡"正在运动"**（`!Moving`）；未回零、未使能都不挡。
+  能力协商（`Mode` 是否被这张卡支持）也在设备门禁里，步骤侧不再重复一套判据。
+- **`IsHomed` 是卡级标志（既有契约）**：同一张卡上任意一根轴回零成功，Move 门禁就认为整卡已回零。
+  多轴机台请对每根参与运动的轴各放一步「轴回零」；要严格按轴拦截需要扩展契约（本次未做）。
 - **软限位不参与**：门禁只对绝对运动校验软限位，回零不查（回零本身就是在找机械基准）。
 - **"轴由上游决定"在这一步落不了地**：`Axis` 端口带 `OptionKind = MotionAxisName` 与 `IsFunctionalEnum = true`，
   编辑器把这类"候选来自方案"的口与枚举口一样按"只能选"处理，链接按钮不出现。要按配方切轴，

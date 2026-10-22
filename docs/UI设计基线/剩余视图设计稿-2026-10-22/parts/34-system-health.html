@@ -1,0 +1,174 @@
+<section class="view" id="view-34">
+  <div class="view-head">
+    <h2>系统健康</h2>
+    <span class="file">VisionMaster\Views\DialogViews\SystemHealthView.xaml</span>
+    <span class="size">495 行 · 0 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：全部正常 -->
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="t">系统健康</span>
+        <span class="s">通讯 / 相机 / 运动 运行态诊断 · 1 秒自动刷新</span>
+        <span class="grow"></span>
+        <span class="tool icon">⟳</span>
+        <span class="tool icon">✕</span>
+      </div>
+
+      <div class="mock-body alt">
+        <div class="card">
+          <div class="toolbar">
+            <span class="dot ok"></span>
+            <span>全部正常</span>
+            <span class="grow"></span>
+            <span class="hint">通讯 4 · 相机 2 · 运动 1</span>
+            <span class="hint">更新 19:04:12</span>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <span class="tab" aria-selected="true">概览</span>
+          <span class="tab">通讯</span>
+          <span class="tab">相机</span>
+          <span class="tab">运动</span>
+        </div>
+
+        <div class="cards three">
+          <div class="card">
+            <div class="card-title"><span class="dot ok"></span>通讯</div>
+            <div class="kv"><span class="k">摘要</span><span class="v">通讯 4/4 在线</span></div>
+            <div class="hint">4 条连接全部在线，最近一轮没有失败段。</div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="dot ok"></span>相机</div>
+            <div class="kv"><span class="k">摘要</span><span class="v">相机 2/2 正常</span></div>
+            <div class="hint">两次采样之间帧计数均增长。</div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="dot ok"></span>运动</div>
+            <div class="kv"><span class="k">摘要</span><span class="v">运动卡 1/1 正常</span></div>
+            <div class="hint">已回零（卡级）· 4 轴使能。</div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <span class="check"><span class="box on"></span>仅异常</span>
+          <span class="input ph" style="width:220px;max-width:220px">按对象 / 说明过滤</span>
+          <span class="grow"></span>
+          <span class="hint">按严重度排序</span>
+        </div>
+
+        <div class="table">
+          <div class="thead">
+            <span class="th" style="width:90px">状态</span>
+            <span class="th" style="width:56px">域</span>
+            <span class="th" style="width:150px">对象</span>
+            <span class="th" style="width:620px">状态说明</span>
+            <span class="th" style="width:130px">关键指标</span>
+          </div>
+        </div>
+        <div class="empty">
+          <div class="empty-glyph">✓</div>
+          <div class="empty-title">全部正常</div>
+          <div class="empty-hint">3 个域已接入 · 最近检查 19:04:12</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 边界态：有离线 / 故障 -->
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="t">边界态 · 有离线</span>
+        <span class="s">IssueSummary = 2 故障 · 1 警告</span>
+        <span class="grow"></span>
+        <span class="tag err">● 2 故障</span>
+        <span class="tag warn">● 1 警告</span>
+      </div>
+      <div class="mock-body alt">
+        <div class="card">
+          <div class="toolbar">
+            <span class="dot err"></span>
+            <span>2 故障 · 1 警告</span>
+            <span class="grow"></span>
+            <span class="hint">通讯 4 · 相机 2 · 运动 1</span>
+            <span class="hint">更新 19:04:12</span>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <span class="tab" aria-selected="true">概览</span>
+          <span class="tab">通讯</span>
+          <span class="tab">相机</span>
+          <span class="tab">运动</span>
+        </div>
+
+        <div class="cards three">
+          <div class="card">
+            <div class="card-title"><span class="dot err"></span>通讯<span class="tag err">故障</span></div>
+            <div class="kv"><span class="k">摘要</span><span class="v">通讯 3/4 在线 · 1 故障</span></div>
+            <div class="hint">称重仪 10.0.0.31:4001 连接超时。</div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="dot warn"></span>相机<span class="tag warn">警告</span></div>
+            <div class="kv"><span class="k">摘要</span><span class="v">相机 1/2 正常 · 1 警告</span></div>
+            <div class="hint">Cam-02 本采样周期无新帧（不代表掉线）。</div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="dot err"></span>运动<span class="tag err">故障</span></div>
+            <div class="kv"><span class="k">摘要</span><span class="v">运动卡 1/1 正常 · 1 故障</span></div>
+            <div class="hint">轴 Z 跟随误差超限。</div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <span class="check"><span class="box on"></span>仅异常</span>
+          <span class="input ph" style="width:220px;max-width:220px">按对象 / 说明过滤</span>
+          <span class="grow"></span>
+          <span class="hint">按严重度排序</span>
+        </div>
+
+        <div class="table">
+          <div class="thead">
+            <span class="th" style="width:90px">状态</span>
+            <span class="th" style="width:56px">域</span>
+            <span class="th" style="width:150px">对象</span>
+            <span class="th" style="width:620px">状态说明</span>
+            <span class="th" style="width:130px">关键指标</span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:90px"><span class="tag err">● 故障</span></span>
+            <span class="td" style="width:56px">通讯</span>
+            <span class="td" style="width:150px">称重仪</span>
+            <span class="td" style="width:620px">连接超时（3000 ms），连续 3 轮失败</span>
+            <span class="td mono" style="width:130px">默认 1000 ms</span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:90px"><span class="tag err">● 故障</span></span>
+            <span class="td" style="width:56px">运动</span>
+            <span class="td" style="width:150px">运动卡-1</span>
+            <span class="td" style="width:620px">伺服报警：轴 Z 跟随误差超限</span>
+            <span class="td mono" style="width:130px">4 轴使能</span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:90px"><span class="tag warn">● 警告</span></span>
+            <span class="td" style="width:56px">相机</span>
+            <span class="td" style="width:150px">Cam-02 右工位</span>
+            <span class="td" style="width:620px">本采样周期无新帧（不代表掉线）</span>
+            <span class="td mono" style="width:130px">最近收帧 2.4 s</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>SystemHealthView.xaml</code>（52 高标题栏 + 刷新/关闭 · 摘要条 · 四页签 · 概览三张域卡 + 仅异常/搜索 + 五列 GridView · 各域页只读表）。列名逐字取自 XAML：状态 / 域 / 对象 / 状态说明 / 关键指标（通讯页：状态·连接·协议·端点·角色·连接轮询·失败原因；相机页：状态·相机·序列号·驱动·状态说明·帧率·收·待·溢·丢·最近收帧；运动页：状态·卡·驱动·地址·轴（启用/能力）·回零·最近故障·计数）。</li>
+        <li>关系：本视图是已失效的 <code>io-health</code> 基线的事实继任者；IO 接入层已下线（IO 点位就是网络变量），所以只剩四页签，但 <code>DomainCards</code> 的 ItemsPanel 仍写 <code>UniformGrid Columns="4"</code> 而 VM 只造 3 张卡 —— 第 4 格恒空。</li>
+        <li>改动要点：① 域卡把「标题 + 档位」与「摘要」分层，摘要不再是 17px 大字（<code>CountText</code> 现在绑的是整句 <code>通讯 3/4 在线 · 1 故障</code>，窄卡里会折行）；② 摘要条把「总体状态 + 各域计数 + 更新时间」排成一条，更新时间右对齐；③ 状态列统一「圆点 + 档位文字」两段，不只用颜色区分（色盲可达）；④ 概览空态保留 <code>EmptyTitle/EmptyHint</code> 两个绑定，不写死「全部正常」。</li>
+        <li>需要新增的接口：<code>HealthDomainCard.Count</code> / <code>CountOf</code>（数字）与 <code>Summary</code> 拆开 —— 现在 <code>CountText</code> 一字段兼两职；其余（<code>OverallLevelKey</code> / <code>IssueSummary</code> / <code>LastRefreshText</code> / <code>EmptyTitle</code> / <code>EmptyHint</code> / <code>ShowOnlyIssues</code> / <code>SearchText</code>）已存在。</li>
+      </ul>
+    </div>
+  </div>
+</section>

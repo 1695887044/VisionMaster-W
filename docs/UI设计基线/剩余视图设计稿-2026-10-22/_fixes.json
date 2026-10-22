@@ -1,0 +1,28 @@
+{
+  "replace": [
+    { "file": "26-motion-board.html", "from": "运动卡「运动卡1」（正运动 ECI2828）已连接", "to": "「运动卡1」已连接，扫描到 6 个轴" },
+    { "file": "26-motion-board.html", "from": "正运动 ECI2828", "to": "正运动运动控制卡" },
+    { "file": "26-motion-board.html", "from": "请在左侧选择一张运动卡", "to": "还没有可显示的设置项" },
+    { "file": "26-motion-board.html", "from": "与中央「请在左侧选择一张运动卡」同时出现", "to": "与中央「还没有可显示的设置项」同时出现" },
+    { "file": "30-motion-board-settings.html", "from": "正运动 ECI2828", "to": "正运动运动控制卡" },
+    { "file": "30-motion-board-settings.html", "from": "<span class=\"tag\">ECI2828</span>", "to": "<span class=\"tag\">ECI3828</span>" },
+    { "file": "28-motion-board-debug.html", "from": "数字输入 IN · 8 路 · 只读监视", "to": "数字输入 IN · 24 路 · 只读监视" },
+    { "file": "28-motion-board-debug.html", "from": "数字输出 OUT · 8 路 · 点击切换", "to": "数字输出 OUT · 16 路 · 点击切换" },
+    { "file": "28-motion-board-debug.html", "from": "两栏各 8 路，数量与 VM 的 <code>Inputs/Outputs</code> 一致。", "to": "两栏路数取自设备能力（<code>Capabilities.DigitalInputCount / DigitalOutputCount</code>）：正运动卡典型 24 入 / 16 出；只有未连接时才是默认 8/8。" },
+    { "file": "37-help.html", "from": "宿主 77 页；插件 42 个（其中 42 个自带手册）（已隐藏）", "to": "宿主 4 页；插件 42 个（其中 42 个自带手册）（已隐藏）" },
+    { "file": "31-camera-settings.html", "from": "SN-2A17 · Basler Pylon", "to": "SN-2A17 · 海康相机" },
+    { "file": "31-camera-settings.html", "from": "SN-2A18 · Basler Pylon", "to": "SN-2A18 · 海康相机" },
+    { "file": "31-camera-settings.html", "from": "Basler Pylon（GigE）", "to": "海康相机（GigE）" },
+    { "file": "38-image-view.html", "from": "右键：钉住当前帧（对比基准）· 对比模式 · 清空画布 · 导出选中 · 导出全部", "to": "右键：钉住当前帧（对比基准）· 对比模式 · 锁定跟随 · 清空画布 · 导出选中 · 导出全部" },
+    { "file": "38-image-view.html", "from": "（右键菜单五项）", "to": "（右键菜单六项，含「锁定跟随」）" },
+    { "file": "17-scada-alarm-config.html", "from": "报警名「1#电机温度」已被占用，已回灌原名。", "to": "已存在同名报警 [1#电机温度]，请更换名称。" },
+    { "file": "14-scada-grid-columns.html", "from": "（第 3 行整行标红 = HasVariable 为假）", "to": "（第 3 行的变量框标红 = HasVariable 为假）" },
+    { "file": "08-scada-editor.html", "from": "选中时浮 7 颗", "to": "选中时浮 6 颗" },
+    { "file": "18-scada-login.html", "from": "<div class=\"mock\" style=\"width:520px\">", "to": "<div class=\"mock\" style=\"width:820px\">" },
+    { "file": "19-scada-user-manager.html", "from": "账号「admin」已更新：角色 → 工程师。", "to": "账号「admin」已更新：角色 → 管理员。" },
+    { "file": "13-scada-alarm-history.html", "from": "已恢复未确认", "to": "恢复待确认" }
+  ],
+  "removeLineContaining": [
+    { "file": "37-help.html", "all": ["变量管理", "自动生成"] }
+  ]
+}

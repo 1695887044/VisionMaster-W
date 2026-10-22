@@ -35,7 +35,7 @@ namespace VisionMaster.Scada.Controls
     [TemplatePart(Name = PartEditor, Type = typeof(TextBox))]
     [TemplatePart(Name = PartPlaceholder, Type = typeof(TextBlock))]
     [TemplatePart(Name = PartFrame, Type = typeof(Border))]
-    public partial class TextFieldElement : ScadaElementBase
+    public partial class TextFieldElement : ScadaElementBase, IScadaSoftKeyboardTarget
     {
         /// <summary>模板部件名：就地编辑用的输入框</summary>
         public const string PartEditor = "PART_Editor";
@@ -158,6 +158,28 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>是否只读（只读，见 <see cref="IsReadOnlyProperty"/>）</summary>
         public bool IsReadOnly => (bool)GetValue(IsReadOnlyProperty);
+
+        bool IScadaSoftKeyboardTarget.IsNumeric => false;
+
+        int IScadaSoftKeyboardTarget.MaxLength => EffectiveMaxLength;
+
+        string? IScadaSoftKeyboardTarget.UnitText => null;
+
+        string? IScadaSoftKeyboardTarget.RangeText => $"最多 {EffectiveMaxLength} 字";
+
+        string? IScadaSoftKeyboardTarget.OriginalText => Value ?? string.Empty;
+
+        /// <summary>软键盘拼出的文本落到编辑框，并把光标放到末尾（不提交）。</summary>
+        public void SetEditText(string text)
+        {
+            EditText = text;
+
+            if (GetTemplateChild(PartEditor) is TextBox editor)
+            {
+                editor.Focus();
+                editor.CaretIndex = editor.Text?.Length ?? 0;
+            }
+        }
 
         /// <summary>实际生效的最大长度（= <see cref="MaxLength"/> 收敛到 1~512）</summary>
         public int EffectiveMaxLength => Math.Clamp(MaxLength, MinMaxLength, MaxMaxLength);
@@ -322,7 +344,11 @@ namespace VisionMaster.Scada.Controls
         partial void OnModePropertyChanged() => UpdateEditable();
 
         private static void OnIsEditingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-            => ((TextFieldElement)d).UpdateVisualState();
+        {
+            var field = (TextFieldElement)d;
+            field.UpdateVisualState();
+            field.RaiseEditStateChanged();
+        }
 
         private static void OnEditErrorChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
             => ((TextFieldElement)d).UpdateVisualState();

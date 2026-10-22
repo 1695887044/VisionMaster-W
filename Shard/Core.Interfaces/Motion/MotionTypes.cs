@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 
 namespace Core.Interfaces
 {
@@ -153,31 +154,49 @@ namespace Core.Interfaces
     ///
     /// 为什么不直接用厂商的模式码：正运动是 27/23/19/1/2/37/17/18，雷赛与别的品牌是另一套数字。
     /// 用统一枚举、由驱动各自映射，方案才能跨品牌迁移；映射表写在驱动里，不进配置。
+    ///
+    /// 【中文显示名写在 <c>[Description]</c> 上，不是 <c>[Display]</c>（2026-10-22 用户裁决 B3）】
+    /// 「轴回零」步骤的 <c>Mode</c> 是 <c>[StepConfig]</c>，参数面板走 FlatPropertyGrid 的
+    /// <c>EnumGenerator</c>，而它读的是 <b><c>[Description]</c></b>；<c>InputPort&lt;T&gt;</c> 那条路
+    /// （LinkableValueEditor → <c>StepConfigOption.ForEnum</c>）读的才是 <c>[Display(Name)]</c>。
+    /// **两条上屏路径读的不是同一个特性**（R84）——只补一处等于只修一半，界面照样显示成员名。
+    ///
+    /// 文案的唯一来源是 <see cref="MotionEnumDisplay.Text(HomeMode)"/>（switch 表达式，漏一个成员编译器直接报错）。
+    /// 两处是否**逐字一致**由 `FlowCanvasChecks/MotionZMotionChecks` 的断言守门：
+    /// 改了 switch 忘了这里的特性（或反过来）当场红——防的就是"两套译名慢慢漂移"。
     /// </summary>
     public enum HomeMode
     {
         /// <summary>负限位 + Index（最常见）</summary>
+        [Description("负限位 + Index")]
         NegativeLimitIndex = 0,
 
         /// <summary>正限位 + Index</summary>
+        [Description("正限位 + Index")]
         PositiveLimitIndex = 1,
 
         /// <summary>仅原点开关</summary>
+        [Description("原点开关")]
         Origin = 2,
 
         /// <summary>负限位 + 原点</summary>
+        [Description("负限位 + 原点")]
         NegativeLimitOrigin = 3,
 
         /// <summary>正限位 + 原点</summary>
+        [Description("正限位 + 原点")]
         PositiveLimitOrigin = 4,
 
         /// <summary>零位置预设（当前位置直接设为零点，不找开关）</summary>
+        [Description("零位置预设（不找开关）")]
         PresetZero = 5,
 
         /// <summary>仅负限位</summary>
+        [Description("负限位（不回原点）")]
         NegativeLimit = 6,
 
         /// <summary>仅正限位</summary>
+        [Description("正限位（不回原点）")]
         PositiveLimit = 7,
     }
 

@@ -12,8 +12,8 @@ namespace Core.Interfaces
     ///   2. <b>命令线程</b>（一条）：从队列取命令、执行、回填生命周期状态并发出完成信号。
     ///   3. <b>状态轮询线程</b>（一条）：周期刷新轴状态快照，并据此做报警/限位侦测与看门狗判定。
     ///   4. <b>状态机</b>（Closed/Connecting/Online/Alarm/SafeStopped）+ 变化通知。
-    ///   5. <b>命令门禁</b>：状态、能力、轴号、软限位四道检查集中在 <see cref="CheckGateLocked"/>，
-    ///      绝不由各驱动各写一遍（漏一处就是一次对着报警轴下发 Move）。
+    ///   5. <b>命令门禁</b>：状态、能力、轴号、软限位、运动前置条件（使能/回零/非运动中）集中在
+    ///      <see cref="CheckGateLocked"/>，绝不由各驱动各写一遍（漏一处就是一次对着报警轴下发 Move）。
     ///   6. <b>心跳看门狗</b>：多久没问通就判失联并安全停机（网口卡没有推送通道，只能这样判）。
     ///
     /// 厂商插件要写的只有四件事：
@@ -69,6 +69,24 @@ namespace Core.Interfaces
         /// <summary>状态快照缓存（轮询线程写，其它线程读）。读它不发起通信，见 IMotionDevice 注释</summary>
         private readonly ConcurrentDictionary<int, AxisStatus> _axisCache = new();
         private readonly ConcurrentDictionary<int, bool> _inputCache = new();
+
+        /// <summary>
+        /// 每轴状态快照的采样时刻（<see cref="Environment.TickCount64"/>，单调）。
+        /// 与 <see cref="_lastEnableChange"/> 比先后：判断"快照是不是在使能命令之后采的"。
+        /// </summary>
+        private readonly ConcurrentDictionary<int, long> _axisSnapshotTick = new();
+
+        /// <summary>
+        /// 每轴最近一次**成功完成**的使能/失能命令（目标状态 + 完成时刻）。
+        ///
+        /// 为什么门禁需要它：命令线程执行完 Enable 与轮询线程刷新快照是两条线，
+        /// "使能命令已完成、快照还写着未使能"这个窗口真实存在（断言里实测要等一拍）。
+        /// 若门禁只看快照，紧跟在「轴使能」后面的「轴运动」会被误拒 ——
+        /// 这是正常流程，不该报"未使能"。
+        /// 规则：快照采样时刻不晚于命令完成时刻 → 快照是旧的，以命令结果为准；
+        /// 快照在命令之后采到 → 以快照为准（伺服实际没使能时能被下一拍抓住）。
+        /// </summary>
+        private readonly Dictionary<int, (bool Enabled, long Tick)> _lastEnableChange = new();
 
         /// <summary>
         /// 状态采样互斥：轮询线程与"验证用一次性刷新"共用。
@@ -213,6 +231,9 @@ namespace Core.Interfaces
         {
             if (status == null) return;
             status.Timestamp = DateTime.Now;
+            // 先记采样时刻、再写快照：门禁若读到新快照，就一定能读到它的时刻，
+            // 不会出现"新快照 + 旧时刻"而被 _lastEnableChange 误判成旧快照。
+            _axisSnapshotTick[status.PhysicalIndex] = Environment.TickCount64;
             _axisCache[status.PhysicalIndex] = status;
         }
 
@@ -243,7 +264,12 @@ namespace Core.Interfaces
         {
             _axisCache.Clear();
             _inputCache.Clear();
-            lock (_gate) { _lastCriticalByAxis.Clear(); }
+            _axisSnapshotTick.Clear();
+            lock (_gate)
+            {
+                _lastCriticalByAxis.Clear();
+                _lastEnableChange.Clear();
+            }
         }
 
         /// <summary>供驱动在 ConnectCore / PollStatusCore 里写状态说明</summary>
@@ -282,6 +308,15 @@ namespace Core.Interfaces
             {
                 if (_disposed) return false;
                 if (_state != MotionCardState.Closed) return true; // 幂等
+
+                // 新一轮连接：上一次会话的快照与"使能命令记忆"全部作废。
+                // 不清快照的话，重连成功到第一拍轮询之间会拿旧会话的 Enabled/Moving 做门禁判断。
+                _axisCache.Clear();
+                _inputCache.Clear();
+                _axisSnapshotTick.Clear();
+                _lastCriticalByAxis.Clear();
+                _lastEnableChange.Clear();
+
                 SetStateLocked(MotionCardState.Connecting, ConnectingDetail);
             }
             RaiseStateChanged();
@@ -631,12 +666,15 @@ namespace Core.Interfaces
 
             if (gate != MotionCommandResult.Accepted)
             {
-                // 被拒绝也要留痕：软限位拒绝属于 Notice（业务上正常），其余属于配置/状态问题
+                // 被拒绝也要留痕。以下四类属于"流程配置 / 节拍问题"，不是设备故障，记 Notice：
+                // 软限位、未使能、未回零、正在运动（后三条是 P1-A 新增的运动前置条件）。
+                var businessReject = reason.Contains("软限位")
+                                     || reason.Contains("未使能")
+                                     || reason.Contains("未回零")
+                                     || reason.Contains("正在运动");
                 var fault = new MotionFault
                 {
-                    Severity = gate == MotionCommandResult.Rejected_InvalidArgument && reason.Contains("软限位")
-                        ? MotionFaultSeverity.Notice
-                        : MotionFaultSeverity.Recoverable,
+                    Severity = businessReject ? MotionFaultSeverity.Notice : MotionFaultSeverity.Recoverable,
                     Message = $"命令被拒绝：{command.Describe()}",
                     Suggestion = reason,
                     Axis = command.LogicalAxis,
@@ -733,11 +771,17 @@ namespace Core.Interfaces
         #region 门禁（安全与配置校验的唯一落点）
 
         /// <summary>
-        /// 命令门禁：状态、能力、轴号、软限位。
+        /// 命令门禁：状态、能力、轴号、软限位、运动前置条件（使能/回零/非运动中）。
         ///
-        /// 集中在这里而不是交给驱动，理由很直接：这四条检查**每一家卡都要做**，
+        /// 集中在这里而不是交给驱动，理由很直接：这些检查**每一家卡都要做**，
         /// 交给驱动等于让每个作者各写一遍 —— 必然有人漏掉软限位或状态判断，
         /// 而漏掉的后果是"对着报警中的轴下发运动命令"，真机上就是撞机。
+        ///
+        /// 【P1-A 的运动前置条件】只对 Move / Home 生效：
+        ///   · Move：已使能 → 已回零（或该轴配置了绝对编码器）→ 未在运动中；
+        ///   · Home：只挡"正在运动"（回零本身就是用来解决未回零的，也不要求已使能 ——
+        ///     是否使能由驱动在回零里判定，门禁不重复一套判据）；
+        ///   · Stop / Disable / ClearAlarm 完全不受影响（安全动作越危险越要放行）。
         /// </summary>
         private MotionCommandResult CheckGateLocked(MotionCommand command, out string reason)
         {
@@ -805,7 +849,12 @@ namespace Core.Interfaces
 
             if (command.Kind == MotionCommandKind.Home && !_capabilities.SupportsHomeMode(command.HomeMode))
             {
-                reason = $"该卡不支持回零方式「{command.HomeMode}」";
+                // 把"支持哪些"一起说清：步骤侧不再重复这套能力协商（两套判据必然漂移）。
+                // 空清单是"尚未连接/未上报能力"，单独给一句，避免报错后半句是空白。
+                var supported = _capabilities.SupportedHomeModes.Count == 0
+                    ? "（该卡尚未上报能力，请确认已连接）"
+                    : string.Join("、", _capabilities.SupportedHomeModes);
+                reason = $"该卡不支持回零方式「{command.HomeMode}」，它支持的是：{supported}";
                 return MotionCommandResult.Rejected_NotSupported;
             }
 
@@ -872,7 +921,104 @@ namespace Core.Interfaces
                 }
             }
 
+            // 运动前置条件放在软限位之后：
+            // 目标本身越界时先报越界（那是更直接、更该先修的问题），
+            // 目标合法再看"这根轴现在能不能动"。
+            var precondition = CheckMotionPreconditionsLocked(command, out var preconditionReason);
+            if (precondition != MotionCommandResult.Accepted)
+            {
+                reason = preconditionReason;
+                return precondition;
+            }
+
             return MotionCommandResult.Accepted;
+        }
+
+        /// <summary>
+        /// 运动前置条件（P1-A 的唯一落点）：
+        ///   · Move：已使能 → 已回零（或该轴配置了绝对编码器）→ 未在运动中；
+        ///   · Home：只挡"正在运动"；
+        ///   · 其它命令（Stop / Disable / ClearAlarm / Enable / SetOutput / Jog）一律放行。
+        ///
+        /// 为什么放在基类而不是各步骤：同一组判据在 UI / SCADA / 流程插件里各写一遍必然漂移，
+        /// 而漏掉任何一条的后果都是"对着不能动的轴下发运动"。
+        /// </summary>
+        private MotionCommandResult CheckMotionPreconditionsLocked(MotionCommand command, out string reason)
+        {
+            reason = string.Empty;
+
+            var isMove = command.Kind is MotionCommandKind.MoveAbsolute or MotionCommandKind.MoveRelative;
+            var isHome = command.Kind == MotionCommandKind.Home;
+            if (!isMove && !isHome) return MotionCommandResult.Accepted;
+
+            var mapping = Descriptor.FindAxis(command.PhysicalAxis);
+            var axisName = mapping != null && !string.IsNullOrWhiteSpace(mapping.LogicalName)
+                ? mapping.LogicalName
+                : $"轴{command.PhysicalAxis}";
+
+            var status = GetAxisStatus(command.PhysicalAxis);
+
+            if (isHome)
+            {
+                // 回零只挡"正在运动"：回零本身就是用来解决"未回零"的，
+                // 也不要求已使能（是否使能由驱动在回零里判定）。
+                if (status is { Moving: true })
+                {
+                    reason = $"轴「{axisName}」正在运动，不能同时回零：请先停止该轴（或在当前运动结束后再回零）";
+                    return MotionCommandResult.Rejected_NotConnected;
+                }
+
+                return MotionCommandResult.Accepted;
+            }
+
+            // Move：三条前置条件，缺一不可。
+            if (status == null)
+            {
+                reason = $"读不到轴「{axisName}」的状态，无法确认「已使能 / 已回零 / 未运动」："
+                         + "请确认运动卡已连接且状态轮询正常（刚连接时请稍候一拍再下发运动）";
+                return MotionCommandResult.Rejected_NotConnected;
+            }
+
+            if (!IsAxisEnabledForMoveLocked(command.PhysicalAxis, status))
+            {
+                reason = $"轴「{axisName}」未使能：请先在流程中加入「轴使能」步骤（或到调试面板使能该轴），再下发运动命令";
+                return MotionCommandResult.Rejected_NotConnected;
+            }
+
+            // 绝对编码器：位置掉电不丢，重连后不需要回零。
+            // 卡级能力位由驱动上报；每轴 HasAbsoluteEncoder 是混合编码器机台的逃生口（默认 false）。
+            var absoluteEncoder = _capabilities.SupportsAbsoluteEncoder || mapping?.HasAbsoluteEncoder == true;
+            if (!_isHomed && !absoluteEncoder)
+            {
+                reason = $"轴「{axisName}」未回零：请先执行「轴回零」步骤"
+                         + "（增量式编码器每次上电/断线重连后位置都不可信，未回零就按绝对坐标运动会撞限位）";
+                return MotionCommandResult.Rejected_NotConnected;
+            }
+
+            if (status.Moving)
+            {
+                reason = $"轴「{axisName}」正在运动中，不能下发新的运动命令："
+                         + "请先等当前运动结束（在其后加「等待到位」步骤），或先停止该轴";
+                return MotionCommandResult.Rejected_NotConnected;
+            }
+
+            return MotionCommandResult.Accepted;
+        }
+
+        /// <summary>
+        /// 该轴当前是否"已使能"。优先用快照，但**快照比最近一次成功的使能/失能命令旧**时，
+        /// 以命令结果为准 —— 命令完成到轮询刷新之间有一个真实窗口（见 <see cref="_lastEnableChange"/>）。
+        /// 快照一旦在命令之后刷新，就重新以快照为准：伺服实际没使能时不会被旧命令一直放行。
+        /// </summary>
+        private bool IsAxisEnabledForMoveLocked(int physicalIndex, AxisStatus status)
+        {
+            if (_lastEnableChange.TryGetValue(physicalIndex, out var last))
+            {
+                var snapshotTick = _axisSnapshotTick.TryGetValue(physicalIndex, out var tick) ? tick : 0;
+                if (last.Tick >= snapshotTick) return last.Enabled;
+            }
+
+            return status.Enabled;
         }
 
         #endregion
@@ -978,6 +1124,12 @@ namespace Core.Interfaces
         {
             if (command.State == MotionCommandState.Canceled) return;
 
+            // 上一条打断可能留下一个已取消的急停令牌（Stop/Disable 的 Cancel 与命令收尾有竞态）：
+            // 开始执行下一条命令前先换新的，保证"打断只作用于当时正在执行的那条"，
+            // 而不是让后续命令拿到一个"出生即取消"的链接令牌。
+            // 急停待处理时**不换**：这一刻的取消正是要给"还没挂上令牌的那条命令"看的。
+            if (!_emergencyPending) ResetEmergencyTokenIfCanceled();
+
             // 命令可能在队列里等了一会儿，期间状态可能变差（报警、断开）——执行前再校验一次
             string gateReason;
             bool allowed;
@@ -997,9 +1149,16 @@ namespace Core.Interfaces
             CancellationTokenSource? linked = null;
             try
             {
-                CancellationToken emergencyToken;
-                lock (_gate) { emergencyToken = _emergencyCts?.Token ?? ct; }
-                linked = CancellationTokenSource.CreateLinkedTokenSource(ct, emergencyToken);
+                // 打断性命令（Stop / Disable）**不挂**急停令牌：
+                // 它就是发出打断的那一方，挂上去会变成"自己取消自己"
+                // （Stop 还没执行就被标成已取消，紧接着的复位逻辑再把它当"设备断开/流程中断"）。
+                // 其余命令照旧同时受"设备令牌"与"急停打断令牌"约束。
+                if (!IsInterrupting(command.Kind))
+                {
+                    CancellationToken emergencyToken;
+                    lock (_gate) { emergencyToken = _emergencyCts?.Token ?? ct; }
+                    linked = CancellationTokenSource.CreateLinkedTokenSource(ct, emergencyToken);
+                }
             }
             catch (ObjectDisposedException)
             {
@@ -1028,6 +1187,11 @@ namespace Core.Interfaces
             finally
             {
                 linked?.Dispose();
+                // 普通打断（Stop/Disable）会把 _emergencyCts Cancel 掉。这条命令收尾后
+                // 必须换一个新的：旧令牌已经 Cancel，若一直留着，后续 Home/Move 在
+                // ExecuteOne 里创建的链接令牌会"出生即取消"，表现是
+                // "Stop 之后第一次回零/长运动被静默取消"（虚拟卡与正运动的 Home 都尊重 ct）。
+                ResetEmergencyTokenIfCanceled();
             }
 
             var finalState = outcome switch
@@ -1045,6 +1209,19 @@ namespace Core.Interfaces
             // 而"回零完成后位置才可信"恰恰是紧接着就要用到的结论。
             if (outcome == MotionCommandOutcome.Done && command.Kind == MotionCommandKind.Home)
                 MarkHomed(true);
+
+            // 使能/失能成功：记下"命令给出的目标状态 + 完成时刻"。
+            // 门禁用它跨过"命令完成 → 轮询快照刷新"之间那个窗口（见 _lastEnableChange 注释）。
+            if (outcome == MotionCommandOutcome.Done
+                && command.Kind is MotionCommandKind.Enable or MotionCommandKind.Disable
+                && command.PhysicalAxis >= 0)
+            {
+                lock (_gate)
+                {
+                    _lastEnableChange[command.PhysicalAxis] =
+                        (command.Kind == MotionCommandKind.Enable, Environment.TickCount64);
+                }
+            }
 
             // 清报警成功后，把该轴的"上次已报过的致命信号"去重记录一起摘掉。
             //
@@ -1092,6 +1269,25 @@ namespace Core.Interfaces
                 try { SafeStopCore(); }
                 catch (Exception ex) { LogWarn($"[{Descriptor.Caption}] 失败后安全停止异常（已忽略）：{ex.Message}"); }
             }
+        }
+
+        /// <summary>
+        /// 普通打断（Stop/Disable）会把 <see cref="_emergencyCts"/> Cancel 掉。
+        /// 这条命令收尾后换一个新的令牌；否则后续 Home/Move 的链接令牌会"出生即取消"，
+        /// 表现是"Stop 之后第一次回零/长运动被静默取消"（Home 的等待循环尊重 ct）。
+        /// 放在 <see cref="ExecuteOne"/> 的 finally 里：被取消的那条命令走 catch 提前返回时也会复位。
+        /// </summary>
+        private void ResetEmergencyTokenIfCanceled()
+        {
+            CancellationTokenSource? old;
+            lock (_gate)
+            {
+                if (_emergencyCts == null || !_emergencyCts.IsCancellationRequested) return;
+                old = _emergencyCts;
+                _emergencyCts = new CancellationTokenSource();
+            }
+
+            try { old.Dispose(); } catch { /* 已释放 */ }
         }
 
         private void CompleteCommand(MotionCommand command, MotionCommandState state, string error)

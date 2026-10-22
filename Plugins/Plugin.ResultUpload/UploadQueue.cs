@@ -227,6 +227,8 @@ namespace Plugin.ResultUpload
             int code = 0;
             string body = null;
             string err = null;
+            // 永久性失败（4xx 除 408/429）：请求本身有问题，重试只会重复被拒（用户裁决 2026-10-22 B4）
+            bool permanent = false;
 
             for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
@@ -262,6 +264,17 @@ namespace Plugin.ResultUpload
                                 job.OnCompleted?.Invoke(true, code, body);
                                 return (true, code, body);
                             }
+
+                            // 4xx（除 408 超时 / 429 限流）= 请求本身有问题：令牌错、字段被拒、路径不存在。
+                            // 再试 N 次只会拿到同样的拒绝，白等退避时间，还把服务端压力放大 N 倍。
+                            // 408/429 与 5xx 是"服务端此刻不行"，仍按原退避重试（判据见 ShouldRetryStatus）。
+                            if (!ShouldRetryStatus(code))
+                            {
+                                permanent = true;
+                                err = $"HTTP {code} {resp.StatusCode}（{PermanentStatusHint(code)}，不重试）";
+                                break;
+                            }
+
                             err = $"HTTP {code} {resp.StatusCode}";
                         }
                     }
@@ -281,12 +294,53 @@ namespace Plugin.ResultUpload
                 }
             }
 
-            Log("WARN", $"[结果上报]『{job.OwnerName}』上报失败（已重试 {maxAttempts - 1} 次）：{err}");
-            if (job.AllowSpool)
+            Log("WARN", permanent
+                ? $"[结果上报]『{job.OwnerName}』上报被服务器拒绝（永久性错误，未重试）：{err}"
+                : $"[结果上报]『{job.OwnerName}』上报失败（已重试 {maxAttempts - 1} 次）：{err}");
+
+            // 永久性错误**不进**断网续传账本：spool 的语义是"等网络/服务恢复后补传"，
+            // 而 401/404 这类问题不会自己好（要改令牌/改 URL），补传只会每 30 秒撞一次墙，
+            // 直到 MaxDrainFailures 把这条毒记录丢掉——那期间它还一直占着队头，拖慢真欠账。
+            if (job.AllowSpool && !permanent)
                 SpoolAppend(job, err);
+
             job.OnCompleted?.Invoke(false, code, err);
             return (false, code, err);
         }
+
+        /// <summary>
+        /// 该 HTTP 状态码是否值得重试（用户裁决 2026-10-22 B4）。
+        ///
+        /// 判据是"**重试有没有可能成功**"，不是"是不是错误"：
+        ///   · <b>408 请求超时 / 429 限流</b> —— 服务端此刻不行，过一会儿可能行 → 重试；
+        ///   · <b>5xx</b> —— 服务端自己出错（重启中 / 依赖挂了）→ 重试；
+        ///   · <b>其余 4xx</b> —— 请求本身有问题（令牌错、字段被拒、路径不存在）→ <b>不重试</b>，
+        ///     重试只会拿到同样的拒绝，白等退避时间并把服务端压力放大 N 倍；
+        ///   · <b>code &lt;= 0</b> —— 没拿到响应（超时 / DNS / 连接被拒）→ 重试（既有行为，不改）；
+        ///   · <b>3xx</b> —— HttpClient 默认已跟随重定向，走到这里说明是异常场景 → 按原行为重试。
+        /// </summary>
+        private static bool ShouldRetryStatus(int code)
+        {
+            if (code <= 0) return true;                  // 无响应：网络/超时
+            if (code == 408 || code == 429) return true; // 服务端"暂时不行"
+            if (code >= 500) return true;                // 5xx
+            if (code >= 400) return false;               // 其余 4xx：请求本身有问题
+            return true;                                 // 3xx 等：保持原行为
+        }
+
+        /// <summary>
+        /// 永久性 4xx 的处置提示：现场看到这句就知道该改哪里（令牌 / URL / 字段），
+        /// 而不是去查网络。文案会进 <c>ErrorMessage</c>、日志与 <c>IsUploaded=false</c> 的回执。
+        /// </summary>
+        private static string PermanentStatusHint(int code) => code switch
+        {
+            400 => "请求被拒：字段/报文格式不合法，检查字段表与 URL",
+            401 => "鉴权失败：访问令牌无效或已过期，检查「访问令牌」配置",
+            403 => "无权限：令牌有效但被拒，检查接口权限或字段白名单",
+            404 => "接口不存在：检查上报 URL 路径是否正确",
+            422 => "字段校验失败：服务器认为上报字段不合法",
+            _ => "请求被拒（4xx 重试无意义）",
+        };
 
         /// <summary>请求头里是否已有同名头（大小写不敏感；用户自填的不覆盖）。</summary>
         private static bool HasHeader(Dictionary<string, string> headers, string name)

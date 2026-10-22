@@ -1,0 +1,139 @@
+<section class="view" id="view-13">
+  <div class="view-head">
+    <h2>报警历史抽屉</h2>
+    <span class="file">VisionMaster\Views\ScadaAlarmHistoryView.xaml</span>
+    <span class="size">628 行 · 29 hex</span>
+  </div>
+  <div class="view-body">
+
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="t">运行窗口 · 主画面</span>
+        <span class="s">报警历史 = 右侧覆盖层（宽 720，收起时不留痕迹）</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body tight">
+        <div class="split">
+          <div class="split-main">
+            <p class="hint">运行画面 —— 覆盖层不参与画布测量：打开 / 收起不重排、不触发 FitToScreen</p>
+          </div>
+          <div class="mock" style="width:860px;flex:0 0 auto">
+            <div class="mock-bar">
+              <span class="t">报警历史</span>
+              <span class="s">本次运行 · 真实宽 720（稿内 860：HTML 单元格内边距 20 vs WPF 6）</span>
+              <span class="grow"></span>
+              <span class="tool icon">✕</span>
+            </div>
+            <div class="mock-body tight">
+              <div class="toolbar wrap">
+                <div class="input ph" style="flex:1 1 220px">⌕ 搜索 报警名 / 报警文本 / 变量名 / 条件</div>
+                <span class="tool">重置</span>
+              </div>
+              <div class="toolbar wrap">
+                <span class="tool active">全部状态</span>
+                <span class="tool">未确认</span>
+                <span class="tool">报警中</span>
+                <span class="tool">已恢复</span>
+                <span class="tool">已清除</span>
+              </div>
+              <div class="toolbar wrap">
+                <span class="tool active">全部级别</span>
+                <span class="tool">严重</span>
+                <span class="tool">警告</span>
+                <span class="tool">提示</span>
+              </div>
+
+              <div class="table">
+                <div class="thead">
+                  <div class="th" style="width:96px">激活时间</div>
+                  <div class="th" style="width:46px">级别</div>
+                  <div class="th" style="width:120px">报警名称</div>
+                  <div class="th" style="width:70px">报警组</div>
+                  <div class="th" style="width:116px">条件 / 触发值</div>
+                  <div class="th" style="width:78px">状态</div>
+                  <div class="th" style="width:56px">持续</div>
+                  <div class="th" style="width:50px"></div>
+                </div>
+                <div class="tr">
+                  <div class="td mono" style="width:96px">10-22 09:41:07</div>
+                  <div class="td" style="width:46px"><span class="dot err"></span> 严重</div>
+                  <div class="td" style="width:120px">1#电机超温</div>
+                  <div class="td muted" style="width:70px">一号线</div>
+                  <div class="td muted" style="width:116px">高高限 &gt; 85（回差 2）</div>
+                  <div class="td" style="width:78px">激活</div>
+                  <div class="td mono muted" style="width:56px">02:13</div>
+                  <div class="td" style="width:50px"><span class="tag info" style="padding:0 2px">确认</span></div>
+                </div>
+                <div class="tr">
+                  <div class="td mono" style="width:96px">10-22 09:38:52</div>
+                  <div class="td" style="width:46px"><span class="dot warn"></span> 警告</div>
+                  <div class="td" style="width:120px">冷却水流量低</div>
+                  <div class="td muted" style="width:70px">一号线</div>
+                  <div class="td muted" style="width:116px">低限 &lt; 12</div>
+                  <div class="td" style="width:78px">恢复待确认</div>
+                  <div class="td mono muted" style="width:56px">00:41</div>
+                  <div class="td" style="width:50px"><span class="tag info" style="padding:0 2px">确认</span></div>
+                </div>
+                <div class="tr">
+                  <div class="td mono muted" style="width:96px">10-22 09:12:30</div>
+                  <div class="td muted" style="width:46px"><span class="dot info"></span> 提示</div>
+                  <div class="td muted" style="width:120px">上料仓余量不足</div>
+                  <div class="td muted" style="width:70px">上料段</div>
+                  <div class="td muted" style="width:116px">低限 &lt; 15</div>
+                  <div class="td muted" style="width:78px">已确认</div>
+                  <div class="td mono muted" style="width:56px">06:05</div>
+                  <div class="td" style="width:50px"></div>
+                </div>
+                <div class="tr">
+                  <div class="td mono" style="width:96px">10-22 08:55:02</div>
+                  <div class="td" style="width:46px"><span class="dot err"></span> 严重</div>
+                  <div class="td" style="width:120px">视觉相机通信断线</div>
+                  <div class="td muted" style="width:70px">视觉</div>
+                  <div class="td muted" style="width:116px">通信断线 &gt; 10s</div>
+                  <div class="td muted" style="width:78px">正常</div>
+                  <div class="td mono muted" style="width:56px">00:18</div>
+                  <div class="td" style="width:50px"></div>
+                </div>
+              </div>
+              <p class="hint" style="padding:6px 12px 8px">列宽按 XAML 预算 632（96/46/120/70/116/78/56/50）；稿内单元格内边距 20 vs WPF 6，所以时间/条件列在稿里是省略号——真实 720 下不截</p>
+            </div>
+            <div class="mock-foot">
+              <span class="tag info">已确认「1#电机超温」</span>
+              <span>共 42 条 · 未确认 3 · 显示 12</span>
+              <span class="grow"></span>
+              <span class="tool">全部确认</span>
+              <span class="tool">导出 CSV</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mock" style="width:520px">
+      <div class="mock-bar">
+        <span class="t">报警历史 · 空态</span>
+        <span class="s">EmptyHint 两种原因分开说</span>
+      </div>
+      <div class="mock-body">
+        <div class="empty">
+          <p class="empty-title">没有符合当前筛选条件的报警。</p>
+          <p class="empty-hint">一条记录都没有时是另一句：「本次运行还没有报警记录。」——两种原因必须分开说，否则用户会去怀疑筛选坏了。此时「全部确认」由命令自动置灰</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScadaAlarmHistoryView.xaml</code>（标题条 38 + 筛选区 + 8 列 GridView + 提示行 + 底条 40）、<code>ScadaAlarmHistoryViewModel.cs</code>（SummaryText / EmptyHint / 两组筛选）、<code>ScadaAlarmHistoryRow.cs</code>（TimeText / StateText / DurationText）</li>
+        <li>改动要点 1：29 处 hex 全部收进令牌——面板 <code>#1B1F24</code> / 条 <code>#22262C</code> / 线 <code>#33383F</code> / 正文 <code>#D6DAE0</code> / 次要 <code>#8A929E</code>，再加行 hover <code>#252A31</code>、行选中 <code>#2A3442</code>、确认钮 <code>#2B6CB0</code> 三支。运行窗口是深色语境，本稿按浅色令牌出（见下条偏差）</li>
+        <li>改动要点 2：筛选筹码由 <code>ListBox + WrapPanel</code> 保留，但 Chip 的圆角/内边距改成令牌档（现为 Padding 10,2 + CornerRadius 9，与 8pt 栅格不合）；选中档位只留一个视觉信号（底色 + 边框），现在底色和边框同时换两套色</li>
+        <li>改动要点 3：列宽预算固定 632（96/46/120/70/116/78/56/50），行内「确认」按钮 20 高 + Padding 8,0 保留；已确认整行 <code>Opacity 0.6</code> 改成次要色文本，避免半透明把等宽时间列糊掉</li>
+        <li>改动要点 4：级别列是「3px 色条 + 同色文字」双通道，色条与文字都取同一个语义令牌（严重 / 警告 / 提示），不能只留色条——色觉差异的人会丢整列信息</li>
+        <li>改动要点 5：底部两个批量动作是中性块（<code>FooterButton</code>）、行内「确认」是强调块，两者必须保持不同视觉重量；「全部确认」的可用性由命令判，不写第二处 IsEnabled</li>
+        <li>需要新增的接口：无。<span class="warn">已知偏差：现网面板是深色（PanelBrush 系），共享 CSS 只有 Dialog* 浅色令牌；若运行窗口保持深色，需在 <code>Colors.xaml</code> 补一组 RunWindow 深色令牌后本页重出</span></li>
+      </ul>
+    </div>
+  </div>
+</section>

@@ -26,6 +26,10 @@
         <Style TargetType="Window">
             <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
+            <!--  透明窗口：卡片外那圈留白只剩投影，不再是白底窗口边（用户看到的"白框"）。
+                  口径同 ScadaSystemSettingsView / ScadaLoginView。  -->
+            <Setter Property="AllowsTransparency" Value="True" />
+            <Setter Property="Background" Value="Transparent" />
             <!--
                 窗口图标（Alt-Tab / 任务栏那一枚，不是标题栏里那枚蓝方块）：整仓只有帮助弹窗
                 带自己的图标，其余窗口照旧走 ApplicationIcon。图标与标题栏徽块同源——
@@ -259,11 +263,14 @@
     </UserControl.Resources>
 
     <!--
-        外圈只留 6px：弹窗是无系统边框的白底窗口，这圈空白唯一的作用是给卡片投影落幅，
-        留 12px 在现场看就是"窗台与容器之间一道空缝"（2026-10-16 真机反馈）。
-        投影跟着收到 BlurRadius 10 / ShadowDepth 2 —— 再大就被这 6px 裁出硬边。
+        外圈 12px 是投影落幅：窗口背景已透明（见 WindowStyle），这圈不再是白底窗台，而是阴影区。
+        投影 BlurRadius 10 / ShadowDepth 2 的横向扩散实测约 7px，只留 6px 会在窗口边界把阴影裁出
+        一条硬边（白底时看不出来，透明后就是一道灰线），所以取 12。
+        2026-10-16 真机反馈的"窗台与容器之间一道空缝"指的是白底那圈，透明后已不存在。
     -->
-    <Grid Margin="6">
+    <Grid Margin="12">
+        <!--  投影层与内容层分离（口径同 DialogCardShadow）：两层同尺寸，内容层把投影层完全盖住，
+              只在圆角外露出阴影。  -->
         <Border Background="White" CornerRadius="10">
             <Border.Effect>
                 <DropShadowEffect
@@ -273,7 +280,9 @@
                     ShadowDepth="2"
                     Color="{StaticResource DialogShadowColor}" />
             </Border.Effect>
+        </Border>
 
+        <Border Background="White" CornerRadius="10">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="52" />

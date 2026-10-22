@@ -27,7 +27,6 @@ UI\Controls\Themes\Dialog\Dialog.Input.xaml|2
 UI\Controls\Themes\Dialog\Dialog.Selection.xaml|1
 UI\Controls\Themes\Dialog\Dialog.Text.xaml|1
 UI\Controls\Themes\Fluent\FluentControls.xaml|2
-UI\Controls\Themes\LogConsole.xaml|22
 UI\Controls\Themes\NumericBox.xaml|12
 UI\Controls\Themes\PropertyGrid.xaml|1
 UI\Controls\Themes\StatusIndicator.xaml|12
@@ -44,15 +43,11 @@ VisionMaster\Views\DialogViews\MotionBoard\MotionBoardTheme.xaml|23
 VisionMaster\Views\DialogViews\ScadaAlarmConfigDialogView.xaml|2
 VisionMaster\Views\DialogViews\ScadaAxisPickerView.xaml|16
 VisionMaster\Views\DialogViews\ScadaFlowPickerView.xaml|19
-VisionMaster\Views\DialogViews\ScadaLoginView.xaml|27
 VisionMaster\Views\DialogViews\ScadaPagePickerView.xaml|26
 VisionMaster\Views\DialogViews\ScadaSystemSettingsView.xaml|11
 VisionMaster\Views\DialogViews\ScadaUserManagerView.xaml|40
 VisionMaster\Views\DialogViews\ScadaVariableEventDialogView.xaml|56
 VisionMaster\Views\DialogViews\ScadaVariablePickerView.xaml|23
-VisionMaster\Views\FlowListView.xaml|8
-VisionMaster\Views\LogView.xaml|46
-VisionMaster\Views\MonitorView.xaml|23
 VisionMaster\Views\ScadaAlarmHistoryView.xaml|29
 VisionMaster\Views\ScadaEditorView.xaml|15
 VisionMaster\Views\ScadaLayerView.xaml|26

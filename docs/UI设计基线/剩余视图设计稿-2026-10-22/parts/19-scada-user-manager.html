@@ -1,0 +1,122 @@
+<section class="view" id="view-19">
+  <div class="view-head">
+    <h2>用户管理</h2>
+    <span class="file">VisionMaster\Views\DialogViews\ScadaUserManagerView.xaml</span>
+    <span class="size">422 行 · 42 hex</span>
+  </div>
+  <div class="view-body">
+
+    <div class="mock" style="width:760px">
+      <div class="mock-bar">
+        <span class="t">用户管理</span>
+        <span class="grow"></span>
+        <span class="s">管理员专属 · 清单只在打开时读一次（没有刷新按钮）</span>
+      </div>
+      <div class="mock-body tight">
+        <div class="split">
+          <div class="split-aside" style="width:280px">
+            <p class="hint" style="margin:0 0 6px">账号</p>
+            <div class="table">
+              <div class="thead">
+                <div class="th" style="width:140px">用户名</div>
+                <div class="th" style="width:90px">角色</div>
+              </div>
+              <div class="tr sel">
+                <div class="td" style="width:140px">admin</div>
+                <div class="td muted" style="width:90px">管理员</div>
+              </div>
+              <div class="tr">
+                <div class="td" style="width:140px">engineer01</div>
+                <div class="td muted" style="width:90px">工程师</div>
+              </div>
+              <div class="tr">
+                <div class="td" style="width:140px">operator02</div>
+                <div class="td muted" style="width:90px">操作员</div>
+              </div>
+            </div>
+            <p class="hint mono" style="margin:8px 0 0">账号文件：users.json</p>
+          </div>
+
+          <div class="split-main">
+            <p style="margin:0;font-size:12px;font-weight:600">编辑账号：admin</p>
+
+            <p class="hint" style="margin:12px 0 4px">用户名</p>
+            <div class="input ph">admin</div>
+            <p class="hint" style="margin:4px 0 0">账号名不可修改。要改名请先删除该账号，再新建一个。</p>
+
+            <p class="hint" style="margin:10px 0 4px">重置密码（留空表示不修改）</p>
+            <div class="input mono">••••••••</div>
+
+            <p class="hint" style="margin:10px 0 4px">角色</p>
+            <div class="combo">管理员</div>
+
+            <p class="hint" style="margin:8px 0 0;min-height:30px"><span class="tag ok">账号「admin」已更新：角色 → 管理员。</span></p>
+
+            <div class="toolbar" style="padding:8px 0 0;border-bottom:0">
+              <span class="tool danger">删除账号</span>
+              <span class="grow"></span>
+              <span class="tool">重置</span>
+              <span class="tool primary">保存</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span class="tool">新建账号</span>
+        <span class="grow"></span>
+        <span class="tool">关闭</span>
+      </div>
+    </div>
+
+    <div class="mock" style="width:760px">
+      <div class="mock-bar">
+        <span class="t">用户管理 · 空清单</span>
+        <span class="s">账号文件被清空 / 读坏时的兜底</span>
+      </div>
+      <div class="mock-body tight">
+        <div class="split">
+          <div class="split-aside" style="width:280px">
+            <p class="hint" style="margin:0 0 6px">账号</p>
+            <div class="empty" style="padding:26px 10px">
+              <p class="empty-hint">账号清单为空。</p>
+            </div>
+            <p class="hint mono" style="margin:8px 0 0">账号文件：users.json</p>
+          </div>
+          <div class="split-main">
+            <p style="margin:0;font-size:12px;font-weight:600">未选择账号</p>
+            <p class="hint" style="margin:12px 0 4px">用户名</p>
+            <div class="input ph">（先新建或选择一个账号）</div>
+            <p class="hint" style="margin:10px 0 4px">密码（至少 4 位）</p>
+            <div class="input ph">（新建时必填）</div>
+            <p class="hint" style="margin:10px 0 4px">角色</p>
+            <div class="combo">操作员</div>
+            <p class="hint" style="margin:8px 0 0;min-height:30px">请先在左侧选择一个账号。</p>
+            <div class="toolbar" style="padding:8px 0 0;border-bottom:0">
+              <span class="grow"></span>
+              <span class="tool">重置</span>
+              <span class="tool primary">保存</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span class="tool">新建账号</span>
+        <span class="grow"></span>
+        <span class="tool">关闭</span>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScadaUserManagerView.xaml</code>（左 280 清单 / 右表单 / 底栏 新建·关闭）、<code>ScadaUserManagerViewModel.cs</code>（Title「用户管理」/ HeaderText / PasswordLabel / RoleOptions 三档 / AdminHint / StoreFileName / ConfirmingDelete）</li>
+        <li>改动要点 1：42 处 hex 是本批最脏的一个——<code>#ECF5FF</code>/<code>#409EFF</code>（选中）、<code>#F5F7FA</code>/<code>#606266</code>（列头与正文）、<code>#E4E7ED</code>/<code>#DCDFE6</code>（边框）、<code>#F56C6C</code>/<code>#67C23A</code>（失败/成功）、<code>#FDF6EC</code>/<code>#E6A23C</code>（非管理员警告条）。全部换成 Dialog* 语义令牌，视图里零色值</li>
+        <li>改动要点 2：删除键是同一位置的「两态按钮」——常态白底红字红框「删除账号」，<code>ConfirmingDelete</code> 为真时变实心红「确认删除」，提示语写在按钮旁边的消息行（「再按一次「确认删除」将永久删除账号「operator02」，此操作不可撤销。」），不弹系统 MessageBox</li>
+        <li>改动要点 3：用户名在编辑态是只读外观（浅底灰字，与可编辑框等高），新建态才给输入框；密码框标题随模式切换（「密码（至少 4 位）」/「重置密码（留空表示不修改）」）</li>
+        <li>改动要点 4：非管理员时表单整块 <code>IsEnabled=False</code> + 上方警告条（AdminHint = 「需要「管理员」权限，当前是「操作员」。请先以管理员账号登录，再回来管理账号。」）；这只是一道界面门，每个写命令第一句仍是 <code>EnsureAdmin</code></li>
+        <li>改动要点 5：消息行固定 <code>MinHeight=30</code>，成功绿 / 失败红；「没有需要保存的改动。」与「请先在左侧选择一个账号。」都走这一行，不许换成 MessageBox</li>
+        <li>需要新增的接口：无</li>
+      </ul>
+    </div>
+  </div>
+</section>

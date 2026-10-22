@@ -1,6 +1,7 @@
 using Core.Interfaces;
 using HalconDotNet;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -9,6 +10,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text;
 
 namespace Plugin.DataRecord
 {
@@ -36,6 +38,8 @@ namespace Plugin.DataRecord
     ///   否则 FlowCompiler 编译期报 [参数缺失]；
     /// - 值类型用 InputPort&lt;object&gt;：FlowCompiler 连线不做类型静态校验，
     ///   赋值经 ValueConverter 兜底，任何上游输出都接得进来；
+    /// - 来源=变量：**本轮局部变量优先 → 共享变量注册表（全局 / 通讯 / 系统变量）兜底**，
+    ///   只读镜像值、不在流程线程上发起 I/O；数组按 <c>[a,b,c]</c>、byte[] 按十六进制格式化（绝不落 ToString()）；
     /// - 失败契约：写队列满/被拒、或异步写盘失败（有界等待队列落盘）且勾选"写入失败阻断流程" → 显式 Success=false（宁停线不丢账）。
     /// </summary>
     [Display(
@@ -44,7 +48,7 @@ namespace Plugin.DataRecord
         Description = "把每次流程执行的结果按行记录到 CSV 账本，可选同步保存 NG 图片，异步写入不占节拍",
         ShortName = "\uf1c0")]
     [ParallelSafe] // 二期真并行：RecordingHub BlockingCollection + 单消费线程串行
-    public partial class DataRecordPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public partial class DataRecordPlugin : VisionPluginBase, IPluginCustomViewProvider, IPluginConfigContextProvider
     {
         /// <summary>图片专用动态端口的固定名字（ImageSaveMode != Off 时存在）。</summary>
         public const string ImagePortName = "图片";
@@ -178,6 +182,93 @@ namespace Plugin.DataRecord
 
         #endregion
 
+        #region 配置界面：变量名候选（宿主快照）
+
+        private PluginConfigContext _configContext;
+
+        /// <summary>
+        /// 「来源=变量」那一行的名字候选（宿主透传快照，见 <see cref="PluginConfigContext.Variables"/>）：
+        /// 全局变量 + 通讯变量 + 系统变量 + 上游「变量定义」声明的运行时变量，去重后只留名字。
+        ///
+        /// 为什么需要候选：这一行要的是**名字**，而插件自己够不到变量管理与流程图纸；
+        /// 手打名字打错的后果很难倒查（运行期表现为"这一格永远是空"）。
+        /// 为什么仍然保留手填：C# 脚本里 SetVar 的名字不在快照里（脚本是自由文本），
+        /// 只给下拉就等于让这类变量没法记账——所以视图里这一行必须是可编辑 ComboBox。
+        /// </summary>
+        public ObservableCollection<string> VariableNameCandidates { get; } = new();
+
+        private string _variableHint =
+            "变量列可填：本轮局部变量（变量定义 / 脚本 SetVar）、全局变量、通讯变量、系统变量。";
+
+        /// <summary>
+        /// 变量名行的提示（随当前填的名字变化：命中候选就报作用域与声明类型，没命中就提醒可能是手填的脚本变量）。
+        /// 只做提示，不拦任何输入——名字对不对最终由运行期解析结果说话。
+        /// </summary>
+        public string VariableHint
+        {
+            get => _variableHint;
+            private set => SetProperty(ref _variableHint, value);
+        }
+
+        /// <summary>
+        /// 接收宿主透传的变量名快照（<see cref="IPluginConfigContextProvider"/>）。
+        /// 调用时机是配置窗口打开、视图已挂好之后；这里只铺候选与提示，不碰列定义。
+        /// </summary>
+        public void SetConfigContext(PluginConfigContext context)
+        {
+            _configContext = context;
+            RefreshVariableCandidates();
+            RefreshVariableHint();
+        }
+
+        private void RefreshVariableCandidates()
+        {
+            VariableNameCandidates.Clear();
+            var options = _configContext?.Variables;
+            if (options == null) return;
+
+            // 只按名字去重：同一名字可能同时是全局与运行时变量，但这一行填的就是名字，
+            // 运行期由「局部优先」的解析顺序决定取哪一个（见 TryResolveVariable）。
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var option in options)
+            {
+                if (option == null || string.IsNullOrWhiteSpace(option.Name)) continue;
+                if (!seen.Add(option.Name)) continue;
+                VariableNameCandidates.Add(option.Name);
+            }
+        }
+
+        private void RefreshVariableHint()
+        {
+            var named = Columns?.FirstOrDefault(c =>
+                c != null && c.Source == ColumnSource.Variable && !string.IsNullOrWhiteSpace(c.VariableName));
+            if (named == null)
+            {
+                VariableHint = "变量列可填：本轮局部变量（变量定义 / 脚本 SetVar）、全局变量、通讯变量、系统变量。";
+                return;
+            }
+
+            string name = named.VariableName.Trim();
+            var option = _configContext?.Variables?.FirstOrDefault(o =>
+                o != null && string.Equals(o.Name, name, StringComparison.Ordinal));
+            if (option == null)
+            {
+                VariableHint = $"「{name}」不在候选快照里：可能是脚本里 SetVar 的运行时名字（照常可用），也可能是拼错了（运行期会留一条 WARN）。";
+                return;
+            }
+
+            string scope = option.Scope switch
+            {
+                "Runtime" => "运行时变量",
+                "System" => "系统变量",
+                _ => "全局变量", // 通讯变量也挂在这张表里（VariableOption 只带作用域，不带变量类型）
+            };
+            string note = string.IsNullOrWhiteSpace(option.Description) ? "" : "｜" + option.Description;
+            VariableHint = $"「{option.Name}」= {scope} · {option.TypeName}{note}";
+        }
+
+        #endregion
+
         #region 动态端口重建
 
         private readonly List<string> _dynamicInputNames = new List<string>();
@@ -255,6 +346,11 @@ namespace Plugin.DataRecord
                 e.PropertyName == nameof(RecordColumnDef.Source) ||
                 e.PropertyName == nameof(RecordColumnDef.Enabled))
                 RebuildDynamicInputs();
+
+            // 变量名不参与端口重建（它不是端口），只影响名字行的提示
+            if (e.PropertyName == nameof(RecordColumnDef.VariableName) ||
+                e.PropertyName == nameof(RecordColumnDef.Source))
+                RefreshVariableHint();
         }
 
         private void OnColumnsCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
@@ -522,11 +618,8 @@ namespace Plugin.DataRecord
                 case ColumnSource.Port:
                     return Inputs.TryGetValue(col.Name, out var p) ? p.GetActualValue() : null;
                 case ColumnSource.Variable:
-                    if (context?.LocalVariables != null &&
-                        !string.IsNullOrEmpty(col.VariableName) &&
-                        context.LocalVariables.TryGetValue(col.VariableName, out var v))
-                        return v;
-                    return null;
+                    // N2：先本轮局部变量，再共享变量注册表（全局 / 通讯 / 系统变量）
+                    return TryResolveVariable(context, col.VariableName, out var v) ? v : null;
                 default: // BuiltIn
                     switch (col.BuiltIn)
                     {
@@ -542,6 +635,63 @@ namespace Plugin.DataRecord
             }
         }
 
+        /// <summary>缺名变量提示的重复上限（每个名字最多 3 条，高频流程不至于把日志刷满）。</summary>
+        private const int MissingVariableWarnLimit = 3;
+
+        /// <summary>缺名变量已提示次数（按名字计数；插件实例跨执行复用，故提示只在前几次出现）。</summary>
+        private readonly ConcurrentDictionary<string, int> _missingVariableWarns =
+            new ConcurrentDictionary<string, int>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// 按名取变量值（「来源=变量」的唯一口径，N2）：
+        /// <list type="number">
+        /// <item>本轮局部变量优先——「变量定义 / 变量赋值 / C# 脚本 SetVar」写的就是这个池；</item>
+        /// <item>共享变量注册表兜底——全局变量、通讯变量（网络变量）与系统变量共用同一张注册表，
+        ///       取的是**镜像值**（轮询/立刻读最近一次发布的那份）。</item>
+        /// </list>
+        /// <para><b>这里刻意不调 TryReadNow</b>：CSV 记录跑在流程线程上，为了一格"最新值"去插队读设备
+        /// 会把 I/O 塞进记账路径（一条坏链路能把整条线拖慢）。要"此刻设备值"请在上游用「立刻读」步骤，
+        /// 再把结果经端口/变量交给本算子。</para>
+        /// <para>缺名不抛异常：行照记、该格为空，并按名字限次 WARN（走宿主日志，不塞 RecordingHub 的队列）。</para>
+        /// </summary>
+        private bool TryResolveVariable(IExecutionContext context, string name, out object value)
+        {
+            value = null;
+            if (context == null) return false; // 配置面板"测试写一行"没有上下文：按空值处理，不提示
+
+            string key = name?.Trim();
+            if (string.IsNullOrEmpty(key)) return false;
+
+            if (context.LocalVariables != null && context.LocalVariables.TryGetValue(key, out var local))
+            {
+                // 键存在就到此为止（哪怕值是 null）：局部变量遮蔽同名全局变量是既定语义，
+                // 继续往下兜底会在"局部变量声明了但本轮还没赋值"时静默读到另一个变量。
+                value = local;
+                return true;
+            }
+
+            if (context.SharedVariables != null &&
+                context.SharedVariables.TryRead(Guid.Empty, key, out var shared, out _))
+            {
+                value = shared;
+                return true;
+            }
+
+            WarnMissingVariable(context, key);
+            return false;
+        }
+
+        /// <summary>缺名变量限次 WARN（同一名字只提示前 <see cref="MissingVariableWarnLimit"/> 次）。</summary>
+        private void WarnMissingVariable(IExecutionContext context, string name)
+        {
+            int count = _missingVariableWarns.AddOrUpdate(name, 1, (_, old) => old + 1);
+            if (count > MissingVariableWarnLimit) return;
+
+            string suffix = count == MissingVariableWarnLimit ? "（本条提示已到上限，后续同名不再提示）" : "";
+            context?.Logger?.Warn(
+                $"CSV记录：变量「{name}」既不在本轮局部变量里，也不是全局/通讯/系统变量，该列记为空{suffix}");
+        }
+
         /// <summary>把原始值格式化成 CSV 单元格（一律 InvariantCulture——防德语区逗号当小数点毁掉列对齐）。</summary>
         private static string FormatCell(RecordColumnDef col, object value, string imagePath)
         {
@@ -555,12 +705,54 @@ namespace Plugin.DataRecord
                     return string.IsNullOrEmpty(col.Format)
                         ? dt.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture)
                         : dt.ToString(col.Format, CultureInfo.InvariantCulture);
+                // 数组先展开：直接 ToString() 会写成 "System.Int32[]"，账本里完全看不出值
+                // （通讯变量读回来的数值数组/字节块走的正是这条路）。列「格式」对数组不生效。
+                case Array array: return FormatArrayCell(array);
                 case IFormattable f when !string.IsNullOrEmpty(col.Format):
                     return f.ToString(col.Format, CultureInfo.InvariantCulture);
                 case IFormattable f:
                     return f.ToString(null, CultureInfo.InvariantCulture);
                 default:
                     return value.ToString(); // HImage/HObject 等：类型名占位，好过炸
+            }
+        }
+
+        /// <summary>
+        /// 数组 → 一格文本：数值/布尔/文本数组写成 <c>[a,b,c]</c>（与「立刻读」的数组展开同一语义），
+        /// 空数组写 <c>[]</c>，<c>byte[]</c> 写成十六进制 <c>01 02 FF</c>（原始字节块按十六进制才读得出报文）。
+        /// 分隔符是半角逗号，CSV 转义会按 RFC 4180 自动给这一格加引号，读回来仍是同一个字符串。
+        /// </summary>
+        private static string FormatArrayCell(Array array)
+        {
+            if (array.Length == 0) return "[]";
+
+            if (array is byte[] bytes)
+            {
+                var hex = new StringBuilder(bytes.Length * 3);
+                for (int i = 0; i < bytes.Length; i++)
+                {
+                    if (i > 0) hex.Append(' ');
+                    hex.Append(bytes[i].ToString("X2", CultureInfo.InvariantCulture));
+                }
+                return hex.ToString();
+            }
+
+            var parts = new string[array.Length];
+            for (int i = 0; i < array.Length; i++)
+                parts[i] = FormatArrayElement(array.GetValue(i));
+            return "[" + string.Join(",", parts) + "]";
+        }
+
+        /// <summary>数组元素 → 文本（不变区域性；元素里再套数组/对象时退回类型名，绝不递归爆栈）。</summary>
+        private static string FormatArrayElement(object element)
+        {
+            switch (element)
+            {
+                case null: return "";
+                case string s: return s;
+                case DateTime dt: return dt.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
+                case IFormattable f: return f.ToString(null, CultureInfo.InvariantCulture);
+                default: return element.ToString() ?? "";
             }
         }
 

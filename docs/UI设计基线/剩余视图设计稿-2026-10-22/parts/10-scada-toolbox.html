@@ -1,0 +1,124 @@
+<section class="view" id="view-10">
+  <div class="view-head">
+    <h2>图元工具箱</h2>
+    <span class="file">VisionMaster\Views\ScadaToolboxView.xaml</span>
+    <span class="size">496 行 · 0 hex</span>
+  </div>
+  <div class="view-body">
+
+    <div class="mock" style="width:300px">
+      <div class="mock-bar">
+        <span class="t" style="white-space:nowrap">图元工具箱</span>
+        <span class="s">面板头由 AvalonDock 提供，视图内不再画标题</span>
+      </div>
+
+      <div class="toolbar">
+        <div class="input ph">⌕ 搜索图元 / 模板</div>
+        <span class="hint">共 28 种</span>
+      </div>
+
+      <div class="mock-body tight">
+        <div class="row" style="padding:6px 10px"><span class="meta">▾</span><span class="name">我的模板</span><span class="tag">3</span></div>
+        <div class="row">
+          <span class="tag">▣</span>
+          <span class="name">阀门组</span>
+          <span class="meta">4 项</span>
+        </div>
+        <div class="row">
+          <span class="tag">▣</span>
+          <span class="name">泵站概览</span>
+          <span class="meta">7 项</span>
+        </div>
+        <p class="hint" style="padding:0 12px 6px 36px">整块随 HasTemplates 显隐：一份模板都没有时一个字都不占；右键可「用当前选中更新模板… / 重命名… / 删除」</p>
+
+        <div class="sep" style="width:100%;height:1px;margin:4px 0"></div>
+
+        <div class="row" style="padding:6px 10px"><span class="meta">▾</span><span class="name">基础</span><span class="tag">5</span></div>
+        <div class="row">
+          <span class="tag">■</span>
+          <span class="name">矩形</span>
+          <span class="meta mono">Hmi.Rectangle</span>
+        </div>
+        <div class="row">
+          <span class="tag">■</span>
+          <span class="name">椭圆</span>
+          <span class="meta mono">Hmi.Ellipse</span>
+        </div>
+        <div class="row">
+          <span class="tag">■</span>
+          <span class="name">文本</span>
+          <span class="meta mono">Hmi.Text</span>
+        </div>
+
+        <div class="row" style="padding:6px 10px"><span class="meta">▾</span><span class="name">操作</span><span class="tag">3</span></div>
+        <div class="row">
+          <span class="tag">●</span>
+          <span class="name">按钮</span>
+          <span class="meta mono">Hmi.Button</span>
+        </div>
+        <div class="row">
+          <span class="tag">●</span>
+          <span class="name">位按钮</span>
+          <span class="meta mono">Hmi.BitButton</span>
+        </div>
+
+        <div class="row" style="padding:6px 10px"><span class="meta">▾</span><span class="name">指示</span><span class="tag">3</span></div>
+        <div class="row">
+          <span class="tag">○</span>
+          <span class="name">指示灯</span>
+          <span class="meta mono">Hmi.Indicator</span>
+        </div>
+
+        <div class="row" style="padding:6px 10px"><span class="meta">▾</span><span class="name">数值</span><span class="tag">7</span></div>
+        <div class="row">
+          <span class="tag">▤</span>
+          <span class="name">趋势曲线</span>
+          <span class="meta mono">Hmi.ChartTrend</span>
+        </div>
+        <div class="row">
+          <span class="tag">▤</span>
+          <span class="name">数值域</span>
+          <span class="meta mono">Hmi.IOField</span>
+        </div>
+
+        <div class="row" style="padding:6px 10px"><span class="meta">▸</span><span class="name">工艺</span><span class="tag">5</span></div>
+        <div class="row" style="padding:6px 10px"><span class="meta">▸</span><span class="name">报警</span><span class="tag">2</span></div>
+        <div class="row" style="padding:6px 10px"><span class="meta">▸</span><span class="name">运动</span><span class="tag">2</span></div>
+        <div class="row" style="padding:6px 10px"><span class="meta">▸</span><span class="name">数据</span><span class="tag">1</span></div>
+      </div>
+    </div>
+
+    <div class="mock" style="width:300px;margin-top:14px">
+      <div class="mock-bar">
+        <span class="t" style="white-space:nowrap">搜索无结果</span>
+        <span class="s">现状：Groups 为空 → 整块空白，没有一句说明</span>
+      </div>
+      <div class="toolbar">
+        <div class="input mono">PUMPX</div>
+        <span class="hint">共 28 种</span>
+      </div>
+      <div class="mock-body">
+        <div class="empty" style="padding:30px 16px">
+          <div class="empty-glyph">⌕</div>
+          <p class="empty-title">没有匹配的图元</p>
+          <p class="empty-hint">图元按名称 / 类型键 / 分类 / 说明匹配，模板按名称匹配。换个关键词，或清空搜索看全部 28 种。</p>
+          <p style="margin-top:12px"><span class="tool">清空搜索</span></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScadaToolboxView.xaml</code>（搜索行 42 + 我的模板 + 图元分组 + 条目/模板两套行模板）、<code>ScadaToolboxViewModel.cs</code>（<code>Groups</code> / <code>TotalCount</code> / <code>HasTemplates</code> / <code>Templates</code>）、<code>BuiltInElements.cs</code>（DisplayName / TypeKey / Category）</li>
+        <li>改动要点 1：<b>不要加内嵌标题</b>——面板头已经写着「图元工具箱」，总数挪到搜索行右端（10px 次要色）；搜索行固定 42px</li>
+        <li>改动要点 2：分组是<b>扁平 28px 组头</b>（chevron + 名称 + 右端计数），不是卡片。必须自带 Template：应用级 Fluent 的隐式 Expander 是"圆角卡片 + 内边距 + 投影"，会把分组撑成一叠白卡片</li>
+        <li>改动要点 3：条目 30px = 悬停才出现的抓手 → 22×22 分类色图标块 → 名称 → 右端 9px 类型键（<code>MaxWidth 74</code>，长键如 <code>Hmi.AlarmBanner</code> 不许把行顶出可视区）</li>
+        <li>改动要点 4：<span class="err">空态是本稿新增</span>——现在搜索无结果时 <code>ItemsControl</code> 直接渲染 0 项，整块空白，用户分不清"没匹配"还是"工具箱没加载"。需补标题 + 正文 + <b>清空入口（本稿画的那颗「清空搜索」按钮需要新命令，见下）</b></li>
+        <li>改动要点 5：<span class="warn">「共 N 种」现在是注册表总数（<code>TotalCount</code> 只在构造时赋值），搜索时数字不变</span>；建议改成筛选后的可见条数，否则会出现"显示 0 条却写着共 28 种"</li>
+        <li>改动要点 6：<b>可见总数是 28，不是注册表 29</b>——<code>Hmi.AxisPointTable</code> 的 <code>ShowInToolbox=false</code>（<code>BuiltInElements.cs:521-527</code>），<code>ScadaToolboxViewModel</code> 的 <code>_all</code> 按这个标记过滤（<code>:76-78</code>）；分类计数因此是 基础 5 / 操作 3 / 指示 3 / 数值 7 / 工艺 5 / 报警 2 / <b>运动 2</b> / 数据 1</li>
+        <li>需要新增的接口：<code>ScadaToolboxViewModel</code> 补 <code>HasGroups</code> / <code>EmptyHint</code>（搜索无结果态用）、<code>ClearSearchCommand</code>（空态那颗按钮），并把 <code>TotalCount</code> 改成随 <code>SearchText</code> 通知的筛选计数（或新增 <code>VisibleCount</code>）</li>
+      </ul>
+    </div>
+  </div>
+</section>

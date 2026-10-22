@@ -71,6 +71,17 @@
 `CSV：TryFlush 正常路径返回 true 且无错误`、`Excel：flush 桥未注册时直接放行（不阻塞单独使用）`、
 `Excel：导出前 flush 失败 → 步骤失败`。
 
+**A12｜变量列只认本轮局部变量（N2 之前的旧口径）**
+症状：变量列填的是「变量管理」里的全局变量或通讯变量，账本里永远是空；或数组列写成 `System.Int32[]`。
+机理：取值必须走 `TryResolveVariable`——**本轮 `LocalVariables` 优先 → `context.SharedVariables.TryRead(Guid.Empty, 名字)` 兜底**
+（注册表覆盖全局 / 通讯 / 系统变量，取镜像值）；数组在 `FormatCell` 里按 `[a,b,c]`、`byte[]` 按十六进制展开，
+直接 `ToString()` 只会得到类型名。缺名不静默：按名字限次 WARN（每个名字最多 3 条），走 `context.Logger`，
+**不要塞 `RecordingHub` 队列**（那是后台写线程的日志通道）。**不要在 CSV 步骤里调 `TryReadNow`**：
+那会把设备 I/O 塞进流程线程，一条坏链路能拖慢整条线。
+守门断言名：`CSV N2：变量列取到全局变量（局部池没有 → 注册表兜底）`、`CSV N2：变量列取到通讯变量（网络变量镜像值）`、
+`CSV N2：数组列格式化成 [1,2,3]（不是 System.Int32[]）`、`CSV N2：缺名变量留 WARN（不是静默写空）`、
+`CSV N2：缺名 WARN 有上限（4 轮只提示 3 条）`。
+
 ## B 组：无断言，靠人工核对
 
 **B1｜连线编译期找不到端口**

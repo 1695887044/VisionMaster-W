@@ -11,8 +11,9 @@ namespace FlowCanvasChecks
     /// 插件清单缓存（层 3，2026-10-16）的守门断言。
     ///
     /// 缓存的正确性全部押在两件事上，两件事都必须是断言而不是口头约定：
-    ///  ① 指纹失效判据——插件一变（mtime/大小/新增）缓存就必须失效重扫，否则"改了插件不生效"
-    ///     会成为最难查的那类问题（产物陈旧族，R42/红线③ 同族）；
+    ///  ① 指纹失效判据——插件一变（mtime/大小/新增）**或宿主契约程序集一变**缓存就必须失效重扫，
+    ///     否则"改了插件/契约不生效"会成为最难查的那类问题（产物陈旧族，R42/红线③ 同族）；
+    ///     契约判据自 A4（2026-10-22）起是 Core.Interfaces.dll 的 size+mtime 文件指纹（不再是版本号）；
     ///  ② 缓存产物与全量扫描**逐项一致**——缓存路径跳过反射与实例化，注册进四张表的东西
     ///     必须与真扫出来的一模一样，差一个端口就是"缓存命中时某个插件在界面上消失"。
     /// 另有③（反向钉住前提）：缓存路径成立的事实前提是"插件构造器无副作用"（只建端口表）。
@@ -22,14 +23,22 @@ namespace FlowCanvasChecks
     {
         public static void Run()
         {
-            Section("[PC] 插件清单缓存：指纹失效三态 + 产物一致 + 构造器无副作用前提");
+            Section("[PC] 插件清单缓存：指纹失效四态（DLL 三态 + 契约指纹）+ 产物一致 + 构造器无副作用前提");
 
             FingerprintInvalidation();
             CacheMatchesFullScan();
             ConstructorSideEffectFree();
         }
 
-        // ---- ① 指纹失效：mtime 变 / 大小变 / 多出未登记 DLL → 缓存都失效 ----
+        // ---- ① 指纹失效：mtime 变 / 大小变 / 多出未登记 DLL / 契约指纹变 → 缓存都失效 ----
+        //
+        // 契约指纹用**同一目录下的两个常量**做 A/B 对照（A4，2026-10-22）：
+        // 旧 PC5 是"拿 Path.GetTempPath() 换一个版本号读，必须是 null"——那个目录里本来就没有
+        // manifest，返回 null 是"没有缓存文件"而不是"版本对不上"，这条断言**恒绿、什么也没验**（假绿）。
+        // 现在的判据必须落在同一个真缓存上：写 A → 读 B 必失效、读 A 必命中。
+        private const string ContractFingerprintA = "Core.Interfaces.dll|1024000|638000000000000000";
+        private const string ContractFingerprintB = "Core.Interfaces.dll|1024000|638000000000000999";
+
         private static void FingerprintInvalidation()
         {
             var dir = Path.Combine(Path.GetTempPath(), "plugincache_probe_" + Guid.NewGuid().ToString("N"));
@@ -47,10 +56,10 @@ namespace FlowCanvasChecks
                     PluginCache.FingerprintOf(a),
                     PluginCache.FingerprintOf(b),
                 };
-                PluginCache.Save(dir, "1.0.0.0", entries);
+                PluginCache.Save(dir, ContractFingerprintA, entries);
 
                 // 基准：缓存可用
-                var loaded = PluginCache.TryLoad(dir, "1.0.0.0");
+                var loaded = PluginCache.TryLoad(dir, ContractFingerprintA);
                 Check("PC1：刚写的缓存下次读得出来（基准）",
                     loaded != null && loaded.Dlls.Count == 2,
                     loaded == null ? "读不出来" : $"DLL 数={loaded.Dlls.Count}");
@@ -58,9 +67,9 @@ namespace FlowCanvasChecks
                 // mtime 变 → 失效
                 File.SetLastWriteTimeUtc(a, File.GetLastWriteTimeUtc(a).AddSeconds(5));
                 Check("PC2：插件 mtime 变了 → 缓存失效",
-                    PluginCache.TryLoad(dir, "1.0.0.0") == null, "");
+                    PluginCache.TryLoad(dir, ContractFingerprintA) == null, "");
                 File.SetLastWriteTimeUtc(a, DateTime.UtcNow); // 恢复不了原 mtime，重建缓存
-                PluginCache.Save(dir, "1.0.0.0", new List<PluginCache.PluginDllEntry>
+                PluginCache.Save(dir, ContractFingerprintA, new List<PluginCache.PluginDllEntry>
                 {
                     PluginCache.FingerprintOf(a),
                     PluginCache.FingerprintOf(b),
@@ -69,28 +78,52 @@ namespace FlowCanvasChecks
                 // 大小变 → 失效
                 File.WriteAllBytes(a, new byte[101]);
                 Check("PC3：插件大小变了 → 缓存失效",
-                    PluginCache.TryLoad(dir, "1.0.0.0") == null, "");
-                PluginCache.Save(dir, "1.0.0.0", new List<PluginCache.PluginDllEntry>
+                    PluginCache.TryLoad(dir, ContractFingerprintA) == null, "");
+                PluginCache.Save(dir, ContractFingerprintA, new List<PluginCache.PluginDllEntry>
                 {
                     PluginCache.FingerprintOf(a),
                     PluginCache.FingerprintOf(b),
                 });
 
                 // 多出未登记的 Plugin*.dll → 失效
-                File.WriteAllBytes(Path.Combine(dir, "Plugin.C.dll"), new byte[50]);
+                var extra = Path.Combine(dir, "Plugin.C.dll");
+                File.WriteAllBytes(extra, new byte[50]);
                 Check("PC4：多出一个没登记的 Plugin*.dll → 缓存失效（新增插件必须被看见）",
-                    PluginCache.TryLoad(dir, "1.0.0.0") == null, "");
+                    PluginCache.TryLoad(dir, ContractFingerprintA) == null, "");
+
+                // 清掉多余 DLL 并把缓存写回"干净"状态，PC5 才有可比性（否则读 A 也会因多出的 C 失效）
+                File.Delete(extra);
+                PluginCache.Save(dir, ContractFingerprintA, new List<PluginCache.PluginDllEntry>
+                {
+                    PluginCache.FingerprintOf(a),
+                    PluginCache.FingerprintOf(b),
+                });
+
+                // ---- PC5（重写）：契约指纹变 → 失效；不变 → 命中 ----
+                // 判据必须是"同一份清单、只换指纹"的对照，否则"读不出来"可能只是目录里没有缓存。
+                Check("PC5：契约指纹变了 → 缓存失效（Core.Interfaces.dll 重新编译过）",
+                    PluginCache.TryLoad(dir, ContractFingerprintB) == null,
+                    "写 A 读 B 必须失效：清单里的类型名/端口表可能是旧契约的");
+                Check("PC5b：契约指纹不变 → 缓存照常命中（反向：不许每次都全量重扫）",
+                    PluginCache.TryLoad(dir, ContractFingerprintA) != null,
+                    "写 A 读 A 必须命中：判据若写成恒失效，缓存等于不存在");
             }
             finally
             {
                 try { Directory.Delete(dir, recursive: true); } catch { }
             }
 
-            // 契约版本变 → 失效（不碰文件，纯判据）
-            Check("PC5：宿主契约版本变了 → 缓存失效（清单里的类型名可能已失效）",
-                PluginCache.TryLoad(
-                    Path.GetTempPath(), "9.9.9.9") == null,
-                "对一个不存在的目录换版本号读，必须是 null");
+            // ---- PC5c：真指纹本身必须稳定、可复算 ----
+            // PC5 用的是常量 A/B，只能证明"比较逻辑在"；这一条证明产线取到的那份指纹
+            // 两次调用一致（ComputeContractFingerprint 被 PluginService 与断言共用）。
+            string fp1 = PluginCache.ComputeContractFingerprint();
+            string fp2 = PluginCache.ComputeContractFingerprint();
+            Check("PC5c：契约指纹稳定且可复算（两次调用一致、非空、形如 文件|大小|mtime）",
+                !string.IsNullOrWhiteSpace(fp1) && fp1 == fp2
+                && (fp1.StartsWith("mem:", StringComparison.Ordinal)
+                    || fp1.StartsWith("error:", StringComparison.Ordinal)
+                    || fp1.Split('|').Length == 3),
+                $"fp1={fp1} fp2={fp2}");
         }
 
         // ---- ② 缓存产物与全量扫描逐项一致 ----
@@ -109,7 +142,7 @@ namespace FlowCanvasChecks
             var svcFull = new PluginService(providerFull, new SilentNotifier(), new ListLog(log));
             svcFull.InitPlugins();
 
-            var manifest = PluginCache.TryLoad(modulesDir, ContractVersion());
+            var manifest = PluginCache.TryLoad(modulesDir, PluginCache.ComputeContractFingerprint());
             if (manifest == null)
             {
                 Check("PC6：缓存产物与全量扫描一致", false,
@@ -203,9 +236,6 @@ namespace FlowCanvasChecks
         // ------------------------------------------------------------------
         //  工具
         // ------------------------------------------------------------------
-
-        private static string ContractVersion()
-            => typeof(IPluginProvider).Assembly.GetName().Version?.ToString() ?? "0";
 
         private static string? ResolveModulesDir()
         {

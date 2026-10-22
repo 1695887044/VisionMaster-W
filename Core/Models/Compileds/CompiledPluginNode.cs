@@ -52,6 +52,15 @@ namespace VisionMaster.Models
 
                 UpdateStepRuntimeState(context, StepRuntimeState.Success);
             }
+            catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
+            {
+                // 取消（停止 / 急停）不是失败（A9）：插件是被"叫停"的，不是算错了。
+                // 标 Skipped（StepState 没有 Cancel 值，Skipped 是"本轮没跑完但不算错"的既有口径），
+                // 吞掉异常让外层序列照常退栈 —— RunSequence 下一次循环就会读到令牌已取消并返回。
+                // 判据带 when 令牌已取消：插件内部自己抛的 OCE（例如它自己的超时）仍按失败处理。
+                UpdateStepRuntimeState(context, StepRuntimeState.Skipped);
+                return null;
+            }
             catch (Exception)
             {
                 UpdateStepRuntimeState(context, StepRuntimeState.Failed);

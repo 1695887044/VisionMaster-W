@@ -494,19 +494,22 @@ namespace VisionMaster.Services
             return row;
         }
 
-        /// <summary>逐元素换算 → JSON（全 null 不导出，避免每行都挂一串 null；短档案按元素个数补齐）</summary>
+        /// <summary>逐元素换算 → JSON（全 null 不导出；按元素个数补齐/截断，保证导出文件能再导入）</summary>
         private static string BuildElementConversionsJson(NetworkVariableModel variable)
         {
             var conversions = variable.ElementConversions;
             if (conversions == null || !conversions.Any(c => c != null)) return string.Empty;
 
-            // 导入侧要求"项数 == 元素个数"：短档案先补齐 null，否则导出后无法再导入
+            // 非数值数组的档案不导出（导入侧会拒绝；旧版 UI 可能留下这种脏档案）
+            Type? elementType = variable.DataType?.GetElementType();
+            if (elementType == null || !ArrayConversion.IsNumericElement(elementType)) return string.Empty;
+
             int length = variable.AddressConfig?.Length ?? conversions.Length;
-            if (length > conversions.Length)
+            if (length > 0 && length != conversions.Length)
             {
-                var padded = new ElementConversion?[length];
-                Array.Copy(conversions, padded, conversions.Length);
-                conversions = padded;
+                var sized = new ElementConversion?[length];
+                Array.Copy(conversions, sized, Math.Min(length, conversions.Length));
+                conversions = sized;
             }
 
             return JsonConvert.SerializeObject(conversions, Formatting.None);

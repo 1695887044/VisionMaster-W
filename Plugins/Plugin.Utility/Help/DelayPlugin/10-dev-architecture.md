@@ -29,7 +29,9 @@ DelayPlugin : VisionPluginBase      ← 运行期算子
        while (elapsed < targetDelayMs) {
            if (context.CancellationToken.IsCancellationRequested) {
                Logger.Warn("{InstanceName} 收到急停信号，已强制中断！");
-               Success.Value = false; return;               ← 出口①：中断，不写 State、不写 ErrorMessage
+               State.Value = false;
+               throw new OperationCanceledException(context.CancellationToken);
+               ← 出口①：取消（基类原样上抛 → 节点记 Skipped，**不判失败**、不写 ErrorMessage）
            }
            currentStep = Math.Min(step, targetDelayMs - elapsed);
            Thread.Sleep(currentStep);
@@ -56,8 +58,10 @@ DelayPlugin : VisionPluginBase      ← 运行期算子
 
 **结果类型怎么定**：`ET` 是 `int`（毫秒计数）、`State` 是 `bool`（本轮是否等满）。
 两者都在方法开头被重置，所以**不存在"沿用上一轮值"的窗口**。
-`Success` 是基类的 `OutputPort<bool>`，本插件在出口①③显式写 `false`、出口②显式写 `true`
-——四个工具插件里唯一在正常路径上也显式写 `Success=true` 的就是它（原因见 A2）。
+`Success` 是基类的 `OutputPort<bool>`，本插件在出口③显式写 `false`、出口②显式写 `true`；
+**出口①（取消）不写 `Success`**——它抛 OCE，由框架按"取消不是失败"收口（见 A2）。
+方法开头那行 `Success.Value = false` 仍然保留：本轮确实没跑满，这个读数是对的；
+取消路径上没人读它（节点按异常类型判 Skipped，不看 `Success`）。
 
 **谁负责 Dispose**：重写成空体且**没调 `base.Dispose()`**。
 输出是 `int` / `bool`，不是 `IDisposable`，基类那段"释放输出端口承载的可释放值"扫不到东西，
@@ -71,7 +75,8 @@ DelayPlugin : VisionPluginBase      ← 运行期算子
 | 端口发现 | 反射公开实例属性，`IInputPort` / `IOutputPort` 自动进两张字典 | 三个端口字段初始化即注册 |
 | 取消令牌 | `IExecutionContext.CancellationToken` 由会话持有，停止/急停时置位；重复启动被拒时不会踩坏它 | 每片醒来判一次，是"协作式取消"的唯一入口 |
 | 默认成功 | `Execute` 进 `RunAlgorithm` 前预置 `Success=true`、清空 `ErrorMessage` | 本插件**反着用它**：开局就写 `false`，只在跑满时写 `true`（见 A2） |
-| 异常转失败 | 未捕获异常 → `Fail("{异常类型名}: {消息}")` + 日志 `[{实例名}] 未捕获异常已转为步骤失败：…`；`RethrowOnException`（默认 false）决定是否继续上抛中断当轮 | 本插件 `throw;` 之后由这条接住，`ErrorMessage` 因此**有**内容（与中断路径相反） |
+| 取消不是失败 | `Execute` 对 `OperationCanceledException`（且令牌已取消）**原样上抛**；节点层把该步骤记 `Skipped`，不写 `ErrorMessage`、不判失败 | 出口①就靠这条：本插件只负责"抛"，不负责"判红还是判灰" |
+| 异常转失败 | 未捕获异常 → `Fail("{异常类型名}: {消息}")` + 日志 `Error(ex)`（**完整堆栈**）；`RethrowOnException`（默认 false）决定是否继续上抛中断当轮 | 本插件 `throw;` 之后由这条接住，`ErrorMessage` 因此**有**内容（与取消路径相反） |
 | 轮首回收输出 | `AutoDisposeRoundOutputs`（默认 true）在 `RunAlgorithm` 之前释放输出端口承载的可释放值 | 输出是 `int`/`bool`，这条对本插件是**空转** |
 | 统一灌值 | `ApplyConfigValues`：存盘字典 → 输入端口（已连线端口跳过） | `Delay` 的值全走这条路进来 |
 | 默认确认 | `OnConfirm`：未连线端口写回存盘字典；已连线端口 `RemoveInputValue` | 未重写；填过 500 之后必填检查才放行 |
@@ -98,15 +103,16 @@ A 组：违反就抛 / 编译红 / 闸门红。B 组：违反不报错，只出�
 守门：**无断言，靠人工核对**。同理 `Success` 若不预置，
 会走"默认成功"的预置值 `true`，中断路径的 `return` 就变成"静默成功"（见 A2）。
 
-**A2 中断路径必须显式写 `Success = false`**
-症状：按急停后流程"正常收尾"，取消信号像被吞掉。
-机理：基类预置 `Success=true`，`RunAlgorithm` 里 `return` 也算"方法跑完了"；
-不显式写 `false` 就是"中断了但判成功"。源码注释留了同族教训：
-框架以 `Success.Value is true` 判定业务成功，**此前只写了自家 `State`、没写 `Success`，
-被引擎每轮标记"执行失败"**（写反方向的同一枚硬币）。
-守门：`FlowCanvasChecks\ExecutionChecks.cs` 的停止相关断言
-（"停止后执行任务退出""停止后 IsRunning=false 且状态归为 Stopped""停止后会话锁干净归还"）——
-注意它们跑自己的桩算子，**不直接调用本插件**，所以本条实质仍是靠人工核对。
+**A2 取消路径必须抛 `OperationCanceledException`，不许 `return`（也不许写 `Success=false` 后 return）**
+症状：按急停后这一步被标红/记成"执行失败"，日志里一片 `执行失败` 把真正的故障淹没；
+或者反过来——中断了却判成功（旧实现只写自家 `State`、没写 `Success`，被引擎标失败）。
+机理：框架以 `Success.Value is true` 判定业务成功，而 `RunAlgorithm` 里 `return` 也算"方法跑完了"，
+所以"取消"只有两条出路：① 抛 OCE（令牌已取消时基类原样上抛，节点记 `Skipped`）；
+② 写 `Success=true` 正常返回（会被记成 `Success`，但延时并没跑满，语义不对）。
+本插件选 ①，与框架 A9 口径一致：**取消是"被叫停"，不是"算错了"**。
+守门：`FlowCanvasChecks\ExecutionChecks.cs` 的 `[E25]`（真跑"取消桩"：令牌已置位时抛 OCE →
+步骤落 `Skipped`、不抛穿流程、不写"执行失败"、`ErrorMessage` 为空）；
+基类那条 `catch (OperationCanceledException) when (token.IsCancellationRequested)` 是同一条链的另一半。
 
 **A3 分片 sleep 的粒度不许换成一次性 `Thread.Sleep(targetDelayMs)`**
 症状：急停要等满整个延时才生效（"急停不急"）。
@@ -127,11 +133,12 @@ A 组：违反就抛 / 编译红 / 闸门红。B 组：违反不报错，只出�
 
 ### B 组（静默故障）
 
-**B1 急停中断不写 `ErrorMessage`**
-症状：步骤红、错误信息列是空的，现场只能猜。
-机理：出口① 只写日志（Warn）与 `Success=false`，没走 `Fail(...)`。
-守门：**无断言，靠人工核对**。要补文案就补一句明确的（例如"延时被急停中断，已流逝 N ms"），
-别只靠日志——日志级别是 Warn，界面上不显眼。
+**B1 取消路径不写 `ErrorMessage`（这是设计，不是缺陷）**
+症状：步骤被「跳过」，错误信息列是空的，现场想从界面找原因。
+机理：出口① 只写日志（Warn）与 `State=false`，然后抛 OCE —— 取消不是失败，
+写 `ErrorMessage` 会把"用户叫停"污染成"这一步出错了"（下游/报表会把它当故障统计）。
+守门：`[E25]` 里"取消不写 ErrorMessage"那条。要看原因请打开流程日志按实例名过滤
+`收到急停信号，已强制中断！`——**日志级别是 Warn，界面上不显眼，这是有意的**。
 
 **B2 `Delay=0` / 负数不报错、直接判成功**
 症状：配方里时间是空/0，流程"跑得飞快还全绿"。
@@ -180,15 +187,21 @@ HM12 开发页文件名 `NN-dev-`、HM12b 禁止再套一层、HM13 行数下限
 
 其余是契约级、对本插件间接生效的断言（不点名本插件）：
 
+- `FlowCanvasChecks\ExecutionChecks.cs` 的 `[E25]`（A9 取消语义与异常堆栈）：
+  "★取消（令牌已置位）不再抛穿流程" / "★被取消的步骤落 Skipped（不是 Failed）" /
+  "取消不写「执行失败」日志" / "取消不写 ErrorMessage" / "★异常日志含完整堆栈"——
+  这正是出口① 依赖的框架口径；把它们改回"取消即失败"，本插件的急停行为会跟着变红。
 - `FlowCanvasChecks\ExecutionChecks.cs`：`DuplicateStartIsIgnored()` 的
   "停止后执行任务退出" / "停止后 IsRunning=false 且状态归为 Stopped" /
   "停止后会话锁干净归还" / "重复启动没有踩坏会话的取消令牌源"——
   它们验的是"取消令牌能被观察到的前提下会话干净收尾"，正是本插件依赖的前提。
+- `FlowCanvasChecks\FlowEngineFixChecks.cs` 的 `[P1A-S6]`：`StopSession` 在取消前写 Info、
+  `StopAll` 返回停止条数——急停"有没有真的发到引擎"现在能在日志里查到。
 - `FlowCanvasChecks\LogicBruteforceChecks.cs` 的
   "B2：看门狗自检（三层 9999 计次循环 → 2s 内被协作取消打断并如实记超时）"——
   与 B3/A3 同族的"分步检查取消"范式守门，用的是自己的 `TracePlugin` 桩。
 
 本插件**没有专属断言文件**：改算法体（分片粒度、三条出口的赋值、日志文案）
-**当前没有任何断言会红**，只能靠人工核对本页与用户页。
+**没有点名本插件的断言会红**（`[E25]` 用的是自己的取消桩），只能靠人工核对本页与用户页。
 动到 `Shard\Core.Interfaces`（端口 / 基类 / `IExecutionContext`）则要按
 "全量重建 + 跑 gate"走，不能只看本工程编译通过。

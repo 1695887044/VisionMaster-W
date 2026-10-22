@@ -165,9 +165,16 @@ namespace VisionMaster.Communications
         {
             raw = value;
             error = null;
-            if (value == null) return true;
 
             Type target = Nullable.GetUnderlyingType(elementType) ?? elementType;
+            if (value == null)
+            {
+                // 目标是非空值类型时给类型默认值（0/false）：直接返回 null 会让
+                // TryToRawArray 的 Array.SetValue(null, int[]) 走异常/未定义路径。
+                if (target.IsValueType) raw = Activator.CreateInstance(target);
+                return true;
+            }
+
             if (target.IsInstanceOfType(value)) return true;
 
             try

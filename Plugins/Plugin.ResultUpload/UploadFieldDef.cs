@@ -32,7 +32,10 @@ namespace Plugin.ResultUpload
     {
         /// <summary>输入端口：字段名即动态端口名，由上游步骤连线供值</summary>
         Port,
-        /// <summary>运行期变量：从 context.LocalVariables 按名取值</summary>
+        /// <summary>
+        /// 运行期变量：本轮局部变量优先（变量定义 / 变量赋值 / 脚本 SetVar 写的池），
+        /// 取不到时兜底到共享变量注册表（全局变量 / 通讯变量 / 系统变量共用一张表，取镜像值）。
+        /// </summary>
         Variable,
         /// <summary>内置字段：时间戳 / 步骤名，由插件自动供给</summary>
         BuiltIn
@@ -73,7 +76,10 @@ namespace Plugin.ResultUpload
         }
 
         private string _variableName = "";
-        /// <summary>来源=变量时的变量名（运行期变量池的键）</summary>
+        /// <summary>
+        /// 来源=变量时的变量名（按名解析：本轮局部变量优先 → 全局 / 通讯 / 系统变量兜底）。
+        /// 名字按 <c>Trim()</c> 后区分大小写匹配；两边都找不到时字段按空值上报，并留一条限次 WARN。
+        /// </summary>
         public string VariableName
         {
             get => _variableName;

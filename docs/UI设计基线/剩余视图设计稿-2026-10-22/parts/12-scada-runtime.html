@@ -1,0 +1,120 @@
+<section class="view" id="view-12">
+  <div class="view-head">
+    <h2>组态运行窗口</h2>
+    <span class="file">VisionMaster\Views\ScadaRuntimeWindow.xaml</span>
+    <span class="size">499 行 · 22 hex</span>
+  </div>
+  <div class="view-body">
+
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="t">组态运行 - 主界面</span>
+        <span class="s">1280 × 800 · 窗口形态由 RunWindowMode 决定（无边框最大化 / 独立窗口）</span>
+        <span class="grow"></span>
+        <span class="tag ok">运行中</span>
+      </div>
+
+      <div class="mock-body alt">
+        <div class="toolbar">
+          <span class="hint">运行画面</span>
+          <span class="tool">主界面 ▾</span>
+          <span class="tool">← 返回</span>
+          <span class="grow"></span>
+          <span class="tool">报警历史</span>
+          <span class="tag err">3</span>
+          <span class="tool danger">■ 停止运行</span>
+        </div>
+
+        <div class="card" style="padding:18px">
+          <p class="hint">画面区（深色壳）：1920 × 1080 等比适配；<code>IsReadOnly=True</code>，网格与吸附一律关闭——操作员不该看见画格子</p>
+          <div class="cards three" style="margin-top:12px">
+            <div class="card">
+              <div class="card-title">罐体/料仓</div>
+              <div class="hint">液位 62.4 %</div>
+            </div>
+            <div class="card">
+              <div class="card-title">泵 P-101</div>
+              <div class="hint"><span class="dot ok"></span> 运行</div>
+            </div>
+            <div class="card">
+              <div class="card-title">趋势曲线</div>
+              <div class="hint">1#线温度 78.2 °C</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar" style="margin-top:10px">
+          <span class="hint">设计 1920</span>
+          <span class="hint">× 1080</span>
+          <span class="hint">视口 1216 × 664</span>
+          <span class="hint">适配 63%</span>
+          <span class="hint">操作者 张三（操作员）</span>
+          <span class="grow"></span>
+          <span class="hint">加载耗时 412 ms</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mock" style="margin-top:14px">
+      <div class="mock-bar">
+        <span class="t">组态运行 - 弹窗页打开</span>
+        <span class="s">覆盖层：盖在画布上但不参与画布测量</span>
+        <span class="grow"></span>
+        <span class="tag ok">运行中</span>
+        <span class="tag info">报警历史 打开</span>
+      </div>
+
+      <div class="mock-body alt">
+        <div class="toolbar">
+          <span class="hint">运行画面</span>
+          <span class="tool">主界面 ▾</span>
+          <span class="tool">← 返回</span>
+          <span class="grow"></span>
+          <span class="tool active">报警历史</span>
+          <span class="tag err">3</span>
+          <span class="tool danger">■ 停止运行</span>
+        </div>
+
+        <div class="card" style="padding:16px">
+          <p class="hint">主画面被模态遮罩压暗（PopupModal=true 才出现遮罩；非模态时主画面仍可操作）</p>
+
+          <div class="card" style="width:380px;margin:12px auto 0">
+            <div class="toolbar">
+              <span class="t">确认停机</span>
+              <span class="grow"></span>
+              <span class="tool icon">✕</span>
+            </div>
+            <div class="mock-body">
+              <p class="hint">弹窗页画布：独立 <code>ScadaCanvas</code>，<code>Viewbox Stretch=Uniform / StretchDirection=DownOnly</code></p>
+              <p class="hint">弹窗页仍是普通 <code>ScadaPage</code>（<code>IsPopup=true</code>）；关闭后回到原页，<code>CurrentPage</code> 从未变过</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar" style="margin-top:10px">
+          <span class="hint">设计 1920</span>
+          <span class="hint">× 1080</span>
+          <span class="hint">视口 1216 × 664</span>
+          <span class="hint">适配 63%</span>
+          <span class="hint">操作者 张三（操作员）</span>
+          <span class="grow"></span>
+          <span class="hint">加载耗时 412 ms</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScadaRuntimeWindow.xaml</code>（顶条 + 画面区 + 弹窗层 + 报警抽屉挂载 + 底条 26）、<code>ScadaRuntimeWindow.xaml.cs</code>（<code>ApplyRunWindowMode</code> / <code>OnCanvasSizeChanged</code> / <code>ElapsedText</code> 回填）、<code>DefaultScadaAccessPolicy.cs</code>（<code>LoginStateText</code>）、<code>ScadaAlarmHistoryViewModel.cs</code>（<code>UnacknowledgedText</code>）</li>
+        <li>改动要点 1：<b>22 处 hex 收进深色令牌</b>——现在 <code>BarBrush #22262C</code> / <code>BarLineBrush #33383F</code> / 窗口底 <code>#16191D</code> / <code>TextBrush #D6DAE0</code> / <code>MutedTextBrush #8A929E</code> / <code>StopBrush #C0392B</code>（描边 <code>#E05A4A</code>、hover <code>#D9453A</code>、pressed <code>#A5342A</code>）/ 报警开关 <code>#2A2F36 · #3A4048 · #323841 · #2B4C7E · #4A8FE0</code> / 弹窗框 <code>#151C23 · #3A4A5C</code> / 遮罩 <code>#A603070C</code>。它们与 <code>ScadaTokens.xaml</code> 的 <code>Hmi*</code> 是两个色系，必须先在令牌层合并</li>
+        <li>改动要点 2：顶条分工固定——左＝"我在看哪一页"的读数区（运行画面 + 页面菜单 + ← 返回），右＝动作区（报警历史 + 停止运行）。<b>没有关闭按钮、不绑 Esc</b>：运行态退出必须是一个看得见的动作（触摸屏上没有键盘）</li>
+        <li>改动要点 3：报警徽标只在有未确认报警时亮出来（数到 0 整块收掉），&gt;99 显示 <code>99+</code>；报警历史用 <code>ToggleButton</code> 表达"抽屉开着"，不用红底（红色已被停止运行占住）</li>
+        <li>改动要点 4：底条只放读数——设计尺寸 / 视口 / 适配 / 操作者，右端"加载耗时"由宿主在首帧渲染后回填（领域层拿不到那一帧）。无边框最大化时主界面状态栏被盖住，操作者至少能在这里看到自己哪一档权限</li>
+        <li>改动要点 5：弹窗层与报警抽屉都是<b>覆盖层</b>——加列或改 Margin 会让画布 <code>SizeChanged → FitToScreen</code>，操作员打开面板时画面会"跳一下"</li>
+        <li>需要新增的接口：无代码接口。<span class="warn">需要新增令牌：运行窗口壳一组（壳底 / 顶底条 / 条分割线 / 停止钮三态 / 报警开关四态 / 弹窗框 / 遮罩），建议放 <code>ScadaTokens.xaml</code> 的 <code>Hmi*</code> 命名空间下，宿主浅色令牌不要混进来</span></li>
+        <li><span class="warn">已知偏差：共享 CSS 只有 Dialog* 浅色令牌，本稿正文按浅色示意结构；落地时整块换 <code>Hmi*</code>（<code>HmiCanvasBackgroundBrush #0E1318</code> / <code>HmiSurfaceBrush #151C23</code> / <code>HmiBorderStrongBrush #3A4A5C</code> / <code>HmiTextBrush #E6EEF7</code> / <code>HmiTextMutedBrush #7C8A99</code> / <code>HmiDangerBrush #EF4444</code>）</span></li>
+      </ul>
+    </div>
+  </div>
+</section>

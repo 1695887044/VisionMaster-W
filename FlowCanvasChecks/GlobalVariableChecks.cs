@@ -1301,6 +1301,27 @@ namespace FlowCanvasChecks
                 && stringArrayEditor.Elements.All(r => !r.HasConversion),
                 $"show={stringArrayEditor.ShowConversionControls} header={stringArrayEditor.OperationHeader}");
 
+            // 旧版 UI 可能给 string[]/bool[] 留下换算档案：数值闸门必须把它们判成"不生效"，
+            // 否则读路径会把字符串按 double 解析、整组写会在 SetValue(double, string[]) 上抛异常。
+            stringArrayModel.ElementConversions = new ElementConversion?[]
+            {
+                new() { Scale = 0.1, Offset = 5 }
+            };
+            Check("[G] 旧脏档案：string[] 上的换算档案不算生效（数值闸门）",
+                !stringArrayModel.HasElementConversion && !stringArrayModel.HasConversionAt(0),
+                $"hasAny={stringArrayModel.HasElementConversion} at0={stringArrayModel.HasConversionAt(0)}");
+
+            Check("[G] 数组域判定：按 pending 档案决定 double/声明类型（清空换算后不按旧 double 域构建）",
+                ArrayEditorViewModel.HasEffectiveConversion(
+                    new ElementConversion?[] { new() { Scale = 0.1, Offset = 5 } }, typeof(int))
+                && !ArrayEditorViewModel.HasEffectiveConversion(
+                    new ElementConversion?[] { null, null }, typeof(int))
+                && !ArrayEditorViewModel.HasEffectiveConversion(
+                    new ElementConversion?[] { new() { Scale = 0.1 } }, typeof(string)),
+                $"intWith={ArrayEditorViewModel.HasEffectiveConversion(new ElementConversion?[] { new() { Scale = 0.1 } }, typeof(int))} " +
+                $"cleared={ArrayEditorViewModel.HasEffectiveConversion(new ElementConversion?[] { null }, typeof(int))} " +
+                $"stringWith={ArrayEditorViewModel.HasEffectiveConversion(new ElementConversion?[] { new() { Scale = 0.1 } }, typeof(string))}");
+
             // —— 添加变量：数组类型不再暴露可编辑的换算字段 ——
             var draftContext = new NetworkVariableDraftContext
             {

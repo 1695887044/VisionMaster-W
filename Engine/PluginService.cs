@@ -66,16 +66,17 @@ namespace VisionMaster.Services
             if (!Directory.Exists(pluginsDir))
                 return;
 
-            // 宿主契约版本进指纹：插件二进制对 Core.Interfaces / VM.Core 链接，
-            // 契约变了（接口/基类签名改动）缓存里的类型名可能已失效，必须整体重扫。
-            string contractVersion =
-                typeof(IPluginProvider).Assembly.GetName().Version?.ToString() ?? "0";
+            // 宿主契约指纹进缓存判据（A4）：用 Core.Interfaces.dll 的 **size+mtime 文件指纹**，
+            // 不用程序集版本号——版本号对不上"改了契约却没升 AssemblyVersion"这种本仓常态，
+            // 那种情况下缓存会照命中，清单里的类型名/端口表却已是旧的（"改了插件不生效"）。
+            // 口径只有一处事实来源：PluginCache.ComputeContractFingerprint（断言的 PC5 也读它）。
+            string contractFingerprint = PluginCache.ComputeContractFingerprint();
 
             // ---- 层 3：插件清单缓存 ----
             // 命中：仍 LoadFrom 全部插件（下游三处——自动连接/流程编译/帮助合并——都要程序集在内存里），
             //       但跳过 GetTypes() 反射与 42 个 Activator.CreateInstance（插桩实测这两项约 2.5 秒）。
             // 失效：任一指纹对不上（含"多了个没登记的 Plugin*.dll"）就全量重扫并重写缓存。
-            var cached = PluginCache.TryLoad(pluginsDir, contractVersion,
+            var cached = PluginCache.TryLoad(pluginsDir, contractFingerprint,
                 why => _log.Info($"[插件扫描] 缓存失效（{why}），全量重扫"));
             if (cached != null)
             {
@@ -118,7 +119,14 @@ namespace VisionMaster.Services
                 }
                 entries.Add(entry);
             }
-            PluginCache.Save(pluginsDir, contractVersion, entries);
+            PluginCache.Save(pluginsDir, contractFingerprint, entries);
+
+            // A4：全量重扫（首次启动 / 清单结构升级 / 指纹变化）必须留一行 Info。
+            // 这一行是"缓存到底生效了没有"的唯一现场依据——没有它，用户只会感觉"这次启动慢"，
+            // 却分不清是缓存没命中还是磁盘冷读。
+            _log.Info(
+                $"[插件扫描] 全量重扫完成：{entries.Count} 个插件 DLL，已写缓存"
+                + $"（契约指纹 {contractFingerprint}，Schema {PluginCache.SchemaVersion}）");
         }
 
         /// <summary>

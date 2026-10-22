@@ -1,0 +1,173 @@
+<section class="view" id="view-36">
+  <div class="view-head">
+    <h2>扫描组编辑</h2>
+    <span class="file">VisionMaster\Views\DialogViews\ScanGroupEditorView.xaml</span>
+    <span class="size">473 行 · 4 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：默认组 + 两个自定义组，下卡有实时诊断 -->
+    <div class="mock" style="max-width:920px">
+      <div class="mock-bar">
+        <span class="t">扫描组 - 现场 PLC-1</span>
+        <span class="grow"></span>
+        <span class="s">共 2 组 / 上限 8</span>
+      </div>
+
+      <div class="toolbar">
+        <span class="tool primary">＋ 新增组</span>
+        <span class="tool">一键预设 ▾</span>
+        <span class="tool danger">删除</span>
+        <span class="sep"></span>
+        <span class="hint">复制到：</span>
+        <span class="combo" style="width:170px;max-width:170px">视觉网关</span>
+        <span class="tool">复制</span>
+      </div>
+
+      <div class="mock-body tight">
+        <div class="toolbar"><span class="hint">ⓘ 优先级由周期升序决定，与列表顺序无关（拖动仅调整显示顺序）。变量数为 0 的组不参与轮询。</span></div>
+        <div class="table">
+          <div class="thead">
+            <span class="th" style="width:220px;flex:1 1 auto">组名</span>
+            <span class="th" style="width:130px">周期 (ms)</span>
+            <span class="th" style="width:110px">变量数</span>
+            <span class="th" style="width:110px">段数</span>
+            <span class="th" style="width:200px">排序</span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:220px;flex:1 1 auto">默认组</span>
+            <span class="td mono" style="width:130px">1000</span>
+            <span class="td mono" style="width:110px">96</span>
+            <span class="td mono" style="width:110px">7</span>
+            <span class="td muted">（默认组固定首行，无拖动手柄）</span>
+          </div>
+          <div class="tr sel">
+            <span class="td" style="width:220px;flex:1 1 auto">联锁</span>
+            <span class="td mono" style="width:130px">100</span>
+            <span class="td mono" style="width:110px">12</span>
+            <span class="td mono" style="width:110px">2</span>
+            <span class="td muted">⠿</span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:220px;flex:1 1 auto">工艺</span>
+            <span class="td mono" style="width:130px">5000</span>
+            <span class="td mono" style="width:110px">8</span>
+            <span class="td mono" style="width:110px">3</span>
+            <span class="td muted">⠿</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mock-body alt">
+        <div class="toolbar">
+          <span>◈ 运行诊断</span>
+          <span class="grow"></span>
+          <span class="hint">每秒自动刷新</span>
+        </div>
+        <div class="table">
+          <div class="thead">
+            <span class="th" style="width:200px;flex:1 1 auto">组名</span>
+            <span class="th" style="width:130px">目标周期</span>
+            <span class="th" style="width:130px">实测周期</span>
+            <span class="th">达成率</span>
+            <span class="th" style="width:100px">异常段</span>
+            <span class="th" style="width:110px">状态</span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:200px;flex:1 1 auto">默认组</span>
+            <span class="td mono" style="width:130px">1000 ms</span>
+            <span class="td mono" style="width:130px">1012 ms</span>
+            <span class="td" style="width:53px">98%</span>
+            <span class="td mono" style="width:100px">—</span>
+            <span class="td" style="width:110px"><span class="tag ok">正常</span></span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:200px;flex:1 1 auto">联锁</span>
+            <span class="td mono" style="width:130px">100 ms</span>
+            <span class="td mono" style="width:130px">138 ms</span>
+            <span class="td" style="width:53px">72%</span>
+            <span class="td mono" style="width:100px">1/2</span>
+            <span class="td" style="width:110px"><span class="tag warn">偏慢</span></span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:200px;flex:1 1 auto">工艺</span>
+            <span class="td mono" style="width:130px">5000 ms</span>
+            <span class="td mono" style="width:130px">5041 ms</span>
+            <span class="td" style="width:53px">99%</span>
+            <span class="td mono" style="width:100px">—</span>
+            <span class="td" style="width:110px"><span class="tag ok">正常</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mock-foot">
+        <span class="grow"></span>
+        <span class="tool">取消</span>
+        <span class="tool primary">确 定</span>
+      </div>
+    </div>
+
+    <!-- 边界态：空组（只有虚拟默认组）+ 诊断空态 -->
+    <div class="mock" style="max-width:920px">
+      <div class="mock-bar">
+        <span class="t">边界态 · 空组</span>
+        <span class="s">只有虚拟默认组，变量数 0</span>
+        <span class="grow"></span>
+        <span class="tag">共 0 组 / 上限 8</span>
+      </div>
+
+      <div class="toolbar">
+        <span class="tool primary">＋ 新增组</span>
+        <span class="tool">一键预设 ▾</span>
+        <span class="tool danger">删除</span>
+        <span class="sep"></span>
+        <span class="hint">复制到：</span>
+        <span class="combo" style="width:170px;max-width:170px">（无其它连接）</span>
+        <span class="tool">复制</span>
+      </div>
+
+      <div class="mock-body tight">
+        <div class="toolbar"><span class="hint">ⓘ 优先级由周期升序决定，与列表顺序无关（拖动仅调整显示顺序）。变量数为 0 的组不参与轮询。</span></div>
+        <div class="table">
+          <div class="thead">
+            <span class="th" style="width:220px;flex:1 1 auto">组名</span>
+            <span class="th" style="width:130px">周期 (ms)</span>
+            <span class="th" style="width:110px">变量数</span>
+            <span class="th" style="width:110px">段数</span>
+            <span class="th" style="width:200px">排序</span>
+          </div>
+          <div class="tr sel">
+            <span class="td" style="width:220px;flex:1 1 auto">默认组</span>
+            <span class="td mono" style="width:130px">1000</span>
+            <span class="td mono" style="width:110px">0</span>
+            <span class="td mono" style="width:110px">0</span>
+            <span class="td muted">（默认组固定首行，无拖动手柄）</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mock-body alt">
+        <div class="toolbar">
+          <span>◈ 运行诊断</span>
+          <span class="grow"></span>
+          <span class="hint">每秒自动刷新</span>
+        </div>
+        <div class="empty">
+          <div class="empty-glyph">◈</div>
+          <div class="empty-title">暂无运行诊断数据</div>
+          <div class="empty-hint">连接未建立，实测周期与达成率要等连接后才测得到（变量数/段数见上方编辑区）</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScanGroupEditorView.xaml</code>（上卡 = 可编辑组表，下卡 = 只读运行诊断，底栏 取消 / 确定）。列名与按钮逐字取自 XAML：组名 / 周期 (ms) / 变量数 / 段数 / 排序；组名 / 目标周期 / 实测周期 / 达成率 / 异常段 / 状态；新增组 / 一键预设 / 删除 / 复制到：/ 复制。</li>
+        <li>改动要点：① 上卡工具栏把「组数上限」移到卡头右侧（现状在标题栏，与工具按钮抢同一行）；② 一键预设的 6 个档位（100 / 500 / 1000 / 5000 / 10000 / 60000 ms，括号里是 联锁 / 快速 / 常规 / 工艺 / 统计 / 归档）保持为按钮 + 菜单，不做成第二排按钮；③ 达成率列现在是「90px 进度条 + 百分比」，共享 CSS 无进度条 class，本稿只画百分比 + 状态标签，WPF 侧保留原进度条；④ 异常段用 <code>1/2</code> 而不是只报分子，正常时显示 <code>—</code>（<code>FaultedText</code> 原口径）。</li>
+        <li>边界态：空组（只有默认组、变量数 0、诊断区空态）；诊断空态文案逐字取自 VM <code>StatsHint</code> 三种情形之一（连接不存在 / 连接未建立 / 该连接还没有已注册的变量）。</li>
+        <li>需要新增的接口：<code>ScanGroupStatRow.StatusKey</code>（<code>ok / warn / err / idle</code>）—— 现在分档色由 VM 直接给 <code>StatusColor</code> 十六进制（<code>#12B76A / #F79009 / #E5484D / #909399</code>），换肤时动不了；其余（<code>GroupCountHint</code> / <code>HasLiveStats</code> / <code>StatsHint</code> / <code>CanDeleteSelected</code>）已存在。</li>
+      </ul>
+    </div>
+  </div>
+</section>

@@ -5,6 +5,10 @@
 <title>运行驾驶舱 · 设计基线 v1</title>
 <style>
   :root {
+    /* NOT-A-TOKEN（设计稿外壳 / 模拟画面，不进产品）: #0A0F14 #0B1015 #06120A #1A0505 rgba(0,0,0)
+       前两者是页面底与画布标题条（让深色驾驶舱从背景浮出来）；#06120A/#1A0505 是 ROI 标签在
+       绿/红实底上的深色字，属模拟 HALCON 标注框；rgba(0,0,0) 是页面外框投影。
+       WPF 里没有这五层。 */
     /* ---- 深色驾驶舱令牌：与 Colors.xaml 的 RunCockpit* 一一对应 ---- */
     --run-bg: #0E141B;              /* RunCockpitBackgroundBrush */
     --run-surface: #151D26;         /* RunCockpitSurfaceBrush */

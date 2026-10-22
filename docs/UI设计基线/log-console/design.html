@@ -34,6 +34,7 @@
     --info: #0EA5E9;                /* 信息级 = 强调色，与 LogLevel.Info 一致 */
 
     --row-hover: #F1F5F9;           /* DialogRowHoverBrush */
+    --danger-subtle: #FEF2F2;       /* DialogDangerSubtleBrush */
 
     --radius-sm: 6px;
     --radius-md: 8px;
@@ -70,6 +71,9 @@
     box-shadow: 0 10px 28px rgba(15, 23, 42, .10), 0 2px 6px rgba(15, 23, 42, .05);
   }
   .panel.narrow { width: 460px; }
+  /* 窄面板降级：搜索框从固定 220 收成弹性，时间列 84→78，来源列 78→64 */
+  .panel.narrow .search { width: auto; flex: 1 1 auto; min-width: 120px; }
+  .panel.narrow .logrow { grid-template-columns: 3px 78px 64px 1fr; }
 
   .caption {
     display: flex;
@@ -147,6 +151,8 @@
     right: 4px; top: 50%;
     transform: translateY(-50%);
     width: 22px; height: 22px;
+    /* R68：小图标按钮必须显式 padding:0，否则继承的默认内边距会把 ✕ 削掉 */
+    padding: 0;
     display: none;
     align-items: center; justify-content: center;
     border: 0; border-radius: 4px;
@@ -156,6 +162,8 @@
     cursor: pointer;
   }
   .search .clear:hover { background: var(--row-hover); color: var(--text-2); }
+  .search .clear:active { background: var(--border-light); }
+  .search .clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .search.has-value .clear { display: inline-flex; }
 
   /* 等级筹码：形状在模板里画，容器只管点击 */
@@ -176,7 +184,10 @@
     transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
   }
   .chip:hover { border-color: var(--text-4); }
+  .chip:active { background: var(--border-light); }
   .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* 筹码不设 Disabled：五个等级恒定可选，"没有该级日志"用计数 0 表达，
+     不用禁用态（禁用会让人以为"这一级不能看"）。这条是刻意的，不是遗漏。 */
   .chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-4); flex: 0 0 auto; }
   .chip .n { font-size: 11px; color: var(--text-4); font-variant-numeric: tabular-nums; }
   .chip[data-level="all"] .dot { display: none; }
@@ -246,6 +257,9 @@
   }
   .logrow:nth-child(even) { background: var(--surface-2); }
   .logrow:hover { background: var(--row-hover); }
+  /* 行选中：现状 LogConsole 用硬编码浅蓝，设计稿改走令牌 DialogAccentLightBrush（#E0F2FE）。
+     复刻时这一处必须一并令牌化，否则"hex=0"做不到。 */
+  .logrow.selected { background: var(--accent-light); }
   .logrow .bar { align-self: stretch; width: 3px; border-radius: 0 2px 2px 0; background: var(--text-4); }
   .logrow .time {
     font-family: var(--mono);
@@ -284,8 +298,14 @@
   .logrow.lv-warning .msg { color: var(--warning-text); }
   .logrow.lv-error .bar { background: var(--danger); }
   .logrow.lv-error .msg { color: var(--danger-text); font-weight: 600; }
-  .logrow.lv-error { background: #FEF2F2; }
-  .logrow.lv-error:nth-child(even) { background: #FDECEC; }
+  /* 错误行：整行底。设计只给一种红——交替行不再叠色，
+     否则"常驻单色"的自述与画面不符（v1 审查抓到）。
+     ⚠ 顺序很重要：错误行规则必须排在 :hover / .selected 之前，
+     否则同特异性下后者被前者覆盖，错误行会失去悬停与选中反馈（v2 审查抓到）。
+     悬停用 color-mix 从同一令牌派生，不引入第二个红（否则又是野色）。 */
+  .logrow.lv-error { background: var(--danger-subtle); }
+  .logrow.lv-error:hover { background: color-mix(in srgb, var(--danger-subtle) 88%, var(--danger) 12%); }
+  .logrow.lv-error.selected { background: var(--accent-light); }
 
   /* ============ 空态 / 无结果态 ============ */
   .state {
@@ -309,6 +329,8 @@
     cursor: pointer;
   }
   .state .hint-btn:hover { background: var(--row-hover); border-color: var(--border-strong); }
+  .state .hint-btn:active { background: var(--border-light); }
+  .state .hint-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   .is-empty .logbody { display: none; }
   .is-empty .state[data-when="empty"] { display: block; }
@@ -327,13 +349,8 @@
     color: var(--text-3);
   }
   .footbar .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--text-2); }
-  .footbar .link {
-    border: 0; background: transparent; padding: 0;
-    font-family: inherit; font-size: 11px; color: var(--accent-text);
-    text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
-  }
-  .footbar .link:hover { color: var(--accent-dark); }
-  .footbar .link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+  /* 完整历史路径：只作说明，不是按钮（LogViewModel 当前无"打开文件夹"命令） */
+  .footbar .path-hint { font-family: var(--mono); font-size: 10.5px; color: var(--text-4); }
 
   /* ============ 演示控制（不属于设计稿） ============ */
   .demo {
@@ -382,8 +399,10 @@
     <div class="row tight">
       <span class="field-label">等级</span>
       <div class="chips" role="group" aria-label="按等级筛选">
-        <button class="chip" data-level="all" aria-pressed="false"><span class="dot"></span>全部<span class="n">128</span></button>
-        <button class="chip" data-level="info" aria-pressed="true"><span class="dot"></span>信息<span class="n">96</span></button>
+        <!-- 默认「全部」：LogViewModel 构造器 _levelOption = _allOption（:83-84），
+             只有"全部"才能同时显示下面四种等级的行。选「信息」却混排四级是自相矛盾（v2 审查抓到）。 -->
+        <button class="chip" data-level="all" aria-pressed="true"><span class="dot"></span>全部<span class="n">128</span></button>
+        <button class="chip" data-level="info" aria-pressed="false"><span class="dot"></span>信息<span class="n">96</span></button>
         <button class="chip" data-level="success" aria-pressed="false"><span class="dot"></span>成功<span class="n">21</span></button>
         <button class="chip" data-level="warning" aria-pressed="false"><span class="dot"></span>警告<span class="n">7</span></button>
         <button class="chip" data-level="error" aria-pressed="false"><span class="dot"></span>错误<span class="n">4</span></button>
@@ -421,17 +440,21 @@
       <span class="msg">相机 camera-02 重连成功，恢复采集</span>
     </div>
     <div class="logrow lv-info">
-      <span class="bar"></span><span class="time">19:04:21.883</span><span class="src">引擎</span>
+      <span class="bar"></span><span class="time">19:04:21.883</span><span class="src" style="visibility:hidden"></span>
       <span class="msg">流程「主检测」第 149 次循环开始</span>
+    </div>
+    <div class="logrow lv-info">
+      <span class="bar"></span><span class="time">19:04:23.104</span><span class="src" style="visibility:hidden"></span>
+      <span class="msg">主窗口已就绪</span>
     </div>
   </div>
 
   <div class="footbar">
-    <span>显示 <b class="mono">96</b> / 共 <b class="mono">128</b> 条</span>
+    <span>显示 <b class="mono">128</b> / 共 <b class="mono">128</b> 条</span>
     <span>·</span>
-    <span>面板保留最近 <b class="mono">2000</b> 条</span>
+    <span>面板保留最近 <b class="mono">N</b> 条</span>
     <span class="spacer"></span>
-    <button class="link">打开日志文件夹</button>
+    <span class="path-hint">完整历史：Logs\yyyy-MM-dd.log</span>
   </div>
 </section>
 
@@ -479,7 +502,7 @@
   <div class="footbar">
     <span>显示 <b class="mono">0</b> / 共 <b class="mono">128</b> 条</span>
     <span class="spacer"></span>
-    <button class="link">打开日志文件夹</button>
+    <span class="path-hint">完整历史：Logs\yyyy-MM-dd.log</span>
   </div>
 </section>
 

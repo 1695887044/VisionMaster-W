@@ -1,0 +1,6 @@
+feat(scada-web): frames 看门狗 + S6 控制通道压测（R4 收尾）
+
+- 客户端值帧停滞 5s → view.resync(scope=frames)，让该 scope 不再是死协议面
+- S6：16 端 × 3000 图元 × 60s，fps 10.064、errors 0、delta p95 10,154B、ack p95 117ms、pass
+- 实测 ack 未触顶（<200ms），自主裁决分片暂不落地；保留 3.5MB 硬闸与 struct.* 设计
+- 性能报告补 §14；收尾文档记录裁决依据

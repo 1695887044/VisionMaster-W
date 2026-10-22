@@ -60,8 +60,12 @@ namespace VisionMaster.Plugins.Util
                     if (context.CancellationToken.IsCancellationRequested)
                     {
                         context.Logger.Warn($"{InstanceName} 收到急停信号，已强制中断！");
-                        Success.Value = false;
-                        return;
+                        // 取消不是失败（A9）：这里**不写 Success=false**，也不写 ErrorMessage ——
+                        // 抛 OCE 由框架统一收口：VisionPluginBase 原样上抛，CompiledPluginNode 记 Skipped。
+                        // 下游看到的是"这一步本轮被跳过"（灰），不是"这一步算错了"（红）。
+                        // State 仍留 false：延时确实没跑满，"执行状态"这个输出端口的语义不变。
+                        State.Value = false;
+                        throw new OperationCanceledException(context.CancellationToken);
                     }
                     int currentStep = Math.Min(step, targetDelayMs - elapsed);
                     Thread.Sleep(currentStep);

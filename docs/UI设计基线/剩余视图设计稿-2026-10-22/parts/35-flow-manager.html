@@ -1,0 +1,140 @@
+<section class="view" id="view-35">
+  <div class="view-head">
+    <h2>流程管理</h2>
+    <span class="file">VisionMaster\Views\DialogViews\FlowManagerView.xaml</span>
+    <span class="size">373 行 · 5 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：四条流程，调用方式多选 + 锁定/解锁 + 启用/禁用 -->
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="t">流程管理</span>
+        <span class="s">流程的锁定、解锁、启停与调用方式</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+
+      <div class="toolbar">
+        <span>▤ 流程列表</span>
+        <span class="grow"></span>
+        <span class="input ph" style="width:240px;max-width:240px">⌕ 搜索流程名 / 描述</span>
+      </div>
+
+      <div class="mock-body tight">
+        <div class="table">
+          <div class="thead">
+            <span class="th" style="width:158px">流程名称</span>
+            <span class="th" style="width:280px">调用方式（多选）</span>
+            <span class="th" style="width:252px">描述</span>
+            <span class="th" style="width:150px">状态</span>
+            <span class="th" style="width:230px">操作</span>
+          </div>
+
+          <div class="tr">
+            <span class="td" style="width:158px">Home</span>
+            <span class="td" style="width:280px">
+              <div class="check"><span class="box"></span>定时</div>
+              <div class="check"><span class="box"></span>变量</div>
+              <div class="check"><span class="box"></span>子程序</div>
+              <div class="check"><span class="box"></span>HTTP</div>
+              <div class="hint">手动</div>
+            </span>
+            <span class="td" style="width:252px">回原点（开机与换产的安全位姿）</span>
+            <span class="td" style="width:150px">✓ 已启用</span>
+            <span class="td" style="width:230px">
+              <span class="tool">锁定</span> <span class="tool">解锁</span> <span class="tool">禁用</span>
+            </span>
+          </div>
+
+          <div class="tr">
+            <span class="td" style="width:158px">Main</span>
+            <span class="td" style="width:280px">
+              <div class="check"><span class="box on"></span>定时</div>
+              <div class="check"><span class="box on"></span>变量</div>
+              <div class="check"><span class="box"></span>子程序</div>
+              <div class="check"><span class="box on"></span>HTTP</div>
+              <div class="hint">定时 / 变量 / HTTP外部调用</div>
+            </span>
+            <span class="td" style="width:252px">主检测流程（取图 → 定位 → 判定）</span>
+            <span class="td" style="width:150px">▶ 运行中</span>
+            <span class="td" style="width:230px">
+              <span class="tool">锁定</span> <span class="tool">解锁</span> <span class="tool">禁用</span>
+            </span>
+          </div>
+
+          <div class="tr">
+            <span class="td" style="width:158px">End</span>
+            <span class="td" style="width:280px">
+              <div class="check"><span class="box"></span>定时</div>
+              <div class="check"><span class="box"></span>变量</div>
+              <div class="check"><span class="box"></span>子程序</div>
+              <div class="check"><span class="box"></span>HTTP</div>
+              <div class="hint">手动</div>
+            </span>
+            <span class="td" style="width:252px">收尾（复位输出、归档本轮结果）</span>
+            <span class="td" style="width:150px">✓ 已启用</span>
+            <span class="td" style="width:230px">
+              <span class="tool">锁定</span> <span class="tool">解锁</span> <span class="tool">禁用</span>
+            </span>
+          </div>
+
+          <div class="tr">
+            <span class="td" style="width:158px">GoHome</span>
+            <span class="td" style="width:280px">
+              <div class="check"><span class="box"></span>定时</div>
+              <div class="check"><span class="box"></span>变量</div>
+              <div class="check"><span class="box on"></span>子程序</div>
+              <div class="check"><span class="box"></span>HTTP</div>
+              <div class="hint">子程序</div>
+            </span>
+            <span class="td" style="width:252px">被「调用流程」复用的回原点子流程</span>
+            <span class="td" style="width:150px">🔒 已锁定（禁止运行）</span>
+            <span class="td" style="width:230px">
+              <span class="tool">锁定</span> <span class="tool">解锁</span> <span class="tool">启用</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mock-foot">
+        <span>说明</span>
+        <span class="grow"></span>
+        <span class="hint">启用/禁用控制是否参与自动调用；锁定后五条入口（HTTP / 定时 / 变量 / 子程序 / 界面）统一拦，不改变文件内容。</span>
+      </div>
+    </div>
+
+    <!-- 边界态：搜索无匹配（表格没有任何空态遮罩，下面是设计建议） -->
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="t">边界态 · 搜索无匹配</span>
+        <span class="s">SearchText = 扫码（0 条）</span>
+        <span class="grow"></span>
+        <span class="tag warn">当前 XAML 无空态</span>
+      </div>
+      <div class="toolbar">
+        <span>▤ 流程列表</span>
+        <span class="grow"></span>
+        <span class="input" style="width:240px;max-width:240px">扫码</span>
+      </div>
+      <div class="mock-body">
+        <div class="empty">
+          <div class="empty-glyph">⌕</div>
+          <div class="empty-title">没有匹配的流程</div>
+          <div class="empty-hint">当前共有 4 条流程，只是被搜索挡住了。换个关键词，或清空搜索框。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>FlowManagerView.xaml</code>（52 高标题栏 · 流程列表标题 + 240 宽搜索 · 五列 DataGrid · 底部四条说明）。列名与勾选框逐字取自 XAML：流程名称 / 调用方式（多选）/ 描述 / 状态 / 操作；勾选位为 定时、变量、子程序、HTTP；行内动作为 锁定 / 解锁 / 启用·禁用。</li>
+        <li>状态文案取自 VM <code>FlowItem.StatusText</code>：<code>🔒 已锁定（禁止运行）</code> / <code>▶ 运行中</code> / <code>✓ 已启用</code> / <code>✗ 已禁用</code>；调用方式汇总取自 <code>FlowInvokeType.DisplayText()</code>（无位 = 手动，多位用 <code> / </code> 连接，HTTP 位写作「HTTP外部调用」）。</li>
+        <li>改动要点：① 调用方式列保留「四个勾选框 + 汇总一行」的两行结构（XAML 用 <code>RowHeight=NaN</code> + <code>MinRowHeight=46</code> 正是为了它不被裁），但把汇总改成 11px 次要色，勾选框与汇总之间留 4；② 状态列改成「语义色 + 文案」，锁定态用 <code>.tag.err</code> 观感；③ 行内动作收成 3 枚小胶囊（锁定 = 主色浅底、解锁 = 危险浅底、启用·禁用 = 中性），与 XAML 的 <code>DialogChipButton</code> 一致；④ 底部四条口径说明保留原文，但改成可折行的两列（现状四条长句靠 <code>TextWrapping</code> 硬撑，窄窗会顶宽）。</li>
+        <li><span class="warn">不可达态</span>：「无流程」画不出来 —— Home / Main / End 三条骨架流程每个方案都必须保留（XAML 说明第 4 条），所以最小行数恒为 3。本稿的边界态改用「搜索无匹配」，并<span class="warn">设计建议新增空态遮罩</span>：现在 DataGrid 直接空白，没有任何"没搜到"的提示。</li>
+        <li>需要新增的接口：<code>FlowManagerViewModel.IsFilteredEmpty</code>（<code>Flows.Count == 0 &amp;&amp; SearchText 非空</code>）供上面的空态绑定；<code>FlowItem.StatusKey</code>（<code>ok / warn / err / idle</code>）用于状态列取色 —— 现在只有 <code>StatusText</code> 一段文字，颜色靠文案里的符号区分。</li>
+      </ul>
+    </div>
+  </div>
+</section>

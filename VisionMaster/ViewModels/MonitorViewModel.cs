@@ -36,6 +36,28 @@ namespace VisionMaster.ViewModels
         /// 若只带名字，落成的监视项就退化成"按名寻址"，变量一改名即失联。
         /// </summary>
         public Guid VariableId { get; set; }
+
+        /// <summary>
+        /// 联想项的名称（不含类型后缀）。
+        ///
+        /// 为什么要有它：<see cref="DisplayText"/> 是"名 [输入/输出/全局变量]"的拼好单串，
+        /// 而设计基线 watch-panel 的联想下拉把"名称"与"类型徽标"分成两列显示（徽标窄、名称可省略）。
+        /// 用 DisplayText 硬切中括号会在名字本身含 '[' 时切错，所以这里按构造时的字段还原，
+        /// 不解析字符串。
+        /// </summary>
+        public string Name =>
+            IsGlobalVariable ? $"Global.{VariableName}"
+            : PortName != null ? $"{StepName}.{PortName}"
+            : StepName;
+
+        /// <summary>
+        /// 联想项的类型徽标：out / in / gv / all（监控全部引脚）。
+        /// 只用于视觉区分，不参与任何逻辑判断。
+        /// </summary>
+        public string KindLabel =>
+            IsGlobalVariable ? "gv"
+            : PortName != null ? (IsInput ? "in" : "out")
+            : "all";
     }
 
     /// <summary>
@@ -97,6 +119,59 @@ namespace VisionMaster.ViewModels
         public DelegateCommand<string> QuickAddCommand { get; }
         public DelegateCommand AddWatchCommand { get; }
 
+        /// <summary>
+        /// 失效监视项数量（底栏"1 项失效"）。
+        ///
+        /// 为什么要单独一个属性：<c>IsMissing</c> 挂在每个 <see cref="WatchPortWrapper"/> 自己身上，
+        /// 集合层面看不到"有几项失效"。设计基线 watch-panel 要求底栏给出这个数（失效项可能散在三个分组里，
+        /// 组头只显示本组条数），所以这里对每项的 PropertyChanged 挂订阅做跨项聚合。
+        /// </summary>
+        public int MissingCount => DisplayPorts.Count(p => p.IsMissing);
+
+        /// <summary>已订阅 PropertyChanged 的包装器（Reset 时靠它逐个摘订阅，避免悬空委托）</summary>
+        private readonly HashSet<WatchPortWrapper> _watchedItems = new();
+
+        private void OnDisplayPortsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (e.OldItems != null)
+            {
+                foreach (WatchPortWrapper w in e.OldItems)
+                    UnwatchItem(w);
+            }
+            if (e.NewItems != null)
+            {
+                foreach (WatchPortWrapper w in e.NewItems)
+                    WatchItem(w);
+            }
+            if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                // Reset 不带 OldItems：按记录集合逐个摘，再对现存项重新挂
+                foreach (var w in _watchedItems.ToList())
+                    UnwatchItem(w);
+                foreach (var w in DisplayPorts)
+                    WatchItem(w);
+            }
+            RaisePropertyChanged(nameof(MissingCount));
+        }
+
+        private void WatchItem(WatchPortWrapper w)
+        {
+            if (_watchedItems.Add(w))
+                w.PropertyChanged += OnWatchItemPropertyChanged;
+        }
+
+        private void UnwatchItem(WatchPortWrapper w)
+        {
+            if (_watchedItems.Remove(w))
+                w.PropertyChanged -= OnWatchItemPropertyChanged;
+        }
+
+        private void OnWatchItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(WatchPortWrapper.IsMissing))
+                RaisePropertyChanged(nameof(MissingCount));
+        }
+
         public MonitorViewModel(IWorkspaceManager workspace, IRuntimeManager runtimeManager)
         {
             _workspace = workspace;
@@ -112,6 +187,9 @@ namespace VisionMaster.ViewModels
             {
                 Converter = new DirectionToGroupConverter()
             });
+
+            // 失效计数：逐项订阅 IsMissing（集合层面看不到"几项失效"）
+            DisplayPorts.CollectionChanged += OnDisplayPortsChanged;
 
             // 全局变量集合变化（增删变量）→ 重查监视项有效性
             _workspace.GlobalVariables.CollectionChanged += OnGlobalVariablesChanged;

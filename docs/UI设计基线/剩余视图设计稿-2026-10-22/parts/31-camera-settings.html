@@ -1,0 +1,172 @@
+<section class="view" id="view-31">
+  <div class="view-head">
+    <h2>相机设置</h2>
+    <span class="file">VisionMaster\Views\DialogViews\CameraSettingsView.xaml</span>
+    <span class="size">785 行 · 0 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：左列两台相机（选中一台采流中），右列详情 + 溢出告警 -->
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="t">相机设置</span>
+        <span class="s">方案级相机资源：增删相机 / 连接 / 采流 / 溢出统计</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body alt">
+        <div class="split">
+          <div class="split-aside" style="width:340px">
+            <div class="card">
+              <div class="card-title">相机列表</div>
+              <div class="toolbar">
+                <span class="hint">配置随方案保存</span>
+                <span class="grow"></span>
+                <span class="tool">＋ 添加相机</span>
+              </div>
+              <div class="row sel">
+                <span class="dot ok"></span>
+                <span class="name">Cam-01 左工位</span>
+                <span class="meta">SN-2A17 · 海康相机</span>
+                <span class="tag ok">采流中</span>
+              </div>
+              <div class="row">
+                <span class="dot"></span>
+                <span class="name">Cam-02 右工位</span>
+                <span class="meta">SN-2A18 · 海康相机</span>
+                <span class="tag">未连接</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="split-main">
+            <div class="card">
+              <div class="card-title">Cam-01 左工位</div>
+              <div class="kv"><span class="k">序列号</span><span class="v mono">SN-2A17</span></div>
+              <div class="kv"><span class="k">驱动</span><span class="v">海康相机（GigE）</span></div>
+              <div class="toolbar">
+                <span class="tool">断开</span>
+                <span class="tool">停止采流</span>
+                <span class="tool">清零计数</span>
+                <span class="tool danger">删除相机</span>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-title">运行状态</div>
+              <div class="kv"><span class="k">状态</span><span class="v">采流中</span></div>
+              <div class="kv"><span class="k">已收帧</span><span class="v mono">128 430</span></div>
+              <div class="kv"><span class="k">待消费</span><span class="v mono">2</span></div>
+              <div class="kv"><span class="k">溢出丢帧</span><span class="v mono">37 <span class="tag err">需要处置</span></span></div>
+              <div class="hint">其它丢弃（掉线清空队列等）：0</div>
+              <div class="hint">状态说明：客户端推流正常，最近一帧 41 ms 前。</div>
+            </div>
+
+            <div class="card">
+              <div class="card-title"><span class="tag err">⚠ 丢帧 = 漏检工件</span></div>
+              <div class="hint">已丢弃 37 帧最旧图像（处理速度跟不上相机出图速度）。每一帧都意味着一个未被检测的工件。</div>
+            </div>
+
+            <div class="card">
+              <div class="card-title">采集参数</div>
+              <div class="field"><span class="field-label left">曝光时间（微秒）</span><span class="input mono">12000</span></div>
+              <div class="field"><span class="field-label left">增益</span><span class="input mono">3.5</span></div>
+              <div class="field"><span class="field-label left">触发模式</span><span class="combo">连续采图</span></div>
+              <div class="field"><span class="field-label left">取图超时（毫秒）</span><span class="input mono">3000</span></div>
+              <div class="field"><span class="field-label left">队列容量（帧）</span><span class="input mono">8</span></div>
+              <div class="field"><span class="field-label left">心跳超时（毫秒）</span><span class="input mono">3000</span></div>
+              <div class="field"><span class="field-label left">触发源线号（Line0~Line3）</span><span class="input mono">Line2</span></div>
+              <div class="field"><span class="field-label left">触发延时（微秒）</span><span class="input mono">150</span></div>
+              <div class="toolbar">
+                <span class="check"><span class="box on"></span>方案加载后自动连接该相机</span>
+                <span class="grow"></span>
+                <span class="tool primary">应用参数</span>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-title">预览（只读最新帧，不消费生产帧）</div>
+              <div class="empty">
+                <div class="empty-glyph">▣</div>
+                <div class="empty-title">1280 × 1024 · 最近一帧 41 ms 前</div>
+                <div class="empty-hint">预览不消费生产帧，溢出统计照常累计。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>相机配置属于当前方案，增删改后请保存方案（文件 → 保存）以长期生效。</span>
+        <span class="grow"></span>
+        <span class="tool primary">关 闭</span>
+      </div>
+    </div>
+
+    <!-- 边界态：选中一台未连接的相机（无预览、计数为 0、无告警） -->
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="t">边界态 · 未连接</span>
+        <span class="s">选中 Cam-02，State = 未连接</span>
+        <span class="grow"></span>
+        <span class="tag">无溢出告警</span>
+      </div>
+      <div class="mock-body">
+        <div class="split">
+          <div class="split-aside" style="width:340px">
+            <div class="row sel">
+              <span class="dot"></span>
+              <span class="name">Cam-02 右工位</span>
+              <span class="meta">SN-2A18 · 海康相机</span>
+              <span class="tag">未连接</span>
+            </div>
+            <div class="row">
+              <span class="dot ok"></span>
+              <span class="name">Cam-01 左工位</span>
+              <span class="meta">SN-2A17 · 海康相机</span>
+              <span class="tag ok">采流中</span>
+            </div>
+          </div>
+          <div class="split-main">
+            <div class="toolbar">
+              <span class="tool">连接</span>
+              <span class="tool">开始采流</span>
+              <span class="tool">清零计数</span>
+              <span class="tool danger">删除相机</span>
+            </div>
+            <div class="kv"><span class="k">状态</span><span class="v">未连接</span></div>
+            <div class="kv"><span class="k">已收帧</span><span class="v mono">0</span></div>
+            <div class="kv"><span class="k">待消费</span><span class="v mono">0</span></div>
+            <div class="kv"><span class="k">溢出丢帧</span><span class="v mono">0</span></div>
+            <div class="empty">
+              <div class="empty-glyph">▣</div>
+              <div class="empty-title">等待图像</div>
+              <div class="empty-hint">连接并开始采流后，客户端推来的最新一帧会显示在这里。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 空态：一台相机都没有 -->
+    <div class="mock">
+      <div class="mock-bar"><span class="t">空态 · 相机列表为空</span><span class="s">IsEmpty = true</span></div>
+      <div class="mock-body">
+        <div class="empty">
+          <div class="empty-glyph">▣</div>
+          <div class="empty-title">还没有添加相机</div>
+          <div class="empty-hint">点击上方「添加相机」，选择驱动并填写序列号。相机会随当前方案一起保存。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>CameraSettingsView.xaml</code>（自绘标题栏 / 左 380px 列表 / 右详情 ScrollViewer / 底栏）。字段与按钮文案逐字取自 XAML：连接·断开、开始采流·停止采流、清零计数、删除相机、应用参数、方案加载后自动连接该相机。</li>
+        <li>改动要点：① 列表行从 3 行（显示名 / 序列号 / 驱动）压成 2 行（名称 + 序列号·驱动），行高 62→44；② 右栏固定阅读顺序「操作 → 运行状态 → 溢出告警 → 采集参数 → 预览」，卡片间距 12→16；③ 溢出告警改成「浅红底 + 左侧语义条」，并把 <code>OverflowCount</code> 与告警放同一张卡（现状数字在上一张卡、告警在下一张卡，视线要跨卡）；④ 采集参数 8 项统一 <code>.field</code> 两列栅格，标签左对齐，输入框左缘对齐。</li>
+        <li>边界态：未连接（计数全 0、无告警、预览空）与空列表两态都画了；「网络相机接入说明」卡（推帧地址 / 心跳地址 / 访问令牌）只在 <code>IsNetworkCamera</code> 时出现，本稿未画。</li>
+        <li>需要新增的接口：<code>CameraRowViewModel.StateKey</code>（<code>ok / warn / err / idle</code>）—— 现在只有 <code>StateText</code> 文案，胶囊底色写死 <code>DialogRowHoverBrush</code>，导致「采流中」与「未连接」视觉同色；其余（<code>HasPreviewImage</code> / <code>HasOverflow</code> / <code>IsConfigEditable</code> / <code>IsRuntimeOperable</code>）已存在，无新增。</li>
+      </ul>
+    </div>
+  </div>
+</section>

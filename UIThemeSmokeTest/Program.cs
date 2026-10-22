@@ -579,7 +579,9 @@ namespace UIThemeSmokeTest
                 window.Arrange(new Rect(0, 0, 1280, 920));
                 window.UpdateLayout();
                 Console.WriteLine($"=== OK: Shell.xaml 全树模板实例化无异常 (Fluent={_withFluent}) ===");
-                RunPaneLayoutChecks();
+                // A1（2026-10-22）：这一段的 7 条断言原先返回值被丢掉——失败只打日志、不进退出码。
+                // 现在必须接住并计入返回码，否则"多格布局坏了"在 CI 里等于没发生（R65：绿灯是真的，只是少了一条）。
+                int paneLayoutFailures = RunPaneLayoutChecks();
                 int shellLayoutFailures = RunShellLayoutChecks();
                 int panelModeFailures = RunPanelModeChecks();
                 int shellModeFailures = RunShellModeChecks();
@@ -590,7 +592,7 @@ namespace UIThemeSmokeTest
                 int firstBatchFailures = RunFirstBatchViewChecks();
                 int loginFailures = RunLoginChecks();
                 int pluginEntryFailures = RunPluginEntryIsolationChecks();
-                return shellLayoutFailures + panelModeFailures + shellModeFailures + gridFailures + colorTokenFailures
+                return paneLayoutFailures + shellLayoutFailures + panelModeFailures + shellModeFailures + gridFailures + colorTokenFailures
                      + flowCanvasFailures + logConsoleFailures + firstBatchFailures + loginFailures
                      + pluginEntryFailures == 0 ? 0 : 1;
             }
@@ -1251,7 +1253,7 @@ namespace UIThemeSmokeTest
         /// 多格布局集成断言：在真实 Shell 里把画布切成九宫格 / 双画面 / 四宫格 / 全部输出，检查
         /// 每一格都是一张完整画布（有自己的大图），且各自绑了正确的窗口号（第 N 格 ↔ 窗口号 N）。
         /// </summary>
-        private static void RunPaneLayoutChecks()
+        private static int RunPaneLayoutChecks()
         {
             var failures = 0;
             void Check(string name, bool ok, string detail)
@@ -1328,6 +1330,7 @@ namespace UIThemeSmokeTest
             }
 
             Console.WriteLine(failures == 0 ? "=== 多格布局：全部通过 ===" : $"### 多格布局：{failures} 项失败");
+            return failures;
         }
 
         /// <summary>

@@ -330,6 +330,55 @@ namespace ScadaWebChecks
             Check("M2-05b",
                 !rejected.Ok && rejected.Code == ScadaWebErrorCodes.NotOperable && world.Writer.Calls.Count == 1,
                 $"code={rejected.Code} message={rejected.Message} 写入器调用={world.Writer.Calls.Count}");
+
+            // 滑块服务端门禁：只读模式 / 要求写入前确认，都不能靠客户端绕过。
+            using var sliderWorld = new World();
+            var slider = new ScadaElement { TypeKey = "Hmi.Slider", Name = "速度滑块" };
+            slider.Bindings.Add(new ScadaBinding { TargetProperty = "Value", IsEnabled = true });
+            slider.Properties["Mode"] = "Output";
+            slider.Properties["ConfirmDanger"] = "False";
+            sliderWorld.Page.Elements.Add(slider);
+
+            var sliderSession = sliderWorld.RegisterSession("操作员丁", ScadaRole.Operator);
+
+            ScadaWebCommandResult SliderInput(string requestId, string value) => sliderWorld.Router.Handle(new ScadaWebCommand
+            {
+                Kind = ScadaWebCommandKinds.Input,
+                RequestId = requestId,
+                Session = sliderSession,
+                ElementId = slider.ElementId.ToString("D"),
+                Property = "Value",
+                Value = value,
+                PageId = sliderWorld.Page.PageId.ToString("D"),
+                PageVersion = sliderWorld.Page.Version,
+                RunGeneration = sliderWorld.Hub.RunGeneration,
+            });
+
+            var sliderReadOnly = SliderInput("slider-readonly", "42");
+            Check("M2-05c",
+                !sliderReadOnly.Ok
+                && sliderReadOnly.Code == ScadaWebErrorCodes.NotOperable
+                && sliderWorld.Writer.Calls.Count == 0,
+                $"code={sliderReadOnly.Code} message={sliderReadOnly.Message} 写入={sliderWorld.Writer.Calls.Count}");
+
+            slider.Properties["Mode"] = "InputOutput";
+            slider.Properties["ConfirmDanger"] = "True";
+            var sliderDanger = SliderInput("slider-danger", "43");
+
+            Check("M2-05d",
+                !sliderDanger.Ok
+                && sliderDanger.Code == ScadaWebErrorCodes.NotOperable
+                && sliderWorld.Writer.Calls.Count == 0,
+                $"code={sliderDanger.Code} message={sliderDanger.Message} 写入={sliderWorld.Writer.Calls.Count}");
+
+            slider.Properties["ConfirmDanger"] = "False";
+            var sliderNormal = SliderInput("slider-normal", "44");
+
+            Check("M2-05e",
+                sliderNormal.Ok
+                && sliderWorld.Writer.Calls.Count == 1
+                && sliderWorld.Writer.Calls[0].Text == "44",
+                $"ok={sliderNormal.Ok} code={sliderNormal.Code} 写入={sliderWorld.Writer.Calls.Count}");
         }
 
         private static void CheckAlarmAck()

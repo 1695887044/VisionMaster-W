@@ -317,6 +317,9 @@ namespace FlowCanvasChecks
             // 几何工具：GeometryMath 纯函数 + GeometryParam 契约（合成数据，不依赖引擎/HALCON）
             GeometryChecks.Run();
 
+            // 演示方案缺失清单（R38）：5 份 .vms 的跳过理由必须可反证、缺几项可观察
+            MissingSampleChecks();
+
             // 几何工具演示方案：真加载 .vms → 真编译 → 真执行（几何查找/几何计算端到端）
             GeoDemoCheck.Run();
 
@@ -2752,6 +2755,53 @@ namespace FlowCanvasChecks
         //  ToolViewModel 是纯 VM（构造吃 IPluginProvider + 可选 AppSettingsService），
         //  headless 用断言桩直造，settings 传 null = 纯内存、不碰 AppConfig.json。
         // ==================================================================
+
+        /// <summary>
+        /// 不算"算子分类"的 <c>GroupName</c>：设备驱动类。它们走
+        /// <c>RegisterCamera</c> / <c>RegisterMotion</c>（CameraPlugins / MotionPlugins），
+        /// 本来就不会出现在 <c>ModulePlugins</c> 里；这里再显式排一次，
+        /// 防将来有人把驱动注册成模块——那会让"分类映射"多出一个不该进工具箱的组。
+        /// </summary>
+        private static readonly string[] NonOperatorCategories = { "相机", "相机驱动", "运动卡" };
+
+        /// <summary>
+        /// 读**注册表里实际注册的算子分类**（= 工具箱分组的真实来源）。
+        ///
+        /// 为什么必须真扫 Modules、不能手写清单：分类名是插件侧
+        /// <c>[Display(GroupName = ...)]</c> 的自由文本，宿主侧那张观感映射表只能拿
+        /// "注册表里有什么"来对账；手写清单会与真实注册漂移，而漂移的表现是
+        /// **断言恒绿 + 界面上悄悄回落灰图标**（A5 事故：13 vs 14，两边都写 13）。
+        ///
+        /// 读不到（Modules\ 未构建、反射抛异常）时返回空表并回填 <paramref name="why"/>，
+        /// 由调用方判红——空表绝不能被当成"没有未映射分类"的绿（R38）。
+        /// </summary>
+        private static List<string> LoadRegistryModuleCategories(out string why)
+        {
+            try
+            {
+                // 真注册表 + 真扫描（PluginService.InitPlugins 就是产线启动那一条路径：
+                // 命中 PluginCache 时只 LoadFrom，不重复反射/实例化）
+                var registry = new PluginProvider(new StubNotifier());
+                new PluginService(registry, new StubNotifier(), null).InitPlugins();
+
+                var categories = registry.ModulePlugins.Values
+                    .Select(m => m.Category ?? "")
+                    .Where(c => c.Length > 0 && !NonOperatorCategories.Contains(c, StringComparer.Ordinal))
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(c => c, StringComparer.Ordinal)
+                    .ToList();
+
+                why = $"来源=PluginProvider.ModulePlugins（{registry.ModulePlugins.Count} 个模块，"
+                      + $"{registry.CameraPlugins.Count} 相机 / {registry.MotionPlugins.Count} 运动卡已排除）";
+                return categories;
+            }
+            catch (Exception ex)
+            {
+                why = "注册表读取失败：" + ex.GetType().Name + "：" + ex.Message;
+                return new List<string>();
+            }
+        }
+
         private static void ToolboxFilterChecks()
         {
             Section("[G9] 工具箱搜索过滤 / 视图模式 / 收藏");
@@ -2873,22 +2923,40 @@ namespace FlowCanvasChecks
                 $"fav={favGroup?.IsExpanded}");
             vm.ToggleFavoriteCommand.Execute(leaf);   // 还原
 
-            // ---- 分类观感映射表：13 个分类逐条核对，防"加了分类忘了配色" ----
-            var categories = new[]
-            {
-                "逻辑控制", "缺陷检测", "标定", "测量", "图像处理", "常用工具", "数据处理",
-                "几何工具", "定位", "运动控制", "流程控制", "逻辑判断", "变量操作",
-            };
-            var unconfigured = categories
-                .Where(c => string.IsNullOrEmpty(ToolboxCategoryVisuals.IconFor(c))
-                            || ToolboxCategoryVisuals.IconFor(c) == ToolboxCategoryVisuals.FallbackIcon
+            // ---- 分类观感映射表：以**注册表里实际存在的算子分类**为准，逐个核对"有没有专属配色" ----
+            // A5（2026-10-22）：这里原先硬编码 13 个分类名，再拿 ToolboxCategoryVisuals.Categories.Count
+            // 与 categories.Length 比 —— 两边都是 13，**恒绿**（自己跟自己比）。
+            // 而 Plugin.Comm 的「通讯」早就是第 14 个算子分类，断言看不见，
+            // 结果 CommReadNow / CommWriteNow 在工具箱里拿灰底 cubes 兜底图标（看着像"没分类的杂项"）。
+            // 现在事实来源改成注册表：PluginProvider.ModulePlugins 的 ToolItemModel.Category
+            // （ToolViewModel 建分组时用的就是同一个集合：ModulePlugins.GroupBy(t => t.Value.Category)）。
+            var registryCategories = LoadRegistryModuleCategories(out string registryWhy);
+            var mapCategories = new HashSet<string>(ToolboxCategoryVisuals.Categories, StringComparer.Ordinal);
+            var unmapped = registryCategories.Where(c => !mapCategories.Contains(c)).ToList();
+            var fallbackOnly = registryCategories
+                .Where(c => ToolboxCategoryVisuals.IconFor(c) == ToolboxCategoryVisuals.FallbackIcon
                             || ToolboxCategoryVisuals.ColorFor(c) == ToolboxCategoryVisuals.FallbackColor)
                 .ToList();
-            Check("G9 分类映射：13 个分类都有专属图标与颜色（防漏配）",
-                ToolboxCategoryVisuals.Categories.Count == categories.Length && unconfigured.Count == 0,
-                unconfigured.Count == 0
-                    ? $"表内 {ToolboxCategoryVisuals.Categories.Count} 条"
-                    : "落回兜底：" + string.Join(",", unconfigured));
+            var mapOnly = mapCategories.Where(c => !registryCategories.Contains(c, StringComparer.Ordinal)).ToList();
+
+            Check("G9 分类映射：注册表里每个算子分类都有专属图标与颜色（防漏配）",
+                registryCategories.Count > 0 && unmapped.Count == 0 && fallbackOnly.Count == 0,
+                registryCategories.Count == 0
+                    ? "注册表没有算子分类（Modules\\ 未构建？）——不能当绿：" + registryWhy
+                    : $"注册表 {registryCategories.Count} 个分类 / 映射表 {mapCategories.Count} 条"
+                      + (unmapped.Count > 0 ? " | 未映射：" + string.Join(",", unmapped) : "")
+                      + (fallbackOnly.Count > 0 ? " | 落回兜底：" + string.Join(",", fallbackOnly) : "")
+                      + (mapOnly.Count > 0 ? " | 映射表多余（可清理）：" + string.Join(",", mapOnly) : "")
+                      + " | " + registryWhy);
+
+            // 反向断言：同一判据喂进一个"未映射分类"必须被检出。
+            // 没有这一条，"0 个未映射"完全可能只是"0 个分类"的假绿（R38：跳过/宽松型判据必须能被反证）。
+            var probeUnmapped = new List<string>(registryCategories) { "断言用未映射分类" }
+                .Where(c => !mapCategories.Contains(c))
+                .ToList();
+            Check("G9 分类映射（反向）：注入一个未映射分类必须被检出",
+                probeUnmapped.Count == 1 && probeUnmapped[0] == "断言用未映射分类",
+                $"检出 [{string.Join(",", probeUnmapped)}]");
 
             Check("G9 分类映射：未知分类回落通用图标 + 灰",
                 ToolboxCategoryVisuals.IconFor("不存在的分类") == ToolboxCategoryVisuals.FallbackIcon
@@ -3228,6 +3296,86 @@ namespace FlowCanvasChecks
             => a.Left < b.Right - tol && b.Left < a.Right - tol
                && a.Top < b.Bottom - tol && b.Top < a.Bottom - tol;
 
+        /// <summary>
+        /// A2 守门（2026-10-22）：5 份演示方案缺失时的"跳过"必须**可反证**、且**缺几项可观察**。
+        ///
+        /// 判据是机制级的（不依赖那 5 份文件在不在）：
+        ///   ① 清单常量自洽：5 项、无重名、都以 .vms 结尾；
+        ///   ② 跳过理由满足 R38 三要素（期望路径 / 无同名文件 / 补回后自动恢复）；
+        ///   ③ 静态扫描：5 处断言都走同一份清单常量，且没有残留手写的静默跳过文案。
+        /// "缺几项"用一行普通输出（**不是断言**）打印——它报告仓库现状，不该判红绿；
+        /// 真正会红的是"理由被写坏""有人绕过清单手写跳过""补回文件后仍走跳过分支"。
+        /// </summary>
+        private static void MissingSampleChecks()
+        {
+            Section("[A2] 演示方案缺失清单（R38：跳过必须可反证）");
+
+            var all = MissingSolutionSamples.All;
+            Check("A2-1 清单常量自洽：5 项、无重名、文件名都以 .vms 结尾",
+                all.Count == 5
+                && all.Select(x => x.FileName).Distinct(StringComparer.Ordinal).Count() == 5
+                && all.All(x => x.FileName.EndsWith(".vms", StringComparison.OrdinalIgnoreCase)),
+                string.Join(",", all.Select(x => x.FileName)));
+
+            var repoRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..\"));
+            var missing = all
+                .Where(x => !File.Exists(MissingSolutionSamples.ExpectedPath(repoRoot, x.FileName)))
+                .ToList();
+
+            var badReason = missing
+                .Where(x => !MissingSolutionSamples.ReasonIsReverseProvable(
+                    MissingSolutionSamples.SkipReason(repoRoot, x.FileName), repoRoot, x.FileName))
+                .Select(x => x.FileName)
+                .ToList();
+            Check("A2-2 跳过理由可反证：缺的每一项都写清「期望路径 + 无同名文件 + 补回后自动恢复」",
+                badReason.Count == 0,
+                badReason.Count == 0
+                    ? $"{missing.Count} 项缺失，理由全部合格"
+                    : "不合格：" + string.Join(",", badReason));
+
+            // A2-3 静态扫描：5 处断言必须走同一份清单常量——否则"补回一个就少一条"不成立，
+            // 且理由文案会在 5 个文件里各写一份、下次改名单必然漏改。
+            var sites = new[]
+            {
+                @"FlowCanvasChecks\ResultDisplayCheck.cs",
+                @"FlowCanvasChecks\GeoDemoCheck.cs",
+                @"FlowCanvasChecks\WireSequenceCheck.cs",
+                @"FlowCanvasChecks\WireSequencePluginCheck.cs",
+                @"FlowCanvasChecks\BeadInspectChecks.cs",
+            };
+            var notWired = sites
+                .Where(rel => !(ReadRepoFile(repoRoot, rel) ?? "")
+                    .Contains("MissingSolutionSamples.", StringComparison.Ordinal))
+                .ToList();
+            Check("A2-3 静态扫描：5 处 .vms 跳过都走 MissingSolutionSamples（不留手写跳过文案）",
+                notWired.Count == 0,
+                notWired.Count == 0
+                    ? $"{sites.Length}/{sites.Length} 处已接线"
+                    : "未接线（或源码读不到）：" + string.Join(",", notWired));
+
+            // A2-4 反向：原来那条"跳过 + 空理由"的静默绿必须彻底消失。
+            // 注意判据带 `src.Length > 0`——读不到源码不能算通过（否则又是一条静默绿）。
+            var beadSrc = ReadRepoFile(repoRoot, @"FlowCanvasChecks\BeadInspectChecks.cs") ?? "";
+            Check("A2-4 反向：BeadInspectChecks 不再有「跳过 + 空理由」的静默绿",
+                beadSrc.Length > 0 && !beadSrc.Contains("演示方案回显：跳过（定位不到 .vms）", StringComparison.Ordinal),
+                beadSrc.Length == 0 ? "读不到 BeadInspectChecks.cs（不能算通过）" : "已改走可反证理由");
+
+            // 可观察性（**不是断言**）：补回一份方案，这一行的数字就减一。
+            Console.WriteLine($"[A2] 演示方案缺失 {missing.Count}/{all.Count}："
+                + (missing.Count == 0 ? "(全部在位)" : string.Join(",", missing.Select(x => x.FileName))));
+        }
+
+        /// <summary>读仓库内相对路径的文本（读不到返回 null，由调用方决定算红还是算跳过）。</summary>
+        private static string? ReadRepoFile(string repoRoot, string relativePath)
+        {
+            try
+            {
+                var p = Path.Combine(repoRoot, relativePath);
+                return File.Exists(p) ? File.ReadAllText(p) : null;
+            }
+            catch { return null; }
+        }
+
         private static void Finish()
         {
             Console.WriteLine();
@@ -3248,5 +3396,64 @@ namespace FlowCanvasChecks
             TypeNameHandling = TypeNameHandling.Auto,
             SerializationBinder = new ConnectionConfigSerializationBinder()
         };
+    }
+
+    /// <summary>
+    /// 演示方案（<c>.vms</c>）缺失清单 —— "跳过"必须能被反证（R38）。
+    ///
+    /// 背景（2026-10-22）：仓内 5 份演示方案不在版本库里（<c>解决方案\</c> 下确实没有），
+    /// 5 段端到端断言各有各的处理，两种都不对：
+    ///   · 4 处**硬红 + return**：gate 长期红着（红久了就没人看），整段端到端也永远不跑；
+    ///   · 1 处 <c>R(..., true, "")</c>：**静默绿**，连"跳过了什么"都不打，给未来回归留了放行口。
+    ///
+    /// 正解：跳过可以，但理由必须**可反证** —— 写清"哪个路径不存在"、"已核实目录下无同名文件"、
+    /// "补回该方案后本断言自动恢复执行"，并让"缺几项"在一行里可观察（补回一个就少一条）。
+    /// 这份常量就是那条链的唯一事实来源：改名单只改这里，5 处断言都跟着走；
+    /// 守门断言见 <c>Program.MissingSampleChecks()</c> 的 A2-1~A2-4。
+    /// </summary>
+    internal static class MissingSolutionSamples
+    {
+        /// <summary>演示方案目录（仓库根下，逐字等于产线"打开方案"的默认目录名）。</summary>
+        public const string DirName = "解决方案";
+
+        /// <summary>5 份演示方案：显示名 + 文件名（顺序 = 断言注册顺序）。</summary>
+        public static readonly IReadOnlyList<(string Name, string FileName)> All = new[]
+        {
+            ("结果显示演示", "结果显示演示.vms"),
+            ("几何工具演示", "几何工具演示.vms"),
+            ("线序检测", "线序检测.vms"),
+            ("线序检测·插件版", "线序检测-插件版.vms"),
+            ("胶路检测演示", "胶路检测演示.vms"),
+        };
+
+        /// <summary>期望绝对路径（仓库根 + 解决方案\ + 文件名）。</summary>
+        public static string ExpectedPath(string repoRoot, string fileName)
+            => Path.Combine(repoRoot, DirName, fileName);
+
+        /// <summary>目录里当前有几个 .vms（写进跳过理由，作为"确实没有"的可核对事实；-1 = 目录不可读）。</summary>
+        public static int CountVmsInDir(string repoRoot)
+        {
+            try
+            {
+                var dir = Path.Combine(repoRoot, DirName);
+                return Directory.Exists(dir) ? Directory.GetFiles(dir, "*.vms").Length : -1;
+            }
+            catch { return -1; }
+        }
+
+        /// <summary>
+        /// R38 合规的跳过理由：**期望绝对路径** + **"目录下无同名文件"的可核对事实** +
+        /// **"补回后自动恢复执行"**。三要素缺一，A2-2/A2-3 会红。
+        /// </summary>
+        public static string SkipReason(string repoRoot, string fileName)
+            => $"跳过（演示方案缺失）：文件不存在于 {ExpectedPath(repoRoot, fileName)}；"
+             + $"已核实 {DirName}\\ 下无同名文件（该目录当前 {CountVmsInDir(repoRoot)} 个 .vms）；"
+             + "补回该方案后本断言自动恢复执行（不需要改代码）";
+
+        /// <summary>理由文案是否满足 R38 三要素（守门断言逐条核对，防有人把理由写回"跳过"两个字）。</summary>
+        public static bool ReasonIsReverseProvable(string reason, string repoRoot, string fileName)
+            => reason.Contains(ExpectedPath(repoRoot, fileName), StringComparison.Ordinal)
+               && reason.Contains("无同名文件", StringComparison.Ordinal)
+               && reason.Contains("自动恢复执行", StringComparison.Ordinal);
     }
 }

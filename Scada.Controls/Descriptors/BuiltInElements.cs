@@ -192,6 +192,28 @@ namespace VisionMaster.Scada.Controls
 
             new()
             {
+                TypeKey = "Hmi.Slider",
+                DisplayName = "模拟量滑块",
+                ControlType = typeof(SliderElement),
+                Category = "数值",
+                DefaultWidth = 280,
+                DefaultHeight = 48,
+                Description = "连续量拖动即写：拖动只改显示，松手写一次变量（也可选 100ms 节流）；写失败回弹并显示原因。" +
+                              "把「当前值」绑到变量上即可；量程、步长、走向、只读/读写、写入前确认都在属性面板",
+                Events = new[] { ScadaEventType.InputCompleted },
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(SliderElement)),
+                    AppearanceProperties.Fill("#FF2D7DD2", "已填充那一段的颜色"),
+                    AppearanceProperties.Stroke("#FF5A5A5A"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("4"),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "数值颜色"),
+                    TextProperties.FontSize("12", displayName: "数值字号"),
+                    TextProperties.FontWeight()),
+            },
+
+            new()
+            {
                 TypeKey = "Hmi.IOField",
                 DisplayName = "数值域",
                 ControlType = typeof(IOFieldElement),

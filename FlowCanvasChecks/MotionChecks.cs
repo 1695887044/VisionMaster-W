@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using Core.Interfaces;
@@ -28,12 +29,18 @@ namespace FlowCanvasChecks
     ///   ⑤ <b>相对运动也受软限位约束</b>：目标 = 当前位置 + 增量，越界拒绝；
     ///   ⑥ <b>流程停止即停轴</b>：引擎在取消令牌之前发 <c>SessionStopRequested</c>（宿主据此 CancelAll）；
     ///   ⑦ <b>清报警解锁安全停机</b>：底层没报警且位置可信才回在线，报警还在就保持安全停机。
+    ///
+    /// 2026-10-22（P1-A）追加：
+    ///   ⑧ <b>运动前置门禁</b>：Move 必须已使能、已回零（或该轴绝对编码器）、未在运动中；
+    ///      Home 只挡"正在运动"；Stop/Disable/ClearAlarm 不受影响；
+    ///   ⑨ <b>等待到位支持显式目标</b>：Target 有值时按"!Moving &amp;&amp; |pos-target| ≤ 容差"判，
+    ///      Target=NaN 时沿用旧的 InPosition 语义（旧流程不受影响）。
     /// </summary>
     internal static class MotionChecks
     {
         public static void Run()
         {
-            Section("[M] 运动控制内核：门禁 / 异步语义 / 软限位 / 急停打断 / 看门狗 / 报警 / 回零");
+            Section("[M] 运动控制内核：门禁 / 异步语义 / 软限位 / 急停打断 / 看门狗 / 报警 / 回零 / 前置门禁 / 等待到位");
 
             RunGateAndAsyncSemantics();
             RunSoftLimitGate();
@@ -44,6 +51,9 @@ namespace FlowCanvasChecks
             RunClearAlarmUnlocksSafeStop();
             RunFlowStopCancelsMotion();
             RunHoming();
+            RunMotionPreconditions();
+            RunUiGateMatchesDeviceLayer();
+            RunWaitTargetModes();
         }
 
         // ==================================================================
@@ -649,6 +659,485 @@ namespace FlowCanvasChecks
         }
 
         // ==================================================================
+        //  ⑦ 运动前置门禁（P1-A）：未使能 / 未回零 / 运动中
+        // ==================================================================
+
+        /// <summary>
+        /// Move 的三条前置条件与 Home 的一条，全部落在 <c>MotionDeviceBase</c> 的门禁里。
+        ///
+        /// 为什么必须真跑：这些判据若只写在插件里，UI / SCADA / 流程三处各有一份，
+        /// 漂移一次就是"对着未使能的轴下发运动"；而且"使能命令完成 → 快照刷新"之间
+        /// 有一个真实窗口（<c>_lastEnableChange</c> 就是为它存在的），只有运行期断言能钉住。
+        /// </summary>
+        private static void RunMotionPreconditions()
+        {
+            Section("[M] 运动前置门禁：未使能 / 未回零 / 运动中（P1-A）");
+
+            // ---------- ① 未使能 Move 被拒 ----------
+            using (var card = NewCard())   // 绝对编码器：把"未回零"排除，只考"未使能"
+            {
+                card.Connect();
+                Check("前置：快照已刷新且轴未使能",
+                    WaitFor(() => card.GetAxisStatus(0) is { Enabled: false }, 1000),
+                    $"Enabled={card.GetAxisStatus(0)?.Enabled}");
+
+                using var move = Move(0, 10);
+                var result = card.Enqueue(move);
+
+                Check("★未使能时 Move 被拒（设备层门禁，不靠驱动执行时报错）",
+                    result == MotionCommandResult.Rejected_NotConnected
+                    && card.LastFault?.Suggestion?.Contains("未使能") == true,
+                    $"返回={result} 建议={card.LastFault?.Suggestion}");
+
+                Check("未使能拒绝记为 Notice（流程少了一步，不是设备故障）",
+                    card.LastFault?.Severity == MotionFaultSeverity.Notice,
+                    $"级别={card.LastFault?.Severity}");
+            }
+
+            // ---------- ①b 使能命令完成后立刻 Move（跨过"命令完成 → 快照刷新"窗口） ----------
+            // 用 200ms 的轮询周期：拿到第一拍"未使能"快照后，使能与 Move 之间不会再插进新快照，
+            // 这样才真的考到 _lastEnableChange 的窗口逻辑（5ms 轮询可能恰好刷新，测不出东西）。
+            using (var card = NewCard(pollIntervalMs: 200))
+            {
+                card.Connect();
+                WaitFor(() => card.GetAxisStatus(0) is { Enabled: false }, 1500);
+
+                EnableAxis(card, 0);   // 只等命令完成，不再等快照刷新
+
+                using var move = Move(0, 10);
+                var result = card.Enqueue(move);
+
+                Check("★使能命令完成后立刻 Move 不被误拒（跨过命令→快照刷新窗口）",
+                    result == MotionCommandResult.Accepted,
+                    $"返回={result} 建议={card.LastFault?.Suggestion}");
+            }
+
+            // ---------- ② 未回零 Move 被拒（增量编码器） ----------
+            using (var card = NewCard(absoluteEncoder: false))
+            {
+                card.Connect();
+                EnableAxis(card, 0);
+
+                Check("前置：增量卡已使能但未回零",
+                    WaitFor(() => card.GetAxisStatus(0) is { Enabled: true }, 1000) && !card.IsHomed,
+                    $"Enabled={card.GetAxisStatus(0)?.Enabled} IsHomed={card.IsHomed}");
+
+                using var move = Move(0, 10);
+                var result = card.Enqueue(move);
+
+                Check("★未回零时 Move 被拒（增量编码器位置不可信）",
+                    result == MotionCommandResult.Rejected_NotConnected
+                    && card.LastFault?.Suggestion?.Contains("未回零") == true,
+                    $"返回={result} 建议={card.LastFault?.Suggestion}");
+
+                Check("未回零拒绝记为 Notice（先补一步回零即可，不是设备故障）",
+                    card.LastFault?.Severity == MotionFaultSeverity.Notice,
+                    $"级别={card.LastFault?.Severity}");
+
+                // 逃生口：每轴 HasAbsoluteEncoder=true 时放行（默认 false，混合编码器机台用）
+                card.Descriptor.Axes[0].HasAbsoluteEncoder = true;
+                using var move2 = Move(0, 10);
+                var result2 = card.Enqueue(move2);
+                Check("每轴 HasAbsoluteEncoder=true 时未回零也放行（默认 false 的逃生口）",
+                    result2 == MotionCommandResult.Accepted,
+                    $"返回={result2} 建议={card.LastFault?.Suggestion}");
+            }
+
+            // ---------- ③ 运动中第二条 Move 被拒 ----------
+            using (var card = NewCard())
+            {
+                card.Connect();
+                EnableAxis(card, 0);
+
+                using (var first = Move(0, 80, velocity: 20))
+                {
+                    card.Enqueue(first);
+                    Check("前置：第一条 Move 已让轴动起来",
+                        WaitFor(() => card.GetAxisStatus(0) is { Moving: true }, 2000),
+                        $"Moving={card.GetAxisStatus(0)?.Moving} 位置={card.GetAxisStatus(0)?.PositionMm:F2}");
+                }
+
+                using var second = Move(0, 90);
+                var result = card.Enqueue(second);
+
+                Check("★运动中第二条 Move 被拒（同一根轴不许叠加目标）",
+                    result == MotionCommandResult.Rejected_NotConnected
+                    && card.LastFault?.Suggestion?.Contains("正在运动") == true,
+                    $"返回={result} 建议={card.LastFault?.Suggestion}");
+            }
+
+            // ---------- ④ Home：只挡 Moving，未回零不挡 ----------
+            using (var card = NewCard(absoluteEncoder: false))
+            {
+                card.Connect();
+                EnableAxis(card, 0);
+
+                using var home = Home(0);
+                var result = card.Enqueue(home);
+
+                Check("★未回零时 Home 不被拒（回零本身就是用来解决未回零的）",
+                    result == MotionCommandResult.Accepted,
+                    $"返回={result} 建议={card.LastFault?.Suggestion}");
+
+                home.Completion.Wait(3000);
+            }
+
+            using (var card = NewCard())
+            {
+                card.Connect();
+                EnableAxis(card, 0);
+
+                using (var first = Move(0, 80, velocity: 20))
+                {
+                    card.Enqueue(first);
+                    WaitFor(() => card.GetAxisStatus(0) is { Moving: true }, 2000);
+                }
+
+                using var home = Home(0);
+                var result = card.Enqueue(home);
+
+                Check("★运动中 Home 被拒（Home 只拦 Moving，这条正是那一条）",
+                    result == MotionCommandResult.Rejected_NotConnected
+                    && card.LastFault?.Suggestion?.Contains("正在运动") == true,
+                    $"返回={result} 建议={card.LastFault?.Suggestion}");
+            }
+
+            // ---------- ⑤ Stop / Disable / ClearAlarm 在未使能/未回零时仍可用 ----------
+            using (var card = NewCard(absoluteEncoder: false))
+            {
+                card.Connect();   // 刻意不使能、不回零
+
+                using (var stop = Stop(0))
+                {
+                    var accepted = card.Enqueue(stop);
+                    var done = accepted == MotionCommandResult.Accepted && stop.Completion.Wait(2000);
+                    Check("★未使能/未回零时 Stop 仍可用（安全动作不被前置门禁挡）",
+                        done && stop.State == MotionCommandState.Done,
+                        $"返回={accepted} 状态={stop.State} 原因={stop.Error}");
+                }
+
+                using (var disable = Disable(0))
+                {
+                    var accepted = card.Enqueue(disable);
+                    var done = accepted == MotionCommandResult.Accepted && disable.Completion.Wait(2000);
+                    Check("★未使能/未回零时 Disable 仍可用",
+                        done && disable.State == MotionCommandState.Done,
+                        $"返回={accepted} 状态={disable.State} 原因={disable.Error}");
+                }
+
+                var cleared = card.ClearAlarm(out var clearError);
+                Check("★未使能/未回零时 ClearAlarm 仍可用",
+                    cleared, $"清报警={cleared} 原因={clearError} 状态={card.State}");
+            }
+
+            // ---------- ⑥ 普通打断（Stop）之后 Home 仍能执行 ----------
+            using (var card = NewCard(absoluteEncoder: false))
+            {
+                card.Connect();
+                EnableAxis(card, 0);
+
+                using (var stop = Stop(0))
+                {
+                    card.Enqueue(stop);
+                    stop.Completion.Wait(2000);
+                }
+
+                using var home = Home(0);
+                var accepted = card.Enqueue(home);
+                var done = accepted == MotionCommandResult.Accepted && home.Completion.Wait(3000);
+
+                Check("★Stop 之后 Home 仍能执行（打断令牌不会污染后续命令）",
+                    done && home.State == MotionCommandState.Done,
+                    $"返回={accepted} 状态={home.State} 原因={home.Error}");
+            }
+
+            // ---------- ⑦ Home 不要求已使能（假设备：状态位报未使能，Home 本身成功） ----------
+            var fake = new FakeAlarmCard(NewFakeDescriptor()) { Log = new StubLog() };
+            try
+            {
+                fake.ReportEnabled = false;
+                fake.Connect();
+
+                Check("前置：假设备在线但轴未使能",
+                    WaitFor(() => fake.GetAxisStatus(0) is { Enabled: false }, 1000),
+                    $"Enabled={fake.GetAxisStatus(0)?.Enabled}");
+
+                using var home = Home(0, HomeMode.Origin);
+                var accepted = fake.Enqueue(home);
+                var done = accepted == MotionCommandResult.Accepted && home.Completion.Wait(2000);
+
+                Check("★Home 不受「未使能」门禁影响（是否使能由驱动在回零里判定）",
+                    done && home.State == MotionCommandState.Done,
+                    $"返回={accepted} 状态={home.State} 原因={home.Error}");
+            }
+            finally
+            {
+                fake.Dispose();
+            }
+        }
+
+        // ==================================================================
+        //  ⑦b 界面/SCADA 门禁（MotionCommandGate）与设备层同口径
+        // ==================================================================
+
+        /// <summary>
+        /// <c>MotionCommandGate</c> 是界面与 SCADA 动作表的**预检**，
+        /// <c>MotionDeviceBase.CheckGateLocked</c> 是设备层的**硬门禁**。两处判据必须一致 ——
+        /// 不一致就会出现「界面/SCADA 拒绝、设备层放行」这种自相矛盾的现场表现
+        /// （2026-10-22 用户裁决 B2：绝对值编码器算已经回零）。
+        ///
+        /// 口径（**以设备层为准**，预检向它对齐）：
+        /// <c>IsHomed || 卡级 SupportsAbsoluteEncoder || 该轴 HasAbsoluteEncoder</c>。
+        ///
+        /// 一正一反都要有，缺一不可：
+        ///   · 正 —— 该轴 <c>HasAbsoluteEncoder=true</c> 时未回零也放行（**真跑**，这是混合编码器机台
+        ///     真正会用到的那条逃生口）；
+        ///   · 反 —— 普通增量轴未回零**仍拒绝**且是原文案（防"为了过正面把门禁整条拆掉"）。
+        ///
+        /// 卡级 <c>SupportsAbsoluteEncoder</c> 那一支**行为上造不出来**：基类 <c>Connect()</c> 会把
+        /// <c>IsHomed</c> 直接置成该能力位，能力位为真时 IsHomed 必然为真。所以它只能靠源码判据钉住
+        /// （见 ③），防后人把判据"简化"成只剩 IsHomed。
+        /// </summary>
+        private static void RunUiGateMatchesDeviceLayer()
+        {
+            Section("[M] 界面/SCADA 门禁（MotionCommandGate）与设备层同口径：绝对编码器 = 已回零");
+
+            // ---------- ① 反例：增量编码器 + 未回零 → 仍拒绝（原文案） ----------
+            using (var card = NewCard(absoluteEncoder: false))
+            {
+                card.Connect();
+                EnableAxis(card, 0);
+
+                var enabled = WaitFor(() => card.GetAxisStatus(0) is { Enabled: true }, 1000);
+                var axis = card.Descriptor.FindAxis(0)!;
+                var status = card.GetAxisStatus(0);
+
+                Check("前置：增量卡已使能、未回零（IsHomed=false）",
+                    enabled && status is { Enabled: true } && !card.IsHomed,
+                    $"Enabled={status?.Enabled} IsHomed={card.IsHomed}");
+
+                var rejected = MotionCommandGate.CheckMove(card, axis, status, 10);
+                Check("★普通轴未回零 → CheckMove 仍拒绝，且是原文案（反向判据：门禁没被拆掉）",
+                    !rejected.Passed
+                    && rejected.Reason.Contains("需要回零后才能运动", StringComparison.Ordinal),
+                    $"放行={rejected.Passed} 原因={rejected.Reason}");
+
+                // ---------- ② 每轴逃生口：HasAbsoluteEncoder=true → 放行 ----------
+                // 与设备层 CheckMotionPreconditionsLocked 的 `mapping?.HasAbsoluteEncoder == true` 同一口径。
+                axis.HasAbsoluteEncoder = true;
+                var perAxis = MotionCommandGate.CheckMove(card, axis, status, 10);
+                Check("★该轴 HasAbsoluteEncoder=true 时未回零也放行（每轴逃生口与设备层同口径）",
+                    perAxis.Passed,
+                    $"放行={perAxis.Passed} 原因={perAxis.Reason}");
+            }
+
+            // ---------- ③ 卡级能力位：只能用源码判据钉住（行为上造不出来） ----------
+            // 为什么不能像 ①② 那样真跑：基类 Connect() 里有一行
+            //     _isHomed = _capabilities.SupportsAbsoluteEncoder;
+            // 只要卡级能力位为 true，连上之后 IsHomed 一定是 true ——
+            // 「能力位 true 且 IsHomed false」在 MotionDeviceBase 的现有实现上**根本造不出来**
+            // （这正是 ZMotionCard 把该能力位硬编码 false 的原因，见驱动注释 S4/2026-10-22）。
+            // 所以卡级那一支是**防御性判据**：意义在于与设备层逐字同口径，而不是某天真会被触发。
+            // 这里用源码判据钉住"三支都在、顺序与设备层一致"，防的是后人把它"简化"成只剩 IsHomed
+            // ——那样"界面拒绝、设备层放行"的漂移就回来了。
+            var gateFile = ResolveRepoFile(@"Shard\Core.Interfaces\Motion\MotionCommandGate.cs");
+            string gateCompact = gateFile != null
+                ? new string(File.ReadAllText(gateFile).Where(c => !char.IsWhiteSpace(c)).ToArray())
+                : string.Empty;
+            const string expectedGate =
+                "device!.IsHomed||device.Capabilities.SupportsAbsoluteEncoder||axis.HasAbsoluteEncoder";
+            Check("★CheckMove 的「位置可信」判据三支齐全（IsHomed / 卡级能力位 / 每轴能力位），与设备层同口径",
+                gateFile != null && gateCompact.Contains(expectedGate, StringComparison.Ordinal),
+                gateFile == null
+                    ? @"定位不到 Shard\Core.Interfaces\Motion\MotionCommandGate.cs —— 文件被改名/搬走时这条必须红，不能记成跳过"
+                    : gateCompact.Contains(expectedGate, StringComparison.Ordinal)
+                        ? "三支齐全"
+                        : "判据被改窄了：期望 " + expectedGate);
+        }
+
+        // ==================================================================
+        //  ⑧ 等待到位：Target / Tolerance 显式模式（P1-A）
+        // ==================================================================
+
+        /// <summary>
+        /// Target 的两种模式必须都真跑一遍：
+        ///   · NaN（旧流程）→ 只认 InPosition &amp;&amp; !Moving；
+        ///   · 有值 → 只认 !Moving &amp;&amp; |pos-target| ≤ 容差（不要求 InPosition）。
+        /// 另外钉住"等待期间卡进安全停机要立刻失败"，而不是等满超时。
+        ///
+        /// 这里临时注入 <see cref="MotionAxisResolution"/>（插件解析轴名用），
+        /// 用完还原成空注册表 —— 别把一张已释放的卡留给后续断言。
+        /// </summary>
+        private static void RunWaitTargetModes()
+        {
+            Section("[M] 等待到位：Target/Tolerance 显式模式（P1-A）");
+
+            using var card = NewCard();   // 绝对编码器：IsHomed=true，把回零门禁排除
+            card.Connect();
+            EnableAxis(card, 0);
+
+            var registry = new MotionAxisRegistry(() => new[] { card.Descriptor });
+            MotionAxisResolution.Attach(registry, new SingleCardMotionProvider(card.Descriptor, card));
+
+            try
+            {
+                Check("前置：轴静止在 0mm 且 InPosition=true",
+                    WaitFor(() => card.GetAxisStatus(0) is { InPosition: true, Moving: false }, 1000),
+                    $"InPosition={card.GetAxisStatus(0)?.InPosition} Moving={card.GetAxisStatus(0)?.Moving}");
+
+                // ① Target=NaN → 旧 InPosition 语义
+                var legacy = RunWait(card, "X", double.NaN, 0.05, 500);
+                Check("★Target=NaN 时沿用旧 InPosition 语义（静止且到位 → 成功）",
+                    legacy.Success && Math.Abs(legacy.Position) < 0.5,
+                    $"成功={legacy.Success} 位置={legacy.Position:F3} 错误={legacy.Error}");
+
+                // ② Target 有值且到位 → 成功
+                using (var move = Move(0, 20, velocity: 200))
+                {
+                    card.Enqueue(move);
+                    Check("前置：轴走到 20mm 并停稳",
+                        WaitFor(() => card.GetAxisStatus(0) is { InPosition: true, Moving: false } s
+                                       && Math.Abs(s.PositionMm - 20) < 0.5, 3000),
+                        $"位置={card.GetAxisStatus(0)?.PositionMm:F2} Moving={card.GetAxisStatus(0)?.Moving}");
+                }
+
+                var hit = RunWait(card, "X", 20, 0.05, 2000);
+                Check("★Target 有值且到位 → 成功（位置判据，不依赖 InPosition）",
+                    hit.Success && Math.Abs(hit.Position - 20) <= 0.1,
+                    $"成功={hit.Success} 位置={hit.Position:F3} 错误={hit.Error}");
+
+                // ③ Target 有值但超差 → 超时
+                var miss = RunWait(card, "X", 30, 0.05, 150);
+                Check("★Target 有值但超差 → 超时（报错里带目标/容差/偏差）",
+                    !miss.Success && miss.Error.Contains("超时") && miss.Error.Contains("偏差"),
+                    $"成功={miss.Success} 错误={miss.Error}");
+
+                // ④ 等待期间卡进安全停机 → 立刻失败，不等满超时
+                using (var faultCard = NewCard())
+                {
+                    faultCard.Connect();
+                    EnableAxis(faultCard, 0);
+
+                    var faultRegistry = new MotionAxisRegistry(() => new[] { faultCard.Descriptor });
+                    MotionAxisResolution.Attach(
+                        faultRegistry, new SingleCardMotionProvider(faultCard.Descriptor, faultCard));
+
+                    var watch = Stopwatch.StartNew();
+                    var task = Task.Run(() => RunWait(faultCard, "X", 80, 0.05, 5000));
+                    Thread.Sleep(50);
+                    faultCard.SimulatePollException = true;   // 看门狗 → SafeStopped
+
+                    bool completed;
+                    WaitProbe stateFail;
+                    try
+                    {
+                        completed = task.Wait(3000);
+                        stateFail = completed ? task.Result : default(WaitProbe);
+                    }
+                    catch (AggregateException ex)
+                    {
+                        // 插件 Execute 已兜住业务异常；这里再兜一层，别让一条断言把后续全带崩
+                        completed = true;
+                        stateFail = new WaitProbe(false, ex.GetBaseException().Message, 0, 0);
+                    }
+
+                    watch.Stop();
+                    Check("★等待期间卡进入安全停机 → 立即失败（不必等满超时）",
+                        completed && !stateFail.Success && watch.ElapsedMilliseconds < 2000
+                        && (stateFail.Error.Contains("不可用") || stateFail.Error.Contains("安全停机")),
+                        $"完成={completed} 耗时={watch.ElapsedMilliseconds}ms "
+                        + $"成功={stateFail.Success} 错误={stateFail.Error}");
+                }
+            }
+            finally
+            {
+                // 还原静态注入：空注册表 + NullMotionProvider，后续断言不会再解析到已释放的卡
+                MotionAxisResolution.Attach(
+                    new MotionAxisRegistry(() => Array.Empty<MotionDescriptor>()),
+                    NullMotionProvider.Instance);
+            }
+        }
+
+        /// <summary>跑一次「等待到位」并收回四个结果（插件 Execute 会兜住异常并落到 Success/ErrorMessage）</summary>
+        private static WaitProbe RunWait(
+            VirtualMotionCard card, string axis, double target, double tolerance, int timeoutMs)
+        {
+            var plugin = new Plugin.Motion.Steps.MotionWaitPlugin
+            {
+                TimeoutMs = timeoutMs,
+                PollIntervalMs = 5,
+                InstanceName = "断言-等待到位",
+            };
+            plugin.Axis.Value = axis;
+            plugin.Target.Value = target;
+            plugin.Tolerance.Value = tolerance;
+
+            var log = new StubLog();
+            var ok = plugin.Execute(DataPipelineCheckSupport.NewContext(log));
+
+            return new WaitProbe(
+                ok,
+                plugin.ErrorMessage.TypedValue ?? string.Empty,
+                plugin.Position.TypedValue,
+                plugin.ElapsedMs.TypedValue);
+        }
+
+        private readonly record struct WaitProbe(bool Success, string Error, double Position, int Elapsed);
+
+        /// <summary>只服务「等待到位」断言的最小 IMotionProvider（一张卡 + 一个设备）</summary>
+        private sealed class SingleCardMotionProvider : IMotionProvider
+        {
+            private readonly MotionDescriptor _descriptor;
+            private readonly IMotionDevice _device;
+
+            public SingleCardMotionProvider(MotionDescriptor descriptor, IMotionDevice device)
+            {
+                _descriptor = descriptor;
+                _device = device;
+            }
+
+            public IReadOnlyList<MotionDescriptor> Cards => new[] { _descriptor };
+
+            public bool TryGetDevice(Guid cardId, out IMotionDevice device)
+            {
+                if (cardId == _descriptor.Id)
+                {
+                    device = _device;
+                    return true;
+                }
+
+                device = null!;
+                return false;
+            }
+
+            public bool TryGetByKey(string address, out IMotionDevice device)
+            {
+                if (string.Equals(address, _descriptor.Address, StringComparison.Ordinal))
+                {
+                    device = _device;
+                    return true;
+                }
+
+                device = null!;
+                return false;
+            }
+
+            public bool TryGetByName(string displayName, out IMotionDevice device)
+            {
+                if (string.Equals(displayName, _descriptor.DisplayName, StringComparison.Ordinal))
+                {
+                    device = _device;
+                    return true;
+                }
+
+                device = null!;
+                return false;
+            }
+
+            public void ReleaseAll() { }
+        }
+
+        // ==================================================================
         //  构造与辅助
         // ==================================================================
 
@@ -673,9 +1162,13 @@ namespace FlowCanvasChecks
             },
         };
 
-        private static VirtualMotionCard NewCard(bool absoluteEncoder = true, double softLimitMax = 100)
+        private static VirtualMotionCard NewCard(
+            bool absoluteEncoder = true, double softLimitMax = 100, int pollIntervalMs = 5)
         {
-            var card = new VirtualMotionCard(NewDescriptor(absoluteEncoder, softLimitMax))
+            var descriptor = NewDescriptor(absoluteEncoder, softLimitMax);
+            descriptor.Params.PollIntervalMs = pollIntervalMs;
+
+            var card = new VirtualMotionCard(descriptor)
             {
                 Log = new StubLog(),
             };
@@ -723,6 +1216,18 @@ namespace FlowCanvasChecks
             TargetMm = delta,
             VelocityMmPerS = velocity,
             Timeout = TimeSpan.FromSeconds(2),
+        };
+
+        /// <summary>回零命令（默认负限位+Index；假设备只支持 Origin 时显式传）</summary>
+        private static MotionCommand Home(int axis, HomeMode mode = HomeMode.NegativeLimitIndex) => new()
+        {
+            Kind = MotionCommandKind.Home,
+            PhysicalAxis = axis,
+            LogicalAxis = axis == 0 ? "X" : "Y",
+            HomeMode = mode,
+            WaitsForCompletion = true,
+            Retryable = false,
+            Timeout = TimeSpan.FromSeconds(5),
         };
 
         private static MotionCommand Stop(int axis) => new()
@@ -804,6 +1309,22 @@ namespace FlowCanvasChecks
             return condition();
         }
 
+        /// <summary>
+        /// 从输出目录往上找仓库相对路径（断言宿主跑在 bin\… 下，源码不在旁边）。
+        /// 取不到返回 null —— 调用方必须**红着说清**是哪个文件没定位到，不许记成"跳过"
+        /// （R38：跳过型断言必须能被反证）。
+        /// </summary>
+        private static string? ResolveRepoFile(string relative)
+        {
+            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            for (int i = 0; i < 6 && dir != null; i++, dir = dir.Parent)
+            {
+                var candidate = Path.Combine(dir.FullName, relative);
+                if (File.Exists(candidate)) return candidate;
+            }
+            return null;
+        }
+
         // ==================================================================
         //  断言用假设备
         // ==================================================================
@@ -824,6 +1345,12 @@ namespace FlowCanvasChecks
 
             /// <summary>轮询时是否上报报警（= 底层真实报警位）</summary>
             public volatile bool ReportAlarm;
+
+            /// <summary>
+            /// 轮询时上报的使能位。默认 true（既有 S7 断言的前提）；
+            /// P1-A 的「Home 不要求已使能」用例把它置 false，用来证明门禁只看 Moving。
+            /// </summary>
+            public volatile bool ReportEnabled = true;
 
             /// <summary>下一条运动命令是否失败（把设备打进安全停机用）</summary>
             public volatile bool FailMove;
@@ -853,7 +1380,7 @@ namespace FlowCanvasChecks
                 {
                     PhysicalIndex = 0,
                     PositionMm = 0,
-                    Enabled = true,
+                    Enabled = ReportEnabled,
                     InPosition = true,
                     Alarm = ReportAlarm,
                     AlarmMessage = ReportAlarm ? "模拟：报警未清除" : string.Empty,

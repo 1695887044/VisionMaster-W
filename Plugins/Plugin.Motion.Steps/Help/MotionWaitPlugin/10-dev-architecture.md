@@ -27,18 +27,21 @@ S 档一页承担三个角色：架构与数据流、宿主白拿的行为、改
 | 3 | `MotionAxisResolution.TryResolveAxis(...)` | 一次调用同时拿到"设备 + 轴配置"；失败原因文本由解析器给出，步骤不编自己的措辞 |
 | 4 | `Math.Max(1, TimeoutMs)`、`Math.Clamp(PollIntervalMs, 1, 500)`、`Stopwatch.StartNew()` | 下限/夹取都在步骤侧做完，循环里不再重复算；计时从解析成功后才开始，解析耗时不计入等待 |
 | 5 | 循环首行判 `context.CancellationToken.IsCancellationRequested` | **取消优先于一切判断**：流程停止时立刻退出，不等满超时 |
-| 6 | `device.GetAxisStatus(mapping.PhysicalIndex)` | 读的是轮询线程刷好的快照，**不发起通信**；同一轮里位置/运动位/报警位来自同一采样时刻，互相自洽 |
-| 7 | `status == null → Fail` | 快照为空 = 还没轮询到或已断开。给"未知"而不是拿 0 位置糊弄下游（附 `Descriptor.Caption` 与 `StateDetail`，能一眼看出是哪张卡） |
-| 8 | `status.HasCriticalSignal → Fail`（急停输入 / 正限位 / 负限位 / 报警任一为真） | **硬信号优先于"到位"**：报警或撞停时轴可能恰好停在目标附近，只看 `InPosition` 会把撞停当到位。此判断必须排在到位判断**之前**，顺序颠倒即回归 |
-| 9 | `status.InPosition && !status.Moving` → 写 `Position`/`Elapsed`，`Success = true` | 两个位**同时**成立才算到位（到位信号亮但还在动 = 还没停稳） |
-| 10 | `watch.ElapsedMilliseconds > timeout` → 先写 `Position`/`Elapsed` 再 `Fail` | 超时要**带上当前位置**报错（判断走了多少），这是和其它失败出口最大的区别：失败也写位置 |
-| 11 | `context.CancellationToken.WaitHandle.WaitOne(interval)`，吞 `ObjectDisposedException` | 等待间隔可被取消立刻唤醒；令牌已释放时不炸，下一轮循环会因取消而退出 |
+| 6 | `device.State != Online → Fail` | **卡状态快检**：等待期间卡进报警 / 安全停机 / 断开 / 连接中时，轴已经不可信；继续等到超时只会白等一个节拍 |
+| 7 | `device.GetAxisStatus(mapping.PhysicalIndex)` | 读的是轮询线程刷好的快照，**不发起通信**；同一轮里位置/运动位/报警位来自同一采样时刻，互相自洽 |
+| 8 | `status == null → Fail` | 快照为空 = 还没轮询到或已断开。给"未知"而不是拿 0 位置糊弄下游（附 `Descriptor.Caption` 与 `StateDetail`，能一眼看出是哪张卡） |
+| 9 | `status.HasCriticalSignal → Fail`（急停输入 / 正限位 / 负限位 / 报警任一为真） | **硬信号优先于"到位"**：报警或撞停时轴可能恰好停在目标附近，只看 `InPosition` 会把撞停当到位。此判断必须排在到位判断**之前**，顺序颠倒即回归 |
+| 10 | `Target` 为有限数：轴已停下（`!Moving`）且位置与目标的偏差 ≤ `Tolerance` → 写 `Position`/`Elapsed`，`Success = true` | **显式目标模式**：不要求 `InPosition`（有些卡/仿真器的到位位未驱动）；也**不先等 `Moving` 变 true**（短行程可能在两次轮询之间就走完，先等会漏采） |
+| 11 | `Target` 为 NaN：`status.InPosition && !status.Moving` → 写 `Position`/`Elapsed`，`Success = true` | **旧语义**：两个位同时成立才算到位（到位信号亮但还在动 = 还没停稳）。默认 NaN 让老流程行为不变 |
+| 12 | `watch.ElapsedMilliseconds > timeout` → 先写 `Position`/`Elapsed` 再 `Fail` | 超时要**带上当前位置**报错（显式模式还带目标/容差/偏差），这是和其它失败出口最大的区别：失败也写位置 |
+| 13 | `context.CancellationToken.WaitHandle.WaitOne(interval)`，吞 `ObjectDisposedException` | 等待间隔可被取消立刻唤醒；令牌已释放时不炸，下一轮循环会因取消而退出 |
 
 ## 三、状态有几份、谁是真源
 
 | 状态 | 真源 | 本步骤读还是写 |
 | --- | --- | --- |
 | `InPosition` / `Moving` / `PositionMm` / 硬信号位 | **轴状态快照**（`MotionDeviceBase` 轮询线程按卡级 `PollIntervalMs` 刷新） | 只读 |
+| 卡状态机（Online / Alarm / SafeStopped / Closed / Connecting） | `MotionDeviceBase` 的状态机（轮询/看门狗/急停/断开共同维护） | 只读（每轮快检，非 Online 立即失败） |
 | 命令生命周期 | `MotionCommand`（基类队列） | **完全不经过本步骤**——它不等命令，等的是设备事实 |
 | 界面填的值 | 步骤的 `InputValues`（`.vms`）与 `[StepConfig]` 配置段 | 由基类 `ApplyConfigValues` 灌进端口，`OnConfirm` 写回 |
 | 本插件自己 | **无**（没有实例字段、静态字段、缓存；`Stopwatch` 是方法内局部变量） | — |
@@ -91,6 +94,7 @@ S 档一页承担三个角色：架构与数据流、宿主白拿的行为、改
 | --- | --- | --- |
 | "等哪根轴"由上游决定失效，链接上去不生效 | 端口声明了但从不读 `ActualValue` | `★每个插件的「轴 / 卡」都有可链接的输入端口（只靠 [StepConfig] 常量的话，编辑流程时赋不了值——它不暴露为端口）`、`★端口在运行期真的被读取（有端口却只读常量 = 摆设，链接上去也不生效）`（`FlowCanvasChecks\MotionZMotionChecks.cs`） |
 | 老流程一编译就报"必填参数未配置" | 轴名口必须 `IsRequired = false` | `轴端口 IsRequired=false（老流程只填常量，不能因为没链接就判编译失败）` |
+| `Target` / `Tolerance` 链接上去不生效 | 端口声明了但运行期只读默认值 | `★等待到位读取 Target/Tolerance 的实际生效值（端口不是摆设）`（`FlowCanvasChecks\MotionZMotionChecks.cs`） |
 | 轴名下拉一片空白/退回手打文本框 | `OptionKind` 没声明，动态候选链断 | `★运动端口声明了 OptionKind（候选项随方案变化，不能在扫描期取一次就存下来）`、`★属性面板共用生成器清单里注册了动态候选生成器（抽到 Defaults 后不可能漏一边）` |
 | 手册被自动生成页顶掉、放错目录串页 | Help 页没进 DLL / 目录名不等于类名 | `HM4 有 Help/*.md 的工程都带 EmbeddedResource（手册进得了 DLL）`、`HM2 多插件程序集不许放扁平手册（防串页）`、`HM3 Help 子目录名逐字等于插件类名（分册能被认出）`（`FlowCanvasChecks\HelpManualCheck.cs`）；分档页数由 HM13/HM16 台账闸门核对 |
 
@@ -99,6 +103,10 @@ S 档一页承担三个角色：架构与数据流、宿主白拿的行为、改
 | 症状 | 机理 | 守门断言名 |
 | --- | --- | --- |
 | 等待"看起来永远成功"，流程实际串行感消失 | 若判据退化成只读某条命令的状态，等待就与设备事实脱钩 | `★Move 下发成功 ≠ 已到位（命令已 Done，但轴仍在途中）`、`轮询推进后轴真的走到目标（位置 ≈ 20mm 且到位）`（`FlowCanvasChecks\MotionChecks.cs`——这两条钉住"到位必须另行等快照"，正是本步骤存在的理由） |
+| 旧流程升级后行为变了 | `Target` 默认不是 `NaN`（比如写成 0） | `★Target=NaN 时沿用旧 InPosition 语义（静止且到位 → 成功）`（`FlowCanvasChecks\MotionChecks.cs`） |
+| 卡不报 `InPosition` 时永远等不到 | 显式模式仍要求 `InPosition` | `★Target 有值且到位 → 成功（位置判据，不依赖 InPosition）`（同上） |
+| 目标填错却"到了也超时" | 显式模式判据写反（比如用 `>=` 或拿增量比） | `★Target 有值但超差 → 超时（报错里带目标/容差/偏差）`（同上） |
+| 卡进安全停机后还傻等到超时 | 循环里没查 `device.State` | `★等待期间卡进入安全停机 → 立即失败（不必等满超时）`（同上） |
 | 撞停被当成"走到位"传给下一步 | 硬信号判断被挪到到位判断**之后** | 无断言，靠人工核对第 8、9 行的先后顺序；报警链路本身由 `★轮询到伺服报警 → 状态转 Alarm` 反证 |
 | 超时不报当前位置，排障全靠猜 | 超时分支没先写 `Position`/`Elapsed` 就 `Fail` | 无断言，靠人工核对（报错原文内嵌 `当前位置 … mm`） |
 | 上一轮的 `Position`/`Elapsed` 冒充本轮读数 | 开头没清零 | 无断言，靠人工核对（时间线第 2 步） |
@@ -110,7 +118,8 @@ S 档一页承担三个角色：架构与数据流、宿主白拿的行为、改
 | 改了什么 | 必须同步 |
 | --- | --- |
 | 端口名/默认值 | 用户页《等待到位》与本页第五节；`.vms` 里 `InputValues` 的键会变，老方案旧键静默失效 |
-| 到位判据（加/减条件） | 用户页"判据是两个位同时成立"的口径 + 本页第九节第 2 行 |
+| `Target` / `Tolerance` 的默认值或判据 | 用户页"两种判据"整段、端口页的结束情形表；`Target` 默认必须保持 `NaN`（旧流程行为不变） |
+| 到位判据（加/减条件） | 用户页"判据是两个位同时成立 / 显式目标落在容差内"的口径 + 本页第九节 |
 | 硬信号集合（`HasCriticalSignal` 面） | 「读轴状态」页的同一口径——两个步骤必须宽严一致，改一处不改另一处就是现场对不上话 |
 | 错误文案 | `05-troubleshooting.md` 的原文对照（要求逐字一致，改了不改手册就是假绿） |
 | `PollIntervalMs` 的夹取区间 | 用户页参数表与"比卡级还小只是空转"的说法 |

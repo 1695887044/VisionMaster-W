@@ -1017,6 +1017,135 @@ namespace FlowCanvasChecks
                 shallow.Blueprints.Add(s);
             Check("对照：浅填只拿到顶层 1 个（#9 病灶本身）",
                 shallow.Blueprints.Count == 1, $"实际 {shallow.Blueprints.Count}");
+
+            // ---- ③ A9：取消不是失败 + 异常日志必须带完整堆栈 ----
+            // 这一段与 [E12] 的主题不同（契约/收集），但同属"静默失效收口"：
+            //  · 只记 ex.Message 的日志，对 NullReferenceException 等于没有线索（Message 里没有位置）；
+            //  · 把取消当失败，界面上一片红、日志里一堆"执行失败"，真正的故障被淹没。
+            // 判据全部落在**真编译 → 真执行 → 真节点**上，不靠源码扫描。
+            CancellationAndStackTrace();
+        }
+
+        // ==================================================================
+        //  [E25] A9：取消语义与异常堆栈
+        // ==================================================================
+        /// <summary>
+        /// 两条判据各自对应一个真实故障形状：
+        ///  ① 插件抛普通异常 → 节点 Failed + 日志里有**堆栈**（旧实现只记 Message，
+        ///     现场拿到"对象未引用"这种文案完全无法定位）；ErrorMessage 仍保持短文案；
+        ///  ② 令牌已取消时插件抛 OCE（急停打断延时/长阻塞算子）→ 节点 **Skipped**，
+        ///     不抛穿流程、不写"执行失败"、不写 ErrorMessage（旧实现：VisionPluginBase 把 OCE
+        ///     当普通异常转失败，节点记 Failed —— 用户主动叫停被记成一次故障）。
+        /// 判据用"插件自己抛 OCE"而不是"引擎取消后静默 return"：只有前者会走到 catch 分支，
+        /// 后者在 RunSequence 的令牌检查里就退栈了，验不到 A9 改的那段。
+        /// </summary>
+        private static void CancellationAndStackTrace()
+        {
+            Section("[E25] A9 取消语义与异常堆栈");
+
+            // ---- ① 普通异常：Failed + 完整堆栈日志 ----
+            var boomStep = new ActionStep("B", "抛异常", TypeOf(new ThrowingPlugin()), "异常桩");
+            var boomRun = ExecHarness.Prepare(new StepModel[] { boomStep });
+            Check("异常用例图纸编译通过", boomRun.Compiled, boomRun.Errors);
+            if (boomRun.Compiled)
+            {
+                var boomLog = new StubLog();
+                Exception runBoom = null;
+                try { boomRun.Engine!.Run(boomRun.NewContext(boomLog)); }
+                catch (Exception ex) { runBoom = ex; }
+
+                Check("桩插件异常按既有语义上抛（流程中断当轮，不静默）",
+                    runBoom != null, runBoom == null ? "没抛：异常被吞了" : runBoom.GetType().Name);
+                Check("异常步骤落 Failed（不是 Skipped）",
+                    boomStep.State == StepState.Failed, $"State={boomStep.State}");
+
+                // ★ 核心：日志里必须是 ToString()（含 "   at 类型.方法" 帧），不是只有 Message
+                Check("★异常日志含完整堆栈（不是只记 Message）",
+                    boomLog.Errors.Any(e =>
+                        e.Contains("InvalidOperationException", StringComparison.Ordinal)
+                        && e.Contains("ThrowingPlugin.ThrowFromNestedFrame", StringComparison.Ordinal)
+                        && e.Contains("   at ", StringComparison.Ordinal)),
+                    boomLog.Errors.Count == 0 ? "(无 Error 日志)" : boomLog.Errors[0]);
+
+                // 反向：ErrorMessage（界面/输出端口）保持一句话，堆栈只进日志
+                var boomPlugin = ((CompiledPluginNode)boomRun.Engine!.NodeLookup[boomStep.StepID]).ExternalPlugin;
+                Check("ErrorMessage 仍是短文案（堆栈只进日志，不上输出端口）",
+                    boomPlugin.LastError.Contains("InvalidOperationException", StringComparison.Ordinal)
+                    && !boomPlugin.LastError.Contains("   at ", StringComparison.Ordinal),
+                    boomPlugin.LastError);
+            }
+
+            // ---- ② 取消：Skipped + 不抛 + 不算失败 ----
+            var cancelStep = new ActionStep("C", "取消桩", TypeOf(new CancelThenThrowPlugin()), "取消桩");
+            var afterStep = new ActionStep("D", "计数", TypeOf(new CountingPlugin()), "取消之后不应执行");
+            var cancelRun = ExecHarness.Prepare(new StepModel[] { cancelStep, afterStep });
+            Check("取消用例图纸编译通过", cancelRun.Compiled, cancelRun.Errors);
+            if (cancelRun.Compiled)
+            {
+                CountingPlugin.Reset();
+                using var cts = new CancellationTokenSource();
+                CancelThenThrowPlugin.Trigger = cts;
+                var cancelLog = new StubLog();
+                Exception cancelBoom = null;
+                try { cancelRun.Engine!.Run(cancelRun.NewContext(cancelLog, cts.Token)); }
+                catch (Exception ex) { cancelBoom = ex; }
+
+                Check("★取消（令牌已置位）不再抛穿流程",
+                    cancelBoom == null,
+                    cancelBoom == null ? "" : cancelBoom.GetType().Name + ": " + cancelBoom.Message);
+                Check("★被取消的步骤落 Skipped（不是 Failed）",
+                    cancelStep.State == StepState.Skipped, $"State={cancelStep.State}");
+                Check("取消后的步骤不再执行（序列按令牌退栈）",
+                    CountingPlugin.Runs == 0, $"实际 Runs={CountingPlugin.Runs}");
+                Check("取消不写「执行失败」日志（不把叫停当故障）",
+                    !cancelLog.Errors.Any(e => e.Contains("执行失败", StringComparison.Ordinal)),
+                    cancelLog.Errors.Count == 0 ? "" : string.Join(" | ", cancelLog.Errors));
+
+                var cancelPlugin = ((CompiledPluginNode)cancelRun.Engine!.NodeLookup[cancelStep.StepID]).ExternalPlugin;
+                Check("取消不写 ErrorMessage（取消不是失败原因）",
+                    string.IsNullOrEmpty(cancelPlugin.LastError), cancelPlugin.LastError);
+
+                CancelThenThrowPlugin.Trigger = null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A9 桩：抛一个普通异常（在独立方法里抛 + NoInlining，保证堆栈里一定有那一帧）。
+    /// 判据"日志含堆栈"必须有可断言的帧名，否则只能验到"日志里有类型名"（Message 里也有类型名，
+    /// 断言会假绿）。
+    /// </summary>
+    internal sealed class ThrowingPlugin : VisionPluginBase
+    {
+        // 走"策略声明型例外"：基类先落短 ErrorMessage + 完整堆栈日志，再原样上抛，
+        // 由节点标 Failed 并中断当轮（与真实的安全互锁类插件同口径）。
+        // 默认策略（false）会把异常转成"业务失败"继续跑，验不到上抛那一段。
+        protected override bool RethrowOnException => true;
+
+        public override void RunAlgorithm(IExecutionContext context) => ThrowFromNestedFrame();
+
+        [System.Runtime.CompilerServices.MethodImpl(
+            System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static void ThrowFromNestedFrame()
+            => throw new InvalidOperationException("A9 堆栈断言：故意抛出");
+    }
+
+    /// <summary>
+    /// A9 桩：把外部令牌源取消，再抛 OCE —— 模拟"延时/长阻塞算子被急停打断"。
+    ///
+    /// 为什么必须由插件自己取消：节点的 catch 判据是 <c>token.IsCancellationRequested</c>。
+    /// 令牌没置位时抛的 OCE 属于"插件自己超时"，仍应按失败处理 —— 两条路径必须分开验，
+    /// 否则把 catch 写成无条件吞 OCE 也能通过。
+    /// </summary>
+    internal sealed class CancelThenThrowPlugin : VisionPluginBase
+    {
+        /// <summary>本用例的令牌源（用例开始前赋值、结束置 null；单线程使用，无并行组参与）</summary>
+        public static CancellationTokenSource? Trigger;
+
+        public override void RunAlgorithm(IExecutionContext context)
+        {
+            Trigger?.Cancel();
+            throw new OperationCanceledException(Trigger?.Token ?? context.CancellationToken);
         }
     }
 }

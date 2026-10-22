@@ -62,7 +62,7 @@ namespace VisionMaster.Scada.Controls
     [TemplatePart(Name = PartEditor, Type = typeof(TextBox))]
     [TemplatePart(Name = PartValueDisplay, Type = typeof(TextBlock))]
     [TemplatePart(Name = PartLabelText, Type = typeof(TextBlock))]
-    public partial class IOFieldElement : ScadaElementBase
+    public partial class IOFieldElement : ScadaElementBase, IScadaSoftKeyboardTarget
     {
         /// <summary>模板部件名：就地编辑用的输入框</summary>
         public const string PartEditor = "PART_Editor";
@@ -300,6 +300,40 @@ namespace VisionMaster.Scada.Controls
         /// <summary>此刻能不能改（只读；见 <see cref="IsEditableProperty"/>）</summary>
         public bool IsEditable => (bool)GetValue(IsEditableProperty);
 
+        bool IScadaSoftKeyboardTarget.IsNumeric => IsDecimalFormat;
+
+        int IScadaSoftKeyboardTarget.MaxLength => 64;
+
+        string? IScadaSoftKeyboardTarget.UnitText => Unit;
+
+        string? IScadaSoftKeyboardTarget.RangeText
+        {
+            get
+            {
+                if (HasMinimum && HasMaximum)
+                    return $"范围 {FormatNumber(Minimum)}–{FormatNumber(Maximum)}";
+
+                if (HasMinimum)
+                    return $"≥ {FormatNumber(Minimum)}";
+
+                return HasMaximum ? $"≤ {FormatNumber(Maximum)}" : null;
+            }
+        }
+
+        string? IScadaSoftKeyboardTarget.OriginalText => FormatNumber(DisplayValue());
+
+        /// <summary>软键盘拼出的文本落到编辑框，并把光标放到末尾（不提交）。</summary>
+        public void SetEditText(string text)
+        {
+            EditText = text;
+
+            if (GetTemplateChild(PartEditor) is TextBox editor)
+            {
+                editor.Focus();
+                editor.CaretIndex = editor.Text?.Length ?? 0;
+            }
+        }
+
         /// <summary>
         /// 进入就地编辑态：把当前显示值填进编辑框、把焦点交给它。
         /// 不可写（只读模式、没绑变量、没写通道）时是空操作——点上去什么也不会发生，
@@ -526,7 +560,11 @@ namespace VisionMaster.Scada.Controls
             => ((IOFieldElement)d).UpdateDisplayStroke();
 
         private static void OnIsEditingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-            => ((IOFieldElement)d).UpdateEditorVisibility();
+        {
+            var field = (IOFieldElement)d;
+            field.UpdateEditorVisibility();
+            field.RaiseEditStateChanged();
+        }
 
         private static void OnLabelTextChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
             => ((IOFieldElement)d).UpdateEditorVisibility();

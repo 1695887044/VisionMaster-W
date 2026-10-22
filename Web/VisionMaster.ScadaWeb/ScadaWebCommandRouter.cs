@@ -456,6 +456,28 @@ namespace VisionMaster.ScadaWeb
                 ? "Value"
                 : command.Property!.Trim();
 
+            // 滑块是"连续量写变量"的入口，Web 不能绕过它自己的两道门：
+            // 只读模式不可写；要求二次确认的滑块 Web 端没有确认出口，直接拒绝（不静默放行）。
+            if (string.Equals(element.TypeKey, "Hmi.Slider", StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.Equals(
+                        element.GetProperty("Mode", "InputOutput"),
+                        "Output",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return Deny(command, ScadaWebErrorCodes.NotOperable,
+                        $"滑块「{element.Name}」为只读模式，Web 不能写入",
+                        element.Name, "输入");
+                }
+
+                if (bool.TryParse(element.GetProperty("ConfirmDanger", "False"), out var danger) && danger)
+                {
+                    return Deny(command, ScadaWebErrorCodes.NotOperable,
+                        $"滑块「{element.Name}」要求写入前确认，Web 端不可写，请在桌面操作",
+                        element.Name, "输入");
+                }
+            }
+
             if (!_policy.CanOperate(command.Session, element.RequiredRole, out var denyCode, out var denyReason))
                 return Deny(command, denyCode, denyReason, element.Name, "输入");
 

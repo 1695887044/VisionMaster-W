@@ -64,7 +64,12 @@ namespace LogViewProbe
             Capture(typed, 1000, 300, "logview_typed.png", dumpToolbar: false);
             // 等级筛选的三种替代形态（不用下拉框）
             CaptureVariants();
-            // 属性网格两种布局在"参数列宽度"下的观感（插件配置壳切卡片式的依据）
+            // 2026-10-22 第 1 批复刻：监视面板 / 流程胶囊条 / 运行驾驶舱。
+            // 只证明"XAML 能解析 + 模板能套上 + StaticResource 都找得到"——这三个 VM 都要服务注入，
+            // 探针里没有真 VM，所以绑定是空的，看的是骨架与配色（真实数据靠真机验收）。
+            CaptureBare(() => new VisionMaster.Views.MonitorView(), 640, 520, "monitor-panel.png");
+            CaptureBare(() => new VisionMaster.Views.FlowListView(), 340, 112, "flow-capsules.png");
+            CaptureBare(() => new VisionMaster.Views.RunCockpitView(), 960, 720, "run-cockpit.png");            // 属性网格两种布局在"参数列宽度"下的观感（插件配置壳切卡片式的依据）
             CaptureGridLayouts();
             // 新控件 NumericBox：行为断言 + 状态样式图
             CheckNumericBox();
@@ -990,8 +995,26 @@ namespace LogViewProbe
             return vm;
         }
 
-        private static void Capture(VisionMaster.ViewModels.LogViewModel vm, double width, double height, string fileName, bool dumpToolbar)
+        /// <summary>
+        /// 无 VM 的裸渲染：只验证 XAML 解析、模板套用与 StaticResource 解析。
+        /// 单个视图抛异常时只打一行 [SKIP]，不拖垮整个探针。
+        /// </summary>
+        private static void CaptureBare(Func<FrameworkElement> factory, double width, double height, string fileName)
         {
+            try
+            {
+                var view = factory();
+                Prism.Mvvm.ViewModelLocator.SetAutoWireViewModel(view, false);
+                var root = new Border { Background = Brushes.White, Width = width, Height = height, Child = view };
+                ShowAndCapture(root, fileName);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SKIP] {fileName}: {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        private static void Capture(VisionMaster.ViewModels.LogViewModel vm, double width, double height, string fileName, bool dumpToolbar)        {
             var view = new VisionMaster.Views.LogView { DataContext = vm };
             // 探针里没有 Prism 容器，关掉自动装配，免得它把 DataContext 顶掉
             Prism.Mvvm.ViewModelLocator.SetAutoWireViewModel(view, false);

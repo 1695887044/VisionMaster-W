@@ -32,9 +32,16 @@ namespace VisionMaster.Communications
         public virtual int TimeoutMs { get; set; } = 3000;
 
         /// <summary>
-        /// <para>获取或设置重试次数。</para>
-        /// <para>默认值：3次</para>
-        /// <para>范围：0-10次</para>
+        /// <para>获取或设置<b>读重试次数</b>。</para>
+        /// <para>默认值：3 次</para>
+        /// <para>范围：0-10 次</para>
+        /// <para>作用范围：<b>只作用于「立刻读」这条读路径</b>（「立刻读」算子 / 网络变量的立刻读）。
+        /// 一次读失败后按 <see cref="RetryIntervalMs"/> 间隔重试，最多重试这么多次
+        /// （总尝试次数 = 1 + 本值；重试用尽仍失败则按原错误出口抛出）。</para>
+        /// <para><b>只管读，不管写</b>：写命令绝不重试——重复下发在工业现场可能造成二次动作
+        /// （双联阀、气缸二次伸出这类事故）；周期轮询也不重试，它的"重试"就是下一拍。</para>
+        /// <para>断线重连的次数由管理器自己的上限控制（<c>MaxReconnectAttempts</c>），与本字段无关；
+        /// 本字段只影响"一次读失败后要不要再试几次"。</para>
         /// </summary>
         [SuperDisplay(Name = "重试次数", Group = new string[] { "高级参数" }, Order = 11, ColSpan = 4)]
         [RangeValidation(0, 10, "重试次数不能小于0")]
@@ -43,6 +50,9 @@ namespace VisionMaster.Communications
         /// <summary>
         /// <para>获取或设置重试间隔时间（毫秒）。</para>
         /// <para>默认值：1000ms</para>
+        /// <para>两个消费者：① <b>断线重连</b>的退避基准（首次退避 = 本值，之后按 2 的幂放大，封顶 30 秒）；
+        /// ② <b>「立刻读」失败后的重试间隔</b>（见 <see cref="RetryCount"/>）。</para>
+        /// <para>填 0 = 立即重试（不睡），负数按 0 处理。</para>
         /// </summary>
         [SuperDisplay(Name = "重试间隔(ms)", Group = new string[] { "高级参数" }, Order = 12, ColSpan = 4)]
         public int RetryIntervalMs { get; set; } = 1000;

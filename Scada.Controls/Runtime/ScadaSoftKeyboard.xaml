@@ -1,0 +1,317 @@
+<UserControl
+    x:Class="VisionMaster.Scada.Controls.ScadaSoftKeyboard"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Focusable="False"
+    IsTabStop="False"
+    Visibility="Collapsed">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!--  数字键：48×48 是触摸下限；功能键弱化，确定键用 accent 实底。  -->
+            <Style x:Key="SoftKeyButton" TargetType="Button">
+                <Setter Property="Width" Value="72" />
+                <Setter Property="Height" Value="48" />
+                <Setter Property="Margin" Value="4" />
+                <Setter Property="Background" Value="{StaticResource HmiSurfaceRaisedBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource HmiBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+                <Setter Property="FontSize" Value="18" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="IsTabStop" Value="False" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border
+                                x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                                <ContentPresenter
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    TextElement.Foreground="{TemplateBinding Foreground}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource HmiAccentBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource HmiCanvasBackgroundBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.45" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style
+                x:Key="SoftKeyMuted"
+                BasedOn="{StaticResource SoftKeyButton}"
+                TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource HmiSurfaceBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource HmiTextSecondaryBrush}" />
+                <Setter Property="FontSize" Value="13" />
+            </Style>
+
+            <Style
+                x:Key="SoftKeyAccent"
+                BasedOn="{StaticResource SoftKeyButton}"
+                TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource HmiAccentStrongBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource HmiAccentBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource HmiCanvasBackgroundBrush}" />
+                <Setter Property="FontSize" Value="14" />
+            </Style>
+
+            <!--  字符键：10 列，宽度 48；字号比数字键小一档。  -->
+            <Style
+                x:Key="SoftKeyChar"
+                BasedOn="{StaticResource SoftKeyButton}"
+                TargetType="Button">
+                <Setter Property="Width" Value="48" />
+                <Setter Property="Height" Value="40" />
+                <Setter Property="Margin" Value="3" />
+                <Setter Property="FontSize" Value="15" />
+            </Style>
+
+            <Style
+                x:Key="SoftKeyCharMuted"
+                BasedOn="{StaticResource SoftKeyChar}"
+                TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource HmiSurfaceBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource HmiTextSecondaryBrush}" />
+                <Setter Property="FontSize" Value="11" />
+            </Style>
+
+            <Style
+                x:Key="SoftKeyCharAccent"
+                BasedOn="{StaticResource SoftKeyChar}"
+                TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource HmiAccentStrongBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource HmiAccentBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource HmiCanvasBackgroundBrush}" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Viewbox Stretch="Uniform" StretchDirection="DownOnly">
+        <Border
+            x:Name="KeyboardPanel"
+            Padding="8"
+            Background="{StaticResource HmiSurfaceBrush}"
+            BorderBrush="{StaticResource HmiBorderStrongBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+        <Border.Effect>
+            <DropShadowEffect
+                BlurRadius="16"
+                Direction="270"
+                Opacity="0.45"
+                ShadowDepth="4"
+                Color="Black" />
+        </Border.Effect>
+
+        <StackPanel>
+            <!--  当前输入 + 单位/上下限/原值 + 错误原因  -->
+            <Border
+                Padding="10,8"
+                Background="{StaticResource HmiCanvasBackgroundBrush}"
+                CornerRadius="4">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock
+                        x:Name="DisplayText"
+                        FontFamily="Consolas, Microsoft YaHei UI"
+                        FontSize="20"
+                        Foreground="{StaticResource HmiTextBrush}"
+                        TextTrimming="CharacterEllipsis" />
+
+                    <TextBlock
+                        x:Name="MetaText"
+                        Grid.Row="1"
+                        Margin="0,2,0,0"
+                        FontSize="11"
+                        Foreground="{StaticResource HmiTextMutedBrush}"
+                        TextTrimming="CharacterEllipsis" />
+
+                    <TextBlock
+                        x:Name="ErrorText"
+                        Grid.Row="2"
+                        Margin="0,4,0,0"
+                        FontSize="11"
+                        Foreground="{StaticResource HmiDangerBrush}"
+                        TextWrapping="Wrap"
+                        Visibility="Collapsed" />
+                </Grid>
+            </Border>
+
+            <!--  数字键盘：7 8 9 ⌫ / 4 5 6 清除 / 1 2 3 ± / 0 . Esc 确定  -->
+            <Grid x:Name="NumericPad" Margin="0,8,0,0" HorizontalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Button Grid.Row="0" Grid.Column="0" Click="OnKeyClick" Content="7" Style="{StaticResource SoftKeyButton}" Tag="7" />
+                <Button Grid.Row="0" Grid.Column="1" Click="OnKeyClick" Content="8" Style="{StaticResource SoftKeyButton}" Tag="8" />
+                <Button Grid.Row="0" Grid.Column="2" Click="OnKeyClick" Content="9" Style="{StaticResource SoftKeyButton}" Tag="9" />
+                <Button Grid.Row="0" Grid.Column="3" Click="OnKeyClick" Content="⌫" Style="{StaticResource SoftKeyMuted}" Tag="back" />
+
+                <Button Grid.Row="1" Grid.Column="0" Click="OnKeyClick" Content="4" Style="{StaticResource SoftKeyButton}" Tag="4" />
+                <Button Grid.Row="1" Grid.Column="1" Click="OnKeyClick" Content="5" Style="{StaticResource SoftKeyButton}" Tag="5" />
+                <Button Grid.Row="1" Grid.Column="2" Click="OnKeyClick" Content="6" Style="{StaticResource SoftKeyButton}" Tag="6" />
+                <Button Grid.Row="1" Grid.Column="3" Click="OnKeyClick" Content="清除" Style="{StaticResource SoftKeyMuted}" Tag="clear" />
+
+                <Button Grid.Row="2" Grid.Column="0" Click="OnKeyClick" Content="1" Style="{StaticResource SoftKeyButton}" Tag="1" />
+                <Button Grid.Row="2" Grid.Column="1" Click="OnKeyClick" Content="2" Style="{StaticResource SoftKeyButton}" Tag="2" />
+                <Button Grid.Row="2" Grid.Column="2" Click="OnKeyClick" Content="3" Style="{StaticResource SoftKeyButton}" Tag="3" />
+                <Button Grid.Row="2" Grid.Column="3" Click="OnKeyClick" Content="±" Style="{StaticResource SoftKeyMuted}" Tag="sign" />
+
+                <Button Grid.Row="3" Grid.Column="0" Click="OnKeyClick" Content="0" Style="{StaticResource SoftKeyButton}" Tag="0" />
+                <Button Grid.Row="3" Grid.Column="1" Click="OnKeyClick" Content="." Style="{StaticResource SoftKeyButton}" Tag="." />
+                <Button Grid.Row="3" Grid.Column="2" Click="OnKeyClick" Content="Esc" Style="{StaticResource SoftKeyMuted}" Tag="esc" />
+                <Button Grid.Row="3" Grid.Column="3" Click="OnKeyClick" Content="确定" Style="{StaticResource SoftKeyAccent}" Tag="ok" />
+            </Grid>
+
+            <!--  字符键盘：ASCII 字母 / 数字 / 常用符号；中文走系统输入法  -->
+            <Grid x:Name="TextPad" Margin="0,8,0,0" HorizontalAlignment="Center" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Button Grid.Row="0" Grid.Column="0" Click="OnKeyClick" Content="1" Style="{StaticResource SoftKeyChar}" Tag="1" />
+                <Button Grid.Row="0" Grid.Column="1" Click="OnKeyClick" Content="2" Style="{StaticResource SoftKeyChar}" Tag="2" />
+                <Button Grid.Row="0" Grid.Column="2" Click="OnKeyClick" Content="3" Style="{StaticResource SoftKeyChar}" Tag="3" />
+                <Button Grid.Row="0" Grid.Column="3" Click="OnKeyClick" Content="4" Style="{StaticResource SoftKeyChar}" Tag="4" />
+                <Button Grid.Row="0" Grid.Column="4" Click="OnKeyClick" Content="5" Style="{StaticResource SoftKeyChar}" Tag="5" />
+                <Button Grid.Row="0" Grid.Column="5" Click="OnKeyClick" Content="6" Style="{StaticResource SoftKeyChar}" Tag="6" />
+                <Button Grid.Row="0" Grid.Column="6" Click="OnKeyClick" Content="7" Style="{StaticResource SoftKeyChar}" Tag="7" />
+                <Button Grid.Row="0" Grid.Column="7" Click="OnKeyClick" Content="8" Style="{StaticResource SoftKeyChar}" Tag="8" />
+                <Button Grid.Row="0" Grid.Column="8" Click="OnKeyClick" Content="9" Style="{StaticResource SoftKeyChar}" Tag="9" />
+                <Button Grid.Row="0" Grid.Column="9" Click="OnKeyClick" Content="0" Style="{StaticResource SoftKeyChar}" Tag="0" />
+
+                <Button Grid.Row="1" Grid.Column="0" Click="OnKeyClick" Content="q" Style="{StaticResource SoftKeyChar}" Tag="q" />
+                <Button Grid.Row="1" Grid.Column="1" Click="OnKeyClick" Content="w" Style="{StaticResource SoftKeyChar}" Tag="w" />
+                <Button Grid.Row="1" Grid.Column="2" Click="OnKeyClick" Content="e" Style="{StaticResource SoftKeyChar}" Tag="e" />
+                <Button Grid.Row="1" Grid.Column="3" Click="OnKeyClick" Content="r" Style="{StaticResource SoftKeyChar}" Tag="r" />
+                <Button Grid.Row="1" Grid.Column="4" Click="OnKeyClick" Content="t" Style="{StaticResource SoftKeyChar}" Tag="t" />
+                <Button Grid.Row="1" Grid.Column="5" Click="OnKeyClick" Content="y" Style="{StaticResource SoftKeyChar}" Tag="y" />
+                <Button Grid.Row="1" Grid.Column="6" Click="OnKeyClick" Content="u" Style="{StaticResource SoftKeyChar}" Tag="u" />
+                <Button Grid.Row="1" Grid.Column="7" Click="OnKeyClick" Content="i" Style="{StaticResource SoftKeyChar}" Tag="i" />
+                <Button Grid.Row="1" Grid.Column="8" Click="OnKeyClick" Content="o" Style="{StaticResource SoftKeyChar}" Tag="o" />
+                <Button Grid.Row="1" Grid.Column="9" Click="OnKeyClick" Content="p" Style="{StaticResource SoftKeyChar}" Tag="p" />
+
+                <Button Grid.Row="2" Grid.Column="0" Click="OnKeyClick" Content="a" Style="{StaticResource SoftKeyChar}" Tag="a" />
+                <Button Grid.Row="2" Grid.Column="1" Click="OnKeyClick" Content="s" Style="{StaticResource SoftKeyChar}" Tag="s" />
+                <Button Grid.Row="2" Grid.Column="2" Click="OnKeyClick" Content="d" Style="{StaticResource SoftKeyChar}" Tag="d" />
+                <Button Grid.Row="2" Grid.Column="3" Click="OnKeyClick" Content="f" Style="{StaticResource SoftKeyChar}" Tag="f" />
+                <Button Grid.Row="2" Grid.Column="4" Click="OnKeyClick" Content="g" Style="{StaticResource SoftKeyChar}" Tag="g" />
+                <Button Grid.Row="2" Grid.Column="5" Click="OnKeyClick" Content="h" Style="{StaticResource SoftKeyChar}" Tag="h" />
+                <Button Grid.Row="2" Grid.Column="6" Click="OnKeyClick" Content="j" Style="{StaticResource SoftKeyChar}" Tag="j" />
+                <Button Grid.Row="2" Grid.Column="7" Click="OnKeyClick" Content="k" Style="{StaticResource SoftKeyChar}" Tag="k" />
+                <Button Grid.Row="2" Grid.Column="8" Click="OnKeyClick" Content="l" Style="{StaticResource SoftKeyChar}" Tag="l" />
+                <Button Grid.Row="2" Grid.Column="9" Click="OnKeyClick" Content="⌫" Style="{StaticResource SoftKeyCharMuted}" Tag="back" />
+
+                <Button
+                    x:Name="ShiftButton"
+                    Grid.Row="3"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="2"
+                    Click="OnKeyClick"
+                    Content="Shift"
+                    Style="{StaticResource SoftKeyCharMuted}"
+                    Tag="shift" />
+                <Button Grid.Row="3" Grid.Column="2" Click="OnKeyClick" Content="z" Style="{StaticResource SoftKeyChar}" Tag="z" />
+                <Button Grid.Row="3" Grid.Column="3" Click="OnKeyClick" Content="x" Style="{StaticResource SoftKeyChar}" Tag="x" />
+                <Button Grid.Row="3" Grid.Column="4" Click="OnKeyClick" Content="c" Style="{StaticResource SoftKeyChar}" Tag="c" />
+                <Button Grid.Row="3" Grid.Column="5" Click="OnKeyClick" Content="v" Style="{StaticResource SoftKeyChar}" Tag="v" />
+                <Button Grid.Row="3" Grid.Column="6" Click="OnKeyClick" Content="b" Style="{StaticResource SoftKeyChar}" Tag="b" />
+                <Button Grid.Row="3" Grid.Column="7" Click="OnKeyClick" Content="n" Style="{StaticResource SoftKeyChar}" Tag="n" />
+                <Button Grid.Row="3" Grid.Column="8" Click="OnKeyClick" Content="m" Style="{StaticResource SoftKeyChar}" Tag="m" />
+                <Button Grid.Row="3" Grid.Column="9" Click="OnKeyClick" Content="清除" Style="{StaticResource SoftKeyCharMuted}" Tag="clear" />
+
+                <Button
+                    Grid.Row="4"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="4"
+                    Click="OnKeyClick"
+                    Content="空格"
+                    Style="{StaticResource SoftKeyCharMuted}"
+                    Tag="space" />
+                <Button Grid.Row="4" Grid.Column="4" Click="OnKeyClick" Content="." Style="{StaticResource SoftKeyChar}" Tag="." />
+                <Button Grid.Row="4" Grid.Column="5" Click="OnKeyClick" Content="-" Style="{StaticResource SoftKeyChar}" Tag="-" />
+                <Button
+                    Grid.Row="4"
+                    Grid.Column="6"
+                    Grid.ColumnSpan="2"
+                    Click="OnKeyClick"
+                    Content="Esc"
+                    Style="{StaticResource SoftKeyCharMuted}"
+                    Tag="esc" />
+                <Button
+                    Grid.Row="4"
+                    Grid.Column="8"
+                    Grid.ColumnSpan="2"
+                    Click="OnKeyClick"
+                    Content="确定"
+                    Style="{StaticResource SoftKeyCharAccent}"
+                    Tag="ok" />
+
+                <Button Grid.Row="5" Grid.Column="0" Click="OnKeyClick" Content="_" Style="{StaticResource SoftKeyCharMuted}" Tag="_" />
+                <Button Grid.Row="5" Grid.Column="1" Click="OnKeyClick" Content="/" Style="{StaticResource SoftKeyCharMuted}" Tag="/" />
+                <Button Grid.Row="5" Grid.Column="2" Click="OnKeyClick" Content="#" Style="{StaticResource SoftKeyCharMuted}" Tag="#" />
+                <Button Grid.Row="5" Grid.Column="3" Click="OnKeyClick" Content="%" Style="{StaticResource SoftKeyCharMuted}" Tag="%" />
+                <Button Grid.Row="5" Grid.Column="4" Click="OnKeyClick" Content="+" Style="{StaticResource SoftKeyCharMuted}" Tag="+" />
+                <Button Grid.Row="5" Grid.Column="5" Click="OnKeyClick" Content="*" Style="{StaticResource SoftKeyCharMuted}" Tag="*" />
+                <Button Grid.Row="5" Grid.Column="6" Click="OnKeyClick" Content="(" Style="{StaticResource SoftKeyCharMuted}" Tag="(" />
+                <Button Grid.Row="5" Grid.Column="7" Click="OnKeyClick" Content=")" Style="{StaticResource SoftKeyCharMuted}" Tag=")" />
+                <Button Grid.Row="5" Grid.Column="8" Click="OnKeyClick" Content=":" Style="{StaticResource SoftKeyCharMuted}" Tag=":" />
+                <Button Grid.Row="5" Grid.Column="9" Click="OnKeyClick" Content="@" Style="{StaticResource SoftKeyCharMuted}" Tag="@" />
+            </Grid>
+        </StackPanel>
+        </Border>
+    </Viewbox>
+</UserControl>

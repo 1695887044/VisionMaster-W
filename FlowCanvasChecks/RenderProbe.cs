@@ -1311,7 +1311,7 @@ namespace FlowCanvasChecks
                         Offset = "0",
                         Length = 3
                     },
-                    Value = new[] { 10, 20, 30 },
+                    Value = new double[] { 10, 20, 30 },
                     ElementConversions = new ElementConversion?[]
                     {
                         new() { Scale = 0.1, Offset = 5, DecimalPlaces = 1, Unit = "℃" },

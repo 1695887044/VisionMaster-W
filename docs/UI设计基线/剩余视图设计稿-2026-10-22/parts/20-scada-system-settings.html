@@ -1,0 +1,116 @@
+<section class="view" id="view-20">
+  <div class="view-head">
+    <h2>系统设置</h2>
+    <span class="file">VisionMaster\Views\DialogViews\ScadaSystemSettingsView.xaml</span>
+    <span class="size">139 行 · 11 hex</span>
+  </div>
+  <div class="view-body">
+
+    <div class="mock" style="width:760px">
+      <div class="mock-bar">
+        <span class="t">系统设置</span>
+        <span class="grow"></span>
+        <span class="s">草稿 + 确定才落盘 · 写程序目录 AppConfig.json</span>
+      </div>
+      <div class="mock-body">
+        <p class="hint" style="margin:0 0 12px">这几项是软件级设置（存程序目录 AppConfig.json，与方案文件无关）。点「确定」立即生效，不必重启软件。</p>
+
+        <div class="tabs">
+          <span class="tab" aria-selected="true">运行窗口</span>
+          <span class="tab">安全与留档</span>
+          <span class="tab">画布</span>
+          <span class="tab">日志</span>
+          <span class="tab">服务与启动</span>
+          <span class="tab">并行执行</span>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <div class="field">
+            <span class="field-label">独立运行窗口</span>
+            <span class="check"><span class="box on"></span> 勾选 = 带标题栏、可与主界面并排（开发调试用）</span>
+          </div>
+          <div class="field">
+            <span class="field-label" style="width:120px">运行窗口落在哪块屏</span>
+            <div class="combo mono">\\.\DISPLAY2 · 操作台正面</div>
+          </div>
+        </div>
+
+        <p class="hint" style="margin:10px 0 0">数值项：填 0 或负数 = 不限制 / 永不清理。收图服务改端口或令牌后会在保存时重启监听；启动失败的原因留在这里。字段的详细说明见鼠标悬停在字段名上的提示。</p>
+
+        <div class="toolbar" style="padding:14px 0 0;border-bottom:0">
+          <span class="grow"></span>
+          <span class="tool">取消</span>
+          <span class="tool primary">确定</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mock" style="width:760px">
+      <div class="mock-bar">
+        <span class="t">系统设置 · 安全与留档（校验失败）</span>
+        <span class="s">正文由 CardPropertyGrid 反射 SystemSettingsDraft 生成</span>
+      </div>
+      <div class="mock-body">
+        <div class="tabs">
+          <span class="tab">运行窗口</span>
+          <span class="tab" aria-selected="true">安全与留档</span>
+          <span class="tab">画布</span>
+          <span class="tab">日志</span>
+          <span class="tab">服务与启动</span>
+          <span class="tab">并行执行</span>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <p class="card-title">会话</p>
+          <div class="field">
+            <span class="field-label">空闲自动登出</span>
+            <div class="input mono">10 分钟</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <p class="card-title">历史留档</p>
+          <div class="field">
+            <span class="field-label">操作审计保留</span>
+            <div class="input mono">90</div>
+          </div>
+          <div class="field">
+            <span class="field-label">报警历史保留</span>
+            <div class="input mono">365</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <p class="card-title">账号</p>
+          <div class="field">
+            <span class="field-label">密码最小长度</span>
+            <div class="input mono">4</div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <p class="hint" style="margin:0"><span class="tag err">保存失败</span> 「空闲自动登出」请填整数，当前填的是「10 分钟」。</p>
+        </div>
+
+        <div class="toolbar" style="padding:14px 0 0;border-bottom:0">
+          <span class="grow"></span>
+          <span class="tool">取消</span>
+          <span class="tool primary">确定</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScadaSystemSettingsView.xaml</code>（标题 45 + 说明 + <code>ui:CardPropertyGrid</code> 420 高 + 数值项约定 + 错误条 + 底栏 取消/确定）、<code>SystemSettingsDraft.cs</code>（六个分组常量）、<code>ScadaSystemSettingsViewModel.cs</code>（Title「系统设置」/ InitialGroup / ErrorMessage）</li>
+        <li><span class="warn">页签事实纠正</span>：简报说三个页签（运行窗口 / 安全与留档 / 画布），草稿类里实际是**六个**：运行窗口、安全与留档、画布、日志、服务与启动、并行执行；安全与留档内部还有二级分组（会话 / 历史留档 / 账号），由 CardPropertyGrid 渲染成 Expander 卡片</li>
+        <li>改动要点 1：11 处 hex 是 Element-UI 老色（<code>#409EFF</code>/<code>#909399</code>/<code>#F56C6C</code>/<code>#FEF0F0</code>/<code>#DCDFE6</code> …）+ 黑色硬投影 <code>DropShadowEffect Opacity=0.15 ShadowDepth=3</code>；应整体换成 Dialog* 令牌 + <code>DialogCardShadow</code>（柔和低透明度），这是本批「最不像同一套设计系统」的一页</li>
+        <li>改动要点 2：正文一行都不写字段清单——加一项只改草稿类的属性；视图只提供外壳。改这一页时必须保持这个前提，不要在 XAML 里补字段</li>
+        <li>改动要点 3：数值项一律收字符串、确认时统一解析（属性面板的 NumericBox 遇清空会写 NaN），错误只落在底部一条红带，格式为「「字段名」请填整数，当前填的是「原值」。」</li>
+        <li>改动要点 4：说明与约定两句必须常态可见（不靠 ToolTip）：「0 或负数 = 不限制 / 永不清理」是最容易被猜错的语义；字段级详细说明才放 ToolTip</li>
+        <li>需要新增的接口：无（页签由 <code>InitialGroup</code> 指定落点，已够用）</li>
+      </ul>
+    </div>
+  </div>
+</section>

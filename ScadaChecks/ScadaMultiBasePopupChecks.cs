@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Newtonsoft.Json;
 using VisionMaster.Models;
 using VisionMaster.Scada;
@@ -540,6 +541,154 @@ namespace ScadaChecks
                     && layer?.Visibility == Visibility.Collapsed
                     && ReferenceEquals(runtime.CurrentPage, home),
                     $"popup={runtime.CurrentPopup?.Name} / layer={layer?.Visibility} / page={runtime.CurrentPage?.Name}");
+
+                // 软键盘接线：输入控件 IsEditing 翻转 → 运行窗口弹/收键盘。
+                // 这里直接翻 DP（不依赖写通道），只验窗口与键盘的接线，不验 IOField 的写变量路径。
+                var textDoc = new ScadaDocument();
+                var textPage = textDoc.AddPage("文本页");
+                var textElement = new ScadaElement
+                {
+                    TypeKey = "Hmi.TextField",
+                    Name = "批号",
+                    X = 400,
+                    Y = 300,
+                    Width = 240,
+                    Height = 48,
+                    Rotation = 20,
+                };
+                textPage.TryAddElement(textElement, out _);
+                textDoc.SetStartupPage(textPage);
+
+                var textRuntime = new ScadaRuntime(textDoc);
+                textRuntime.Start();
+
+                var textWindow = new ScadaRuntimeWindow(textRuntime)
+                {
+                    WindowStartupLocation = WindowStartupLocation.Manual,
+                    Left = -4000,
+                    Top = -4000,
+                    Width = 1280,
+                    Height = 800,
+                    ShowInTaskbar = false,
+                };
+
+                textWindow.Show();
+                PumpDispatcher(80);
+                textWindow.UpdateLayout();
+
+                var textCanvas = textWindow.CanvasHost;
+                Layout(textCanvas);
+
+                var field = textCanvas.EnumerateControls().OfType<TextFieldElement>().FirstOrDefault();
+                var keyboardLayer = textWindow.FindName("KeyboardLayer") as Grid;
+                var keyboardBackdrop = textWindow.FindName("KeyboardBackdrop") as Border;
+                var softKeyboard = textWindow.FindName("SoftKeyboard") as ScadaSoftKeyboard;
+
+                if (field != null)
+                    field.IsEditing = true;
+
+                PumpDispatcher(30);
+
+                Check("软键盘真窗口⓪键盘层覆盖整个窗口：是根 Grid 的子级、跨三行、ZIndex 高于报警抽屉与弹窗",
+                    keyboardLayer != null
+                    && ReferenceEquals(keyboardLayer.Parent, textWindow.Content)
+                    && Grid.GetRowSpan(keyboardLayer) == 3
+                    && Panel.GetZIndex(keyboardLayer) >= 40,
+                    $"parent={(keyboardLayer?.Parent as FrameworkElement)?.GetType().Name} / rowSpan={Grid.GetRowSpan(keyboardLayer)} / z={Panel.GetZIndex(keyboardLayer)}");
+
+                Check("软键盘真窗口①字段进入编辑态 → 键盘层可见、键盘绑定到该字段",
+                    field != null
+                    && keyboardLayer?.Visibility == Visibility.Visible
+                    && softKeyboard?.IsOpen == true
+                    && ReferenceEquals(softKeyboard?.Target, field),
+                    $"field={field?.Name} / layer={keyboardLayer?.Visibility} / open={softKeyboard?.IsOpen}");
+
+                // 点键盘外（遮罩）= 取消，不是提交半截输入
+                keyboardBackdrop?.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                {
+                    RoutedEvent = UIElement.MouseLeftButtonDownEvent,
+                });
+                PumpDispatcher(30);
+
+                Check("软键盘真窗口②点遮罩取消：字段退出编辑、键盘收起",
+                    field?.IsEditing == false
+                    && keyboardLayer?.Visibility == Visibility.Collapsed
+                    && softKeyboard?.IsOpen == false,
+                    $"editing={field?.IsEditing} / layer={keyboardLayer?.Visibility}");
+
+                if (field != null)
+                    field.IsEditing = true;
+
+                PumpDispatcher(30);
+
+                if (field != null)
+                    field.IsEditing = false;
+
+                PumpDispatcher(30);
+
+                Check("软键盘真窗口③字段退出编辑态 → 键盘层收起",
+                    keyboardLayer?.Visibility == Visibility.Collapsed
+                    && softKeyboard?.IsOpen == false,
+                    $"layer={keyboardLayer?.Visibility} / open={softKeyboard?.IsOpen}");
+
+                if (field != null && keyboardLayer != null && softKeyboard != null)
+                {
+                    (bool Ok, string Detail) MeasurePlacement(double zoom)
+                    {
+                        textCanvas.Zoom = zoom;
+                        textWindow.UpdateLayout();
+
+                        field.IsEditing = true;
+                        PumpDispatcher(30);
+
+                        Point P(double x, double y)
+                            => field.TranslatePoint(new Point(x, y), keyboardLayer);
+
+                        var p0 = P(0, 0);
+                        var p1 = P(field.ActualWidth, 0);
+                        var p2 = P(0, field.ActualHeight);
+                        var p3 = P(field.ActualWidth, field.ActualHeight);
+
+                        var fieldRect = new Rect(
+                            Math.Min(Math.Min(p0.X, p1.X), Math.Min(p2.X, p3.X)),
+                            Math.Min(Math.Min(p0.Y, p1.Y), Math.Min(p2.Y, p3.Y)),
+                            Math.Max(Math.Max(p0.X, p1.X), Math.Max(p2.X, p3.X))
+                                - Math.Min(Math.Min(p0.X, p1.X), Math.Min(p2.X, p3.X)),
+                            Math.Max(Math.Max(p0.Y, p1.Y), Math.Max(p2.Y, p3.Y))
+                                - Math.Min(Math.Min(p0.Y, p1.Y), Math.Min(p2.Y, p3.Y)));
+
+                        var expected = ScadaSoftKeyboard.ComputePlacement(
+                            fieldRect,
+                            softKeyboard.DesiredSize,
+                            new Size(keyboardLayer.ActualWidth, keyboardLayer.ActualHeight),
+                            8);
+
+                        var actual = new Point(
+                            System.Windows.Controls.Canvas.GetLeft(softKeyboard),
+                            System.Windows.Controls.Canvas.GetTop(softKeyboard));
+
+                        var ok = Math.Abs(actual.X - expected.X) < 1.0
+                                 && Math.Abs(actual.Y - expected.Y) < 1.0;
+
+                        field.IsEditing = false;
+                        PumpDispatcher(20);
+
+                        return (ok,
+                            $"zoom={zoom} / field={fieldRect} / expected={expected} / actual={actual}");
+                    }
+
+                    var halfZoom = MeasurePlacement(0.5);
+                    var doubleZoom = MeasurePlacement(2.0);
+
+                    Check("软键盘真窗口④Zoom=0.5 + 旋转 20°：四角换算后的摆放与纯函数一致",
+                        halfZoom.Ok, halfZoom.Detail);
+
+                    Check("软键盘真窗口⑤Zoom=2.0 + 旋转 20°：放大画布上仍按字段真实包围盒摆放",
+                        doubleZoom.Ok, doubleZoom.Detail);
+                }
+
+                textWindow.Close();
+                textRuntime.Stop();
             }
 
             // ---------------------------------------------------------------- 工具

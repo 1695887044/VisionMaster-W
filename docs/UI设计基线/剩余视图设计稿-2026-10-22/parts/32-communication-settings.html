@@ -1,0 +1,164 @@
+<section class="view" id="view-32">
+  <div class="view-head">
+    <h2>通讯设置</h2>
+    <span class="file">VisionMaster\Views\DialogViews\CommunicationSettingsView.xaml</span>
+    <span class="size">582 行 · 5 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：工具栏 + 设备表格 + 底栏批量操作 -->
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="t">通讯设置</span>
+        <span class="s">设备连接与扫描组：增删连接 / 测试 / 轮询周期</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+
+      <div class="toolbar">
+        <span class="input ph" style="width:240px">⌕ 按设备名称 / IP / 通讯类型搜索</span>
+        <span class="combo" style="width:150px">全部状态</span>
+        <span class="grow"></span>
+        <span class="tool primary">＋ 添加设备</span>
+      </div>
+
+      <div class="mock-body tight">
+        <div class="table">
+          <div class="thead">
+            <span class="th" style="width:150px">设备名称</span>
+            <span class="th" style="width:90px">通讯类型</span>
+            <span class="th" style="width:155px">IP : 端口</span>
+            <span class="th" style="width:140px">轮询</span>
+            <span class="th" style="width:100px">状态</span>
+            <span class="th" style="width:155px">最后连接</span>
+            <span class="th" style="width:280px">操作</span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:150px">现场 PLC-1</span>
+            <span class="td muted" style="width:90px">Modbus TCP</span>
+            <span class="td mono" style="width:155px">192.168.1.10:502</span>
+            <span class="td mono" style="width:140px">默认 500 ms +2 组</span>
+            <span class="td" style="width:100px"><span class="tag ok">● 在线</span></span>
+            <span class="td muted mono" style="width:155px">2026/10/22 09:14:02</span>
+            <span class="td" style="width:280px">
+              <span class="tool">断开</span> <span class="tool">测试</span> <span class="tool">编辑</span>
+              <span class="tool">扫描组</span> <span class="tool danger">删除</span>
+            </span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:150px">拧紧枪</span>
+            <span class="td muted" style="width:90px">Modbus RTU</span>
+            <span class="td mono" style="width:155px">COM3</span>
+            <span class="td mono" style="width:140px">默认 1000 ms</span>
+            <span class="td" style="width:100px"><span class="tag ok">● 在线</span></span>
+            <span class="td muted mono" style="width:155px">2026/10/22 09:13:47</span>
+            <span class="td" style="width:280px">
+              <span class="tool">断开</span> <span class="tool">测试</span> <span class="tool">编辑</span>
+              <span class="tool">扫描组</span> <span class="tool danger">删除</span>
+            </span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:150px">视觉网关</span>
+            <span class="td muted" style="width:90px">Siemens S7</span>
+            <span class="td mono" style="width:155px">192.168.1.20:102</span>
+            <span class="td mono" style="width:140px">默认 1000 ms +1 组</span>
+            <span class="td" style="width:100px"><span class="tag">○ 离线</span></span>
+            <span class="td muted mono" style="width:155px">—</span>
+            <span class="td" style="width:280px">
+              <span class="tool">连接</span> <span class="tool">测试</span> <span class="tool">编辑</span>
+              <span class="tool">扫描组</span> <span class="tool danger">删除</span>
+            </span>
+          </div>
+          <div class="tr sel">
+            <span class="td" style="width:150px">称重仪</span>
+            <span class="td muted" style="width:90px">Modbus TCP</span>
+            <span class="td mono" style="width:155px">10.0.0.31:4001</span>
+            <span class="td mono" style="width:140px">默认 1000 ms</span>
+            <span class="td" style="width:100px"><span class="tag err">⚠ 错误</span></span>
+            <span class="td muted mono" style="width:155px">2026/10/22 08:58:11</span>
+            <span class="td" style="width:280px">
+              <span class="tool">连接</span> <span class="tool">测试</span> <span class="tool">编辑</span>
+              <span class="tool">扫描组</span> <span class="tool danger">删除</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mock-foot">
+        <span class="tag info">已选 2 项</span>
+        <span class="tool">全选</span>
+        <span class="tool">清空</span>
+        <span class="sep"></span>
+        <span class="tool">连接选中</span>
+        <span class="tool">断开选中</span>
+        <span class="sep"></span>
+        <span class="tool">全部连接</span>
+        <span class="tool">全部断开</span>
+        <span class="grow"></span>
+        <span class="tool primary">确 定</span>
+      </div>
+    </div>
+
+    <!-- 边界态：连通测试失败（胶囊带 ⚠，失败原因挂在 ToolTip） -->
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="t">边界态 · 测试连接失败</span>
+        <span class="s">State = Error，HasError = true</span>
+        <span class="grow"></span>
+        <span class="tag err">⚠ 悬停胶囊看失败原因</span>
+      </div>
+      <div class="mock-body tight">
+        <div class="table">
+          <div class="thead">
+            <span class="th" style="width:150px">设备名称</span>
+            <span class="th" style="width:90px">通讯类型</span>
+            <span class="th" style="width:155px">IP : 端口</span>
+            <span class="th" style="width:140px">轮询</span>
+            <span class="th" style="width:100px">状态</span>
+            <span class="th" style="width:155px">最后连接</span>
+            <span class="th" style="width:280px">操作</span>
+          </div>
+          <div class="tr sel">
+            <span class="td" style="width:150px">称重仪</span>
+            <span class="td muted" style="width:90px">Modbus TCP</span>
+            <span class="td mono" style="width:155px">10.0.0.31:4001</span>
+            <span class="td mono" style="width:140px">默认 1000 ms</span>
+            <span class="td" style="width:100px"><span class="tag err">⚠ 错误</span></span>
+            <span class="td muted mono" style="width:155px">2026/10/22 08:58:11</span>
+            <span class="td" style="width:280px">
+              <span class="tool">连接</span> <span class="tool">测试</span> <span class="tool">编辑</span>
+              <span class="tool">扫描组</span> <span class="tool danger">删除</span>
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span class="tag err">⚠ 测试失败</span>
+        <span>连通测试失败：连接超时（3000 ms）—— 10.0.0.31:4001 无响应</span>
+      </div>
+    </div>
+
+    <!-- 边界态：被筛选挡空（与"一条都没有"必须分开） -->
+    <div class="mock">
+      <div class="mock-bar"><span class="t">边界态 · 筛选无结果</span><span class="s">IsFilteredEmpty = true</span></div>
+      <div class="mock-body">
+        <div class="empty">
+          <div class="empty-glyph">⌕</div>
+          <div class="empty-title">没有符合条件的连接</div>
+          <div class="empty-hint">当前共有 4 条连接，只是被搜索或状态筛选挡住了。换个关键词，或把状态切回「全部状态」。</div>
+        </div>
+        <div class="hint">注：遮罩从表头下方开始，列名保持可见 —— 用户能看出「表还在，只是这次没筛出东西」。</div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>CommunicationSettingsView.xaml</code>（工具栏搜索 / 状态筛选 / 添加设备 · DataGrid 七列 · 底栏三组批量操作）。列名逐字取自 XAML：设备名称 / 通讯类型 / IP : 端口 / 轮询 / 状态 / 最后连接 / 操作；筛选文案取自 VM 的 <code>StatusFilters = 全部状态 / 在线 / 离线</code>；轮询文案取自 <code>CommunicationConfig.PollHint</code>（<code>默认 N ms</code> + <code>+N 组</code>）。</li>
+        <li>改动要点：① 表格行高 48→44，只保留 hover 高亮（不再叠斑马纹）；② 状态胶囊收敛为「圆点 + 文案」四档（在线 / 连接中 / 重连中 / 错误 / 离线），⚠ 角标保留、失败原因继续挂 ToolTip；③ 操作列 190→270，5 个纯图标按钮改「图标 + 短文字」（现场分不清"测试"与"扫描组"）；④ 底栏按语义分三组：选择类 / 作用于选中行 / 作用于当前筛选结果，组间用 1px 竖线；⑤ 两种空态分开（真空白 vs 被筛掉），文案逐字保留。</li>
+        <li>边界态：测试连接失败（错误胶囊 + ⚠ + 失败原因）、筛选无结果；真·空态文案为「还没有添加任何设备 / 点击右上角「添加设备」建立第一条连接…」。</li>
+        <li>需要新增的接口：无（<code>IsEmpty</code> / <code>IsFilteredEmpty</code> / <code>SelectedCount</code> / <code>CanOperateSelection</code> / <code>IsRuntimeOperable</code> / <code>IsConfigEditable</code> 均已存在；状态→档位映射已在 <code>DialogStatusPillTemplate</code> 里）。</li>
+      </ul>
+    </div>
+  </div>
+</section>

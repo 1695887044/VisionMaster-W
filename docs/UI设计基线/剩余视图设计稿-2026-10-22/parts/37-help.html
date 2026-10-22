@@ -1,0 +1,136 @@
+<section class="view" id="view-37">
+  <div class="view-head">
+    <h2>帮助手册</h2>
+    <span class="file">VisionMaster\Views\DialogViews\HelpView.xaml</span>
+    <span class="size">662 行 · 2 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：左目录（分组 + 子项计数）/ 右正文（定宽 780 居中） -->
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="t">▣ 帮助手册</span>
+        <span class="s">宿主 4 页；插件 42 个（其中 42 个自带手册）（已隐藏）</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+
+      <div class="toolbar">
+        <span class="tool">▤ 隐藏目录</span>
+        <span class="sep"></span>
+        <span class="tool">▸ 上一步</span>
+        <span class="sep"></span>
+        <span class="tool">▤ 打印</span>
+        <span class="sep"></span>
+        <span class="hint">正文字号</span>
+        <span class="combo" style="width:88px;max-width:88px">标准</span>
+        <span class="sep"></span>
+        <span class="check"><span class="box"></span>显示开发章节</span>
+        <span class="grow"></span>
+        <span class="hint">Ctrl+P 打印当前页 · Ctrl+F 搜索目录</span>
+      </div>
+
+      <div class="mock-body tight">
+        <div class="split">
+          <div class="split-aside" style="width:270px">
+            <div class="toolbar">
+              <span>目录</span>
+              <span class="grow"></span>
+              <span class="hint">命中 3 页</span>
+            </div>
+            <div class="input ph">⌕ 搜索目录（只搜标题）</div>
+            <div class="row sel"><span class="name">▾ 快速入门</span><span class="meta">5</span></div>
+            <div class="row" style="padding-left:22px"><span class="name">启动与自检</span></div>
+            <div class="row" style="padding-left:22px"><span class="name">界面总览</span></div>
+            <div class="row"><span class="name">▾ 插件手册</span><span class="meta">42</span></div>
+            <div class="row" style="padding-left:22px"><span class="name">图像采集</span><span class="meta">6</span></div>
+            <div class="row" style="padding-left:22px"><span class="name">匹配</span><span class="meta">7</span></div>
+            <div class="row" style="padding-left:22px"><span class="name">结果显示</span><span class="meta">9</span></div>
+          </div>
+
+          <div class="split-main">
+            <div class="toolbar">
+              <span>图像采集 · 触发与超时</span>
+              <span class="grow"></span>
+              <span class="tag info">图像采集</span>
+            </div>
+            <div class="card">
+              <div class="card-title">1. 三种触发模式</div>
+              <div class="hint">连续采图 = 相机自由出图；软触发 = 流程每次取图前下发一次触发；上升 / 下降沿 = 由相机 IO 线触发，流程只等帧。曝光与增益在「软触发」下仍然生效，但在网络相机上由客户端决定。</div>
+            </div>
+            <div class="card">
+              <div class="card-title">2. 超时与队列</div>
+              <div class="table">
+                <div class="thead">
+                  <span class="th" style="width:180px">端口</span>
+                  <span class="th" style="width:120px">默认值</span>
+                  <span class="th" style="flex:1 1 auto">说明</span>
+                </div>
+                <div class="tr">
+                  <span class="td mono" style="width:180px">FrameTimeoutMs</span>
+                  <span class="td mono" style="width:120px">3000</span>
+                  <span class="td" style="flex:1 1 auto">单次取图等待上限，超时按「无帧」处理并累加丢弃计数。</span>
+                </div>
+                <div class="tr">
+                  <span class="td mono" style="width:180px">BufferCapacity</span>
+                  <span class="td mono" style="width:120px">8</span>
+                  <span class="td" style="flex:1 1 auto">队列满时丢最旧一帧（计入「溢出丢帧」）。</span>
+                </div>
+                <div class="tr">
+                  <span class="td mono" style="width:180px">HeartbeatTimeoutMs</span>
+                  <span class="td mono" style="width:120px">3000</span>
+                  <span class="td" style="flex:1 1 auto">心跳停 3 秒判掉线，掉线清空队列计入「其它丢弃」。</span>
+                </div>
+              </div>
+            </div>
+            <div class="hint">正文定宽 780 居中（MaxWidth = MarkdownToFlowDocument.ViewerMaxWidth），超宽窗口下两侧留白。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mock-foot">
+        <span class="dot info"></span>
+        <span>手册由软件在启动时合并：软件内置 + 各插件自带；标「自动生成」的节点尚未提供手册，标「开发」的页是原理与移植参考。</span>
+        <span class="grow"></span>
+        <span>Esc 关闭</span>
+      </div>
+    </div>
+
+    <!-- 边界态：搜索无结果 -->
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="t">边界态 · 搜索无结果</span>
+        <span class="s">Query = 标定，HasNoMatch = true</span>
+        <span class="grow"></span>
+        <span class="tag">命中 0 页</span>
+      </div>
+      <div class="mock-body">
+        <div class="split">
+          <div class="split-aside" style="width:270px">
+            <div class="toolbar"><span>目录</span><span class="grow"></span><span class="hint">命中 0 页</span></div>
+            <div class="input">标定</div>
+            <div class="empty">
+              <div class="empty-glyph">⌕</div>
+              <div class="empty-title">没有匹配的目录</div>
+              <div class="empty-hint">搜索只匹配标题，不搜正文。换个关键词，或清空搜索框回到完整目录。</div>
+            </div>
+          </div>
+          <div class="split-main">
+            <div class="hint">目录为空时右栏保持上一页不动 —— 不要清空正文，否则用户只是改了一个字就得重新点回原页。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>HelpView.xaml</code>（52 标题栏 / 40 工具栏 / 目录 + 分隔条 + 正文 / 26 状态栏）。工具栏按钮逐字取自 XAML：隐藏目录（<code>ToggleTocLabel</code> 在「隐藏目录 / 显示目录」间切）、上一步、打印、正文字号（小 / 标准 / 大）、显示开发章节；目录头「目录」+「命中 N 页」，搜索占位「搜索目录（只搜标题）」，无结果文案「没有匹配的目录」。</li>
+        <li>正文页眉：标题 + 来源徽标三档 —— <code>软件内置</code>（主色浅底）、插件名（灰底）、<code>自动生成</code>（虚线描边 + 透明底）；判据绑 <code>PageSourceKind</code>（Host / Plugin / Auto），不绑显示名。</li>
+        <li>改动要点：① 目录行保留「左 2px 主色竖条常驻 + 选中浅蓝底」（现状靠透明描边占位，避免点选时文字横向抖动），本稿用 <code>.row.sel</code> 近似；② 分组行右侧统一「子项计数」，<code>自动生成</code> 用警示色角标；③ 正文定宽 780 居中不变，卡片之间加 12 留白；④ 状态栏左侧主色圆点 + 一句话来源说明，右侧 <code>Esc 关闭</code>。</li>
+        <li>边界态：搜索无结果（命中 0 页 + 「没有匹配的目录」），并明确「右栏不清空」——现状 <code>SelectedNode</code> 保持不动，空目录不该把正文一起清掉。</li>
+        <li>需要新增的接口：无（<code>Nodes</code> / <code>Query</code> / <code>HasNoMatch</code> / <code>MatchPageCount</code> / <code>IsSearching</code> / <code>IsTocVisible</code> / <code>ToggleTocLabel</code> / <code>PageTitle</code> / <code>PageSource</code> / <code>PageSourceKind</code> / <code>FontSizeOptions</code> / <code>ShowDevDocs</code> 均已存在）。</li>
+      </ul>
+    </div>
+  </div>
+</section>

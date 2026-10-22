@@ -781,6 +781,15 @@ namespace VisionMaster.Services
             //   必须在执行体退出之前把"这一轮要停了"告诉关心运动轴的订阅方。
             NotifySessionStopRequested(session);
 
+            // S6 停止可观测：谁被停了、当时是什么状态，落一行 Info。
+            // 放在 Cancel 之前取状态：Cancel 会立刻唤醒执行线程，之后 State 可能已经变成 Stopped，
+            // 日志就会丢掉"停之前它其实在跑"这个事实（现场排查"到底停到了没有"靠的正是它）。
+            // 是否连带停轴不在这里记：那由 MotionModule 订阅 SessionStopRequested 时自己写
+            // （口径③：同一次运行只发一次，重复 StopSession 不会重复停轴）。
+            var stateBeforeStop = session.State;
+            _logService.Info(
+                $"[停止] 请求停止流程「{session.FlowName}」（状态 {stateBeforeStop}，会话 {session.SessionID:N}）");
+
             try
             {
                 var cts = session.CancellationTokenSource;
@@ -789,6 +798,8 @@ namespace VisionMaster.Services
             catch (ObjectDisposedException)
             {
                 // 循环线程已退出并释放了 CTS，取消动作已无意义，忽略即可
+                _logService.Warn(
+                    $"[停止] 流程「{session.FlowName}」的执行循环已先一步退出（取消令牌已释放），本次取消无实际作用");
             }
         }
 
@@ -835,8 +846,14 @@ namespace VisionMaster.Services
         ///
         /// 【单个会话停不下来不能影响其余会话】急停要的是"尽可能多停几个"，
         /// 所以每个 StopSession 各自 try/catch，失败只记日志。
+        ///
+        /// 【返回"真正请求停止的条数"】S6：界面要据此如实提示（0 条 = 没有在跑的，
+        /// 不是"点了没反应"）。计数口径 = 调用 StopSession 之前 <c>IsRunning</c> 为真的会话数，
+        /// 与 <see cref="StopSession"/> 自己的早退判据逐字一致；同一会话重复调用不会重复计数
+        /// （第二次进来时它仍 IsRunning，但那是另一次调用，返回值只反映本次请求）。
         /// </summary>
-        public void StopAll()
+        /// <returns>本次请求停止的会话条数（0 = 当前没有运行中的流程）</returns>
+        public int StopAll()
         {
             IReadOnlyList<FlowSession> snapshot;
             try
@@ -846,20 +863,52 @@ namespace VisionMaster.Services
             catch (Exception ex)
             {
                 _logService.Error($"急停：获取活动会话快照失败（已隔离，不拖累退出链）: {ex.Message}");
-                return;
+                return 0;
             }
+
+            int stopped = 0;
+            var stoppedNames = new List<string>();
 
             foreach (var session in snapshot)
             {
+                // 计数先于 StopSession：它内部一旦 Cancel，执行线程可能立刻收尾把 IsRunning 置 false，
+                // 停之后再判就永远数不到（"停了 3 条却提示 0 条"）。
+                bool wasRunning = session != null && session.IsRunning;
                 try
                 {
                     StopSession(session);
+                    if (wasRunning)
+                    {
+                        stopped++;
+                        stoppedNames.Add(session.FlowName);
+                    }
                 }
                 catch (Exception ex)
                 {
                     _logService.Warn($"急停：停止流程 {session?.FlowName} 失败（已隔离，继续停其余会话）: {ex.Message}");
                 }
             }
+
+            // S6：急停必须留一行 Info —— 零日志的"正常停止"是现场最难查的形状
+            // （用户说"点了停止没反应"，日志里却什么都没有）。
+            if (stopped == 0)
+                _logService.Info("[停止] 急停：当前没有运行中的流程（未发出任何取消请求）");
+            else
+            {
+                // 名单只列前 5 条（几十个流程同时跑时日志别刷屏，条数才是要点）
+                var listed = stoppedNames.Count <= 5
+                    ? string.Join("、", stoppedNames)
+                    : string.Join("、", stoppedNames.GetRange(0, 5)) + " 等";
+                _logService.Info($"[停止] 急停：已请求停止 {stopped} 条运行中的流程（{listed}）");
+            }
+
+            return stopped;
         }
+
+        /// <summary>
+        /// <see cref="IFlowEngine.StopAll"/> 的显式实现：契约保持 <c>void</c> 不变（不改公共契约），
+        /// 需要"停了几条"的调用方（Shell 的提示文案）走具体类型上的 <see cref="StopAll"/>。
+        /// </summary>
+        void IFlowEngine.StopAll() => StopAll();
     }
 }

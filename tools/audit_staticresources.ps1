@@ -1,43 +1,27 @@
-# 全仓 StaticResource 键解析审计：找出引用了但没有任何 XAML 定义的键
-$roots = @(
-  "d:\C#\VM\UI\Controls","d:\C#\VM\VisionMaster","d:\C#\VM\Scada","d:\C#\VM\Scada.Controls",
-  "d:\C#\VM\Shard","d:\C#\VM\Plugins","d:\C#\VM\Core","d:\C#\VM\Communication","d:\C#\VM\Engine",
-  "d:\C#\VM\Services","d:\C#\VM\WPF-Halcon-流程拖拉"
-)
-$files = Get-ChildItem $roots -Recurse -Filter *.xaml -ErrorAction SilentlyContinue |
-         Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' }
+# [OBSOLETE 2026-10-22] StaticResource key audit -> see tools/audit_resource_scope.ps1
+#
+# Why this file no longer contains its own scanner:
+#   Measured on 2026-10-22: it reported 8 missing keys and ALL 8 were false positives:
+#     * 4 x nested-brace parsing bug  ({StaticResource {x:Type X}} inside a larger markup extension)
+#     * 3 x text that lives inside XML comments
+#     * 1 x a stale comment describing a key that had already been fixed
+#   It also never returned a non-zero exit code, so it could not gate anything - the worst
+#   combination: noisy (people learn to ignore it) and toothless (it cannot fail a build).
+#   Keeping a second, wrong implementation of the same rule is worse than having none:
+#   somebody will run it, see 8 problems, and spend an afternoon on 0 real ones.
+#
+# The authoritative gate is the [resource-link] contract pair in
+# FlowCanvasChecks/VariableBindingCheck.cs (RunDictionaryScopeContract).
+# tools/audit_resource_scope.ps1 is the same rule as a build-free scanner (keep the two in sync).
+#
+# ASCII only on purpose (Windows PowerShell 5.1 reads BOM-less scripts as ANSI).
 
-$defined = New-Object 'System.Collections.Generic.HashSet[string]'
-foreach ($f in $files) {
-  $t = [IO.File]::ReadAllText($f.FullName)
-  foreach ($m in [regex]::Matches($t, 'x:Key="([^"]+)"')) { [void]$defined.Add($m.Groups[1].Value) }
-  # 隐式样式键（TargetType 即键名）
-  foreach ($m in [regex]::Matches($t, '<Style[^>]*TargetType="(\{x:Type )?([A-Za-z]+)\}?"')) {
-    [void]$defined.Add($m.Groups[2].Value)
-  }
-}
-Write-Host ("XAML files: {0}, defined keys: {1}" -f $files.Count, $defined.Count)
-
-$missing = @{}
-foreach ($f in $files) {
-  $t = [IO.File]::ReadAllText($f.FullName)
-  $lines = $t -split "`n"
-  for ($i = 0; $i -lt $lines.Count; $i++) {
-    foreach ($m in [regex]::Matches($lines[$i], '\{StaticResource ([^}]+)\}')) {
-      $k = $m.Groups[1].Value.Trim()
-      if ($k -match '^\{x:Type ([A-Za-z]+)\}$') { $k = $Matches[1] }
-      if (-not $defined.Contains($k)) {
-        if (-not $missing.ContainsKey($k)) { $missing[$k] = New-Object 'System.Collections.Generic.List[string]' }
-        $rel = $f.FullName -replace [regex]::Escape('d:\C#\VM\'), ''
-        $missing[$k].Add(('{0}:{1}' -f $rel, ($i + 1)))
-      }
-    }
-  }
-}
-
-Write-Host '=== MISSING KEYS ==='
-foreach ($kv in ($missing.GetEnumerator() | Sort-Object Name)) {
-  Write-Host ('KEY: ' + $kv.Key)
-  foreach ($loc in $kv.Value) { Write-Host ('    ' + $loc) }
-}
-Write-Host ('Total missing keys: ' + $missing.Count)
+$ErrorActionPreference = 'Stop'
+Write-Host '[OBSOLETE] This script no longer scans by itself.'
+Write-Host '[OBSOLETE] On 2026-10-22 it reported 8 missing keys; all 8 were false positives'
+Write-Host '[OBSOLETE]   (nested braces / XML comments / stale comment) and it never set a non-zero exit code.'
+Write-Host '[OBSOLETE] Corrected scanner: tools/audit_resource_scope.ps1'
+Write-Host '[OBSOLETE] Gate baseline check: FlowCanvasChecks -> [resource-link] contract pair'
+Write-Host ''
+& (Join-Path $PSScriptRoot 'audit_resource_scope.ps1')
+exit $LASTEXITCODE

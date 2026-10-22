@@ -9,54 +9,108 @@
     d:DesignHeight="720"
     d:DesignWidth="1280"
     mc:Ignorable="d">
-    <UserControl.Resources>
-        <Style x:Key="CockpitStopButton" TargetType="Button">
-            <Setter Property="Height" Value="38" />
-            <Setter Property="MinWidth" Value="132" />
-            <Setter Property="Padding" Value="16,0" />
-            <Setter Property="Background" Value="{StaticResource RunCockpitStopBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource RunCockpitStopBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Foreground" Value="{StaticResource RunCockpitTextBrush}" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border
-                            x:Name="Bd"
-                            Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="8">
-                            <ContentPresenter
-                                Margin="{TemplateBinding Padding}"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource RunCockpitStopHoverBrush}" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.45" />
-                                <Setter Property="Cursor" Value="Arrow" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+    <!--
+        设计基线：docs/UI设计基线/run-cockpit/ v1（2026-10-22 复刻）。
 
-        <Style x:Key="CockpitKpiCard" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource RunCockpitSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource RunCockpitBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Padding" Value="16,10" />
-            <Setter Property="Margin" Value="0,0,10,0" />
-        </Style>
+        本页当前**没有生产统计源**（RunCockpitView 原注释已写明"不伪造生产数字"），
+        所以设计稿里的"有数据态"只能落到结构：数值位显示 —、说明行写明"待接入 XX"。
+        接入数据源时只改绑定，不动布局（见 README §6）。
+
+        故障态（红灯 + 告警条）**未实现**：MainRunState 只有 4 态、没有 Fault，
+        需要先有故障判定源（README §6 已登记为硬前提）。
+    -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="CockpitStopButton" TargetType="Button">
+                <Setter Property="Height" Value="38" />
+                <Setter Property="MinWidth" Value="132" />
+                <Setter Property="Padding" Value="16,0" />
+                <Setter Property="Background" Value="{StaticResource RunCockpitStopBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource RunCockpitStopBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="{StaticResource RunCockpitTextBrush}" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="FontWeight" Value="Bold" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border
+                                x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                                <ContentPresenter
+                                    Margin="{TemplateBinding Padding}"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource RunCockpitStopHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource RunCockpitInfoBrush}" />
+                                    <Setter TargetName="Bd" Property="BorderThickness" Value="2" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.45" />
+                                    <Setter Property="Cursor" Value="Arrow" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  KPI 卡：左侧 3px 语义色条 + 标签 / 数值 / 说明  -->
+            <Style x:Key="CockpitKpiCard" TargetType="Border">
+                <Setter Property="Background" Value="{StaticResource RunCockpitSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource RunCockpitBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="10" />
+                <Setter Property="Margin" Value="0,0,10,0" />
+            </Style>
+            <Style x:Key="CockpitKpiBar" TargetType="Border">
+                <Setter Property="Width" Value="3" />
+                <Setter Property="CornerRadius" Value="2" />
+                <Setter Property="Background" Value="{StaticResource RunCockpitBorderBrush}" />
+                <Setter Property="VerticalAlignment" Value="Stretch" />
+            </Style>
+            <Style x:Key="CockpitKpiLabel" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="{StaticResource RunCockpitTextMutedBrush}" />
+            </Style>
+            <Style x:Key="CockpitKpiValue" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,2,0,0" />
+                <Setter Property="FontFamily" Value="Consolas" />
+                <Setter Property="FontSize" Value="22" />
+                <Setter Property="FontWeight" Value="Bold" />
+                <Setter Property="Foreground" Value="{StaticResource RunCockpitTextFaintBrush}" />
+            </Style>
+            <Style x:Key="CockpitKpiSub" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10" />
+                <Setter Property="Foreground" Value="{StaticResource RunCockpitTextFaintBrush}" />
+            </Style>
+
+            <!--  顶条指标：10px 标签 + 15px 等宽数值  -->
+            <Style x:Key="CockpitMetricLabel" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10" />
+                <Setter Property="Foreground" Value="{StaticResource RunCockpitTextFaintBrush}" />
+            </Style>
+            <Style x:Key="CockpitMetricValue" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="Consolas" />
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="FontWeight" Value="Bold" />
+                <Setter Property="Foreground" Value="{StaticResource RunCockpitTextBrush}" />
+            </Style>
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid Background="{StaticResource RunCockpitBackgroundBrush}">
@@ -66,7 +120,7 @@
             <RowDefinition Height="96" />
         </Grid.RowDefinitions>
 
-        <!--  驾驶舱顶条  -->
+        <!--  驾驶舱顶条：状态 + 在跑流程 + 节拍/OK/NG + 停止  -->
         <Border
             Grid.Row="0"
             Background="{StaticResource RunCockpitChromeBrush}"
@@ -74,11 +128,13 @@
             BorderThickness="0,0,0,1">
             <Grid Margin="16,0">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel
+                    Grid.Column="0"
                     VerticalAlignment="Center"
                     Orientation="Horizontal">
                     <Ellipse
@@ -93,9 +149,7 @@
                         FontWeight="Bold"
                         Foreground="{StaticResource RunCockpitTextBrush}"
                         Text="{Binding RunStateText}" />
-                    <!--  与调试运行条同一口径：绑 RunBarFlowText（在跑的那几条），不绑选中项。
-                          原来的「当前流程 · {0}」前缀一并去掉——多条并跑时它不是"当前流程"，
-                          而且左边那行已经写着「循环运行中」，再写一遍"当前"只会让人以为只有这一条在跑。  -->
+                    <!--  与调试运行条同一口径：绑 RunBarFlowText（在跑的那几条），不绑选中项  -->
                     <TextBlock
                         Margin="12,0,0,0"
                         VerticalAlignment="Center"
@@ -105,14 +159,50 @@
                         ToolTip="{Binding RunBarFlowToolTip}" />
                 </StackPanel>
 
+                <!--
+                    节拍 / OK / NG：设计稿把生产健康提到顶条（车间抬头就看的三个数）。
+                    当前**没有统计源**，所以值位显示 — 并在 ToolTip 里说明；
+                    接入后只把 Text 改成绑定，布局不动。
+                -->
                 <StackPanel
                     Grid.Column="1"
+                    Margin="20,0,0,0"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <StackPanel
+                        Margin="0,0,18,0"
+                        Orientation="Vertical"
+                        ToolTip="待接入运行统计">
+                        <TextBlock Style="{StaticResource CockpitMetricLabel}" Text="节拍" />
+                        <TextBlock Style="{StaticResource CockpitMetricValue}" Text="—" />
+                    </StackPanel>
+                    <StackPanel
+                        Margin="0,0,18,0"
+                        Orientation="Vertical"
+                        ToolTip="待接入运行统计">
+                        <TextBlock Style="{StaticResource CockpitMetricLabel}" Text="OK" />
+                        <TextBlock
+                            Foreground="{StaticResource RunCockpitSuccessBrush}"
+                            Style="{StaticResource CockpitMetricValue}"
+                            Text="—" />
+                    </StackPanel>
+                    <StackPanel Orientation="Vertical" ToolTip="待接入运行统计">
+                        <TextBlock Style="{StaticResource CockpitMetricLabel}" Text="NG" />
+                        <TextBlock
+                            Foreground="{StaticResource RunCockpitDangerBrush}"
+                            Style="{StaticResource CockpitMetricValue}"
+                            Text="—" />
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel
+                    Grid.Column="2"
                     VerticalAlignment="Center"
                     Orientation="Horizontal">
                     <Button
                         Command="{Binding ExecutionCommand}"
                         CommandParameter="{x:Static local:ExecutionAction.Stop}"
-                        Content="停止运行"
+                        Content="■ 停止运行"
                         Style="{StaticResource CockpitStopButton}"
                         ToolTip="停止当前运行（与顶栏停止同一命令）" />
                 </StackPanel>
@@ -136,82 +226,86 @@
             </Border>
         </Border>
 
-        <!--  KPI 条：当前没有运行统计源，先显示“待接入”，不伪造生产数字  -->
+        <!--  KPI 条：左侧 3px 语义色条（蓝=节拍/设备、绿=良率、琥珀=报警）  -->
         <UniformGrid
             Grid.Row="2"
             Margin="12,0,2,12"
             Columns="4">
             <Border Style="{StaticResource CockpitKpiCard}">
-                <StackPanel>
-                    <TextBlock
-                        FontSize="11"
-                        Foreground="{StaticResource RunCockpitTextMutedBrush}"
-                        Text="节拍" />
-                    <TextBlock
-                        Margin="0,2,0,0"
-                        FontSize="22"
-                        FontWeight="Bold"
-                        Foreground="{StaticResource RunCockpitTextBrush}"
-                        Text="—" />
-                    <TextBlock
-                        FontSize="10"
-                        Foreground="{StaticResource RunCockpitTextFaintBrush}"
-                        Text="待接入运行统计" />
-                </StackPanel>
+                <Grid Margin="0,0,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource CockpitKpiBar}" Background="{StaticResource RunCockpitInfoBrush}" />
+                    <StackPanel
+                        Grid.Column="1"
+                        Margin="13,10,16,10">
+                        <TextBlock Style="{StaticResource CockpitKpiLabel}" Text="节拍" />
+                        <TextBlock Style="{StaticResource CockpitKpiValue}" Text="—" />
+                        <TextBlock Style="{StaticResource CockpitKpiSub}" Text="待接入运行统计" />
+                    </StackPanel>
+                </Grid>
             </Border>
+
             <Border Style="{StaticResource CockpitKpiCard}">
-                <StackPanel>
-                    <TextBlock
-                        FontSize="11"
-                        Foreground="{StaticResource RunCockpitTextMutedBrush}"
-                        Text="良率" />
-                    <TextBlock
-                        Margin="0,2,0,0"
-                        FontSize="22"
-                        FontWeight="Bold"
-                        Foreground="{StaticResource RunCockpitSuccessBrush}"
-                        Text="—" />
-                    <TextBlock
-                        FontSize="10"
-                        Foreground="{StaticResource RunCockpitTextFaintBrush}"
-                        Text="待接入运行统计" />
-                </StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource CockpitKpiBar}" Background="{StaticResource RunCockpitSuccessBrush}" />
+                    <StackPanel
+                        Grid.Column="1"
+                        Margin="13,10,16,10">
+                        <TextBlock Style="{StaticResource CockpitKpiLabel}" Text="良率" />
+                        <TextBlock
+                            Foreground="{StaticResource RunCockpitSuccessBrush}"
+                            Style="{StaticResource CockpitKpiValue}"
+                            Text="—" />
+                        <TextBlock Style="{StaticResource CockpitKpiSub}" Text="待接入运行统计" />
+                    </StackPanel>
+                </Grid>
             </Border>
+
             <Border Style="{StaticResource CockpitKpiCard}">
-                <StackPanel>
-                    <TextBlock
-                        FontSize="11"
-                        Foreground="{StaticResource RunCockpitTextMutedBrush}"
-                        Text="设备在线" />
-                    <TextBlock
-                        Margin="0,2,0,0"
-                        FontSize="22"
-                        FontWeight="Bold"
-                        Foreground="{StaticResource RunCockpitInfoBrush}"
-                        Text="—" />
-                    <TextBlock
-                        FontSize="10"
-                        Foreground="{StaticResource RunCockpitTextFaintBrush}"
-                        Text="待接入设备状态" />
-                </StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource CockpitKpiBar}" Background="{StaticResource RunCockpitInfoBrush}" />
+                    <StackPanel
+                        Grid.Column="1"
+                        Margin="13,10,16,10">
+                        <TextBlock Style="{StaticResource CockpitKpiLabel}" Text="设备在线" />
+                        <TextBlock
+                            Foreground="{StaticResource RunCockpitInfoBrush}"
+                            Style="{StaticResource CockpitKpiValue}"
+                            Text="—" />
+                        <TextBlock Style="{StaticResource CockpitKpiSub}" Text="待接入设备状态" />
+                    </StackPanel>
+                </Grid>
             </Border>
+
             <Border Style="{StaticResource CockpitKpiCard}">
-                <StackPanel>
-                    <TextBlock
-                        FontSize="11"
-                        Foreground="{StaticResource RunCockpitTextMutedBrush}"
-                        Text="未确认报警" />
-                    <TextBlock
-                        Margin="0,2,0,0"
-                        FontSize="22"
-                        FontWeight="Bold"
-                        Foreground="{StaticResource RunCockpitWarningBrush}"
-                        Text="—" />
-                    <TextBlock
-                        FontSize="10"
-                        Foreground="{StaticResource RunCockpitTextFaintBrush}"
-                        Text="待接入报警统计" />
-                </StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource CockpitKpiBar}" Background="{StaticResource RunCockpitWarningBrush}" />
+                    <StackPanel
+                        Grid.Column="1"
+                        Margin="13,10,16,10">
+                        <TextBlock Style="{StaticResource CockpitKpiLabel}" Text="未确认报警" />
+                        <TextBlock
+                            Foreground="{StaticResource RunCockpitWarningBrush}"
+                            Style="{StaticResource CockpitKpiValue}"
+                            Text="—" />
+                        <TextBlock Style="{StaticResource CockpitKpiSub}" Text="待接入报警统计" />
+                    </StackPanel>
+                </Grid>
             </Border>
         </UniformGrid>
     </Grid>

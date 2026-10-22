@@ -1,0 +1,114 @@
+<section class="view" id="view-23">
+  <div class="view-head">
+    <h2>选择流程</h2>
+    <span class="file">VisionMaster\Views\DialogViews\ScadaFlowPickerView.xaml</span>
+    <span class="size">223 行 · 21 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：流程清单（名称 / 角色 / 启停徽标） -->
+    <div class="mock" style="width:760px;max-width:100%;margin-bottom:14px">
+      <div class="mock-bar">
+        <span class="t">选择流程</span>
+        <span class="s">当前方案 5 条流程 · 已选 1 条</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body">
+        <div class="input ph" style="margin-bottom:10px">按流程名 / 说明筛选</div>
+        <div class="card" style="padding:0">
+          <div class="row">
+            <span class="name">回原</span>
+            <span class="meta">回原</span>
+          </div>
+          <div class="row sel">
+            <span class="name"><strong>主循环</strong></span>
+            <span class="meta">主任务</span>
+          </div>
+          <div class="row">
+            <span class="name">报警处理</span>
+            <span class="meta">普通</span>
+            <span class="tag warn">已停用</span>
+          </div>
+          <div class="row">
+            <span class="name">视觉定位</span>
+            <span class="meta">普通</span>
+          </div>
+          <div class="row">
+            <span class="name">收尾</span>
+            <span class="meta">收尾</span>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>* 确认后按流程身份（Id）记录，之后改名不会让这条动作断链。</span>
+        <span class="grow"></span>
+        <span class="tool">取消</span>
+        <span class="tool primary">确定</span>
+      </div>
+    </div>
+
+    <!-- 边界态一：搜索无结果 -->
+    <div class="mock" style="width:760px;max-width:100%;margin-bottom:14px">
+      <div class="mock-bar">
+        <span class="t">选择流程</span>
+        <span class="s">没有匹配项</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body">
+        <div class="input" style="margin-bottom:10px">贴标<span style="margin-left:auto">✕</span></div>
+        <div class="card" style="padding:0">
+          <div class="empty">
+            <div class="empty-glyph">⌕</div>
+            <div class="empty-title">没有匹配「贴标」的流程。</div>
+            <div class="empty-hint">按流程名或说明搜索；清单只列当前方案里的流程。</div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>* 已停用的流程仍可选，运行侧会照实拒绝。</span>
+        <span class="grow"></span>
+        <span class="tool">取消</span>
+        <span class="tool primary">确定</span>
+      </div>
+    </div>
+
+    <!-- 边界态二：方案里一条流程都没有 -->
+    <div class="mock" style="width:760px;max-width:100%">
+      <div class="mock-bar">
+        <span class="t">选择流程</span>
+        <span class="s">当前方案没有流程</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body">
+        <div class="card" style="padding:0">
+          <div class="empty">
+            <div class="empty-glyph">▤</div>
+            <div class="empty-title">当前方案里还没有流程。</div>
+            <div class="empty-hint">请先新建流程，再回来配置这条动作。</div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>* 清单是打开那一刻的快照（两次打开之间可能已增删流程）。</span>
+        <span class="grow"></span>
+        <span class="tool">取消</span>
+        <span class="tool primary">确定</span>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScadaFlowPickerView.xaml</code>（流程清单 + 角色列 + 已停用徽标 + 底部按钮）、<code>ScadaFlowPickerViewModel</code>（<code>RoleText</code> / <code>StateBadge</code> / <code>EmptyHint</code>）</li>
+        <li>改动要点：原 520×460 是四个选择器里最小的一档，统一为 760×520；行高、边框、选中态与 21/22/24 完全一致（<code>accent-light</code> 底 + 左对齐单行）。</li>
+        <li>改动要点：21 处 hex 换令牌；「已停用」从 <code>#FDF6EC + #E6A23C</code> 的裸 Border 改为 <code>tag warn</code>，与 22 的失效轴、25 的「已停用」状态字同一套语义色。</li>
+        <li>改动要点：角色列（回原 / 主任务 / 收尾 / 普通）从 11px 灰字改成行尾 <code>meta</code>，与 24 的「图元数」列同权级，不再和流程名抢注意力。</li>
+        <li>改动要点：本页新增搜索框——原视图刻意没有搜索（条目少），但与 21/22/24 并排时缺一块会让用户以为"这页功能少一截"；加搜索后四个弹窗骨架才真正对齐。</li>
+        <li>需要新增的接口：<span class="warn">是</span>——<code>ScadaFlowPickerViewModel</code> 需补 <code>Keyword</code> + <code>ApplyFilter()</code>，并给 <code>EmptyHint</code> 增加"没有匹配「{Keyword}」的流程。"分支（当前只有"方案里没有流程"一支）；<code>HasFlows</code> 仍按过滤后集合算。</li>
+      </ul>
+    </div>
+  </div>
+</section>

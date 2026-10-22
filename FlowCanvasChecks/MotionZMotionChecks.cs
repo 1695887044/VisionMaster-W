@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -87,7 +87,8 @@ namespace FlowCanvasChecks
             var dir = ResolveRepoDir(@"Plugins\Plugin.Motion.Steps");
             if (dir == null)
             {
-                Check("轴/卡参数标注", true, "跳过：定位不到运动插件目录");
+                Check("轴/卡参数标注", false,
+                    "定位不到 Plugins\\Plugin.Motion.Steps —— 目录被改名/搬走时这条必须红，不能记成跳过");
                 return;
             }
 
@@ -174,6 +175,14 @@ namespace FlowCanvasChecks
             Check("★端口在运行期真的被读取（有端口却只读常量 = 摆设，链接上去也不生效）",
                 unusedPort.Count == 0,
                 unusedPort.Count == 0 ? "" : "未读取 ActualValue：" + string.Join("、", unusedPort));
+
+            // P1-A：等待到位的 Target / Tolerance 必须是真端口（读 ActualValue），
+            // 否则"目标由上游给"只是界面上多两行、运行期永远用默认值。
+            var waitPluginPath = Path.Combine(dir, "MotionWaitPlugin.cs");
+            string waitPluginText = File.Exists(waitPluginPath) ? File.ReadAllText(waitPluginPath) : string.Empty;
+            Check("★等待到位读取 Target/Tolerance 的实际生效值（端口不是摆设）",
+                waitPluginText.Contains("Target.ActualValue") && waitPluginText.Contains("Tolerance.ActualValue"),
+                waitPluginText.Length == 0 ? "定位不到 MotionWaitPlugin.cs" : "只声明端口不读 ActualValue，链接上游也不生效");
 
             // ★ 设备名（显示名）与"候选值必须是地址"这一组。
             //   背景：多张卡时列表/候选里只有 IP（127.0.0.1 / 192.168.0.11）认不出谁是谁，
@@ -374,6 +383,32 @@ namespace FlowCanvasChecks
             Check("★几何两插件 + 运动三步骤的枚举成员逐个有中文显示名（HALCON/SDK 字面量只留在注释里，不进界面）",
                 englishLeft.Length == 0 && geoEnumTypes.Sum(t => Enum.GetNames(t).Length) == 23,
                 string.IsNullOrEmpty(englishLeft) ? "23/23 有中文" : "缺中文: " + englishLeft);
+
+            // R84 的**第二条**上屏路径：FlatPropertyGrid 的 EnumGenerator 读的是 [Description]，
+            // 与上面那条（InputPort → StepConfigOption.ForEnum）读的 [Display(Name)] **不是同一个特性**。
+            // HomeMode 走 [StepConfig]（「轴回零」步骤的「回零方式」）→ EnumGenerator → [Description]，
+            // 所以它的中文只能挂在 [Description] 上；文案的唯一来源是 MotionEnumDisplay.Text
+            // （switch 表达式，漏一个成员编译期直接报错，所以不要把它改成字典或删掉）。
+            // 这条断言防的就是"两处慢慢漂移"：改了 switch 忘特性、或改了特性忘 switch，当场红。
+            static string? DescriptionOf(HomeMode m) => typeof(HomeMode).GetField(m.ToString())
+                ?.GetCustomAttributes(typeof(System.ComponentModel.DescriptionAttribute), false)
+                .OfType<System.ComponentModel.DescriptionAttribute>()
+                .FirstOrDefault()?.Description;
+
+            var homeModes = Enum.GetValues<HomeMode>();
+            var homeModeRows = homeModes
+                .Select(m => (Mode: m, Text: MotionEnumDisplay.Text(m), Desc: DescriptionOf(m)))
+                .ToList();
+            var homeModeDrift = homeModeRows
+                .Where(x => !string.Equals(x.Desc, x.Text, StringComparison.Ordinal))
+                .Select(x => $"{x.Mode}: [Description]={(string.IsNullOrEmpty(x.Desc) ? "(缺)" : x.Desc)}"
+                             + $" / MotionEnumDisplay.Text={x.Text}")
+                .ToList();
+            Check("★HomeMode 8 个成员的 [Description] 与 MotionEnumDisplay.Text 逐字相同（两条上屏路径不许漂移）",
+                homeModes.Length == 8 && homeModeDrift.Count == 0,
+                homeModeDrift.Count == 0
+                    ? $"8/8 一致：{string.Join("、", homeModeRows.Select(x => x.Text))}"
+                    : string.Join("；", homeModeDrift));
 
             // 2026-10-18 欠账核销：Utility 四件套（数学/逻辑/比较/类型转换）+ 两个脚本插件的 ScriptVarType。
             // 这四件套走 InputPort<T> → LinkableValueEditor → ForEnum（与几何/运动同一条路），
@@ -678,7 +713,8 @@ namespace FlowCanvasChecks
             var file = ResolveRepoFile(@"Shard\Core.Interfaces\Motion\MotionDeviceBase.cs");
             if (file == null)
             {
-                Check("打断性命令契约", true, "跳过：定位不到 MotionDeviceBase");
+                Check("打断性命令契约", false,
+                    "定位不到 MotionDeviceBase.cs —— 契约文件被改名/搬走时这条必须红，不能记成跳过");
                 return;
             }
 
@@ -753,7 +789,8 @@ namespace FlowCanvasChecks
                 var file = ResolveRepoFile(relative);
                 if (file == null)
                 {
-                    Check($"{label} Provider 递归防护", true, "跳过：定位不到文件");
+                    Check($"{label} Provider 递归防护", false,
+                        $"定位不到 {relative} —— 文件被改名/搬走时这条必须红，不能记成跳过");
                     continue;
                 }
 
@@ -818,7 +855,8 @@ namespace FlowCanvasChecks
             var themesDir = ResolveRepoDir(@"UI\Controls\Themes");
             if (themesDir == null)
             {
-                Check("主题字典键唯一性", true, "跳过：定位不到 UI 主题目录");
+                Check("主题字典键唯一性", false,
+                    "定位不到 UI\\Controls\\Themes —— 主题目录被改名/搬走时这条必须红，不能记成跳过");
                 return;
             }
 
@@ -1040,7 +1078,8 @@ namespace FlowCanvasChecks
 
             if (csproj == null)
             {
-                Check("正运动驱动部署契约", true, "跳过：定位不到驱动工程");
+                Check("正运动驱动部署契约", false,
+                    "定位不到 Plugin.Motion.ZMotion.csproj —— 工程被改名/搬走时这条必须红，不能记成跳过");
                 return;
             }
 
@@ -1283,12 +1322,17 @@ namespace FlowCanvasChecks
         {
             Section("[Z] 调试面板契约：控制 / 定位 / 回零 / IO / 急停");
 
-            var path = ResolveRepoFile(@"VisionMaster\Views\DialogViews\MotionDebugView.xaml");
+            // 2026-10-22：旧断言解析的是已删除的 MotionDebugView.xaml，于是整段恒跳过。
+            // 现在的面板在 MotionBoard\MotionBoardDebugView.xaml —— 找不到必须红，不许记"跳过"。
+            var path = ResolveRepoFile(@"VisionMaster\Views\DialogViews\MotionBoard\MotionBoardDebugView.xaml");
             if (path == null)
             {
-                Check("调试面板契约", true, "跳过：定位不到 MotionDebugView.xaml");
+                Check("调试面板存在（MotionBoardDebugView.xaml）", false,
+                    "定位不到 MotionBoardDebugView.xaml —— 面板被改名/搬走时这条必须红，不能记成跳过");
                 return;
             }
+
+            Check("调试面板存在（MotionBoardDebugView.xaml）", true, path);
 
             string xaml = File.ReadAllText(path);
 
@@ -1297,23 +1341,25 @@ namespace FlowCanvasChecks
                 && xaml.Contains("HoldCommandBehavior.ReleaseCommand"),
                 "只有 Click 的话，点一下就是「持续运动到被别的操作打断」，对位根本没法用");
 
-            Check("★有独立的急停入口（DialogDangerButton，实心红、不藏在子菜单里）",
-                xaml.Contains("DialogDangerButton") && xaml.Contains("EmergencyStopCommand"), "");
+            Check("★有独立的急停入口（MbDangerButton，实心红、不藏在子菜单里）",
+                xaml.Contains("MbDangerButton") && xaml.Contains("EmergencyStopCommand"), "");
 
-            Check("覆盖用户要的四项：控制（使能/停止）、定位、回零、IO",
-                xaml.Contains("EnableCommand") && xaml.Contains("StopCommand")
-                && xaml.Contains("GoToAndWaitCommand") && xaml.Contains("HomeCommand")
-                && xaml.Contains("ToggleOutputCommand"), "");
+            Check("覆盖控制 / 定位 / 回零 / IO 的命令入口",
+                xaml.Contains("EnableCommand") && xaml.Contains("DisableCommand")
+                && xaml.Contains("StopAllCommand")
+                && xaml.Contains("MoveAbsoluteCommand") && xaml.Contains("MoveAbsoluteAndWaitCommand")
+                && xaml.Contains("HomeCommand") && xaml.Contains("ToggleOutputCommand")
+                && xaml.Contains("ClearAlarmCommand") && xaml.Contains("ToggleConnectCommand"), "");
 
             Check("★体现一带多：轴列表按轴逐行列出（位置与状态并排），而不是只显示一张卡",
                 xaml.Contains("ItemsSource=\"{Binding Axes}\"") && xaml.Contains("SelectedAxis"), "");
 
             Check("定位支持「取当前位置」（对位时最常用的起点）",
-                xaml.Contains("UseCurrentPositionCommand"), "");
+                xaml.Contains("TakeCurrentPositionCommand"), "");
 
-            Check("回零方式下拉显示中文（DisplayMemberPath=DisplayName，不是枚举成员名）",
-                xaml.Contains("DisplayMemberPath=\"DisplayName\"")
-                && xaml.Contains("ItemsSource=\"{Binding HomeModes}\""), "");
+            Check("回零方式下拉显示中文（ItemTemplate 绑 DisplayName，不是枚举成员名）",
+                xaml.Contains("ItemsSource=\"{Binding HomeModes}\"")
+                && xaml.Contains("Text=\"{Binding DisplayName}\""), "");
 
             // ★ Run.Text 的默认绑定模式是 TwoWay（它是 FlowDocument 元素，为 RichTextBox 场景设计），
             //   而状态标签这类属性在 VM 里是只读的 —— 不显式写 Mode=OneWay 会在**加载面板时**抛

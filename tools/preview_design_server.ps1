@@ -1,20 +1,24 @@
 $ErrorActionPreference = 'Stop'
 
-# R1/R2: this script must stay pure ASCII. The Chinese directory name is read
-# from a UTF-8 manifest instead of being embedded in the script text.
-$manifest = 'D:\C#\VM\tools\_uidesign_root.txt'
-$root = [System.IO.File]::ReadAllLines($manifest, [System.Text.Encoding]::UTF8)[0].Trim()
+# R1/R2: this script is pure ASCII. The Chinese folder name is built from code points
+# so the file stays 7-bit clean under Windows PowerShell 5.1 (ANSI) parsing.
+# UI 设计基线  =  U I 8BBE 8BA1 57FA 7EBF
+$root = 'D:\C#\VM\docs\' +
+        [string][char]0x0055 + [string][char]0x0049 +
+        [string][char]0x8BBE + [string][char]0x8BA1 +
+        [string][char]0x57FA + [string][char]0x7EBF
 
 if (-not (Test-Path -LiteralPath $root)) {
-    [System.IO.File]::WriteAllText('D:\C#\VM\tools\_uidesign_server.err', "ROOT NOT FOUND: $root", [System.Text.Encoding]::UTF8)
+    Write-Output "ROOT NOT FOUND: $root"
     exit 1
 }
 
+$port = 8917
 $listener = New-Object System.Net.HttpListener
-$listener.Prefixes.Add('http://127.0.0.1:8917/')
+$listener.Prefixes.Add("http://127.0.0.1:$port/")
 $listener.Start()
-
-[System.IO.File]::WriteAllText('D:\C#\VM\tools\_uidesign_server.err', "STARTED $root", [System.Text.Encoding]::UTF8)
+Write-Output "Serving $root at http://127.0.0.1:$port/"
+Write-Output "Open http://127.0.0.1:$port/log-console/design.html  (Ctrl+C to stop)"
 
 while ($listener.IsListening) {
     try {
@@ -25,8 +29,7 @@ while ($listener.IsListening) {
         $full = Join-Path $root $rel
         if (Test-Path -LiteralPath $full -PathType Leaf) {
             $bytes = [System.IO.File]::ReadAllBytes($full)
-            $ext = [System.IO.Path]::GetExtension($full).ToLowerInvariant()
-            switch ($ext) {
+            switch ([System.IO.Path]::GetExtension($full).ToLowerInvariant()) {
                 '.html' { $ctx.Response.ContentType = 'text/html; charset=utf-8' }
                 '.css'  { $ctx.Response.ContentType = 'text/css; charset=utf-8' }
                 '.js'   { $ctx.Response.ContentType = 'application/javascript; charset=utf-8' }
@@ -44,7 +47,6 @@ while ($listener.IsListening) {
         $ctx.Response.OutputStream.Close()
     }
     catch {
-        $err = $_.Exception.Message
-        [System.IO.File]::AppendAllText('D:\C#\VM\tools\_uidesign_server.err', "`nLOOP: $err", [System.Text.Encoding]::UTF8)
+        # keep serving; a client disconnect must not kill the preview server
     }
 }

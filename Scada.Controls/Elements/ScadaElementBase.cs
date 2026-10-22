@@ -123,6 +123,26 @@ namespace VisionMaster.Scada.Controls
         }
 
         /// <summary>
+        /// 图元进入/离开就地编辑态（软键盘据此弹出/收起）。
+        ///
+        /// 与 <see cref="ScadaEventEvent"/> 同一套路由：冒泡到运行窗口根，窗口一处接住即可。
+        /// 只由实现了 <see cref="IScadaSoftKeyboardTarget"/> 的输入控件发出；普通图元不发。
+        /// </summary>
+        public static readonly RoutedEvent EditStateChangedEvent = EventManager.RegisterRoutedEvent(
+            nameof(EditStateChangedEvent), RoutingStrategy.Bubble,
+            typeof(RoutedEventHandler), typeof(ScadaElementBase));
+
+        public event RoutedEventHandler EditStateChanged
+        {
+            add => AddHandler(EditStateChangedEvent, value);
+            remove => RemoveHandler(EditStateChangedEvent, value);
+        }
+
+        /// <summary>输入控件在 IsEditing 翻转时调用；只负责发声，开不开键盘由宿主决定。</summary>
+        internal void RaiseEditStateChanged()
+            => RaiseEvent(new RoutedEventArgs(EditStateChangedEvent, this));
+
+        /// <summary>
         /// 发出一个组态事件。
         ///
         /// <c>protected internal</c> 开的是两条路：派生类在自己的交互里直接发（跨装配也行），

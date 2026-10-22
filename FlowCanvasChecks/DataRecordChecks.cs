@@ -3,6 +3,10 @@ using Core.Interfaces;
 using HalconDotNet;
 using Plugin.DataRecord;
 using Plugin.ExcelExport;
+using VisionMaster.Models;
+using VisionMaster.Services;
+// 裸写 ExecutionContext 会与 System.Threading.ExecutionContext 撞名（两个宿主都启用了隐式 using）
+using ExecutionContext = VisionMaster.Services.ExecutionContext;
 
 namespace FlowCanvasChecks
 {
@@ -30,6 +34,8 @@ namespace FlowCanvasChecks
 
             DataPipelineCheckSupport.SafeRun("表头/行/转义", HeaderRowsAndEscaping);
             DataPipelineCheckSupport.SafeRun("运行期变量来源", VariableSource);
+            DataPipelineCheckSupport.SafeRun("变量来源覆盖全局/通讯与数组格式（N2）", VariableSourceCoversSharedRegistry);
+            DataPipelineCheckSupport.SafeRun("缺名变量 WARN 有上限（N2）", MissingVariableWarnsBounded);
             DataPipelineCheckSupport.SafeRun("目录/文件名模板", TemplateExpansion);
             DataPipelineCheckSupport.SafeRun("序号边车", SequenceSidecar);
             DataPipelineCheckSupport.SafeRun("保留期清理", KeepDaysCleanupOnlyTouchesOwnFiles);
@@ -120,6 +126,98 @@ namespace FlowCanvasChecks
             DataPipelineCheckSupport.Check("CSV：运行期变量来源取值正确",
                 rows.Count == 2 && rows[1][0] == "42",
                 rows.Count == 2 ? rows[1][0] : "(行数不足)");
+
+            DataPipelineCheckSupport.DeleteDir(dir);
+        }
+
+        /// <summary>
+        /// N2：来源=变量不再只认「本轮局部变量」——取不到时兜底到共享变量注册表
+        /// （全局变量 / 通讯变量 / 系统变量共用一张表），并且数组不再落成 <c>System.Int32[]</c>。
+        ///
+        /// 为什么用**真 WorkspaceContext + 真 VariableRegistry** 而不是自己造桩：
+        /// 生产链路是 <c>GlobalVariableWriter.TryRead → VariableRegistry.FindByName → IVariable.Value</c>，
+        /// 桩掉这一段就等于把"注册表到底有没有把全局变量和通讯变量装进去"这件事排除在断言之外。
+        /// </summary>
+        private static void VariableSourceCoversSharedRegistry()
+        {
+            string dir = DataPipelineCheckSupport.TempDir("csv_var_n2");
+            RecordingHub.ConfigureForTests(dir);
+
+            var workspace = new WorkspaceContext();
+            workspace.GlobalVariables.Clear();
+
+            // ① 全局变量（变量管理里那批）
+            workspace.GlobalVariables.Add(
+                VariableFactory.CreateLocal("OKCount", typeof(int), "全局计数", 42));
+
+            // ② 通讯变量（网络变量）：注册表只看 IVariable.Value（通信线程维护的镜像），
+            //    没有地址/管理器时 Value 的 setter 不会写设备，正好当镜像值用。
+            workspace.GlobalVariables.Add(new NetworkVariableModel
+            {
+                Name = "PLC1.Speed",
+                ConnectionName = "PLC1",
+                DataType = typeof(double),
+                Value = 12.5
+            });
+
+            var plugin = NewPlugin(dir, p =>
+            {
+                p.Columns.Add(Col("全局值", ColumnSource.Variable, variable: "OKCount"));
+                p.Columns.Add(Col("通讯值", ColumnSource.Variable, variable: "PLC1.Speed"));
+                p.Columns.Add(Col("数组", ColumnSource.Variable, variable: "Arr"));
+            });
+
+            var log = new StubLog();
+            var ctx = NewContextWithWorkspace(log, workspace);
+            ctx.LocalVariables["Arr"] = new[] { 1, 2, 3 }; // 局部池放数组：验单元格格式化
+
+            plugin.Execute(ctx);
+            RecordingHub.FlushForTests();
+
+            var rows = ReadLedger(dir);
+            DataPipelineCheckSupport.Check("CSV N2：变量列取到全局变量（局部池没有 → 注册表兜底）",
+                rows.Count == 2 && DataPipelineCheckSupport.Cell(rows, 1, 0) == "42",
+                rows.Count == 2 ? DataPipelineCheckSupport.Cell(rows, 1, 0) : "(行数不足)");
+            DataPipelineCheckSupport.Check("CSV N2：变量列取到通讯变量（网络变量镜像值）",
+                rows.Count == 2 && DataPipelineCheckSupport.Cell(rows, 1, 1) == "12.5",
+                rows.Count == 2 ? DataPipelineCheckSupport.Cell(rows, 1, 1) : "(行数不足)");
+            DataPipelineCheckSupport.Check("CSV N2：数组列格式化成 [1,2,3]（不是 System.Int32[]）",
+                rows.Count == 2 && DataPipelineCheckSupport.Cell(rows, 1, 2) == "[1,2,3]",
+                rows.Count == 2 ? DataPipelineCheckSupport.Cell(rows, 1, 2) : "(行数不足)");
+            DataPipelineCheckSupport.Check("CSV N2：三个变量都取到时不留缺名 WARN",
+                log.Warns.All(w => !w.Contains("既不在本轮局部变量里", StringComparison.Ordinal)),
+                log.Warns.Count == 0 ? "(无)" : string.Join(" | ", log.Warns));
+
+            DataPipelineCheckSupport.DeleteDir(dir);
+        }
+
+        /// <summary>
+        /// N2：缺名变量必须留 WARN（不是静默写空），但同一名字最多 3 条——高频流程里
+        /// "每轮都找不到"会把日志刷满，反而淹没真正的问题。
+        /// </summary>
+        private static void MissingVariableWarnsBounded()
+        {
+            string dir = DataPipelineCheckSupport.TempDir("csv_var_missing");
+            RecordingHub.ConfigureForTests(dir);
+
+            var plugin = NewPlugin(dir, p =>
+                p.Columns.Add(Col("缺名", ColumnSource.Variable, variable: "NoSuchVariableN2")));
+
+            var log = new StubLog();
+            var ctx = DataPipelineCheckSupport.NewContext(log);
+
+            // 同一个插件实例跑 4 轮：提示计数挂在实例上（跨执行累计）
+            plugin.Execute(ctx);
+            plugin.Execute(ctx);
+            plugin.Execute(ctx);
+            plugin.Execute(ctx);
+            RecordingHub.FlushForTests();
+
+            int warns = log.Warns.Count(w => w.Contains("NoSuchVariableN2", StringComparison.Ordinal));
+            DataPipelineCheckSupport.Check("CSV N2：缺名变量留 WARN（不是静默写空）",
+                warns > 0, log.Warns.Count == 0 ? "(无 WARN)" : string.Join(" | ", log.Warns));
+            DataPipelineCheckSupport.Check("CSV N2：缺名 WARN 有上限（4 轮只提示 3 条）",
+                warns == 3, $"{warns} 条");
 
             DataPipelineCheckSupport.DeleteDir(dir);
         }
@@ -466,6 +564,22 @@ namespace FlowCanvasChecks
             plugin.KeepDays = 0;
             configure?.Invoke(plugin);
             return plugin;
+        }
+
+        /// <summary>
+        /// 带"真工作区"的执行上下文：共享变量走生产同一条链路
+        /// （<c>GlobalVariableWriter.TryRead → VariableRegistry.FindByName → IVariable.Value</c>）。
+        /// </summary>
+        private static IExecutionContext NewContextWithWorkspace(StubLog log, WorkspaceContext workspace)
+            => new ExecutionContext(log, new FlowSession { FlowName = "数据链路断言" }, workspace, CancellationToken.None);
+
+        /// <summary>读回本用例的账本（不存在时返回空表，让断言给出可读的失败而不是抛）。</summary>
+        private static List<List<string>> ReadLedger(string dir)
+        {
+            string path = Path.Combine(dir, "ledger.csv");
+            return File.Exists(path)
+                ? DataPipelineCheckSupport.ParseCsv(DataPipelineCheckSupport.ReadUtf8(path))
+                : new List<List<string>>();
         }
 
         private static RecordColumnDef Col(

@@ -54,6 +54,9 @@ namespace VisionMaster.Views
             // 挂在 Start()（更晚），所以这里的执行顺序<b>早于</b> TeardownAlarms——
             // 正好符合"订阅方先退场，再拆被订阅的东西"这条顺序。
             Closed += OnWindowClosed;
+
+            // 软键盘：输入控件进入/离开编辑态时冒泡到这里，窗口一处决定弹不弹。
+            AddHandler(ScadaElementBase.EditStateChangedEvent, new RoutedEventHandler(OnEditStateChanged));
         }
 
         /// <summary>
@@ -179,6 +182,8 @@ namespace VisionMaster.Views
             }
 
             _session.PropertyChanged -= OnSessionPropertyChanged;
+            RemoveHandler(ScadaElementBase.EditStateChangedEvent, new RoutedEventHandler(OnEditStateChanged));
+            CloseSoftKeyboard();
 
             if (_placementPopup != null)
             {
@@ -194,10 +199,19 @@ namespace VisionMaster.Views
 
         private ScadaPage? _placementPopup;
 
+        private IScadaSoftKeyboardTarget? _keyboardTarget;
+
+        /// <summary>摆放期间会改键盘 MaxWidth/Height 并触发 SizeChanged；用它挡住重入。</summary>
+        private bool _placingKeyboard;
+
         private void OnSessionPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName is nameof(ScadaRuntime.CurrentPopup) or nameof(ScadaRuntime.IsPopupOpen))
                 AttachPopupPlacement();
+
+            // 切页/开关弹窗时，正在编辑的字段已经离开表面：先收键盘，避免它继续对着旧控件输入。
+            if (e.PropertyName is nameof(ScadaRuntime.CurrentPage) or nameof(ScadaRuntime.CurrentPopup))
+                CloseSoftKeyboard();
         }
 
         /// <summary>换弹窗时重挂锚点订阅；弹窗页自己的锚点/偏移变了也要重新摆放。</summary>
@@ -293,11 +307,164 @@ namespace VisionMaster.Views
 
         private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
         {
+            // 键盘打开时 Esc/Enter 先归键盘：Esc = 放弃本次编辑，Enter = 确定。
+            // 其它键不拦——它们要照常进到输入控件自己的 TextBox 里。
+            if (SoftKeyboard.IsOpen)
+            {
+                if (e.Key == Key.Escape)
+                {
+                    CloseSoftKeyboard();
+                    e.Handled = true;
+                    return;
+                }
+
+                if (e.Key == Key.Enter)
+                {
+                    _keyboardTarget?.CommitEdit();
+                    SoftKeyboard.Refresh();
+
+                    if (_keyboardTarget?.IsEditing != true)
+                        CloseSoftKeyboard();
+
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             if (e.Key == Key.Escape && _session.IsPopupOpen)
             {
                 _session.ClosePopup();
                 e.Handled = true;
             }
+        }
+
+        // ---- 软键盘（数字 / 字符） ----
+
+        private void OnEditStateChanged(object sender, RoutedEventArgs e)
+        {
+            if (e.OriginalSource is not IScadaSoftKeyboardTarget target)
+                return;
+
+            if (target.IsEditing)
+                OpenSoftKeyboard(target);
+            else if (ReferenceEquals(_keyboardTarget, target))
+                CloseSoftKeyboard();
+        }
+
+        private void OpenSoftKeyboard(IScadaSoftKeyboardTarget target)
+        {
+            _keyboardTarget = target;
+            SoftKeyboard.Open(target);
+            KeyboardLayer.Visibility = Visibility.Visible;
+            KeyboardLayer.UpdateLayout();
+            PlaceSoftKeyboard(target);
+        }
+
+        /// <summary>
+        /// 收键盘。先摘目标再 CancelEdit：CancelEdit 会把 IsEditing 翻成 false 并再发一次
+        /// EditStateChanged，目标已摘掉就不会递归回到这里。
+        /// </summary>
+        private void CloseSoftKeyboard()
+        {
+            var target = _keyboardTarget;
+            _keyboardTarget = null;
+
+            target?.CancelEdit();
+
+            SoftKeyboard.Close();
+            KeyboardLayer.Visibility = Visibility.Collapsed;
+        }
+
+        /// <summary>
+        /// 九宫格摆放：默认放在字段下方；下方放不下翻到上方；左右按字段中心对齐并夹回画面区。
+        /// 目标在缩放画布上时用 TranslatePoint 换算到窗口坐标，不拿模型 X/Y 直接算。
+        /// </summary>
+        private void PlaceSoftKeyboard(IScadaSoftKeyboardTarget target)
+        {
+            if (target is not FrameworkElement element || _placingKeyboard)
+                return;
+
+            var areaWidth = KeyboardLayer.ActualWidth;
+            var areaHeight = KeyboardLayer.ActualHeight;
+
+            if (areaWidth <= 0 || areaHeight <= 0)
+                return;
+
+            const double gap = 8;
+
+            _placingKeyboard = true;
+
+            try
+            {
+                // 先限尺寸再测量：长文本/长错误不能把键盘撑出画面区；超出部分由 Viewbox 等比缩小。
+                SoftKeyboard.MaxWidth = Math.Max(0, areaWidth - gap * 2);
+                SoftKeyboard.MaxHeight = Math.Max(0, areaHeight - gap * 2);
+
+                if (SoftKeyboard.MaxWidth <= 0 || SoftKeyboard.MaxHeight <= 0)
+                    return;
+
+                SoftKeyboard.Measure(new Size(SoftKeyboard.MaxWidth, SoftKeyboard.MaxHeight));
+                var size = SoftKeyboard.DesiredSize;
+
+                if (size.Width <= 0 || size.Height <= 0)
+                    return;
+
+                Point p0, p1, p2, p3;
+
+                try
+                {
+                    // 用四个角换算到窗口坐标再取包围盒：画布有 ScaleTransform、弹窗还套了 Viewbox，
+                    // 直接拿 element.ActualWidth 当屏幕宽高会把键盘摆偏（旋转元素也一起兜住）。
+                    p0 = element.TranslatePoint(new Point(0, 0), KeyboardLayer);
+                    p1 = element.TranslatePoint(new Point(element.ActualWidth, 0), KeyboardLayer);
+                    p2 = element.TranslatePoint(new Point(0, element.ActualHeight), KeyboardLayer);
+                    p3 = element.TranslatePoint(
+                        new Point(element.ActualWidth, element.ActualHeight), KeyboardLayer);
+                }
+                catch (InvalidOperationException)
+                {
+                    // 控件已经不在可视树上（切页/关窗的收尾）：不摆，窗口那一层会很快收起键盘。
+                    return;
+                }
+
+                var field = new Rect(
+                    Math.Min(Math.Min(p0.X, p1.X), Math.Min(p2.X, p3.X)),
+                    Math.Min(Math.Min(p0.Y, p1.Y), Math.Min(p2.Y, p3.Y)),
+                    Math.Max(Math.Max(p0.X, p1.X), Math.Max(p2.X, p3.X))
+                        - Math.Min(Math.Min(p0.X, p1.X), Math.Min(p2.X, p3.X)),
+                    Math.Max(Math.Max(p0.Y, p1.Y), Math.Max(p2.Y, p3.Y))
+                        - Math.Min(Math.Min(p0.Y, p1.Y), Math.Min(p2.Y, p3.Y)));
+
+                var placement = ScadaSoftKeyboard.ComputePlacement(
+                    field, size, new Size(areaWidth, areaHeight), gap);
+
+                System.Windows.Controls.Canvas.SetLeft(SoftKeyboard, placement.X);
+                System.Windows.Controls.Canvas.SetTop(SoftKeyboard, placement.Y);
+            }
+            finally
+            {
+                _placingKeyboard = false;
+            }
+        }
+
+        private void OnKeyboardLayerSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (SoftKeyboard.IsOpen && _keyboardTarget is { } target)
+                PlaceSoftKeyboard(target);
+        }
+
+        private void OnSoftKeyboardSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            // 提交失败后错误行出现/消失会改变键盘高度：重新摆一次，别让“确定”被挤到画面外。
+            if (SoftKeyboard.IsOpen && _keyboardTarget is { } target)
+                PlaceSoftKeyboard(target);
+        }
+
+        private void OnKeyboardBackdropClick(object sender, MouseButtonEventArgs e)
+        {
+            // 点键盘外 = 取消本次编辑（与 Esc 同义），不提交半截输入。
+            CloseSoftKeyboard();
+            e.Handled = true;
         }
 
         // ---- 报警历史抽屉 ----

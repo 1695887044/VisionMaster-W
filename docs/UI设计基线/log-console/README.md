@@ -8,13 +8,13 @@
 | 覆盖范围 | `VisionMaster\Views\LogView.xaml`（过滤工具条 + 日志区）+ `UI\Controls\Themes\LogConsole.xaml`（日志控件皮肤） |
 | 设计文件 | `design.html`（自包含，无外部依赖；含默认态 / 无结果态 / 空态，可点筹码与搜索框） |
 | 证据目录 | `evidence/`（评审后补渲染 PNG） |
-| 状态 | **待用户确认**；本轮只出设计稿，未改任何 WPF 代码 |
+| 状态 | **用户已确认（2026-10-22）→ 已复刻**；落地记录 `docs/code-changes/2026-10-22-第1批四视图Web化复刻（日志监视流程条驾驶舱）.md` |
 
 ## 1. 现状问题（改前）
 
 | # | 问题 | 证据 | 影响 |
 | --- | --- | --- | --- |
-| 1 | 过滤工具条全手写十六进制色 | `LogView.xaml` 51 处 `#RRGGBB`（`#F1F4F8`、`#DCE3EB`、`#5A6472`、`#005FB8`…） | 换肤不生效；与 `Dialog*` 令牌体系两套颜色 |
+| 1 | 过滤工具条全手写十六进制色 | `LogView.xaml` 51 处 `#RRGGBB` 文本（**门禁口径为 46 处**——先剥注释再数，`hardcoded-colors.baseline.txt:54` 也记 46；另 5 处落在注释里） | 换肤不生效；与 `Dialog*` 令牌体系两套颜色 |
 | 2 | 搜索框需要整份自定义模板才"看得出是输入框" | `LogView.xaml:19-58` 的注释与 `OverridesDefaultStyle` | Fluent 隐式样式把 TextBox 画成透明底 + 一条底线，在这条浅色工具条上等于空地 |
 | 3 | 等级筹码选中态靠 5 组 `MultiDataTrigger` 硬堆 | `LogView.xaml:244-297`（5 组 × 4 Setter） | 加一级要再写一组；颜色散在视图里 |
 | 4 | 日志行硬编码 20+ 色 | `LogConsole.xaml:62-209`（`#FAFAFA`、`#333333`、`#0078D4`、`#107C10`、`#D83B01`、`#D13438`…） | 与工具条同族问题 |
@@ -23,7 +23,16 @@
 | 7 | 无"显示 N / 共 M"计数 | 筹码上只有各级条数 | 用户不知道当前筛选命中了多少 |
 | 8 | 无"打开日志文件夹"入口 | — | 完整历史在 `Logs\` 目录，但界面上没有路 |
 
-## 2. 设计要点
+## 2.0 设计画布 vs 宿主尺寸
+
+| 项 | 值 | 来源 |
+| --- | --- | --- |
+| 设计画布 | 720 × 520（主档）、460（窄档） | 本稿 |
+| 宿主落点 | Shell 底部控制台抽屉 | `Shell.xaml:1102`（`DockHeight="200"`）+ `app-shell` 的 32/240 两档 |
+| **高度矛盾** | 设计 520，宿主展开态 240 | **这是刻意不匹配**：设计稿按"展开后能舒服阅读"画，宿主 240px 下工具条两行 + 日志区约 180px 只能显示 4~5 行 |
+| 复刻口径 | 240px 下**工具条压成一行**（搜索 + 跟随最新 + 筹码合并，筹码只显示圆点不显示计数）；520+ 用本稿两行式 | 需要在 `LogView.xaml` 里按 `ActualHeight` 做降级，或由宿主给更大高度 |
+
+> 这条必须写清：不写的话复刻者会照 520 的画布画两行工具条，塞进 240 的抽屉里就只剩 3 行日志。
 
 ### 2.1 布局
 
@@ -36,10 +45,11 @@
 │ ▍ 19:04:13.050  [流程]  流程「主检测」执行完成，OK        │
 │ …                                                        │
 ├──────────────────────────────────────────────────────────┤
-│ 显示 96 / 共 128 条 · 面板保留最近 2000 条   打开日志文件夹│  28px 状态条
+│ 显示 128 / 共 128 条 · 保留最近 N 条    完整历史：Logs\yyyy-MM-dd.log │  28px 状态条
 └──────────────────────────────────────────────────────────┘
 ```
 
+- **默认「全部」**：`LogViewModel` 构造器 `_levelOption = _allOption`（`:83-84`），只有"全部"能同时显示四种等级的行。设计稿的默认态因此是"全部"按下 + "显示 128 / 共 128"。
 - **两行工具条**：第一行搜索 + 跟随最新，第二行等级筹码。筹码摊开是"一眼看全 5 个等级 + 各自条数"；挤一行时窄面板会竖着堆成 5 行（现状注释已记录该问题）。
 - **日志行四列**：`3px 状态条 | 84px 时间 | 78px 来源 | 正文`。时间用等宽 + `tabular-nums`，保证毫秒位竖对齐。
 - **来源徽标可空**：`LogService` 目前不填 source，为空时整块收起但**保留列宽**，所以有无来源的行正文起点一致（沿用现状口径）。
@@ -112,15 +122,12 @@
 | `--success` / `--success-text` | `#22C55E` / `#15803D` | `DialogSuccessBrush` / `DialogSuccessTextBrush` | 成功级状态条 / 正文 |
 | `--warning` / `--warning-text` | `#F59E0B` / `#B45309` | `DialogWarningBrush` / `DialogWarningTextBrush` | 警告级 |
 | `--danger` / `--danger-text` | `#EF4444` / `#B91C1C` | `DialogDangerBrush` / `DialogDangerTextBrush` | 错误级 |
+| `--danger-subtle` | `#FEF2F2` | `DialogDangerSubtleBrush` | 错误行整行底 |
 | `--row-hover` | `#F1F5F9` | `DialogRowHoverBrush` | 行悬停 |
 
-**需要新增的令牌（仅 1 个）**：
+**不需要新增任何令牌。** 错误行整行底复用 `DialogDangerSubtleBrush`（`Colors.xaml` 已有，`#FEF2F2`）——不新建 `DialogDangerRowBrush`：同值异名键会让库里多一份要同步维护的重复项（R141）。错误行的**悬停**态用 `color-mix` 从同一令牌派生 12% `DialogDangerBrush`，也不引入第二个红。
 
-| 建议键 | 值 | 用途 |
-| --- | --- | --- |
-| `DialogDangerRowBrush` | `#FEF2F2` | 错误行整行底（与 `DialogDangerSubtleBrush` 同值，但语义是"行底"而非"提示底"；若裁定复用 `DialogDangerSubtleBrush` 则无需新增） |
-
-> 除上表外，本设计不新增任何颜色键；现状 `LogView` 的 51 处与 `LogConsole` 的 20+ 处硬编码全部由既有 `Dialog*` 令牌承接。
+> 现状 `LogView` 的 51 处（门禁口径 46）与 `LogConsole` 的 20+ 处硬编码全部由既有 `Dialog*` 令牌承接。
 
 ## 4. 复刻约束
 
@@ -130,9 +137,41 @@
 4. **视图 XAML `hex=0`**（R140）：改完后 `LogView.xaml` 与 `LogConsole.xaml` 都不得出现 `#RRGGBB`；`hardcoded-colors.baseline.txt` 里这两项应清零并删行。
 5. **图标按钮 30×30 + `Padding="0"`**（R68）：搜索清空按钮实际 22×22（在 32px 输入框内），必须显式写 `Padding="0"`，否则 Fluent 隐式样式的 `11,5,11,6` 会把字形削掉。
 6. **焦点与 ToolTip**：筹码、清空按钮、底部链接都要挂 `DialogFocusVisual` 与 `DialogToolTipStyle`（R135）。
-7. **不造死按钮**：「打开日志文件夹」需要现有命令支撑；若当前没有该命令，则**本轮不画这个按钮**，改为文字说明路径（见 §6 未纳入项）。
+7. **不造死按钮**：本版**不画**「打开日志文件夹」按钮——`LogViewModel.cs` 全文件没有任何命令属性，唯一存在的 `OpenLogFolderCommand` 挂在 `SystemSettingsDraft`（`App.xaml.cs:586`），日志面板够不到。设计稿底栏改为**纯文字**路径说明（`完整历史：Logs\yyyy-MM-dd.log`），不画按钮。
+8. **「清空筛选条件」需要新命令**：无结果态的出口按钮要同时清 `SearchText` 与 `LevelOption`（`LogViewModel.cs:39-70`），现有 VM 没有这个命令。**复刻时必须新增 `ClearFiltersCommand`**，否则该按钮是死的。本版先把它画进设计（它是无结果态的唯一出口，去掉就等于让用户自己清两个控件），并在实现清单里登记。
 
-## 5. 已知偏差（Web vs WPF，预判）
+## 4b. 需要新增的（本版设计的前提）
+
+| # | 要新增的 | 为什么 | 现有状况 |
+| --- | --- | --- | --- |
+| ① | `ClearFiltersCommand` | 无结果态出口 | VM 无此命令 |
+| ② | **筛选后条数 `FilteredCount`** | 底栏"显示 96 / 共 128"里的 96 | 筛选逻辑在 `LogConsole.cs:168-187` 的**私有** `FilterLogic`，控件只暴露 `AutoScroll`/`SearchText`/`FilterLevel`/`GroupBy`/`MaxItems`（`:51-102`）。需新增依赖属性或改为 VM 侧计数 |
+| ③ | 面板上限绑定 | 底栏"面板保留最近 N 条" | 设计稿已改成 `N` 占位，不写死 2000——真实上限是 `AppConfigModel.LogPanelMaxRows`（`Core\Models\AppConfigModel.cs:747`）与 `LogView.xaml:327` 的 `MaxItems="2000"` 取小。**两个上限并存，复刻时要统一口径并绑定显示** |
+| ④ | **「成功」等级的生产者** | 设计稿的「成功」筹码与绿色成功行 | `LogService.Success()` 实际发的是 `LogLevel.Info`（`Core\LogService.cs:95-98`），全仓没有一处产生 `LogLevel.Success`（除探针工具）。**要么修 `LogService.Success` 改发 `LogLevel.Success`，要么把该档视为"预留、当前恒 0"**——否则界面上永远有一个点不开的空等级。这条不在纯 UI 范围，需要单独裁定 |
+
+## 4c. 状态矩阵与三态（R115 / R116）
+
+**五态（逐控件）**：
+
+| 控件 | Normal | Hover | Pressed | Focus | Disabled |
+| --- | --- | --- | --- | --- | --- |
+| 等级筹码 | 白底 + 描边 | 描边加深 | `--border-light` 底 | 2px 强调色环 | **不适用**——五个等级恒定可选，"没有该级日志"用计数 0 表达；禁用会让人误以为"这一级不能看" |
+| 搜索清空 ✕ | `--text-4` | `--row-hover` 底 | `--border-light` 底 | 2px 强调色环 | 不适用（无内容时整个按钮不显示） |
+| 「跟随最新」 | 未勾/勾选两态 | 系统默认 | 系统默认 | 2px 强调色环 | 不适用（恒可用） |
+| 「清空筛选条件」 | 白底 + 描边 | `--row-hover` 底 | `--border-light` 底 | 2px 强调色环 | 不适用（只在无结果时出现，出现即有效） |
+
+**三态（R116）**：
+
+| 态 | 是否适用 | 理由 |
+| --- | --- | --- |
+| 加载 | **不适用** | 日志是推送流（`LogService.OnLogReceived` → `SafeDispatch.BeginInvoke`），没有"加载中"阶段；面板一出现就是终态 |
+| 空 | **适用** | 「还没有日志」——刚启动或已清空 |
+| 无结果 | **适用**（本设计新增） | 搜索/等级筛掉全部，与"真的没有日志"分开 |
+| 错误 | **不适用** | 日志通道不可用时 `SafeDispatch` 静默丢弃 UI 刷新（`LogViewModel.cs:87-95` 注释已说明"日志不丢，文件通道独立"），不会产生面板级错误态；完整历史仍在文件里 |
+
+> 三条"不适用"都给了反证依据（推送流 / 静默丢弃语义 / 文件通道独立），符合 R38"跳过必须能被反证"。
+
+
 
 1. **字体度量**：Web 用 Segoe UI Variable / 微软雅黑；WPF 用微软雅黑。等宽列（时间）WPF 用 Consolas，字宽与 Cascadia Mono 略有差异。
 2. **滚动条**：Web 覆盖式 10px；WPF 占位约 17px。窄面板（460）下正文可用宽度会少约 17px。

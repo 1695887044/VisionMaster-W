@@ -1,0 +1,105 @@
+<section class="view" id="view-39">
+  <div class="view-head">
+    <h2>启动页</h2>
+    <span class="file">VisionMaster\Lifetime\SplashScreen.xaml</span>
+    <span class="size">94 行 · 10 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 加载中：4 项自检，第 4 项进行中 -->
+    <div class="mock" style="max-width:520px">
+      <div class="mock-body">
+        <div class="card-title">VisionMaster</div>
+        <div class="hint">机器视觉流程平台 · 正在启动</div>
+
+        <div class="table">
+          <div class="tr">
+            <span class="td" style="width:46px">✓</span>
+            <span class="td" style="width:150px">单实例检测</span>
+            <span class="td muted">通过</span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:46px">✓</span>
+            <span class="td" style="width:150px">配置与日志环境</span>
+            <span class="td muted">日志目录可写，AppConfig.json 已加载</span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:46px">✓</span>
+            <span class="td" style="width:150px">视觉引擎（HALCON）</span>
+            <span class="td muted">HALCON 24.11 · 授权正常</span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:46px">○</span>
+            <span class="td" style="width:150px">插件模块扫描</span>
+            <span class="td muted">正在读取 Modules\ …</span>
+          </div>
+        </div>
+
+        <div class="kv"><span class="k">进度</span><span class="v mono">3 / 4 · 75%</span></div>
+        <div class="hint">现状是 4px 进度条（深灰轨道 + 主色填充），共享 CSS 没有进度条 class，WPF 侧保留 ProgressBar 只换令牌。</div>
+      </div>
+      <div class="mock-foot">
+        <span>正在检查：插件模块扫描…</span>
+      </div>
+    </div>
+
+    <!-- 失败：阻断性失败原因 + 红色结果行 -->
+    <div class="mock" style="max-width:520px">
+      <div class="mock-bar">
+        <span class="t">失败态</span>
+        <span class="s">ShowBlockingFailure(reason)</span>
+        <span class="grow"></span>
+        <span class="tag err">启动中止</span>
+      </div>
+      <div class="mock-body">
+        <div class="card-title">VisionMaster</div>
+        <div class="hint">机器视觉流程平台 · 正在启动</div>
+
+        <div class="table">
+          <div class="tr">
+            <span class="td" style="width:46px">✓</span>
+            <span class="td" style="width:150px">单实例检测</span>
+            <span class="td muted">通过</span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:46px">✗</span>
+            <span class="td" style="width:150px">配置与日志环境</span>
+            <span class="td muted">AppConfig.json 无法读取（工作目录不可写）</span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:46px">○</span>
+            <span class="td" style="width:150px">视觉引擎（HALCON）</span>
+            <span class="td muted">未执行</span>
+          </div>
+          <div class="tr">
+            <span class="td" style="width:46px">○</span>
+            <span class="td" style="width:150px">插件模块扫描</span>
+            <span class="td muted">未执行</span>
+          </div>
+        </div>
+
+        <div class="kv"><span class="k">进度</span><span class="v mono">1 / 4 · 25%</span></div>
+        <div class="card">
+          <div class="card-title"><span class="tag err">启动中止</span>AppConfig.json 无法读取（工作目录不可写）</div>
+          <div class="hint">ResultText 在失败时由 #FFB900 改为 #F26D6D；窗体保持打开，等用户读完再退出。</div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>启动失败</span>
+        <span class="grow"></span>
+        <span class="hint">非崩溃退出，Windows 事件日志里查不到，只有本窗与 Logs\*.log</span>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>SplashScreen.xaml</code>（520×360、无边框、深色底 · 标题 / 自检项列表 / 4px 进度条 / 结果行 / 状态行）+ <code>SplashScreen.xaml.cs</code>（<code>InitChecks</code> / <code>UpdateCheck</code> / <code>ShowBlockingFailure</code> / <code>SetFinished</code>）。自检项名逐字取自各 <code>IStartupCheck.Name</code>：单实例检测、配置与日志环境、视觉引擎（HALCON）、插件模块扫描（帮助手册合并与通讯连通性已移出启动链，不在此列）。</li>
+        <li>状态符号与语义取自 VM：<code>○</code> 等待（#888888）/ <code>✓</code> 通过（#6CCB6C）/ <code>✗</code> 失败（#F26D6D）；状态行文案三态：<code>正在检查：{name}…</code> / <code>启动失败</code> / <code>启动完成</code>。</li>
+        <li>改动要点：① 10 处硬编码色（<code>#1E1E1E / #333333 / #FFFFFF / #888888 / #CCCCCC / #4C9AFF / #FFB900 / #666666 / #6CCB6C / #F26D6D</code>）全部收成令牌 —— 本稿按浅色 <code>Dialog*</code> 画；若产品要保留深色启动页，需要新增一组 <code>Splash*</code> 深色令牌，不能继续写字面量；② 自检项行改成「符号 26 + 名称 150 + 明细」三列对齐，明细列可截断；③ 失败原因独立成块（红标签 + 一句话），不与状态行挤在一起；④ 进度改为「3 / 4 · 75%」文本 + 进度条双通道，避免只剩一条 4px 细线。</li>
+        <li>边界态：加载中（第 4 项进行中）与阻断性失败（<code>Environment.Exit(2)</code> 之前的最后一屏）都画了；「启动完成 + 警告」态只在 <code>ResultText</code> 里追加「警告：…」，结构同上，未单独出图。</li>
+        <li>需要新增的接口：无（<code>SplashCheckItem.Passed / Mark / Detail</code> 与三个方法已够用）。<span class="warn">共享 CSS 缺 <code>.progress</code> class</span>，分片只能用文本表达进度；WPF 侧沿用 <code>ProgressBar</code>，不要为设计稿新增控件。</li>
+      </ul>
+    </div>
+  </div>
+</section>

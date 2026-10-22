@@ -1,0 +1,181 @@
+<section class="view" id="view-33">
+  <div class="view-head">
+    <h2>硬件管理</h2>
+    <span class="file">VisionMaster\Views\DialogViews\HardwareManagerView.xaml</span>
+    <span class="size">705 行 · 0 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：概览页（三张域卡 + 当前异常） -->
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="t">硬件管理</span>
+        <span class="s">相机 / 通讯 / 运动控制 · 统一入口</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+
+      <div class="mock-body alt">
+        <div class="split">
+          <div class="split-aside" style="width:210px">
+            <div class="card-title">硬件管理</div>
+            <div class="hint">相机 · 通讯 · 运动控制</div>
+            <div class="row sel"><span class="name">▤ 概览</span><span class="meta">2</span></div>
+            <div class="row"><span class="name">▣ 相机</span><span class="meta">1</span></div>
+            <div class="row"><span class="name">◈ 通讯</span><span class="meta">1</span></div>
+            <div class="row"><span class="name">▸ 运动控制</span><span class="meta"></span></div>
+            <div class="row"><span class="name">⚠ 系统健康</span><span class="meta">›</span></div>
+            <div class="card">
+              <div class="card-title">当前方案</div>
+              <div class="kv"><span class="k">方案</span><span class="v">电芯装配线-2026Q4</span></div>
+              <div class="hint">配置随方案保存</div>
+            </div>
+          </div>
+
+          <div class="split-main">
+            <div class="toolbar">
+              <span>硬件概览</span>
+              <span class="hint">当前方案下所有硬件的运行状态；1 秒自动刷新。</span>
+              <span class="grow"></span>
+              <span class="tool">⟳ 刷新</span>
+            </div>
+
+            <div class="cards three">
+              <div class="card">
+                <div class="toolbar">
+                  <span class="dot ok"></span><span>相机</span>
+                  <span class="grow"></span>
+                  <span class="tag ok">正常</span>
+                  <span class="tool">打开</span>
+                </div>
+                <div class="kv"><span class="k">摘要</span><span class="v">相机 2/2 正常</span></div>
+                <div class="kv"><span class="k">细节</span><span class="v">最近一轮两次采样均收到新帧。</span></div>
+                <div class="kv"><span class="k">异常</span><span class="v">无异常</span></div>
+              </div>
+              <div class="card">
+                <div class="toolbar">
+                  <span class="dot err"></span><span>通讯</span>
+                  <span class="grow"></span>
+                  <span class="tag err">故障</span>
+                  <span class="tool">打开</span>
+                </div>
+                <div class="kv"><span class="k">摘要</span><span class="v">通讯 3/4 在线 · 1 故障</span></div>
+                <div class="kv"><span class="k">细节</span><span class="v">称重仪 10.0.0.31:4001 连接超时。</span></div>
+                <div class="kv"><span class="k">异常</span><span class="v">1 项异常</span></div>
+              </div>
+              <div class="card">
+                <div class="toolbar">
+                  <span class="dot ok"></span><span>运动控制</span>
+                  <span class="grow"></span>
+                  <span class="tag ok">正常</span>
+                  <span class="tool">打开</span>
+                </div>
+                <div class="kv"><span class="k">摘要</span><span class="v">运动卡 1/1 正常</span></div>
+                <div class="kv"><span class="k">细节</span><span class="v">已回零（卡级）· 4 轴使能。</span></div>
+                <div class="kv"><span class="k">异常</span><span class="v">无异常</span></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-title"><span class="dot err"></span>当前异常 <span class="tag err">2</span></div>
+              <div class="hint">更新 19:04:12</div>
+              <div class="row">
+                <span class="dot err"></span>
+                <span class="name">通讯 · 称重仪 — 连接超时（3000 ms）</span>
+                <span class="meta">19:03:58</span>
+              </div>
+              <div class="row">
+                <span class="dot warn"></span>
+                <span class="name">相机 · Cam-02 右工位 — 本采样周期无新帧（不代表掉线）</span>
+                <span class="meta">19:04:05</span>
+              </div>
+            </div>
+
+            <div class="hint">状态每 1 秒刷新；相机 / 运动配置随方案保存，通讯配置另写本机缓存。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mock-foot">
+        <span>配置随方案保存；通讯仅在通讯页有改动时写本机缓存。</span>
+        <span class="grow"></span>
+        <span class="tool">关闭</span>
+      </div>
+    </div>
+
+    <!-- 边界态：一个设备都没有（三张卡都"未配置"） -->
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="t">边界态 · 无设备</span>
+        <span class="s">三域 HasData = false · 左栏同上（略）</span>
+        <span class="grow"></span>
+        <span class="tag">无异常行</span>
+      </div>
+      <div class="mock-body alt">
+        <div class="split">
+          <div class="split-main">
+            <div class="toolbar">
+              <span>硬件概览</span>
+              <span class="hint">当前方案下所有硬件的运行状态；1 秒自动刷新。</span>
+              <span class="grow"></span>
+              <span class="tool">⟳ 刷新</span>
+            </div>
+
+            <div class="cards three">
+              <div class="card">
+                <div class="toolbar">
+                  <span class="dot"></span><span>相机</span>
+                  <span class="grow"></span>
+                  <span class="tag">未启用</span>
+                  <span class="tool">打开</span>
+                </div>
+                <div class="kv"><span class="k">摘要</span><span class="v">当前方案未配置相机</span></div>
+                <div class="kv"><span class="k">异常</span><span class="v">未配置</span></div>
+              </div>
+              <div class="card">
+                <div class="toolbar">
+                  <span class="dot"></span><span>通讯</span>
+                  <span class="grow"></span>
+                  <span class="tag">未启用</span>
+                  <span class="tool">打开</span>
+                </div>
+                <div class="kv"><span class="k">摘要</span><span class="v">当前方案未配置通讯连接</span></div>
+                <div class="kv"><span class="k">异常</span><span class="v">未配置</span></div>
+              </div>
+              <div class="card">
+                <div class="toolbar">
+                  <span class="dot"></span><span>运动控制</span>
+                  <span class="grow"></span>
+                  <span class="tag">未启用</span>
+                  <span class="tool">打开</span>
+                </div>
+                <div class="kv"><span class="k">摘要</span><span class="v">当前方案未配置运动卡</span></div>
+                <div class="kv"><span class="k">异常</span><span class="v">未配置</span></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-title"><span class="dot"></span>当前异常</div>
+              <div class="empty">
+                <div class="empty-glyph">□</div>
+                <div class="empty-title">当前没有待处理异常</div>
+                <div class="empty-hint">三域都还没有配置设备，所以没有任何可监控的运行态。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>HardwareManagerView.xaml</code>（52 高标题栏 / 左 210px 域导航 + 系统健康 + 当前方案 / 右四页 TabControl，页签头由左栏导航替代 / 52 高 footer）。导航项与页名逐字取自 VM：概览、相机、通讯、运动控制；页头「急停」只在运动控制页（<code>MotionEmergencyStopCommand</code>，子页整体禁用时它仍可点）。</li>
+        <li>改动要点：① 左栏导航统一「图标 + 名称 + 右侧异常计数」，计数为 0 时整块隐藏（<code>HasCount</code>）；② 三张域卡改成「卡头（状态点 + 域 + 档位 + 打开）+ 摘要 / 细节 / 异常三行」，卡片由 Grid 等高，现状 <code>MinHeight=174</code> 保留；③ 「当前异常」行从 3 列 Grid 改为「点 + 标题·说明 + 时间右对齐」；④ 「未加载方案」条放在页头与域卡之间，用标签 + 一句话，不压住刷新按钮。</li>
+        <li>跳转关系：域卡「打开」与左栏导航都落到相机 / 通讯 / 运动控制页；相机页与通讯页分别内嵌 <code>CameraSettingsView</code> / <code>CommunicationSettingsView</code>（<code>IEmbeddedDialogPage</code>，嵌入时隐藏子视图自己的标题栏与关闭按钮）。</li>
+        <li>文案问题（设计建议，不是缺陷）：无设备时汇总仍显示「全部设备状态正常」（<code>IssueSummary</code> 只看 IssueCount），与三张卡的「未启用」互相矛盾；建议无设备时改成「未配置任何硬件」。</li>
+        <li>需要新增的接口：<code>HardwareManagerViewModel.IsAllIdle</code>（三域 <code>HasData</code> 全为 false）用于上面的空态文案分支；其余（<code>IssueCount</code> / <code>HasCount</code> / <code>IsHealthy</code> / <code>IsSolutionMissing</code> / <code>HasPermissionHint</code>）已存在。</li>
+      </ul>
+    </div>
+  </div>
+</section>

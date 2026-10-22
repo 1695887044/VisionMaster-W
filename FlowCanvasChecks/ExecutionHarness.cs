@@ -102,7 +102,13 @@ namespace FlowCanvasChecks
         public void Info(params string[] messages) => Add(Infos, messages, "Info");
         public void Warn(params string[] messages) => Add(Warns, messages, "Warn");
         public void Error(params string[] messages) => Add(Errors, messages, "Error");
-        public void Error(params Exception[] messages) => Errors.Add("Error:" + string.Join(";", messages.Select(e => e.Message)));
+        /// <summary>
+        /// 异常重载：必须记完整 <c>ToString()</c>（含堆栈），不能只记 Message。
+        /// A9 的断言要验"异常日志含堆栈"——桩只记 Message 的话，产线把 <c>Error(ex)</c> 写回
+        /// <c>Error(ex.Message)</c> 也不会红，断言就是假绿（R38：跳过/宽松型判据必须能被反证）。
+        /// </summary>
+        public void Error(params Exception[] messages)
+            => Errors.Add("Error:" + string.Join(";", messages.Select(e => e.ToString())));
 
         /// <summary>是否出现过包含指定片段的 Warn（大小写按原文匹配，断言文案漂移就有意义）</summary>
         public bool HasWarn(string fragment) => Warns.Any(w => w.Contains(fragment));

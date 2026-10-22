@@ -22,9 +22,12 @@
     <InternalsVisibleTo Include="FlowCanvasChecks" />
   </ItemGroup>
 
-  <!-- 相机驱动以 Modules 目录为发现路径：宿主（DEBUG 直接扫仓库根 Modules）与断言工程都从这里找驱动 -->
-  <Target Name="CopyToModules" AfterTargets="Build">
-    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(MSBuildThisFileDirectory)..\..\Modules\" SkipUnchangedFiles="true" />
-  </Target>
+  <!--
+    自身 DLL 投递到 Modules\ 的路径**只有一条**：Plugins\Directory.Build.targets 的
+    CopyPluginToModules 目标（它把 $(TargetPath) 拷到 $(ModulesDir)，两种构建入口都成立）。
+    本工程原先另有一个同名 CopyToModules 目标把同一个 $(TargetPath) 再拷一遍——同一产物投两遍，
+    多出来的那遍对增量构建毫无贡献，只会让"到底哪条路径负责投递"变成两处事实来源（2026-10-22 移除）。
+    同批的 Plugin.ImageAssign.csproj 也是同一口径（它只留注释、不写 PostBuild）。
+  -->
 
 </Project>

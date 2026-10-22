@@ -1,0 +1,137 @@
+<section class="view" id="view-28">
+  <div class="view-head">
+    <h2>运动板卡 · 手动调试（页签内容）</h2>
+    <span class="file">VisionMaster\Views\DialogViews\MotionBoard\MotionBoardDebugView.xaml</span>
+    <span class="size">1077 行 · 6 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：状态栏 + 三栏 [230 | 1fr | 270] -->
+    <div class="mock" style="width:1080px;max-width:100%;margin-bottom:14px">
+      <div class="mock-bar">
+        <span class="t">手动调试</span><span class="s">页签 2/3 · 运动卡1 · 已连接</span>
+        <span class="grow"></span><span class="tag">按住才动，松开即停</span>
+      </div>
+      <div class="mock-body alt">
+        <div class="card">
+          <div class="field" style="margin-bottom:0">
+            <div style="flex:1 1 auto"><div class="hint">当前运动卡</div>
+              <div style="margin-top:2px"><strong style="font-size:15px">运动卡1</strong>
+                <span class="tag info"><span class="dot info"></span>已连接</span><span class="tag err">⚠ 报警轴 X轴</span></div>
+            </div>
+            <span class="tool">断开</span><span class="tool">清除报警</span><span class="tool danger">■ 急停</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="field" style="margin-bottom:0">
+            <span class="hint">命令统计</span><span class="tag ok"><span class="dot ok"></span>已执行 128</span>
+            <span class="tag">已拒绝 3</span><span class="tag">故障 0</span><span class="tag err">⚠ 需要回零后才能运动</span>
+          </div>
+        </div>
+
+        <div class="split" style="margin-top:10px">
+          <div class="split-aside" style="width:230px">
+            <div class="hint" style="margin:2px 0 8px">轴列表 · 点选后操作</div>
+            <div class="row sel"><div class="name"><div><strong>X轴</strong></div><div class="hint"><span class="dot err"></span> 报警</div></div><span class="mono">1234.567</span></div>
+            <div class="row"><div class="name"><div><strong>Y轴</strong></div><div class="hint"><span class="dot info"></span> 已使能·已回零</div></div><span class="mono">842.000</span></div>
+            <div class="row"><div class="name"><div><strong>Z轴</strong></div><div class="hint"><span class="dot info"></span> 已使能</div></div><span class="mono">-12.500</span></div>
+            <div class="row"><div class="name"><div><strong>R轴</strong></div><div class="hint"><span class="dot"></span> 未使能</div></div><span class="mono">0.000</span></div>
+          </div>
+          <div class="split-main">
+            <div class="card">
+              <div class="field" style="margin-bottom:0">
+                <div class="kv" style="flex:0 0 auto;display:block"><div class="k">当前轴</div><div class="v"><strong>X轴</strong></div></div>
+                <span class="sep"></span>
+                <div class="kv" style="flex:0 0 auto;display:block"><div class="k">实际位置</div><div class="v mono" style="font-size:24px"><strong>1234.567</strong> mm</div></div>
+                <span style="flex:1 1 auto"></span><span class="tag err">报警</span>
+              </div>
+            </div>
+            <div class="card"><div class="card-title">伺服使能 <span class="hint">动作</span></div>
+              <div class="hint">使能发指令给伺服驱动器（有机械延迟）；失能或停止后机构处于安全位置。</div>
+              <div style="display:flex;gap:8px;margin-top:10px"><span class="tool primary">使能</span><span class="tool">失能</span><span class="tool danger">■ 停止</span></div></div>
+            <div class="card"><div class="card-title">点动 <span class="hint">按住才动，松开即停</span></div>
+              <div style="display:flex;gap:10px"><span class="tool" style="flex:1 1 auto">‹ 负向点动</span><span class="tool" style="flex:1 1 auto">正向点动 ›</span></div>
+              <div class="field" style="margin:10px 0 0"><span class="hint">速度 (mm/s)</span><span class="input mono" style="width:90px;flex:0 0 auto">5</span><span class="tag">0 = 使用卡内默认速度</span></div></div>
+            <div class="card"><div class="card-title">定位 <span class="hint">绝对位置运动</span></div>
+              <div class="field"><span class="hint">目标位置 (mm)</span><span class="input mono" style="width:120px;flex:0 0 auto">1200.000</span><span class="tool">取自当前位置</span></div>
+              <div class="field"><span class="hint">速度 (mm/s · 0=卡内默认)</span><span class="input mono" style="width:120px;flex:0 0 auto">50.0</span>
+                <span class="hint">等待超时 (ms)</span><span class="input mono" style="width:100px;flex:0 0 auto">30000</span></div>
+              <div style="display:flex;gap:8px;margin-top:4px"><span class="tool">走到（不等待）</span><span class="tool primary">走到并等待到位</span></div></div>
+            <div class="card"><div class="card-title">回零方式</div>
+              <div class="field" style="margin-bottom:0"><span class="combo" style="width:180px;flex:0 0 auto">负限位 + Index</span><span class="tool primary">开始回零</span></div>
+              <div class="hint" style="margin-top:10px">回零速度与该回零逻辑应用控制卡内的现有设置（运动不擅自覆盖已调好的参数）。</div></div>
+            <div class="card"><span class="tag info">◈ X轴 正在定位中，可随时点「停止」中断</span></div>
+            <div class="hint">选中一根轴后即可手动操作。点动为「按住才动、松手即停」。</div>
+          </div>
+          <div class="split-right" style="width:270px">
+            <div class="card-title">卡上 IO</div>
+            <div class="hint">数字输入 IN · 24 路 · 只读监视</div>
+            <div class="cards" style="margin-top:6px">
+              <div class="card" style="padding:6px 8px"><span class="dot ok"></span> IN0</div><div class="card" style="padding:6px 8px"><span class="dot"></span> IN1</div>
+              <div class="card" style="padding:6px 8px"><span class="dot ok"></span> IN2</div><div class="card" style="padding:6px 8px"><span class="dot"></span> IN3</div>
+              <div class="card" style="padding:6px 8px"><span class="dot"></span> IN4</div><div class="card" style="padding:6px 8px"><span class="dot ok"></span> IN5</div>
+              <div class="card" style="padding:6px 8px"><span class="dot"></span> IN6</div><div class="card" style="padding:6px 8px"><span class="dot"></span> IN7</div>
+            </div>
+            <div class="hint" style="margin-top:12px">数字输出 OUT · 16 路 · 点击切换</div>
+            <div class="cards" style="margin-top:6px">
+              <div class="card" style="padding:6px 8px"><span class="dot ok"></span> OUT0</div><div class="card" style="padding:6px 8px"><span class="dot"></span> OUT1</div>
+              <div class="card" style="padding:6px 8px"><span class="dot"></span> OUT2</div><div class="card" style="padding:6px 8px"><span class="dot ok"></span> OUT3</div>
+              <div class="card" style="padding:6px 8px"><span class="dot"></span> OUT4</div><div class="card" style="padding:6px 8px"><span class="dot"></span> OUT5</div>
+              <div class="card" style="padding:6px 8px"><span class="dot"></span> OUT6</div><div class="card" style="padding:6px 8px"><span class="dot"></span> OUT7</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 边界态：未连接控制器 -->
+    <div class="mock" style="width:1080px;max-width:100%">
+      <div class="mock-bar">
+        <span class="t">手动调试</span><span class="s">页签 2/3 · 运动卡1 · 未连接</span>
+        <span class="grow"></span><span class="tag warn">控制器未连接</span>
+      </div>
+      <div class="mock-body alt">
+        <div class="card">
+          <div class="field" style="margin-bottom:0">
+            <div style="flex:1 1 auto"><div class="hint">当前运动卡</div>
+              <div style="margin-top:2px"><strong style="font-size:15px">运动卡1</strong><span class="tag"><span class="dot"></span>未连接</span></div>
+            </div>
+            <span class="tool primary">连接</span><span class="tool">清除报警</span><span class="tool danger">■ 急停</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="field" style="margin-bottom:0"><span class="hint">命令统计</span><span class="tag">已执行 0</span><span class="tag">已拒绝 0</span><span class="tag">故障 0</span><span class="tag err">⚠ 需要回零后才能运动</span></div>
+        </div>
+        <div class="split" style="margin-top:10px">
+          <div class="split-aside" style="width:230px">
+            <div class="hint" style="margin:2px 0 8px">轴列表 · 点选后操作</div>
+            <div class="row"><div class="name"><div><strong>X轴</strong></div><div class="hint"><span class="dot"></span> 未连接</div></div><span class="mono">0.000</span></div>
+            <div class="row"><div class="name"><div><strong>Y轴</strong></div><div class="hint"><span class="dot"></span> 未连接</div></div><span class="mono">0.000</span></div>
+            <div class="row"><div class="name"><div><strong>Z轴</strong></div><div class="hint"><span class="dot"></span> 未连接</div></div><span class="mono">0.000</span></div>
+            <div class="row"><div class="name"><div><strong>R轴</strong></div><div class="hint"><span class="dot"></span> 未连接</div></div><span class="mono">0.000</span></div>
+          </div>
+          <div class="split-main">
+            <div class="empty">
+              <div class="empty-glyph">◈</div>
+              <div class="empty-title">控制器未连接，读数与 IO 均为空</div>
+              <div class="empty-hint">选中一根轴后即可手动操作。点动为「按住才动、松手即停」——但使能 / 点动 / 定位 / 回零要先「连接」才可用。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>MotionBoardDebugView.xaml</code>（状态栏卡 + 命令统计 chip 条 + 三栏 [230 | 1fr | 270]）、<code>MotionBoardDebugTabViewModel</code>（<code>CardStateText</code> / <code>StateLabel</code> / <code>WaitButtonText</code> / <code>HomeButtonText</code> / <code>MovingHint</code>）</li>
+        <li>关键结构事实：三栏宽度写死 230 / 1fr / 270，且三栏各自带 ScrollViewer——本页<b>刻意不套外层滚动</b>（套了内层拿到无限高度就失效，内容被窗口裁掉且没有滚动条）。</li>
+        <li>关键结构事实：轴状态字有固定优先级 <code>报警 &gt; 正限位 &gt; 负限位 &gt; 运动中 &gt; 已使能(·已回零) &gt; 未使能</code>，另有 <code>未连接 / 无状态 / 映射停用</code> 三种兜底；示例数据按这套语义给。</li>
+        <li>改动要点：6 处 hex 换令牌；读数条的 <code>#1A0DA2E7→#66F1F5F9</code> 渐变与状态胶囊的三段色改成「浅底 + 主色数字 + <code>tag</code>」，与 27/29/30 同一套。</li>
+        <li>改动要点：IO 格子从自绘 Border + 触发器改成 <code>cards</code> + <code>dot</code>（IN 只读、OUT 可点），输出格补 hover 边框；两栏路数取自设备能力（<code>Capabilities.DigitalInputCount / DigitalOutputCount</code>）：正运动卡典型 24 入 / 16 出；只有未连接时才是默认 8/8。</li>
+        <li>改动要点：未连接态把"能点什么"写清楚——只留「连接」，读数与 IO 用空态说明，不显示一排点了没反应的按钮。</li>
+        <li>需要新增的接口：无（状态字、按钮文案、提示条全部来自 VM；本页只做视觉重排）</li>
+      </ul>
+    </div>
+  </div>
+</section>

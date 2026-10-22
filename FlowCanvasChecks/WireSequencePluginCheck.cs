@@ -53,11 +53,17 @@ namespace FlowCanvasChecks
             Section("[R5] 线序检测·插件版方案：加载 → 编译 → 各跑一遍 → 断言结果与投射");
 
             var repoRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..\"));
-            var vmsPath = Path.Combine(repoRoot, "解决方案", "线序检测-插件版.vms");
+            // A2（2026-10-22，R38）：缺失不再硬红 + return，改成可反证的跳过（清单见 MissingSolutionSamples）
+            var vmsPath = MissingSolutionSamples.ExpectedPath(repoRoot, "线序检测-插件版.vms");
             var imgDir = Path.Combine(repoRoot, "Image", "颜色");
 
-            Check("方案文件存在", File.Exists(vmsPath), vmsPath);
-            if (!File.Exists(vmsPath)) return;
+            if (!File.Exists(vmsPath))
+            {
+                Check("方案（线序检测-插件版.vms）", true,
+                    MissingSolutionSamples.SkipReason(repoRoot, "线序检测-插件版.vms"));
+                return;
+            }
+            Check("方案（线序检测-插件版.vms）", true, vmsPath);
 
             // 两个插件程序集先装进默认 ALC：本工程的 bin 里没有 Plugin.*.dll，
             // 不装的话编译期 Type.GetType 会找不到类型

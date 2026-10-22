@@ -120,12 +120,23 @@ namespace Core.Interfaces
             {
                 RunAlgorithm(context);
             }
+            catch (OperationCanceledException) when (context?.CancellationToken.IsCancellationRequested == true)
+            {
+                // 取消不是失败（A9）：急停/停止请求让插件从 RunAlgorithm 里脱出来，与"算子算错了"
+                // 是两件完全不同的事。这里**不写 Success=false、不写 ErrorMessage**，原样上抛，
+                // 由节点层（CompiledPluginNode）按"令牌已取消"记成 Skipped —— 界面上一行灰，
+                // 不是一行红；流程收尾也不会多出一条"执行失败"。
+                // 判据带 when 令牌已取消：插件自己抛的 OCE（内部超时之类）仍按普通异常转失败。
+                throw;
+            }
             catch (Exception ex)
             {
                 // 未捕获异常自动落到失败契约： ErrorMessage 有原因、日志有记录、
                 // 归因仍在本节点——插件开发者不写 try/catch 也守得住约定
+                // ErrorMessage 保持短文案（界面/输出端口要的是"一句话原因"），
+                // 完整堆栈走日志：现场最常见的是 NullReferenceException，只留 Message 等于没有线索。
                 Fail($"{ex.GetType().Name}: {ex.Message}");
-                context?.Logger?.Error($"[{InstanceName}] 未捕获异常已转为步骤失败：{ex.Message}");
+                context?.Logger?.Error(ex);
                 if (RethrowOnException)
                     throw; // 策略声明型例外：信息已落 ErrorMessage，仍交引擎中断当轮
             }

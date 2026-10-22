@@ -89,6 +89,8 @@ namespace VisionMaster.Scada
                 // ---- IO 域：模式 ----
                 ["Output"] = "只读",
                 ["InputOutput"] = "读写",
+                ["Release"] = "松手写入",
+                ["Throttled"] = "拖动节流",
 
                 // ---- ComboBox 呈现方式（P0-2：只读显示） ----
                 ["Field"] = "字段",

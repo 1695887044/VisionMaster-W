@@ -1,5 +1,5 @@
 /*!
- * elements-interactive.js — SCADA 运行态 Web 渲染器 · M2（6 个交互图元）
+ * elements-interactive.js — SCADA 运行态 Web 渲染器 · M2（7 个交互图元）
  *
  * 注册到 window.ScadaRenderers（由 app.js 提供）：
  *   Hmi.Button          按钮（按下 / 释放两个事件钩子）
@@ -7,6 +7,7 @@
  *   Hmi.TextField       文本输入域（Enter / 失焦提交，Esc 取消，空串合法）
  *   Hmi.ComboBox        枚举下拉（值变化才写，打开又关闭不写）
  *   Hmi.SelectorSwitch  多档旋钮（点击写档位号，高亮等服务端回读）
+ *   Hmi.Slider          模拟量滑块（拖动只改本地显示，松手写一次）
  *   Hmi.AckButton       报警确认（All / Oldest）
  *
  * 契约（与 app.js / elements-process.js 一致）：
@@ -983,6 +984,7 @@
             current.maxLength = clamp(resolveNumber(el, values, 'MaxLength', 64), 1, 512);
             current.label = resolveText(el, values, 'Text', '');
             current.mode = resolveText(el, values, 'Mode', 'InputOutput');
+            current.confirmDanger = resolveBool(el, values, 'ConfirmDanger', false);
             current.fill = resolveColor(el, values, 'Fill', '#FF151C23');
             current.stroke = resolveColor(el, values, 'Stroke', '#FF3A4A5C');
             current.strokeThickness = resolveNumber(el, values, 'StrokeThickness', 1);
@@ -1283,6 +1285,7 @@
             }
 
             current.mode = resolveText(el, values, 'Mode', 'InputOutput');
+            current.confirmDanger = resolveBool(el, values, 'ConfirmDanger', false);
             current.fill = resolveColor(el, values, 'Fill', '#FF151C23');
             current.stroke = resolveColor(el, values, 'Stroke', '#FF3A4A5C');
             current.strokeThickness = resolveNumber(el, values, 'StrokeThickness', 1);
@@ -1680,6 +1683,7 @@
                 resolveText(el, values, 'Option3Text', '备用')
             ];
             current.mode = resolveText(el, values, 'Mode', 'InputOutput');
+            current.confirmDanger = resolveBool(el, values, 'ConfirmDanger', false);
             current.trackColor = resolveColor(el, values, 'TrackColor', '#FF26313D');
             current.fill = resolveColor(el, values, 'Fill', '#FF15803D');
             current.stroke = resolveColor(el, values, 'Stroke', '#FF2A3745');
@@ -1727,7 +1731,444 @@
     };
 
     // ======================================================================
-    //  6) 报警确认按钮 Hmi.AckButton
+    //  6) 模拟量滑块 Hmi.Slider
+    //
+    //  与桌面同一口径：拖动只改本地显示，松手才发一次 cmd.input；失败回弹到
+    //  服务端回读的 Value 并显示原因。不做 100ms 节流（浏览器端没有现场
+    //  "必须连续跟随"的诉求，少一条写路径更稳）。
+    // ======================================================================
+
+    registry['Hmi.Slider'] = function (el, ctx) {
+        var node = document.createElement('div');
+        node.className = 'hmi-interactive hmi-slider';
+        node.tabIndex = 0;
+        node.style.position = 'relative';
+        node.style.touchAction = 'none';
+
+        var track = document.createElement('div');
+        var fill = document.createElement('div');
+        var thumb = document.createElement('div');
+        var valueText = document.createElement('div');
+        var errorBox = document.createElement('div');
+
+        track.style.position = 'absolute';
+        fill.style.position = 'absolute';
+        thumb.style.position = 'absolute';
+        valueText.style.position = 'absolute';
+        errorBox.style.position = 'absolute';
+        valueText.style.right = '0';
+        valueText.style.top = '0';
+        errorBox.style.left = '0';
+        errorBox.style.right = '0';
+        errorBox.style.top = '0';
+        errorBox.style.textAlign = 'right';
+        errorBox.style.fontSize = '10px';
+        errorBox.style.color = '#EF4444';
+        errorBox.style.background = 'rgba(14,19,24,.85)';
+        errorBox.style.borderRadius = '3px';
+        errorBox.style.padding = '1px 4px';
+        errorBox.style.zIndex = '3';
+        errorBox.style.pointerEvents = 'none';
+
+        node.appendChild(track);
+        node.appendChild(fill);
+        node.appendChild(thumb);
+        node.appendChild(valueText);
+        node.appendChild(errorBox);
+
+        var frameValues = {};
+        var dragging = false;
+        var displayValue = 0;
+
+        var current = {
+            value: toNumber(prop(el, 'Value', '0'), 0),
+            minimum: toNumber(prop(el, 'Minimum', '0'), 0),
+            maximum: toNumber(prop(el, 'Maximum', '100'), 100),
+            step: toNumber(prop(el, 'Step', '1'), 1),
+            valueFormat: prop(el, 'ValueFormat', '0.#'),
+            orientation: prop(el, 'Orientation', 'Horizontal'),
+            trackColor: prop(el, 'TrackColor', '#FF26313D'),
+            fill: prop(el, 'Fill', '#FF2D7DD2'),
+            stroke: prop(el, 'Stroke', '#FF5A5A5A'),
+            strokeThickness: toNumber(prop(el, 'StrokeThickness', '1'), 1),
+            cornerRadius: toNumber(prop(el, 'CornerRadius', '4'), 4),
+            foreground: prop(el, 'Foreground', '#FFE6EEF7'),
+            fontSize: toNumber(prop(el, 'FontSize', '12'), 12),
+            fontWeight: prop(el, 'FontWeight', 'Normal'),
+            showValue: toBool(prop(el, 'ShowValue', 'True'), true),
+            mode: prop(el, 'Mode', 'InputOutput'),
+            confirmDanger: toBool(prop(el, 'ConfirmDanger', 'False'), false),
+            error: ''
+        };
+
+        displayValue = current.value;
+
+        function isOutputMode() {
+            return /^output$/i.test(String(current.mode || '').trim());
+        }
+
+        function editable() {
+            return !isOutputMode() && !current.confirmDanger && canOperate(ctx, el);
+        }
+
+        function readOnlyReason() {
+            if (isOutputMode()) return '当前为只读模式';
+            if (current.confirmDanger) return '该滑块要求写入前确认，Web 端不可写，请在桌面操作';
+            return operateReason(ctx, el) || '当前不可操作';
+        }
+
+        function showReadOnlyReason() {
+            var reason = readOnlyReason();
+            if (typeof ctx.showToast === 'function') ctx.showToast(reason, 'warn');
+            return reason;
+        }
+
+        function ratio() {
+            var span = current.maximum - current.minimum;
+            if (!isFinite(span) || span <= 0) return 0;
+            return clamp((displayValue - current.minimum) / span, 0, 1);
+        }
+
+        function valueFromRatio(r) {
+            var span = current.maximum - current.minimum;
+            if (!isFinite(span) || span <= 0) return current.minimum;
+            return current.minimum + clamp(r, 0, 1) * span;
+        }
+
+        function formatValue(v) {
+            var format = String(current.valueFormat || '0.#').trim();
+            var n = Number(v);
+            if (!isFinite(n)) return String(v);
+
+            var standard = format.match(/^([FfNnPpCc])(\d*)(.*)$/);
+            var decimals;
+            var fixed;
+            var unit;
+            var grouping = false;
+            var mandatoryDecimals = 0;
+            var integerOptional = false;
+
+            if (standard) {
+                decimals = standard[2] ? Math.min(6, parseInt(standard[2], 10)) : 2;
+                fixed = true;
+                mandatoryDecimals = decimals;
+                unit = standard[3] || '';
+
+                var kind = standard[1].toUpperCase();
+
+                if (kind === 'P') {
+                    n *= 100;
+                    grouping = true;
+                    unit = ' %' + unit;
+                } else if (kind === 'N' || kind === 'C') {
+                    // C 的货币符号在 InvariantCulture 下是 ¤，现场上屏无意义；
+                    // 与 N 一样只保留小数位和千分位。
+                    grouping = true;
+                }
+            } else {
+                var dot = format.indexOf('.');
+                if (dot >= 0) {
+                    var tail = format.slice(dot + 1);
+                    var digits = tail.match(/^([0#]+)/);
+                    var pattern = digits ? digits[1] : '';
+                    var mandatory = (pattern.match(/0/g) || []).length;
+                    var optional = (pattern.match(/#/g) || []).length;
+                    decimals = Math.min(6, mandatory + optional);
+                    fixed = optional === 0;
+                    mandatoryDecimals = mandatory;
+                    unit = tail.slice(pattern.length);
+                    grouping = format.slice(0, dot).indexOf(',') >= 0;
+                    integerOptional = format.slice(0, dot).indexOf('0') < 0;
+                } else {
+                    decimals = 0;
+                    fixed = true;
+                    mandatoryDecimals = 0;
+                    unit = format.replace(/[0#]/g, '');
+                    grouping = format.indexOf(',') >= 0;
+                    integerOptional = format.indexOf('0') < 0;
+                }
+
+                // .NET 自定义格式里的 % 是"乘以 100 再显示百分号"（0.0% 把 0.5 显示成 50.0%）。
+                // 标准 P 在上面已经乘过，这里只处理自定义格式，避免重复乘 100。
+                if (unit.indexOf('%') >= 0) n *= 100;
+            }
+
+            var text = n.toFixed(decimals);
+
+            // 自定义格式里 0 = 必选位、# = 可选位：尾零只能剥到 mandatoryDecimals，
+            // 不能像旧实现那样"只要含 # 就全剥"（0.0# 把 50 显示成 50，桌面是 50.0）。
+            if (!fixed) {
+                var dotIndex = text.indexOf('.');
+                if (dotIndex >= 0) {
+                    var fraction = text.slice(dotIndex + 1);
+                    while (fraction.length > mandatoryDecimals
+                        && fraction.charAt(fraction.length - 1) === '0') {
+                        fraction = fraction.slice(0, -1);
+                    }
+                    text = fraction.length > 0
+                        ? text.slice(0, dotIndex + 1) + fraction
+                        : text.slice(0, dotIndex);
+                }
+            }
+
+            // 整数段全是 # 且值为 0：.NET 输出空串（#.## 的 0 → ""）；
+            // 非零小数则去掉前导 0（#.## 的 0.5 → ".5"）。
+            if (integerOptional && Number(text) === 0 && mandatoryDecimals === 0) {
+                text = '';
+            } else if (integerOptional) {
+                text = text.replace(/^(-?)0(?=\.)/, '$1');
+            }
+
+            if (grouping && text) {
+                var parts = text.split('.');
+                parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                text = parts.join('.');
+            }
+
+            return text + unit;
+        }
+
+        function render() {
+            var horizontal = !/^vertical$/i.test(String(current.orientation || '').trim());
+            var r = ratio();
+            var canEdit = editable();
+            var thickness = clamp(current.strokeThickness, 0, 20, 1);
+            var radius = clamp(current.cornerRadius, 0, 999, 4);
+
+            node.style.opacity = canEdit ? '1' : '0.55';
+            node.style.cursor = canEdit ? 'pointer' : 'not-allowed';
+            node.title = canEdit ? '' : readOnlyReason();
+
+            if (horizontal) {
+                track.style.left = '10px';
+                track.style.right = '10px';
+                track.style.top = '50%';
+                track.style.width = 'auto';
+                track.style.height = '8px';
+                track.style.transform = 'translateY(-50%)';
+                fill.style.left = '10px';
+                fill.style.top = '50%';
+                fill.style.bottom = 'auto';
+                fill.style.width = 'calc((100% - 20px) * ' + r + ')';
+                fill.style.height = '8px';
+                fill.style.transform = 'translateY(-50%)';
+                thumb.style.left = 'calc(10px + (100% - 20px) * ' + r + ' - 10px)';
+                thumb.style.top = '50%';
+                thumb.style.bottom = 'auto';
+                thumb.style.transform = 'translateY(-50%)';
+            } else {
+                track.style.top = '10px';
+                track.style.bottom = '10px';
+                track.style.left = '50%';
+                track.style.width = '8px';
+                track.style.height = 'auto';
+                track.style.transform = 'translateX(-50%)';
+                fill.style.left = '50%';
+                fill.style.bottom = '10px';
+                fill.style.top = 'auto';
+                fill.style.width = '8px';
+                fill.style.height = 'calc((100% - 20px) * ' + r + ')';
+                fill.style.transform = 'translateX(-50%)';
+                thumb.style.left = '50%';
+                thumb.style.bottom = 'calc(10px + (100% - 20px) * ' + r + ' - 10px)';
+                thumb.style.top = 'auto';
+                thumb.style.transform = 'translateX(-50%)';
+            }
+
+            track.style.background = cssColor(current.trackColor, '#26313D');
+            track.style.border = thickness > 0
+                ? thickness + 'px solid ' + cssColor(current.stroke, '#5A5A5A')
+                : 'none';
+            track.style.borderRadius = radius + 'px';
+            fill.style.background = cssColor(current.error ? '#EF4444' : current.fill, '#2D7DD2');
+            fill.style.borderRadius = radius + 'px';
+
+            thumb.style.width = '20px';
+            thumb.style.height = '20px';
+            thumb.style.borderRadius = '10px';
+            thumb.style.background = '#E6EEF7';
+            thumb.style.border = '1px solid #0E1318';
+            thumb.style.boxShadow = dragging ? '0 0 0 6px rgba(56,189,248,.22)' : 'none';
+
+            var hasError = !!current.error;
+
+            // 错误显示在节点内顶部（与数值文字同一位置），不放到节点外——
+            // .viewport 是 overflow:hidden，贴着页面底边时 bottom:-16px 会被裁掉。
+            valueText.style.display = current.showValue && !hasError ? 'block' : 'none';
+            valueText.textContent = formatValue(displayValue);
+            valueText.style.color = cssColor(current.foreground, '#E6EEF7');
+            valueText.style.fontSize = clamp(current.fontSize, 6, 200) + 'px';
+            valueText.style.fontWeight = cssWeight(current.fontWeight);
+
+            errorBox.textContent = current.error || '';
+            errorBox.style.display = hasError ? 'block' : 'none';
+        }
+
+        function setDisplay(value) {
+            var min = Math.min(current.minimum, current.maximum);
+            var max = Math.max(current.minimum, current.maximum);
+            displayValue = clamp(Number(value), min, max);
+            render();
+        }
+
+        function updateFromEvent(event) {
+            var rect = track.getBoundingClientRect();
+            if (!rect || rect.width <= 0 || rect.height <= 0) return;
+
+            var horizontal = !/^vertical$/i.test(String(current.orientation || '').trim());
+            var r = horizontal
+                ? (event.clientX - rect.left) / rect.width
+                : 1 - (event.clientY - rect.top) / rect.height;
+
+            setDisplay(valueFromRatio(r));
+        }
+
+        function write(value) {
+            if (!editable()) {
+                showReadOnlyReason();
+                return;
+            }
+
+            current.error = '';
+            var text = String(Number(value));
+
+            sendCommand(ctx, 'cmd.input', {
+                elementId: el.ElementId,
+                property: 'Value',
+                value: text
+            }).then(function () {
+                // 不本地改 current.value：等下一次服务端回读帧；显示值先保留。
+                render();
+            }).catch(function (error) {
+                current.error = error && error.message ? String(error.message) : '写入失败，已回弹';
+                displayValue = current.value;
+                render();
+                reportCommandError(ctx, error);
+            });
+        }
+
+        function endDrag(event) {
+            if (!dragging) return;
+
+            dragging = false;
+            if (event && node.releasePointerCapture && event.pointerId !== undefined) {
+                try { node.releasePointerCapture(event.pointerId); } catch (err) { /* 忽略 */ }
+            }
+
+            write(displayValue);
+        }
+
+        node.addEventListener('pointerdown', function (event) {
+            if (event.button !== undefined && event.button !== 0) return;
+
+            if (!editable()) {
+                showReadOnlyReason();
+                return;
+            }
+
+            event.preventDefault();
+            dragging = true;
+            try { node.focus({ preventScroll: true }); } catch (err) { try { node.focus(); } catch (e) { /* 忽略 */ } }
+            if (node.setPointerCapture && event.pointerId !== undefined) {
+                try { node.setPointerCapture(event.pointerId); } catch (err) { /* 忽略 */ }
+            }
+            updateFromEvent(event);
+        });
+
+        node.addEventListener('pointermove', function (event) {
+            if (!dragging) return;
+
+            // pointerup 丢失（切窗口/系统抢占）时，左键已经不在按下状态：
+            // 按松手处理，写最终值并退出拖动，不能继续跟着鼠标跑。
+            if (typeof event.buttons === 'number' && (event.buttons & 1) === 0) {
+                endDrag(event);
+                return;
+            }
+
+            event.preventDefault();
+            updateFromEvent(event);
+        });
+
+        node.addEventListener('pointerup', function (event) {
+            if (!dragging) return;
+            event.preventDefault();
+            updateFromEvent(event);
+            endDrag(event);
+        });
+
+        node.addEventListener('pointercancel', function (event) {
+            endDrag(event);
+        });
+
+        node.addEventListener('keydown', function (event) {
+            if (!editable()) return;
+
+            var step = Number(current.step);
+            if (!isFinite(step) || step <= 0) step = 1;
+
+            var next = displayValue;
+            var handled = true;
+
+            switch (event.key) {
+                case 'ArrowLeft':
+                case 'ArrowDown':
+                    next -= step;
+                    break;
+                case 'ArrowRight':
+                case 'ArrowUp':
+                    next += step;
+                    break;
+                case 'Home':
+                    next = current.minimum;
+                    break;
+                case 'End':
+                    next = current.maximum;
+                    break;
+                default:
+                    handled = false;
+                    break;
+            }
+
+            if (!handled) return;
+
+            event.preventDefault();
+            setDisplay(next);
+            write(displayValue);
+        });
+
+        function apply(values) {
+            mergeFrames(frameValues, values);
+            values = frameValues;
+
+            current.value = resolveNumber(el, values, 'Value', 0);
+            current.minimum = resolveNumber(el, values, 'Minimum', 0);
+            current.maximum = resolveNumber(el, values, 'Maximum', 100);
+            current.step = resolveNumber(el, values, 'Step', 1);
+            current.valueFormat = resolveText(el, values, 'ValueFormat', '0.#');
+            current.orientation = resolveText(el, values, 'Orientation', 'Horizontal');
+            current.trackColor = resolveColor(el, values, 'TrackColor', '#FF26313D');
+            current.fill = resolveColor(el, values, 'Fill', '#FF2D7DD2');
+            current.stroke = resolveColor(el, values, 'Stroke', '#FF5A5A5A');
+            current.strokeThickness = resolveNumber(el, values, 'StrokeThickness', 1);
+            current.cornerRadius = resolveNumber(el, values, 'CornerRadius', 4);
+            current.foreground = resolveColor(el, values, 'Foreground', '#FFE6EEF7');
+            current.fontSize = resolveNumber(el, values, 'FontSize', 12);
+            current.fontWeight = resolveText(el, values, 'FontWeight', 'Normal');
+            current.showValue = resolveBool(el, values, 'ShowValue', true);
+            current.mode = resolveText(el, values, 'Mode', 'InputOutput');
+            current.confirmDanger = resolveBool(el, values, 'ConfirmDanger', false);
+
+            if (!dragging) displayValue = current.value;
+            render();
+        }
+
+        apply();
+
+        return { node: node, update: apply };
+    };
+
+    // ======================================================================
+    //  7) 报警确认按钮 Hmi.AckButton
     //
     //  Scope=All：cmd.alarm.ack {all:true}；
     //  Scope=Oldest：取 ActivatedAtUtc 最早的一条，cmd.alarm.ack {all:false, alarmId}。

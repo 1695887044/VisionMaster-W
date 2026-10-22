@@ -41,6 +41,12 @@ namespace VisionMaster.ViewModels
         /// </summary>
         public string BreakpointToggleHeader => CurrentSelectedStepModel?.IsBreakpoint == true ? "取消断点" : "设置断点";
 
+        /// <summary>
+        /// 右键菜单「断点」项的勾选态（菜单 C 方案的 ✓ 标记）。
+        /// 与 BreakpointToggleHeader 同源、同刷新点：选中步骤变化 + 本命令取反之后。
+        /// </summary>
+        public bool IsBreakpointSet => CurrentSelectedStepModel?.IsBreakpoint == true;
+
         public IWorkspaceManager Workspace { get; init; }
 
         /// <summary>
@@ -111,6 +117,7 @@ namespace VisionMaster.ViewModels
                 RaisePropertyChanged(nameof(IsParallelNodeSelected));
                 RaisePropertyChanged(nameof(DisableToggleHeader));
                 RaisePropertyChanged(nameof(BreakpointToggleHeader));
+                RaisePropertyChanged(nameof(IsBreakpointSet));
 
                 // 反向推送来的值本来就是 Workspace 自己发出来的，再 SwitchStep 一次纯属回环
                 if (!_syncingFromWorkspace)
@@ -622,6 +629,7 @@ namespace VisionMaster.ViewModels
                         break;
                     CurrentSelectedStepModel.IsBreakpoint = !CurrentSelectedStepModel.IsBreakpoint;
                     RaisePropertyChanged(nameof(BreakpointToggleHeader));
+                    RaisePropertyChanged(nameof(IsBreakpointSet));
                     break;
                 case ModuleCommandAction.ToggleDisable:
                     if (CurrentSelectedStepModel == null)

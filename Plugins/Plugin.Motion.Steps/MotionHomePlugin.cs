@@ -17,7 +17,8 @@ namespace Plugin.Motion.Steps
     ///      能力协商不通过时给出"该卡支持哪些"，比让用户在界面上试一遍强。
     ///
     /// 何时必须回零：增量式编码器的卡在**每次上电/断线重连后**位置都不可信（能力位
-    /// SupportsAbsoluteEncoder 为 false）。建议把本步骤放在流程首步。
+    /// SupportsAbsoluteEncoder 为 false）。P1-A 起「轴运动」的设备门禁会**硬拦未回零**
+    /// （除非该轴配置了 HasAbsoluteEncoder），所以本步骤应放在任何运动之前。
     /// </summary>
     [Display(
         Name = "轴回零",
@@ -60,19 +61,13 @@ namespace Plugin.Motion.Steps
                 return;
             }
 
+            // 步骤侧只做两件入口判断：轴能不能解析、卡在不在线。
+            // 「回零方式是否被这张卡支持」与「是否正在运动」由设备门禁统一把关
+            // （MotionDeviceBase.CheckGateLocked / CheckMotionPreconditionsLocked）——
+            // 步骤侧不再重复能力协商，避免两套判据漂移。
             if (device.State != MotionCardState.Online)
             {
                 Fail($"运动卡「{device.Descriptor.Caption}」当前不可运动：{device.StateDetail}");
-                return;
-            }
-
-            // 提前拦住"这张卡不支持这种回零方式"，并告诉用户它支持哪些
-            if (!device.Capabilities.SupportsHomeMode(Mode))
-            {
-                var supported = device.Capabilities.SupportedHomeModes.Count == 0
-                    ? "（该卡尚未上报能力，请确认已连接）"
-                    : string.Join("、", device.Capabilities.SupportedHomeModes);
-                Fail($"运动卡「{device.Descriptor.Caption}」不支持回零方式「{Mode}」，它支持的是：{supported}");
                 return;
             }
 

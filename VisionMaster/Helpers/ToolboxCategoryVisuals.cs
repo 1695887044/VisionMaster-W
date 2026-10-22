@@ -38,8 +38,12 @@ namespace VisionMaster.Helpers
 
         /// <summary>
         /// 分类 →（图标, 颜色）。键必须与插件 <c>GroupName</c> 逐字一致（序数比较）。
-        /// 13 条 = 当前全部模块算子分类（不含"相机/相机驱动/运动卡"这三个设备类分组——
+        /// 14 条 = 当前全部模块算子分类（不含"相机/相机驱动/运动卡"这三个设备类分组——
         /// 它们走 CameraPlugins / MotionPlugins，不进工具箱面板）。
+        /// ⚠ 这张表**不许再靠手写清单来守**：分类集合的事实来源是注册表
+        /// （<c>PluginProvider.ModulePlugins</c> 的 <c>ToolItemModel.Category</c>），
+        /// 守门断言见 <c>FlowCanvasChecks\Program.cs</c> 的 G9「分类映射」两条——
+        /// 注册表里多出一个没映射的分类会红，改坏检测器也会红（反向断言）。
         /// </summary>
         private static readonly Dictionary<string, (string Icon, Color Color)> Map = new(StringComparer.Ordinal)
         {
@@ -56,6 +60,10 @@ namespace VisionMaster.Helpers
             ["数据处理"] = ("\uf1c0", Color.FromRgb(0x64, 0x74, 0x8B)),
             ["常用工具"] = ("\uf080", Color.FromRgb(0x6B, 0x72, 0x80)),
             ["运动控制"] = ("\uf0d1", Color.FromRgb(0x65, 0xA3, 0x0D)),
+            // 2026-10-22 补：Plugin.Comm 的「通讯」是第 14 个算子分类（CommReadNow / CommWriteNow）。
+            // 漏配的后果不是报错，而是这两条在工具箱里拿灰底 cubes 兜底图标——看着像"没分类的杂项"。
+            // 图标取 tower-broadcast（语义=与设备通讯），颜色取 fuchsia，与既有 13 色都不撞。
+            ["通讯"] = ("\uf519", Color.FromRgb(0xD9, 0x46, 0xEF)),
         };
 
         /// <summary>已知分类名（升序无关，按 Map 声明顺序）。断言用它逐条核对"没有漏配"。</summary>

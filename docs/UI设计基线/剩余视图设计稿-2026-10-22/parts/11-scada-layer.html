@@ -1,0 +1,106 @@
+<section class="view" id="view-11">
+  <div class="view-head">
+    <h2>图层面板</h2>
+    <span class="file">VisionMaster\Views\ScadaLayerView.xaml</span>
+    <span class="size">351 行 · 26 hex</span>
+  </div>
+  <div class="view-body">
+
+    <div class="mock" style="width:310px">
+      <div class="mock-bar">
+        <span class="t">图层 · 主界面</span>
+        <span class="s">共 4 层</span>
+        <span class="grow"></span>
+        <span class="tag">停靠面板</span>
+      </div>
+
+      <div class="mock-body tight">
+        <p style="padding:8px 12px 6px"><span class="tag warn">⚠ 另有 2 个图元未分层</span></p>
+
+        <div class="row">
+          <span class="meta">●</span>
+          <span class="meta">■</span>
+          <span class="name">背景</span>
+          <span class="meta">12 个图元</span>
+          <span class="meta">▴</span>
+          <span class="meta">▾</span>
+          <span class="meta">✕</span>
+        </div>
+
+        <div class="row sel">
+          <span class="meta">●</span>
+          <span class="meta">□</span>
+          <span class="name">工艺设备</span>
+          <span class="meta">8 个图元</span>
+          <span class="meta">▴</span>
+          <span class="meta">▾</span>
+          <span class="meta">✕</span>
+        </div>
+
+        <div class="row">
+          <span class="meta">○</span>
+          <span class="meta">□</span>
+          <span class="name">仪表</span>
+          <span class="meta">3 个图元</span>
+          <span class="meta">▴</span>
+          <span class="meta">▾</span>
+          <span class="meta">✕</span>
+        </div>
+
+        <div class="row">
+          <span class="meta">●</span>
+          <span class="meta">□</span>
+          <span class="name">标注</span>
+          <span class="meta">空</span>
+          <span class="meta">▴</span>
+          <span class="meta">▾</span>
+          <span class="meta">✕</span>
+        </div>
+
+        <p class="hint" style="padding:6px 12px 8px">● 可见 / ○ 隐藏（名字一起变灰）　■ 锁定（琥珀）/ □ 未锁　删除仅空层可用</p>
+      </div>
+
+      <div class="mock-foot">
+        <span>图层顺序不改变图元叠放</span>
+        <span class="grow"></span>
+        <span class="tool">＋ 新建图层</span>
+      </div>
+    </div>
+
+    <div class="mock" style="width:310px;margin-top:14px">
+      <div class="mock-bar">
+        <span class="t">图层 · 主界面</span>
+        <span class="s">共 0 层</span>
+        <span class="grow"></span>
+        <span class="tag">停靠面板</span>
+      </div>
+      <div class="mock-body">
+        <div class="empty" style="padding:30px 16px">
+          <div class="empty-glyph">▤</div>
+          <p class="empty-title">当前画面还没有图层</p>
+          <p class="empty-hint">点下方「新建图层」即可添加。</p>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>图层顺序不改变图元叠放</span>
+        <span class="grow"></span>
+        <span class="tool">＋ 新建图层</span>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScadaLayerView.xaml</code>（标题 + 未分层提醒 + 行模板 7 列 + 次序说明 + 新建按钮）、<code>ScadaLayerViewModel.cs</code>（<code>HeaderText</code> / <code>LayerCountText</code> / <code>EmptyHint</code> / <code>UnassignedHint</code> / <code>ElementCountText</code> / <code>VisibilityTip</code> / <code>LockTip</code> / <code>OrderHintDetail</code>）</li>
+        <li>改动要点 1：<b>26 处 hex 全部清零</b>——面板 <code>#FFF7F8FA</code>、描边 <code>#FFDCE0E6</code>、正文 <code>#FF303133</code>、次要 <code>#FF909399</code>、禁用 <code>#FFB0B4BA</code>、行 hover <code>#FFE9EFF7</code>、含选中 <code>#FFD8E8FA</code>、锁定琥珀 <code>#FFE6A23C</code>、未分层 <code>#FFFFF7E6 / #FFF5D9A0 / #FFB88230</code>、行内按钮 hover <code>#FFD6E4F5</code>、底栏按钮三态。全部换成 <code>Scada*</code> / <code>Dialog*</code> 令牌</li>
+        <li>改动要点 2：行高 26 保留（与工具箱条目 30 接近，两个面板并排不打架）；行内图标按钮 20×20 保留，上/下移与删除再小一号 18×18</li>
+        <li>改动要点 3：<b>状态色只表达状态</b>——隐藏=更灰、锁定=琥珀、悬停只换底不换字色。悬停去抢字色会把"这层关着"这条信息盖掉</li>
+        <li>改动要点 4：删除只在空层可用（灰着的垃圾桶本身就在说"先把这层的图元挪走"）；端点层的 ↑/↓ 置灰</li>
+        <li>改动要点 5：底部那句「图层顺序不改变图元叠放」是<b>防误判文案</b>，不是装饰——图层次序不参与叠放计算，谁盖住谁只由 <code>ZIndex</code> 决定；完整解释挂在 ToolTip 里（指到画布右键「叠放次序」）</li>
+        <li>改动要点 6：空态两种说法必须分开——有画面无图层（"点下方「新建图层」"）vs 没有画面（"打开方案并选中画面后…"）。<span class="warn">本稿把现在那一段 11.5px 的 EmptyHint 升级成三件套（图标 + 标题 + 正文）</span>，与属性面板空态同一形态；文案仍由 <code>EmptyHint</code> 给，需要拆成标题/正文两句</li>
+        <li>需要新增的接口：<code>ScadaLayerViewModel</code> 把 <code>EmptyHint</code> 拆成 <code>EmptyTitle</code> + <code>EmptyHint</code>（与 <code>ScadaPropertyViewModel</code> 同名同义），否则三件套只能写死标题</li>
+        <li><span class="warn">已知偏差：稿内用 ● ○ ■ □ 代替 FA 眼睛/锁字形；行尾 ✕ 代表垃圾桶（U+F2ED）</span></li>
+      </ul>
+    </div>
+  </div>
+</section>

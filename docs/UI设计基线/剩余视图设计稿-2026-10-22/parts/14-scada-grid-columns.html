@@ -1,0 +1,134 @@
+<section class="view" id="view-14">
+  <div class="view-head">
+    <h2>配置列（数据表格列编辑器）</h2>
+    <span class="file">VisionMaster\Views\Controls\ScadaGridColumnsEditor.xaml</span>
+    <span class="size">154 行 · 0 hex</span>
+  </div>
+  <div class="view-body">
+
+    <div class="mock" style="width:760px">
+      <div class="mock-bar">
+        <span class="t">配置列</span>
+        <span class="s">EasyDialog 外壳（确定 / 取消由宿主提供，本视图只有内容区）</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body tight">
+        <div class="table">
+          <div class="thead">
+            <div class="th" style="width:140px">表头</div>
+            <div class="th" style="flex:1 1 140px">绑定变量</div>
+            <div class="th" style="width:72px">宽度</div>
+            <div class="th" style="width:88px">对齐</div>
+            <div class="th" style="width:104px">格式</div>
+            <div class="th" style="width:96px">操作</div>
+          </div>
+          <div class="tr">
+            <div class="td" style="width:140px"><div class="input">压力(MPa)</div></div>
+            <div class="td" style="flex:1 1 140px"><div class="input mono">Pump1.Pressure</div></div>
+            <div class="td" style="width:72px"><div class="input mono">110</div></div>
+            <div class="td" style="width:88px"><div class="combo">居中</div></div>
+            <div class="td" style="width:104px"><div class="input mono">F2</div></div>
+            <div class="td" style="width:96px">
+              <span class="tool icon" style="width:24px;height:24px">↑</span><span class="tool icon" style="width:24px;height:24px;margin-left:2px">↓</span><span class="tool icon" style="width:24px;height:24px;margin-left:2px">✕</span>
+            </div>
+          </div>
+          <div class="tr">
+            <div class="td" style="width:140px"><div class="input">温度(℃)</div></div>
+            <div class="td" style="flex:1 1 140px"><div class="input mono">Pump1.Temp</div></div>
+            <div class="td" style="width:72px"><div class="input mono">110</div></div>
+            <div class="td" style="width:88px"><div class="combo">居中</div></div>
+            <div class="td" style="width:104px"><div class="input mono">F1</div></div>
+            <div class="td" style="width:96px">
+              <span class="tool icon" style="width:24px;height:24px">↑</span><span class="tool icon" style="width:24px;height:24px;margin-left:2px">↓</span><span class="tool icon" style="width:24px;height:24px;margin-left:2px">✕</span>
+            </div>
+          </div>
+          <div class="tr sel">
+            <div class="td" style="width:140px"><div class="input">状态</div></div>
+            <div class="td" style="flex:1 1 140px"><div class="input ph">（未绑定变量）</div></div>
+            <div class="td" style="width:72px"><div class="input mono">0</div></div>
+            <div class="td" style="width:88px"><div class="combo">左对齐</div></div>
+            <div class="td" style="width:104px"><div class="input ph">（默认）</div></div>
+            <div class="td" style="width:96px">
+              <span class="tool icon" style="width:24px;height:24px">↑</span><span class="tool icon" style="width:24px;height:24px;margin-left:2px">↓</span><span class="tool icon" style="width:24px;height:24px;margin-left:2px">✕</span>
+            </div>
+          </div>
+          <div class="tr">
+            <div class="td" style="width:140px"><div class="input">采集时间</div></div>
+            <div class="td" style="flex:1 1 140px"><div class="input mono">Pump1.Timestamp</div></div>
+            <div class="td" style="width:72px"><div class="input mono">150</div></div>
+            <div class="td" style="width:88px"><div class="combo">左对齐</div></div>
+            <div class="td" style="width:104px"><div class="input mono">HH:mm:ss</div></div>
+            <div class="td" style="width:96px">
+              <span class="tool icon" style="width:24px;height:24px">↑</span><span class="tool icon" style="width:24px;height:24px;margin-left:2px">↓</span><span class="tool icon" style="width:24px;height:24px;margin-left:2px">✕</span>
+            </div>
+          </div>
+          <div class="tr">
+            <div class="td" style="width:140px"><div class="input">产量</div></div>
+            <div class="td" style="flex:1 1 140px"><div class="input mono">Line1.Count</div></div>
+            <div class="td" style="width:72px"><div class="input mono">90</div></div>
+            <div class="td" style="width:88px"><div class="combo">右对齐</div></div>
+            <div class="td" style="width:104px"><div class="input ph">（默认）</div></div>
+            <div class="td" style="width:96px">
+              <span class="tool icon" style="width:24px;height:24px">↑</span><span class="tool icon" style="width:24px;height:24px;margin-left:2px">↓</span><span class="tool icon" style="width:24px;height:24px;margin-left:2px">✕</span>
+            </div>
+          </div>
+        </div>
+        <div class="toolbar">
+          <span class="tool">＋ 添加列</span>
+          <span class="hint">宽度填 0 = 占满剩余；变量名为空的行会被丢掉（第 3 行的变量框标红 = HasVariable 为假）</span>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>5 列 · 其中 1 列未配完（确认时丢弃）</span>
+        <span class="grow"></span>
+        <span class="tool">取消</span>
+        <span class="tool primary">确定</span>
+      </div>
+    </div>
+
+    <div class="mock" style="width:340px">
+      <div class="mock-bar">
+        <span class="t">配置列 · 340 窄档提案</span>
+        <span class="s">若改为嵌进检查器</span>
+      </div>
+      <div class="mock-body">
+        <div class="card">
+          <p class="card-title">列 1 · 压力(MPa) <span class="tag" style="margin-left:auto">110 px · 居中</span></p>
+          <div class="field"><span class="field-label">表头</span><div class="input">压力(MPa)</div></div>
+          <div class="field"><span class="field-label">绑定变量</span><div class="input mono">Pump1.Pressure</div></div>
+          <div class="field"><span class="field-label">宽度</span><div class="input mono">110</div></div>
+          <div class="field"><span class="field-label">格式</span><div class="input mono">F2</div></div>
+          <div class="toolbar" style="padding:8px 0 0;border-bottom:0">
+            <span class="tool">↑</span><span class="tool">↓</span><span class="grow"></span><span class="tool danger">✕ 删除</span>
+          </div>
+        </div>
+        <div class="card">
+          <p class="card-title">列 2 · 状态 <span class="tag err">变量名为空 · 确认时丢弃</span></p>
+          <div class="field"><span class="field-label">表头</span><div class="input">状态</div></div>
+          <div class="field"><span class="field-label">绑定变量</span><div class="input ph">（未绑定变量）</div></div>
+          <div class="field"><span class="field-label">对齐</span><div class="combo">左对齐</div></div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span class="tool">＋ 添加列</span>
+        <span class="grow"></span>
+        <span class="tool">取消</span>
+        <span class="tool primary">确定</span>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScadaGridColumnsEditor.xaml</code> + <code>.xaml.cs</code>（<code>ColumnEditRow</code>：Header / Variable / WidthText / Align / Format / Monospace；<code>DroppedCount</code>）</li>
+        <li><span class="warn">尺寸事实纠正</span>：简报说它是「340px 检查器里的子编辑器」，但源码是 <code>EasyDialog.ShowSync("配置列", editor)</code> 的独立弹窗，<code>MinWidth=760</code> / <code>MaxHeight=460</code>，六列定宽 140+72+88+104+80 共 484 已超过 340。本稿主态按真实 760 出，340 只作为「将来嵌进检查器」的提案（列改卡片、字段改上下两行）</li>
+        <li>改动要点 1：表头与行共用同一套列宽（140 / * / 72 / 88 / 104 / Auto），字号 11 次要色；行高由 <code>CellBox</code> 的 26 撑开，不要给行再加外边距</li>
+        <li>改动要点 2：未绑定变量 = 输入框描边与底色换危险令牌（<code>ScadaDangerBrush</code> + <code>ScadaInvalidBackgroundBrush</code>），并在弹窗底部把「会被丢掉」说在明处——<code>DroppedCount</code> 已经数出来了，现在没有任何地方显示它</li>
+        <li>改动要点 3：行内 ↑ ↓ ✕ 是 24×24 固定格子，必须保持 <code>Padding="0"</code>（R68），不要挂全局 Button 样式；删除用危险色文字，上移/下移用次要色</li>
+        <li>改动要点 4：<code>Monospace</code> 目前只做往返、界面上没有对应控件；若要在本弹窗里暴露，需在模型与 codec 上加一个勾选项（本轮不改模型）</li>
+        <li>需要新增的接口：无（340 嵌入方案需要 <code>ScadaPropertyViewModel</code> 增加一个「内嵌承载」入口，属后续提案）</li>
+      </ul>
+    </div>
+  </div>
+</section>

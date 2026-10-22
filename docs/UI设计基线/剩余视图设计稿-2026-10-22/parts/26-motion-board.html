@@ -1,0 +1,128 @@
+<section class="view" id="view-26">
+  <div class="view-head">
+    <h2>运动板卡（主窗 + 页签栏）</h2>
+    <span class="file">VisionMaster\Views\DialogViews\MotionBoardView.xaml</span>
+    <span class="size">635 行 · 0 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：页头 + 左栏卡列表(260) + 工作区页签 -->
+    <div class="mock" style="width:1360px;max-width:100%;margin-bottom:14px">
+      <div class="mock-bar" style="height:60px">
+        <div>
+          <div class="hint">SCADA CONSOLE</div>
+          <div class="t" style="font-size:17px">运动板卡</div>
+        </div>
+        <span class="grow"></span>
+        <span class="tool">设备管理</span>
+        <span class="tool">变量配置</span>
+        <span class="tool">工具箱</span>
+        <span class="tool">流程编排</span>
+        <span class="tool active">运动板卡</span>
+        <span class="tool">轴配置</span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="split">
+        <div class="split-aside" style="width:260px">
+          <div class="card-title" style="margin:0;padding:2px 2px 8px">运动卡 <span class="tag">2</span><span style="margin-left:auto"><span class="tool primary">＋ 添加</span></span></div>
+          <div class="row sel">
+            <div class="name"><div><span class="dot ok"></span> <strong>运动卡1</strong></div><div class="hint mono" style="overflow:hidden;text-overflow:ellipsis">192.168.0.100 | 正运动运动控制卡</div></div>
+            <span class="tag info">在线</span>
+          </div>
+          <div class="row">
+            <div class="name"><div><span class="dot"></span> <strong>运动卡2</strong></div><div class="hint mono" style="overflow:hidden;text-overflow:ellipsis">192.168.0.101 | 正运动运动控制卡</div></div>
+            <span class="tag">离线</span>
+          </div>
+        </div>
+        <div class="split-main">
+          <div class="tabs">
+            <span class="tab" aria-selected="true">卡设置</span>
+            <span class="tab">手动调试</span>
+            <span class="tab">点位列表</span>
+          </div>
+          <div class="mock-body alt" style="margin-top:14px">
+            <div class="cards three">
+              <div class="card"><div class="card-title">卡设置</div><div class="hint">设备标识 / 运动参数 / 轴映射 / 贴底保存条</div></div>
+              <div class="card"><div class="card-title">手动调试</div><div class="hint">轴列表 230 | 操作面板 1fr | 卡上 IO 270</div></div>
+              <div class="card"><div class="card-title">点位列表</div><div class="hint">轴选择胶囊条 + 16 行 P0–P15 点位表</div></div>
+            </div>
+            <div class="hint" style="margin-top:12px">页签内容见分片 27（电子凸轮，当前未挂入页签栏）/ 28（手动调试）/ 29（点位列表）/ 30（卡设置）。</div>
+            <div class="card" style="width:380px;margin-left:auto;margin-top:16px">
+              <div class="field" style="margin-bottom:0">
+                <span class="tag ok">✓</span>
+                <span style="flex:1 1 auto">「运动卡1」已连接，扫描到 6 个轴</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 边界态：左栏删光卡 + 未选卡空态 + 两个浮层 -->
+    <div class="mock" style="width:1360px;max-width:100%;margin-bottom:14px">
+      <div class="mock-bar" style="height:60px">
+        <div>
+          <div class="hint">SCADA CONSOLE</div>
+          <div class="t" style="font-size:17px">运动板卡</div>
+        </div>
+        <span class="grow"></span>
+        <span class="tool active">运动板卡</span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="split">
+        <div class="split-aside" style="width:260px">
+          <div class="card-title" style="margin:0;padding:2px 2px 8px">运动卡 <span class="tag">0</span><span style="margin-left:auto"><span class="tool primary">＋ 添加</span></span></div>
+          <div class="hint" style="padding:18px 0;text-align:center">还没有运动卡，点右上角「添加」</div>
+        </div>
+        <div class="split-main">
+          <div class="tabs">
+            <span class="tab" aria-selected="true">卡设置</span>
+            <span class="tab">手动调试</span>
+            <span class="tab">点位列表</span>
+          </div>
+          <div class="empty">
+            <div class="empty-glyph">◈</div>
+            <div class="empty-title">还没有可显示的设置项</div>
+            <div class="empty-hint">左栏为空时先「添加」一张卡；添加后按驱动填连接地址即可连接。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 浮层：添加运动卡 / 居中确认 -->
+    <div class="cards">
+      <div class="card">
+        <div class="card-title">添加运动卡（中心模态）</div>
+        <div class="field"><span class="field-label">驱动类型</span><span class="combo">正运动运动控制卡</span></div>
+        <div class="field"><span class="field-label">连接地址</span><span class="input mono">192.168.0.102</span></div>
+        <div class="hint" style="margin:-4px 0 10px 100px">必须唯一</div>
+        <div class="field"><span class="field-label">显示名</span><span class="input ph">可留空</span></div>
+        <div class="field"><span class="field-label">机型</span><span class="input ph">可留空</span></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px">
+          <span class="tool">取消</span><span class="tool primary">确定添加</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">居中确认（删除卡 / 删除轴）</div>
+        <div><strong>删除运动卡「运动卡2」？</strong></div>
+        <div class="hint" style="margin-top:8px">该卡下的 4 根轴映射与点位表会一并删除；已引用这些轴的组态动作会失效。</div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+          <span class="tool">取消</span><span class="tool danger">删除</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>MotionBoardView.xaml</code>（页头 + 260px 卡列表 + 胶囊页签 + 三页内容宿主 + 添加卡模态 + 居中确认 + 右下 toast）、<code>MotionBoardViewModel</code>（<code>TabLabels</code> / <code>OnlineText</code> / <code>IsConfigEditable</code>）</li>
+        <li>关键结构事实：<code>TabLabels</code> 只有 <b>3</b> 项——<code>卡设置 / 手动调试 / 点位列表</code>；<code>MotionBoardCamView</code> 存在但<b>没有挂进页签栏</b>（<code>SelectedTabIndex</code> 夹取到 0~2），所以 27 的凸轮页在本分片里没有对应页签。</li>
+        <li>改动要点：本页 0 hex（已全令牌化），只统一尺寸与层级——页头 60px、卡列表 260px、工作区圆角 12、卡片阴影只保留「浮起 / 卡片 / 弹窗」三级。</li>
+        <li>改动要点：顶栏 6 个导航胶囊里 5 个是占位（设备管理 / 变量配置 / 工具箱 / 流程编排 / 轴配置），只保留一个高亮项；占位项用 <code>tool</code> 而非 <code>tool active</code>，不假装可点。</li>
+        <li>改动要点：关闭按钮固定 30×30 且显式 <code>Padding=0</code>（R68：裸按钮会吃 Fluent 隐式内边距把 ✕ 切掉）；在线/离线从自绘 Border 改为 <code>tag info</code> / <code>tag</code>。</li>
+        <li>改动要点：删光卡之后左栏给出「还没有运动卡，点右上角「添加」」，与中央「还没有可显示的设置项」同时出现——两句话分别回答"从哪加"和"为什么这里是空的"。</li>
+        <li>需要新增的接口：无（若要开放电子凸轮页，需在 <code>TabLabels</code> 增第 4 项并在 <code>MotionBoardView.xaml</code> 加一个 <code>SelectedTabIndex=3</code> 的宿主，见 27）</li>
+      </ul>
+    </div>
+  </div>
+</section>

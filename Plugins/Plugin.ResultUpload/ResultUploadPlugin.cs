@@ -1,5 +1,6 @@
 using Core.Interfaces;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -7,6 +8,7 @@ using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace Plugin.ResultUpload
@@ -25,6 +27,8 @@ namespace Plugin.ResultUpload
     /// - 动态端口一律 IsRequired=false：允许"先定义、后连线"，未连线走变量/内置或空值；
     /// - 值类型用 InputPort&lt;object&gt;：FlowCompiler 连线不做类型静态校验，任何上游输出都接得进来，
     ///   组 JSON 时按真实类型保真（double 就写 12.3 不是 "12.3"——MES 数值型字段校验靠它）；
+    /// - 来源=变量：**本轮局部变量优先 → 共享变量注册表（全局 / 通讯 / 系统变量）兜底**；
+    ///   数组按 <c>[a,b,c]</c>、byte[] 按十六进制转成文本（绝不落 ToString() 的 "System.Int32[]"）；
     /// - 失败契约：默认不阻断（上报失败只 WARN，宁漏报不停线）；需要"MES 没收到就停线"的场合勾选阻断。
     /// </summary>
     [Display(
@@ -576,11 +580,8 @@ namespace Plugin.ResultUpload
                         v = Inputs.TryGetValue(f.Name.Trim(), out var p) ? p.GetActualValue() : null;
                         break;
                     case FieldSource.Variable:
-                        if (context?.LocalVariables != null && !string.IsNullOrEmpty(f.VariableName) &&
-                            context.LocalVariables.TryGetValue(f.VariableName, out var lv))
-                            v = lv;
-                        else
-                            v = null;
+                        // N2：先本轮局部变量，再共享变量注册表（全局 / 通讯 / 系统变量）
+                        v = TryResolveVariable(context, f.VariableName, out var resolved) ? resolved : null;
                         break;
                     case FieldSource.BuiltIn:
                         // 步骤名用 EffectiveStepName（InstanceName 未注入时退回 StepData.StepName），防上报出去是"未赋值"
@@ -591,10 +592,106 @@ namespace Plugin.ResultUpload
                         break;
                 }
                 if (useTestPlaceholder && v == null) v = "(空)";
-                dict[f.Name.Trim()] = v;
+                // 数组在这里就转成文本：组包器对"认不出的类型"只做 ToString()，
+                // 直接透传会得到 "System.Int32[]"（MES 收到的是类型名，不是数据）。
+                dict[f.Name.Trim()] = FormatPayloadValue(v);
             }
             return dict;
         }
+
+        /// <summary>缺名变量提示的重复上限（每个名字最多 3 条，避免高频上报把日志刷满）。</summary>
+        private const int MissingVariableWarnLimit = 3;
+
+        /// <summary>缺名变量已提示次数（按名字计数；插件实例跨执行复用，故提示只在前几次出现）。</summary>
+        private readonly ConcurrentDictionary<string, int> _missingVariableWarns =
+            new ConcurrentDictionary<string, int>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// 按名取变量值（「来源=变量」的唯一口径，N2）：
+        /// <list type="number">
+        /// <item>本轮局部变量优先——「变量定义 / 变量赋值 / C# 脚本 SetVar」写的就是这个池；</item>
+        /// <item>共享变量注册表兜底——全局变量、通讯变量（网络变量）与系统变量共用同一张注册表，
+        ///       取的是**镜像值**（轮询/立刻读最近一次发布的那份）。</item>
+        /// </list>
+        /// <para>缺名不抛异常：字段照发（值 null/空串），并按名字限次 WARN（走宿主日志）。</para>
+        /// </summary>
+        private bool TryResolveVariable(IExecutionContext context, string name, out object value)
+        {
+            value = null;
+            if (context == null) return false; // 配置面板预览/测试发送没有上下文：按空值处理，不提示
+
+            string key = name?.Trim();
+            if (string.IsNullOrEmpty(key)) return false;
+
+            if (context.LocalVariables != null && context.LocalVariables.TryGetValue(key, out var local))
+            {
+                // 键存在就到此为止（哪怕值是 null）：局部变量遮蔽同名全局变量是既定语义。
+                value = local;
+                return true;
+            }
+
+            if (context.SharedVariables != null &&
+                context.SharedVariables.TryRead(Guid.Empty, key, out var shared, out _))
+            {
+                value = shared;
+                return true;
+            }
+
+            WarnMissingVariable(context, key);
+            return false;
+        }
+
+        /// <summary>缺名变量限次 WARN（同一名字只提示前 <see cref="MissingVariableWarnLimit"/> 次）。</summary>
+        private void WarnMissingVariable(IExecutionContext context, string name)
+        {
+            int count = _missingVariableWarns.AddOrUpdate(name, 1, (_, old) => old + 1);
+            if (count > MissingVariableWarnLimit) return;
+
+            string suffix = count == MissingVariableWarnLimit ? "（本条提示已到上限，后续同名不再提示）" : "";
+            context?.Logger?.Warn(
+                $"结果上报：变量「{name}」既不在本轮局部变量里，也不是全局/通讯/系统变量，该字段按空值上报{suffix}");
+        }
+
+        /// <summary>
+        /// 值池里的数组转成文本：数值/布尔/文本数组 → <c>[a,b,c]</c>，空数组 → <c>[]</c>，
+        /// <c>byte[]</c> → 十六进制 <c>01 02 FF</c>。其余值原样返回（类型保真由组包器负责）。
+        /// <para>想让它成为真正的 JSON 数组：用「原始JSON」预设 + <c>{#字段名}</c> 原样注入
+        /// （<c>[1,2,3]</c> 不带引号落进去就是数组）。</para>
+        /// </summary>
+        private static object FormatPayloadValue(object value)
+        {
+            if (value is byte[] bytes)
+            {
+                var hex = new StringBuilder(bytes.Length * 3);
+                for (int i = 0; i < bytes.Length; i++)
+                {
+                    if (i > 0) hex.Append(' ');
+                    hex.Append(bytes[i].ToString("X2", CultureInfo.InvariantCulture));
+                }
+                return hex.ToString();
+            }
+
+            if (value is Array array)
+            {
+                if (array.Length == 0) return "[]";
+                var parts = new string[array.Length];
+                for (int i = 0; i < array.Length; i++)
+                    parts[i] = FormatArrayElement(array.GetValue(i));
+                return "[" + string.Join(",", parts) + "]";
+            }
+
+            return value;
+        }
+
+        /// <summary>数组元素 → 文本（不变区域性；元素里再套数组/对象时退回类型名，绝不递归）。</summary>
+        private static string FormatArrayElement(object element) => element switch
+        {
+            null => "",
+            string s => s,
+            DateTime dt => dt.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture),
+            IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+            _ => element.ToString() ?? "",
+        };
 
         /// <summary>
         /// 本件是否 NG：判定字段的值与 NG 判定值智能比对——

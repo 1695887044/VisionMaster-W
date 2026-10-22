@@ -4,12 +4,12 @@
 
 每条一律写成 **症状 → 机理 → 守门断言名**。分两组：A 组违反会当场红或抛，B 组违反不报错、只出诡异现象。
 
-**先说断言现状**：`FlowCanvasChecks\` 里**没有本插件的专属断言文件**（既没有 `ResultUploadChecks.cs`，
-也没有任何断言引用本插件的错误文案）。能逐字引用的守门名只有两类——
-手册闸门 `FlowCanvasChecks\HelpManualCheck.cs` 的 HM 系列，
-和产物守门 `FlowCanvasChecks\ParallelExecutionChecks.cs` 的
-`标注 [ParallelSafe] 的 18 个插件 DLL 全部含特性元数据（漏重建=门禁误报）`。
-其余条目一律标 **无断言，靠人工核对**——不许编造断言名。
+**先说断言现状**：本插件的专属断言文件是 `FlowCanvasChecks\ResultUploadChecks.cs`
+（与 `DataPipelineChecks` 用 `Compile Include` 共用同一份源码），覆盖字段表类型保真、上报时机、
+HTTP 重试与幂等 ID、断网续传、业务关键字与阻断、自定义头与加签，以及 **N2 的变量取值域与数组格式化**。
+手册闸门 `HelpManualCheck.cs` 的 HM 系列与产物守门 `ParallelExecutionChecks.cs` 的
+`标注 [ParallelSafe] 的 18 个插件 DLL 全部含特性元数据（漏重建=门禁误报）` 照旧适用。
+本页没列到的面仍按"无断言，靠人工核对"处理，**不要假装有更硬的闸**。
 
 ---
 
@@ -63,6 +63,17 @@
 `Name` / `Source` / `Enabled` 三个属性触发 `RebuildDynamicInputs()` + `OnPropertyChanged(nameof(JudgeFieldNames))`。
 少订一个属性 = 那一列改了界面不动；忘了 `-=` = 一次改动收到多次通知、反复重建端口。
 守门：无断言，靠人工核对。
+
+**A8 变量字段只认本轮局部变量（N2 之前的旧口径）**
+症状：来源=变量，填的是「变量管理」里的全局变量 / 通讯变量 → 报文里永远是 `null`；或数组字段上报成 `System.Int32[]`。
+机理：取值必须走 `TryResolveVariable`——**本轮 `LocalVariables` 优先 → `context.SharedVariables.TryRead(Guid.Empty, 名字)` 兜底**
+（注册表覆盖全局 / 通讯 / 系统变量，取镜像值）；数组在 `CollectValues` 里经 `FormatPayloadValue` 转文本
+（`[a,b,c]` / `byte[]` 十六进制），组包器对"认不出的类型"只会 `ToString()`（那就是类型名）。
+缺名不静默：按名字限次 WARN（每个名字最多 3 条），走 `context.Logger`，别塞 `UploadQueue` 的日志队列。
+要真正的 JSON 数组：用「原始JSON」+ `{#字段名}`（文本 `[1,2,3]` 不带引号落进去就是数组）。
+守门：`结果上报 N2：变量字段取到全局变量（数值仍保真）`、`结果上报 N2：变量字段取到通讯变量（网络变量镜像值）`、
+`结果上报 N2：数组字段格式化成 [1,2,3]（不是 System.Int32[]）`、`结果上报 N2：缺名变量留 WARN（不是静默发空）`、
+`结果上报 N2：缺名 WARN 有上限（4 轮只提示 3 条）`。
 
 ---
 

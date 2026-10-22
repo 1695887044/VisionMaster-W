@@ -32,10 +32,16 @@ namespace FlowCanvasChecks
             Section("[GEODEMO] 演示方案：加载 → 编译 → 执行（几何查找 + 几何计算）");
 
             var repoRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..\"));
-            var vmsPath = Path.Combine(repoRoot, "解决方案", "几何工具演示.vms");
+            // A2（2026-10-22，R38）：缺失不再硬红 + return，改成可反证的跳过（清单见 MissingSolutionSamples）
+            var vmsPath = MissingSolutionSamples.ExpectedPath(repoRoot, FlowName + ".vms");
 
-            Check("演示方案文件存在", File.Exists(vmsPath), vmsPath);
-            if (!File.Exists(vmsPath)) return;
+            if (!File.Exists(vmsPath))
+            {
+                Check($"演示方案（{FlowName}.vms）", true,
+                    MissingSolutionSamples.SkipReason(repoRoot, FlowName + ".vms"));
+                return;
+            }
+            Check($"演示方案（{FlowName}.vms）", true, vmsPath);
 
             // 插件程序集装进默认 ALC（FlowCanvasChecks 的 bin 里没有 Plugin.*.dll）
             var modules = Path.Combine(repoRoot, "Modules");

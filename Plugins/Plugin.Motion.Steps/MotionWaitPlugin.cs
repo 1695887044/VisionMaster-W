@@ -18,6 +18,12 @@ namespace Plugin.Motion.Steps
     /// 等待的依据是**设备状态**（轴的 InPosition / Moving），不是"某条命令的完成信号"：
     /// 命令对象不跨步骤传递（那会让流程依赖对象身份，无法保存/重放），
     /// 而"这个轴现在到没到位"是设备上随时可查的事实。
+    ///
+    /// P1-A 起支持两种判据（由 <see cref="Target"/> 决定）：
+    ///   · 默认（Target = NaN）：沿用旧语义，等 <c>InPosition &amp;&amp; !Moving</c>；
+    ///   · Target 有值：等 <c>!Moving &amp;&amp; |PositionMm - Target| &lt;= Tolerance</c>，
+    ///     不依赖卡上报 InPosition（现场有卡/仿真器的到位位未驱动）。
+    /// 旧流程存档里没有 Target 键，端口保持默认 NaN，行为与升级前一致。
     /// </summary>
     [Display(
         Name = "等待到位",
@@ -45,6 +51,33 @@ namespace Plugin.Motion.Steps
         [StepConfig]
         public int PollIntervalMs { get; set; } = 20;
 
+        /// <summary>
+        /// 目标位置（mm）。默认 <see cref="double.NaN"/> = **沿用旧语义**：
+        /// 只看设备快照的 <c>InPosition &amp;&amp; !Moving</c>。
+        ///
+        /// 填了有限数值则改按"位置判据"：<c>!Moving &amp;&amp; |PositionMm - Target| &lt;= Tolerance</c>。
+        /// 为什么两种模式并存：旧流程存档里没有这个键，默认 NaN 让它们的行为一个字都不变；
+        /// 新流程/现场反馈"卡不报 InPosition（例如 0x800 未驱动）"时，可以显式给目标与容差。
+        ///
+        /// 必须是输入端口（不是 [StepConfig]）：本插件没有自定义视图，参数面板只渲染输入端口；
+        /// 而且目标位置经常来自上游（视觉/配方），要能链接。
+        /// </summary>
+        public InputPort<double> Target { get; } = new InputPort<double>(
+            "Target", double.NaN, "目标位置(mm；NaN=沿用设备到位信号)")
+        {
+            IsRequired = false,
+        };
+
+        /// <summary>
+        /// 到位容差（mm），**只在 <see cref="Target"/> 有值时生效**。默认 0.05 mm。
+        /// 填负数按绝对值处理；填 NaN/∞ 回退到默认值（容差没有"无限大"的合法语义）。
+        /// </summary>
+        public InputPort<double> Tolerance { get; } = new InputPort<double>(
+            "Tolerance", 0.05, "到位容差(mm，仅 Target 有值时生效)")
+        {
+            IsRequired = false,
+        };
+
         /// <summary>等待结束时的实际位置（mm），供报表/下游步骤使用</summary>
         public OutputPort<double> Position { get; } = new OutputPort<double>("Position", "到位位置(mm)");
 
@@ -68,12 +101,37 @@ namespace Plugin.Motion.Steps
             var interval = Math.Clamp(PollIntervalMs, 1, 500);
             var watch = Stopwatch.StartNew();
 
+            // Target 的两种模式：
+            //   NaN（默认）= 旧语义，只认设备快照的 InPosition && !Moving；
+            //   有限数值   = 显式位置判据，不要求卡上报 InPosition（0x800 未驱动的卡也能等）。
+            // 旧流程存档里没有 Target 键 → 端口保持默认 NaN → 行为与升级前完全一致。
+            var target = Target.ActualValue;
+            if (double.IsInfinity(target))
+            {
+                Fail($"目标位置 {target} 不是有效数字：请填有限数值，或填 NaN 沿用设备到位信号");
+                return;
+            }
+
+            var useExplicitTarget = !double.IsNaN(target);
+            var tolerance = Tolerance.ActualValue;
+            if (double.IsNaN(tolerance) || double.IsInfinity(tolerance)) tolerance = 0.05;
+            tolerance = Math.Abs(tolerance);
+
             while (true)
             {
                 // 取消优先：流程停止时立刻退出，不要等满超时
                 if (context.CancellationToken.IsCancellationRequested)
                 {
                     Fail($"等待轴「{axisName}」到位时被中断（流程已停止）");
+                    return;
+                }
+
+                // 卡状态快检：报警/安全停机（以及断开、连接中）时轴已经不可信，
+                // 不要继续等到超时 —— 现场需要的是立刻失败并给出卡的状态说明。
+                var cardState = device.State;
+                if (cardState != MotionCardState.Online)
+                {
+                    Fail($"等待轴「{axisName}」期间运动卡不可用（{cardState}）：{device.StateDetail}");
                     return;
                 }
 
@@ -94,8 +152,27 @@ namespace Plugin.Motion.Steps
                     return;
                 }
 
-                if (status.InPosition && !status.Moving)
+                if (useExplicitTarget)
                 {
+                    // 显式模式：不要求 InPosition（有些卡/仿真器不驱动该位），
+                    // 只要求"停下来且位置落在容差内"。
+                    // 刻意**不**先等 Moving 变 true：短行程可能在两次轮询之间就走完了，
+                    // 那样会永远等不到"运动中"而白等到超时。
+                    var deviation = Math.Abs(status.PositionMm - target);
+                    if (!status.Moving && deviation <= tolerance)
+                    {
+                        Position.Value = status.PositionMm;
+                        ElapsedMs.Value = (int)watch.ElapsedMilliseconds;
+                        Success.Value = true;
+                        context.Logger.Info(
+                            $"{InstanceName} 轴「{axisName}」已到位：{status.PositionMm:F3} mm"
+                            + $"（目标 {target:F3} mm ±{tolerance:F3} mm，偏差 {deviation:F3} mm，耗时 {watch.ElapsedMilliseconds} ms）");
+                        return;
+                    }
+                }
+                else if (status.InPosition && !status.Moving)
+                {
+                    // 旧语义：两个位同时成立才算到位（到位信号亮但还在动 = 还没停稳）
                     Position.Value = status.PositionMm;
                     ElapsedMs.Value = (int)watch.ElapsedMilliseconds;
                     Success.Value = true;
@@ -107,7 +184,10 @@ namespace Plugin.Motion.Steps
                 {
                     Position.Value = status.PositionMm;
                     ElapsedMs.Value = (int)watch.ElapsedMilliseconds;
-                    Fail($"等待轴「{axisName}」到位超时（>{timeout} ms，当前位置 {status.PositionMm:F3} mm）："
+                    var targetText = useExplicitTarget
+                        ? $"目标 {target:F3} mm ±{tolerance:F3} mm，偏差 {Math.Abs(status.PositionMm - target):F3} mm，"
+                        : string.Empty;
+                    Fail($"等待轴「{axisName}」到位超时（>{timeout} ms，{targetText}当前位置 {status.PositionMm:F3} mm）："
                          + "请检查目标是否超出行程、速度是否过低，或该轴是否被限位/报警阻挡");
                     return;
                 }

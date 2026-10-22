@@ -1,0 +1,131 @@
+<section class="view" id="view-24">
+  <div class="view-head">
+    <h2>选择画面</h2>
+    <span class="file">VisionMaster\Views\DialogViews\ScadaPagePickerView.xaml</span>
+    <span class="size">346 行 · 28 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：四列清单（画面名 + 起点徽标 / 尺寸 / 图元数 / 说明） -->
+    <div class="mock" style="width:760px;max-width:100%;margin-bottom:14px">
+      <div class="mock-bar">
+        <span class="t">选择画面</span>
+        <span class="s">当前方案 5 页 · 已选「主界面」</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body">
+        <div class="input ph" style="margin-bottom:10px">按画面名 / 尺寸筛选</div>
+        <div class="card" style="padding:0">
+          <div class="table">
+            <div class="thead">
+              <div class="th" style="width:260px">画面名</div>
+              <div class="th right" style="width:120px">尺寸</div>
+              <div class="th right" style="width:90px">图元数</div>
+              <div class="th" style="flex:1 1 auto">说明</div>
+            </div>
+            <div class="tr sel">
+              <div class="td" style="width:260px"><strong>主界面</strong> <span class="tag info">起点</span></div>
+              <div class="td mono right" style="width:120px">1920 × 1080</div>
+              <div class="td mono right" style="width:90px">42</div>
+              <div class="td muted" style="flex:1 1 auto">产线总览</div>
+            </div>
+            <div class="tr">
+              <div class="td" style="width:260px"><strong>参数设置</strong></div>
+              <div class="td mono right" style="width:120px">1920 × 1080</div>
+              <div class="td mono right" style="width:90px">28</div>
+              <div class="td muted" style="flex:1 1 auto">工艺参数与配方</div>
+            </div>
+            <div class="tr">
+              <div class="td" style="width:260px"><strong>报警记录</strong></div>
+              <div class="td mono right" style="width:120px">1920 × 1080</div>
+              <div class="td mono right" style="width:90px">17</div>
+              <div class="td muted" style="flex:1 1 auto">历史报警查询</div>
+            </div>
+            <div class="tr">
+              <div class="td" style="width:260px"><strong>趋势曲线</strong></div>
+              <div class="td mono right" style="width:120px">1280 × 800</div>
+              <div class="td mono right" style="width:90px">9</div>
+              <div class="td muted" style="flex:1 1 auto">主轴温度与节拍</div>
+            </div>
+            <div class="tr">
+              <div class="td" style="width:260px"><strong>登录</strong></div>
+              <div class="td mono right" style="width:120px">800 × 600</div>
+              <div class="td mono right" style="width:90px">6</div>
+              <div class="td muted" style="flex:1 1 auto">操作员登录</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>* 确认后按画面身份（Id）记录，之后改名不会让这条动作断链。</span>
+        <span class="grow"></span>
+        <span class="tool">取消</span>
+        <span class="tool primary">确定</span>
+      </div>
+    </div>
+
+    <!-- 边界态一：搜索无结果 -->
+    <div class="mock" style="width:760px;max-width:100%;margin-bottom:14px">
+      <div class="mock-bar">
+        <span class="t">选择画面</span>
+        <span class="s">没有匹配项</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body">
+        <div class="input" style="margin-bottom:10px">报表<span style="margin-left:auto">✕</span></div>
+        <div class="card" style="padding:0">
+          <div class="empty">
+            <div class="empty-glyph">⌕</div>
+            <div class="empty-title">没有匹配「报表」的画面。</div>
+            <div class="empty-hint">按画面名或尺寸搜索；尺寸形如「1920 × 1080」。</div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>* 「起点」徽标只出现在方案启动默认打开的那一页。</span>
+        <span class="grow"></span>
+        <span class="tool">取消</span>
+        <span class="tool primary">确定</span>
+      </div>
+    </div>
+
+    <!-- 边界态二：方案里还没有画面 -->
+    <div class="mock" style="width:760px;max-width:100%">
+      <div class="mock-bar">
+        <span class="t">选择画面</span>
+        <span class="s">当前方案没有画面</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body">
+        <div class="card" style="padding:0">
+          <div class="empty">
+            <div class="empty-glyph">▤</div>
+            <div class="empty-title">当前方案里还没有画面。</div>
+            <div class="empty-hint">请先在组态编辑器里新建画面，再回来配置这条动作。</div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>* 清单口径 = 当前方案 Scada.Pages，选得到就一定切得到。</span>
+        <span class="grow"></span>
+        <span class="tool">取消</span>
+        <span class="tool primary">确定</span>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScadaPagePickerView.xaml</code>（搜索 + 四列清单 + 起点徽标 + 底部按钮）、<code>ScadaPagePickerViewModel</code>（<code>SizeText</code> / <code>ElementCountText</code> / <code>StartupBadge</code> / <code>EmptyHint</code>）</li>
+        <li>改动要点：28 处 hex 换令牌；列头/行 hover/选中/起点徽标全部改走 <code>Dialog*</code>，与 21 的五列表格同一套列头与行高。</li>
+        <li>改动要点：起点徽标从 <code>#ECF5FF + #B3D8FF</code> 的裸 Border 改为 <code>tag info</code>，宽度随文字走（不再固定 padding 拼出来）。</li>
+        <li>改动要点：尺寸与图元数改等宽数字（<code>td mono</code>），两列右对齐后可竖着比对；说明列吃掉剩余宽度，长文本省略号 + 悬停看全值。</li>
+        <li>改动要点：两处空态（无画面 / 无匹配）分开写，文案逐字取自 VM 的 <code>EmptyHint</code> 两个分支。</li>
+        <li>需要新增的接口：无</li>
+      </ul>
+    </div>
+  </div>
+</section>

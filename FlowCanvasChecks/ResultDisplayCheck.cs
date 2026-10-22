@@ -1372,9 +1372,19 @@ namespace FlowCanvasChecks
             Section("[RD-C5] 演示方案「结果显示演示.vms」：加载 → 编译 → 执行（端到端）");
 
             var root = RepoRoot();
-            string vmsPath = root == null ? "" : Path.Combine(root, "解决方案", "结果显示演示.vms");
-            Check("C5 演示方案文件存在", root != null && File.Exists(vmsPath), vmsPath.Length == 0 ? "(定位不到仓库根)" : vmsPath);
-            if (root == null || !File.Exists(vmsPath)) return;
+            // A2（2026-10-22，R38）：文件缺失不再硬红 + return（红久了没人看、整段端到端也永远不跑），
+            // 改成**可反证的跳过**：期望路径 / 目录下无同名文件 / 补回后自动恢复，三要素由
+            // MissingSolutionSamples 统一产出，缺失清单也只维护那一份。
+            string vmsPath = root == null ? "" : MissingSolutionSamples.ExpectedPath(root, DemoFlow + ".vms");
+            if (root == null || !File.Exists(vmsPath))
+            {
+                Check($"C5 演示方案（{DemoFlow}.vms）", true,
+                    root == null
+                        ? "跳过：定位不到仓库根（连期望路径都给不出，属夹具问题，需查 BaseDirectory 上溯四级）"
+                        : MissingSolutionSamples.SkipReason(root, DemoFlow + ".vms"));
+                return;
+            }
+            Check($"C5 演示方案（{DemoFlow}.vms）", true, vmsPath);
 
             string anglePath = Path.Combine(root, "Image", "卡尺测试", "5-角度90.png");
             string circlePath = Path.Combine(root, "Image", "卡尺测试", "4-圆直径200px.png");

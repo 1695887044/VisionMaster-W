@@ -1,0 +1,132 @@
+<section class="view" id="view-25">
+  <div class="view-head">
+    <h2>变量事件</h2>
+    <span class="file">VisionMaster\Views\DialogViews\ScadaVariableEventDialogView.xaml</span>
+    <span class="size">631 行 · 56 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：左清单（变量 / 已失效两段）+ 右详情（阈值 + 五类值事件） -->
+    <div class="mock" style="width:920px;max-width:100%;margin-bottom:14px">
+      <div class="mock-bar">
+        <span class="t">变量事件</span><span class="s">工位1_计数 · 已配置 · 上限 5000 / 下限 0</span>
+        <span class="grow"></span><span class="tool icon">✕</span>
+      </div>
+      <div class="split">
+        <div class="split-aside" style="width:340px">
+          <div class="card-title" style="margin:0;padding:2px 4px 8px">变量清单</div>
+          <div class="card-title" style="margin:0;padding:0 4px 4px">变量 <span class="hint">(5)</span></div>
+          <div class="row sel"><div class="name"><div><strong>工位1_计数</strong></div><div class="hint">Int32 · 本地 · 1485</div></div><span class="tag ok">已配置</span></div>
+          <div class="row"><div class="name"><div><strong>温度_主轴</strong></div><div class="hint">Double · 本地 · 42.6</div></div><span class="tag warn">已停用</span></div>
+          <div class="row"><div class="name"><div><strong>PLC_心跳</strong></div><div class="hint">Bool · S7-1200 · True</div></div><span class="tag">未配置</span></div>
+          <div class="row"><div class="name"><div><strong>报警_急停</strong></div><div class="hint">Bool · 系统只读 · False</div></div><span class="tag">未配置</span></div>
+          <div class="row"><div class="name"><div><strong>配方号</strong></div><div class="hint">Int16 · 本地 · 3</div></div><span class="tag ok">已配置</span></div>
+          <div class="card-title" style="margin:0;padding:8px 4px 4px">已失效 <span class="hint">(1)</span></div>
+          <div class="row"><div class="name"><div><strong>温度_旧主轴</strong></div><div><span class="tag err">变量已不存在（这条配置只能删除）</span></div></div><span class="tag ok">已配置</span></div>
+        </div>
+        <div class="split-main">
+          <div class="card">
+            <div class="field" style="margin-bottom:0">
+              <div style="flex:1 1 auto"><div><strong>工位1_计数</strong></div><div class="hint">Int32 · 本地 · 1485</div></div>
+              <span class="tool danger">删除该配置</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">阈值判定</div>
+            <div class="check" style="margin-bottom:10px"><span class="box on"></span>启用这条变量事件的监视</div>
+            <div class="field">
+              <span class="check"><span class="box on"></span>上限</span>
+              <span class="input mono" style="width:110px;flex:0 0 auto">5000</span>
+              <span class="hint">值越过上限时触发「上限」事件</span>
+            </div>
+            <div class="field">
+              <span class="check"><span class="box on"></span>下限</span>
+              <span class="input mono" style="width:110px;flex:0 0 auto">0</span>
+              <span class="hint">值低于下限时触发「下限」事件</span>
+            </div>
+            <div class="hint">不勾选 = 不判这条限值。勾上之后请填数字；清空输入框同样等于不判。</div>
+          </div>
+          <div class="card">
+            <div class="card-title">值事件与动作</div>
+            <div class="hint" style="margin-bottom:8px">勾上某一类事件，再往下给它配动作（记录日志 / 写变量 / 切换画面等）；同一个变量可以同时配多类。</div>
+            <div class="field" style="margin:4px 0"><span class="check"><span class="box on"></span>更改数值</span></div>
+            <div class="field" style="margin:4px 0 4px 16px"><span class="check"><span class="box"></span>执行前确认</span></div>
+            <div class="hint" style="margin-left:16px">动作（自上而下依次执行）：</div>
+            <div class="card" style="margin:6px 0 0 16px;padding:6px 8px">
+              <div class="field" style="margin-bottom:4px"><span class="combo" style="width:112px;flex:0 0 auto">记录日志</span><span class="hint" style="flex:1 1 auto">工位1_计数变化</span><span class="tool icon">↑</span><span class="tool icon">↓</span><span class="tool icon">✕</span></div>
+            </div>
+            <div class="card" style="margin:6px 0 0 16px;padding:6px 8px">
+              <div class="field" style="margin-bottom:4px"><span class="combo" style="width:112px;flex:0 0 auto">写变量</span><span class="hint" style="flex:1 1 auto">配方号 ← 1</span><span class="tool icon">↑</span><span class="tool icon">↓</span><span class="tool icon">✕</span></div>
+              <div class="check" style="font-size:11px"><span class="box on"></span>仅在上一条成功时执行</div>
+            </div>
+            <div style="margin:6px 0 0 16px"><span class="tool">＋ 添加动作</span></div>
+            <div class="field" style="margin:8px 0 4px"><span class="check"><span class="box on"></span>上限</span></div>
+            <div class="card" style="margin:6px 0 0 16px;padding:6px 8px">
+              <div class="field" style="margin-bottom:4px"><span class="combo" style="width:112px;flex:0 0 auto">记录日志</span><span class="hint" style="flex:1 1 auto">计数越过上限 5000</span><span class="tool icon">↑</span><span class="tool icon">↓</span><span class="tool icon">✕</span></div>
+            </div>
+            <div class="field" style="margin:8px 0 4px"><span class="check"><span class="box"></span>值为真</span></div>
+            <div class="field" style="margin:4px 0"><span class="check"><span class="box"></span>值为假</span></div>
+            <div class="field" style="margin:4px 0"><span class="check"><span class="box"></span>下限</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>写回是即时的：改完即生效，所以底部只有「关闭」。</span>
+        <span class="grow"></span><span class="tool primary">关闭</span>
+      </div>
+    </div>
+
+    <!-- 边界态：未选触发变量 -->
+    <div class="mock" style="width:920px;max-width:100%;margin-bottom:14px">
+      <div class="mock-bar">
+        <span class="t">变量事件</span><span class="s">未选触发变量</span>
+        <span class="grow"></span><span class="tool icon">✕</span>
+      </div>
+      <div class="split">
+        <div class="split-aside" style="width:340px">
+          <div class="card-title" style="margin:0;padding:2px 4px 8px">变量清单</div>
+          <div class="row"><div class="name"><div><strong>工位1_计数</strong></div><div class="hint">Int32 · 本地 · 1485</div></div><span class="tag ok">已配置</span></div>
+          <div class="row"><div class="name"><div><strong>温度_主轴</strong></div><div class="hint">Double · 本地 · 42.6</div></div><span class="tag warn">已停用</span></div>
+          <div class="row"><div class="name"><div><strong>PLC_心跳</strong></div><div class="hint">Bool · S7-1200 · True</div></div><span class="tag">未配置</span></div>
+        </div>
+        <div class="split-main">
+          <div class="empty">
+            <div class="empty-glyph">◈</div>
+            <div class="empty-title">请从左侧选择一个变量，查看或配置它的事件。</div>
+            <div class="empty-hint">左栏按「变量 / 已失效」分段；已失效的配置只能删除。</div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>Esc = 关闭（唯一的提交语义之外的动作）。</span>
+        <span class="grow"></span><span class="tool primary">关闭</span>
+      </div>
+    </div>
+
+    <!-- 两个就近状态：未建配置 / 校验失败 -->
+    <div class="cards">
+      <div class="card">
+        <div class="card-title">这个变量还没有事件配置</div>
+        <div class="hint">点下面的按钮为它建一条配置，之后才能设置阈值与五类值事件。不建配置就不会跟着方案保存，也不会进撤销栈。</div>
+        <div class="tool primary" style="margin-top:12px">新建事件配置</div>
+      </div>
+      <div class="card">
+        <div class="card-title">校验失败</div>
+        <div class="tag err">上限填的不是数字：「5O00」</div>
+        <div class="hint" style="margin-top:8px">红条紧贴内容区底部、按钮行之上；说清是哪一格、当前填的是什么。</div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScadaVariableEventDialogView.xaml</code>（左 340px 清单 + 右详情 + 阈值卡 + 五类事件卡 + 错误条）、<code>ScadaVariableEventDialogViewModel</code>（<code>SummaryText</code> / <code>ShowCreatePrompt</code> / <code>Editors</code>）、公共控件 <code>Views\Controls\ScadaEventEditor.xaml</code>（事件勾选 + 动作表）</li>
+        <li>改动要点：56 处 hex 是本批最脏的一页——分组标题的 3px 蓝条、<code>#FAFBFC</code> 卡片底、<code>#F56C6C</code> 失效行、<code>#67C23A/#E6A23C</code> 状态字、<code>#FEF0F0</code> 错误条全部换令牌；状态字改用 <code>tag ok / warn / 灰</code> 三档。</li>
+        <li>改动要点：左栏行改成「名字 + 一行元信息 + 右侧状态字」两行结构（原先是 13px 名字与 11px 三元信息挤在同一行，长变量名会把状态字顶掉）。</li>
+        <li>改动要点：右栏三块（详情头 / 阈值 / 事件）统一为卡片 + 12px 间距；动作行改成「下拉 + 摘要 + ↑↓✕」单行，三个图标按钮固定 30×30 并显式 <code>Padding</code>（R68）。</li>
+        <li>改动要点：两处就近状态（未配置 → 新建入口；校验失败 → 红条）从"整块显隐"改成常驻位置的卡片，用户不会因为看不到入口而以为功能不存在。</li>
+        <li>需要新增的接口：无（五类事件名 <code>更改数值 / 值为真 / 值为假 / 上限 / 下限</code> 与状态字 <code>未配置 / 已配置 / 已停用</code> 均由 <code>ScadaEventType.DisplayName()</code> 与 <code>SummaryText</code> 提供）</li>
+      </ul>
+    </div>
+  </div>
+</section>

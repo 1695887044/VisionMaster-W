@@ -404,4 +404,27 @@
     <SolidColorBrush x:Key="FlowCanvasBreakpointBrush" Color="#F56C6C" />
     <SolidColorBrush x:Key="FlowCanvasCanceledBrush" Color="#C0C4CC" />
     <SolidColorBrush x:Key="FlowCanvasWarningBackgroundBrush" Color="#FDF0F0" />
+
+    <!--  ====================  登录窗品牌区（深色语境）  ====================  -->
+    <!--
+        2026-10-22 从 ScadaLoginView.xaml 收口上来（原先 8 处字面量写死在视图里，违反 R140）。
+
+        为什么单独一组而不复用 Dialog*：品牌区是深色语境（深青渐变 + 半透明白卡），
+        与弹窗的浅色面语义相反；混用会让"改弹窗底色"顺手把品牌区也改浅。
+        设计基线 parts/18-scada-login.html 的「已知偏差」写明：当时共享 CSS 没有深色档位，
+        只能用浅色示意；这组令牌补的就是那一档。
+
+        渐变只能是 LinearGradientBrush，所以键名带 Gradient 后缀；其余五支是它上面的
+        文字 / 卡片 / 分隔线。改品牌色只改这里，视图里不留色值。
+    -->
+    <LinearGradientBrush x:Key="BrandSurfaceGradientBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Offset="0" Color="#0B1F33" />
+        <GradientStop Offset="0.52" Color="#0C3B57" />
+        <GradientStop Offset="1" Color="#0B5F7A" />
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="BrandTextBrush" Color="#EAF6FF" />
+    <SolidColorBrush x:Key="BrandMutedBrush" Color="#B7D9EC" />
+    <SolidColorBrush x:Key="BrandCardBrush" Color="#14FFFFFF" />
+    <SolidColorBrush x:Key="BrandCardBorderBrush" Color="#26FFFFFF" />
+    <SolidColorBrush x:Key="BrandDividerBrush" Color="#33FFFFFF" />
 </ResourceDictionary>

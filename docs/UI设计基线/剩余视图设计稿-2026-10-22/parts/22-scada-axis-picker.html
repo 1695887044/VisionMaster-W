@@ -1,0 +1,118 @@
+<section class="view" id="view-22">
+  <div class="view-head">
+    <h2>选择轴</h2>
+    <span class="file">VisionMaster\Views\DialogViews\ScadaAxisPickerView.xaml</span>
+    <span class="size">195 行 · 16 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：勾选清单（多选，顺序即运行期下拉顺序） -->
+    <div class="mock" style="width:760px;max-width:100%;margin-bottom:14px">
+      <div class="mock-bar">
+        <span class="t">选择轴</span>
+        <span class="s">已启用轴 5 根 · 已勾选 3 根</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body">
+        <div class="input ph" style="margin-bottom:10px">按轴名 / 卡名筛选</div>
+        <div class="card" style="padding:0">
+          <div class="row sel">
+            <span class="check"><span class="box on"></span></span>
+            <span class="name"><strong>X轴</strong></span>
+            <span class="meta">运动卡1</span>
+          </div>
+          <div class="row sel">
+            <span class="check"><span class="box on"></span></span>
+            <span class="name"><strong>Y轴</strong></span>
+            <span class="meta">运动卡1</span>
+          </div>
+          <div class="row sel">
+            <span class="check"><span class="box on"></span></span>
+            <span class="name"><strong>Z轴</strong></span>
+            <span class="meta"><span class="tag warn">（轴已移除或已停用）</span></span>
+          </div>
+          <div class="row">
+            <span class="check"><span class="box"></span></span>
+            <span class="name"><strong>R轴（旋转）</strong></span>
+            <span class="meta">运动卡2</span>
+          </div>
+          <div class="row">
+            <span class="check"><span class="box"></span></span>
+            <span class="name"><strong>送料轴</strong></span>
+            <span class="meta">运动卡2</span>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>* 只能从工程里已启用的轴中选；顺序即运行期下拉框顺序，默认选中第一根。</span>
+        <span class="grow"></span>
+        <span class="tool">取消</span>
+        <span class="tool primary">确定</span>
+      </div>
+    </div>
+
+    <!-- 边界态一：搜索无结果 -->
+    <div class="mock" style="width:760px;max-width:100%;margin-bottom:14px">
+      <div class="mock-bar">
+        <span class="t">选择轴</span>
+        <span class="s">没有匹配项</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body">
+        <div class="input" style="margin-bottom:10px">W轴<span style="margin-left:auto">✕</span></div>
+        <div class="card" style="padding:0">
+          <div class="empty">
+            <div class="empty-glyph">⌕</div>
+            <div class="empty-title">没有匹配「W轴」的轴。</div>
+            <div class="empty-hint">按轴名或卡名搜索；只能选工程里已启用的轴。</div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>* 关键字清空即恢复全量清单。</span>
+        <span class="grow"></span>
+        <span class="tool">取消</span>
+        <span class="tool primary">确定</span>
+      </div>
+    </div>
+
+    <!-- 边界态二：工程里一根轴都没启用 -->
+    <div class="mock" style="width:760px;max-width:100%">
+      <div class="mock-bar">
+        <span class="t">选择轴</span>
+        <span class="s">工程里没有已启用的轴</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body">
+        <div class="card" style="padding:0">
+          <div class="empty">
+            <div class="empty-glyph">▤</div>
+            <div class="empty-title">当前方案里还没有已启用的轴。</div>
+            <div class="empty-hint">请先到「运动卡设置」配置轴并勾选启用，再回来选择。</div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>* 与「搜索无结果」分开说：一个是没数据，一个是没匹配。</span>
+        <span class="grow"></span>
+        <span class="tool">取消</span>
+        <span class="tool primary">确定</span>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScadaAxisPickerView.xaml</code>（搜索 + 勾选清单 + 底部按钮）、<code>ScadaAxisPickerViewModel</code>（<code>DisplayName</code> / <code>CardCaption</code> / <code>EmptyHint</code> / <code>IsSingleSelect</code>）</li>
+        <li>改动要点：原 560×520 与 21/24 的 760×520 不齐，统一为 760×520；清单从「滚动区里裸 CheckBox」改为 32px 行高的整行可点行（点行即勾选），勾选框只做状态指示。</li>
+        <li>改动要点：16 处 hex 换令牌；勾选行用 <code>accent-light</code> 底 + <code>accent-border</code> 边，与 21/24 的选中行同一视觉。</li>
+        <li>改动要点：失效轴仍保留一行（VM 的「轴已移除或已停用」），但改用 <code>tag warn</code> 呈现——它是"看得见才能取消勾选"的信息，不该和普通卡名同色。</li>
+        <li>改动要点：两种空态分开写（无启用轴 / 无匹配），文案逐字取自 VM 的 <code>EmptyHint</code> 两个分支。</li>
+        <li>需要新增的接口：无（多选顺序即清单顺序，已由 VM 的 <code>OnDialogOpened</code> 保证）</li>
+      </ul>
+    </div>
+  </div>
+</section>

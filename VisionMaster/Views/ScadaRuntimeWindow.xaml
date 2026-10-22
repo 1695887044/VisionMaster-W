@@ -517,5 +517,26 @@
                     Text="加载耗时 —" />
             </Grid>
         </Border>
+
+        <!--  ====================  软键盘层（数字 / 字符）  ====================  -->
+        <!--  放在根 Grid、跨三行、ZIndex 40：必须压住报警历史抽屉（它是根 Grid 的兄弟）， -->
+        <!--  也必须覆盖顶/底栏——点顶栏同样算“点键盘外”，先取消本次编辑，不能把半截输入提交掉。  -->
+        <Grid
+            x:Name="KeyboardLayer"
+            Grid.Row="0"
+            Grid.RowSpan="3"
+            Panel.ZIndex="40"
+            SizeChanged="OnKeyboardLayerSizeChanged"
+            Visibility="Collapsed">
+            <Border
+                x:Name="KeyboardBackdrop"
+                Background="Transparent"
+                MouseLeftButtonDown="OnKeyboardBackdropClick" />
+            <Canvas>
+                <controls:ScadaSoftKeyboard
+                    x:Name="SoftKeyboard"
+                    SizeChanged="OnSoftKeyboardSizeChanged" />
+            </Canvas>
+        </Grid>
     </Grid>
 </Window>

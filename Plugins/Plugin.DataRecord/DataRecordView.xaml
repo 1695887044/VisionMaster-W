@@ -315,6 +315,19 @@
                 </Setter>
             </Style>
 
+            <!--
+                变量名列必须保持「可手填」：C# 脚本里 SetVar 的名字不在宿主候选快照里。
+                注意：共享的 DialogCombo 与 UI 库的隐式 ComboBox 样式都**没有** PART_EditableTextBox，
+                在它们下面 IsEditable=True 是静默无效的（照 ResultDisplayView 的 JudgeCombo 范式）。
+                这里套一个"只设尺寸、不设 Template"的本地样式：显式样式挡掉隐式样式，
+                Template 回落到框架默认模板（含 PART_EditableTextBox），手填才真的能敲进去。
+            -->
+            <Style x:Key="VariableComboStyle" TargetType="ComboBox">
+                <Setter Property="Height" Value="32" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+            </Style>
+
             <Style x:Key="ColumnHeaderTextStyle" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="10.5" />
                 <Setter Property="FontWeight" Value="SemiBold" />
@@ -665,11 +678,17 @@
                         </Button>
                     </Grid>
 
-                    <TextBlock
-                        Grid.Row="1"
-                        Margin="0,2,0,10"
-                        Style="{StaticResource HelpTextStyle}"
-                        Text="来源=端口：列名即输入端口名，连线取上游值；来源=变量：取运行期变量；内置：时间/序号/步骤名/耗时/图片路径。" />
+                    <StackPanel Grid.Row="1" Margin="0,2,0,10">
+                        <TextBlock
+                            Margin="0"
+                            Style="{StaticResource HelpTextStyle}"
+                            Text="来源=端口：列名即输入端口名，连线取上游值；来源=变量：先查本轮局部变量，再查全局/通讯/系统变量（读镜像值，不发起设备读）；内置：时间/序号/步骤名/耗时/图片路径。" />
+                        <TextBlock
+                            Margin="0,3,0,0"
+                            Style="{StaticResource HelpTextStyle}"
+                            Text="{Binding DataContext.VariableHint, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
 
                     <ScrollViewer
                         Grid.Row="2"
@@ -782,15 +801,22 @@
                                                         </ContentControl.Style>
                                                     </ContentControl>
 
-                                                    <TextBox
-                                                        Height="32"
-                                                        Padding="8,0"
-                                                        VerticalContentAlignment="Center"
-                                                        Style="{StaticResource DialogInput}"
-                                                        Tag="变量名"
-                                                        Text="{Binding VariableName, UpdateSourceTrigger=PropertyChanged}"
-                                                        ToolTip="运行期变量名（变量定义/脚本 SetVar 写入的键）"
-                                                        Visibility="{Binding Source, Converter={StaticResource SourceVis}, ConverterParameter=Variable}" />
+                                                    <!--
+                                                        变量名：可编辑 ComboBox（候选来自宿主快照，仍允许手填）。
+                                                        Text 直接写回 RecordColumnDef.VariableName；候选只是名字，不建立连线。
+                                                    -->
+                                                    <ComboBox
+                                                        IsEditable="True"
+                                                        IsTextSearchEnabled="False"
+                                                        ItemsSource="{Binding DataContext.VariableNameCandidates, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        MaxDropDownHeight="280"
+                                                        Style="{StaticResource VariableComboStyle}"
+                                                        Text="{Binding VariableName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                        Visibility="{Binding Source, Converter={StaticResource SourceVis}, ConverterParameter=Variable}">
+                                                        <ComboBox.ToolTip>
+                                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="填变量名，也可点右侧箭头从全局/通讯/系统变量与上游「变量定义」里选；C# 脚本 SetVar 的名字直接手填" />
+                                                        </ComboBox.ToolTip>
+                                                    </ComboBox>
 
                                                     <ComboBox
                                                         Height="32"

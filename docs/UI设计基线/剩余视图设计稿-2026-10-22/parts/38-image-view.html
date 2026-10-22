@@ -1,0 +1,90 @@
+<section class="view" id="view-38">
+  <div class="view-head">
+    <h2>画布（图像页）</h2>
+    <span class="file">VisionMaster\Views\ImageView.xaml</span>
+    <span class="size">16 行 · 0 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：单画面（1×1），上行大图 + 下行单行缩略图条 -->
+    <div class="mock">
+      <div class="mock-bar">
+        <span class="t">画布 · 1×1</span>
+        <span class="s">窗口号 1 · 只收 ViewIndex = 1 的图</span>
+        <span class="grow"></span>
+        <span class="hint">滚轮缩放 · 右键菜单</span>
+      </div>
+
+      <div class="mock-body alt">
+        <div class="empty">
+          <div class="empty-glyph">▣</div>
+          <div class="empty-title">当前帧 1280 × 1024 · 匹配_1 标注 3 条</div>
+          <div class="empty-hint">滚轮缩放 · 右键菜单可适应 / 保存原图 · 双击缩略图按原始像素显示</div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <span class="hint">缩略图条（单行横向滚动，一列一张，108 × 80）</span>
+        <span class="grow"></span>
+        <span class="hint">悬停看 标题 / 插件注入信息 / 来源（流程·插件·时间·尺寸）</span>
+      </div>
+      <div class="mock-body">
+        <div class="cards four">
+          <div class="card">
+            <div class="card-title">#0412</div>
+            <div class="hint">Main · 匹配_1</div>
+            <div class="hint">19:04:11.318</div>
+          </div>
+          <div class="card">
+            <div class="card-title">#0411</div>
+            <div class="hint">Main · 匹配_1</div>
+            <div class="hint">19:04:10.902</div>
+          </div>
+          <div class="card">
+            <div class="card-title">#0410</div>
+            <div class="hint">Main · 图像采集_1</div>
+            <div class="hint">19:04:10.487</div>
+          </div>
+          <div class="card">
+            <div class="card-title">#0409</div>
+            <div class="hint">Home · 图像采集_1</div>
+            <div class="hint">19:04:09.961</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mock-foot">
+        <span>右键：钉住当前帧（对比基准）· 对比模式 · 锁定跟随 · 清空画布 · 导出选中 · 导出全部</span>
+      </div>
+    </div>
+
+    <!-- 三态：空态 / 加载态 / 错误态 -->
+    <div class="cards three">
+      <div class="card">
+        <div class="card-title"><span class="tag">空态</span>采集关闭</div>
+        <div class="hint">画布采集当前是关闭的。到「系统参数设置 → 画布」勾选「启用画布采集」，流程跑出来的图才会收进来。</div>
+        <div class="hint">文案来自 ImageView.BuildHint()，随开关变化。</div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="tag warn">加载态</span>首帧未到</div>
+        <div class="hint">正在接收第一帧…（窗口号 1）</div>
+        <div class="hint">设计建议新增：现在首帧到达前是纯白 + 空提示，与「采集关了」长得一样。</div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="tag err">错误态</span>画布未就绪</div>
+        <div class="hint">画布尚未就绪。</div>
+        <div class="hint">ImageCollectionService.Instance 为 null 时的兜底文案；设计建议补一句处置：重启或检查服务初始化。</div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ImageView.xaml</code>（16 行，只有宿主 <code>Grid</code> + 一个 <code>ToggleButton</code>）+ <code>ImageView.xaml.cs</code>（按 <code>eViewMode</code> 摆 1~9 格，每格一张 <code>ImageGallery</code>）+ <code>Services\Core.Halcon\Themes\ImageGallery.xaml</code>（大图 / 4px 分隔条 / 112 高单行缩略图条）。</li>
+        <li><span class="err">现状缺陷（只读记录，未改代码）</span>：<code>ImageView</code> 构造函数里 <code>ShowCanvas()</code> 会 <code>grid.Children.Clear()</code>，把 XAML 里那个裸 <code>ToggleButton</code> 一起清掉 —— 它无 Content、无绑定，且第一帧之前就消失；建议删掉，或给它明确语义（布局切换 / 暂停跟随）后放到画布右上角工具位。</li>
+        <li>改动要点：① 三态分开（采集关闭 / 首帧未到 / 画布未就绪），现在后两者都显示成空提示；② 缩略图条保持「只显示图片、信息全走悬停」，悬停延迟 250 ms、时长 60 s（现状 <code>ToolTipService</code> 已如此）；③ 每格独立清空 / 导出（右键菜单六项，含「锁定跟随」），导出按流程分文件夹落 PNG；④ 多格布局（1×1 / 1×2 / 2×2 / 3×3 …）由 <code>SpecOf</code> 表驱动，本稿只画 1×1。</li>
+        <li>需要新增的接口：<code>ImageCollectionService.State</code>（<code>Idle / Waiting / Ready / Unavailable</code>）与对应的 <code>ImageView.HintText</code> 分支 —— 现在只有 <code>BuildHint</code> 的三段静态文案，无法区分「还没来帧」与「服务没起来」。</li>
+      </ul>
+    </div>
+  </div>
+</section>

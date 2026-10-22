@@ -27,8 +27,9 @@
 
     --success: #22C55E;             /* DialogSuccessBrush */
     --success-text: #15803D;        /* DialogSuccessTextBrush */
-    --warning: #F59E0B;             /* DialogWarningBrush */
+    --success-soft: #ECFDF5;        /* LogicForSoftBrush（输出方向徽标底） */
     --warning-text: #B45309;        /* DialogWarningTextBrush */
+    --warning-soft: #FFFBEB;        /* LogicWhileSoftBrush（全局方向徽标底） */
     --danger: #EF4444;              /* DialogDangerBrush */
     --danger-text: #B91C1C;         /* DialogDangerTextBrush */
     --danger-subtle: #FEF2F2;       /* DialogDangerSubtleBrush */
@@ -174,11 +175,22 @@
   .suggest .item:hover { background: var(--row-hover); }
   .suggest .item.active { background: var(--accent-light); color: var(--accent-text); }
   .suggest .item.active .kind { background: var(--accent-border); color: var(--accent-text); }
-  .suggest .empty {
+  /* 下拉无匹配：用独立类名 no-match，避免与面板级 .empty（display:none 的显隐开关）撞名。
+     v1 审查后的实测教训：同名会让空态永远不显示。 */
+  .suggest .no-match {
     padding: 18px 10px;
     text-align: center;
     font-size: 12px;
+    line-height: 1.7;
     color: var(--text-4);
+  }
+  .suggest .no-match .sub { font-size: 11px; color: var(--text-4); }
+  .suggest .no-match code {
+    font-family: var(--mono);
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: var(--border-light);
+    color: var(--text-2);
   }
 
   /* 工具条按钮：次要（白底描边）/ 主（实底）/ 危险（白底红字） */
@@ -202,8 +214,10 @@
   .btn:hover { background: var(--row-hover); border-color: var(--text-4); }
   .btn:active { background: var(--border-light); }
   .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; }
+  .btn[disabled]:hover { background: var(--surface); border-color: var(--border-strong); }
   .btn.primary { background: var(--accent-dark); border-color: var(--accent-dark); color: #fff; }
-  .btn.primary:hover { background: #026AA7; border-color: #026AA7; }
+  .btn.primary:hover { background: var(--accent-text); border-color: var(--accent-text); }
   .btn.danger { color: var(--danger-text); border-color: var(--border-strong); }
   .btn.danger:hover { background: var(--danger-subtle); border-color: var(--danger); }
   .btn.icon { width: 30px; padding: 0; }  /* R68：图标按钮 30×30 + Padding=0 */
@@ -219,14 +233,20 @@
     display: flex;
     align-items: center;
     gap: 7px;
+    width: 100%;
     height: 34px;
     padding: 0 12px;
-    background: var(--surface-2);
+    border: 0;
     border-bottom: 1px solid var(--border-light);
+    background: var(--surface-2);
+    font-family: inherit;
+    text-align: left;
     cursor: pointer;
     user-select: none;
   }
   .group-head:hover { background: var(--row-hover); }
+  .group-head:active { background: var(--border-light); }
+  .group-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .group-head .chev {
     font-size: 9px;
     color: var(--text-4);
@@ -307,11 +327,13 @@
     white-space: nowrap;
   }
   .row .dir.in  { background: var(--accent-soft); color: var(--accent-text); }
-  .row .dir.out { background: #ECFDF5; color: var(--success-text); }
-  .row .dir.gv  { background: #FFFBEB; color: var(--warning-text); }
+  .row .dir.out { background: var(--success-soft); color: var(--success-text); }
+  .row .dir.gv  { background: var(--warning-soft); color: var(--warning-text); }
 
   .row .remove {
     width: 24px; height: 24px;
+    /* R68：小图标按钮必须显式 padding:0 */
+    padding: 0;
     display: inline-flex; align-items: center; justify-content: center;
     border: 0; border-radius: 4px;
     background: transparent;
@@ -327,7 +349,8 @@
 
   /* 失效行：整行去饱和 + 名称删除线 + 值换成占位符 */
   .row.missing { background: var(--danger-subtle); }
-  .row.missing:hover { background: #FDE8E8; }
+  /* hover 用同一底色 + 描边，不引入第二个红（v1 的 #FDE8E8 无令牌来源） */
+  .row.missing:hover { background: var(--danger-subtle); box-shadow: inset 0 0 0 1px var(--danger); }
   .row.missing .name { color: var(--danger-text); text-decoration: line-through; }
   .row.missing .value { color: var(--danger-text); font-weight: 400; font-family: inherit; }
   .row.missing .remove { opacity: 1; color: var(--danger-text); }
@@ -436,11 +459,11 @@
 
     <!-- 全局变量 -->
     <div class="group">
-      <div class="group-head" onclick="toggle(this)">
+      <button class="group-head" onclick="toggle(this)" aria-expanded="true">
         <span class="chev">▾</span>
         <span class="title">全局变量</span>
         <span class="count">2</span>
-      </div>
+      </button>
       <div class="rows">
         <div class="row">
           <span class="name">Global.OKCount</span>
@@ -461,16 +484,18 @@
 
     <!-- 算子输入 -->
     <div class="group">
-      <div class="group-head" onclick="toggle(this)">
+      <button class="group-head" onclick="toggle(this)" aria-expanded="true">
         <span class="chev">▾</span>
         <span class="title">算子输入</span>
         <span class="count">1</span>
-      </div>
+      </button>
       <div class="rows">
         <div class="row">
           <span class="name">模板匹配_0.InputImage</span>
           <span class="type">HImage</span>
-          <span class="value">640×480</span>
+          <!-- HImage 当前没有格式化器，DisplayValue 走 ToString() → 类型名。
+               设计如实画成 "HImage"，不编造 640×480（那需要新增格式化器）。 -->
+          <span class="value">HImage</span>
           <span class="dir in">输入</span>
           <button class="remove" aria-label="移除监视">✕</button>
         </div>
@@ -479,11 +504,11 @@
 
     <!-- 算子输出 -->
     <div class="group">
-      <div class="group-head" onclick="toggle(this)">
+      <button class="group-head" onclick="toggle(this)" aria-expanded="true">
         <span class="chev">▾</span>
         <span class="title">算子输出</span>
         <span class="count">4</span>
-      </div>
+      </button>
       <div class="rows">
         <div class="row">
           <span class="name">模板匹配_0.Score</span>
@@ -502,7 +527,7 @@
         <div class="row">
           <span class="name">模板匹配_0.X</span>
           <span class="type">Double[]</span>
-          <span class="value">[312.5, 480.2, …共5个]</span>
+          <span class="value">[312.5, 480.2, 88.9, 120, 42.1]</span>
           <span class="dir out">输出</span>
           <button class="remove" aria-label="移除监视">✕</button>
         </div>
@@ -589,10 +614,42 @@
       <span style="text-align:center">方向</span><span></span>
     </div>
     <div class="group">
-      <div class="group-head"><span class="chev">▾</span><span class="title">全局变量</span><span class="count">2</span></div>
+      <button class="group-head" onclick="toggle(this)" aria-expanded="true"><span class="chev">▾</span><span class="title">全局变量</span><span class="count">2</span></button>
       <div class="rows">
         <div class="row"><span class="name">Global.OKCount</span><span class="type">Int32</span><span class="value">1485</span><span class="dir gv">全局</span><button class="remove" aria-label="移除监视">✕</button></div>
       </div>
+    </div>
+  </div>
+
+  <div class="footbar">
+    <span class="spacer"></span>
+    <span>监视项 <b class="mono">7</b></span>
+  </div>
+</section>
+
+<!-- ================= 边界态：联想下拉无匹配 ================= -->
+<section class="panel narrow" id="p4">
+  <div class="caption">
+    <h1>监视</h1>
+    <span class="tag">联想无匹配</span>
+    <span class="size">420</span>
+  </div>
+
+  <div class="addbar">
+    <div class="combo">
+      <input type="text" value="不存在的算子" aria-label="添加监视">
+      <span class="caret">▾</span>
+      <div class="suggest" style="position:static; margin-top:6px;">
+        <div class="no-match">没有匹配项<br><span class="sub">试试输入算子名，或 <code>Global.</code> 前缀</span></div>
+      </div>
+    </div>
+    <button class="btn primary" disabled>添加</button>
+  </div>
+
+  <div class="list">
+    <div class="grid-head">
+      <span>名称</span><span>类型</span><span class="r">当前值</span>
+      <span style="text-align:center">方向</span><span></span>
     </div>
   </div>
 

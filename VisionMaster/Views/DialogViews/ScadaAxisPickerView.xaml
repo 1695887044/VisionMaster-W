@@ -22,10 +22,16 @@
             <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="NoResize" />
             <Setter Property="SizeToContent" Value="WidthAndHeight" />
+            <!--  透明窗口：卡片外那圈 15px 只剩投影，不再是白底窗口边（用户看到的"白框"）。
+                  口径同 ScadaSystemSettingsView / ScadaLoginView。  -->
+            <Setter Property="AllowsTransparency" Value="True" />
+            <Setter Property="Background" Value="Transparent" />
         </Style>
     </prism:Dialog.WindowStyle>
 
     <Grid Margin="15">
+        <!--  投影层与内容层分离（口径同 DialogCardShadow）：两层同尺寸，内容层把投影层完全盖住，
+              只在圆角外露出阴影——透明窗口下，那片圆角外区域就是投影唯一可见的地方。  -->
         <Border Background="White" CornerRadius="8">
             <Border.Effect>
                 <DropShadowEffect
@@ -35,7 +41,9 @@
                     ShadowDepth="3"
                     Color="Black" />
             </Border.Effect>
+        </Border>
 
+        <Border Background="White" CornerRadius="8">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="45" />

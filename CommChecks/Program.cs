@@ -83,6 +83,8 @@ namespace CommChecks
             ArrayElementConversion();
             WritePriorityAndBackpressure();
             UrgentLanesAndPollYield();
+            ReadRetryUsesConfiguredCount();
+            NetworkVariableQualitySurface();
             WaitSchedulingAndLogThrottleKey();
             GapToleranceByTransport();
             ModbusStationInAddressAndGroupKey();
@@ -1920,6 +1922,26 @@ namespace CommChecks
                     new ElementConversion { Scale = double.NaN }, 1.0, typeof(int), out _, out var nanError)
                 && !string.IsNullOrEmpty(nanError),
                 nanError ?? "(没有错误)");
+
+            var buildEngineering = typeof(NetworkVariableModel).GetMethod(
+                "TryBuildEngineeringArray", BindingFlags.NonPublic | BindingFlags.Instance);
+            Check("C26-11 前提：能定位 NetworkVariableModel.TryBuildEngineeringArray",
+                buildEngineering != null, buildEngineering?.ToString() ?? "未找到");
+
+            if (buildEngineering != null)
+            {
+                object?[] shortArgs = { new[] { 1.0 }, null, null };
+                bool shortOk = (bool)buildEngineering.Invoke(model, shortArgs)!;
+                Check("C26-11 换算分支：长度不符 → 明确失败（不短写留旧值/长写覆盖邻居）",
+                    !shortOk
+                    && (shortArgs[2] as string)?.Contains("不一致", StringComparison.Ordinal) == true,
+                    shortArgs[2] as string ?? "null");
+            }
+
+            Check("C26-12 null 工程值落非空值类型 → 类型默认值（不抛 InvalidCastException）",
+                ArrayConversion.TryToRaw(null, null, typeof(int), out var nullRaw, out _)
+                && nullRaw is int nullInt && nullInt == 0,
+                nullRaw?.GetType().Name + " " + nullRaw);
         }
 
         #endregion
@@ -2209,11 +2231,171 @@ namespace CommChecks
             }
         }
 
+        /// <summary>
+        /// 读重试（<see cref="ConnectionConfigBase.RetryCount"/> / <see cref="ConnectionConfigBase.RetryIntervalMs"/>）
+        /// 只作用于「立刻读」这条读路径：前 N 次失败后成功、次数用完按原错误出口抛出、RetryCount=0 时一次都不重试。
+        /// <para>为什么用反射注入：Manager 的连接/变量/配置表都是私有字段，这里与 C29 同一手法
+        /// （断言按实现自己的结构验，不另造一套管理器）。</para>
+        /// <para>为什么间隔取 10ms：断言要验"重试发生了几次"，不是"等了多久"；
+        /// 用默认 1000ms 会让本组白等 2 秒以上。</para>
+        /// </summary>
+        private static void ReadRetryUsesConfiguredCount()
+        {
+            Section("C30 立刻读有界重试（RetryCount / RetryIntervalMs）");
+
+            var mgr = new AdvancedCommunicationManager();
+            try
+            {
+                var workers = (ConcurrentDictionary<string, ConnectionWorker>)typeof(AdvancedCommunicationManager)
+                    .GetField("_workers", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(mgr)!;
+                var registered =
+                    (ConcurrentDictionary<string, ConcurrentDictionary<string, CommunicationVariable>>)
+                    typeof(AdvancedCommunicationManager)
+                        .GetField("_registeredVariables", BindingFlags.NonPublic | BindingFlags.Instance)!
+                        .GetValue(mgr)!;
+                var configCache = (ConcurrentDictionary<string, CommunicationConfig>)typeof(AdvancedCommunicationManager)
+                    .GetField("_configCache", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(mgr)!;
+
+                var conn = new FlakyReadConnection(failuresBeforeSuccess: 2);
+                var worker = new ConnectionWorker(conn);
+                worker.Start();
+                workers["PLC1"] = worker;
+
+                var variable = MakeVar("V1", "", 0);
+                registered["PLC1"] = new ConcurrentDictionary<string, CommunicationVariable>();
+                registered["PLC1"]["V1"] = variable;
+
+                var cfg = MakeConfig(1000);
+                cfg.Config.RetryCount = 2;
+                cfg.Config.RetryIntervalMs = 10;
+                configCache["PLC1"] = cfg;
+
+                bool connected = worker.Connect(3000).GetAwaiter().GetResult();
+                Check("C30-1 前提：桩连接已进入 Connected", connected, $"状态 {worker.State}");
+
+                var value = mgr.ReadVariableNow("PLC1", "V1");
+                Check("C30-2 前两次失败、第三次成功 → 返回解码值（段读 3 次）",
+                    value is short s && s == 0 && conn.ReadCalls == 3,
+                    $"值={value}，段读 {conn.ReadCalls} 次");
+
+                conn.FailAlways = true;
+                conn.ReadCalls = 0;
+                bool threw = false;
+                string message = "";
+                try { mgr.ReadVariableNow("PLC1", "V1"); }
+                catch (InvalidOperationException ex) { threw = true; message = ex.Message; }
+                Check("C30-3 重试用尽仍失败 → 抛原错误（1+RetryCount=3 次）",
+                    threw && conn.ReadCalls == 3,
+                    $"抛出={threw}，段读 {conn.ReadCalls} 次，错误「{message}」");
+
+                cfg.Config.RetryCount = 0;
+                conn.ReadCalls = 0;
+                try { mgr.ReadVariableNow("PLC1", "V1"); } catch { /* 本组只数次数 */ }
+                Check("C30-4 RetryCount=0 → 只读 1 次（配置真的生效，不是写死重试）",
+                    conn.ReadCalls == 1, $"段读 {conn.ReadCalls} 次");
+            }
+            finally
+            {
+                mgr.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// 质量戳暴露面：<see cref="NetworkVariableModel.Quality"/> 必须可读，且派生文案/判据
+        /// （<c>QualityText</c> / <c>IsQualityGood</c>）随推送同步刷新。
+        /// <para>为什么值得单独钉：<c>Quality</c> 由通信线程推、UI/诊断/流程读，
+        /// 旧实现只有裸枚举（且注释写着"仅供 UI 展示"）；派生属性若不发 PropertyChanged，
+        /// 界面会永远停在第一次读到的文案上——那种"看着良好、其实是旧值"最难查。</para>
+        /// </summary>
+        private static void NetworkVariableQualitySurface()
+        {
+            Section("C31 网络变量质量戳可读（QualityText / IsQualityGood）");
+
+            var model = new NetworkVariableModel
+            {
+                Name = "Q",
+                ConnectionName = "PLC1",
+                DataType = typeof(short)
+            };
+
+            var changed = new List<string>();
+            model.PropertyChanged += (_, e) => changed.Add(e.PropertyName ?? "");
+
+            Check("C31-1 默认质量 Bad（从未读到）且 IsQualityGood=false",
+                model.Quality == VariableQuality.Bad && !model.IsQualityGood,
+                $"{model.Quality}/{model.QualityText}");
+
+            Check("C31-2 中文文案非空且不是枚举成员名",
+                model.QualityText.Length > 0 && model.QualityText != "Bad",
+                model.QualityText);
+
+            model.UpdateQuality(VariableQuality.Good);
+            Check("C31-3 推送 Good → IsQualityGood=true，文案切到「良好」",
+                model.IsQualityGood && model.QualityText == "良好",
+                $"{model.Quality}/{model.QualityText}");
+
+            Check("C31-4 派生属性跟着发 PropertyChanged（界面绑定不会停在旧文案）",
+                changed.Contains(nameof(NetworkVariableModel.Quality))
+                && changed.Contains(nameof(NetworkVariableModel.QualityText))
+                && changed.Contains(nameof(NetworkVariableModel.IsQualityGood)),
+                string.Join(",", changed));
+
+            model.UpdateQuality(VariableQuality.Uncertain);
+            Check("C31-5 读失败降级 Uncertain → 不再算 Good（旧值不可当新鲜值用）",
+                !model.IsQualityGood && model.QualityText.Contains("存疑", StringComparison.Ordinal),
+                $"{model.Quality}/{model.QualityText}");
+        }
+
+        /// <summary>前 N 次段读失败、之后成功的桩（验「立刻读」有界重试的次数口径）。</summary>
+        private sealed class FlakyReadConnection : ICommunicationConnection
+        {
+            private int _failuresLeft;
+
+            public FlakyReadConnection(int failuresBeforeSuccess) => _failuresLeft = failuresBeforeSuccess;
+
+            /// <summary>置 true = 之后每次读都失败（验"重试用尽"）。</summary>
+            public bool FailAlways { get; set; }
+
+            /// <summary>段读次数（每次重试算一次）。</summary>
+            public int ReadCalls { get; set; }
+
+            public string ConnectionName => "FLAKY";
+
+            public CommunicationType Type => CommunicationType.ModbusTcp;
+
+            public bool IsConnected { get; private set; } = true;
+
+            public ByteOrderFormat ByteOrder => ByteOrderFormat.ABCD;
+
+            public bool Connect() { IsConnected = true; return true; }
+
+            public void Disconnect() => IsConnected = false;
+
+            public bool TestConnection() => IsConnected;
+
+            public void Dispose() => Disconnect();
+
+            public T Read<T>(string address) where T : struct => throw new NotSupportedException();
+
+            public void Write(string address, object value) { }
+
+            public byte[] ReadBytes(string address, ushort length)
+            {
+                ReadCalls++;
+                if (FailAlways || _failuresLeft-- > 0)
+                    throw new InvalidOperationException("模拟瞬时读失败");
+                return new byte[Math.Max(1, (int)length) * 2];
+            }
+
+            public void WriteBytes(string address, byte[] data) { }
+
+            public bool[] ReadBits(string address, ushort count) => new bool[Math.Max(1, (int)count)];
+        }
+
         private static int UrgentQueueCapacity()
             => (int)typeof(ConnectionWorker)
                 .GetField("UrgentQueueCapacity", BindingFlags.NonPublic | BindingFlags.Static)!
                 .GetRawConstantValue()!;
-
         private static int UrgentEnqueueTimeoutMs()
             => (int)typeof(ConnectionWorker)
                 .GetField("UrgentEnqueueTimeoutMs", BindingFlags.NonPublic | BindingFlags.Static)!

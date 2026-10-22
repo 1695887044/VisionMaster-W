@@ -23,6 +23,11 @@
             <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="NoResize" />
             <Setter Property="SizeToContent" Value="WidthAndHeight" />
+            <!--  透明窗口：卡片外那圈 15px 只剩投影，不再是白底窗口边（就是用户看到的"白框"）。
+                  不设这两项时窗口底色是白的，阴影只压暗内圈，最外圈仍是纯白 → 弹窗像套了个白边。
+                  同 ScadaLoginView 的口径（docs\code-changes\2026-10-21-用户登录双栏改版与系统菜单去重.md §1）。  -->
+            <Setter Property="AllowsTransparency" Value="True" />
+            <Setter Property="Background" Value="Transparent" />
         </Style>
     </prism:Dialog.WindowStyle>
 
@@ -35,6 +40,10 @@
     </UserControl.InputBindings>
 
     <Grid Margin="15">
+        <!--  投影层与内容层分离（口径同 DialogCardShadow / DialogCardBorder）：投影不挂在承载文字的
+              Border 上，避免整棵内容树先栅格化再合成。两层同尺寸，内容层把投影层完全盖住，
+              只在圆角外露出阴影——透明窗口下，那片圆角外区域就是投影唯一可见的地方。
+              见 docs\code-changes\2026-09-22-UI青蓝风统一.md。  -->
         <Border Background="White" CornerRadius="8">
             <Border.Effect>
                 <DropShadowEffect
@@ -44,7 +53,9 @@
                     ShadowDepth="3"
                     Color="Black" />
             </Border.Effect>
+        </Border>
 
+        <Border Background="White" CornerRadius="8">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="45" />

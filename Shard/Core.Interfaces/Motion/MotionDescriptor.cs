@@ -276,8 +276,10 @@ namespace Core.Interfaces
         public bool IsWithinSoftLimit(double targetMm)
             => targetMm >= SoftLimitMinMm && targetMm <= SoftLimitMaxMm;
 
-        // —— 以下 7 个字段来自「轴配置」弹窗（轴属性窗）：行内表格只编辑上表 5 个核心字段，
-        //    编码器 / 驱动器 / 跟随误差这类低频属性收进弹窗，避免把轴映射表撑成三十列。
+        // —— 以下 8 个字段是轴的低频属性：行内表格只编辑上表 5 个核心字段，
+        //    编码器 / 驱动器 / 跟随误差这类属性收进弹窗，避免把轴映射表撑成三十列。
+        //    HasAbsoluteEncoder 是 P1-A 新增的每轴绝对编码器标记（默认 false）：
+        //    当前只能通过方案存档/代码配置（轴配置弹窗尚未提供入口）。
         //    全部随方案 JSON 落盘（与映射本体同一对象，无额外通道）。 ——
 
         /// <summary>轴备注（如 "Z 轴升降"），纯给人看</summary>
@@ -285,6 +287,19 @@ namespace Core.Interfaces
 
         /// <summary>编码器类型（无/增量编码器/绝对值编码器/光栅尺；空 = 未配置，界面按"增量编码器"回退展示）</summary>
         public string EncoderType { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 该轴是否使用**绝对式编码器**（位置掉电不丢，重连后不需要回零）。
+        ///
+        /// 为什么在卡级能力位之外还要每轴一份：一张卡上可能混装（X/Y 是绝对值、Z 是增量），
+        /// 卡级 <see cref="MotionCapabilities.SupportsAbsoluteEncoder"/> 表达不了这种机台。
+        /// 默认 <c>false</c> = 按增量式处理（最保守）；只有用户明确知道该轴掉电不丢位置时才置 true。
+        ///
+        /// 消费点：<c>MotionDeviceBase.CheckMotionPreconditionsLocked</c> —— Move 的"未回零"门禁
+        /// 在 <c>IsHomed</c> 为 false 时，若本轴或整卡声明了绝对编码器，则放行。
+        /// 配置错（增量轴被标成绝对）的后果是绕过"未回零不许动"这道防线，等同于按未知坐标运动。
+        /// </summary>
+        public bool HasAbsoluteEncoder { get; set; }
 
         /// <summary>每毫米脉冲数 ppu（位置反馈换算用；0 = 未配置，界面按 1000 回退展示）</summary>
         public double EncoderPpu { get; set; }

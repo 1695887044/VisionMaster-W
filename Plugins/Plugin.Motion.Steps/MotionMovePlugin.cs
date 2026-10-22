@@ -16,6 +16,10 @@ namespace Plugin.Motion.Steps
     ///
     /// 目标位置与速度是**输入端口**（不是配置项），因为它常常来自上游：
     /// 视觉定位给出坐标 → 这一步接过去 → 轴走过去。用配置项就绑不了变量，视觉引导就无从落地。
+    ///
+    /// P1-A 起，设备门禁（<see cref="MotionDeviceBase"/> 的命令闸门）会硬拦
+    /// "未使能 / 未回零（或该轴绝对编码器）/ 正在运动中"的 Move；本步骤只负责解析轴与下发，
+    /// 不再重复第二套判据。
     /// </summary>
     [Display(
         Name = "轴运动",
@@ -82,6 +86,10 @@ namespace Plugin.Motion.Steps
                 return;
             }
 
+            // 步骤侧只做两件入口判断：轴能不能解析、卡在不在线。
+            // 「已使能 / 已回零 / 未在运动中」由设备门禁统一把关
+            // （MotionDeviceBase.CheckMotionPreconditionsLocked）—— 步骤侧不再重复一套判据，
+            // 否则 UI / SCADA / 流程三处各写一遍，迟早漂移成三种口径。
             if (device.State != MotionCardState.Online)
             {
                 Fail($"运动卡「{device.Descriptor.Caption}」当前不可运动：{device.StateDetail}");

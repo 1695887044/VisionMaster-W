@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace VisionMaster.Communications
@@ -682,8 +683,9 @@ namespace VisionMaster.Communications
             }
 
             // 传输档位决定批量规划器的"空档代价"；与 PollScheduler.ResolveTransport 同一判据
-            var transport = _configCache.TryGetValue(connectionName, out var config)
-                            && config.Config is EthernetConfigBase
+            // （config 在后面还被"读重试"复用：一次 TryGetValue 取两次用，热路径不多查一次字典）
+            bool hasConfig = _configCache.TryGetValue(connectionName, out var config);
+            var transport = hasConfig && config.Config is EthernetConfigBase
                 ? PollTransportKind.Ethernet
                 : PollTransportKind.Serial;
 
@@ -701,33 +703,69 @@ namespace VisionMaster.Communications
                     $"变量 {variableName} 的类型 {variable.ValueType} 不支持立刻读");
             }
 
+            // 读重试（连接配置的「重试次数 / 重试间隔」）：只作用于「立刻读」这一条读路径。
+            // 写命令不重试——重复下发在工业现场可能造成二次动作（双联阀、气缸二次伸出）；
+            // 周期轮询也不重试——它的"重试"就是下一拍。
+            int retryCount = 0;
+            int retryIntervalMs = 0;
+            if (config?.Config != null)
+            {
+                retryCount = Math.Clamp(config.Config.RetryCount, 0, 10);
+                retryIntervalMs = Math.Max(0, config.Config.RetryIntervalMs);
+            }
+            int maxAttempts = retryCount + 1;
+
             try
             {
-                var raw = worker.InvokeUrgentRead(conn =>
+                for (int attempt = 1; ; attempt++)
                 {
-                    if (!planner.TryReadOne(conn, out var value, out var error))
+                    try
                     {
-                        throw new InvalidOperationException(
-                            $"立刻读失败 {variableName}（{variable.Address}）：{error}");
+                        var raw = worker.InvokeUrgentRead(conn =>
+                        {
+                            if (!planner.TryReadOne(conn, out var value, out var error))
+                            {
+                                throw new InvalidOperationException(
+                                    $"立刻读失败 {variableName}（{variable.Address}）：{error}");
+                            }
+                            return value;
+                        }).GetAwaiter().GetResult();
+
+                        // 与轮询同一套发布语义：工程量换算 + 镜像/质量戳更新。
+                        // 下游订阅者（UI/组态/报警）抛异常不能把"已经读到的值"判成读取失败——
+                        // 与 PollBatchPlanner.PublishValue 的隔离口径一致。
+                        var engineering = variable.ToEngineering(raw);
+                        try
+                        {
+                            variable.UpdateValue(engineering);
+                        }
+                        catch (Exception publishEx)
+                        {
+                            LogWarning($"立刻读成功但下游处理异常 {connectionName}.{variableName}: {publishEx.Message}");
+                        }
+
+                        if (attempt > 1)
+                            LogInfo($"立刻读第 {attempt} 次尝试成功: {connectionName}.{variableName} = {engineering}");
+                        else
+                            LogDebug($"立刻读成功: {connectionName}.{variableName} = {engineering}");
+                        return engineering;
                     }
-                    return value;
-                }).GetAwaiter().GetResult();
+                    catch (Exception ex)
+                    {
+                        // 重试用尽、或连接已经掉了（再试只会白等一次超时）→ 原样抛出，
+                        // 交给外层统一 LogError + OnConnectionError（失败出口与改造前一致）。
+                        if (attempt >= maxAttempts || !worker.IsConnected)
+                            throw;
 
-                // 与轮询同一套发布语义：工程量换算 + 镜像/质量戳更新。
-                // 下游订阅者（UI/组态/报警）抛异常不能把"已经读到的值"判成读取失败——
-                // 与 PollBatchPlanner.PublishValue 的隔离口径一致。
-                var engineering = variable.ToEngineering(raw);
-                try
-                {
-                    variable.UpdateValue(engineering);
-                }
-                catch (Exception publishEx)
-                {
-                    LogWarning($"立刻读成功但下游处理异常 {connectionName}.{variableName}: {publishEx.Message}");
-                }
+                        LogWarning(
+                            $"立刻读失败（第 {attempt}/{maxAttempts} 次），{retryIntervalMs} ms 后重试: "
+                            + $"{connectionName}.{variableName} | {ex.Message}");
 
-                LogDebug($"立刻读成功: {connectionName}.{variableName} = {engineering}");
-                return engineering;
+                        // 有界等待：最坏耗时 = 重试次数 × 间隔（默认 3 × 1000ms），只在失败路径上发生
+                        if (retryIntervalMs > 0)
+                            Thread.Sleep(retryIntervalMs);
+                    }
+                }
             }
             catch (Exception ex)
             {

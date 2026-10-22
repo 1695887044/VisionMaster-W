@@ -21,13 +21,22 @@ namespace VisionMaster.Services
     ///  ① SchemaVersion 对不上（清单结构变了）；
     ///  ② manifest 里登记的某个 DLL 在磁盘上找不到，或大小/mtime 对不上；
     ///  ③ 磁盘上多出 manifest 里没登记的 Plugin*.dll（新增插件必须被看见）；
-    ///  ④ 宿主契约程序集版本变了（插件二进制对它们链接，契约变了清单里的类型名可能已失效）。
+    ///  ④ 宿主契约程序集（Core.Interfaces.dll）的文件指纹变了。
+    ///
+    /// ④ 的口径（A4，2026-10-22）：**用契约程序集的 size+mtime 文件指纹**，不用程序集版本号。
+    /// 版本号对不上"改了接口却没升 AssemblyVersion"这种情况（仓库里 AssemblyVersion 常年不动），
+    /// 于是契约变了、缓存照命中 → 缓存里的类型名/端口表是旧的，现场表现为"改了插件不生效"
+    /// （产物陈旧族，R42/红线③ 同族）。文件指纹只要 DLL 被重新编译就变，与"磁盘上是什么"绑死。
     /// 读失败（文件损坏/手改）按"缓存不存在"处理，不报错。
     /// </summary>
     internal static class PluginCache
     {
-        /// <summary>清单结构版本：结构变了（比如给条目加字段）就整体失效重扫</summary>
-        internal const int SchemaVersion = 1;
+        /// <summary>
+        /// 清单结构版本：结构变了（比如给条目加字段）就整体失效重扫。
+        /// 2026-10-22（A4）由 1 → 2：ContractVersion（程序集版本号）换成 ContractFingerprint（文件指纹），
+        /// 旧清单里没有这个字段，读出来是空串 → 必须靠版本闸整体作废，不能按"空指纹"去比。
+        /// </summary>
+        internal const int SchemaVersion = 2;
 
         private static readonly JsonSerializerSettings JsonSettings = new()
         {
@@ -37,11 +46,18 @@ namespace VisionMaster.Services
             NullValueHandling = NullValueHandling.Include,
         };
 
-        /// <summary>一份缓存清单：宿主契约版本 + 每个插件 DLL 的指纹与注册产物</summary>
+        /// <summary>一份缓存清单：宿主契约指纹 + 每个插件 DLL 的指纹与注册产物</summary>
         internal sealed class Manifest
         {
             public int Schema { get; set; }
-            public string ContractVersion { get; set; } = string.Empty;
+
+            /// <summary>
+            /// 宿主契约程序集（Core.Interfaces.dll）的文件指纹：`文件名|大小|mtimeTicks`。
+            /// 与 <see cref="PluginDllEntry"/> 的指纹同口径（同一份 FingerprintOf 逻辑风格），
+            /// 但它是**整份清单一个**——所有插件都对同一份契约链接。
+            /// </summary>
+            public string ContractFingerprint { get; set; } = string.Empty;
+
             public List<PluginDllEntry> Dlls { get; set; } = new();
         }
 
@@ -59,9 +75,10 @@ namespace VisionMaster.Services
         }
 
         /// <summary>读缓存并核对指纹；可用则返回清单，不可用/不存在/损坏都返回 null（调用方全量重扫）</summary>
+        /// <param name="contractFingerprint">当前契约程序集指纹（<see cref="ComputeContractFingerprint"/>）</param>
         /// <param name="missReason">非 null 时把失效原因写进去（日志用）——"缓存失效"本身不是故障，
         /// 但现场要能看出是"指纹对不上"还是"文件损坏"，不然只能猜。</param>
-        internal static Manifest? TryLoad(string pluginsDir, string contractVersion, Action<string>? missReason = null)
+        internal static Manifest? TryLoad(string pluginsDir, string contractFingerprint, Action<string>? missReason = null)
         {
             void Miss(string why) => missReason?.Invoke(why);
             try
@@ -73,8 +90,8 @@ namespace VisionMaster.Services
                     File.ReadAllText(path), JsonSettings);
                 if (manifest == null) { Miss("反序列化为 null"); return null; }
                 if (manifest.Schema != SchemaVersion) { Miss($"SchemaVersion {manifest.Schema} != {SchemaVersion}"); return null; }
-                if (!string.Equals(manifest.ContractVersion, contractVersion, StringComparison.Ordinal))
-                { Miss($"契约版本 {manifest.ContractVersion} != {contractVersion}"); return null; }
+                if (!string.Equals(manifest.ContractFingerprint, contractFingerprint, StringComparison.Ordinal))
+                { Miss($"契约指纹 {manifest.ContractFingerprint} != {contractFingerprint}"); return null; }
 
                 // ② manifest 里登记的每个 DLL 都得在、且指纹对得上
                 foreach (var entry in manifest.Dlls)
@@ -105,14 +122,14 @@ namespace VisionMaster.Services
         }
 
         /// <summary>把全量扫描的产物写成清单（下次启动即命中）。写失败不抛——缓存只是加速，不是必需品。</summary>
-        internal static void Save(string pluginsDir, string contractVersion, IReadOnlyList<PluginDllEntry> entries)
+        internal static void Save(string pluginsDir, string contractFingerprint, IReadOnlyList<PluginDllEntry> entries)
         {
             try
             {
                 var manifest = new Manifest
                 {
                     Schema = SchemaVersion,
-                    ContractVersion = contractVersion,
+                    ContractFingerprint = contractFingerprint,
                     Dlls = entries.ToList(),
                 };
                 var path = ManifestPath(pluginsDir);
@@ -138,6 +155,40 @@ namespace VisionMaster.Services
                 Length = fi.Length,
                 LastWriteTimeUtcTicks = fi.LastWriteTimeUtc.Ticks,
             };
+        }
+
+        /// <summary>
+        /// 宿主契约程序集（<see cref="IVisionPlugin"/> 所在的 Core.Interfaces.dll）的文件指纹：
+        /// <c>文件名|字节数|mtimeTicks</c>。
+        ///
+        /// 为什么不用程序集版本号（A4 的结论）：本仓的 AssemblyVersion 常年不动，
+        /// "改了接口/基类签名但没升版本"是常态 —— 那时版本号一模一样，缓存照命中，
+        /// 清单里的类型名与端口表却已经是旧的（现场表现：改了插件不生效，查不到原因）。
+        /// 文件指纹只要 DLL 被重新编译就一定变，与"磁盘上实际是什么"绑死。
+        ///
+        /// 两种取不到的情形各有稳定的返回串（不会因为"取不到"就每次判失效、每次都全量重扫）：
+        ///  · Location 为空（单文件发布/内存加载）或文件不存在 → 退回程序集版本号 + "mem:" 前缀；
+        ///  · 读文件信息抛异常（权限/IO）→ "error:类型名"。
+        /// </summary>
+        internal static string ComputeContractFingerprint()
+        {
+            try
+            {
+                var assembly = typeof(IVisionPlugin).Assembly;
+                var location = assembly.Location;
+                if (string.IsNullOrEmpty(location) || !File.Exists(location))
+                {
+                    var fallbackVersion = assembly.GetName().Version?.ToString() ?? "0";
+                    return "mem:" + fallbackVersion;
+                }
+
+                var fi = new FileInfo(location);
+                return $"{fi.Name}|{fi.Length}|{fi.LastWriteTimeUtc.Ticks}";
+            }
+            catch (Exception ex)
+            {
+                return "error:" + ex.GetType().Name;
+            }
         }
     }
 }

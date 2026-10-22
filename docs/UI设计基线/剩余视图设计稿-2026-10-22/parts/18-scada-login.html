@@ -1,0 +1,127 @@
+<section class="view" id="view-18">
+  <div class="view-head">
+    <h2>用户登录</h2>
+    <span class="file">VisionMaster\Views\DialogViews\ScadaLoginView.xaml</span>
+    <span class="size">582 行 · 8 hex</span>
+  </div>
+  <div class="view-body">
+
+    <div class="mock" style="width:820px">
+      <div class="mock-bar">
+        <span class="s mono">ACCOUNT / LOCAL SESSION</span>
+        <span class="grow"></span>
+        <span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body tight">
+        <div class="split">
+          <div class="split-aside" style="width:300px">
+            <p class="card-title"><span class="tag info">▤</span> VisionMaster</p>
+            <p class="hint" style="margin:0 0 14px">机器视觉与运动控制平台</p>
+
+            <div class="card">
+              <p class="card-title">当前方案</p>
+              <div style="font-size:15px;font-weight:600">化工配料线（2026 版）</div>
+              <p class="hint" style="margin:4px 0 0">登录状态只属于本机会话</p>
+            </div>
+
+            <div style="margin-top:14px">
+              <div class="kv"><span class="k">当前身份</span><span class="v">未登录（操作员）</span></div>
+              <div class="kv"><span class="k">可用权限</span><span class="v">可看画面、按未加权限的普通按钮</span></div>
+              <div class="kv"><span class="k">空闲策略</span><span class="v">空闲 10 分钟自动退出登录</span></div>
+            </div>
+
+            <div class="card" style="margin-top:14px">
+              <p class="hint" style="margin:0">登录状态只保存在本机会话，不写入方案文件。</p>
+            </div>
+            <p class="hint mono" style="margin:14px 0 0">v3.0.0 · BUILD 2026.10</p>
+          </div>
+
+          <div class="split-main">
+            <p style="margin:0;font-size:22px;font-weight:600">登录</p>
+            <p class="hint" style="margin:5px 0 0">使用操作员、工程师或管理员账号进入系统。</p>
+
+            <div class="card" style="margin-top:14px">
+              <p class="hint" style="margin:0 0 8px"><span class="tag warn">默认密码</span> 出厂管理员 admin 仍在使用默认密码，登录后请立即改掉。</p>
+              <span class="tool">立即修改</span>
+            </div>
+
+            <p class="hint" style="margin:16px 0 5px">账号</p>
+            <div class="input mono">admin</div>
+            <p class="hint" style="margin:12px 0 5px">密码</p>
+            <div class="input mono">••••••••</div>
+
+            <p class="hint" style="margin:7px 0 0"><span class="tag err">用户名或密码不正确</span></p>
+
+            <div class="tool primary" style="height:42px;margin-top:2px;width:100%">登录</div>
+
+            <p class="hint" style="margin:10px 0 0">忘记密码？请联系管理员在「用户管理」中重置。</p>
+            <p class="hint" style="margin:12px 0 0">未登录时以操作员权限运行：可看画面、按普通按钮；修改参数、硬件配置与账号需要登录。</p>
+
+            <div class="toolbar" style="padding:12px 0 0;border-bottom:0">
+              <span class="tool">用户管理</span>
+              <span class="grow"></span>
+              <span class="tool">关闭</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mock" style="width:820px">
+      <div class="mock-bar">
+        <span class="t">已登录态</span>
+        <span class="s">同一弹窗，登录成功后不再显示账号密码框</span>
+      </div>
+      <div class="mock-body">
+        <p style="margin:0;font-size:22px;font-weight:600">已登录</p>
+        <p class="hint" style="margin:5px 0 0">admin（管理员）</p>
+        <div class="card" style="margin-top:14px">
+          <p class="hint" style="margin:0">当前账号能做什么</p>
+          <p style="margin:6px 0 0;font-size:13px;font-weight:600">可运行流程、修改参数、管理账号</p>
+          <p class="hint" style="margin:8px 0 0">空闲 10 分钟自动退出登录</p>
+        </div>
+        <div class="toolbar" style="padding:14px 0 0;border-bottom:0">
+          <span class="tool">修改密码</span>
+          <span class="tool">退出登录</span>
+        </div>
+        <p class="hint" style="margin:12px 0 0">切换账号请先退出登录；登录状态只保存在本机会话。</p>
+      </div>
+    </div>
+
+    <div class="mock" style="width:820px">
+      <div class="mock-bar">
+        <span class="t">修改密码页</span>
+        <span class="s">SelectedTabIndex = 1（回车 = 提交当前页）</span>
+      </div>
+      <div class="mock-body">
+        <span class="tool">← 返回登录</span>
+        <p style="margin:10px 0 0;font-size:22px;font-weight:600">修改密码</p>
+        <p class="hint" style="margin:5px 0 0">修改后立即生效，下次登录使用新密码。</p>
+        <p class="hint" style="margin:14px 0 4px">用户名</p>
+        <div class="input mono">admin</div>
+        <p class="hint" style="margin:10px 0 4px">当前密码</p>
+        <div class="input mono">••••••••</div>
+        <div class="split" style="margin-top:10px">
+          <div style="flex:1 1 0"><p class="hint" style="margin:0 0 4px">新密码</p><div class="input mono">••••••••••</div></div>
+          <div style="flex:1 1 0"><p class="hint" style="margin:0 0 4px">确认新密码</p><div class="input mono">••••••••••</div></div>
+        </div>
+        <p class="hint" style="margin:8px 0 0"><span class="tag ok">账号「admin」的密码已修改。</span></p>
+        <div class="tool primary" style="height:40px;margin-top:6px;width:100%">修改密码</div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScadaLoginView.xaml</code>（左品牌 300 / 右操作区，三段可见性由 <code>IsLoggedIn</code> + <code>SelectedTabIndex</code> 的 MultiDataTrigger 决定）、<code>ScadaLoginViewModel.cs</code>、<code>ScadaUserStore.TryValidate</code>（错误文案来源）</li>
+        <li>改动要点 1：8 处 hex 全在左栏品牌（渐变 <code>#0B1F33→#0C3B57→#0B5F7A</code> + 三支白透明度 + 文字 <code>#EAF6FF</code> / <code>#B7D9EC</code>）；应上移为 Brand 令牌组（<code>BrandSurface</code> / <code>BrandText</code> / <code>BrandMuted</code> / <code>BrandCard</code> / <code>BrandDivider</code>），视图里不留色值</li>
+        <li>改动要点 2：登录按钮不禁用（空用户名/密码时由存储报「请输入用户名」/「请输入密码」）；失败提示占 <code>MinHeight=18</code> 一行，输入即清除——不要在输入框上加红框抖动</li>
+        <li>改动要点 3：出厂密码提示条只在 <code>ShowDefaultPasswordHint</code> 为真时出现，右侧「立即修改」跳到改密页并预填账号（不预填密码）</li>
+        <li>改动要点 4：三页共用同一个「关闭」位置；「用户管理」只在管理员时出现（<code>CanManageUsers</code>），它是一道界面门，真正的拒绝在 VM 的 <code>EnsureAdmin</code></li>
+        <li>改动要点 5：改密页「新密码 / 确认新密码」两列等宽、<code>ChangeMessage</code> 成功绿 / 失败红（<code>ChangeSucceeded</code> 切换）；成功不自动跳回登录页，否则绿色提示会跟着页面一起消失</li>
+        <li>需要新增的接口：无。<span class="warn">已知偏差（2026-10-22 已闭合）：本稿左栏用浅色 <code>surface-2</code> 表达，真实是深青渐变。复刻时已把品牌色上移为 <code>Colors.xaml</code> 的 <code>BrandSurfaceGradientBrush</code> / <code>BrandTextBrush</code> / <code>BrandMutedBrush</code> / <code>BrandCardBrush</code> / <code>BrandCardBorderBrush</code> / <code>BrandDividerBrush</code> 六个令牌，<code>ScadaLoginView.xaml</code> 已 <code>hex=0</code>；本稿的浅色示意仅作版式参考，实际配色以令牌为准</span></li>
+        <li><b>已复刻（2026-10-22）</b>：视图三段（未登录 / 已登录 / 改密）与全部绑定保留；后端 <code>ScadaUserStore</code> + 会话 <code>ScadaAccessPolicy</code> 的端到端链路已加断言（9 条，含改密落盘回读）</li>
+      </ul>
+    </div>
+  </div>
+</section>

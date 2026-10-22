@@ -1,0 +1,125 @@
+<section class="view" id="view-21">
+  <div class="view-head">
+    <h2>选择变量</h2>
+    <span class="file">VisionMaster\Views\DialogViews\ScadaVariablePickerView.xaml</span>
+    <span class="size">381 行 · 25 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：五列清单 + 选中行 -->
+    <div class="mock" style="width:760px;max-width:100%;margin-bottom:14px">
+      <div class="mock-bar">
+        <span class="t">选择变量</span><span class="s">工程变量 6 项 · 已选 1 项</span>
+        <span class="grow"></span><span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body">
+        <div class="input ph" style="margin-bottom:10px">按变量名 / 类型 / 来源筛选</div>
+        <div class="card" style="padding:0"><div class="table">
+          <div class="thead">
+            <div class="th" style="width:185px">变量名</div><div class="th" style="width:145px">类型</div>
+            <div class="th" style="width:85px">来源</div><div class="th right" style="width:110px">当前值</div>
+            <div class="th" style="flex:1 1 auto">说明</div>
+          </div>
+          <div class="tr sel">
+            <div class="td" style="width:185px"><strong>工位1_计数</strong></div><div class="td" style="width:145px">Int32</div>
+            <div class="td" style="width:85px">本地</div><div class="td mono right" style="width:110px">1485</div>
+            <div class="td muted" style="flex:1 1 auto">一工位节拍计数</div>
+          </div>
+          <div class="tr">
+            <div class="td" style="width:185px"><strong>温度_主轴</strong></div><div class="td" style="width:145px">Double</div>
+            <div class="td" style="width:85px">本地</div><div class="td mono right" style="width:110px">42.6</div>
+            <div class="td muted" style="flex:1 1 auto">主轴轴承温度</div>
+          </div>
+          <div class="tr">
+            <div class="td" style="width:185px"><strong>PLC_心跳</strong></div><div class="td" style="width:145px">Bool</div>
+            <div class="td" style="width:85px">S7-1200</div><div class="td mono right" style="width:110px">True</div>
+            <div class="td muted" style="flex:1 1 auto">与 PLC 的通讯心跳</div>
+          </div>
+          <div class="tr">
+            <div class="td" style="width:185px"><strong>报警_急停</strong></div><div class="td" style="width:145px">Bool</div>
+            <div class="td" style="width:85px">系统只读</div><div class="td mono right" style="width:110px">False</div>
+            <div class="td muted" style="flex:1 1 auto">急停按钮状态</div>
+          </div>
+          <div class="tr">
+            <div class="td" style="width:185px"><strong>位移_伺服X</strong></div><div class="td" style="width:145px">Double</div>
+            <div class="td" style="width:85px">本地</div><div class="td mono right" style="width:110px">1234.567</div>
+            <div class="td muted" style="flex:1 1 auto">X 轴实际位置镜像</div>
+          </div>
+        </div></div>
+      </div>
+      <div class="mock-foot">
+        <span>* 确认后按变量身份（Id）记录，之后改名不会让这条动作断链。</span>
+        <span class="grow"></span><span class="tool">取消</span><span class="tool primary">确定</span>
+      </div>
+    </div>
+
+    <!-- 边界态一：选中数组变量 → 下标区 + 越界错误 -->
+    <div class="mock" style="width:760px;max-width:100%;margin-bottom:14px">
+      <div class="mock-bar">
+        <span class="t">选择变量</span><span class="s">数组变量 · 下标越界</span>
+        <span class="grow"></span><span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body">
+        <div class="input" style="margin-bottom:10px">缓冲区<span style="margin-left:auto">✕</span></div>
+        <div class="card" style="padding:0"><div class="table">
+          <div class="thead">
+            <div class="th" style="width:185px">变量名</div><div class="th" style="width:145px">类型</div>
+            <div class="th" style="width:85px">来源</div><div class="th right" style="width:110px">当前值</div>
+            <div class="th" style="flex:1 1 auto">说明</div>
+          </div>
+          <div class="tr sel">
+            <div class="td" style="width:185px"><strong>采样缓冲区</strong></div><div class="td" style="width:145px">Double[]</div>
+            <div class="td" style="width:85px">本地</div><div class="td muted right" style="width:110px">—</div>
+            <div class="td muted" style="flex:1 1 auto">最近 128 次采样</div>
+          </div>
+        </div></div>
+        <div class="card" style="margin-top:10px">
+          <div class="field">
+            <span class="field-label left">数组下标</span>
+            <span class="input mono" style="width:90px;flex:0 0 auto">128</span>
+            <span class="hint">数组长度 128，可填 0 ~ 127</span>
+          </div>
+          <div class="tag err" style="margin-top:6px">下标 128 超出数组长度 128</div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>* 下标错误时「确定」同时置灰，改回合法值即恢复。</span>
+        <span class="grow"></span><span class="tool">取消</span><span class="tool primary">确定</span>
+      </div>
+    </div>
+
+    <!-- 边界态二：搜索无结果 -->
+    <div class="mock" style="width:760px;max-width:100%">
+      <div class="mock-bar">
+        <span class="t">选择变量</span><span class="s">没有匹配项</span>
+        <span class="grow"></span><span class="tool icon">✕</span>
+      </div>
+      <div class="mock-body">
+        <div class="input" style="margin-bottom:10px">ABC-9000<span style="margin-left:auto">✕</span></div>
+        <div class="card" style="padding:0">
+          <div class="empty">
+            <div class="empty-glyph">⌕</div>
+            <div class="empty-title">没有匹配「ABC-9000」的变量。</div>
+            <div class="empty-hint">按变量名 / 类型 / 来源搜索；变量需先在「全局变量」里创建。</div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>* 清单口径 = 工程变量（IWorkspaceManager.GlobalVariables），选得到就一定写得到。</span>
+        <span class="grow"></span><span class="tool">取消</span><span class="tool primary">确定</span>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScadaVariablePickerView.xaml</code>（标题栏 + 搜索 + 五列清单 + 数组下标区 + 底部按钮）、<code>ScadaVariablePickerViewModel</code>（<code>EmptyHint</code> / <code>ArrayIndexHint</code> / <code>ArrayIndexError</code> / <code>CanConfirm</code>）</li>
+        <li>改动要点：25 处 hex 全换语义令牌——选中态从 <code>#ECF5FF + #409EFF</code> 改为 <code>accent-light + accent-border</code>，与 22~24 同一套；标题栏 <code>#F8F9FA</code>、边框 <code>#DCDFE6/#E4E7ED</code>、空态 <code>#909399</code> 一律走 <code>Dialog*</code>。</li>
+        <li>改动要点：四个选择器共用一套骨架（760×520、搜索 32 高、清单卡 1px 细描边、底部条左侧口径说明 + 右侧「取消 / 确定」），本页只多一行数组下标区。</li>
+        <li>改动要点：列头弱化（11px 次要色 + 细下边框），行 hover 与选中二选一（不做斑马纹）；长文本保留省略号 + 悬停看全值。</li>
+        <li>改动要点：无结果态从「一行灰字居中」升级为 ⌕ + 结论句 + 可行动提示，与 22~24 同款空态。</li>
+        <li>需要新增的接口：无（数组下标提示与错误文案 VM 已给，本页只做视觉重排）</li>
+      </ul>
+    </div>
+  </div>
+</section>

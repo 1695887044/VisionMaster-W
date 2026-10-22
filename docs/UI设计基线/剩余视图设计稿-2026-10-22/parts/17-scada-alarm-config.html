@@ -1,0 +1,136 @@
+<section class="view" id="view-17">
+  <div class="view-head">
+    <h2>报警配置（方案级平铺表）</h2>
+    <span class="file">VisionMaster\Views\DialogViews\ScadaAlarmConfigDialogView.xaml</span>
+    <span class="size">552 行 · 3 hex</span>
+  </div>
+  <div class="view-body">
+
+    <div class="mock" style="width:920px">
+      <div class="mock-bar">
+        <span class="t">报警配置</span>
+        <span class="grow"></span>
+        <span class="s">共 5 条报警</span>
+      </div>
+      <div class="toolbar">
+        <span class="tool primary">＋ 新增报警</span>
+        <span class="tool danger">✕ 删除</span>
+        <span class="sep"></span>
+        <span class="tool">◈ 选择变量</span>
+        <span class="grow"></span>
+        <span class="hint">选中某一行会展开它的次要字段</span>
+      </div>
+      <p class="hint" style="padding:0 14px 10px">报警定义跟着方案文件走：改一格即写入当前方案并进撤销栈，弹窗没有「确定」。</p>
+
+      <div class="table">
+        <div class="thead">
+          <div class="th" style="width:150px">名称</div>
+          <div class="th" style="width:160px">监视变量</div>
+          <div class="th" style="width:132px">种类</div>
+          <div class="th" style="width:84px">阈值</div>
+          <div class="th" style="width:108px">报警等级</div>
+          <div class="th" style="width:64px">启用</div>
+          <div class="th" style="flex:1 1 auto">报警组</div>
+        </div>
+        <div class="tr">
+          <div class="td" style="width:150px"><div class="input">1#电机温度</div></div>
+          <div class="td mono" style="width:160px">Pump1.Temp</div>
+          <div class="td" style="width:132px"><div class="combo">高高限</div></div>
+          <div class="td mono" style="width:84px"><div class="input mono">85</div></div>
+          <div class="td" style="width:108px"><div class="combo">严重</div></div>
+          <div class="td" style="width:64px"><span class="check"><span class="box on"></span></span></div>
+          <div class="td" style="flex:1 1 auto"><div class="split"><div class="input">一号线</div><span class="tool icon">▾</span></div></div>
+        </div>
+        <div class="tr">
+          <div class="td" style="width:150px"><div class="input">冷却水流量</div></div>
+          <div class="td mono" style="width:160px">Flow.Coolant</div>
+          <div class="td" style="width:132px"><div class="combo">低限</div></div>
+          <div class="td mono" style="width:84px"><div class="input mono">12</div></div>
+          <div class="td" style="width:108px"><div class="combo">警告</div></div>
+          <div class="td" style="width:64px"><span class="check"><span class="box on"></span></span></div>
+          <div class="td" style="flex:1 1 auto"><div class="split"><div class="input">一号线</div><span class="tool icon">▾</span></div></div>
+        </div>
+        <div class="tr sel">
+          <div class="td" style="width:150px"><div class="input">上料仓余量</div></div>
+          <div class="td mono" style="width:160px">Hopper.Level</div>
+          <div class="td" style="width:132px"><div class="combo">低限</div></div>
+          <div class="td mono" style="width:84px"><div class="input mono">15</div></div>
+          <div class="td" style="width:108px"><div class="combo">提示</div></div>
+          <div class="td" style="width:64px"><span class="check"><span class="box on"></span></span></div>
+          <div class="td" style="flex:1 1 auto"><div class="split"><div class="input">上料段</div><span class="tool icon">▾</span></div></div>
+        </div>
+        <div class="tr">
+          <div class="td" style="flex:1 1 auto">
+            <p class="hint" style="margin:0 0 10px">触发条件：低限 &lt; 15（回差 1）</p>
+            <div class="split">
+              <div class="field" style="flex:1 1 0"><span class="field-label">回差</span><div class="input mono">1</div></div>
+              <div class="field" style="flex:1 1 0"><span class="field-label">延时（秒）</span><div class="input mono">5</div></div>
+              <div class="field" style="flex:1 1 0"><span class="field-label">断线判定（秒）</span><div class="input ph">—</div></div>
+            </div>
+            <div class="split">
+              <div class="field" style="flex:1 1 0"><span class="field-label">信息文本</span><div class="input ph">留空则显示报警名</div></div>
+              <div class="field" style="flex:1 1 0"><span class="field-label">故障原因</span><div class="input ph">为什么会报</div></div>
+            </div>
+            <div class="split">
+              <div class="field" style="flex:1 1 0"><span class="field-label">解决措施</span><div class="input">补料后按「上料复位」</div></div>
+              <div class="field" style="flex:1 1 0"><span class="field-label">附加信息</span><div class="input ph">备注 / 相关点位</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="tr">
+          <div class="td" style="width:150px"><div class="input">相机心跳</div></div>
+          <div class="td mono" style="width:160px">Cam1.Heartbeat</div>
+          <div class="td" style="width:132px"><div class="combo">通信断线</div></div>
+          <div class="td muted" style="width:84px">—</div>
+          <div class="td" style="width:108px"><div class="combo">严重</div></div>
+          <div class="td" style="width:64px"><span class="check"><span class="box on"></span></span></div>
+          <div class="td" style="flex:1 1 auto"><div class="split"><div class="input">视觉</div><span class="tool icon">▾</span></div></div>
+        </div>
+        <div class="tr">
+          <div class="td" style="width:150px"><div class="input">夹具气压</div></div>
+          <div class="td mono" style="width:160px">Clamp.AirPressure</div>
+          <div class="td" style="width:132px"><div class="combo">为假报警</div></div>
+          <div class="td muted" style="width:84px">—</div>
+          <div class="td" style="width:108px"><div class="combo">警告</div></div>
+          <div class="td" style="width:64px"><span class="check"><span class="box"></span></span></div>
+          <div class="td" style="flex:1 1 auto"><div class="split"><div class="input">二号工位</div><span class="tool icon">▾</span></div></div>
+        </div>
+      </div>
+
+      <div class="mock-foot">
+        <span>7 列 · 非四限的阈值格摆「—」，不留可编辑却不生效的输入框</span>
+        <span class="grow"></span>
+        <span class="tool primary">关 闭</span>
+      </div>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <p class="card-title">空态</p>
+        <div class="empty" style="padding:24px 12px">
+          <div class="empty-glyph">◈</div>
+          <p class="empty-title">还没有报警定义</p>
+          <p class="empty-hint">点左上角「新增报警」建一条，再为它选监视变量、设阈值与报警等级。</p>
+        </div>
+      </div>
+      <div class="card">
+        <p class="card-title"><span class="tag err">校验失败</span> 错误条（表上方一条红带）</p>
+        <p class="hint">已存在同名报警 [1#电机温度]，请更换名称。</p>
+        <p class="hint">报警名在同方案内必须唯一；留空会被拒绝并回灌原名。写回是即时的，所以错误条不会挡住表格操作。</p>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>ScadaAlarmConfigDialogView.xaml</code>（工具条 + 口径提示 + 错误条 + 7 列 DataGrid + RowDetails + 底栏「关 闭」）、<code>ScadaAlarmConfigDialogViewModel.cs</code>（Title「报警配置」/ CountHint「共 N 条报警」/ KindOptions 7 项 / SeverityOptions 3 项 / VariableDisplay「未选变量」）</li>
+        <li>改动要点 1：唯一 3 处 hex 是错误条红底红边（<code>#FEF2F2</code> / <code>#FECACA</code>），其余全走 Dialog* 令牌；错误条应改用 <code>DialogDangerSubtleBrush</code> 一类语义令牌，视图里不留色值</li>
+        <li>改动要点 2：行内编辑控件必须等高——名称/阈值是 <code>DialogGridInput</code>，种类/等级是压到 30 高的 <code>DialogCombo</code>，46 高的行里不许顶到上下边</li>
+        <li>改动要点 3：<code>RowDetailsVisibilityMode=VisibleWhenSelected</code> 是这张表的主结构：主字段七列 + 次要字段（回差/延时/断线、信息文本/故障原因/解决措施/附加信息）收进展开行，展开区底色用输入区底色区分</li>
+        <li>改动要点 4：「删除」是红图标 + 中性文字（悬停不变红），「选择变量」的链接图标取强调色；两者都依赖选中行，未选中应置灰（<code>HasSelection</code>）</li>
+        <li>改动要点 5：报警组是自由文本 + 历史值下拉（TextBox + 小箭头 + ContextMenu），不要换成 <code>DialogCombo</code>——它的模板没有 <code>PART_EditableTextBox</code>，<code>IsEditable=True</code> 会变成能敲字但看不见</li>
+        <li>需要新增的接口：无</li>
+      </ul>
+    </div>
+  </div>
+</section>

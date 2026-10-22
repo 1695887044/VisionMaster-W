@@ -292,12 +292,28 @@ namespace FlowCanvasChecks
                 "GetLink=" + (stepData.GetLink("SrcImage") != null) + " 手动值=" + stepData.InputValues.ContainsKey("SrcImage"));
 
             // ── C. 真实演示方案回显（.vms 里的 LinkedSources 是真实存储）──
+            // A2（2026-10-22，R38）：这两处原来都是 R(..., true, "")——连"跳过了什么"都不打，
+            // 属不可反证的静默绿。现在：缺文件走统一缺失清单（理由可反证）；缺步骤给出可核对的事实。
             var vmsPath = ResolveRepoFile(@"解决方案\胶路检测演示.vms");
-            if (vmsPath == null) { R("演示方案回显：跳过（定位不到 .vms）", true, ""); return; }
+            if (vmsPath == null)
+            {
+                var repoRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..\"));
+                R("演示方案回显：跳过（胶路检测演示.vms 缺失）", true,
+                    MissingSolutionSamples.SkipReason(repoRoot, "胶路检测演示.vms"));
+                return;
+            }
             var loaded = new SolutionService().LoadAsync(vmsPath).GetAwaiter().GetResult();
             var step = loaded?.Data?.Flows.SelectMany(f => f.Steps)
                 .FirstOrDefault(s => s.PluginTypeName.Contains("BeadInspect"));
-            if (step == null) { R("演示方案回显：跳过（方案里无胶路步骤）", true, ""); return; }
+            if (step == null)
+            {
+                int flows = loaded?.Data?.Flows?.Count ?? 0;
+                int steps = loaded?.Data?.Flows?.SelectMany(f => f.Steps).Count() ?? 0;
+                R("演示方案回显：跳过（方案里无胶路步骤）", true,
+                    $"已核实 {vmsPath} 里 {flows} 个流程 / {steps} 个步骤，PluginTypeName 均不含 BeadInspect；"
+                    + "补回带胶路步骤的方案后本断言自动恢复执行（不需要改代码）");
+                return;
+            }
 
             plugin.Initialize(step); // StepModel 本身就是 IStepConfigData（真实 LinkedSources 存储）
             R("演示方案回显：SrcImage 编辑器显示已链接", src.IsLinked, src.LinkAddress ?? "(空)");

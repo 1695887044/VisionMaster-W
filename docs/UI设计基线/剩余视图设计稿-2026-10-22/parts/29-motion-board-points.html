@@ -1,0 +1,96 @@
+<section class="view" id="view-29">
+  <div class="view-head">
+    <h2>运动板卡 · 点位列表（页签内容）</h2>
+    <span class="file">VisionMaster\Views\DialogViews\MotionBoard\MotionBoardPointsView.xaml</span>
+    <span class="size">420 行 · 1 hex</span>
+  </div>
+  <div class="view-body">
+
+    <!-- 主态：轴选择胶囊条 + 轴点位表（16 行 P0–P15，此处展示前 8 行） -->
+    <div class="mock" style="width:1080px;max-width:100%;margin-bottom:14px">
+      <div class="mock-bar">
+        <span class="t">点位列表</span><span class="s">页签 3/3 · 运动卡1 · X轴 16 点位</span>
+        <span class="grow"></span><span class="tag info">改完自动保存</span>
+      </div>
+      <div class="mock-body alt">
+        <div class="card">
+          <div class="hint" style="margin-bottom:8px">轴 · 各持一张点位表</div>
+          <div style="display:flex;gap:8px">
+            <div class="card" style="width:190px;padding:8px 10px"><div style="display:flex"><strong>X轴</strong><span style="margin-left:auto">1234.6</span></div><div class="hint">16 点位 · P0–P15</div></div>
+            <div class="card" style="width:190px;padding:8px 10px"><div style="display:flex"><strong>Y轴</strong><span style="margin-left:auto">842.0</span></div><div class="hint">16 点位 · P0–P15</div></div>
+            <div class="card" style="width:190px;padding:8px 10px"><div style="display:flex"><strong>R轴</strong><span style="margin-left:auto">0.0</span></div><div class="hint">16 点位 · P0–P15</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="field" style="margin-bottom:12px">
+            <div style="flex:1 1 auto"><div><strong style="font-size:15px">轴点位表 · X轴</strong></div>
+              <div class="hint">本轴专属 16 点位 · 改完自动保存 · 切换左栏轴即换表</div></div>
+            <div class="kv" style="flex:0 0 auto;display:block;text-align:right">
+              <div class="k">X轴 当前位置</div><div class="v mono" style="font-size:17px"><strong>1234.567</strong> mm</div>
+            </div>
+          </div>
+          <div class="table">
+            <div class="thead">
+              <div class="th" style="width:52px">点位</div><div class="th" style="flex:1.2 1 0">名称</div>
+              <div class="th" style="flex:1 1 0">位置</div><div class="th" style="flex:1 1 0">速度</div>
+              <div class="th" style="flex:1.1 1 0">加减速</div><div class="th" style="flex:1 1 0">曲线</div><div class="th" style="width:96px">操作</div>
+            </div>
+            <div class="tr"><div class="td mono" style="width:52px">P0</div><div class="td" style="flex:1.2 1 0">原点</div><div class="td mono" style="flex:1 1 0">0.000</div><div class="td mono" style="flex:1 1 0">20.0</div><div class="td mono" style="flex:1.1 1 0">500</div><div class="td" style="flex:1 1 0"><span class="combo">梯形</span></div><div class="td" style="width:96px"><span class="tool">走此点</span></div></div>
+            <div class="tr"><div class="td mono" style="width:52px">P1</div><div class="td" style="flex:1.2 1 0">取料位</div><div class="td mono" style="flex:1 1 0">120.000</div><div class="td mono" style="flex:1 1 0">80.0</div><div class="td mono" style="flex:1.1 1 0">800</div><div class="td" style="flex:1 1 0"><span class="combo">S曲线</span></div><div class="td" style="width:96px"><span class="tool">走此点</span></div></div>
+            <div class="tr"><div class="td mono" style="width:52px">P2</div><div class="td" style="flex:1.2 1 0">取料等待</div><div class="td mono" style="flex:1 1 0">125.000</div><div class="td mono" style="flex:1 1 0">40.0</div><div class="td mono" style="flex:1.1 1 0">600</div><div class="td" style="flex:1 1 0"><span class="combo">梯形</span></div><div class="td" style="width:96px"><span class="tool">走此点</span></div></div>
+            <div class="tr"><div class="td mono" style="width:52px">P3</div><div class="td" style="flex:1.2 1 0">过渡点</div><div class="td mono" style="flex:1 1 0">380.500</div><div class="td mono" style="flex:1 1 0">120.0</div><div class="td mono" style="flex:1.1 1 0">1200</div><div class="td" style="flex:1 1 0"><span class="combo">S曲线</span></div><div class="td" style="width:96px"><span class="tool">走此点</span></div></div>
+            <div class="tr"><div class="td mono" style="width:52px">P4</div><div class="td" style="flex:1.2 1 0">放料位</div><div class="td mono" style="flex:1 1 0">640.000</div><div class="td mono" style="flex:1 1 0">60.0</div><div class="td mono" style="flex:1.1 1 0">800</div><div class="td" style="flex:1 1 0"><span class="combo">梯形</span></div><div class="td" style="width:96px"><span class="tool">走此点</span></div></div>
+            <div class="tr"><div class="td mono" style="width:52px">P5</div><div class="td" style="flex:1.2 1 0">放料下压</div><div class="td mono" style="flex:1 1 0">645.200</div><div class="td mono" style="flex:1 1 0">25.0</div><div class="td mono" style="flex:1.1 1 0">500</div><div class="td" style="flex:1 1 0"><span class="combo">S曲线</span></div><div class="td" style="width:96px"><span class="tool">走此点</span></div></div>
+            <div class="tr"><div class="td mono" style="width:52px">P6</div><div class="td" style="flex:1.2 1 0">退让位</div><div class="td mono" style="flex:1 1 0">600.000</div><div class="td mono" style="flex:1 1 0">100.0</div><div class="td mono" style="flex:1.1 1 0">1000</div><div class="td" style="flex:1 1 0"><span class="combo">梯形</span></div><div class="td" style="width:96px"><span class="tool">走此点</span></div></div>
+            <div class="tr"><div class="td mono" style="width:52px">P7</div><div class="td" style="flex:1.2 1 0">待机位</div><div class="td mono" style="flex:1 1 0">0.000</div><div class="td mono" style="flex:1 1 0">150.0</div><div class="td mono" style="flex:1.1 1 0">1500</div><div class="td" style="flex:1 1 0"><span class="combo">S曲线</span></div><div class="td" style="width:96px"><span class="tool">走此点</span></div></div>
+          </div>
+          <div class="hint" style="margin-top:8px">改完即存，「走此点」按该点位的速度、加减速和曲线类型运动</div>
+          <div class="hint">梯形=恒速+末端减速 · S曲线=中段快两端缓 · 匀速=全程恒速</div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>P0–P15 共 16 行，此处展示前 8 行；每根轴各持一张，切轴即换表。</span>
+        <span class="grow"></span><span class="tag">曲线候选只有 梯形 / S曲线</span>
+      </div>
+    </div>
+
+    <!-- 边界态：无轴映射（表为空） -->
+    <div class="mock" style="width:1080px;max-width:100%">
+      <div class="mock-bar">
+        <span class="t">点位列表</span><span class="s">页签 3/3 · 无轴映射</span>
+        <span class="grow"></span><span class="tag warn">没有可显示的点位表</span>
+      </div>
+      <div class="mock-body alt">
+        <div class="card">
+          <div class="hint">轴 · 各持一张点位表</div>
+          <div class="hint" style="margin-top:8px">无轴映射，请到「卡设置」添加</div>
+        </div>
+        <div class="card">
+          <div class="empty">
+            <div class="empty-glyph">▤</div>
+            <div class="empty-title">还没有可编辑的点位表</div>
+            <div class="empty-hint">点位表跟着轴映射走：先在「卡设置 → 轴映射」里添加轴并启用，本页才会出现 P0–P15 的 16 行。</div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>空态实为「无轴映射」——点位表本身恒为 16 行，不存在 0 行状态。</span>
+        <span class="grow"></span><span class="tag">无轴</span>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>覆盖与要点</h3>
+      <ul>
+        <li>覆盖：<code>MotionBoardPointsView.xaml</code>（轴选择胶囊条 + 表头大字 + 当前位置读数 + 七列点位表 + 两行图例）、<code>MotionBoardPointsTabViewModel</code>（<code>Subtitle</code> = 「16 点位 · P0–P15」/ <code>PositionText</code> = F1 / <code>CurveOptions</code>）</li>
+        <li>关键结构事实：每根轴固定 16 行 P0–P15（<code>Subtitle</code> 写死），曲线候选只有 <code>梯形</code> 与 <code>S曲线</code> 两档——「匀速」只出现在图例说明里，不是可选值。</li>
+        <li>关键结构事实：轴条与表头读数用的是两套精度——轴条 <code>PositionText</code> 是 F1（<code>1234.6 mm</code>），表头 <code>CurrentPositionText</code> 是 F3（<code>1234.567</code>）；设计上保留这个差异并在列里统一右对齐。</li>
+        <li>改动要点：1 处 hex（<code>#14F1F5F9</code> 斑马纹）换令牌；本页与 28/30 都<b>不做斑马纹</b>，统一用行 hover + 行分隔线，避免同一窗口三种密度语言。</li>
+        <li>改动要点：七列宽度改成比例（<code>1.2 / 1 / 1 / 1.1 / 1 / 1</code> + 操作 96px），窄窗下不再横向滚动；「走此点」固定 28 高、显式内边距（R68）。</li>
+        <li>改动要点：图例两行逐字保留（含「匀速=全程恒速」），放在表下而不是页脚，避免与 28 的状态行混淆。</li>
+        <li>需要新增的接口：无</li>
+      </ul>
+    </div>
+  </div>
+</section>
