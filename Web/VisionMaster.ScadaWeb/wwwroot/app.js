@@ -52,6 +52,7 @@
   var FIRST_SCREEN_TIMEOUT_MS = 5000;  // hello 说 running 但 5s 没快照 → view.resync(structure)
   var RESYNC_RETRY_MS = 6000;          // resync 发出后 6s 无快照 → 退避重试
   var RESYNC_MAX_ATTEMPTS = 2;         // 最多重试 2 次，之后终态提示（不无限循环）
+  var FRAME_STALL_MS = 5000;           // 运行中连续 5s 没收到任何 frame → scope=frames 重同步
   // 业务自定义关闭码（ScadaWebHost）：4401 = 会话过期、4403 = 会话被撤销。
   // 两者都退回登录卡片；区别只在文案与"是否允许自动重连"（撤销 = 绝不重连）。
   var CLOSE_EXPIRED = 4401;
@@ -111,6 +112,8 @@
     lastSeq: 0,
     frameSeq: 0,
     lastFrameAt: 0,
+    // 每一帧（含空帧）的到达时刻：值帧停滞判据用它，不能用 lastFrameAt（只在有值变化时更新）
+    lastFrameMessageAt: 0,
     // 结构消息序号（服务端每发一份 snapshot/page 自增）：只接受更大的，丢弃迟到旧快照
     structureSeq: 0,
     // 已停止的运行轮次：generation <= 它的快照一律丢弃（stopped 之后迟到的旧快照不能复活画面）
@@ -3260,6 +3263,28 @@
     state.fatalMessage = '';
   }
 
+  /**
+   * 值帧停滞看门狗：运行中连续 5 秒一帧都没收到（空帧也算）→ 只要求下一帧 keyframe。
+   * 不用整份结构重发：值帧缺口是背压/连接问题，不是结构丢失。
+   * 后台标签页跳过（浏览器会节流定时器，误报只会多要一帧，但没必要）。
+   */
+  function startFrameWatch() {
+    setInterval(function () {
+      if (typeof document !== 'undefined'
+          && document.visibilityState
+          && document.visibilityState !== 'visible') {
+        return;
+      }
+      if (state.demo || state.fatal || !state.running || !state.page) return;
+      if (!state.ws || state.ws.readyState !== 1) return;
+      if (state.resyncPending || state.lastReceivedFrameSeq <= 0) return;
+      if (state.lastFrameMessageAt > 0
+          && Date.now() - state.lastFrameMessageAt >= FRAME_STALL_MS) {
+        requestResync('frame-stall', 'frames');
+      }
+    }, FRAME_STALL_MS);
+  }
+
   /** keyframe 到达时给渲染器一次"清本地派生状态"的机会；没声明 reset 的渲染器无操作。 */
   function resetRecords() {
     for (var i = 0; i < state.records.length; i++) {
@@ -3276,6 +3301,8 @@
   }
 
   function applyFrame(message) {
+    state.lastFrameMessageAt = Date.now();
+
     // 先记录“收到过”（空帧/被丢弃的帧也算）：旧写法只在应用成功后更新，
     // 空帧会让基线停住，下一次值变化看起来像跳号（正常背压被误判成缺口）。
     var receivedFrameSeq = toNumber(pick(message, 'frameSeq', 'FrameSeq'), 0);
@@ -4333,6 +4360,7 @@
   function init() {
     cacheDom();
     bindUi();
+    startFrameWatch();
 
     dom.viewport.style.width = DEFAULT_PAGE_WIDTH + 'px';
     dom.viewport.style.height = DEFAULT_PAGE_HEIGHT + 'px';
