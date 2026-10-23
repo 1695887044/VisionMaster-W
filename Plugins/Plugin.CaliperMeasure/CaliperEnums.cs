@@ -81,8 +81,14 @@ namespace Plugin.CaliperMeasure
     }
 
     /// <summary>
-    /// 每条卡尺上有多条边缘时的取舍：取第一条 / 最后一条 / 全部。
+    /// 每条卡尺上有多条边缘时的取舍：取第一条 / 最后一条。
+    ///
     /// 对应 measure 算子的 Select 参数——直接决定"一条卡尺出几个点"。
+    /// **P1-B S2：'全部' 已下线**。理由：Select='all' 时 measure_pos 会给多条边，
+    /// 而本插件的口径是"每把卡尺出一个点"，上层再静默取第一条——界面写着"全部"、
+    /// 实际只用第一条，是典型的"看起来正常其实口径错"。
+    /// **存量 .vms 里存着 "All" 的，反序列化会回落到默认值 First**（枚举缺成员 → 用 DefaultValue），
+    /// 行为从"多边取首条"变成"直接取首条"，结果口径不变，故不需要方案迁移。
     /// </summary>
     public enum EdgeSelect
     {
@@ -93,10 +99,6 @@ namespace Plugin.CaliperMeasure
         /// <summary>最后一条</summary>
         [Display(Name = "最后一条")]
         Last,
-
-        /// <summary>全部：一条卡尺可能给出多个点（配合"全部"极性要留意结果口径）</summary>
-        [Display(Name = "全部")]
-        All,
     }
 
     /// <summary>

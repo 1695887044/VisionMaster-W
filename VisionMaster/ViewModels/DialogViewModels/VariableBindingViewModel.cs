@@ -520,28 +520,41 @@ namespace VisionMaster.ViewModels
                 ? StepConfigOptionSource.GetOptionItems(kind)
                 : BuildFallbackOptions(portDef);
 
-            if (portDef.IsFunctionalEnum && items.Count > 0)
+            // 封闭集合端口（枚举 / IsFunctionalEnum）**不管候选有没有取到**，都不允许切到上游供值：
+            // 合法值只能来自枚举成员或方案里的名字，绑上游等于允许运行期拿一个方案里不存在的
+            // 名字/轴名（R33）。旧写法把"候选非空"也算进判据，于是"方案里一条子程序都没勾"
+            // 这种最常见的首次配置状态下，绑定弹窗会放开上游面板 —— 手一滑就造出一条
+            // "值当名字"的连线，而参数面板那边又把 🔗 藏了，用户事后连拆都拆不掉。
+            //
+            // 候选为空时的正确退化是**手填**（见 VariableBindingView 的功能预设面板里那个
+            // 按 PresetOptions.Count 显示的手填框），与 LinkableValueEditor 的
+            // IsHandFillFallback 同一口径。
+            if (portDef.IsFunctionalEnum)
             {
-                // 已有值（上面回显来的）优先，只有在空着的时候才退到第一个预设项 ——
-                // 无条件取第一个会把刚回显出来的值冲掉，用户看到的就不是实际生效的值了。
-                // 另外：端口已有非常量连线（上游/全局/运行时）时不能自动填首项 ——
-                // 否则点确定会用一个"用户没选过"的预设把原连线静默覆盖。
-                bool hasExistingLink = _targetStep?.LinkedSources != null
-                    && _targetStep.LinkedSources.TryGetValue(ResolveBindKey(portDef), out var existing)
-                    && existing != null;
-                if (string.IsNullOrWhiteSpace(ConstantValue) && !hasExistingLink)
-                    ConstantValue = items[0].Value;
                 HasFunctionalEnumPort = true;
-                foreach (var item in items)
+
+                if (items.Count > 0)
                 {
-                    PresetOptions.Add(
-                        new PresetOptionItem
-                        {
-                            Option = item.Value,
-                            Display = item.Display,
-                            IsSelected = item.Value == ConstantValue,
-                        }
-                    );
+                    // 已有值（上面回显来的）优先，只有在空着的时候才退到第一个预设项 ——
+                    // 无条件取第一个会把刚回显出来的值冲掉，用户看到的就不是实际生效的值了。
+                    // 另外：端口已有非常量连线（上游/全局/运行时）时不能自动填首项 ——
+                    // 否则点确定会用一个"用户没选过"的预设把原连线静默覆盖。
+                    bool hasExistingLink = _targetStep?.LinkedSources != null
+                        && _targetStep.LinkedSources.TryGetValue(ResolveBindKey(portDef), out var existing)
+                        && existing != null;
+                    if (string.IsNullOrWhiteSpace(ConstantValue) && !hasExistingLink)
+                        ConstantValue = items[0].Value;
+                    foreach (var item in items)
+                    {
+                        PresetOptions.Add(
+                            new PresetOptionItem
+                            {
+                                Option = item.Value,
+                                Display = item.Display,
+                                IsSelected = item.Value == ConstantValue,
+                            }
+                        );
+                    }
                 }
             }
 

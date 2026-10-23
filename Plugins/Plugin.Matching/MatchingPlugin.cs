@@ -98,6 +98,47 @@ namespace Plugin.Matching
         /// <summary>极性下拉框选项（视图绑定用：与 PolarityIndex 的 0/1 一一对应）</summary>
         public string[] PolarityOptions { get; } = { "使用极性", "忽略极性" };
 
+        /// <summary>
+        /// 算法下拉框索引（视图绑定用）：0 = 基于形状，1 = 基于灰度相关（NCC）。
+        /// 与 <see cref="MatchingAlgorithm"/> 的成员顺序一一对应。
+        /// </summary>
+        public int AlgorithmIndex
+        {
+            get => EditingEntry?.Algorithm == MatchingAlgorithm.Ncc ? 1 : 0;
+            set
+            {
+                if (EditingEntry == null)
+                    return;
+                var algorithm = value == 1 ? MatchingAlgorithm.Ncc : MatchingAlgorithm.Shape;
+                if (EditingEntry.Algorithm == algorithm)
+                    return;
+                EditingEntry.Algorithm = algorithm;
+                // 换算法 = 模型类型变了（.shm ⇄ .ncm），必须重新学习。
+                // 调一次属性通知让"需重新学习"提示立刻刷新，而不是等用户碰别的控件。
+                OnPropertyChanged(nameof(AlgorithmIndex));
+                OnPropertyChanged(nameof(IsNccAlgorithm));
+                TouchModelStaleness();
+            }
+        }
+
+        /// <summary>算法下拉框选项（视图绑定用：与 AlgorithmIndex 的 0/1 一一对应）</summary>
+        public string[] AlgorithmOptions { get; } =
+        {
+            "基于形状（边缘几何）",
+            "基于灰度相关（NCC）",
+        };
+
+        /// <summary>
+        /// 当前条目是否 NCC 算法 —— 视图用它把"缩放匹配/极性"这类只对形状模型有效的控件灰掉。
+        ///
+        /// 为什么要在界面上灰掉而不只是"忽略"：用户打开缩放开关却得到"不支持缩放"的提示，
+        /// 比一开始就按不动更难理解（R118：不许让界面替用户猜）。
+        /// </summary>
+        public bool IsNccAlgorithm => EditingEntry?.Algorithm == MatchingAlgorithm.Ncc;
+
+        /// <summary>当前条目是否形状算法（视图绑定取反用：`IsEnabled={Binding IsShapeAlgorithm}`）</summary>
+        public bool IsShapeAlgorithm => !IsNccAlgorithm;
+
         private bool _seedingCanvas; // 播种画布期间为真：CanvasRois 的变更来自"回填"，不回写参数
 
         /// <summary>
@@ -135,6 +176,17 @@ namespace Plugin.Matching
         [StepConfig, DefaultValue(DefaultOutputAlignedImage)]
         public partial bool OutputAlignedImage { get; set; }
 
+        /// <summary>
+        /// 搜索区域（P1-B A1）：0 = 全图搜索（老行为）；
+        /// 1 = 只用上游连到 <see cref="SearchRegion"/> 的区域搜索（reduce_domain 后再 find）。
+        ///
+        /// 为什么要它：全图搜一个 40×40 的模板，HALCON 要把整幅图每一处都试一遍；
+        /// 产线上目标只可能出现在某个工位窗口里，收窄搜索域能直接把耗时按面积比压下来。
+        /// **默认 0**：不改任何存量方案的行为（存量 .vms 里没有这个字段 → 反序列化后是 false）。
+        /// </summary>
+        [StepConfig, DefaultValue(false)]
+        public partial bool UseSearchRegion { get; set; }
+
         // ── 出厂默认值 ──
 
         private const double DefaultMinScore = 0.5; // shape matching 的工业常用起点
@@ -159,6 +211,15 @@ namespace Plugin.Matching
         /// </summary>
         public InputPort<string> RecipeName { get; } =
             new("RecipeName", description: "配方名/产品型号") { IsRequired = false };
+
+        /// <summary>
+        /// 搜索区域（P1-B A1）：连一个区域进来，只在区域内部找目标。
+        ///
+        /// **只有 <see cref="UseSearchRegion"/> = true 时才生效**（默认 false → 全图搜，与老方案一致）。
+        /// 区域为空 / 未连线 → 回落全图并在消息里说明，不静默缩小到零面积（那会变成"永远找不到"）。
+        /// </summary>
+        public InputPort<HRegion> SearchRegion { get; } =
+            new("SearchRegion", description: "搜索区域（仅当开关打开时生效）") { IsRequired = false };
 
         /// <summary>最高分实例的匹配分数（0~1）</summary>
         public OutputPort<double> Score { get; } = new("Score", "最高分实例的匹配分数（0~1）");
@@ -248,6 +309,10 @@ namespace Plugin.Matching
                 OnPropertyChanged(nameof(EditingEntry));
                 TouchModelStaleness();
                 OnPropertyChanged(nameof(PolarityIndex));
+                // 换条目 = 换算法，下拉框与"缩放区灰不灰"都要跟着重绑
+                OnPropertyChanged(nameof(AlgorithmIndex));
+                OnPropertyChanged(nameof(IsNccAlgorithm));
+                OnPropertyChanged(nameof(IsShapeAlgorithm));
             }
         }
 
@@ -256,6 +321,12 @@ namespace Plugin.Matching
         {
             if (e.PropertyName == nameof(MatchingTemplateEntry.Rect))
                 OnPropertyChanged(nameof(TemplateSummary));
+            if (e.PropertyName == nameof(MatchingTemplateEntry.Algorithm))
+            {
+                OnPropertyChanged(nameof(AlgorithmIndex));
+                OnPropertyChanged(nameof(IsNccAlgorithm));
+                OnPropertyChanged(nameof(IsShapeAlgorithm));
+            }
             TouchModelStaleness();
         }
 
@@ -915,9 +986,25 @@ namespace Plugin.Matching
                 string metric = entry.UsePolarity ? "use_polarity" : "ignore_polarity";
                 int numLevels = Math.Clamp(entry.NumLevels, 1, 10);
 
-                double scaleLo = 0,
-                    scaleHi = 0;
-                if (entry.ScaleEnabled)
+                double scaleLo = 0.5,
+                    scaleHi = 2.0;
+                if (entry.Algorithm == MatchingAlgorithm.Ncc)
+                {
+                    // NCC 模型：只看灰度纹理与灰度值本身，没有对比度/缩放那套参数。
+                    // 缩放：HALCON 只有 create_ncc_model，**没有** Scaled 版 → 缩放开关在 NCC 下无意义，
+                    // 这里直接忽略并在状态栏与手册里写明（不静默当"已启用"）。
+                    HOperatorSet.CreateNccModel(
+                        gray,
+                        numLevels,
+                        minAngleRad,
+                        angleExtent,
+                        angleStep,
+                        metric,
+                        out HTuple nccModelId
+                    );
+                    entry.RuntimeModelId = nccModelId;
+                }
+                else if (entry.ScaleEnabled)
                 {
                     scaleLo = Math.Clamp(Math.Min(entry.ScaleMin, entry.ScaleMax), 0.5, 2.0);
                     scaleHi = Math.Clamp(Math.Max(entry.ScaleMin, entry.ScaleMax), 0.5, 2.0);
@@ -972,7 +1059,14 @@ namespace Plugin.Matching
                 // = 默认落点 − 画布中心（与直觉相反，别"修"回减法）。
                 try
                 {
-                    if (entry.ScaleEnabled)
+                    if (entry.Algorithm == MatchingAlgorithm.Ncc)
+                    {
+                        // NCC 没有 set_ncc_model_origin —— 模型原点就是模板域的重心，
+                        // 与"用户画的区域中心"的偏差无法在模型里补偿。
+                        // 换成在**输出侧**补偿：RunAlgorithm 里统一加上 Rect 中心与模型原点之差。
+                        // 因此这里什么都不做（不做自匹配，也不必）。
+                    }
+                    else if (entry.ScaleEnabled)
                     {
                         HOperatorSet.FindScaledShapeModel(
                             gray,
@@ -1033,11 +1127,14 @@ namespace Plugin.Matching
                 // 序列化成 base64 存进条目（临时文件只存在一次读写之间）
                 string tempFile = Path.Combine(
                     Path.GetTempPath(),
-                    $"vm_matching_{Guid.NewGuid():N}.shm"
+                    $"vm_matching_{Guid.NewGuid():N}{(entry.Algorithm == MatchingAlgorithm.Ncc ? ".ncm" : ".shm")}"
                 );
                 try
                 {
-                    HOperatorSet.WriteShapeModel(entry.RuntimeModelId, tempFile);
+                    if (entry.Algorithm == MatchingAlgorithm.Ncc)
+                        HOperatorSet.WriteNccModel(entry.RuntimeModelId, tempFile);
+                    else
+                        HOperatorSet.WriteShapeModel(entry.RuntimeModelId, tempFile);
                     entry.Model = Convert.ToBase64String(File.ReadAllBytes(tempFile));
                     entry.RuntimeModelSource = entry.Model;
                     HOperatorSet.GetImageSize(DisplayImage, out HTuple refW, out HTuple refH);
@@ -1067,21 +1164,41 @@ namespace Plugin.Matching
                 entry.Rect = (double[])CanvasRect.Clone();
                 entry.LearnedSignature = EntrySignature(entry);
 
-                HOperatorSet.GetShapeModelParams(
-                    entry.RuntimeModelId,
-                    out HTuple levels,
-                    out _,
-                    out _,
-                    out _,
-                    out _,
-                    out _,
-                    out _,
-                    out _,
-                    out _
-                );
-                string scaleNote = entry.ScaleEnabled
-                    ? $"，缩放 {Math.Min(entry.ScaleMin, entry.ScaleMax):0.##}~{Math.Max(entry.ScaleMin, entry.ScaleMax):0.##}×"
-                    : string.Empty;
+                string levelsText;
+                if (entry.Algorithm == MatchingAlgorithm.Ncc)
+                {
+                    HOperatorSet.GetNccModelParams(
+                        entry.RuntimeModelId,
+                        out HTuple nccLevels,
+                        out _,
+                        out _,
+                        out _,
+                        out _
+                    );
+                    levelsText = nccLevels.I.ToString();
+                }
+                else
+                {
+                    HOperatorSet.GetShapeModelParams(
+                        entry.RuntimeModelId,
+                        out HTuple levels,
+                        out _,
+                        out _,
+                        out _,
+                        out _,
+                        out _,
+                        out _,
+                        out _,
+                        out _
+                    );
+                    levelsText = levels.I.ToString();
+                }
+                string scaleNote =
+                    entry.Algorithm == MatchingAlgorithm.Ncc
+                        ? "，NCC 不支持缩放"
+                        : entry.ScaleEnabled
+                            ? $"，缩放 {Math.Min(entry.ScaleMin, entry.ScaleMax):0.##}~{Math.Max(entry.ScaleMin, entry.ScaleMax):0.##}×"
+                            : string.Empty;
                 // 尺寸按形状给：圆只有 3 个参数，直接取 index 3/4 会显示 0×0
                 //（更要命的是早先这里取的是迁移字段 TemplateRect —— 新方案下它恒为空数组，
                 //  每次学习都会 IndexOutOfRange，被外层 catch 吞成"创建模板失败"，
@@ -1090,7 +1207,7 @@ namespace Plugin.Matching
                     ? $"半径 {CanvasRect[2]:0} px"
                     : $"{CanvasRect[3] * 2:0}×{CanvasRect[4] * 2:0} px";
                 SetStatus(
-                    $"模板「{entry.Name}」已学习：金字塔 {levels.I} 层，角度 {Math.Min(entry.MinAngleDeg, entry.MaxAngleDeg):0}~{Math.Max(entry.MinAngleDeg, entry.MaxAngleDeg):0}°{scaleNote}，"
+                    $"模板「{entry.Name}」已学习：{AlgorithmName(entry.Algorithm)}，金字塔 {levelsText} 层，角度 {Math.Min(entry.MinAngleDeg, entry.MaxAngleDeg):0}~{Math.Max(entry.MinAngleDeg, entry.MaxAngleDeg):0}°{scaleNote}，"
                         + $"特征区域 {sizeNote}，"
                         + $"载荷 {entry.Model.Length * 3 / 4 / 1024} KB。左下角为模板预览"
                 );
@@ -1124,10 +1241,29 @@ namespace Plugin.Matching
         /// <summary>清除模板区域（画布清空；已学习的条目要重新学习才会变）</summary>
         public void ClearTemplate() => CanvasRois.Clear();
 
-        /// <summary>条目参数指纹：区域 + 掩膜 + 全部提取参数（学习时记下，之后不一致 = 需重新学习）</summary>
+        /// <summary>条目参数指纹：区域 + 掩膜 + 算法 + 全部提取参数（学习时记下，之后不一致 = 需重新学习）</summary>
         private static string EntrySignature(MatchingTemplateEntry e) =>
-            $"{e.Shape}|{RectKeyOf(e.Rect)}|{e.NumLevels}|{e.GradientThreshold}|{e.MinAngleDeg}|{e.MaxAngleDeg}"
+            $"{e.Algorithm}|{e.Shape}|{RectKeyOf(e.Rect)}|{e.NumLevels}|{e.GradientThreshold}|{e.MinAngleDeg}|{e.MaxAngleDeg}"
             + $"|{e.AngleStepDeg}|{e.UsePolarity}|{e.ScaleEnabled}|{e.ScaleMin:0.###}|{e.ScaleMax:0.###}|{e.Mask.Length}";
+
+        /// <summary>算法中文名（状态栏/提示用）</summary>
+        private static string AlgorithmName(MatchingAlgorithm algorithm) =>
+            algorithm == MatchingAlgorithm.Ncc ? "基于灰度相关（NCC）" : "基于形状（边缘几何）";
+
+        /// <summary>
+        /// NCC 模型的默认原点行（= 模板域的重心行）。
+        ///
+        /// 形状匹配用 <c>set_shape_model_origin</c> 把原点搬到"用户画的区域中心"，
+        /// NCC 没有对应的算子，所以创建模板时把重心落点记进 <see cref="MatchingTemplateEntry.LearnedSignature"/>？
+        /// **不**——签名是给人看的字符串。这里改为从条目区域反推：NCC 的 create_ncc_model
+        /// 用的就是 reduce_domain 后的模板域，其重心近似矩形/椭圆/圆的几何中心，
+        /// 所以直接取 <c>Rect[0]/Rect[1]</c> 作为"用户期望的原点"，实际偏移量为 0。
+        /// 保留成方法是为了把"为什么 NCC 不需要偏移"这件事写在代码里而不是消失。
+        /// </summary>
+        private static double ModelOriginRow(MatchingTemplateEntry entry) => entry.Rect![0];
+
+        /// <summary>NCC 模型的默认原点列，理由见 <see cref="ModelOriginRow"/></summary>
+        private static double ModelOriginCol(MatchingTemplateEntry entry) => entry.Rect![1];
 
         private static string RectKeyOf(double[]? rect) =>
             rect == null || rect.Length != 5
@@ -1315,12 +1451,23 @@ namespace Plugin.Matching
                 return true;
 
             ReleaseEntryModel(entry);
-            string temp = Path.Combine(Path.GetTempPath(), $"vm_matching_{Guid.NewGuid():N}.shm");
+            string temp = Path.Combine(
+                Path.GetTempPath(),
+                $"vm_matching_{Guid.NewGuid():N}{(entry.Algorithm == MatchingAlgorithm.Ncc ? ".ncm" : ".shm")}"
+            );
             try
             {
                 File.WriteAllBytes(temp, Convert.FromBase64String(entry.Model));
-                HOperatorSet.ReadShapeModel(temp, out HTuple modelId);
-                entry.RuntimeModelId = modelId;
+                if (entry.Algorithm == MatchingAlgorithm.Ncc)
+                {
+                    HOperatorSet.ReadNccModel(temp, out HTuple nccModelId);
+                    entry.RuntimeModelId = nccModelId;
+                }
+                else
+                {
+                    HOperatorSet.ReadShapeModel(temp, out HTuple modelId);
+                    entry.RuntimeModelId = modelId;
+                }
                 entry.RuntimeModelSource = entry.Model;
                 RefreshEntryContours(entry);
                 return true;
@@ -1345,6 +1492,32 @@ namespace Plugin.Matching
             entry.RuntimeContours = null;
             if (entry.RuntimeModelId == null)
                 return;
+            // NCC 模型没有轮廓（get_ncc_model_contours 不存在）——
+            // 强取只会抛异常被吞成"没有轮廓"。这里直接给出用户画的模板区域轮廓：
+            // 画布上看到的就是"这条模板覆盖了哪块"，对 NCC 反而更直观。
+            if (entry.Algorithm == MatchingAlgorithm.Ncc)
+            {
+                try
+                {
+                    if (entry.Rect is { Length: 5 })
+                    {
+                        var r = entry.Rect;
+                        HOperatorSet.GenRectangle2ContourXld(
+                            out HObject nccContour,
+                            r[0],
+                            r[1],
+                            r[2],
+                            r[3],
+                            r[4]
+                        );
+                        entry.RuntimeContours = nccContour;
+                    }
+                }
+                catch
+                { /* 轮廓只用于显示，失败不阻断匹配 */
+                }
+                return;
+            }
             try
             {
                 HOperatorSet.GetShapeModelContours(out HObject contours, entry.RuntimeModelId, 1);
@@ -1359,7 +1532,11 @@ namespace Plugin.Matching
             {
                 try
                 {
-                    HOperatorSet.ClearShapeModel(entry.RuntimeModelId);
+                    // 两种模型句柄不通用：拿 shape 的 clear 去释放 ncc 句柄会报类型错并泄漏。
+                    if (entry.Algorithm == MatchingAlgorithm.Ncc)
+                        HOperatorSet.ClearNccModel(entry.RuntimeModelId);
+                    else
+                        HOperatorSet.ClearShapeModel(entry.RuntimeModelId);
                 }
                 catch
                 { /* 释放失败不打断（句柄可能已被 Clear） */
@@ -1491,12 +1668,67 @@ namespace Plugin.Matching
                     angles,
                     scores,
                     scales;
-                if (entry.ScaleEnabled)
+
+                // 搜索域（P1-B A1）：开关打开且上游连了区域 → reduce_domain 后再 find。
+                // find_* 只处理域内像素，耗时按面积比下降；区域为空/未连线回落全图，
+                // 但**在消息里说明**——否则"设了没生效"和"设了确实更快"看起来一样。
+                HObject searchInput = gray;
+                HObject? reducedImage = null;
+                string searchRegionNote = string.Empty;
+                if (UseSearchRegion)
+                {
+                    var region = SearchRegion.ActualValue;
+                    if (region != null && region.IsInitialized())
+                    {
+                        HOperatorSet.ReduceDomain(gray, region, out reducedImage);
+                        searchInput = reducedImage;
+                        searchRegionNote = "，搜索域=上游区域";
+                    }
+                    else
+                    {
+                        searchRegionNote = "，搜索域开关已开但未连区域 → 回落全图";
+                    }
+                }
+                if (reducedImage != null)
+                    temp.Add(reducedImage);
+
+                if (entry.Algorithm == MatchingAlgorithm.Ncc)
+                {
+                    // NCC：无缩放参数、无贪婪度；输出 (行, 列, 角度, 分数)，行列为模板原点落点。
+                    HOperatorSet.FindNccModel(
+                        searchInput,
+                        entry.RuntimeModelId,
+                        minAngleRad,
+                        angleExtent,
+                        minScore,
+                        numMatches,
+                        maxOverlap,
+                        "true",
+                        numLevels,
+                        out rows,
+                        out cols,
+                        out angles,
+                        out scores
+                    );
+                    scales = Enumerable.Repeat(1.0, rows.Length).ToArray();
+
+                    // NCC 没有 set_ncc_model_origin：find 给的是模板域重心落点，
+                    // 而形状匹配那边已经把原点锚到了用户画的区域中心。
+                    // 为了让"两种算法的 Row/Column 口径一致"，这里在输出侧补同一份偏移。
+                    if (rows.Length > 0 && entry.Rect is { Length: 5 })
+                    {
+                        double dRow = entry.Rect[0] - ModelOriginRow(entry);
+                        double dCol = entry.Rect[1] - ModelOriginCol(entry);
+                        rows = rows + dRow;
+                        cols = cols + dCol;
+                    }
+                }
+                else if (entry.ScaleEnabled)
                 {
                     double scaleLo = Math.Clamp(Math.Min(entry.ScaleMin, entry.ScaleMax), 0.5, 2.0);
                     double scaleHi = Math.Clamp(Math.Max(entry.ScaleMin, entry.ScaleMax), 0.5, 2.0);
                     HOperatorSet.FindScaledShapeModel(
-                        gray,
+                        searchInput,
                         entry.RuntimeModelId,
                         minAngleRad,
                         angleExtent,
@@ -1518,7 +1750,7 @@ namespace Plugin.Matching
                 else
                 {
                     HOperatorSet.FindShapeModel(
-                        gray,
+                        searchInput,
                         entry.RuntimeModelId,
                         minAngleRad,
                         angleExtent,
@@ -1563,6 +1795,7 @@ namespace Plugin.Matching
                 context.Logger?.Info(
                     $"{InstanceName} 模板「{entry.Name}」匹配 {n} 个实例，最高分 {Score.Value:0.00}"
                         + $"，位置 ({Row.Value:0.0},{Column.Value:0.0})，角度 {Angle.Value:0.0}°"
+                        + $"，算法 {AlgorithmName(entry.Algorithm)}{searchRegionNote}"
                 );
 
                 // 位姿归一化图像：刚性变换把目标从"当前位姿"搬回"学习时的位姿"，

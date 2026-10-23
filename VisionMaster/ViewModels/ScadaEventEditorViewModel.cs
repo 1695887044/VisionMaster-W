@@ -53,6 +53,8 @@ namespace VisionMaster.ViewModels
         {
             ScadaActionType.Log => 0,
             ScadaActionType.WriteVariable => 1,
+            ScadaActionType.Increment => 1,
+            ScadaActionType.Decrement => 1,
             ScadaActionType.Navigate => 2,
             ScadaActionType.NavigateBack => 3,
             ScadaActionType.OpenPopup => 4,

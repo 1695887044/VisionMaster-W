@@ -291,6 +291,17 @@ namespace VisionMaster.Scada.Controls
         public Func<ScadaElement, bool>? LayerVisibilityResolver { get; set; }
 
         /// <summary>
+        /// 方案图片解析器（相对路径 → 位图）。与 <see cref="LayerVisibilityResolver"/> 同一范式：
+        /// 宿主/画布注入，控件不反向抓方案目录。null = 没有方案上下文（断言、单独预览），
+        /// 此时图片类图元显示占位，不抛异常。
+        /// </summary>
+        public Func<string, ImageSource?>? ImageAssetResolver { get; set; }
+
+        /// <summary>按注入的解析器把相对路径变成位图；没有解析器/空路径一律 null</summary>
+        protected ImageSource? ResolveImageAsset(string? relativePath)
+            => string.IsNullOrWhiteSpace(relativePath) ? null : ImageAssetResolver?.Invoke(relativePath);
+
+        /// <summary>
         /// 图层开关翻转后由宿主逐个调用，重算本控件的可见性。
         ///
         /// 为什么另开一个入口而不是让人直接 <see cref="Refresh"/>：隐藏图层是<b>图层</b>的属性变了，
@@ -304,6 +315,7 @@ namespace VisionMaster.Scada.Controls
         /// <c>false</c> = 动画要求隐藏。<b>只活在控件上</b>，与运行值同一个口径（停止运行即作废）。
         /// </summary>
         private bool? _animationVisibility;
+        private bool _animationEnabled = true;
 
         private void ApplyLayerVisibility()
         {
@@ -596,6 +608,14 @@ namespace VisionMaster.Scada.Controls
                     error = null;
                     return true;
 
+                case ScadaAnimationType.Enable:
+                    if (!animation.TryEvaluateEnable(number, out var enabled, out error))
+                        return false;
+
+                    ApplyAnimationEnable(enabled, animation.DisableReason);
+                    error = null;
+                    return true;
+
                 case ScadaAnimationType.Appearance:
                     // TryEvaluateAppearance 从不失败：它靠 matched 是否为 null 表达"没命中"，
                     // 而不是靠返回值——一档都没命中是<b>正常情形</b>（手册："否则显示默认外观"）。
@@ -619,7 +639,33 @@ namespace VisionMaster.Scada.Controls
         private void ResetAnimationVisuals()
         {
             _animationVisibility = null;
+            _animationEnabled = true;
+            IsHitTestVisible = true;
+            IsEnabled = true;
+            Opacity = 1d;
+            ToolTip = null;
             SetFlashing(false);
+        }
+
+        /// <summary>
+        /// 「启用对象」的落点：<b>交互闸门</b>（鼠标/键盘/拖拽全不响应）+ 压暗 + 原因提示。
+        ///
+        /// 不做成“只是变灰”：没有权限/联锁未满足时，用户点了没反应却不知道为什么，
+        /// 比按钮灰着更糟。禁用态固定 0.55 透明度，原因挂在 ToolTip 上；
+        /// 与「外观变化」的闪烁共用 Opacity 是已知冲突（同时配两条时闪烁会盖掉压暗），
+        /// 统一遮罩留给模板层，本版先保证“点不动 + 说得清”。
+        /// </summary>
+        private void ApplyAnimationEnable(bool enabled, string? reason)
+        {
+            if (_animationEnabled == enabled)
+                return;
+
+            _animationEnabled = enabled;
+
+            IsHitTestVisible = enabled;
+            IsEnabled = enabled;
+            Opacity = enabled ? 1d : 0.55d;
+            ToolTip = enabled ? null : (string.IsNullOrWhiteSpace(reason) ? "当前不可用" : reason);
         }
 
         private void ApplyAnimationVisibility(bool? visible)

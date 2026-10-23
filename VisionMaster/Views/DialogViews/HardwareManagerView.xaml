@@ -733,6 +733,18 @@
                             Content="{Binding MotionPageView}" />
                     </Grid>
                 </TabItem>
+
+                <!--  ============ 数据库  ============  -->
+                <TabItem
+                    Padding="0"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Header="数据库">
+                    <ContentControl
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch"
+                        Content="{Binding DatabasePageView}" />
+                </TabItem>
             </TabControl>
         </Grid>
 

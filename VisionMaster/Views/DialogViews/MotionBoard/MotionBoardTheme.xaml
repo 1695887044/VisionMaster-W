@@ -315,8 +315,10 @@
                         BorderBrush="{TemplateBinding BorderBrush}"
                         BorderThickness="{TemplateBinding BorderThickness}"
                         CornerRadius="8">
+                        <!--  注意：内容宿主上不要再套一层"按 Padding 换算的 Margin"——
+                              TextBox 内部已按 Padding 内缩一次，二次内缩会把可视区砍掉一半
+                              （Height=38 只剩 12px 视口，13px 中文行高 16.5px → 上下被切，2026-10-23 探针实测）。  -->
                         <ScrollViewer
-                            Margin="{TemplateBinding Padding}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                             x:Name="PART_ContentHost" />
                     </Border>

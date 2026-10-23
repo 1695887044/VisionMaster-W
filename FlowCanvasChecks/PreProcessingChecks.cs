@@ -93,8 +93,11 @@ namespace FlowCanvasChecks
         private static void RunRegistryContract()
         {
             var all = OperatorRegistry.All;
-            Check("算子总数 = 25（原 21 + 顶帽/黑帽/Sobel/Laplace）",
-                all.Count == 25, $"Count={all.Count}");
+            // 25 → 30：新增算术运算算子组 5 个（灰度加常数/减常数/乘增益/转浮点图/灰度归一化）。
+            // 该组只能在单图上做常数算术（链内算子的 OperatorStepItem 拿不到第二张图），
+            // 双图逐像元差分归 Plugin.ImageDiff，不在这里。
+            Check("算子总数 = 30（原 25 + 算术运算 5）",
+                all.Count == 30, $"Count={all.Count}");
             Check("算子 Key 无重复",
                 all.Select(d => d.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count() == all.Count,
                 string.Join(",", all.GroupBy(d => d.Key, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).Select(g => g.Key)));
@@ -122,10 +125,12 @@ namespace FlowCanvasChecks
                 laplace == null ? "未注册" : $"{laplace.DisplayName}/{laplace.Category}/{laplace.Order}");
 
             var categories = OperatorRegistry.Categories.Select(c => c.Name).ToList();
-            Check("分组顺序：七族按 Order 排，边缘检测在最后",
+            // 八族：算术运算（Order 90~94）按 Category Order 落在「灰度形态学」之后、
+            // 「图像增强」（Order 100+）之前；其余顺序不变，边缘检测仍在最后。
+            Check("分组顺序：八族按 Order 排，边缘检测在最后",
                 categories.SequenceEqual(new[]
                 {
-                    "色彩与通道", "几何调整", "滤波", "灰度形态学", "图像增强", "二值化", "边缘检测"
+                    "色彩与通道", "几何调整", "滤波", "灰度形态学", "算术运算", "图像增强", "二值化", "边缘检测"
                 }),
                 string.Join(" → ", categories));
 

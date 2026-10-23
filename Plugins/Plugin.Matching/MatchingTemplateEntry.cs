@@ -80,6 +80,21 @@ namespace Plugin.Matching
             set { if (_refImagePath != value) { _refImagePath = value; OnChanged(nameof(RefImagePath)); } }
         }
 
+        private MatchingAlgorithm _algorithm = MatchingAlgorithm.Shape;
+
+        /// <summary>
+        /// 提取参数：匹配算法（基于形状 / 基于灰度相关 NCC）。
+        ///
+        /// 创建期定死：两种算法的模型不是同一种句柄，改它必须重新学习。
+        /// 老方案 JSON 里没有这个字段 → 反序列化后保持默认 <see cref="MatchingAlgorithm.Shape"/>，
+        /// 与"老方案都是形状匹配"的事实一致，行为不变。
+        /// </summary>
+        public MatchingAlgorithm Algorithm
+        {
+            get => _algorithm;
+            set { if (_algorithm != value) { _algorithm = value; OnChanged(nameof(Algorithm)); } }
+        }
+
         private int _numLevels = 5;
 
         /// <summary>提取参数：金字塔层数（1~10）</summary>

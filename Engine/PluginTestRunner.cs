@@ -1,4 +1,5 @@
 using Core.Interfaces;
+using Core.Interfaces.Database;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -55,7 +56,8 @@ namespace VisionMaster.Services
             ICameraProvider cameras = null,
             IMotionProvider motions = null,
             IFlowInvoker flowInvoker = null,
-            ICommVariableAccess comms = null)
+            ICommVariableAccess comms = null,
+            IDatabaseAccess database = null)
         {
             var sw = Stopwatch.StartNew();
             trialSession = null;
@@ -101,7 +103,9 @@ namespace VisionMaster.Services
                 // 「调用流程」步骤同理：不注入的话面板上点「执行」必然报"没有绑定流程引擎"
                 FlowInvoker = flowInvoker ?? NullFlowInvoker.Instance,
                 // 「立刻读 / 立刻写」同理：不注入的话试运行必然报"没有接入通讯层"
-                Comms = comms ?? NullCommVariableAccess.Instance
+                Comms = comms ?? NullCommVariableAccess.Instance,
+                // 数据库三步同理：不注入的话试运行必然报"没有接入数据库服务"
+                Database = database ?? NullDatabaseAccess.Instance
             };
 
             try

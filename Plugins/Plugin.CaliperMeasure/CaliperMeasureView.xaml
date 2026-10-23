@@ -1195,6 +1195,7 @@
                         </Grid>
 
                         <TextBlock Style="{StaticResource HelpTextStyle}" Text="接线取值：把「标定」插件的 MmPerPixel 输出连到本步骤的输入端口「MmPerPixel」，运行时自动以标定当量为准（本框数值作为未接线时的兜底；上游标定失败会直接判失败，不会拿旧值硬算）。" />
+                        <TextBlock Style="{StaticResource HelpTextStyle}" Text="接错类型会失败：如果把「标定」插件的 Transform 输出连到本步骤的 Transform 端口，请确认那份标定不是「去畸变」类型（*Undistorted 或带内参）。本插件在原始像素上扫边，去畸变标定给的当量属于去畸变后的图，两者混用会让视野边缘的尺寸静默偏百分之几——所以这种组合会直接判失败，而不是给一个看起来正常的数。" />
                         <TextBlock Style="{StaticResource HelpTextStyle}" Text="判定：下公差 ≤ 偏差 ≤ 上公差 为 OK。默认标准值/上下公差均为 0（零容忍），因此默认即为 NG。" />
                     </StackPanel>
                 </StackPanel>

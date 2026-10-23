@@ -594,6 +594,16 @@ namespace Plugin.BeadInspect
                     error = "标定变换的像素当量无效（MmPerPixel ≤ 0）：请重新运行标定";
                     return false;
                 }
+                // P1-B S1：带内参去畸变的标定，其 MmPerPixel 是"去畸变域"当量——本插件在原始像素上量长度，
+                // 拿不到去畸变后的图，直接乘这个当量会在视野边缘系统性偏百分之几（kappa=-1500 时角点位移实测 ~23px）。
+                // 这里与 Caliper/Blob 的守卫口径一致，明确失败而不是静默按错当量输出 mm。
+                if (t.Intrinsics != null || CalibrationKinds.IsUndistorted(t.Kind))
+                {
+                    error = $"本插件不能使用「去畸变标定」（当前类型 {t.Kind}）："
+                            + "它量的是原始像素长度，而去畸变标定给的像素当量属于去畸变后的图，"
+                            + "视野边缘会静默偏百分之几。请改用不带内参的标定，或把去畸变放到采图侧做完再检。";
+                    return false;
+                }
                 if (t.SourceImageWidth > 0 && t.SourceImageHeight > 0
                     && (t.SourceImageWidth != imageWidth || t.SourceImageHeight != imageHeight))
                 {

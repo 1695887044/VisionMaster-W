@@ -118,6 +118,7 @@ namespace ScadaChecks
             RenderCatalogChecks.Run();
             WebRendererCoverageChecks.Run();
             PageSnapshotChecks.Run();
+            BackgroundAssetChecks.Run();
             UserStoreConcurrencyChecks.Run();
             // 并发段有自己的计数与汇总（顶层 public 类），必须把它的结果并回主汇总：
             // 否则 UC16~UC18 的红条只出现在日志里，最终 Finish 仍报 0 失败。
@@ -2439,12 +2440,13 @@ namespace ScadaChecks
                 "Hmi.Rectangle", "Hmi.Ellipse", "Hmi.Text", "Hmi.Button", "Hmi.BitButton", "Hmi.Indicator",
                 "Hmi.ProgressBar", "Hmi.Slider", "Hmi.IOField", "Hmi.Lamp", "Hmi.Clock", "Hmi.Gauge",
                 "Hmi.Valve", "Hmi.Pump", "Hmi.Motor", "Hmi.Pipe", "Hmi.AlarmBanner", "Hmi.ImageView",
+                "Hmi.Picture", "Hmi.Line",
                 "Hmi.Panel", "Hmi.AxisConsole", "Hmi.AxisPanel", "Hmi.AxisPointTable",
                 "Hmi.Tank", "Hmi.KpiBoard",
                 "Hmi.SelectorSwitch", "Hmi.TextField", "Hmi.ComboBox", "Hmi.AckButton",
                 "Hmi.DataGrid",
             };
-            Check("29 个内置图元全部注册（含容器图元 Hmi.Panel、轴控台/轴面板/旧点位表、罐体/KPI 看板、Phase 2 输入四件套、数据表格、模拟量滑块）",
+            Check("31 个内置图元全部注册（含容器图元 Hmi.Panel、轴控台/轴面板/旧点位表、罐体/KPI 看板、Phase 2 输入四件套、数据表格、模拟量滑块、本地图片、线）",
                 builtIns.All(ElementRegistry.IsRegistered),
                 string.Join("、", ElementRegistry.All.Select(d => d.TypeKey)));
 
@@ -5667,7 +5669,9 @@ namespace ScadaChecks
                 && eventRow.ActionTypeChoices.All(o => o.DisplayName == o.Type.DisplayName())
                 && eventRow.ActionTypeChoices.Select(o => o.Type).SequenceEqual(new[]
                 {
-                    ScadaActionType.Log, ScadaActionType.WriteVariable, ScadaActionType.Navigate,
+                    ScadaActionType.Log, ScadaActionType.WriteVariable,
+                    ScadaActionType.Increment, ScadaActionType.Decrement,
+                    ScadaActionType.Navigate,
                     ScadaActionType.NavigateBack, ScadaActionType.OpenPopup, ScadaActionType.ClosePopup,
                     ScadaActionType.StartFlow, ScadaActionType.PauseFlow, ScadaActionType.ResumeFlow,
                     ScadaActionType.StopFlow, ScadaActionType.RunFlowOnce,

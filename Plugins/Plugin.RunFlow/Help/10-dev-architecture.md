@@ -122,6 +122,8 @@ LinkableValueEditor（Core.Controls）→ IsOptionPort → 下拉
 | 2 | **只列 `InvokeType` 含 `Subroutine` 位的流程** | 与 `FlowInvoker` 的门禁同一条判据；列出没勾的等于递给用户一个"选了必然失败"的选项 |
 | 3 | **值 = 流程名本体**，显示文本只加后缀 | `FlowInvoker.FindFlow` 按名 `Ordinal` 查找；把显示文本当值写进 `.vms`，改一次后缀就断链 |
 | 4 | **禁用 / 加密 / 当前流程照列并标注** | 剔掉会让已配好的值在下拉里显示空白（值还在、只是选不到），用户会以为配置丢了；标注才看得出失败原因 |
+| 5 | **绑定弹窗对封闭端口恒强制常量模式**（判据只看 `IsFunctionalEnum`，**不看候选数**） | 空候选时放开上游面板 = 允许运行期拿值当名字；空候选的正确退化是手填（`VariableBindingView` 里按 `PresetOptions.Count` 显示手填框） |
+| 6 | **封闭端口上的老上游连线：下拉照常显示，选一项先 `RemoveLink` 再写值** | 老 `.vms` 里这条线是"当年它还是普通 string 端口"时绑的；不拆就继续动态供值，而 🔗/✕ 又被隐藏，用户既改不了也拆不掉 |
 
 `RegisterAdditional` 而不是 `Register`：运动模块（轴名/卡名）与通讯模块（通讯变量名）也各注册一份，
 谁也不该顶掉谁。解析工作区放在委托里现做，切方案后候选自动跟着变。

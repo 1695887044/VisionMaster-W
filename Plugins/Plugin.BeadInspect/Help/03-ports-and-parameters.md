@@ -13,7 +13,7 @@
 | `RecipeName` | `string` | 否 | 不接或为空 → 用「设为默认」的那条配方；仍找不到 → 用配方库第一条；库空 → 失败并提示去配置界面新建并学习 |
 | `AlignedImage` | `HImage` | 否 | 仅「匹配位姿」对齐模式使用（C# 属性名是 `AlignedImageIn`，因为输出侧同名口存在）。该模式没接 → 失败并点名让你接匹配插件或换模式 |
 | `RoiRegion` | `HRegion` | 否 | 不接 = 整图检测；接了只是**缩小处理域提速**，输出坐标不因它改变 |
-| `Transform` | `CalibrationTransform` | 否 | 只在「输出单位 = 毫米」时用到；不接则回退参数 `PixelSizeMm`，两者都没有 → 失败 |
+| `Transform` | `CalibrationTransform` | 否 | 只在「输出单位 = 毫米」时用到；不接则回退参数 `PixelSizeMm`，两者都没有 → 失败。**去畸变标定（`*Undistorted` 或带 `Intrinsics`）→ 直接失败**（P1-B S1） |
 
 ## 二、输出端口（16 个）
 

@@ -66,8 +66,12 @@ namespace Plugin.CaliperMeasure
         /// <summary>极性默认"全部"：不预设明暗方向，最宽容的起点（现场再按预览收紧）</summary>
         private const EdgePolarity DefaultPolarity = EdgePolarity.All;
 
-        /// <summary>选择默认"全部"：不预设取哪条边；本插件对"全部"的取值口径见 ExecuteMeasureCore 注释</summary>
-        private const EdgeSelect DefaultSelect = EdgeSelect.All;
+        /// <summary>
+        /// 选择默认"第一条"（P1-B S2 改）：本插件的口径是"每把卡尺出一个点"，
+        /// 取首条与 Select='first' 完全一致；'all' 会产出多条边、上层再静默取首条，
+        /// 界面文字与实际口径不符，已删。
+        /// </summary>
+        private const EdgeSelect DefaultSelect = EdgeSelect.First;
 
         /// <summary>插值默认 bilinear：亚像素精度与速度的通用折中（nearest 只有整像素，bicubic 最慢）</summary>
         private const EdgeInterpolation DefaultInterpolation = EdgeInterpolation.Bilinear;
@@ -162,6 +166,26 @@ namespace Plugin.CaliperMeasure
         /// 已接时以其为准——上游值无效（≤0/NaN）会**明确失败**并指下一步，绝不静默回退。
         /// </summary>
         public InputPort<double> MmPerPixel { get; } = new("MmPerPixel", 0, "像素当量（mm/px）：接「标定」插件 MmPerPixel；未接=用手填值")
+        { IsRequired = false };
+
+        /// <summary>
+        /// 标定变换（可选，P1-B S1）：接「标定」插件的 Transform 输出。
+        ///
+        /// **接上它做什么**：只做一件事——**守卫**。卡尺逐像素在**原始畸变像素**上扫边缘，
+        /// 它拿不到去畸变后的图，所以一旦这份标定是「带内参去畸变」的（Intrinsics 非 null /
+        /// CalibrationKinds.IsUndistorted），量出来的像素乘当量就是**边缘区域会偏百分之几的静默错数**。
+        /// 这里让它当场变成一句中文失败，而不是让现场从"数值稳定地偏"开始查三天。
+        ///
+        /// 其余三种情况（只是当量 / 九点 / 透视 / 网格）本插件**照常测量**——它本来就不消费矩阵；
+        /// 同时会比对 <see cref="CalibrationTransform.SourceImageWidth"/> 与当前图尺寸，
+        /// 不符即"换了分辨率/换了相机，旧标定失效"，也是明确失败。
+        ///
+        /// **不接**它：行为与升级前逐字相同（老方案不受影响）。
+        /// </summary>
+        public InputPort<CalibrationTransform?> Transform { get; } = new(
+            "Transform",
+            null,
+            "标定（可选）：接「标定」插件 Transform 输出；用于拦住「去畸变标定 + 原始像素」的静默错数")
         { IsRequired = false };
 
         /// <summary>测量物理值（像素测量值 × 像素当量）</summary>
@@ -845,6 +869,45 @@ namespace Plugin.CaliperMeasure
 
         #region 算法核心（配置预览与流程运行共用，保证"所见即所得"）
 
+        /// <summary>
+        /// 标定守卫（P1-B S1）：检查接进来的 <see cref="Transform"/> 能不能和本插件一起用。
+        /// 返回 null = 通过（含"根本没接"）；返回非空 = 一句能直接给操作员看的中文失败原因。
+        ///
+        /// **两条判据，缺一不可**：
+        /// ① 带内参去畸变的标定（<see cref="CalibrationKinds.IsUndistorted"/> 或 <see cref="CalibrationTransform.Intrinsics"/>
+        ///    非空）→ 硬失败。卡尺不消费矩阵，无法把原始像素换算到去畸变域，
+        ///    边缘区域的系统性偏差会静默混进测量值（kappa=-1500 时角点位移实测约 23 px）。
+        /// ② 标定记录的源图尺寸与当前图不符 → 硬失败。换相机/换分辨率后旧标定即失效，
+        ///    继续用就是把当量乘在错的像素上；两端任一未记录视为"不检查"（离线图不打扰）。
+        ///
+        /// **只做守卫，不做换算**——R3 裁决：S1 不做图像去畸变，矩阵不进测量链。
+        /// </summary>
+        private string? ValidateCalibrationGuard(int imageWidth, int imageHeight)
+        {
+            var transform = Transform.ActualValue;
+            if (transform == null) return null;   // 没接 = 老行为，逐字不变
+
+            if (transform.Intrinsics != null || CalibrationKinds.IsUndistorted(transform.Kind))
+            {
+                return $"卡尺测量不能使用「去畸变标定」（当前类型 {transform.Kind}）：" +
+                       "本插件在**原始像素**上扫边，拿不到去畸变后的图，" +
+                       "接上它只会让边缘区域的测量值静默偏掉百分之几。" +
+                       "请改用不带内参的标定（像素当量/九点/透视/网格），或把去畸变放到采图侧完成后再测。";
+            }
+
+            bool hasWidth = transform.SourceImageWidth > 0;
+            bool hasHeight = transform.SourceImageHeight > 0;
+            if (hasWidth && hasHeight &&
+                (transform.SourceImageWidth != imageWidth || transform.SourceImageHeight != imageHeight))
+            {
+                return $"标定记录针对 {transform.SourceImageWidth}×{transform.SourceImageHeight} 的图，" +
+                       $"当前输入是 {imageWidth}×{imageHeight}：换了相机或分辨率后这份标定已失效，" +
+                       "请重新标定（或把标定类型/源图尺寸改对）再测。";
+            }
+
+            return null;
+        }
+
         /// <summary>一次测量的结果载体；图像/几何的所有权交给调用方（端口赋值或释放）</summary>
         private sealed class MeasureResult
         {
@@ -961,6 +1024,17 @@ namespace Plugin.CaliperMeasure
 
                 HOperatorSet.GetImageSize(gray, out HTuple wTuple, out HTuple hTuple);
                 int imgW = wTuple.I, imgH = hTuple.I;
+
+                // ── 0. 标定守卫（P1-B S1）：接了 Transform 就核两件事，任一不成立即明确失败 ──
+                // 为什么在这里而不是在 MmPerPixel：卡尺在**原始畸变像素**上扫边，它消费不了变换矩阵，
+                // 所以"去畸变标定"对它不是"更准"，而是"边缘区域静默偏百分之几"——
+                // 这类错数现场只会觉得"数值稳定地偏一点"，查三天查不出来，必须在入口就拦住。
+                if (ValidateCalibrationGuard(imgW, imgH) is { } guardError)
+                {
+                    result.Failed = true;
+                    result.FailMessage = guardError;
+                    return result;
+                }
 
                 // 搜索区中心必须在图像范围内。
                 // 为什么不靠算子自己报错：中心在图外时 measure_pairs 会抛 #3022（滤波核尺寸非法），
@@ -1393,7 +1467,8 @@ namespace Plugin.CaliperMeasure
                     return null;
                 }
 
-                // Select='全部' 时 measure_pos 可能给多条边，这里统一取第一条（select='last' 时它本就是最后一条）
+                // P1-B S2 起只有 'first' / 'last' 两种取值，这里取 [0] 对两者都成立：
+                // 'first' 本身就是首条；'last' 时 HALCON 只返回最后那条，[0] 即它。
                 pts.Add((rowEdge[0].D, colEdge[0].D));
                 edgeRows.Add(rowEdge[0].D);
                 edgeCols.Add(colEdge[0].D);
@@ -1849,9 +1924,8 @@ namespace Plugin.CaliperMeasure
 
         private static string SelectToHalcon(EdgeSelect select) => select switch
         {
-            EdgeSelect.First => "first",
             EdgeSelect.Last => "last",
-            _ => "all",
+            _ => "first",
         };
 
         private static string InterpolationToHalcon(EdgeInterpolation interpolation) => interpolation switch

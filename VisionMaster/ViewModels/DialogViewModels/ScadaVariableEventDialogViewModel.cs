@@ -385,8 +385,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var variables = new List<IVariable>();
             foreach (var variable in _workspace.GlobalVariables.Concat(_workspace.SystemVariables))
             {
-                if (variable != null)
-                    variables.Add(variable);
+                if (variable == null) continue;
+
+                // 复合系统变量（整根轴/整台设备）不是标量：值为真/假、更改数值对结构体都没有意义。
+                // 要配事件请选它的字段（字段本身就在清单里）。
+                if (variable is ISystemVariableContainer { Fields.Count: > 0 }) continue;
+
+                variables.Add(variable);
             }
 
             // 认领记录分两遍走：先让所有变量按 Id 认（权威身份），再让没认到的按名字兜底（旧数据）。

@@ -91,6 +91,15 @@ namespace VisionMaster.Scada
 
         /// <summary>关闭当前弹窗（没有弹窗时跳过）。</summary>
         ClosePopup = 20,
+
+        /// <summary>
+        /// 增量：读当前值 + <see cref="ScadaAction.Step"/>，按 Min/Max 夹紧后写回。
+        /// 微调按钮（速度、补偿、偏移）用它，不必为每个档位配一条「写变量」。
+        /// </summary>
+        Increment = 21,
+
+        /// <summary>减量：读当前值 − <see cref="ScadaAction.Step"/>，按 Min/Max 夹紧后写回。</summary>
+        Decrement = 22,
     }
 
     /// <summary>
@@ -127,6 +136,8 @@ namespace VisionMaster.Scada
             ScadaActionType.NavigateBack => "返回上一页",
             ScadaActionType.OpenPopup => "打开弹窗",
             ScadaActionType.ClosePopup => "关闭弹窗",
+            ScadaActionType.Increment => "增量",
+            ScadaActionType.Decrement => "减量",
             // 高版本软件存下的动作类型读进低版本会落到这里（Newtonsoft 按数值反序列化，不校验取值范围）。
             // 报出数值而不是抛异常：坏在一条动作上，不该让整张画面打不开。
             _ => $"未知动作({(int)type})",
@@ -164,6 +175,8 @@ namespace VisionMaster.Scada
             //   也由执行侧当场算出来。
             ScadaActionType.Log => null,
             ScadaActionType.WriteVariable => null,
+            ScadaActionType.Increment => null,
+            ScadaActionType.Decrement => null,
             ScadaActionType.Navigate => null,
             // 流程启停三条走 IScadaFlowRunner：目标流程找不到/停用/加密/编译不过/正被占用，
             // 全是"配错了或这次没排上"，由执行侧当场算出来，不在这里预先写死。

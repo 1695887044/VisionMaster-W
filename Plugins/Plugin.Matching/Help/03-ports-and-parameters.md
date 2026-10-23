@@ -58,15 +58,27 @@
 
 | 字段（条目内） | 默认 | 夹取/口径 | 创建态还是运行态 |
 | --- | --- | --- | --- |
+| `Algorithm` | `Shape` | `Shape` = 基于形状（`create_shape_model`）；`Ncc` = 基于灰度相关（`create_ncc_model`）。**换算法 = 模型类型变了（`.shm` ⇄ `.ncm`），必须重新学习**；老方案 JSON 没有这个字段 → 落成 `Shape`，行为与升级前一致 | 创建态 |
 | `NumLevels` | 5 | 1 ~ 10；学习与查找取同一个值；信息栏报的是**模型实际生成层数**（撑不出会自动减层） | 创建态 |
 | `MinAngleDeg` / `MaxAngleDeg` | -180 / 180 | -180 ~ 180，填反了自动交换；区间外角度**直接找不到** | 创建态 |
 | `AngleStepDeg` | 0（= 自动） | 0 = 送 `"auto"`；非 0 时夹 0.1 ~ 30 度 | 创建态 |
-| `GradientThreshold` | 0（= 自动） | 0 = 送 `"auto"`；非 0 时夹 1 ~ 255 | 创建态 |
-| `UsePolarity` | true | true → `use_polarity`，false → `ignore_polarity`（界面下拉：使用极性 / 忽略极性） | 创建态 |
-| `ScaleEnabled` + `ScaleMin` / `ScaleMax` | 关 / 0.8 / 1.2 | 取 min/max 后夹 0.5 ~ 2.0；上下限相等时学习侧自动撑开极小窗口（±0.005） | 创建态 |
+| `GradientThreshold` | 0（= 自动） | 0 = 送 `"auto"`；非 0 时夹 1 ~ 255。**NCC 下不生效** | 创建态 |
+| `UsePolarity` | true | true → `use_polarity`，false → `ignore_polarity`（界面下拉：使用极性 / 忽略极性）。**NCC 下界面灰掉** | 创建态 |
+| `ScaleEnabled` + `ScaleMin` / `ScaleMax` | 关 / 0.8 / 1.2 | 取 min/max 后夹 0.5 ~ 2.0；上下限相等时学习侧自动撑开极小窗口（±0.005）。**NCC 没有 Scaled 版算子，界面灰掉** | 创建态 |
 | `Metric`（极性） | — | 上面 `UsePolarity` 的 HALCON 侧映射，界面上没有这一项 | 创建态 |
 
-### 库与配方（由配置界面维护，不建议手改）
+### ③ 搜索域（P1-B A1）
+
+| 配置项 | 默认 | 说明 |
+| --- | --- | --- |
+| `UseSearchRegion` | `false` | 打开后，若 `SearchRegion` 端口连入了区域，就先 `reduce_domain` 再查找，耗时按**面积比**下降。区域为空或未连接 → **回落全图**，并在日志里写"搜索域开关已开但未连区域 → 回落全图"（不静默缩小到零面积，那会变成永远找不到） |
+| `SearchRegion`（输入端口） | 未连接 | 类型 `HRegion`，非必需。只在 `UseSearchRegion = true` 时参与运算 |
+
+> **为什么收窄搜索域值得开**：`find_shape_model` / `find_ncc_model` 的耗时与**待搜索区域面积**近似成正比。
+> 一个 40×40 的模板在全图 2448×2048 上找，和在一个 600×400 的工位窗口里找，差距是 20 倍量级——
+> 这不是"优化一点点"，是能不能跑满节拍的问题。代价是：目标一旦跑出窗口就再也找不到，所以区域要留足余量。
+
+### ④ 库与配方（由配置界面维护，不建议手改）
 
 | 配置项 | 默认 | 说明 |
 | --- | --- | --- |
@@ -84,7 +96,7 @@
 | `Shape` | string | `Rectangle` / `Circle` / `Ellipse`（存成员名，界面显示中文） |
 | `Rect` | double[] | 固定 5 个数：矩形 `[中心行, 中心列, 角度(弧度), 半长, 半宽]`；圆 `[中心行, 中心列, 半径, 0, 0]`；椭圆 `[中心行, 中心列, 角度(弧度), 半径1, 半径2]` |
 | `Mask` | string | 涂抹掩膜，base64 编码的 PNG（像素值 255 = 挖掉）。**存的是原始涂抹形状**，不是"与区域求交后的有效排除域" |
-| `Model` | string | 形状模型本体（`write_shape_model` 出来的字节流的 base64）；为空 = 未学习 |
+| `Model` | string | 模型本体（`write_shape_model` / `write_ncc_model` 出来的字节流的 base64）；为空 = 未学习。**形状模型与 NCC 模型不是同一种文件，装载器按 `Algorithm` 决定读哪个** |
 | `RefImagePath` | string | 学习时那张参考图的本机绝对路径（只影响重开界面时画布显示与重学） |
 | `NumLevels` / `MinAngleDeg` / `MaxAngleDeg` / `AngleStepDeg` / `GradientThreshold` / `UsePolarity` / `ScaleEnabled` / `ScaleMin` / `ScaleMax` | 见上表 | 提取参数，跟着条目走 |
 | `LearnedSignature` | string | 学完那一刻的**参数指纹**（形状、区域、层数、梯度、角度、步长、极性、缩放、掩膜长度拼成的串）。当前指纹 ≠ 该串 → 徽标转橙"参数已改·需重新学习" |

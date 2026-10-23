@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Windows.Threading;
 using Core.Interfaces;
 using VisionMaster.Models;
@@ -425,6 +426,9 @@ namespace VisionMaster.Services
 
                 stage = "创建运行窗口";
                 window = new ScadaRuntimeWindow(session);
+
+                // 背景图按“方案目录 + 相对路径”解析；方案还没保存过就为空（背景回退背景色）。
+                window.SolutionRoot = Path.GetDirectoryName(_workspaceManager.CurrentSolution?.SolutionFilePath);
 
                 // 形态必须在 Show() 之前定死：WindowStyle/WindowState 这类属性在窗口显示之后再改，
                 // WPF 会重建非客户区，表现为闪一下、尺寸跳一格（依附形态下更明显）。

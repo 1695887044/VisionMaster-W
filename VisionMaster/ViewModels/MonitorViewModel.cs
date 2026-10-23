@@ -440,6 +440,10 @@ namespace VisionMaster.ViewModels
             {
                 foreach (var gv in _workspace.GlobalVariables.Concat(_workspace.SystemVariables))
                 {
+                    // 复合系统变量（整根轴/整台设备）不是标量：加进监视栏只会显示一个结构体摘要。
+                    // 要监视具体量值请选它的字段（字段本身就在清单里）。
+                    if (gv is ISystemVariableContainer { Fields.Count: > 0 }) continue;
+
                     if (!IsWatchingGlobalVariable(gv.VariableId, gv.Name))
                     {
                         var newItem = new WatchItemModel

@@ -203,7 +203,20 @@ return _baker.Bake(baseImage, plan);
 6. **为什么 `GetEffectivePixelSizeMm` 是 public**：回归断言与界面都要读同一个口径，不能再实现一遍三分支。
 7. **为什么默认值抽成常量**：16 个出厂值是"通用平台起点"，集中一处便于复核，
    也避免"字段初值与校验基准各写一份"造成静默失配。
-8. **为什么 `EdgeSelect.First` 的注释写着"默认"而实际默认是 `All`**：字段初值以
-   `private const EdgeSelect DefaultSelect = EdgeSelect.All;` 为准；改注释或改默认只能有一处真相。
+8. **为什么 `EdgeSelect` 只有 `First` / `Last` 两个成员**（P1-B S2 改）：本插件的口径是
+   "每把卡尺出一个点"，原来那个 `All` 会让 `measure_pos` 吐出多条边、上层再静默取首条——
+   界面写着"全部"、实际只用第一条，是"看起来正常其实口径错"的典型。删掉后默认值改为
+   `private const EdgeSelect DefaultSelect = EdgeSelect.First;`（字段初值与校验基准只此一处）。
+   存量 `.vms` 里存着 `"All"` 的，反序列化缺成员 → 回落 `DefaultValue` 也就是 `First`，
+   结果口径（多条边取首条）不变，**不需要方案迁移**。
 9. **为什么枚举显示名与算子字面量分离**：界面中文走 `[Display]`，算子参数由 `switch` 按成员名生成，
    改显示名不会改到传给 HALCON 的参数（R40）。
+10. **为什么多了个 `Transform` 端口却不用它算数**（P1-B S1 加）：卡尺只在**原始像素**上扫边、做拟合，
+    它的最终数值是 `像素 × MmPerPixel`，矩阵在这里没有落点（S1 裁决：不做图像去畸变、矩阵不进测量链）。
+    这个端口唯一职责是**守卫**：`ValidateCalibrationGuard(imgW, imgH)` 在 `GetImageSize` 之后、
+    搜索区越界检查之前跑，两种情形直接 `result.Failed = true`：
+    ① `transform.Intrinsics != null || CalibrationKinds.IsUndistorted(transform.Kind)`——
+       去畸变标定给的当量属于去畸变域，原始图上乘它会静默偏；② `SourceImageWidth/Height` 都 >0
+       且与当前图不符——换相机/换分辨率后标定失效。`Transform.ActualValue == null` 直接返回 null，
+     **不接则行为与升级前逐字相同**（不引入任何默认改变）。
+    判据的单一真源是 `Core.Interfaces` 的 `CalibrationKinds.IsUndistorted`，插件里不复制枚举判断。

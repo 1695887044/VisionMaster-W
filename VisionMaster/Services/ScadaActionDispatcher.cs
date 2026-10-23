@@ -456,6 +456,14 @@ namespace VisionMaster.Services
                     ExecuteWriteVariable(action, head, stamp);
                     return;
 
+                case ScadaActionType.Increment:
+                    ExecuteStepVariable(action, +1, head, stamp);
+                    return;
+
+                case ScadaActionType.Decrement:
+                    ExecuteStepVariable(action, -1, head, stamp);
+                    return;
+
                 case ScadaActionType.Navigate:
                     ExecuteNavigate(action, head, stamp);
                     return;
@@ -760,6 +768,112 @@ namespace VisionMaster.Services
             // 而"从多少改到多少"是审计独有的那一问。
             Ok(stamp, action, $"{head} → {action.Describe()}",
                 $"{handle.Name}：{Text(before)} → {Text(value)}");
+        }
+
+        /// <summary>
+        /// 增量/减量：读当前值 → ±Step → 夹紧 Min/Max → 按声明类型写回。
+        ///
+        /// 与「写变量」共用同一条寻址与写入通道（<see cref="IScadaValueSource"/> →
+        /// <c>IWritableVariable.TryWrite</c>），所以写租约、失败原因、审计格式不会分叉。
+        /// 数值类型按声明取整（int/long/short/byte）；非数值变量直接拒绝，不做字符串拼接。
+        /// </summary>
+        private void ExecuteStepVariable(ScadaAction action, int direction, string head, AuditStamp stamp)
+        {
+            if (action.VariableId == Guid.Empty && string.IsNullOrWhiteSpace(action.VariableName))
+            {
+                Skipped(stamp, action, $"{head} → {action.Type.DisplayName()}：还没选变量，本条未执行", "还没选变量");
+                return;
+            }
+
+            if (!_values.TryResolve(action.ToReference(), out var handle, out var resolveError) || handle == null)
+            {
+                string reason = string.IsNullOrWhiteSpace(resolveError)
+                    ? $"找不到变量「{action.ToReference().DisplayText}」"
+                    : resolveError!;
+
+                Skipped(stamp, action,
+                    $"{head} → {action.Describe()}：{reason}，本条未执行",
+                    reason);
+                return;
+            }
+
+            if (!IsNumericType(handle.DataType))
+            {
+                string reason = $"变量「{handle.Name}」不是数值类型（{handle.DataType.Name}），不能增量/减量";
+                Failed(stamp, action, $"{head} → {action.Describe()}：{reason}", reason);
+                return;
+            }
+
+            var step = action.Step ?? 1d;
+            if (double.IsNaN(step) || double.IsInfinity(step) || step <= 0)
+            {
+                const string reason = "步长必须是大于 0 的数字";
+                Failed(stamp, action, $"{head} → {action.Describe()}：{reason}", reason);
+                return;
+            }
+
+            var before = handle.Value;
+
+            if (!TryNumber(before, out var current))
+            {
+                string reason = $"变量「{handle.Name}」当前值「{Text(before)}」不是有效数字";
+                Failed(stamp, action, $"{head} → {action.Describe()}：{reason}", reason);
+                return;
+            }
+
+            var next = current + direction * step;
+
+            if (action.Min.HasValue)
+                next = Math.Max(action.Min.Value, next);
+            if (action.Max.HasValue)
+                next = Math.Min(action.Max.Value, next);
+
+            // 整数类型按四舍五入落到整数：直接写 1210.0000001 给 int 变量会被转换器拒绝。
+            if (handle.DataType == typeof(int) || handle.DataType == typeof(long)
+                || handle.DataType == typeof(short) || handle.DataType == typeof(byte)
+                || handle.DataType == typeof(uint) || handle.DataType == typeof(ulong)
+                || handle.DataType == typeof(ushort) || handle.DataType == typeof(sbyte))
+            {
+                next = Math.Round(next, MidpointRounding.AwayFromZero);
+            }
+
+            var text = next.ToString("R", CultureInfo.InvariantCulture);
+
+            if (!VariableValueConverter.TryConvert(text, handle.DataType, out var value, out var convertError))
+            {
+                Failed(stamp, action, $"{head} → {action.Describe()}：{convertError}", convertError);
+                return;
+            }
+
+            if (!handle.TryWrite(value, out var writeError))
+            {
+                Failed(stamp, action, $"{head} → {action.Describe()}：写入失败：{writeError}", writeError);
+                return;
+            }
+
+            Ok(stamp, action, $"{head} → {action.Describe()}",
+                $"{handle.Name}：{Text(before)} → {Text(value)}");
+        }
+
+        private static bool IsNumericType(Type type)
+            => type == typeof(byte) || type == typeof(sbyte)
+            || type == typeof(short) || type == typeof(ushort)
+            || type == typeof(int) || type == typeof(uint)
+            || type == typeof(long) || type == typeof(ulong)
+            || type == typeof(float) || type == typeof(double) || type == typeof(decimal);
+
+        private static bool TryNumber(object? value, out double number)
+        {
+            try
+            {
+                number = Convert.ToDouble(value, CultureInfo.InvariantCulture);
+                return !double.IsNaN(number) && !double.IsInfinity(number);
+            }
+            catch
+            {
+                number = 0;
+                return false;
+            }
         }
     }
 }

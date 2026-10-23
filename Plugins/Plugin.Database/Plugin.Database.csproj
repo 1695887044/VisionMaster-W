@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0-windows</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Plugin.Database</RootNamespace>
+    <AssemblyName>Plugin.Database</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- 插件只引用契约与控件库：Provider（Microsoft.Data.Sqlite）只在宿主 Services\Core.Database -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shard\Core.Controls\Core.Controls.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+    <ProjectReference Include="..\..\UI\Controls\UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
+</Project>

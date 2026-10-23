@@ -203,6 +203,7 @@ foreach ($a in $audits) {
 $hosts = @(
     @{ N = 'CommChecks';         P = 'CommChecks\CommChecks.csproj' }
     @{ N = 'DataPipelineChecks'; P = 'DataPipelineChecks\DataPipelineChecks.csproj' }
+    @{ N = 'DatabaseChecks';     P = 'DatabaseChecks\DatabaseChecks.csproj' }
     @{ N = 'ScadaChecks';        P = 'ScadaChecks\ScadaChecks.csproj' }
     @{ N = 'FlowCanvasChecks';   P = 'FlowCanvasChecks\FlowCanvasChecks.csproj' }
     @{ N = 'UIThemeSmokeTest';   P = 'UIThemeSmokeTest\UIThemeSmokeTest.csproj' }

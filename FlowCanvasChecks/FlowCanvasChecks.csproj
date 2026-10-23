@@ -87,6 +87,12 @@
     -->
     <ProjectReference Include="..\Plugins\Plugin.PreProcessing\Plugin.PreProcessing.csproj" />
     <!--
+      图像差分：直接引用（不走 Modules\ 反射加载）。
+      断言 real 域防截断（byte 直接减会饱和）、极性取舍、尺寸守卫、判定上限、掩膜交集、聚合口径与端口契约。
+      引用它也让构建顺带把 Plugin.ImageDiff.dll 刷新到 Modules。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.ImageDiff\Plugin.ImageDiff.csproj" />
+    <!--
       标定：直接引用（不走 Modules\ 反射加载）。
       断言两层——纯托管算法（CalibrationMath：合成已知仿射 → 精度/互逆/共线守卫/径向带诊断）
       与插件级执行语义（真 RunAlgorithm：质量闸门、半填行指名、端口面不改名）。

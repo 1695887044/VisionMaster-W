@@ -61,6 +61,26 @@ namespace Plugin.BlobDetect
         public InputPort<double> MmPerPixel { get; } = new("MmPerPixel", 0, "像素当量（mm/px）：接「标定」插件 MmPerPixel；未接=用手填值")
         { IsRequired = false };
 
+        /// <summary>
+        /// 标定变换（可选，P1-B S1）：接「标定」插件的 Transform 输出。
+        ///
+        /// **接上它做什么**：只做**守卫**。Blob 的面积/圆心全在**原始畸变像素**上算，
+        /// 它拿不到去畸变后的图，消费不了变换矩阵。所以一旦这份标定是「带内参去畸变」的
+        /// （<see cref="CalibrationTransform.Intrinsics"/> 非 null 或 <see cref="CalibrationKinds.IsUndistorted"/>），
+        /// 面积会随位置系统性缩放——中心件看着对、边角件偏百分之几，属于"数值稳定地错"。
+        /// 这里让它在入口就是一句中文失败。
+        ///
+        /// 另外比对 <see cref="CalibrationTransform.SourceImageWidth"/>/<c>Height</c> 与当前图尺寸，
+        /// 不符即"换了相机或分辨率，旧标定失效"，同样明确失败。
+        ///
+        /// **不接**它：行为与升级前逐字相同（老方案不受影响）。
+        /// </summary>
+        public InputPort<CalibrationTransform?> Transform { get; } = new(
+            "Transform",
+            null,
+            "标定（可选）：接「标定」插件 Transform 输出；用于拦住「去畸变标定 + 原始像素」的静默错数")
+        { IsRequired = false };
+
         /// <summary>标注图：原图上把缺陷圈红 + 左上角写判定结果与个数</summary>
         public OutputPort<HImage> DefectImage { get; } = new("DefectImage", "标注图（原图 + 缺陷红圈 + 判定文字）");
 
@@ -1328,6 +1348,16 @@ namespace Plugin.BlobDetect
                 return;
             }
 
+            // 标定守卫（P1-B S1）：接了 Transform 就核"能不能一起用"，任一不成立即明确失败。
+            // 放在这里而不是 DetectBlob 里：这是"配置能不能跑"的前置判断，
+            // 与像素当量失效同一层级，都要在开算之前拦下（配置预览和流程运行共用同一入口）。
+            if (ValidateCalibrationGuard(src) is { } guardError)
+            {
+                Fail(guardError);
+                context.Logger.Error($"{InstanceName} {ErrorMessage.Value}");
+                return;
+            }
+
             BlobResult result;
             try
             {
@@ -1380,6 +1410,49 @@ namespace Plugin.BlobDetect
         #endregion
 
         #region 算法核心（配置预览与流程运行共用，保证"所见即所得"）
+
+        /// <summary>
+        /// 标定守卫（P1-B S1）：检查接进来的 <see cref="Transform"/> 能不能和本插件一起用。
+        /// 返回 null = 通过（含"根本没接"）；返回非空 = 一句能直接给操作员看的中文失败原因。
+        ///
+        /// **两条判据**：
+        /// ① 带内参去畸变的标定（<see cref="CalibrationKinds.IsUndistorted"/> 或
+        ///    <see cref="CalibrationTransform.Intrinsics"/> 非空）→ 硬失败。Blob 的面积/圆度/长短轴
+        ///    全在原始畸变像素上算，消费不了矩阵；面积会随位置系统性缩放（中心件对、边角件偏），
+        ///    而这种偏差在 NG/OK 边缘会直接翻判定。
+        /// ② 标定源图尺寸与当前图不符 → 硬失败（换相机/换分辨率的典型现场），
+        ///    两端任一未记录视为"不检查"（离线图不打扰）。
+        ///
+        /// **只做守卫，不做换算**——R3 裁决：S1 不做图像去畸变，矩阵不进测量链。
+        /// </summary>
+        private string? ValidateCalibrationGuard(HImage src)
+        {
+            var transform = Transform.ActualValue;
+            if (transform == null) return null;   // 没接 = 老行为，逐字不变
+
+            if (transform.Intrinsics != null || CalibrationKinds.IsUndistorted(transform.Kind))
+            {
+                return $"Blob 检测不能使用「去畸变标定」（当前类型 {transform.Kind}）：" +
+                       "本插件在**原始像素**上算面积与形状，拿不到去畸变后的图，" +
+                       "接上它会让边角件的面积静默偏百分之几、判定在阈值附近翻来翻去。" +
+                       "请改用不带内参的标定（像素当量/九点/透视/网格），或把去畸变放到采图侧做完再检。";
+            }
+
+            bool hasWidth = transform.SourceImageWidth > 0;
+            bool hasHeight = transform.SourceImageHeight > 0;
+            if (hasWidth && hasHeight)
+            {
+                HOperatorSet.GetImageSize(src, out HTuple w, out HTuple h);
+                if (transform.SourceImageWidth != w.I || transform.SourceImageHeight != h.I)
+                {
+                    return $"标定记录针对 {transform.SourceImageWidth}×{transform.SourceImageHeight} 的图，" +
+                           $"当前输入是 {w.I}×{h.I}：换了相机或分辨率后这份标定已失效，" +
+                           "请重新标定（或把标定类型/源图尺寸改对）再检。";
+                }
+            }
+
+            return null;
+        }
 
         /// <summary>
         /// 面积类参数的夹取上限。

@@ -118,6 +118,28 @@ namespace VisionMaster.Scada.Controls
             },
             new ScadaPagePropertySpec
             {
+                Key = "BackgroundImage", DisplayName = "背景图", Kind = ElementPropertyKind.ImageFile, Group = ScadaPropertyGroups.PageBackground,
+                Description = "方案内相对路径（Image\\xxx.png）；空 = 只用背景色。选图时自动复制进方案 Image\\，迁移方案文件夹不断图",
+                Read = (p, _) => p.BackgroundImage, Write = (p, _, v) => p.BackgroundImage = v,
+            },
+            new ScadaPagePropertySpec
+            {
+                Key = "BackgroundStretch", DisplayName = "背景填充", Kind = ElementPropertyKind.Choice, Group = ScadaPropertyGroups.PageBackground,
+                Choices = new[] { "Uniform", "UniformToFill", "Fill", "Tile" },
+                Description = "Uniform = 适应、不裁切（默认，留边用背景色）；UniformToFill = 填充并裁切；Fill = 拉伸；Tile = 平铺",
+                Read = (p, _) => p.BackgroundStretch,
+                Write = (p, _, v) => p.BackgroundStretch = string.IsNullOrWhiteSpace(v) ? "Uniform" : v,
+            },
+            new ScadaPagePropertySpec
+            {
+                Key = "BackgroundOpacity", DisplayName = "背景不透明度", Kind = ElementPropertyKind.Number, Group = ScadaPropertyGroups.PageBackground,
+                Min = 10, Max = 100,
+                Description = "10~100；做水印底图时用 20~40，保证上面的数值仍然可读",
+                Read = (p, _) => Format(p.BackgroundOpacity),
+                Write = (p, _, v) => { if (TryNumber(v, out var d)) p.BackgroundOpacity = d; },
+            },
+            new ScadaPagePropertySpec
+            {
                 Key = "GridSize", DisplayName = "网格间距", Kind = ElementPropertyKind.Number, Group = ScadaPropertyGroups.PageDesign, Min = 1,
                 Description = "网格线间距，同时是吸附步距（设计像素）",
                 Read = (p, _) => Format(p.GridSize), Write = (p, _, v) => { if (TryNumber(v, out var d)) p.GridSize = d; },

@@ -74,6 +74,14 @@ namespace VisionMaster.Scada.Controls
         /// 让人手写 JSON 不现实，必须配弹窗（设计基线 docs/UI设计基线/scada-datagrid/ §03）。
         /// </summary>
         ColumnList,
+
+        /// <summary>
+        /// 方案内的图片文件（值是相对路径，如 <c>Image\pid-layout.png</c>）。
+        ///
+        /// 与 <see cref="Image"/> 的区别：<see cref="Image"/> 是"由变量提供的运行态图像"，
+        /// 这一类是"设计期选进方案的文件"。面板给缩略图 + 选择/清除，不让用户手打路径。
+        /// </summary>
+        ImageFile,
     }
 
     /// <summary>

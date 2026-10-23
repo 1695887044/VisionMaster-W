@@ -119,6 +119,59 @@ namespace VisionMaster.Scada
             set => SetProperty(ref _background, value ?? string.Empty);
         }
 
+        private string _backgroundImage = string.Empty;
+
+        /// <summary>
+        /// 页面背景图（方案内<b>相对路径</b>，如 <c>Image\pid-layout.png</c>；空 = 只用背景色）。
+        ///
+        /// <b>为什么是页面属性而不是图元</b>：背景要铺满、压在最底层、不参与框选/复制/命中测试。
+        /// 做成图元后用户一框选就把背景带走，锁图层也挡不住全选。
+        ///
+        /// <b>只存相对路径</b>：绝对路径在换机/迁移后必然失效；解析统一走
+        /// <c>SolutionAssetService</c>（方案目录 + 相对路径）。
+        /// </summary>
+        public string BackgroundImage
+        {
+            get => _backgroundImage;
+            set
+            {
+                if (SetProperty(ref _backgroundImage, value ?? string.Empty))
+                    Version++; // Web 快照按 PageVersion 失效，背景图变了必须换页键
+            }
+        }
+
+        private string _backgroundStretch = "Uniform";
+
+        /// <summary>
+        /// 背景图填充方式（成员名：<c>Uniform</c> / <c>UniformToFill</c> / <c>Fill</c> / <c>Tile</c>）。
+        /// 默认 <c>Uniform</c>（适应、不裁切）——工程图被裁掉一块是功能错误，留边由背景色补。
+        /// </summary>
+        public string BackgroundStretch
+        {
+            get => _backgroundStretch;
+            set
+            {
+                if (SetProperty(ref _backgroundStretch, string.IsNullOrWhiteSpace(value) ? "Uniform" : value))
+                    Version++;
+            }
+        }
+
+        private double _backgroundOpacity = 100;
+
+        /// <summary>背景图不透明度（10~100，100 = 不透明）；做水印底图时降到 20~40。</summary>
+        public double BackgroundOpacity
+        {
+            get => _backgroundOpacity;
+            set
+            {
+                var normalized = double.IsNaN(value) || double.IsInfinity(value)
+                    ? 100
+                    : Math.Clamp(value, 10, 100);
+                if (SetProperty(ref _backgroundOpacity, normalized))
+                    Version++;
+            }
+        }
+
         /// <summary>设计器是否显示网格</summary>
         public bool ShowGrid
         {

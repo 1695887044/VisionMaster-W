@@ -1,4 +1,5 @@
 using Core.Interfaces;
+using Core.Interfaces.Database;
 using Core.Interfaces.Io;
 using System;
 using System.Collections.Generic;
@@ -82,6 +83,15 @@ namespace VisionMaster.Services
         /// 真正可用的一份由宿主在构造上下文时注入。
         /// </summary>
         public ICommVariableAccess Comms { get; init; } = NullCommVariableAccess.Instance;
+
+        /// <summary>
+        /// 数据库运行期能力面（「数据库查询 / 执行 / 写行」三步用）。
+        ///
+        /// 默认值是 <see cref="NullDatabaseAccess"/>，与 Cameras / Motions / Comms 同一口径：
+        /// 容器注册用的简化构造与断言夹具走这条默认路径，插件侧只需判返回值，
+        /// 不必再判"数据库能力是否存在"。真正可用的一份由宿主在构造上下文时注入。
+        /// </summary>
+        public IDatabaseAccess Database { get; init; } = NullDatabaseAccess.Instance;
 
         /// <summary>
         /// 当前执行节点的ID（用于调试和追踪）

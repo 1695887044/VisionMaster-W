@@ -106,6 +106,7 @@ namespace VisionMaster.Services
             // MiniExcel 这类插件的依赖，名字过滤把它们跳过——连"逐个 FileInfo 再 return"都免了，
             // 启动冷读字节直接少一半。
             var entries = new List<PluginCache.PluginDllEntry>();
+            var loadFailed = false;
             foreach (var dllPath in Directory.GetFiles(pluginsDir, "Plugin*.dll"))
             {
                 var entry = PluginCache.FingerprintOf(dllPath);
@@ -115,17 +116,31 @@ namespace VisionMaster.Services
                 }
                 catch (Exception ex)
                 {
+                    // 记住"这次扫描不完整"：下面绝不写缓存，见 Save/Invalidate 的分支
+                    loadFailed = true;
                     _notifier.ShowError($"加载插件失败 {dllPath}: {ex.Message}");
                 }
                 entries.Add(entry);
             }
-            PluginCache.Save(pluginsDir, contractFingerprint, entries);
+
+            if (loadFailed)
+            {
+                // 不写缓存 + 删旧清单：否则"这个 DLL 没有插件"会被缓存成事实，
+                // 下次启动直接命中缓存跳过反射，插件永久消失且只剩一条历史日志可查。
+                PluginCache.Invalidate(pluginsDir);
+                _log.Warn("[插件扫描] 有插件 DLL 加载失败，本次不写缓存（下次启动会重新全量扫描）");
+            }
+            else
+            {
+                PluginCache.Save(pluginsDir, contractFingerprint, entries);
+            }
 
             // A4：全量重扫（首次启动 / 清单结构升级 / 指纹变化）必须留一行 Info。
             // 这一行是"缓存到底生效了没有"的唯一现场依据——没有它，用户只会感觉"这次启动慢"，
             // 却分不清是缓存没命中还是磁盘冷读。
             _log.Info(
-                $"[插件扫描] 全量重扫完成：{entries.Count} 个插件 DLL，已写缓存"
+                $"[插件扫描] 全量重扫完成：{entries.Count} 个插件 DLL，"
+                + (loadFailed ? "未写缓存（有加载失败）" : "已写缓存")
                 + $"（契约指纹 {contractFingerprint}，Schema {PluginCache.SchemaVersion}）");
         }
 

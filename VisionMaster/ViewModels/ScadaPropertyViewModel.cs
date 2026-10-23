@@ -776,7 +776,13 @@ namespace VisionMaster.ViewModels
     /// </summary>
     public sealed class ScadaPagePropertyRow : ScadaPropertyRowBase
     {
-        public ScadaPagePropertyRow(ScadaPage page, ScadaDocument document, ScadaPagePropertySpec spec)
+        private readonly Func<string?>? _solutionPath;
+
+        public ScadaPagePropertyRow(
+            ScadaPage page,
+            ScadaDocument document,
+            ScadaPagePropertySpec spec,
+            Func<string?>? solutionPath = null)
             : base(spec ?? throw new ArgumentNullException(nameof(spec)),
                    spec.Read(page ?? throw new ArgumentNullException(nameof(page)),
                              document ?? throw new ArgumentNullException(nameof(document))))
@@ -784,6 +790,10 @@ namespace VisionMaster.ViewModels
             Page = page;
             Document = document;
             Spec = spec;
+            _solutionPath = solutionPath;
+
+            PickImageCommand = new DelegateCommand(OnPickImage, () => IsImageFile);
+            ClearImageCommand = new DelegateCommand(OnClearImage, () => IsImageFile && !string.IsNullOrWhiteSpace(Value));
         }
 
         /// <summary>本行写入的目标画面</summary>
@@ -794,6 +804,96 @@ namespace VisionMaster.ViewModels
 
         /// <summary>本行对应的画面属性声明（把基类的 <c>IPropertySpec</c> 收窄成画面声明，省掉每次读写的强转）</summary>
         public new ScadaPagePropertySpec Spec { get; }
+
+        /// <summary>这一行是不是“方案内图片文件”（背景图）</summary>
+        public bool IsImageFile => Spec.Kind == ElementPropertyKind.ImageFile;
+
+        /// <summary>选择图片：复制进方案 Image\，把相对路径写回属性（走基类提交，进撤销栈）</summary>
+        public DelegateCommand PickImageCommand { get; }
+
+        /// <summary>清除图片（只清引用，不删文件——文件可能被别的页面共用）</summary>
+        public DelegateCommand ClearImageCommand { get; }
+
+        /// <summary>图片文件名摘要（属性面板那一行显示用；不暴露完整路径）</summary>
+        public string ImageSummary
+        {
+            get
+            {
+                if (!IsImageFile)
+                    return string.Empty;
+
+                if (string.IsNullOrWhiteSpace(Value))
+                    return "未设置（点「选择图片…」）";
+
+                var normalized = Value.Replace('/', '\\');
+                var index = normalized.LastIndexOf('\\');
+                return index >= 0 ? normalized[(index + 1)..] : normalized;
+            }
+        }
+
+        /// <summary>缩略图（缺失/解码失败时为 null，模板回退占位）</summary>
+        public ImageSource? ImagePreview
+        {
+            get
+            {
+                if (!IsImageFile || string.IsNullOrWhiteSpace(Value))
+                    return null;
+
+                return SolutionAssetService.TryLoad(_solutionPath?.Invoke(), Value, out var image, out _)
+                    ? image
+                    : null;
+            }
+        }
+
+        public override void RefreshValue()
+        {
+            base.RefreshValue();
+
+            if (!IsImageFile)
+                return;
+
+            RaisePropertyChanged(nameof(ImageSummary));
+            RaisePropertyChanged(nameof(ImagePreview));
+            ClearImageCommand.RaiseCanExecuteChanged();
+        }
+
+        private void OnPickImage()
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "选择图片（复制进方案 Image 目录）",
+                Filter = SolutionAssetService.FileDialogFilter,
+                CheckFileExists = true,
+            };
+
+            if (dialog.ShowDialog() != true)
+                return;
+
+            if (!SolutionAssetService.TryImport(
+                    _solutionPath?.Invoke(),
+                    dialog.FileName,
+                    out var relativePath,
+                    out var error))
+            {
+                SetError(error);
+                return;
+            }
+
+            SetError(null);
+            Value = relativePath; // 基类提交：写模型 + 撤销栈 + 回填规范值
+            RaisePropertyChanged(nameof(ImageSummary));
+            RaisePropertyChanged(nameof(ImagePreview));
+            ClearImageCommand.RaiseCanExecuteChanged();
+        }
+
+        private void OnClearImage()
+        {
+            SetError(null);
+            Value = string.Empty;
+            RaisePropertyChanged(nameof(ImageSummary));
+            RaisePropertyChanged(nameof(ImagePreview));
+            ClearImageCommand.RaiseCanExecuteChanged();
+        }
 
         protected override string Read() => Spec.Read(Page, Document);
 
@@ -2466,7 +2566,7 @@ namespace VisionMaster.ViewModels
                     if (!spec.IsVisibleFor(page))
                         continue;
 
-                    _rows.Add(new ScadaPagePropertyRow(page, document, spec));
+                    _rows.Add(new ScadaPagePropertyRow(page, document, spec, () => _editor.SolutionRoot));
                 }
 
                 // 画面级事件行：与图元侧同一份实现（宿主收成 IScadaEventHost），差别只有清单来源与分组。

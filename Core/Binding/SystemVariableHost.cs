@@ -26,6 +26,15 @@ namespace VisionMaster.Binding
     public sealed class SystemVariableHost
     {
         private readonly object _gate = new();
+
+        /// <summary>
+        /// 集合改写的串行闸：三个提供方（运动 100ms、通讯/相机各 500ms）各自在自己的定时器线程上
+        /// 调 <see cref="Refresh"/>，若只有 <see cref="_gate"/>，两个线程会同时进入
+        /// <see cref="ApplyToCollection"/>，ObservableCollection 直接抛"集合已修改"。
+        /// 与 <see cref="_gate"/> 分开：合表与写集合是两件互不依赖的事，共用一把锁会让
+        /// "写集合时订阅方回调 Refresh" 变成自锁。
+        /// </summary>
+        private readonly object _applyGate = new();
         private readonly ObservableCollection<IVariable> _target;
         private readonly List<ISystemVariableProvider> _providers = new();
         private IReadOnlyList<IVariable> _current = Array.Empty<IVariable>();
@@ -73,48 +82,60 @@ namespace VisionMaster.Binding
         /// <summary>由任一提供方在自身快照变化后调用；也可由宿主定期调用。</summary>
         public void Refresh()
         {
-            List<ISystemVariableProvider> providers;
-            lock (_gate) providers = _providers.ToList();
-
-            var merged = new List<IVariable>();
-            var seenIds = new HashSet<Guid>();
-            var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var provider in providers)
+            // 整段串行化：合并 → 交换 _current → 写集合 必须是一个原子序列。
+            //
+            // 只锁"写集合"那一步会留下永久幽灵变量：T1 交换（previous=old）→ T2 交换
+            // （previous=merged1）→ T2 写集合 → T1 写集合（按 old 算 managedSet，把 T2 刚删掉的
+            // 项又插回去）。集合于是变成 merged2 ∪ merged1，而 _current=merged2 ——
+            // 下一次 Refresh 的 managedSet 不含这些多出来的项，它们再也不会被删除。
+            //
+            // 锁顺序固定为 _applyGate → _gate：Register/Unregister 只拿 _gate 且不在持锁时调 Refresh，
+            // 因此不存在反向路径，无死锁。
+            lock (_applyGate)
             {
-                IReadOnlyList<IVariable> items;
-                try
-                {
-                    items = provider.Snapshot() ?? Array.Empty<IVariable>();
-                }
-                catch
-                {
-                    // 某个提供方炸掉不该让其它来源的变量消失
-                    continue;
-                }
+                List<ISystemVariableProvider> providers;
+                lock (_gate) providers = _providers.ToList();
 
-                foreach (var item in items)
-                {
-                    if (item == null) continue;
+                var merged = new List<IVariable>();
+                var seenIds = new HashSet<Guid>();
+                var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                    // 身份/名字冲突：先注册的提供方优先（与 VariableRegistry 的“先出现者赢”同口径）
-                    if (item.VariableId != Guid.Empty && !seenIds.Add(item.VariableId))
+                foreach (var provider in providers)
+                {
+                    IReadOnlyList<IVariable> items;
+                    try
+                    {
+                        items = provider.Snapshot() ?? Array.Empty<IVariable>();
+                    }
+                    catch
+                    {
+                        // 某个提供方炸掉不该让其它来源的变量消失
                         continue;
-                    if (!string.IsNullOrEmpty(item.Name) && !seenNames.Add(item.Name))
-                        continue;
+                    }
 
-                    merged.Add(item);
+                    foreach (var item in items)
+                    {
+                        if (item == null) continue;
+
+                        // 身份/名字冲突：先注册的提供方优先（与 VariableRegistry 的“先出现者赢”同口径）
+                        if (item.VariableId != Guid.Empty && !seenIds.Add(item.VariableId))
+                            continue;
+                        if (!string.IsNullOrEmpty(item.Name) && !seenNames.Add(item.Name))
+                            continue;
+
+                        merged.Add(item);
+                    }
                 }
-            }
 
-            IReadOnlyList<IVariable> previous;
-            lock (_gate)
-            {
-                previous = _current;
-                _current = merged;
-            }
+                IReadOnlyList<IVariable> previous;
+                lock (_gate)
+                {
+                    previous = _current;
+                    _current = merged;
+                }
 
-            ApplyToCollection(previous, merged);
+                ApplyToCollection(previous, merged);
+            }
         }
 
         /// <summary>

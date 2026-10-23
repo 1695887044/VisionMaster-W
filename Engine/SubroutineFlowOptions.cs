@@ -44,13 +44,24 @@ namespace VisionMaster.Services
                 if ((flow.InvokeType & FlowInvokeType.Subroutine) == 0)
                     continue;
 
-                var name = flow.FlowName.Trim();
+                // 名字首尾带空格的流程：FlowInvoker 先把输入 Trim 再按 Ordinal 与**未 Trim** 的
+                // 名字比较，这类流程本来就调不到（列出来只会给一个"选了必然失败"的选项）。
+                // 正常路径上 FlowListViewModel 改名时已经 Trim，这里只挡人工编辑 .vms 的脏数据。
+                if (!string.Equals(flow.FlowName, flow.FlowName.Trim(), StringComparison.Ordinal))
+                    continue;
+
+                var name = flow.FlowName;
                 var note = Describe(flow, ReferenceEquals(flow, current));
                 result.Add(new StepConfigOption(name, note == null ? name : $"{name}（{note}）"));
             }
 
             // 同名流程（人工编辑 .vms）只留第一条：FlowInvoker.FindFlow 也是取第一条，
             // 列出两项会让人以为"选哪个都行"，实际只有第一条会被执行。
+            //
+            // 注意：仅大小写不同的两个名字（Abc / abc）在这里都保留，但契约层的
+            // StepConfigOptionSource.GetOptionItems 会按 OrdinalIgnoreCase 再合并一次，
+            // 最终下拉只剩第一条。这是既有全局口径（运动轴/通讯变量也共用），
+            // 这类名字本身极易误选，建议在流程管理里改名区分。
             return result
                 .GroupBy(o => o.Value, StringComparer.Ordinal)
                 .Select(g => g.First())

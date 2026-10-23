@@ -1,4 +1,5 @@
 using Core.Interfaces;
+using Core.Interfaces.Database;
 using Prism.Commands;
 using Prism.Dialogs;
 using System;
@@ -37,7 +38,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private readonly HttpImageServer _httpServer;
         private readonly IUserNotifier _notifier;
 
-        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger, FlowCompiler flowCompiler, HttpImageServer httpServer, ICameraProvider cameras, IMotionProvider motions, IFlowInvoker flowInvoker, ICommVariableAccess comms = null, IUserNotifier notifier = null)
+        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger, FlowCompiler flowCompiler, HttpImageServer httpServer, ICameraProvider cameras, IMotionProvider motions, IFlowInvoker flowInvoker, ICommVariableAccess comms = null, IUserNotifier notifier = null, IDatabaseAccess database = null)
         {
             _workspace = workspace;
             _logger = logger;
@@ -47,6 +48,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _motions = motions ?? NullMotionProvider.Instance;
             _flowInvoker = flowInvoker ?? NullFlowInvoker.Instance;
             _comms = comms ?? NullCommVariableAccess.Instance;
+            _database = database ?? NullDatabaseAccess.Instance;
             // 可选依赖：容器里已注册 IUserNotifier；断言宿主/设计器手工构造时可以不传，
             // 此时只少一条非模态提示，日志仍然照记（不能因为提示缺失让异常隔离失效）。
             _notifier = notifier;
@@ -69,6 +71,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>通讯变量立刻读写入口：透传给试运行（否则「立刻读/写」在面板上点「执行」必报没有接入通讯层）</summary>
         private readonly ICommVariableAccess _comms;
+
+        /// <summary>数据库能力：透传给试运行与配置上下文（否则数据库步骤试运行/测试语句必报没有接入数据库服务）</summary>
+        private readonly IDatabaseAccess _database;
 
         #region IDialogAware
 
@@ -219,7 +224,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 // 变量名候选（变量管理里那些 + 上游「变量定义」声明的运行时变量）：
                 // 插件够不到这两处，而"给哪个变量赋值/读哪个变量"只能从它们里选 —— 手打名字
                 // 打错的后果（找不到变量 / 值写进另一个同名变量）都很难倒查（真机 2026-10-10）
-                Variables = VisionMaster.Helpers.PluginVariableOptions.Build(_workspace, _stepData?.StepId ?? Guid.Empty)
+                Variables = VisionMaster.Helpers.PluginVariableOptions.Build(_workspace, _stepData?.StepId ?? Guid.Empty),
+                // 数据库能力（测试语句用）：与执行期同一个单例，保证"测试"和"真跑"看到同一份配置
+                Database = _database
             };
         }
 
@@ -396,7 +403,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
                 try
                 {
-                    result = PluginTestRunner.Run(plugin, stepData, _workspace, _logger, _flowCompiler, token, out session, _cameras, _motions, _flowInvoker, _comms);
+                    result = PluginTestRunner.Run(plugin, stepData, _workspace, _logger, _flowCompiler, token, out session, _cameras, _motions, _flowInvoker, _comms, _database);
                 }
                 catch (Exception ex)
                 {

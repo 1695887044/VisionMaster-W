@@ -229,6 +229,9 @@ namespace FlowCanvasChecks
 
             BlobDetectChecks.Run();
             PreProcessingChecks.Run();
+
+            // 图像差分（2026-10-23 新建插件）：real 域防截断 / 极性取舍 / 尺寸守卫 / 判定上限 / 掩膜 / 端口契约
+            ImageDiffCheck.Run();
             PortBindChecks.Run();
             GlobalVariableChecks.Run();
             DeviceVariableIoChecks.Run();

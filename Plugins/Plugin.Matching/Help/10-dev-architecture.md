@@ -96,8 +96,17 @@ public partial class MatchingPlugin : VisionPluginBase,        // 宿主契约�
 7  角度：MinAngleDeg/MaxAngleDeg 各夹 [-180,180] 转弧度，min>max 时交换，
      angleExtent = Math.Min(maxRad - minRad, 2π)
 8  运行参数夹取：minScore[0.01,1]、numMatches[1,100]、maxOverlap[0,1]、greediness[0.1,0.9]、numLevels[1,10]
-9  查找：entry.ScaleEnabled ? FindScaledShapeModel(..., "least_squares", numLevels, greediness, …)
-                          : FindShapeModel(..., "least_squares", numLevels, greediness, …)
+8b 搜索域（P1-B A1）：UseSearchRegion 且 SearchRegion 端口已初始化
+     → ReduceDomain(gray, region, out reduced)，后续查找全部用 reduced
+     开关开但区域没连 → 回落全图，日志写"搜索域开关已开但未连区域 → 回落全图"
+9  查找按 entry.Algorithm 三分支：
+     Ncc            → FindNccModel(reduced, id, minAngleRad, angleExtent, minScore, numMatches,
+                                    maxOverlap, "true", numLevels, out rows, out cols, out angles, out scores)
+                      scales = Enumerable.Repeat(1.0, rows.Length)
+                      行/列再加上 (entry.Rect[0]-ModelOriginRow, entry.Rect[1]-ModelOriginCol) 补偿
+      级联回退        → 见 §5.1：learned 级联没有时 HALCON 会自动减层，不需要插件处理
+     ScaleEnabled   → FindScaledShapeModel(..., "least_squares", numLevels, greediness, …)
+     其它            → FindShapeModel(..., "least_squares", numLevels, greediness, …)
      未启用缩放时 scales = Enumerable.Repeat(1.0, rows.Length)（只为保住五个数组一一对应）
 10 n == 0 → Fail($"未找到目标：模板「{entry.Name}」没有满足分数 ≥ {minScore:0.00} 的匹配（光照/遮挡变化？可降低分数下限重试）")
      + Logger.Warn（族里唯一 Warn）+ RenderResultAnnotation(src, entry, null, null, null) + PublishIfConfigured()
@@ -127,13 +136,25 @@ public partial class MatchingPlugin : VisionPluginBase,        // 宿主契约�
    ← 掩膜只在**学习时**参与求交；条目里存的是**原始涂抹**（原因见本节末与第十节）
 4  转灰度、参数夹取：角度步长非 0 时夹 [0.1,30] 否则送 "auto"；梯度阈值非 0 时夹 [1,255] 否则 "auto"；
    metric = use_polarity / ignore_polarity；缩放窗口退化（hi-lo < 1e-6）时撑开 ±0.005（限 [0.5,2]）
-5  CreateScaledShapeModel / CreateShapeModel（numLevels 与 "auto" 混用）
-6  原点锚定：用新模型在参考图上自匹配一次（minScore 0.8、numMatches 1、maxOverlap 0.5、greediness 0.9），
-   再 SetShapeModelOrigin(modelId, sr[0] - CanvasRect[0], sc[0] - CanvasRect[1])
-   ← 依据：found_after = found_default − offset；实测圆形区域默认原点偏 +1.5,+1.5；**自匹配失败就静默不锚**
-7  WriteShapeModel 到临时 .shm → 读字节 → base64 → entry.Model；掩膜按原始涂抹编码 entry.Mask
-8  GetShapeModelParams 取**实际**层数（不是请求值），拼成功文案；清理临时文件与句柄
-9  entry.LearnedSignature = EntrySignature(entry)（形状|区域|层数|梯度|角度|步长|极性|缩放|Mask.Length）
+5  按 Algorithm 分叉：
+     Ncc            → CreateNccModel(gray, numLevels, minAngleRad, angleExtent, angleStep, metric)
+                      只有 6 个入参：**没有对比度、没有极性、没有缩放**（HALCON 无 create_scaled_ncc_model）
+     ScaleEnabled   → CreateScaledShapeModel(gray, numLevels, minAngleRad, angleExtent, angleStep,
+                                             scaleLo, scaleHi, "auto", "auto", metric, contrast, "auto")
+     其它            → CreateShapeModel(gray, numLevels, minAngleRad, angleExtent, angleStep,
+                                        "auto", metric, contrast, "auto")
+6  原点锚定（**仅形状模型**）：用新模型在参考图上自匹配一次（minScore 0.8、numMatches 1、maxOverlap 0.5、
+    greediness 0.9），再 SetShapeModelOrigin(modelId, sr[0] - CanvasRect[0], sc[0] - CanvasRect[1])
+    ← 依据：found_after = found_default − offset；实测圆形区域默认原点偏 +1.5,+1.5；**自匹配失败就静默不锚**
+    ← NCC 没有 set_ncc_model_origin，这一步整体跳过；代价是输出点恒为模型重心，
+      输出侧用 (Rect[0]-ModelOriginRow, Rect[1]-ModelOriginCol) 补偿（当前实现里这两个差是 0，
+      保留方法只为把"为什么 NCC 不需要偏移"留在代码里）
+7  写临时文件：形状 .shm / NCC .ncm（**扩展名必须跟着算法走**，HALCON 靠它判类型）
+    WriteShapeModel / WriteNccModel → 读字节 → base64 → entry.Model；掩膜按原始涂抹编码 entry.Mask
+8  GetShapeModelParams（9 个 out）/ GetNccModelParams（**5 个 out：levels/minAngle/angleExtent/angleStep/metric**）
+    取**实际**层数（不是请求值），拼成功文案；清理临时文件与句柄
+9  entry.LearnedSignature = EntrySignature(entry)（**算法|**形状|区域|层数|梯度|角度|步长|极性|缩放|Mask.Length）
+    ← 算法放第一位：换算法等于换了模型类型，指纹必变，徽标立刻转橙"需重新学习"
 10 失败 → "创建模板失败：{ex.Message}（区域里特征太少？换一块纹理更丰富的区域试试）"
 ```
 

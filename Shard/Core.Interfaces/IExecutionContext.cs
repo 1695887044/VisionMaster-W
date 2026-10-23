@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using Core.Interfaces.Database;
 using Core.Interfaces.Io;
 
 namespace Core.Interfaces
@@ -88,6 +89,16 @@ namespace Core.Interfaces
         /// 因此既有实现者不必改动，插件也只判返回值即可。
         /// </summary>
         ICommVariableAccess Comms => NullCommVariableAccess.Instance;
+
+        /// <summary>
+        /// 数据库运行期能力面（「数据库查询 / 执行 / 写行」三步的能力契约）。
+        ///
+        /// 与 <see cref="Comms"/> / <see cref="Cameras"/> 同一范式：插件物理上够不到宿主的
+        /// DatabaseService 与 Provider，只能由上下文递送。默认实现是
+        /// <see cref="NullDatabaseAccess"/>（调用即失败并说明原因），
+        /// 因此既有实现者不必改动，插件也只判返回值即可。
+        /// </summary>
+        IDatabaseAccess Database => NullDatabaseAccess.Instance;
 
         IDictionary<string, object> LocalVariables { get; }
     }

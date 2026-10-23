@@ -113,15 +113,17 @@
 ```
 Image                 ← 端口值；已变量链接时这个键会被 OnConfirm 移除
 RecipeName            ← 同上（手填时是固定字符串）
-TemplateLibraryJson   ← "[{Name,Shape,Rect[],Mask,Model,RefImagePath,NumLevels,MinAngleDeg,MaxAngleDeg,
+SearchRegion          ← 端口值（HRegion）；UseSearchRegion=false 时存了也不参与运算
+TemplateLibraryJson   ← "[{Name,Shape,Rect[],Mask,Model,RefImagePath,Algorithm,NumLevels,MinAngleDeg,MaxAngleDeg,
                           AngleStepDeg,GradientThreshold,UsePolarity,ScaleEnabled,ScaleMin,ScaleMax,
                           LearnedSignature}, …]"
 DefaultTemplateName   ← string
-MinScore / MaxMatches / MaxOverlap / Greediness / DisplayViewIndex / OutputAlignedImage
+MinScore / MaxMatches / MaxOverlap / Greediness / DisplayViewIndex / OutputAlignedImage / UseSearchRegion
 TemplateModel / TemplateShape / TemplateRect / TemplateMask / PreviewImagePath  ← 迁移字段（导入后为空）
 ```
 
 要点：`Rect` **恒为 5 个数**（圆形只填前 3 个，第 4、5 个是占位 0）；`Mask` 与 `Model` 是 base64 字符串；
+`Algorithm` 缺席时按 `"Shape"` 处理（升级前的方案全都没有这个字段，必须能照旧跑）；
 `LearnedSignature` 是插件自己算的指纹串，手改方案时会立刻触发"需重新学习"。
 
 ## 八、打包与工程约定

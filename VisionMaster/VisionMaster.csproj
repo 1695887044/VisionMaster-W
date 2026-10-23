@@ -46,6 +46,8 @@
          必须在启动时显式调一次 ScadaChartElements.Register()——见 App.Initialize 那一行。 -->
     <ProjectReference Include="..\Scada.Controls.Charts\VM.Scada.Controls.Charts.csproj" />
     <ProjectReference Include="..\Services\Core.Halcon\Core.Halcon.csproj" />
+    <!-- 数据库服务：Provider（Microsoft.Data.Sqlite）只允许出现在这一层，插件与宿主都不直接引用 -->
+    <ProjectReference Include="..\Services\Core.Database\Core.Database.csproj" />
     <ProjectReference Include="..\Shard\Core.Controls\Core.Controls.csproj" />
     <ProjectReference Include="..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
     <ProjectReference Include="..\UI\Controls\UI.csproj" />

@@ -45,6 +45,15 @@ namespace VisionMaster.Binding
         /// <summary>确定性身份的命名空间前缀（把"系统变量"与将来其它确定性 Guid 隔开）</summary>
         private const string IdKeyPrefix = "motion-var";
 
+        /// <summary>父变量（整根轴）的身份前缀：与字段前缀分开，避免与任何字段撞键</summary>
+        private const string DeviceIdKeyPrefix = "motion-dev";
+
+        /// <summary>父变量在内部字典里的"字段键"（真实字段名不会以 $ 开头，不会撞）</summary>
+        private const string DeviceFieldKey = "$device";
+
+        /// <summary>本目录写入的模型都带这个 Owner（"是否已最新"只数自己那一份）</summary>
+        private const string OwnerName = "Motion";
+
         /// <summary>字段定义：键（进名字与身份哈希）、声明类型、给操作员看的中文名</summary>
         private readonly record struct FieldDef(string Key, Type DataType, string Label);
 
@@ -88,6 +97,7 @@ namespace VisionMaster.Binding
         private Dictionary<Guid, SystemVariableModel> _byId = new();
         private Dictionary<string, SystemVariableModel> _byName = new(StringComparer.OrdinalIgnoreCase);
         private Dictionary<Guid, string> _axisNames = new();
+        private Dictionary<Guid, string> _axisCards = new();
 
         /// <summary>当前投影的**不可变快照**（换表时整份替换，之后不再改动）</summary>
         private IReadOnlyList<IVariable> _ordered = Array.Empty<IVariable>();
@@ -193,11 +203,14 @@ namespace VisionMaster.Binding
                 previousAxisNames = _axisNames;
             }
 
-            var models = new Dictionary<(Guid, string), SystemVariableModel>(desired.Count * Fields.Length);
-            var byId = new Dictionary<Guid, SystemVariableModel>(desired.Count * Fields.Length);
-            var byName = new Dictionary<string, SystemVariableModel>(desired.Count * Fields.Length, StringComparer.OrdinalIgnoreCase);
+            int perAxis = Fields.Length + 1;   // 父变量（整根轴）+ 12 个字段
+
+            var models = new Dictionary<(Guid, string), SystemVariableModel>(desired.Count * perAxis);
+            var byId = new Dictionary<Guid, SystemVariableModel>(desired.Count * perAxis);
+            var byName = new Dictionary<string, SystemVariableModel>(desired.Count * perAxis, StringComparer.OrdinalIgnoreCase);
             var axisNames = new Dictionary<Guid, string>(desired.Count);
-            var ordered = new List<IVariable>(desired.Count * Fields.Length);
+            var axisCards = new Dictionary<Guid, string>(desired.Count);
+            var ordered = new List<IVariable>(desired.Count * perAxis);
 
             // ★ 有没有**改名**（不是增删）：实例复用只改模型上的 Name，集合不增不减 →
             //   一个 CollectionChanged 都不会发。变量注册表的名字索引就会永久停在旧名上
@@ -208,6 +221,7 @@ namespace VisionMaster.Binding
             foreach (var (axisId, binding) in desired)
             {
                 var axisName = NormalizeAxisName(binding.Name);
+                var cardName = binding.CardCaption ?? string.Empty;
 
                 if (previousAxisNames.TryGetValue(axisId, out var previousName)
                     && !string.Equals(previousName, axisName, StringComparison.Ordinal))
@@ -216,6 +230,10 @@ namespace VisionMaster.Binding
                 }
 
                 axisNames[axisId] = axisName;
+                axisCards[axisId] = cardName;
+
+                // ① 先建字段：沿用既有名字与确定性 Id（老方案里按 Id/名字绑好的连线零迁移）
+                var fieldModels = new List<IVariable>(Fields.Length);
                 foreach (var field in Fields)
                 {
                     var key = (axisId, field.Key);
@@ -238,14 +256,52 @@ namespace VisionMaster.Binding
                             variableId,
                             newName,
                             field.DataType,
-                            BuildDescription(axisName, field.Label));
+                            BuildDescription(axisName, field.Label),
+                            owner: OwnerName);
                     }
 
                     models[key] = model;
                     byId[model.VariableId] = model;
                     byName[model.Name] = model;
-                    ordered.Add(model);
+                    fieldModels.Add(model);
                 }
+
+                // ② 再建/更新父变量（整根轴，类型 MotionAxis）
+                //    Fields 只在构造时给：同一轴的字段集合恒定，复用父实例时它手里那 12 个
+                //    子实例也来自 previous（同一批复用对象），不需要替换列表。
+                var deviceKey = (axisId, DeviceFieldKey);
+                var deviceName = BuildDeviceName(axisName);
+                var deviceDescription = BuildDeviceDescription(axisName, cardName);
+
+                if (previous.TryGetValue(deviceKey, out var deviceModel))
+                {
+                    if (!string.Equals(deviceModel.Name, deviceName, StringComparison.Ordinal))
+                        renamed = true;
+
+                    deviceModel.UpdateName(deviceName);
+                    deviceModel.UpdateDescription(deviceDescription);
+
+                    // 字段表将来若增删，复用父实例必须换一份新列表（否则父行还指着旧字段实例）
+                    deviceModel.UpdateFields(fieldModels);
+                }
+                else
+                {
+                    deviceModel = new SystemVariableModel(
+                        ComputeVariableId(DeviceIdKeyPrefix, axisId, null),
+                        deviceName,
+                        typeof(MotionAxis),
+                        deviceDescription,
+                        fieldModels,
+                        OwnerName);
+                }
+
+                models[deviceKey] = deviceModel;
+                byId[deviceModel.VariableId] = deviceModel;
+                byName[deviceModel.Name] = deviceModel;
+
+                // 顺序即清单顺序：父在前、字段在后（界面按这个顺序展开）
+                ordered.Add(deviceModel);
+                ordered.AddRange(fieldModels);
             }
 
             // 整表交换：先让读方看到完整的新表
@@ -255,6 +311,7 @@ namespace VisionMaster.Binding
                 _byId = byId;
                 _byName = byName;
                 _axisNames = axisNames;
+                _axisCards = axisCards;
                 _ordered = ordered;
             }
 
@@ -310,11 +367,11 @@ namespace VisionMaster.Binding
         {
             var target = new HashSet<IVariable>(ordered);
 
-            // ① 只摘掉“运动系统变量”里不在新投影中的；IO/其它来源的变量由各自目录管理，
-            //    这里不能碰（否则改一次运动卡设置就会把 IO 变量全删光）。
+            // ① 只摘掉"本目录"里不在新投影中的；其它来源（通讯/相机）的变量由各自目录管理，
+            //    这里不能碰（否则改一次运动卡设置就会把别家的变量全删光）。
             for (var i = Variables.Count - 1; i >= 0; i--)
             {
-                if (Variables[i] is SystemVariableModel && !target.Contains(Variables[i]))
+                if (Variables[i] is SystemVariableModel { Owner: OwnerName } && !target.Contains(Variables[i]))
                     Variables.RemoveAt(i);
             }
 
@@ -343,12 +400,26 @@ namespace VisionMaster.Binding
                 return;
 
             Dictionary<(Guid, string), SystemVariableModel> models;
-            lock (_gate) models = _models;
+            Dictionary<Guid, string> axisNames;
+            Dictionary<Guid, string> axisCards;
+            lock (_gate)
+            {
+                models = _models;
+                axisNames = _axisNames;
+                axisCards = _axisCards;
+            }
 
             // 该轴不在目录里（已被删除 / 未登记）：静默忽略，不补建——
             // 补建会让"删掉的轴"因为一次迟到的快照又长回来
             if (!models.ContainsKey((axisId, FieldPosition)))
                 return;
+
+            // 父变量（整根轴）与 12 个字段写的是同一份快照，顺序不影响结果；
+            // 先写父变量，让"整根轴"的消费者与字段消费者在同一拍内看到同一份数据。
+            WriteDeviceSnapshot(models, axisId,
+                axisNames.TryGetValue(axisId, out var axisName) ? axisName : "未命名轴",
+                axisCards.TryGetValue(axisId, out var cardName) ? cardName : string.Empty,
+                sample);
 
             if (!sample.IsValid)
             {
@@ -400,7 +471,7 @@ namespace VisionMaster.Binding
         }
 
         /// <summary>
-        /// 该名字是否落在系统变量保留前缀里（<c>Motion.</c>，大小写不敏感）。
+        /// 该名字是否落在系统变量保留前缀里（<c>System.</c>，大小写不敏感）。
         ///
         /// 用途：用户变量的新建/改名校验。放行会造出"用户变量遮住系统变量"的同名冲突，
         /// 而遮住之后表现是"轴在动、画面上的数值不变"，现场几乎不可能自己定位到重名。
@@ -414,12 +485,16 @@ namespace VisionMaster.Binding
         }
 
         /// <summary>
-        /// 确定性身份：<c>SHA1("motion-var|{轴Id:N}|{字段}")</c> 取前 16 字节。
+        /// 确定性身份：<c>SHA1("motion-var|{轴Id:N}|{字段}")</c> 取前 16 字节（字段），
+        /// 父变量是 <c>SHA1("motion-dev|{轴Id:N}")</c>。
         /// 与 <c>Core.Interfaces.MotionAxisId</c> 同一手法（含"不重排字节序"的理由）。
         /// </summary>
-        private static Guid ComputeVariableId(Guid axisId, string field)
+        private static Guid ComputeVariableId(string prefix, Guid ownerId, string? field)
         {
-            string key = $"{IdKeyPrefix}|{axisId:N}|{field}";
+            string key = string.IsNullOrEmpty(field)
+                ? $"{prefix}|{ownerId:N}"
+                : $"{prefix}|{ownerId:N}|{field}";
+
             byte[] hash = SHA1.HashData(Encoding.UTF8.GetBytes(key));
 
             Span<byte> bytes = stackalloc byte[16];
@@ -427,11 +502,23 @@ namespace VisionMaster.Binding
             return new Guid(bytes);
         }
 
+        /// <summary>字段身份：保持历史键格式不变（老方案按 Id 寻址的连线零迁移）</summary>
+        private static Guid ComputeVariableId(Guid axisId, string field)
+            => ComputeVariableId(IdKeyPrefix, axisId, field);
+
         /// <summary>变量名：<c>Motion.{轴名}.{字段}</c>（轴名里的点原样保留——本目录从不按点拆名字）</summary>
         private static string BuildName(string axisName, string field) => $"{NamePrefix}Motion.{axisName}.{field}";
 
+        /// <summary>父变量名：<c>System.Motion.{轴名}</c>（整根轴）</summary>
+        private static string BuildDeviceName(string axisName) => $"{NamePrefix}Motion.{axisName}";
+
         private static string BuildDescription(string axisName, string label)
             => $"运动轴 {axisName} 的{label}（只读系统变量）";
+
+        private static string BuildDeviceDescription(string axisName, string cardName)
+            => string.IsNullOrWhiteSpace(cardName)
+                ? $"运动轴 {axisName} 的只读状态快照（含 {Fields.Length} 个字段）"
+                : $"运动轴 {axisName}（{cardName}）的只读状态快照（含 {Fields.Length} 个字段）";
 
         /// <summary>轴名去掉首尾空白；空名给一个可读兜底（注册表不允许空名，这里只防御脏数据）</summary>
         private static string NormalizeAxisName(string? axisName)
@@ -461,18 +548,30 @@ namespace VisionMaster.Binding
         private bool IsUpToDateLocked(List<(Guid AxisId, MotionAxisBinding Binding)> desired)
         {
             if (_axisNames.Count != desired.Count) return false;
-            if (_ordered.Count != desired.Count * Fields.Length) return false;
+            if (_ordered.Count != desired.Count * (Fields.Length + 1)) return false;
 
-            // 集合被外部动过（测试里 Clear、或另一份目录实例改写）时也必须重建：
-            // 只比内部表会让"集合空了但目录认为一切正常"永远自愈不了。
-            // 只数运动系统变量：集合里还可能挂着其它来源的系统变量（相机/通讯等）。
-            if (Variables.OfType<SystemVariableModel>().Count() != _ordered.Count) return false;
+            // 集合被外部动过（测试里 Clear、或另一份目录实例改写）时也必须重建。
+            // **只在非托管模式检查**：托管时集合由宿主独占改写，本目录在发布器线程上枚举它
+            // 会与通讯/相机的定时器撞车（"Collection was modified"）；而且名字冲突导致宿主
+            // 少收一条时，按数量比会每拍判"被外部动过"→ 100ms 全量重建一次（白烧 CPU）。
+            if (_host == null
+                && Variables.OfType<SystemVariableModel>().Count(m => m.Owner == OwnerName) != _ordered.Count)
+                return false;
 
             int index = 0;
             foreach (var (axisId, binding) in desired)
             {
                 if (!_axisNames.TryGetValue(axisId, out var currentName)) return false;
                 if (!string.Equals(currentName, NormalizeAxisName(binding.Name), StringComparison.Ordinal)) return false;
+
+                // 卡名进了父变量的说明文案：改卡名也要重建一次，否则说明永远停在旧卡名
+                if (!_axisCards.TryGetValue(axisId, out var currentCard)) return false;
+                if (!string.Equals(currentCard, binding.CardCaption ?? string.Empty, StringComparison.Ordinal)) return false;
+
+                // 顺序是"父 → 12 字段"，与 Rebuild 的入表顺序必须逐项一致
+                if (!_models.TryGetValue((axisId, DeviceFieldKey), out var device)) return false;
+                if (!ReferenceEquals(_ordered[index], device)) return false;
+                index++;
 
                 foreach (var field in Fields)
                 {
@@ -483,6 +582,73 @@ namespace VisionMaster.Binding
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// 把一拍快照写进**父变量**（整根轴，类型 <see cref="MotionAxis"/>）。
+        ///
+        /// 离线时保留上一拍的已知量值，只改"为什么不知道"——与 12 个字段同一口径
+        /// （清 0 会把"不知道"伪装成"停在原点"）。首拍就离线时没有"上一拍"可保留，
+        /// 只能给一份全 0 的快照，但 <c>IsValid=false</c> 与 <c>Error</c> 会明确说明它不可信。
+        /// </summary>
+        private static void WriteDeviceSnapshot(
+            Dictionary<(Guid AxisId, string Field), SystemVariableModel> models,
+            Guid axisId,
+            string axisName,
+            string cardName,
+            ScadaAxisSample sample)
+        {
+            if (!models.TryGetValue((axisId, DeviceFieldKey), out var model))
+                return;
+
+            if (!sample.IsValid)
+            {
+                var reason = string.IsNullOrWhiteSpace(sample.Error) ? "状态未知（运动卡未连接）" : sample.Error!;
+
+                if (model.Value is MotionAxis previous)
+                {
+                    model.UpdateMirrorValue(previous with
+                    {
+                        // 身份字段也要跟着刷新：离线期间轴改名/换卡，父变量的 Value 不能停在旧名
+                        AxisName = axisName,
+                        CardName = cardName,
+                        IsValid = false,
+                        Error = reason,
+                        AlarmMessage = reason,
+                        StatusText = reason,
+                        TimestampUtc = sample.TimestampUtc
+                    });
+                }
+                else
+                {
+                    model.UpdateMirrorValue(new MotionAxis(
+                        axisId, axisName, cardName, false, reason,
+                        0, 0, false, false, false, false, reason,
+                        false, false, false, false, reason, sample.TimestampUtc));
+                }
+
+                return;
+            }
+
+            model.UpdateMirrorValue(new MotionAxis(
+                axisId,
+                axisName,
+                cardName,
+                true,
+                null,
+                sample.PositionMm,
+                sample.VelocityMmPerS,
+                sample.Moving,
+                sample.InPosition,
+                sample.Enabled,
+                sample.Alarm,
+                sample.Alarm ? sample.StatusText : string.Empty,
+                sample.PositiveLimit,
+                sample.NegativeLimit,
+                sample.Origin,
+                sample.EmergencyStop,
+                sample.StatusText,
+                sample.TimestampUtc));
         }
 
         /// <summary>

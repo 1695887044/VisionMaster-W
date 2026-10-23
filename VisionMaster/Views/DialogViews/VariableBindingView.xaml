@@ -1811,7 +1811,7 @@
                                         <Border
                                             Margin="6,0,0,0"
                                             Style="{StaticResource DialogChipWarning}">
-                                            <TextBlock Style="{StaticResource DialogChipTextWarning}" Text="枚举端口" />
+                                            <TextBlock Style="{StaticResource DialogChipTextWarning}" Text="封闭候选" />
                                         </Border>
                                     </StackPanel>
                                     <TextBlock
@@ -1825,7 +1825,7 @@
                                 <TextBlock
                                     Margin="0,2,0,0"
                                     Style="{StaticResource DialogHintText}"
-                                    Text="该端口自带系统内置预设，直接从下面选一项即可，无需连接上游输出。" />
+                                    Text="该端口的合法值是一个固定集合（枚举成员或当前方案里的名字），直接从下面选一项即可，无需连接上游输出。" />
 
                                 <!--
                                     预设卡片：显示 Display、写入 Option（值与显示分离）。
@@ -1922,6 +1922,36 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+
+                                <!--
+                                    候选为空（方案里还没有可选项）：退化成手填，绝不放上游面板。
+                                    与 LinkableValueEditor 的 IsHandFillFallback（"无候选，可手填"）同一口径 ——
+                                    "还没配"是常见的首次状态，不能把人堵在一个空下拉上。
+                                -->
+                                <StackPanel Margin="0,8,0,0">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding PresetOptions.Count}" Value="0">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <TextBox
+                                        Height="34"
+                                        Padding="10,0"
+                                        VerticalContentAlignment="Center"
+                                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                        Style="{StaticResource DialogInput}"
+                                        Tag="手填名字"
+                                        Text="{Binding ConstantValue, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock
+                                        Margin="0,6,0,0"
+                                        Style="{StaticResource DialogHintText}"
+                                        Text="当前方案里没有可选项：可直接手填，运行期仍会按门禁校验。" />
+                                </StackPanel>
 
                                 <Border
                                     Margin="0,12,0,0"

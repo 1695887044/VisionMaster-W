@@ -40,6 +40,8 @@
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/AlarmBannerElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/AxisPanelElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ImageViewElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/PictureElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/LineElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/TankElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/KpiBoardElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/SelectorSwitchElement.xaml" />

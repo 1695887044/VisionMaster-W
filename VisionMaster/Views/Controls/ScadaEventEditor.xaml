@@ -133,6 +133,12 @@
                                         <DataTrigger Binding="{Binding Type}" Value="WriteVariable">
                                             <Setter Property="Visibility" Value="Visible" />
                                         </DataTrigger>
+                                        <DataTrigger Binding="{Binding Type}" Value="Increment">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Type}" Value="Decrement">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
@@ -180,7 +186,76 @@
                                 BorderBrush="{StaticResource ScadaPanelBorderBrush}"
                                 FontSize="11"
                                 Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
-                                ToolTip="要写进变量的值（按变量类型转换，转不过去执行时会记一条错误）" />
+                                ToolTip="要写进变量的值（按变量类型转换，转不过去执行时会记一条错误）">
+                                <TextBox.Style>
+                                    <Style TargetType="TextBox">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Type}" Value="WriteVariable">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBox.Style>
+                            </TextBox>
+
+                            <!--  增量/减量：步长 + 可选上下限。读当前值再写回，避免为每个档位配一条写变量。  -->
+                            <StackPanel Margin="0,3,0,0">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Type}" Value="Increment">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Type}" Value="Decrement">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" Margin="0,0,3,0">
+                                        <TextBlock FontSize="10" Foreground="{StaticResource ScadaSecondaryTextBrush}" Text="步长" />
+                                        <TextBox
+                                            Margin="0,2,0,0"
+                                            Padding="3,2"
+                                            BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                            FontSize="11"
+                                            Text="{Binding Step, UpdateSourceTrigger=LostFocus, TargetNullValue=1}"
+                                            ToolTip="每次加/减多少；必须大于 0" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1" Margin="3,0,3,0">
+                                        <TextBlock FontSize="10" Foreground="{StaticResource ScadaSecondaryTextBrush}" Text="下限" />
+                                        <TextBox
+                                            Margin="0,2,0,0"
+                                            Padding="3,2"
+                                            BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                            FontSize="11"
+                                            Text="{Binding Min, UpdateSourceTrigger=LostFocus}"
+                                            ToolTip="留空 = 不夹紧；0 是合法下限" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2" Margin="3,0,0,0">
+                                        <TextBlock FontSize="10" Foreground="{StaticResource ScadaSecondaryTextBrush}" Text="上限" />
+                                        <TextBox
+                                            Margin="0,2,0,0"
+                                            Padding="3,2"
+                                            BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                            FontSize="11"
+                                            Text="{Binding Max, UpdateSourceTrigger=LostFocus}"
+                                            ToolTip="留空 = 不夹紧" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
 
                             <!--  没选变量：执行侧会照实警告并跳过，先把这件事说在界面上  -->
                             <TextBlock

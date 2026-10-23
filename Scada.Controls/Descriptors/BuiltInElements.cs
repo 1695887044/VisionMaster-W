@@ -465,6 +465,40 @@ namespace VisionMaster.Scada.Controls
 
             new()
             {
+                TypeKey = "Hmi.Picture",
+                DisplayName = "本地图片",
+                ControlType = typeof(PictureElement),
+                Category = "基础",
+                DefaultWidth = 200,
+                DefaultHeight = 160,
+                Description = "方案 Image 目录里的静态图片（logo、产品图、操作指引），可移动、参与布局；" +
+                              "整页背景请用画面属性的「背景图」，不要拿本图元铺满",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(PictureElement)),
+                    AppearanceProperties.Fill("#00FFFFFF", "图片背后的底色；默认全透明，让图片直接落在画面上",
+                        displayName: "底色"),
+                    AppearanceProperties.Stroke("#00FFFFFF"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("0")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.Line",
+                DisplayName = "线 / 折线 / 箭头",
+                ControlType = typeof(LineElement),
+                Category = "基础",
+                DefaultWidth = 160,
+                DefaultHeight = 24,
+                Description = "工艺图连线、分区、标注、流向箭头；端点是 0~1 相对坐标，两个点=直线，三个以上=折线，箭头大小随线宽走",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(LineElement)),
+                    AppearanceProperties.Stroke("#FF38BDF8"),
+                    AppearanceProperties.StrokeThickness()),
+            },
+
+            new()
+            {
                 TypeKey = "Hmi.AxisConsole",
                 DisplayName = "轴控台",
                 ControlType = typeof(AxisPanelElement),

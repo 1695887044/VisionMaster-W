@@ -1,0 +1,1847 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SCADA 控件第三批 · Web 设计稿 v1 · 2026-10-23</title>
+<style>
+:root{
+  /* ---- 编辑工作台（页面 chrome，浅色） ---- */
+  --bg:#E9EEF5; --surface:#FFFFFF; --surface-2:#F8FAFC; --surface-3:#F1F5F9;
+  --border:#E2E8F0; --border-soft:#EEF2F7; --border-strong:#CBD5E1;
+  --text:#0F172A; --text-2:#475569; --text-3:#94A3B8;
+  --primary:#0EA5E9; --primary-strong:#0284C7; --primary-text:#0369A1;
+  --primary-soft:#F0F9FF; --primary-light:#E0F2FE; --primary-border:#BAE6FD;
+  --success:#22C55E; --success-text:#15803D; --success-soft:#F0FDF4; --success-border:#BBF7D0;
+  --danger:#EF4444; --danger-text:#B91C1C; --danger-soft:#FEF2F2; --danger-border:#FECACA;
+  --warning:#F59E0B; --warning-text:#B45309; --warning-soft:#FFF4E5; --warning-border:#FDE68A;
+  --font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+  --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+  --shadow-1:0 1px 2px rgba(15,23,42,.05);
+  --shadow-2:0 10px 28px rgba(15,23,42,.10),0 2px 6px rgba(15,23,42,.05);
+
+  /* ---- 运行画面（深色）· 与 ScadaTokens.xaml 一一对应 ---- */
+  --p-bg:#0E1318; --p-surface:#151C23; --p-surface-2:#1B242D;
+  --p-border:#2A3745; --p-border-strong:#3A4A5C;
+  --p-text:#E6EEF7; --p-text-2:#A9B7C6; --p-text-3:#7C8A99;
+  --p-accent:#38BDF8; --p-accent-strong:#0EA5E9;
+  --p-success:#22C55E; --p-success-fill:#15803D;
+  --p-warning:#F59E0B; --p-danger:#EF4444; --p-off:#64748B;
+  --p-track:#26313D; --p-underline:#7A7A7A;
+  --p-selection:#38BDF8; --p-locked:#E3A51B;
+  --p-diag-warning:#E88B1A; --p-diag-error:#E03A2B;
+  /* 本批新增令牌（只增不改既有） */
+  --p-disabled-veil:rgba(14,19,24,.58);
+  --p-code-surface:#FFFFFF; --p-code-ink:#0F172A;
+  --p-sound:#F59E0B;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 var(--font);-webkit-font-smoothing:antialiased}
+code,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+a{color:var(--primary-text)}
+.hero{max-width:1560px;margin:0 auto;padding:30px 28px 8px}
+.hero h1{font-size:26px;line-height:1.25;margin:0 0 8px;letter-spacing:-.01em}
+.hero h1 .ver{font-size:12.5px;font-weight:600;color:var(--primary-text);background:var(--primary-light);border:1px solid var(--primary-border);border-radius:999px;padding:3px 10px;vertical-align:6px;margin-left:8px}
+.hero p{margin:6px 0;color:var(--text-2);max-width:1100px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.chip{font-size:11.5px;font-weight:600;color:var(--text-2);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:5px 11px;box-shadow:var(--shadow-1)}
+.chip b{color:var(--text)}
+.shell{display:grid;grid-template-columns:236px minmax(0,1fr);gap:24px;max-width:1560px;margin:0 auto;padding:0 28px 90px}
+nav.toc{position:sticky;top:14px;align-self:start;max-height:calc(100vh - 28px);overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;box-shadow:var(--shadow-1)}
+nav.toc .grp{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;padding:10px 8px 4px}
+nav.toc a{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:7px;color:var(--text-2);text-decoration:none;font-size:12.5px;line-height:1.3}
+nav.toc a:hover{background:var(--surface-3);color:var(--text)}
+nav.toc a .dot{width:6px;height:6px;border-radius:50%;background:var(--border-strong);flex:none}
+nav.toc a.p0 .dot{background:var(--danger)} nav.toc a.p1 .dot{background:var(--warning)}
+main{min-width:0}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px;margin:18px 0;box-shadow:var(--shadow-1);scroll-margin-top:14px}
+.section>h2{font-size:19px;margin:0 0 4px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.section>h2 .sev{font-size:10.5px;font-weight:700;letter-spacing:.04em;border-radius:5px;padding:2px 7px;border:1px solid}
+.sev.p0{color:var(--danger-text);background:var(--danger-soft);border-color:var(--danger-border)}
+.sev.p1{color:var(--warning-text);background:var(--warning-soft);border-color:var(--warning-border)}
+.sev.new{color:var(--primary-text);background:var(--primary-light);border-color:var(--primary-border)}
+.lede{color:var(--text-2);margin:2px 0 16px;max-width:1000px}
+.split{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);gap:18px;align-items:start}
+.stage{background:var(--p-bg);border:1px solid var(--p-border);border-radius:12px;padding:20px;color:var(--p-text);min-height:260px;position:relative;overflow:hidden;color-scheme:dark}
+.stage.light{--p-bg:#F4F7FB;--p-surface:#FFFFFF;--p-surface-2:#F8FAFC;--p-border:#D8E0EA;--p-border-strong:#B8C4D4;--p-text:#0F172A;--p-text-2:#475569;--p-text-3:#94A3B8;--p-accent:#0284C7;--p-accent-strong:#0EA5E9;--p-success:#16A34A;--p-warning:#D97706;--p-danger:#DC2626;--p-off:#94A3B8;--p-track:#E8EDF3;--p-disabled-veil:rgba(244,247,251,.66);background:var(--p-bg);color-scheme:light}
+/* 深色舞台内的控件跟随运行态令牌，不沿用页面 chrome 的浅色按钮 */
+.stage .btn{background:var(--p-surface-2);border-color:var(--p-border-strong);color:var(--p-text)}
+.stage .btn:hover{filter:brightness(1.14)}
+.stage .btn.primary{background:var(--p-accent-strong);border-color:var(--p-accent-strong);color:#fff}
+.stage .btn.danger{background:var(--p-danger);border-color:var(--p-danger);color:#fff}
+.stage select,.stage input[type=text]{background:var(--p-surface-2);border-color:var(--p-border-strong);color:var(--p-text)}
+.stage .kv th{color:var(--p-text-3);border-bottom-color:var(--p-border)}
+.stage .kv td{border-bottom-color:var(--p-border);color:var(--p-text-2)}
+.stage .kv td:first-child{color:var(--p-text)}
+.stage .kv code{background:var(--p-surface-2);border-color:var(--p-border);color:var(--p-text)}
+.stage .note{background:var(--p-surface-2);border-color:var(--p-border);color:var(--p-text-2)}
+.stage .note b{color:var(--p-text)}
+.stage-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 0 14px;font-size:11.5px;color:var(--p-text-3);letter-spacing:.04em;text-transform:uppercase;font-weight:700}
+.spec h3,.stage h3{font-size:13.5px;margin:0 0 8px}
+.spec h4{font-size:12.5px;margin:16px 0 6px;color:var(--text)}
+.spec p{margin:6px 0;color:var(--text-2);font-size:12.5px}
+.spec ul{margin:6px 0 6px 18px;padding:0;color:var(--text-2);font-size:12.5px}
+.spec li{margin:3px 0}
+.kv{width:100%;border-collapse:collapse;font-size:12px}
+.kv th{text-align:left;font-weight:600;color:var(--text-3);padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap;font-size:11px;letter-spacing:.03em}
+.kv td{padding:6px 8px;border-bottom:1px solid var(--border-soft);color:var(--text-2);vertical-align:top}
+.kv td:first-child{color:var(--text);font-weight:600;white-space:nowrap}
+.kv code{font-size:11px;background:var(--surface-3);border:1px solid var(--border-soft);border-radius:4px;padding:1px 5px;color:var(--text);word-break:break-all}
+/* 属性表：类型/默认两列不折断（短枚举值断词比溢出更难看） */
+.kv.props td:nth-child(2),.kv.props td:nth-child(3){white-space:nowrap}
+.note{border:1px solid var(--border);border-left:3px solid var(--primary);background:var(--primary-soft);border-radius:8px;padding:9px 11px;font-size:12.5px;color:var(--text-2);margin:10px 0}
+.note.warn{border-left-color:var(--warning);background:var(--warning-soft)}
+.note.danger{border-left-color:var(--danger);background:var(--danger-soft)}
+.note b{color:var(--text)}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+.btn{appearance:none;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);border-radius:8px;padding:7px 12px;font:600 12px/1.2 var(--font);cursor:pointer;min-height:32px;transition:background .15s,border-color .15s,transform .08s}
+.btn:hover{background:var(--surface-3)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-strong)}
+.btn.ghost{background:transparent}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn:disabled,.btn[aria-disabled="true"]{opacity:.45;cursor:not-allowed;transform:none}
+.btn:focus-visible,.chip-btn:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+select,input[type=text],input[type=range]{font:inherit}
+select,input[type=text]{border:1px solid var(--border-strong);border-radius:7px;background:var(--surface);color:var(--text);padding:6px 8px;font-size:12px;min-height:32px}
+input[type=range]{accent-color:var(--primary);width:150px}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;border-radius:999px;padding:3px 8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2)}
+.tag.ok{color:var(--success-text);background:var(--success-soft);border-color:var(--success-border)}
+.tag.bad{color:var(--danger-text);background:var(--danger-soft);border-color:var(--danger-border)}
+.tag.warn{color:var(--warning-text);background:var(--warning-soft);border-color:var(--warning-border)}
+.state-strip{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.chip-btn{appearance:none;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);border-radius:999px;padding:4px 10px;font:600 11px/1.3 var(--font);cursor:pointer}
+.chip-btn[aria-pressed="true"]{background:var(--primary-light);border-color:var(--primary-border);color:var(--primary-text)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.preview-card{background:var(--p-surface);border:1px solid var(--p-border);border-radius:10px;padding:14px;color:var(--p-text)}
+.preview-card .cap{font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--p-text-3);font-weight:700;margin-bottom:8px}
+.big{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:28px;line-height:1.1;font-weight:600}
+.mid{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:20px;line-height:1.15;font-weight:600}
+.small{font-size:11.5px;color:var(--p-text-3)}
+.pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:2px 8px;font-size:10.5px;font-weight:700;border:1px solid}
+.pill.ok{color:var(--p-success);border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.12)}
+.pill.warn{color:var(--p-warning);border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.12)}
+.pill.bad{color:var(--p-danger);border-color:rgba(239,68,68,.4);background:rgba(239,68,68,.12)}
+.pill.off{color:var(--p-off);border-color:var(--p-border-strong);background:rgba(100,116,139,.12)}
+.pill.accent{color:var(--p-accent);border-color:rgba(56,189,248,.4);background:rgba(56,189,248,.12)}
+.toast-wrap{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:99;max-width:360px}
+.toast{background:#0F172A;color:#fff;border-radius:9px;padding:9px 12px;font-size:12.5px;box-shadow:var(--shadow-2);border-left:3px solid var(--primary);animation:tin .18s ease-out}
+.toast.bad{border-left-color:var(--danger)} .toast.ok{border-left-color:var(--success)} .toast.warn{border-left-color:var(--warning)}
+@keyframes tin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.footnote{font-size:11.5px;color:var(--text-3);margin-top:10px}
+.hr{height:1px;background:var(--border-soft);margin:16px 0}
+.badge-dot{width:7px;height:7px;border-radius:50%;display:inline-block;background:var(--p-diag-warning)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--p-text-2)}
+.legend label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
+canvas{display:block;max-width:100%}
+.scroll-x{overflow:auto}
+@media (max-width:1120px){.shell{grid-template-columns:1fr}nav.toc{position:static;max-height:none}.split{grid-template-columns:1fr}.grid3{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <h1>SCADA 控件第三批 · Web 设计稿 <span class="ver">v1 · 2026-10-23</span></h1>
+  <p>本批只做 <b>P0 三项 + P1 除配方外六项</b>：页面背景/内容图片、线/折线/箭头、增量减量、历史数据、二维码/条形码、启用对象动画、对象更改/开关事件、多曲线趋势、声音报警、运行计时/计数器。每节左侧是<b>可操作的功能演示</b>，右侧是设计口径与状态矩阵。</p>
+  <p>按 R126：本文件是<b>设计媒介</b>，不进构建、不部署；确认后按 §30 四步复刻到 WPF，并同步 Web 运行态渲染器。</p>
+  <div class="chips">
+    <span class="chip">范围 <b>10 项</b></span>
+    <span class="chip">新增 TypeKey <b>6 个</b>（Picture / Line / QRCode / Barcode / MultiTrend / RunMeter）</span>
+    <span class="chip">页面属性 <b>+1</b>（背景图，不做成图元）</span>
+    <span class="chip">扩展 <b>4 项</b>（DataGrid / 动画 / 事件 / 动作）</span>
+    <span class="chip">配方 <b>本批不做</b></span>
+    <span class="chip">令牌 <b>沿用 20 个 Hmi* + 新增 4 个</b></span>
+    <button class="chip" id="themeToggle" style="cursor:pointer">切换浅色预览</button>
+  </div>
+</header>
+
+<div class="shell">
+<nav class="toc" aria-label="目录">
+  <div class="grp">总览</div>
+  <a href="#scope"><span class="dot"></span>范围与批次</a>
+  <a href="#tokens"><span class="dot"></span>令牌与刻度</a>
+  <a href="#principles"><span class="dot"></span>设计原则</a>
+  <div class="grp">P0</div>
+  <a href="#picture" class="p0"><span class="dot"></span>页面背景 / 内容图片</a>
+  <a href="#assets"><span class="dot"></span>方案文件夹 / 资源</a>
+  <a href="#line" class="p0"><span class="dot"></span>线 / 折线 / 箭头</a>
+  <a href="#step" class="p0"><span class="dot"></span>增量 / 减量</a>
+  <div class="grp">P1</div>
+  <a href="#history" class="p1"><span class="dot"></span>历史数据</a>
+  <a href="#code" class="p1"><span class="dot"></span>二维码 / 条形码</a>
+  <a href="#enable" class="p1"><span class="dot"></span>启用对象动画</a>
+  <a href="#events" class="p1"><span class="dot"></span>对象更改 / 开关事件</a>
+  <a href="#multitrend" class="p1"><span class="dot"></span>多曲线趋势</a>
+  <a href="#sound" class="p1"><span class="dot"></span>声音报警</a>
+  <a href="#meter" class="p1"><span class="dot"></span>运行计时 / 计数器</a>
+  <div class="grp">收口</div>
+  <a href="#composition"><span class="dot"></span>组合示例</a>
+  <a href="#boundaries"><span class="dot"></span>边界与不做</a>
+  <a href="#acceptance"><span class="dot"></span>验收与待裁定</a>
+</nav>
+
+<main>
+
+<!-- ================= 范围 ================= -->
+<section class="section" id="scope">
+  <h2>范围与批次 <span class="sev new">SCOPE</span></h2>
+  <p class="lede">十项按“不补就上不了现场 → 客户验收会问”排序。P0 三项都不需要新契约；P1 里只有历史数据需要先定 <code>IScadaHistorySource</code>，其余是在现有动画/事件/图表内核上扩。</p>
+  <div class="scroll-x">
+  <table class="kv">
+    <tr><th>优先级</th><th>项</th><th>落点</th><th>手册出处</th><th>成本</th><th>依赖</th></tr>
+    <tr><td>P0</td><td>页面背景图 + 内容图片</td><td><code>ScadaPage.BackgroundImage</code>（页面属性）+ <code>Hmi.Picture</code>（内容图元）</td><td>7.3.2.6 图片</td><td>S/M</td><td>方案资产目录 + 页面属性面板 + 图片选择器</td></tr>
+    <tr><td>P0</td><td>线 / 折线 / 箭头</td><td><code>Hmi.Line</code>（新）</td><td>7.3.1.5 / 7.3.1.6</td><td>S/M</td><td>几何绘制 + 端点手柄 + 命中测试</td></tr>
+    <tr><td>P0</td><td>增量 / 减量</td><td><code>ScadaActionType.Increment/Decrement</code></td><td>7.3.3.13 / 17.3.2</td><td>S</td><td>动作表 + 分发器 + 属性面板</td></tr>
+    <tr><td>P1</td><td>历史数据</td><td><code>IScadaHistorySource</code> + DataGrid <code>Source=History</code></td><td>7.3.5.9 / 第 11 章</td><td>L</td><td>存储契约 + 分页/取消 + 三态</td></tr>
+    <tr><td>P1</td><td>二维码 / 条形码</td><td><code>Hmi.QRCode</code> / <code>Hmi.Barcode</code>（新）</td><td>7.3.2.3 / 7.3.2.4</td><td>S/M</td><td>ZXing 类库 + 静区 + 超长校验</td></tr>
+    <tr><td>P1</td><td>启用对象动画</td><td><code>ScadaAnimationType.Enable</code></td><td>7.5.1.2</td><td>S</td><td>动画求值 + 禁用外观 + 交互闸门</td></tr>
+    <tr><td>P1</td><td>对象更改 / 开关打开关闭</td><td><code>ScadaEventType.ObjectChanged/Opened/Closed</code></td><td>7.5.2</td><td>S/M</td><td>事件源 + 属性面板 + 动作链</td></tr>
+    <tr><td>P1</td><td>多曲线趋势</td><td><code>Hmi.MultiTrend</code>（新）</td><td>7.3.4.9 趋势</td><td>L</td><td>VM.Charts 多系列 + 图例 + 游标</td></tr>
+    <tr><td>P1</td><td>声音报警</td><td>宿主级（无 TypeKey）</td><td>7.3.5.2 报警条 / 21 章</td><td>S</td><td>报警引擎事件 + 级别→音型映射</td></tr>
+    <tr><td>P1</td><td>运行计时 / 计数器</td><td><code>Hmi.RunMeter</code>（新，含计时/计数两模式）</td><td>7.3.1.11 定时器 / 7.3.4.13</td><td>S/M</td><td>累计规则 + 掉电保持 + 复位权限</td></tr>
+  </table>
+  </div>
+  <div class="note warn"><b>配方不在本批</b>：它需要先定“配方 vs 整方案切换”的产品口径，且涉及存储、权限、审计、下载握手四件事，单独一批做。</div>
+</section>
+
+<!-- ================= 令牌 ================= -->
+<section class="section" id="tokens">
+  <h2>令牌与刻度 <span class="sev new">TOKENS</span></h2>
+  <p class="lede">沿用 <code>ScadaTokens.xaml</code> 的 20 个 <code>Hmi*</code> 令牌，本批只新增 4 个：禁用遮罩、编码表面、编码墨色、声音强调。字号七档、圆角四档、控件高度三档不变。</p>
+  <div class="grid3" style="gap:10px">
+    <div class="preview-card"><div class="cap">既有 · 运行态</div>
+      <div class="legend" style="flex-direction:column;align-items:flex-start;gap:6px">
+        <span><i style="background:var(--p-bg)"></i>画面底 #0E1318</span>
+        <span><i style="background:var(--p-surface)"></i>表面 #151C23</span>
+        <span><i style="background:var(--p-accent)"></i>强调 #38BDF8</span>
+        <span><i style="background:var(--p-success)"></i>运行 #22C55E</span>
+        <span><i style="background:var(--p-warning)"></i>警告 #F59E0B</span>
+        <span><i style="background:var(--p-danger)"></i>故障 #EF4444</span>
+        <span><i style="background:var(--p-locked)"></i>锁定 #E3A51B</span>
+      </div>
+    </div>
+    <div class="preview-card"><div class="cap">本批新增</div>
+      <div class="legend" style="flex-direction:column;align-items:flex-start;gap:6px">
+        <span><i style="background:var(--p-disabled-veil);border:1px solid var(--p-border-strong)"></i>禁用遮罩 58%</span>
+        <span><i style="background:var(--p-code-surface)"></i>编码表面 #FFFFFF</span>
+        <span><i style="background:var(--p-code-ink)"></i>编码墨色 #0F172A</span>
+        <span><i style="background:var(--p-sound)"></i>声音强调 #F59E0B</span>
+      </div>
+      <p class="small" style="margin-top:10px">二维码/条码必须白底黑码（扫描要求），因此编码表面是唯一允许的纯白底，不随深色主题反色。</p>
+    </div>
+    <div class="preview-card"><div class="cap">刻度</div>
+      <div class="small" style="line-height:1.9">
+        字号 10 / 11.5 / 12.5 / 14 / 16 / 20 / 28<br>
+        圆角 4 / 6 / 8 / 12<br>
+        控件高 32 / 36 / 44（触摸）<br>
+        间距 4 / 8 / 12 / 16 / 24 / 32<br>
+        数字一律 <span class="mono">tabular-nums</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 原则 ================= -->
+<section class="section" id="principles">
+  <h2>设计原则 <span class="sev new">PRINCIPLES</span></h2>
+  <div class="grid2">
+    <div class="spec">
+      <h4>沿用 v1/v2 的八条</h4>
+      <ul>
+        <li>双上下文一套结构：运行深色 / 编辑浅色，只换令牌。</li>
+        <li>五态是底线：Normal / Hover / Pressed / Focus / Disabled；过程控件再加 Current / Dragging / Loading。</li>
+        <li>状态色只表达状态：灰停、绿运行、黄警告、红故障；accent 只做交互与当前项。</li>
+        <li>数字等宽；触摸命中 ≥44。</li>
+        <li>不造死属性：每个可配属性运行态必须有可见效果。</li>
+        <li>失败可见：写入失败、变量丢失、无权限、越限都要就地反馈。</li>
+        <li>只读不伪装：没有写通道 / 没有权限时不给“能点但报错”的假按钮。</li>
+      </ul>
+    </div>
+    <div class="spec">
+      <h4>本批新增三条</h4>
+      <ul>
+        <li><b>禁用要能说出原因</b>：禁用外观 + 原因角标，鼠标悬停给一句话；不是简单变灰。</li>
+        <li><b>历史与实时必须视觉可分</b>：实时带 LIVE 徽标与滚动；历史带查询条、时间范围与分页，不伪装成实时。</li>
+        <li><b>编码类图元先保真再美化</b>：二维码/条码优先保证可扫描（静区、对比度、最小模块），不为了好看加圆角或反色。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= P0-1 页面背景 / 内容图片 ================= -->
+<section class="section" id="picture">
+  <h2>页面背景图 + Hmi.Picture · 本地图片 <span class="sev p0">P0</span></h2>
+  <p class="lede">现场绝大多数本地图片是<b>整页背景</b>（工艺图、设备布置、厂区平面），不是可拖动的图元。所以拆成两条路径：<b>页面背景是页面属性</b>（铺满、压底、不参与框选/命中），<code>Hmi.Picture</code> 只负责内容图片（logo、产品图、操作指引）。</p>
+  <div class="split">
+    <div class="stage">
+      <div class="stage-title"><span>运行态演示</span><span id="picStateLabel">页面背景</span></div>
+
+      <!-- 16:9 页面预览 -->
+      <div id="pageFrame" style="position:relative;width:100%;aspect-ratio:16/9;border:1px solid var(--p-border-strong);border-radius:8px;overflow:hidden;background:var(--p-bg)">
+        <div id="bgImg" role="img" aria-label="页面背景" style="position:absolute;inset:0;background-position:center;background-repeat:no-repeat;background-size:contain"></div>
+        <!-- 背景之上：普通图元（演示层级） -->
+        <div id="pageEls" style="position:absolute;inset:0">
+          <div style="position:absolute;left:8%;top:34%;width:16%;height:26%;border:2px solid var(--p-border-strong);border-radius:6px;background:rgba(21,28,35,.72);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--p-text-2)">料仓 T-01</div>
+          <div style="position:absolute;left:34%;top:34%;width:16%;height:26%;border:2px solid var(--p-border-strong);border-radius:6px;background:rgba(21,28,35,.72);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--p-text-2)">泵 P-101</div>
+          <div style="position:absolute;left:60%;top:34%;width:16%;height:26%;border:2px solid var(--p-border-strong);border-radius:6px;background:rgba(21,28,35,.72);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--p-text-2)">阀 V-201</div>
+          <svg viewBox="0 0 640 360" style="position:absolute;inset:0;width:100%;height:100%">
+            <line x1="170" y1="170" x2="215" y2="170" stroke="var(--p-accent)" stroke-width="2"/>
+            <line x1="345" y1="170" x2="385" y2="170" stroke="var(--p-accent)" stroke-width="2"/>
+          </svg>
+        </div>
+
+        <!-- 内容图元演示（与背景互斥展示） -->
+        <div id="picContent" style="display:none;position:absolute;left:12%;top:26%;width:200px;height:160px;outline:2px solid var(--p-accent);outline-offset:2px">
+          <img id="picImg" alt="内容图片" style="width:100%;height:100%;object-fit:cover;display:block">
+          <span class="handle" style="position:absolute;width:7px;height:7px;background:var(--p-bg);border:2px solid var(--p-accent);border-radius:2px;left:-6px;top:-6px"></span>
+          <span class="handle" style="position:absolute;width:7px;height:7px;background:var(--p-bg);border:2px solid var(--p-accent);border-radius:2px;right:-6px;top:-6px"></span>
+          <span class="handle" style="position:absolute;width:7px;height:7px;background:var(--p-bg);border:2px solid var(--p-accent);border-radius:2px;left:-6px;bottom:-6px"></span>
+          <span class="handle" style="position:absolute;width:7px;height:7px;background:var(--p-bg);border:2px solid var(--p-accent);border-radius:2px;right:-6px;bottom:-6px"></span>
+        </div>
+
+        <!-- 缺失占位 -->
+        <div id="picMissing" style="display:none;position:absolute;inset:0;background:var(--p-bg);align-items:center;justify-content:center;flex-direction:column;color:var(--p-warning);text-align:center">
+          <div style="font-size:28px;line-height:1;margin-bottom:8px">⚠</div>
+          <div style="font-size:12.5px">背景图缺失，已回退为背景色</div>
+          <div class="mono" style="font-size:10.5px;color:var(--p-text-3);margin-top:4px">Image\pid-layout.svg</div>
+        </div>
+      </div>
+
+      <div class="controls" style="margin-top:12px">
+        <button class="btn" data-pic="bg">页面背景</button>
+        <button class="btn" data-pic="content">内容图元</button>
+        <button class="btn" data-pic="none">无背景</button>
+        <button class="btn" id="picMissingBtn">模拟文件缺失</button>
+      </div>
+      <div class="controls">
+        <label class="small">填充
+          <select id="bgStretch" style="margin-left:6px">
+            <option value="contain" selected>适应（不裁切）</option>
+            <option value="cover">填充（裁切）</option>
+            <option value="fill">拉伸（变形）</option>
+            <option value="tile">平铺</option>
+          </select>
+        </label>
+        <label class="small">不透明度 <input type="range" id="bgOpacity" min="10" max="100" value="100" style="width:110px;vertical-align:middle"></label>
+        <button class="btn primary" id="picPick">选择图片…</button>
+      </div>
+      <div id="picPicker" style="display:none;margin-top:10px;background:var(--p-surface-2);border:1px solid var(--p-border);border-radius:10px;padding:12px">
+        <div class="small" style="margin-bottom:8px">选择图片（演示用 3 个内置样例；实现后打开系统文件对话框）</div>
+        <div class="grid3">
+          <button class="btn" data-asset="pid" style="height:64px">工艺图背景</button>
+          <button class="btn" data-asset="logo" style="height:64px">设备 Logo</button>
+          <button class="btn" data-asset="product" style="height:64px">产品照片</button>
+        </div>
+      </div>
+      <div class="state-strip">
+        <span class="pill accent">页面背景：铺满 + 压底</span>
+        <span class="pill ok">内容图元：可拖动</span>
+        <span class="pill off">无背景：用背景色</span>
+        <span class="pill warn">文件缺失：回退背景色</span>
+      </div>
+    </div>
+    <div class="spec">
+      <h3>为什么背景不做成图元</h3>
+      <ul>
+        <li><b>页面背景归属于页面</b>：不参与框选、复制粘贴、图层排序、Z 序调整，也不会被 <kbd>Ctrl+A</kbd> 选中。做成图元后，用户一框选就把背景带走，锁图层也挡不住全选。</li>
+        <li><b>永远在最底层</b>：在所有图元、所有图层、所有基座元素之下；运行态 <code>IsHitTestVisible=false</code>，不会挡住上面的按钮。</li>
+        <li><b>铺满页面矩形</b>：跟随页面宽高，不单独设 X/Y/宽高；窗口缩放时一起缩放。</li>
+        <li><b>基座继承</b>：页面自己没设背景时用第一只基座的背景；自己设了就覆盖，<b>不叠加</b>（两张整页背景叠起来从来不是意图）。一张基座背景可以服务所有引用它的页面。</li>
+        <li><b>默认“适应”</b>：工程图被裁掉一块是功能错误，所以默认不裁切、留边用背景色；要铺满选“填充”。</li>
+        <li><b>不透明度</b>：10~100，做水印底图（蓝图 20~40%），保证上面的数值仍然可读。</li>
+        <li><b>资产同一套</b>：复制进方案根 <code>Image\</code>，<code>.vms</code> 只记相对路径；方案本身就是一个文件夹，迁移/备份复制整个文件夹即可（见下一节）。</li>
+      </ul>
+      <h4>两条路径的分工</h4>
+      <table class="kv">
+        <tr><th>维度</th><th>页面背景（页面属性）</th><th>Hmi.Picture（内容图元）</th></tr>
+        <tr><td>归属</td><td>ScadaPage.BackgroundImage</td><td>图元，在图层里</td></tr>
+        <tr><td>默认尺寸</td><td>铺满页面</td><td>200×160</td></tr>
+        <tr><td>选中 / 框选</td><td>不参与</td><td>参与</td></tr>
+        <tr><td>层级 / 命中</td><td>最底 / 不命中</td><td>按 Z 序 / 可命中</td></tr>
+        <tr><td>复制粘贴</td><td>不随图元复制</td><td>随图元复制</td></tr>
+        <tr><td>基座继承</td><td>支持（覆盖不叠加）</td><td>不继承（基座元素照常显示）</td></tr>
+        <tr><td>典型用途</td><td>工艺图、布置图、厂区平面</td><td>logo、产品图、操作指引</td></tr>
+      </table>
+      <h4>属性</h4>
+      <table class="kv props">
+        <tr><th>属性</th><th>类型</th><th>默认</th><th>说明</th></tr>
+        <tr><td>BackgroundImage</td><td>方案图片</td><td>空</td><td>相对路径；空 = 只用背景色</td></tr>
+        <tr><td>BackgroundStretch</td><td>枚举</td><td>Uniform</td><td>Uniform / UniformToFill / Fill / Tile</td></tr>
+        <tr><td>BackgroundOpacity</td><td>数值</td><td>100</td><td>10~100，水印底图</td></tr>
+        <tr><td>Background</td><td>颜色</td><td>#FF1E1E1E</td><td>既有页面背景色；图片留边/缺失时露出的颜色</td></tr>
+      </table>
+      <div class="note"><b>与 ImageView 的分工</b>：页面背景是“整页资产”，Picture 是“可移动的设计期图片”，ImageView 是“运行态图像”（相机/结果图）。三者不合并：合并会让属性面板出现“既能选文件又能绑变量”的歧义，也会让背景混进图元选择。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 方案文件夹与资源 ================= -->
+<section class="section" id="assets">
+  <h2>方案文件夹与资源 <span class="sev new">ASSETS</span></h2>
+  <p class="lede">图片是<b>拖进来就跟着方案走</b>的资产：复制进方案自己的 <code>Image\</code>，<code>.vms</code> 只记相对路径。方案本身就是一个文件夹，复制/压缩/另存为整个文件夹即可迁移，不依赖任何全局资源库。</p>
+  <div class="split">
+    <div class="stage">
+      <div class="stage-title"><span>方案目录演示</span><span id="assetStateLabel">3 个资源</span></div>
+      <div class="preview-card" style="font-family:var(--mono);font-size:11.5px;line-height:1.95">
+        <div><span style="color:var(--p-accent)">Line1\</span></div>
+        <div style="padding-left:16px;display:flex;justify-content:space-between"><span>Line1.vms</span><span class="pill accent">方案文件</span></div>
+        <div style="padding-left:16px;display:flex;justify-content:space-between"><span>Image\</span><span class="pill ok">随方案走</span></div>
+        <div id="assetRows" style="padding-left:32px"></div>
+        <div style="padding-left:16px;color:var(--p-text-2)">Alarms\</div>
+        <div style="padding-left:32px;color:var(--p-text-3)">AlarmHistory.json</div>
+        <div style="padding-left:32px;color:var(--p-text-3)">AlarmHistory-2026-10-23.csv</div>
+      </div>
+      <div class="preview-card" style="margin-top:10px">
+        <div class="cap">.vms 里只存相对路径</div>
+        <div class="mono" id="assetRef" style="font-size:11px;color:var(--p-accent)">BackgroundImage = "Image\pid-layout.png"</div>
+      </div>
+      <div class="controls" style="margin-top:12px">
+        <button class="btn" id="assetNew">拖入新图片</button>
+        <button class="btn" id="assetSame">拖入同名同内容</button>
+        <button class="btn" id="assetDiff">拖入同名不同内容</button>
+        <button class="btn" id="assetMissing">模拟资源缺失</button>
+        <button class="btn" id="assetReset">重置</button>
+      </div>
+      <div class="preview-card" style="margin-top:10px">
+        <div class="cap">资源日志</div>
+        <div id="assetLog" style="font-size:11px;color:var(--p-text-2);line-height:1.8;min-height:56px"></div>
+      </div>
+      <div class="state-strip">
+        <span class="pill ok">已复制</span>
+        <span class="pill accent">同名同内容复用</span>
+        <span class="pill warn">同名不同内容重命名</span>
+        <span class="pill bad">文件被占用</span>
+        <span class="pill warn">资源缺失</span>
+      </div>
+    </div>
+    <div class="spec">
+      <h3>目录契约</h3>
+      <ul>
+        <li><b>方案 = 一个文件夹</b>：<code>Line1\Line1.vms</code> + <code>Image\</code> + <code>Alarms\</code>。现有 <code>SolutionAssetFolders</code> 已经按这个约定实现，本批不改结构。</li>
+        <li><b>图片只进 <code>Image\</code></b>：拖入即复制，<code>.vms</code> 只记 <code>Image\xxx.png</code>；绝不写绝对路径、绝不引用方案目录之外的文件。</li>
+        <li><b>另存为带走资产</b>：<code>SolutionAssetFolders.CopyAlongside</code> 已实现；目标目录已有同名文件<b>不覆盖</b>（静默盖掉对方的资产比不复制更危险），失败只提示、不回滚保存。</li>
+        <li><b>迁移/备份 = 复制整个文件夹</b>：不需要“导出资源包”这一步；要单文件分发就压缩整个方案文件夹。</li>
+        <li><b>多方案不共享文件</b>：同一张图拖进两个方案就是两份副本；一个方案删图不会影响另一个。</li>
+      </ul>
+      <h4>拖入流程</h4>
+      <table class="kv">
+        <tr><th>步骤</th><th>行为</th></tr>
+        <tr><td>1 选文件</td><td>png / jpg / bmp / svg；先校验可解码</td></tr>
+        <tr><td>2 算哈希</td><td>内容哈希（SHA-256 前 16 位）用于查重</td></tr>
+        <tr><td>3 查重</td><td>同名同内容 → 复用已有文件，不产生副本</td></tr>
+        <tr><td>4 命名</td><td>同名不同内容 → <code>name (2).ext</code>，不覆盖</td></tr>
+        <tr><td>5 复制</td><td>临时文件写入后 <code>File.Move</code>，避免半写</td></tr>
+        <tr><td>6 写引用</td><td><code>.vms</code> 写相对路径；失败则回滚新文件</td></tr>
+      </table>
+      <h4>边界与失败</h4>
+      <ul>
+        <li><b>文件被占用</b>：明确报“被其他程序占用”，不半写、不改引用。</li>
+        <li><b>资源缺失</b>：页面背景回退背景色；内容图显示占位；编辑器给一行警告，运行态不弹窗。</li>
+        <li><b>孤儿文件</b>：删除图元/换图不自动删文件（避免误删被别的页面引用的图）；后续可做“清理未引用资源”。</li>
+        <li><b>大小</b>：单文件 &gt;20MB 警告，不自动压缩；SVG 栅格化后缓存。</li>
+        <li><b>Web</b>：宿主按方案路由提供 <code>Image\</code> 下的位图，浏览器拿不到磁盘路径。</li>
+      </ul>
+      <div class="note"><b>与全局资源库的区别</b>：不做“软件级图片库”。现场交接的是方案文件夹，不是一台机器；全局库会让“拷到另一台机器”缺图，而且多方案互相覆盖。确有跨方案复用需求时，走“另存为 + 替换”，不引入共享引用。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= P0-2 线 ================= -->
+<section class="section" id="line">
+  <h2>Hmi.Line · 线 / 折线 / 箭头 <span class="sev p0">P0</span></h2>
+  <p class="lede">工艺图连线、分区框、标注、流向箭头。现在只能用细矩形或管道凑，拐弯接缝对不齐、不能带箭头。</p>
+  <div class="split">
+    <div class="stage">
+      <div class="stage-title"><span>设计期演示（可拖端点）</span><span id="lineInfo">—</span></div>
+      <svg id="lineSvg" viewBox="0 0 560 280" style="width:100%;height:280px;background:var(--p-surface);border:1px solid var(--p-border);border-radius:10px;touch-action:none">
+        <defs>
+          <marker id="arrowEnd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--p-accent)"/></marker>
+          <marker id="arrowStart" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M10,0 L0,5 L10,10 z" fill="var(--p-accent)"/></marker>
+        </defs>
+        <g id="lineBoxes"></g>
+        <polyline id="linePath" fill="none" stroke="var(--p-accent)" stroke-width="2" marker-end="url(#arrowEnd)"></polyline>
+        <g id="lineHandles"></g>
+      </svg>
+      <div class="controls">
+        <select id="lineStyle"><option value="solid">实线</option><option value="dash">虚线</option><option value="dot">点线</option></select>
+        <select id="lineWidth"><option>1</option><option selected>2</option><option>3</option></select>
+        <select id="lineArrow"><option value="end" selected>终点箭头</option><option value="both">双向箭头</option><option value="none">无箭头</option></select>
+        <button class="btn" id="lineLock">锁定</button>
+        <button class="btn" id="lineReset">重置</button>
+      </div>
+      <div class="state-strip">
+        <span class="pill accent">选中：2px accent + 7px 手柄</span>
+        <span class="pill warn">锁定：金色 + 手柄消失</span>
+        <span class="pill off">禁用：50% + 不响应</span>
+      </div>
+    </div>
+    <div class="spec">
+      <h3>口径</h3>
+      <ul>
+        <li><b>一个 TypeKey 三种形态</b>：<code>Mode = Line / Polyline / Arrow</code>。折线就是多端点，箭头就是端点装饰；不拆三个类，否则属性面板与命中测试要写三份。</li>
+        <li><b>端点吸附</b>：拖到图元边缘 10px 内吸附到最近的边中点/角点；吸附后跟随图元移动（记录锚点而不是绝对坐标）。</li>
+        <li><b>箭头随线宽缩放</b>：marker 大小 = 线宽 × 3.5，避免细线箭头过大。</li>
+        <li><b>正交路由是后置项</b>：本批只做直线/折线，不做自动拐弯（自动路由需要避障，成本翻倍且现场更爱手拖）。</li>
+        <li><b>命中测试</b>：线宽 &lt; 6 时按 6px 容差命中，否则细线点不中。</li>
+      </ul>
+      <h4>属性</h4>
+      <table class="kv props">
+        <tr><th>属性</th><th>类型</th><th>默认</th><th>说明</th></tr>
+        <tr><td>Mode</td><td>枚举</td><td>Line</td><td>Line / Polyline / Arrow</td></tr>
+        <tr><td>Points</td><td>点集</td><td>两端点</td><td>绝对坐标；吸附时存锚点</td></tr>
+        <tr><td>Stroke / Width</td><td>颜色 / 数值</td><td>accent / 2</td><td>1~8</td></tr>
+        <tr><td>Dash</td><td>枚举</td><td>Solid</td><td>Solid / Dash / Dot / DashDot</td></tr>
+        <tr><td>Arrow</td><td>枚举</td><td>End</td><td>None / Start / End / Both</td></tr>
+        <tr><td>SnapToElement</td><td>布尔</td><td>true</td><td>端点吸附到图元边缘</td></tr>
+      </table>
+      <div class="note"><b>与 Panel 的层级</b>：线默认进“当前层”，不进容器；要放进底板必须显式拖入，避免连线被容器裁切。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= P0-3 增量减量 ================= -->
+<section class="section" id="step">
+  <h2>增量 / 减量动作 <span class="sev p0">P0</span></h2>
+  <p class="lede">微调按钮是现场高频操作（速度、补偿、偏移）。现在 <code>WriteVariable</code> 只能写定值，“+1”“−0.1”做不了。</p>
+  <div class="split">
+    <div class="stage">
+      <div class="stage-title"><span>运行态演示（按住可连续）</span><span id="stepState">就绪</span></div>
+      <div class="preview-card" style="display:flex;align-items:center;justify-content:space-between;gap:14px">
+        <div>
+          <div class="small">目标速度 · mm/s</div>
+          <div class="big" id="stepValue" style="margin-top:4px">1200</div>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn" id="stepMinus" style="width:56px;height:56px;font-size:22px;border-radius:12px">−</button>
+          <button class="btn primary" id="stepPlus" style="width:56px;height:56px;font-size:22px;border-radius:12px">＋</button>
+        </div>
+      </div>
+      <div class="controls">
+        <label class="small">步长 <input id="stepSize" type="text" value="10" style="width:64px;margin-left:6px"></label>
+        <label class="small">下限 <input id="stepMin" type="text" value="0" style="width:64px;margin-left:6px"></label>
+        <label class="small">上限 <input id="stepMax" type="text" value="2000" style="width:72px;margin-left:6px"></label>
+        <label class="small"><input type="checkbox" id="stepFail"> 模拟写失败</label>
+      </div>
+      <div class="controls">
+        <span class="small">权限</span>
+        <select id="stepRole"><option value="engineer">工程师</option><option value="operator">操作员</option></select>
+        <span class="tag" id="stepRoleTag">可写</span>
+      </div>
+      <div class="note warn" style="background:rgba(245,158,11,.10);border-color:rgba(245,158,11,.35);color:var(--p-text-2)">
+        <b style="color:var(--p-text)">失败反馈</b>：写入中按钮保持按下态；失败时数值回弹到变量当前值 + 红闪 + 原因，不假装成功。
+      </div>
+    </div>
+    <div class="spec">
+      <h3>口径</h3>
+      <ul>
+        <li><b>动作而不是控件</b>：按钮 / 位按钮 / 功能键都能挂，不新增“增量按钮”TypeKey。</li>
+        <li><b>步长与上下限在动作上配</b>，不读控件属性；同一变量多个按钮可以不同步长。</li>
+        <li><b>长按连续</b>：首次 300ms 后开始重复，重复间隔 80ms；松开 / 移出 / 失焦立即停。</li>
+        <li><b>越限夹紧并提示</b>：到上限不再写，状态栏一句“已到上限 2000”，不静默。</li>
+        <li><b>按声明类型归一</b>：整数变量步长取整；浮点按小数位；字符串变量拒绝配置。</li>
+        <li><b>运动量走同一闸门</b>：目标是轴位置/速度时，必须经 <code>MotionCommandGate</code>，不许直接写变量。</li>
+      </ul>
+      <h4>动作字段</h4>
+      <table class="kv">
+        <tr><th>字段</th><th>说明</th></tr>
+        <tr><td>Type</td><td>Increment / Decrement</td></tr>
+        <tr><td>Variable</td><td>目标变量（Id 优先，名字兜底）</td></tr>
+        <tr><td>Step</td><td>步长，默认 1；浮点允许 0.1</td></tr>
+        <tr><td>Min / Max</td><td>可空；空 = 不夹紧</td></tr>
+        <tr><td>Repeat</td><td>长按重复，默认开</td></tr>
+        <tr><td>RequiredRole</td><td>沿用元素级权限；操作员默认只读</td></tr>
+      </table>
+      <div class="note"><b>与 WriteVariable 的关系</b>：增量是“读-加-写”，必须走统一写入口拿写租约，避免和别的写入者互相覆盖。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= P1-1 历史数据 ================= -->
+<section class="section" id="history">
+  <h2>Hmi.DataGrid · 历史源模式 <span class="sev p1">P1</span></h2>
+  <p class="lede">视觉机的核心价值是追溯。现有 DataGrid 只有 Live 源（采集信号），历史查询、分页、三态、导出都没有。</p>
+  <div class="split">
+    <div class="stage">
+      <div class="stage-title"><span>运行态演示</span><span id="histState">Rows</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
+        <select id="histRange"><option value="today">今天</option><option value="yesterday">昨天</option><option value="7d" selected>最近 7 天</option><option value="custom">自定义</option></select>
+        <button class="btn primary" id="histQuery">查询</button>
+        <label class="small"><input type="checkbox" id="histUnavailable"> 模拟数据源不可用</label>
+        <span style="flex:1"></span>
+        <button class="btn" id="histExport">导出 CSV</button>
+      </div>
+      <div id="histBanner" style="display:none;margin-bottom:10px"></div>
+      <div style="background:var(--p-surface);border:1px solid var(--p-border);border-radius:8px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:150px 1.2fr .8fr .8fr .8fr;gap:0;padding:8px 10px;border-bottom:1px solid var(--p-border);font-size:10.5px;letter-spacing:.04em;color:var(--p-text-3);text-transform:uppercase;font-weight:700">
+          <span>时间</span><span>SN</span><span>结果</span><span>尺寸 mm</span><span>操作员</span>
+        </div>
+        <div id="histBody" style="min-height:230px"></div>
+      </div>
+      <div class="controls" style="justify-content:space-between">
+        <span class="small" id="histCount">—</span>
+        <span style="display:flex;gap:8px">
+          <button class="btn" id="histPrev">上一页</button>
+          <span class="small" id="histPage" style="align-self:center">1 / 1</span>
+          <button class="btn" id="histNext">下一页</button>
+        </span>
+      </div>
+    </div>
+    <div class="spec">
+      <h3>口径</h3>
+      <ul>
+        <li><b>只换数据源，不新建图元</b>：<code>Source = Live / History</code>，列定义、行模型、空态、斑马纹、最大行数全部复用。</li>
+        <li><b>查询三态必须齐</b>：Loading（骨架行，不用转圈遮罩）、Empty（“该范围没有记录”+ 改范围建议）、Unavailable（原因 + 重试，不清空上一次结果）。</li>
+        <li><b>分页而不是全量</b>：默认 50 条/页，上限 500；查询带超时与取消，切页/关窗取消在飞请求。</li>
+        <li><b>时间范围用 DateTimeOffset</b>，按行时间过滤；跨午夜文件枚举 ±1 天，旁路文件显式警告。</li>
+        <li><b>自动刷新默认关</b>；打开时最小 10s，且只在第一页生效（翻页后暂停，避免跳行）。</li>
+        <li><b>导出 CSV</b> 走既有导出通路，文件名带范围与条数；导出失败给原因。</li>
+      </ul>
+      <h4>契约草案</h4>
+      <table class="kv">
+        <tr><th>成员</th><th>说明</th></tr>
+        <tr><td>Sources</td><td>可用数据源标识（生产记录 / 报警 / 自定义）</td></tr>
+        <tr><td>QueryAsync(filter, ct)</td><td>时间范围 + 列 + 分页 + 排序；返回行与总数</td></tr>
+        <tr><td>Columns</td><td>列 → 字段映射，含类型与格式</td></tr>
+        <tr><td>错误码</td><td>Unavailable / Timeout / Cancelled / InvalidRange</td></tr>
+      </table>
+      <div class="note warn"><b>Web 边界</b>：运行态 Web 只显示“此刻”；历史查询标记为非目标，不在浏览器做分页查询（R132A 的运行态查看范围）。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= P1-2 二维码 ================= -->
+<section class="section" id="code">
+  <h2>Hmi.QRCode / Hmi.Barcode · 二维码与条形码 <span class="sev p1">P1</span></h2>
+  <p class="lede">SN、批次、追溯码上屏。二维码与条码都只读、只显示绑定值，不接受输入。</p>
+  <div class="split">
+    <div class="stage">
+      <div class="stage-title"><span>运行态演示</span><span id="codeState">正常</span></div>
+      <div class="grid2">
+        <div class="preview-card" style="text-align:center">
+          <div class="cap" style="text-align:left">QR · 绑定 SN</div>
+          <div style="background:var(--p-code-surface);border-radius:8px;padding:10px;display:inline-block">
+            <canvas id="qrCanvas" width="150" height="150" aria-label="二维码示意"></canvas>
+          </div>
+          <div class="mono" id="qrText" style="font-size:11px;color:var(--p-text-2);margin-top:8px;word-break:break-all">SN-2026-0042</div>
+        </div>
+        <div class="preview-card">
+          <div class="cap">Code128 · 绑定内容</div>
+          <div style="background:var(--p-code-surface);border-radius:8px;padding:10px 8px;text-align:center">
+            <canvas id="barCanvas" width="240" height="90" aria-label="条形码示意"></canvas>
+            <div class="mono" id="barText" style="font-size:10.5px;color:#0F172A">LOT-20261023-A</div>
+          </div>
+          <div class="small" style="margin-top:8px">静区 ≥ 10× 模块；条码高度 ≥ 15mm 打印等效</div>
+        </div>
+      </div>
+      <div class="controls" style="margin-top:12px">
+        <input type="text" id="codeInput" value="SN-2026-0042" style="flex:1;min-width:180px">
+        <button class="btn primary" id="codeApply">应用</button>
+        <button class="btn" id="codeLost">模拟绑定丢失</button>
+      </div>
+      <div class="state-strip">
+        <span class="pill accent">正常</span>
+        <span class="pill off">空值占位</span>
+        <span class="pill bad">超长拒绝</span>
+        <span class="pill warn">绑定丢失（保留末值 + 橙点）</span>
+      </div>
+      <div class="note warn" style="background:rgba(245,158,11,.10);border-color:rgba(245,158,11,.35);color:var(--p-text-2);margin-top:12px">
+        <b style="color:var(--p-text)">编码说明</b>：本设计稿里的图形是<b>示意矩阵</b>（按内容哈希生成，含定位图案），不是可扫描的真实编码；实现阶段接 ZXing，按 <code>纠错等级 / 静区 / 最小模块</code> 输出。演示的是绑定、状态与排版，不是编码算法。
+      </div>
+    </div>
+    <div class="spec">
+      <h3>口径</h3>
+      <ul>
+        <li><b>两个 TypeKey</b>：<code>Hmi.QRCode</code> 与 <code>Hmi.Barcode</code>。不合并：条码的长宽比、静区、可读字符集与二维码完全不同。</li>
+        <li><b>只读</b>：内容来自绑定或静态文本，运行态不可编辑；要输入用 <code>Hmi.TextField</code>。</li>
+        <li><b>超长拒绝</b>：QR 上限按字节（默认 2953 字节，UTF-8），条码按码制字符集；超长显示错误态并保留上一次有效图形，不画半个码。</li>
+        <li><b>绑定丢失</b>：保留最后一次有效图形 + 橙点，不显示空白（空白会被当成“没配”，实际是“变量没了”）。</li>
+        <li><b>不反色、不圆角、不加装饰</b>：编码表面固定白底黑码，深色主题下也不反色（扫描器要求）。</li>
+        <li><b>打印尺寸</b>：属性里给“最小模块宽度”，低于 0.25mm 警告；Web 端按 CSS 像素渲染，不承诺打印精度。</li>
+      </ul>
+      <h4>属性</h4>
+      <table class="kv">
+        <tr><th>属性</th><th>QRCode</th><th>Barcode</th></tr>
+        <tr><td>Content</td><td>绑定/静态文本</td><td>绑定/静态文本</td></tr>
+        <tr><td>Format</td><td>QR / Micro QR</td><td>Code128 / Code39 / EAN13</td></tr>
+        <tr><td>ECC / 校验</td><td>L / M / Q / H</td><td>按码制自动</td></tr>
+        <tr><td>QuietZone</td><td>4 模块（默认）</td><td>10× 窄条（默认）</td></tr>
+        <tr><td>ShowText</td><td>码下文本（可选）</td><td>码下文本（默认开）</td></tr>
+      </table>
+      <div class="note"><b>依赖</b>：WPF 与 Web 共用同一份编码结果（宿主编码后下发矩阵/位图），避免两端算法不一致导致“桌面能扫、网页不能扫”。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= P1-3 启用对象 ================= -->
+<section class="section" id="enable">
+  <h2>启用对象动画 <span class="sev p1">P1</span></h2>
+  <p class="lede">联锁未满足、无权限、无数据时把控件置灰，比“点了报错”诚实。手册 7.5.1.2，现有动画只做了外观/水平/垂直/可见性四种。</p>
+  <div class="split">
+    <div class="stage">
+      <div class="stage-title"><span>运行态演示</span><span id="enableState">启用</span></div>
+      <div class="grid2">
+        <div class="preview-card" style="text-align:center">
+          <div class="cap">受控对象 · 泵 P-101</div>
+          <div id="enableHost" style="position:relative;display:inline-block;padding:16px 22px">
+            <div id="enablePump" style="width:96px;height:96px;border-radius:50%;border:3px solid var(--p-border-strong);display:flex;align-items:center;justify-content:center;background:var(--p-surface-2)">
+              <div style="width:56px;height:56px;border-radius:50%;border:3px dashed var(--p-success);animation:spin 2.4s linear infinite"></div>
+            </div>
+            <div id="enableVeil" style="display:none;position:absolute;inset:0;border-radius:14px;background:var(--p-disabled-veil);display:none;align-items:center;justify-content:center">
+              <span class="pill warn" id="enableReason">联锁未满足</span>
+            </div>
+          </div>
+          <div style="margin-top:10px"><button class="btn primary" id="enableBtn">启动</button></div>
+        </div>
+        <div class="preview-card">
+          <div class="cap">驱动条件</div>
+          <label class="small" style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="checkbox" id="drvInterlock"> 联锁未满足（液位低）</label>
+          <label class="small" style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="checkbox" id="drvPerm"> 当前角色无权限</label>
+          <label class="small" style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="checkbox" id="drvNoData"> 变量无数据（通信断）</label>
+          <div class="hr" style="background:var(--p-border)"></div>
+          <div class="small">禁用 ≠ 隐藏：控件仍在原位、仍占布局，只是不可交互并给出原因。隐藏交给“可见性”动画。</div>
+        </div>
+      </div>
+      <div class="state-strip">
+        <span class="pill ok">启用</span>
+        <span class="pill warn">禁用 · 联锁</span>
+        <span class="pill warn">禁用 · 权限</span>
+        <span class="pill off">禁用 · 无数据</span>
+        <span class="pill off">隐藏（可见性动画）</span>
+      </div>
+    </div>
+    <div class="spec">
+      <h3>口径</h3>
+      <ul>
+        <li><b>一条动画、三种来源</b>：<code>ScadaAnimationType.Enable</code>，驱动变量为 0 时禁用、非 0 启用；原因文案由 <code>DisableReason</code> 配（联锁/权限/无数据各配一句）。</li>
+        <li><b>禁用是交互闸门</b>：不仅变灰，点击/键盘/拖拽全部不响应；不弹错误对话框（避免误以为程序坏了）。</li>
+        <li><b>原因必须可见</b>：禁用时在控件右上角挂一个小角标，悬停显示整句原因；没有原因文案时用“当前不可用”。</li>
+        <li><b>与权限闸门的关系</b>：元素级 <code>RequiredRole</code> 是“登录身份”，启用动画是“过程条件”。两者都满足才可交互；视觉上不区分来源，文案区分。</li>
+        <li><b>不做透明度动画</b>：禁用用固定 58% 遮罩 + 去饱和，避免和“可见性/外观变化”的透明度语义混淆。</li>
+      </ul>
+      <h4>属性</h4>
+      <table class="kv">
+        <tr><th>属性</th><th>默认</th><th>说明</th></tr>
+        <tr><td>Variable</td><td>空</td><td>0 = 禁用，非 0 = 启用</td></tr>
+        <tr><td>Invert</td><td>false</td><td>反转语义（1 = 禁用）</td></tr>
+        <tr><td>DisableReason</td><td>“当前不可用”</td><td>联锁/权限/无数据各配一句</td></tr>
+        <tr><td>ShowBadge</td><td>true</td><td>右上角原因角标</td></tr>
+      </table>
+      <div class="note"><b>状态优先级</b>：可见性 &gt; 启用 &gt; 外观。隐藏时不再渲染禁用态；禁用时外观动画仍可改颜色（例如红色故障），但不接受交互。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= P1-4 事件 ================= -->
+<section class="section" id="events">
+  <h2>对象更改 / 开关打开关闭事件 <span class="sev p1">P1</span></h2>
+  <p class="lede">操作记录与联锁都靠“对象状态变了”这件事。现有事件只有按下/释放/输入完成，对象状态变化只能靠变量值变化间接推。</p>
+  <div class="split">
+    <div class="stage">
+      <div class="stage-title"><span>运行态演示（操作后看右侧日志）</span><span id="eventState">就绪</span></div>
+      <div class="grid2">
+        <div class="preview-card">
+          <div class="cap">Hmi.SelectorSwitch · 手/自动</div>
+          <div id="evSelector" style="display:flex;background:var(--p-track);border-radius:10px;padding:4px;gap:4px;margin-top:6px">
+            <button class="btn" data-ev="manual" style="flex:1;background:var(--p-surface-2);border-color:var(--p-border);color:var(--p-text)">手动</button>
+            <button class="btn primary" data-ev="auto" style="flex:1">自动</button>
+          </div>
+          <div class="small" style="margin-top:8px">当前：<span id="evMode" class="mono">自动</span></div>
+        </div>
+        <div class="preview-card">
+          <div class="cap">文本开关 · 本地/远程</div>
+          <button class="btn" id="evToggle" style="width:100%;margin-top:6px;background:var(--p-success-fill);border-color:var(--p-success-fill);color:#fff">本地 ON</button>
+          <div class="small" style="margin-top:8px">当前：<span id="evLocal" class="mono">ON</span></div>
+        </div>
+      </div>
+      <div class="preview-card" style="margin-top:12px">
+        <div class="cap">事件日志（动作：记操作记录 + 写变量）</div>
+        <div id="evLog" style="font-size:11.5px;color:var(--p-text-2);line-height:1.9;min-height:88px"></div>
+      </div>
+      <div class="state-strip">
+        <span class="pill accent">更改</span>
+        <span class="pill ok">打开</span>
+        <span class="pill off">关闭</span>
+        <span class="pill warn">动作失败（保留行 + 原因）</span>
+      </div>
+    </div>
+    <div class="spec">
+      <h3>口径</h3>
+      <ul>
+        <li><b>三个新事件</b>：<code>ObjectChanged</code>（对象状态改变）、<code>Opened</code>、<code>Closed</code>。手册 7.5.2 明确它们挂在图形开关 / 文本开关 / 滚动条 / 量表上。</li>
+        <li><b>与变量事件分工</b>：变量事件是“值变了”，对象事件是“控件状态变了”。两者可能同时发生，但动作链只跑一次——由控件在提交成功后发对象事件，变量事件由值源判边沿，互不代发。</li>
+        <li><b>只发“用户造成的改变”</b>：程序灌值、初始化、ApplyConfigValues 不发对象事件（R35 同一口径）。</li>
+        <li><b>动作失败不改行状态</b>：先写变量，成功后才记“已切换”；失败保留原状态 + 原因，不乐观更新。</li>
+        <li><b>防抖</b>：同一控件 100ms 内的重复切换合并为一次事件（避免拖动滑块刷爆日志）。</li>
+      </ul>
+      <h4>事件与可组态对象</h4>
+      <table class="kv">
+        <tr><th>事件</th><th>可组态对象</th><th>本批</th></tr>
+        <tr><td>更改</td><td>图形开关 / 文本开关 / 滚动条 / 量表</td><td>新增</td></tr>
+        <tr><td>打开 / 关闭</td><td>文本开关 / 图形开关</td><td>新增</td></tr>
+        <tr><td>激活 / 取消激活</td><td>按钮（启用/禁用）</td><td>后置（P2）</td></tr>
+        <tr><td>确认</td><td>报警</td><td>后置（与统一确认服务同批）</td></tr>
+        <tr><td>超时</td><td>定时器</td><td>随 RunMeter 一起评估</td></tr>
+      </table>
+      <div class="note"><b>为什么不做“单击”</b>：按下 + 释放已经能表达点击，新增“单击”会带来“按下后移出再松开算不算”的口径分歧；等有真实场景再加。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= P1-5 多曲线 ================= -->
+<section class="section" id="multitrend">
+  <h2>Hmi.MultiTrend · 多曲线趋势 <span class="sev p1">P1</span></h2>
+  <p class="lede">PV/SP/OP、温度/压力/转速对比。现有 <code>Hmi.ChartTrend</code> 只有一根曲线、一个时间窗，并排放多个会各画各的坐标轴。</p>
+  <div class="split">
+    <div class="stage">
+      <div class="stage-title"><span>运行态演示（移动鼠标看游标）</span><span id="trendState">LIVE</span></div>
+      <div class="preview-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+          <div class="legend" id="trendLegend"></div>
+          <div style="display:flex;gap:6px">
+            <button class="btn" data-window="60" aria-pressed="true" style="padding:4px 9px;min-height:28px">1 分钟</button>
+            <button class="btn" data-window="300" style="padding:4px 9px;min-height:28px">5 分钟</button>
+            <button class="btn" data-window="900" style="padding:4px 9px;min-height:28px">15 分钟</button>
+            <button class="btn" id="trendPause" style="padding:4px 9px;min-height:28px">暂停</button>
+          </div>
+        </div>
+        <canvas id="trendCanvas" width="620" height="260" style="width:100%;height:260px"></canvas>
+        <div id="trendCursor" class="small" style="height:18px;font-family:var(--mono)">—</div>
+      </div>
+      <div class="state-strip">
+        <span class="pill ok">LIVE</span>
+        <span class="pill off">暂停（PAUSED）</span>
+        <span class="pill warn">无数据（等待采样）</span>
+        <span class="pill accent">游标</span>
+      </div>
+    </div>
+    <div class="spec">
+      <h3>口径</h3>
+      <ul>
+        <li><b>2~8 条曲线</b>，每条独立量程与颜色；图例可点选隐藏，隐藏不销毁数据。</li>
+        <li><b>两种量程模式</b>：共享量程（同一单位，如三路温度）/ 独立量程（不同单位，归一化后叠画，图例显示真实值）。默认独立，因为混单位是常态。</li>
+        <li><b>游标</b>：十字线吸附到最近采样点，显示时间与各曲线真实值；移出画布清除。</li>
+        <li><b>断点不插值</b>：缺采样画断口，不连直线（连起来会伪造“平稳”）。</li>
+        <li><b>性能预算</b>：8 条 × 900 点 @ 2Hz 重绘 ≤ 8ms；超过则降采样（每 2 点取 1），不降帧。</li>
+        <li><b>暂停不清空</b>：暂停只冻结视图，恢复后从当前时刻续画（不补历史）。</li>
+      </ul>
+      <h4>属性</h4>
+      <table class="kv">
+        <tr><th>属性</th><th>默认</th><th>说明</th></tr>
+        <tr><td>Series</td><td>1 条</td><td>最多 8；每条含变量、颜色、量程、单位</td></tr>
+        <tr><td>TimeWindow</td><td>60s</td><td>2~3600s</td></tr>
+        <tr><td>RangeMode</td><td>Independent</td><td>Shared / Independent</td></tr>
+        <tr><td>ShowLegend</td><td>true</td><td>图例可点选隐藏</td></tr>
+        <tr><td>Cursor</td><td>true</td><td>悬停十字线与读数</td></tr>
+      </table>
+      <div class="note"><b>与 ChartTrend 的关系</b>：ChartTrend 保留（单曲线、轻量）；MultiTrend 是另一条 TypeKey，不把 ChartTrend 改成多曲线（会破坏已配画面与 Web 渲染）。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= P1-6 声音 ================= -->
+<section class="section" id="sound">
+  <h2>声音报警 <span class="sev p1">P1</span></h2>
+  <p class="lede">报警引擎已经有事件，但没有任何发声出口。声音是宿主级设施，不做成图元——它不属于任何一张画面。</p>
+  <div class="split">
+    <div class="stage">
+      <div class="stage-title"><span>运行态演示</span><span id="soundState">报警中</span></div>
+      <div class="grid2">
+        <div class="preview-card">
+          <div class="cap">报警喇叭</div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+            <div id="soundIcon" style="width:46px;height:46px;border-radius:12px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.4);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--p-sound)">🔔</div>
+            <div>
+              <div class="mid" id="soundLevel">高 · 未确认</div>
+              <div class="small" id="soundHint">间歇音，2s 一次</div>
+            </div>
+          </div>
+          <div class="controls" style="margin-top:10px">
+            <button class="btn" id="soundTest">试听</button>
+            <button class="btn" id="soundMute">静音 5 分钟</button>
+            <button class="btn primary" id="soundAck">确认</button>
+          </div>
+        </div>
+        <div class="preview-card">
+          <div class="cap">设置</div>
+          <label class="small" style="display:flex;justify-content:space-between;align-items:center;margin:8px 0"><span>启用声音</span><input type="checkbox" id="soundOn"></label>
+          <label class="small" style="display:flex;justify-content:space-between;align-items:center;margin:8px 0"><span>音量</span><input type="range" id="soundVol" min="0" max="100" value="55"></label>
+          <label class="small" style="display:flex;justify-content:space-between;align-items:center;margin:8px 0"><span>音型</span>
+            <select id="soundKind"><option value="beep">间歇</option><option value="cont">连续</option><option value="once">单次</option></select>
+          </label>
+          <div class="small" id="soundMuteLeft" style="color:var(--p-warning)"></div>
+        </div>
+      </div>
+      <div class="preview-card" style="margin-top:12px">
+        <div class="cap">级别 → 声音</div>
+        <table class="kv" style="font-size:11.5px">
+          <tr><th style="color:var(--p-text-3)">级别</th><th style="color:var(--p-text-3)">音型</th><th style="color:var(--p-text-3)">说明</th></tr>
+          <tr><td style="color:var(--p-text)">紧急</td><td style="color:var(--p-text-2)">连续</td><td style="color:var(--p-text-2)">不可静音，必须确认</td></tr>
+          <tr><td style="color:var(--p-text)">高</td><td style="color:var(--p-text-2)">间歇 2s</td><td style="color:var(--p-text-2)">可静音 5 分钟</td></tr>
+          <tr><td style="color:var(--p-text)">中</td><td style="color:var(--p-text-2)">单次</td><td style="color:var(--p-text-2)">每次新报警响一次</td></tr>
+          <tr><td style="color:var(--p-text)">低</td><td style="color:var(--p-text-2)">无</td><td style="color:var(--p-text-2)">只上屏</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="spec">
+      <h3>口径</h3>
+      <ul>
+        <li><b>宿主级、单例</b>：一个运行窗口一个声音服务，多个报警条不重复发声；Web 客户端跟随桌面端状态（镜像），不独立发声。</li>
+        <li><b>只在用户手势后启用</b>：浏览器自动播放限制；桌面端无此限制，但同样默认关闭，由工程设置打开。</li>
+        <li><b>静音有期限</b>：静音 5 分钟后自动恢复；紧急级不可静音。静音不是确认，报警仍在。</li>
+        <li><b>确认即停</b>：确认最后一条未确认报警后停止发声；仍有未确认则继续。</li>
+        <li><b>音型可配</b>：级别 → 音型映射在工程设置里，不写死在代码；支持自定义 wav（后置）。</li>
+        <li><b>失败可见</b>：音频设备不可用时状态栏一句“声音不可用”，不静默吞掉。</li>
+      </ul>
+      <h4>设置项</h4>
+      <table class="kv">
+        <tr><th>项</th><th>默认</th><th>说明</th></tr>
+        <tr><td>Enabled</td><td>false</td><td>工程级开关</td></tr>
+        <tr><td>Volume</td><td>55</td><td>0~100</td></tr>
+        <tr><td>LevelMap</td><td>见左表</td><td>级别 → 音型</td></tr>
+        <tr><td>MuteMinutes</td><td>5</td><td>紧急级不生效</td></tr>
+      </table>
+      <div class="note warn"><b>演示说明</b>：本页的“试听/发声”用 WebAudio 合成，仅用于设计评审；WPF 端走 <code>System.Media.SoundPlayer</code> 或 NAudio，音型一致。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= P1-7 运行计时 ================= -->
+<section class="section" id="meter">
+  <h2>Hmi.RunMeter · 运行计时 / 计数器 <span class="sev p1">P1</span></h2>
+  <p class="lede">OEE 与节拍的基础数据。现在只有 <code>Hmi.Clock</code> 显示墙上时间，没有“累计运行多久”“这一件做了多久”“今天做了多少”。</p>
+  <div class="split">
+    <div class="stage">
+      <div class="stage-title"><span>运行态演示</span><span id="meterState">运行中</span></div>
+      <div class="grid3">
+        <div class="preview-card">
+          <div class="cap">运行时长</div>
+          <div class="mid" id="meterRun">05:42:18</div>
+          <div class="small" id="meterRunSub">本次上电累计</div>
+        </div>
+        <div class="preview-card">
+          <div class="cap">本次节拍</div>
+          <div class="mid" id="meterCycle">00:38</div>
+          <div class="small">目标 45s · <span id="meterCycleTag" class="pill ok">达标</span></div>
+        </div>
+        <div class="preview-card">
+          <div class="cap">产量计数</div>
+          <div class="mid" id="meterCount">1842</div>
+          <div class="small">目标 2400 · <span id="meterPct">76.8%</span></div>
+        </div>
+      </div>
+      <div class="controls" style="margin-top:12px">
+        <select id="meterFormat"><option value="hms">时:分:秒</option><option value="hours">小时（123.4 h）</option><option value="dh">天 + 时:分</option></select>
+        <button class="btn" id="meterReset">复位</button>
+        <label class="small"><input type="checkbox" id="meterStop"> 模拟停机</label>
+      </div>
+      <div style="margin-top:12px">
+        <div style="height:10px;background:var(--p-track);border-radius:999px;overflow:hidden">
+          <div id="meterBar" style="height:100%;width:76.8%;background:var(--p-accent);border-radius:999px;transition:width .4s"></div>
+        </div>
+        <div class="small" style="margin-top:6px">产量进度；到目标不自动清零，由复位或班次切换处理</div>
+      </div>
+      <div class="state-strip">
+        <span class="pill ok">运行中</span>
+        <span class="pill off">停机（计时暂停）</span>
+        <span class="pill warn">复位需确认</span>
+        <span class="pill bad">掉电未保持（警告）</span>
+      </div>
+    </div>
+    <div class="spec">
+      <h3>口径</h3>
+      <ul>
+        <li><b>一个 TypeKey、两种模式</b>：<code>Mode = RunTime / Counter</code>。运行计时按“运行信号为真”累计；计数器按“计数脉冲上升沿”加一。</li>
+        <li><b>累计值落盘</b>：按分钟粒度写方案运行数据（不是每拍写），掉电后恢复到最后一次落盘并标注“可能丢失 ≤1 分钟”。</li>
+        <li><b>三种显示格式</b>：时:分:秒 / 小数小时 / 天+时:分。格式是显示层，不改变存储值（秒）。</li>
+        <li><b>复位是危险操作</b>：需 <code>RequiredRole ≥ Engineer</code> + 二次确认；复位写审计（谁、何时、复位前值）。</li>
+        <li><b>节拍判定</b>：本次节拍 ≤ 目标为达标（绿），超出 20% 为警告（黄），超出 50% 为超时（红）；只做视觉，不自动报警。</li>
+        <li><b>停机暂停</b>：运行信号为假时计时暂停、节拍暂停，计数不变；恢复后继续，不补算停机时间。</li>
+      </ul>
+      <h4>属性</h4>
+      <table class="kv">
+        <tr><th>属性</th><th>RunTime</th><th>Counter</th></tr>
+        <tr><td>Mode</td><td>RunTime</td><td>Counter</td></tr>
+        <tr><td>Source</td><td>运行信号变量</td><td>计数脉冲变量</td></tr>
+        <tr><td>Format</td><td>hms / hours / dh</td><td>整数 / 千分位</td></tr>
+        <tr><td>Target</td><td>—</td><td>目标值（进度条）</td></tr>
+        <tr><td>Persist</td><td>true</td><td>true</td></tr>
+        <tr><td>ResetRole</td><td>Engineer</td><td>Engineer</td></tr>
+      </table>
+      <div class="note"><b>为什么不做“定时器控件”</b>：手册 7.3.1.11 的定时器是“到点触发事件”，属调度能力；本批只做显示型计时/计数。到点触发放到流程/调度器，避免画面里藏定时器。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 组合 ================= -->
+<section class="section" id="composition">
+  <h2>组合示例 · 一屏看全 <span class="sev new">COMPOSITION</span></h2>
+  <p class="lede">把十项放进同一张 1280×720 运行画面：工艺图用线连接设备、左上角本地图片做 logo、右上角多曲线、底部历史表、右侧运行计时、按钮带增量与禁用态。</p>
+  <div class="stage" style="padding:12px">
+    <div style="width:100%;max-width:1180px;margin:0 auto;background:var(--p-bg);border:1px solid var(--p-border);border-radius:10px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 14px;border-bottom:1px solid var(--p-border);background:var(--p-surface)">
+        <img id="compLogo" alt="logo" style="height:22px">
+        <b style="font-size:13px">视觉检测线 · 运行监控</b>
+        <span class="pill ok">运行</span>
+        <span style="flex:1"></span>
+        <span class="small" id="compClock">—</span>
+        <span class="pill warn" id="compSound">🔔 1 条未确认</span>
+        <span class="small">工程师 · 张三</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1.45fr 1fr;gap:10px;padding:12px">
+        <div>
+          <div class="preview-card" style="padding:10px">
+            <div class="cap">工艺图 · Line + Picture + QR</div>
+            <svg viewBox="0 0 620 250" style="width:100%;height:250px;background:var(--p-bg);border-radius:8px">
+              <image id="compBgImage" x="0" y="0" width="620" height="250" preserveAspectRatio="xMidYMid slice" opacity="0.5"/>
+              <rect x="30" y="70" width="90" height="70" rx="8" fill="var(--p-surface-2)" stroke="var(--p-border-strong)"/>
+              <text x="75" y="110" text-anchor="middle" fill="var(--p-text-2)" font-size="11">料仓 T-01</text>
+              <rect x="230" y="70" width="90" height="70" rx="8" fill="var(--p-surface-2)" stroke="var(--p-border-strong)"/>
+              <text x="275" y="110" text-anchor="middle" fill="var(--p-text-2)" font-size="11">泵 P-101</text>
+              <rect x="430" y="70" width="110" height="70" rx="8" fill="var(--p-surface-2)" stroke="var(--p-border-strong)"/>
+              <text x="485" y="110" text-anchor="middle" fill="var(--p-text-2)" font-size="11">阀 V-201</text>
+              <polyline points="120,105 230,105" fill="none" stroke="var(--p-accent)" stroke-width="2" marker-end="url(#arrowEnd)"/>
+              <polyline points="320,105 430,105" fill="none" stroke="var(--p-accent)" stroke-width="2" marker-end="url(#arrowEnd)"/>
+              <polyline points="485,140 485,200 120,200 120,140" fill="none" stroke="var(--p-border-strong)" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrowEnd)"/>
+              <text x="300" y="194" text-anchor="middle" fill="var(--p-text-3)" font-size="10">回流（虚线）</text>
+              <g transform="translate(498,10)">
+                <rect x="0" y="0" width="56" height="56" rx="6" fill="#FFFFFF"/>
+                <g id="compQr"></g>
+                <text x="28" y="68" text-anchor="middle" fill="var(--p-text-3)" font-size="7">SN-2026-0042</text>
+              </g>
+            </svg>
+          </div>
+          <div class="preview-card" style="padding:10px;margin-top:10px">
+            <div class="cap">操作区 · 增量 / 减量 + 禁用态</div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <span class="small">速度</span>
+              <button class="btn" style="width:40px;height:40px">−</button>
+              <span class="mid" id="compSpeed" style="min-width:72px;text-align:center">1200</span>
+              <button class="btn primary" style="width:40px;height:40px">＋</button>
+              <span class="small">mm/s</span>
+              <span style="flex:1"></span>
+              <button class="btn" id="compStart" aria-disabled="true" style="position:relative;opacity:.45">启动</button>
+              <span class="pill warn" id="compLock" style="display:inline-flex">联锁未满足</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="preview-card" style="padding:10px">
+            <div class="cap">多曲线 · 温度 / 压力 / 转速</div>
+            <canvas id="compTrend" width="440" height="150" style="width:100%;height:150px"></canvas>
+          </div>
+          <div class="grid3" style="margin-top:10px;gap:8px">
+            <div class="preview-card" style="padding:8px"><div class="cap">运行</div><div class="mid" id="compRun" style="font-size:16px">05:42</div></div>
+            <div class="preview-card" style="padding:8px"><div class="cap">节拍</div><div class="mid" style="font-size:16px">38s</div></div>
+            <div class="preview-card" style="padding:8px"><div class="cap">产量</div><div class="mid" id="compCount" style="font-size:16px">1842</div></div>
+          </div>
+          <div class="preview-card" style="padding:10px;margin-top:10px">
+            <div class="cap">历史追溯 · 最近 7 天</div>
+            <div style="font-size:10.5px;color:var(--p-text-2);line-height:1.9">
+              <div style="display:flex;justify-content:space-between"><span>14:32:08</span><span class="mono">SN-…042</span><span style="color:var(--p-success)">OK</span></div>
+              <div style="display:flex;justify-content:space-between"><span>14:31:22</span><span class="mono">SN-…041</span><span style="color:var(--p-danger)">NG</span></div>
+              <div style="display:flex;justify-content:space-between"><span>14:30:47</span><span class="mono">SN-…040</span><span style="color:var(--p-success)">OK</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="note"><b>这一屏验证的事</b>：线不会盖住设备、箭头方向可读；二维码在深色画面上仍是白底黑码；禁用按钮有原因角标；多曲线三条不同量纲能同屏；运行计时与产量不抢主视觉。</div>
+</section>
+
+<!-- ================= 边界 ================= -->
+<section class="section" id="boundaries">
+  <h2>边界与不做 <span class="sev new">BOUNDARIES</span></h2>
+  <div class="split">
+    <div class="spec">
+      <h3>本批不做</h3>
+      <ul>
+        <li><b>配方</b>：单独一批（存储/权限/审计/下载握手）。</li>
+        <li><b>报表、PDF/浏览器/数据库视图、文件浏览、I/O 监视</b>：属宿主能力，不是控件。</li>
+        <li><b>多语言 / 状态列表</b>：横切能力，等出口需求明确后单独做。</li>
+        <li><b>多边形 / 贝塞尔 / 动态画线</b>：场景窄，线/折线先覆盖 90%。</li>
+        <li><b>圆形进度条 / 旋钮 / 跑马灯 / XY / 3D 饼图</b>：能用现有控件拼或场景窄，P2。</li>
+        <li><b>GIF / 增强图片</b>：多帧动画需要独立解码与性能预算，P3。</li>
+        <li><b>正交自动路由</b>：线只做手拖折线。</li>
+      </ul>
+    </div>
+    <div class="spec">
+      <h3>平台差异（必须写进复刻清单）</h3>
+      <ul>
+        <li><b>Web 运行态</b>：10 项里 6 个新 TypeKey 都要补渲染器；历史查询、声音、本地图片在 Web 端按“镜像”处理（桌面端决定，浏览器只显示）。</li>
+        <li><b>声音</b>：浏览器自动播放限制，Web 端默认静音，需用户手势后才能响。</li>
+        <li><b>二维码</b>：两端必须用同一份编码结果，不能让浏览器自己编码。</li>
+        <li><b>本地图片</b>：Web 端由宿主下发已栅格化的位图，不暴露文件路径。</li>
+        <li><b>触摸</b>：增量按钮长按重复在触摸屏上要 `CaptureMouse`/`CaptureTouch`，滑出即停。</li>
+        <li><b>DPI</b>：线宽与箭头按 DIP，不按物理像素；二维码最小模块按物理尺寸校验。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 验收 ================= -->
+<section class="section" id="acceptance">
+  <h2>验收与待裁定 <span class="sev new">ACCEPTANCE</span></h2>
+  <div class="split">
+    <div class="spec">
+      <h3>复刻后逐项验收</h3>
+      <table class="kv">
+        <tr><th>层</th><th>判据</th></tr>
+        <tr><td>设计</td><td>十项各有“现状 / 建议 / 状态矩阵”，差异有原因</td></tr>
+        <tr><td>静态</td><td>新 TypeKey 进描述符与工具箱；`[ScadaProperty]` 无 SPG0006；hex=0</td></tr>
+        <tr><td>运行时</td><td>Picture 三态、Line 拖拽与吸附、增量长按/越限/失败回弹、历史三态与分页、编码超长拒绝、启用禁用闸门、对象事件只发用户操作、多曲线游标、声音静音到期、计时暂停/复位</td></tr>
+        <tr><td>渲染</td><td>深/浅两套各 5 张 PNG，与本稿逐块对照</td></tr>
+        <tr><td>Web</td><td>6 个新 TypeKey 有渲染器与 caps；历史/声音/图片按镜像口径</td></tr>
+        <tr><td>回归</td><td>`run_gates.ps1` 全绿；`ScadaChecks` / `ScadaWebChecks` 新增段</td></tr>
+        <tr><td>真机</td><td>触摸长按、扫码枪扫屏幕码、静音与确认、切页后计时连续</td></tr>
+      </table>
+    </div>
+    <div class="spec">
+      <h3>待裁定</h3>
+      <table class="kv">
+        <tr><th>#</th><th>问题</th><th>建议默认</th></tr>
+        <tr><td>Q1</td><td>线是否支持正交自动路由？</td><td>不做，只手拖</td></tr>
+        <tr><td>Q2</td><td>二维码内容超长时截断还是拒绝？</td><td>拒绝并保留上一次有效图形</td></tr>
+        <tr><td>Q3</td><td>历史查询默认范围？</td><td>最近 7 天，50 条/页</td></tr>
+        <tr><td>Q4</td><td>声音默认开还是关？</td><td>关，工程设置打开</td></tr>
+        <tr><td>Q5</td><td>运行计时落盘粒度？</td><td>1 分钟，掉电丢失 ≤1 分钟</td></tr>
+        <tr><td>Q6</td><td>对象事件是否含程序灌值？</td><td>不含，只认用户操作</td></tr>
+        <tr><td>Q7</td><td>MultiTrend 默认独立量程？</td><td>是，混单位是常态</td></tr>
+        <tr><td>Q8</td><td>增量动作是否允许字符串变量？</td><td>不允许，配置期拒绝</td></tr>
+      </table>
+      <div class="note warn"><b>确认后才能进 WPF 复刻</b>（R127）：本稿是第 ① 步设计基线；确认后按 §30 四步走，不跳步。</div>
+    </div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+"use strict";
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+const pad = n => String(n).padStart(2,"0");
+function toast(msg, kind="info"){
+  const el = document.createElement("div");
+  el.className = "toast" + (kind==="bad"?" bad":kind==="ok"?" ok":kind==="warn"?" warn":"");
+  el.textContent = msg;
+  $("#toasts").appendChild(el);
+  setTimeout(()=>{ el.style.opacity="0"; el.style.transition="opacity .25s"; setTimeout(()=>el.remove(),260); }, 2600);
+}
+
+/* ---------------- 全局运行模拟 ---------------- */
+const S = {
+  t: 0, running: true,
+  temp: 62.4, pressure: 0.42, speed: 1200,
+  count: 1842, target: 2400,
+  runSec: 5*3600 + 42*60 + 18,
+  cycle: 38,
+  trend: [],
+  alarm: { level:"高", acked:false, muted:false },
+};
+function tick(){
+  S.t += 0.5;
+  if (S.running){
+    S.temp = 62 + Math.sin(S.t/9)*2.2 + Math.sin(S.t/2.7)*0.35;
+    S.pressure = 0.42 + Math.sin(S.t/7)*0.03;
+    S.runSec += 1;
+    S.cycle = 36 + Math.round((Math.sin(S.t/5)+1)*4);
+    if (Math.round(S.t*2) % 8 === 0 && S.count < S.target) S.count += 1;
+  }
+  S.trend.push({ t:S.t, temp:S.temp, pressure:S.pressure, speed:S.speed + Math.sin(S.t/4)*18 });
+  if (S.trend.length > 900) S.trend.shift();
+  $("#compClock").textContent = new Date().toLocaleString("zh-CN",{hour12:false});
+  $("#compCount").textContent = S.count;
+  $("#compSpeed").textContent = Math.round(S.speed);
+  $("#compRun").textContent = hms(S.runSec).slice(0,5);
+  drawTrend();
+  drawCompTrend();
+  updateMeter();
+}
+function hms(sec){
+  sec = Math.max(0, Math.floor(sec));
+  return pad(Math.floor(sec/3600)) + ":" + pad(Math.floor(sec%3600/60)) + ":" + pad(sec%60);
+}
+setInterval(tick, 500);
+
+/* ---------------- 本地图片 ---------------- */
+const SVG = {
+  pid: `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#0B1016"/><g stroke="#16202A" stroke-width="1"><path d="M40 0V360M80 0V360M120 0V360M160 0V360M200 0V360M240 0V360M280 0V360M320 0V360M360 0V360M400 0V360M440 0V360M480 0V360M520 0V360M560 0V360M600 0V360"/><path d="M0 40H640M0 80H640M0 120H640M0 160H640M0 200H640M0 240H640M0 280H640M0 320H640"/></g><rect x="12" y="12" width="616" height="336" fill="none" stroke="#243140" stroke-width="2"/><g fill="none" stroke="#1F2C38" stroke-width="7" stroke-linecap="round"><path d="M60 250H180V120H300"/><path d="M300 120H420V210H580"/><path d="M180 250V310H480V210"/></g><g fill="none" stroke="#2A3A4A" stroke-width="2"><rect x="70" y="60" width="90" height="52" rx="6"/><circle cx="330" cy="120" r="24"/><rect x="440" y="190" width="70" height="44" rx="4"/><rect x="180" y="230" width="60" height="40" rx="4"/></g><g fill="#33465A" font-family="Consolas,monospace" font-size="9"><text x="78" y="90">T-01</text><text x="318" y="124">P-101</text><text x="448" y="216">V-201</text><text x="186" y="254">F-01</text><text x="24" y="30">P&amp;ID 2026-001 REV A</text></g><g fill="none" stroke="#243140" stroke-width="1"><rect x="500" y="292" width="116" height="44"/><path d="M500 306H616M500 320H616"/></g><g fill="#3A4E62" font-family="Consolas,monospace" font-size="7"><text x="506" y="303">VISUAL INSPECTION LINE</text><text x="506" y="317">DWG 2026-001 REV A</text><text x="506" y="331">SCALE 1:50 SHEET 1/1</text></g></svg>`,
+  logo: `<svg xmlns="http://www.w3.org/2000/svg" width="220" height="120"><rect width="220" height="120" rx="14" fill="#0E1318"/><circle cx="58" cy="60" r="26" fill="none" stroke="#38BDF8" stroke-width="4"/><circle cx="58" cy="60" r="9" fill="#38BDF8"/><text x="98" y="56" fill="#E6EEF7" font-family="Segoe UI,Microsoft YaHei" font-size="20" font-weight="700">VM SCADA</text><text x="98" y="78" fill="#7C8A99" font-family="Segoe UI" font-size="11">视觉检测线</text></svg>`,
+  product: `<svg xmlns="http://www.w3.org/2000/svg" width="220" height="120"><rect width="220" height="120" fill="#F4F7FB"/><rect x="62" y="26" width="96" height="68" rx="8" fill="#CBD5E1" stroke="#94A3B8" stroke-width="2"/><circle cx="110" cy="60" r="20" fill="#38BDF8" opacity=".55"/><rect x="86" y="52" width="48" height="16" rx="3" fill="#0F172A" opacity=".18"/><text x="110" y="112" text-anchor="middle" fill="#475569" font-family="Segoe UI" font-size="10">产品照片 · 示意</text></svg>`
+};
+const assetUrl = k => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(SVG[k]);
+let picMode = "bg", bgAsset = "pid", contentAsset = "logo", bgStretch = "contain", bgOpacity = 100;
+function bgSize(){
+  return bgStretch === "contain" ? "contain" : bgStretch === "cover" ? "cover" : bgStretch === "fill" ? "100% 100%" : "auto";
+}
+function renderPic(){
+  const bg = $("#bgImg"), content = $("#picContent"), miss = $("#picMissing"), img = $("#picImg"), els = $("#pageEls");
+  bg.style.display = "none"; content.style.display = "none"; miss.style.display = "none"; els.style.display = "block";
+  if (picMode === "missing"){
+    miss.style.display = "flex";
+    $("#picStateLabel").textContent = "文件缺失";
+    return;
+  }
+  if (picMode === "bg"){
+    bg.style.display = "block";
+    bg.style.backgroundImage = 'url("' + assetUrl(bgAsset) + '")';
+    bg.style.backgroundSize = bgSize();
+    bg.style.backgroundRepeat = bgStretch === "tile" ? "repeat" : "no-repeat";
+    bg.style.backgroundPosition = "center";
+    bg.style.opacity = String(bgOpacity / 100);
+    $("#picStateLabel").textContent = "页面背景";
+  } else if (picMode === "content"){
+    els.style.display = "none";
+    content.style.display = "block";
+    img.src = assetUrl(contentAsset);
+    img.style.objectFit = bgStretch === "cover" ? "cover" : bgStretch === "fill" ? "fill" : "contain";
+    img.style.opacity = String(bgOpacity / 100);
+    $("#picStateLabel").textContent = "内容图元";
+  } else {
+    $("#picStateLabel").textContent = "无背景";
+  }
+}
+$$("[data-pic]").forEach(b => b.addEventListener("click", () => { picMode = b.dataset.pic; renderPic(); }));
+$("#picMissingBtn").addEventListener("click", () => { picMode = "missing"; renderPic(); });
+$("#bgStretch").addEventListener("change", e => { bgStretch = e.target.value; renderPic(); });
+$("#bgOpacity").addEventListener("input", e => { bgOpacity = Number(e.target.value); renderPic(); });
+$("#picPick").addEventListener("click", () => {
+  const p = $("#picPicker"); p.style.display = p.style.display === "none" ? "block" : "none";
+});
+$$("[data-asset]").forEach(b => b.addEventListener("click", () => {
+  if (picMode === "content") contentAsset = b.dataset.asset;
+  else { bgAsset = b.dataset.asset; if (picMode === "none") picMode = "bg"; }
+  renderPic();
+  $("#picPicker").style.display = "none";
+  toast("已复制到方案 Image\\ 并更新相对路径", "ok");
+}));
+renderPic();
+
+/* ---------------- 方案文件夹与资源 ---------------- */
+const ASSET_SEED = [
+  { name: "pid-layout.png", state: "ok" },
+  { name: "logo.svg", state: "ok" },
+  { name: "product-01.jpg", state: "ok" }
+];
+let assetRows = ASSET_SEED.map(a => ({ ...a }));
+let assetSeq = 2;
+function renderAssets(){
+  const host = $("#assetRows");
+  host.innerHTML = assetRows.map(a => {
+    const missing = a.state === "missing";
+    return '<div style="display:flex;justify-content:space-between;gap:8px;padding:2px 0">'
+      + '<span style="' + (missing ? "color:var(--p-warning)" : "") + '">' + a.name + '</span>'
+      + '<span class="pill ' + (missing ? "warn" : "ok") + '">' + (missing ? "缺失" : "已复制") + '</span></div>';
+  }).join("");
+  const bg = assetRows.find(a => a.name.indexOf("pid") === 0) || assetRows[0];
+  $("#assetRef").textContent = 'BackgroundImage = "Image\\' + (bg ? bg.name : "") + '"';
+  $("#assetStateLabel").textContent = assetRows.length + " 个资源";
+}
+function assetLog(text, kind){
+  const log = $("#assetLog");
+  const line = document.createElement("div");
+  line.innerHTML = '<span class="mono" style="color:var(--p-text-3)">'
+    + new Date().toLocaleTimeString("zh-CN", { hour12: false }) + '</span> · ' + text;
+  if (kind === "warn") line.style.color = "var(--p-warning)";
+  if (kind === "bad") line.style.color = "var(--p-danger)";
+  log.prepend(line);
+  while (log.children.length > 4) log.lastChild.remove();
+}
+$("#assetNew").addEventListener("click", ()=>{
+  const name = "inspection-0" + assetSeq++ + ".png";
+  assetRows.push({ name, state: "ok" });
+  renderAssets();
+  assetLog("已复制 <b>" + name + "</b> 到 Image\\，写入相对路径");
+});
+$("#assetSame").addEventListener("click", ()=>{
+  assetLog("同名同内容：复用 <b>Image\\pid-layout.png</b>（哈希相同），不产生副本");
+});
+$("#assetDiff").addEventListener("click", ()=>{
+  const name = "pid-layout (2).png";
+  if (!assetRows.some(a => a.name === name)) assetRows.push({ name, state: "ok" });
+  renderAssets();
+  assetLog("同名不同内容：重命名为 <b>" + name + "</b>，原文件保留", "warn");
+});
+$("#assetMissing").addEventListener("click", ()=>{
+  const row = assetRows.find(a => a.name.indexOf("pid") === 0);
+  if (row) row.state = "missing";
+  renderAssets();
+  assetLog("资源缺失：页面背景回退背景色，编辑器给警告，运行态不弹窗", "warn");
+});
+$("#assetReset").addEventListener("click", ()=>{
+  assetRows = ASSET_SEED.map(a => ({ ...a }));
+  assetSeq = 2;
+  renderAssets();
+  $("#assetLog").innerHTML = "";
+});
+renderAssets();
+
+/* ---------------- 线 ---------------- */
+const lineBoxes = [
+  {x:30,y:70,w:90,h:70,label:"T-01"},
+  {x:235,y:70,w:90,h:70,label:"P-101"},
+  {x:440,y:70,w:90,h:70,label:"V-201"}
+];
+let linePts = [{x:120,y:105},{x:235,y:105},{x:325,y:105},{x:440,y:105}];
+let lineSelected = true, lineLocked = false, dragIdx = -1;
+const NS = "http://www.w3.org/2000/svg";
+function renderLine(){
+  const boxes = $("#lineBoxes"); boxes.innerHTML = "";
+  lineBoxes.forEach(b => {
+    const r = document.createElementNS(NS,"rect");
+    r.setAttribute("x",b.x); r.setAttribute("y",b.y); r.setAttribute("width",b.w); r.setAttribute("height",b.h);
+    r.setAttribute("rx","8"); r.setAttribute("fill","var(--p-surface-2)"); r.setAttribute("stroke","var(--p-border-strong)");
+    boxes.appendChild(r);
+    const t = document.createElementNS(NS,"text");
+    t.setAttribute("x",b.x+b.w/2); t.setAttribute("y",b.y+b.h/2+4); t.setAttribute("text-anchor","middle");
+    t.setAttribute("fill","var(--p-text-2)"); t.setAttribute("font-size","11");
+    t.setAttribute("paint-order","stroke"); t.setAttribute("stroke","var(--p-surface)");
+    t.setAttribute("stroke-width","3"); t.setAttribute("stroke-linejoin","round");
+    t.textContent = b.label;
+    boxes.appendChild(t);
+  });
+  const path = $("#linePath");
+  path.setAttribute("points", linePts.map(p=>p.x+","+p.y).join(" "));
+  path.setAttribute("stroke", lineLocked ? "var(--p-locked)" : "var(--p-accent)");
+  const style = $("#lineStyle").value, w = $("#lineWidth").value, arrow = $("#lineArrow").value;
+  path.setAttribute("stroke-width", w);
+  path.setAttribute("stroke-dasharray", style==="dash" ? "8 5" : style==="dot" ? "2 4" : "none");
+  path.setAttribute("marker-end", arrow==="none" ? "" : "url(#arrowEnd)");
+  path.setAttribute("marker-start", arrow==="both" ? "url(#arrowStart)" : "");
+  const handles = $("#lineHandles"); handles.innerHTML = "";
+  if (lineSelected && !lineLocked){
+    linePts.forEach((p,i)=>{
+      const c = document.createElementNS(NS,"circle");
+      c.setAttribute("cx",p.x); c.setAttribute("cy",p.y); c.setAttribute("r","7");
+      c.setAttribute("fill","var(--p-bg)"); c.setAttribute("stroke","var(--p-accent)"); c.setAttribute("stroke-width","2");
+      c.style.cursor = "grab"; c.dataset.idx = i;
+      c.addEventListener("pointerdown", e => { dragIdx = i; try { c.setPointerCapture(e.pointerId); } catch (_) {} e.preventDefault(); });
+      handles.appendChild(c);
+    });
+  }
+  $("#lineInfo").textContent = lineLocked ? "已锁定" : (linePts[0].x + "," + linePts[0].y);
+}
+$("#lineSvg").addEventListener("pointermove", e => {
+  if (dragIdx < 0 || lineLocked) return;
+  const svg = $("#lineSvg"), pt = svg.createSVGPoint();
+  pt.x = e.clientX; pt.y = e.clientY;
+  const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+  let x = Math.round(loc.x), y = Math.round(loc.y);
+  // 吸附到设备框最近边缘
+  lineBoxes.forEach(b=>{
+    const edges = [
+      {x:b.x, y:Math.min(Math.max(y,b.y),b.y+b.h)},
+      {x:b.x+b.w, y:Math.min(Math.max(y,b.y),b.y+b.h)},
+      {x:Math.min(Math.max(x,b.x),b.x+b.w), y:b.y},
+      {x:Math.min(Math.max(x,b.x),b.x+b.w), y:b.y+b.h}
+    ];
+    edges.forEach(ed=>{ if (Math.hypot(ed.x-x,ed.y-y) < 12){ x = ed.x; y = ed.y; } });
+  });
+  linePts[dragIdx] = {x,y}; renderLine();
+});
+$("#lineSvg").addEventListener("pointerup", () => { dragIdx = -1; });
+$("#lineSvg").addEventListener("click", e => {
+  if (e.target.id === "linePath") { lineSelected = true; renderLine(); }
+});
+$("#lineStyle").addEventListener("change", renderLine);
+$("#lineWidth").addEventListener("change", renderLine);
+$("#lineArrow").addEventListener("change", renderLine);
+$("#lineLock").addEventListener("click", () => {
+  lineLocked = !lineLocked;
+  $("#lineLock").textContent = lineLocked ? "解锁" : "锁定";
+  renderLine();
+});
+$("#lineReset").addEventListener("click", () => {
+  linePts = [{x:120,y:105},{x:235,y:105},{x:325,y:105},{x:440,y:105}];
+  lineLocked = false; $("#lineLock").textContent = "锁定"; renderLine();
+});
+renderLine();
+
+/* ---------------- 增量 / 减量 ---------------- */
+let stepVal = 1200, stepTarget = 1200, lastConfirmed = 1200, stepTimer = null, repeatTimer = null, repeatDelay = null;
+function stepWrite(delta){
+  const step = parseFloat($("#stepSize").value) || 1;
+  const min = parseFloat($("#stepMin").value); const max = parseFloat($("#stepMax").value);
+  let next = stepTarget + delta*step;
+  if (!Number.isNaN(max) && next > max){ next = max; toast("已到上限 " + max, "warn"); }
+  if (!Number.isNaN(min) && next < min){ next = min; toast("已到下限 " + min, "warn"); }
+  if (next === stepTarget){ stopRepeat(); return; }
+  stepTarget = next;
+  $("#stepValue").textContent = Math.round(next);
+  $("#stepState").textContent = "写入中…";
+  clearTimeout(stepTimer);
+  stepTimer = setTimeout(() => {
+    if ($("#stepFail").checked){
+      stepTarget = lastConfirmed; $("#stepValue").textContent = Math.round(lastConfirmed);
+      $("#stepValue").style.color = "var(--p-danger)";
+      setTimeout(()=>$("#stepValue").style.color = "", 500);
+      $("#stepState").textContent = "写失败";
+      toast("写入失败：变量被占用（已回弹）", "bad");
+    } else {
+      lastConfirmed = stepTarget; stepVal = stepTarget;
+      $("#stepState").textContent = "已写入";
+      setTimeout(()=>{ if($("#stepState").textContent==="已写入") $("#stepState").textContent = "就绪"; }, 700);
+    }
+  }, 180);
+}
+function startRepeat(delta){
+  stopRepeat();
+  stepWrite(delta);
+  repeatDelay = setTimeout(()=>{ repeatTimer = setInterval(()=>stepWrite(delta), 80); }, 300);
+}
+function stopRepeat(){ clearTimeout(repeatDelay); clearInterval(repeatTimer); repeatDelay = repeatTimer = null; }
+window.addEventListener("pointerup", stopRepeat);
+window.addEventListener("pointercancel", stopRepeat);
+window.addEventListener("blur", stopRepeat);
+function bindStep(btn, delta){
+  btn.addEventListener("pointerdown", e=>{ if(btn.disabled) return; try { btn.setPointerCapture(e.pointerId); } catch (_) {} startRepeat(delta); });
+  ["pointerup","pointerleave","pointercancel","lostpointercapture"].forEach(ev=>btn.addEventListener(ev, stopRepeat));
+}
+bindStep($("#stepPlus"), 1); bindStep($("#stepMinus"), -1);
+$("#stepRole").addEventListener("change", e=>{
+  const op = e.target.value === "operator";
+  $("#stepPlus").disabled = op; $("#stepMinus").disabled = op;
+  $("#stepRoleTag").textContent = op ? "只读（需工程师）" : "可写";
+  $("#stepRoleTag").className = "tag " + (op ? "warn" : "ok");
+});
+
+/* ---------------- 历史数据 ---------------- */
+const HIST = (()=>{
+  const rows = []; const now = new Date();
+  for (let i=0;i<37;i++){
+    const t = new Date(now.getTime() - i*7*60000);
+    rows.push({
+      time: t, sn: "SN-2026-" + String(42-i).padStart(4,"0"),
+      ok: i%7!==3, size: (12.4 + Math.sin(i/3)*0.18).toFixed(3),
+      op: i%5===0 ? "李四" : "张三"
+    });
+  }
+  return rows;
+})();
+let histPage = 1, histRows = HIST.slice(), histFiltered = HIST.slice(), histLoading = false;
+const HIST_PAGE = 8;
+function histRangeRows(){
+  const r = $("#histRange").value;
+  if (r === "yesterday") return [];
+  return HIST.slice();
+}
+function renderHist(){
+  const body = $("#histBody"), banner = $("#histBanner");
+  banner.style.display = "none"; banner.innerHTML = "";
+  if (histLoading){
+    $("#histState").textContent = "Loading";
+    body.innerHTML = Array.from({length:6}).map(()=>`
+      <div style="display:grid;grid-template-columns:150px 1.2fr .8fr .8fr .8fr;gap:0;padding:9px 10px;border-bottom:1px solid var(--p-border)">
+        ${Array.from({length:5}).map(()=>'<span style="height:10px;border-radius:4px;background:var(--p-track);display:block;width:70%"></span>').join("")}
+      </div>`).join("");
+    $("#histCount").textContent = "查询中…"; $("#histPage").textContent = "—";
+    return;
+  }
+  if ($("#histUnavailable").checked){
+    $("#histState").textContent = "Unavailable";
+    banner.style.display = "block";
+    banner.innerHTML = '<div class="pill bad" style="display:inline-flex">数据源不可用：History\\Production-2026-10-23.csv 被占用</div> <button class="btn" id="histRetry" style="margin-left:8px;padding:4px 10px;min-height:28px">重试</button>';
+    body.innerHTML = '<div style="padding:26px;text-align:center;color:var(--p-text-3);font-size:12px">保留上一次结果，不清空</div>';
+    $("#histCount").textContent = "—"; $("#histPage").textContent = "—";
+    const r = $("#histRetry"); if (r) r.addEventListener("click", ()=>{ $("#histUnavailable").checked = false; runHistQuery(); });
+    return;
+  }
+  if (histFiltered.length === 0){
+    $("#histState").textContent = "Empty";
+    body.innerHTML = '<div style="padding:34px 16px;text-align:center;color:var(--p-text-3);font-size:12.5px">该范围没有记录<div style="font-size:11px;margin-top:6px">试试「最近 7 天」，或检查数据记录是否已启用</div></div>';
+    $("#histCount").textContent = "0 条"; $("#histPage").textContent = "1 / 1";
+    return;
+  }
+  $("#histState").textContent = "Rows";
+  const start = (histPage-1)*HIST_PAGE;
+  const page = histFiltered.slice(start, start+HIST_PAGE);
+  body.innerHTML = page.map((r,i)=>{
+    const d = r.time;
+    return `<div class="hist-row" data-i="${start+i}" style="display:grid;grid-template-columns:150px 1.2fr .8fr .8fr .8fr;gap:0;padding:9px 10px;border-bottom:1px solid var(--p-border);font-size:12px;cursor:pointer;${i%2?'background:rgba(255,255,255,.015)':''}">
+      <span class="mono" style="color:var(--p-text-2)">${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}</span>
+      <span class="mono" style="color:var(--p-text)">${r.sn}</span>
+      <span style="color:${r.ok?'var(--p-success)':'var(--p-danger)'};font-weight:700">${r.ok?'OK':'NG'}</span>
+      <span class="mono" style="color:var(--p-text-2)">${r.size}</span>
+      <span style="color:var(--p-text-2)">${r.op}</span>
+    </div>`;
+  }).join("");
+  $$(".hist-row").forEach(row=>row.addEventListener("click", ()=>{
+    $$(".hist-row").forEach(x=>x.style.background="");
+    row.style.background = "rgba(56,189,248,.12)";
+  }));
+  const total = Math.max(1, Math.ceil(histFiltered.length/HIST_PAGE));
+  $("#histCount").textContent = histFiltered.length + " 条 · 每页 " + HIST_PAGE;
+  $("#histPage").textContent = histPage + " / " + total;
+  $("#histPrev").disabled = histPage <= 1;
+  $("#histNext").disabled = histPage >= total;
+}
+function runHistQuery(){
+  histLoading = true; histPage = 1; renderHist();
+  setTimeout(()=>{
+    histLoading = false; histFiltered = histRangeRows(); renderHist();
+  }, 1000);
+}
+$("#histQuery").addEventListener("click", runHistQuery);
+$("#histRange").addEventListener("change", runHistQuery);
+$("#histUnavailable").addEventListener("change", renderHist);
+$("#histPrev").addEventListener("click", ()=>{ if(histPage>1){histPage--;renderHist();} });
+$("#histNext").addEventListener("click", ()=>{ histPage++; renderHist(); });
+$("#histExport").addEventListener("click", ()=>toast("已导出 " + histFiltered.length + " 条到 artifacts\\export（演示）", "ok"));
+renderHist();
+
+/* ---------------- 二维码 / 条码（示意矩阵） ---------------- */
+function hash32(s){ let h = 2166136261 >>> 0; for (let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h >>> 0; }
+function drawFinder(ctx, x, y, cell){
+  ctx.fillStyle = "#0F172A";
+  ctx.fillRect(x,y,7*cell,7*cell);
+  ctx.fillStyle = "#FFFFFF"; ctx.fillRect(x+cell,y+cell,5*cell,5*cell);
+  ctx.fillStyle = "#0F172A"; ctx.fillRect(x+2*cell,y+2*cell,3*cell,3*cell);
+}
+function drawQR(text){
+  const c = $("#qrCanvas"), ctx = c.getContext("2d");
+  const n = 25, cell = c.width/n;
+  ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0,0,c.width,c.height);
+  if (!text){ return; }
+  let h = hash32(text);
+  for (let y=0;y<n;y++) for (let x=0;x<n;x++){
+    const inFinder = (x<8&&y<8) || (x>=n-8&&y<8) || (x<8&&y>=n-8);
+    if (inFinder) continue;
+    h = (Math.imul(h, 1103515245) + 12345) >>> 0;
+    if ((h >>> 16) & 1){ ctx.fillStyle = "#0F172A"; ctx.fillRect(x*cell,y*cell,cell,cell); }
+  }
+  drawFinder(ctx,0,0,cell); drawFinder(ctx,(n-7)*cell,0,cell); drawFinder(ctx,0,(n-7)*cell,cell);
+}
+function drawBar(text){
+  const c = $("#barCanvas"), ctx = c.getContext("2d");
+  const w = c.width, h = c.height;
+  ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0,0,w,h);
+  if (!text) return;
+  let x = 12, seed = hash32(text);
+  const top = 8, barH = h-28;
+  ctx.fillStyle = "#0F172A";
+  const guard = ()=>{ ctx.fillRect(x,top,2,barH); x+=4; ctx.fillRect(x,top,2,barH); x+=6; };
+  guard();
+  for (let i=0;i<text.length*4 && x < w-24;i++){
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    const bw = 1 + (seed % 3);
+    ctx.fillRect(x, top, bw, barH); x += bw + 1 + ((seed>>>4)%3);
+  }
+  guard();
+  ctx.fillStyle = "#0F172A"; ctx.font = "10px Consolas,monospace"; ctx.textAlign = "center";
+  ctx.fillText(text, w/2, h-6);
+}
+function applyCode(){
+  const v = $("#codeInput").value.trim();
+  const st = $("#codeState");
+  if (!v){
+    drawQR(""); drawBar(""); $("#qrText").textContent = "（未绑定）"; $("#barText").textContent = "（未绑定）";
+    st.textContent = "空值"; st.className = "pill off"; return;
+  }
+  if (v.length > 32){
+    st.textContent = "超长拒绝"; st.className = "pill bad";
+    toast("内容超过 32 字符，已拒绝（保留上一次有效图形）", "bad"); return;
+  }
+  drawQR(v); drawBar(v);
+  $("#qrText").textContent = v; $("#barText").textContent = v;
+  st.textContent = "正常"; st.className = "pill accent";
+  $("#qrText").style.opacity = "1"; $("#barText").style.opacity = "1";
+}
+$("#codeApply").addEventListener("click", applyCode);
+$("#codeInput").addEventListener("keydown", e=>{ if(e.key==="Enter") applyCode(); });
+$("#codeLost").addEventListener("click", ()=>{
+  const st = $("#codeState"); st.textContent = "绑定丢失"; st.className = "pill warn";
+  $("#qrText").style.opacity = ".6"; $("#barText").style.opacity = ".6";
+  if (!$("#codeDot")){
+    $("#qrText").insertAdjacentHTML("afterend", '<span id="codeDot" class="badge-dot" style="margin-left:6px" title="绑定变量已丢失，显示最后一次有效值"></span>');
+  }
+  toast("变量已删除：保留最后一次有效图形 + 橙点", "warn");
+});
+applyCode();
+
+/* ---------------- 启用对象 ---------------- */
+function renderEnable(){
+  const reasons = [];
+  if ($("#drvInterlock").checked) reasons.push("联锁未满足：液位低");
+  if ($("#drvPerm").checked) reasons.push("当前角色无权限");
+  if ($("#drvNoData").checked) reasons.push("变量无数据：通信断");
+  const disabled = reasons.length > 0;
+  $("#enablePump").style.filter = disabled ? "grayscale(1) brightness(.7)" : "";
+  $("#enableVeil").style.display = disabled ? "flex" : "none";
+  $("#enableReason").textContent = disabled ? reasons[0] : "";
+  $("#enableState").textContent = disabled ? "禁用" : "启用";
+  $("#enableBtn").setAttribute("aria-disabled", disabled ? "true" : "false");
+  $("#enableBtn").style.opacity = disabled ? ".45" : "1";
+  $("#enableBtn").dataset.reason = disabled ? reasons[0] : "";
+}
+$$("#drvInterlock,#drvPerm,#drvNoData").forEach(c=>c.addEventListener("change", renderEnable));
+$("#enableBtn").addEventListener("click", e=>{
+  if (e.currentTarget.getAttribute("aria-disabled") === "true"){ toast(e.currentTarget.dataset.reason || "当前不可用", "warn"); return; }
+  toast("已下发启动命令", "ok");
+});
+renderEnable();
+
+/* ---------------- 对象事件 ---------------- */
+let evMode = "auto", evLocal = true;
+function evTime(){ const d=new Date(); return pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds()); }
+function logEvent(src, type, action){
+  const log = $("#evLog");
+  const line = document.createElement("div");
+  line.innerHTML = `<span class="mono" style="color:var(--p-text-3)">${evTime()}</span> · <b style="color:var(--p-text)">${src}</b> · <span style="color:var(--p-accent)">${type}</span> · ${action}`;
+  log.prepend(line);
+  while (log.children.length > 6) log.lastChild.remove();
+  $("#eventState").textContent = type;
+}
+$$("#evSelector [data-ev]").forEach(b=>b.addEventListener("click", ()=>{
+  const next = b.dataset.ev;
+  if (next === evMode){ toast("状态未变化，不重复发事件"); return; }
+  evMode = next;
+  $$("#evSelector [data-ev]").forEach(x=>{ x.className = "btn" + (x.dataset.ev===evMode ? " primary" : ""); x.style.background = x.dataset.ev===evMode ? "" : "var(--p-surface-2)"; x.style.borderColor = x.dataset.ev===evMode ? "" : "var(--p-border)"; x.style.color = x.dataset.ev===evMode ? "" : "var(--p-text)"; });
+  $("#evMode").textContent = evMode === "auto" ? "自动" : "手动";
+  logEvent("手/自动开关", "更改", "记操作记录 + 写 State[0]=" + (evMode==="auto"?1:0));
+}));
+$("#evToggle").addEventListener("click", ()=>{
+  evLocal = !evLocal;
+  $("#evLocal").textContent = evLocal ? "ON" : "OFF";
+  $("#evToggle").textContent = evLocal ? "本地 ON" : "远程 OFF";
+  $("#evToggle").style.background = evLocal ? "var(--p-success-fill)" : "var(--p-surface-2)";
+  $("#evToggle").style.color = evLocal ? "#fff" : "var(--p-text)";
+  $("#evToggle").style.borderColor = evLocal ? "var(--p-success-fill)" : "var(--p-border)";
+  logEvent("本地/远程开关", evLocal ? "打开" : "关闭", "记操作记录 + 写 Local[0]=" + (evLocal?1:0));
+});
+
+/* ---------------- 多曲线 ---------------- */
+const SERIES = [
+  {key:"temp", name:"温度", unit:"°C", color:"#38BDF8", min:58, max:66, on:true},
+  {key:"pressure", name:"压力", unit:"MPa", color:"#22C55E", min:0.36, max:0.48, on:true},
+  {key:"speed", name:"转速", unit:"rpm", color:"#F59E0B", min:1150, max:1250, on:true}
+];
+let trendWindow = 60, trendPaused = false, trendCursorX = null;
+function renderLegend(){
+  $("#trendLegend").innerHTML = SERIES.map(s=>`<label><input type="checkbox" data-s="${s.key}" ${s.on?"checked":""}><i style="background:${s.color}"></i>${s.name} <span class="mono" style="color:var(--p-text-3)">${s.unit}</span></label>`).join("");
+  $$("#trendLegend input").forEach(c=>c.addEventListener("change", ()=>{
+    const s = SERIES.find(x=>x.key===c.dataset.s); s.on = c.checked; drawTrend();
+  }));
+}
+function drawTrend(){
+  const c = $("#trendCanvas"); if (!c) return;
+  const ctx = c.getContext("2d"), W = c.width, H = c.height;
+  ctx.clearRect(0,0,W,H);
+  const padL = 38, padR = 10, padT = 10, padB = 22;
+  const plotW = W-padL-padR, plotH = H-padT-padB;
+  ctx.strokeStyle = "#2A3745"; ctx.lineWidth = 1;
+  for (let i=0;i<=4;i++){
+    const y = padT + plotH*i/4;
+    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke();
+  }
+  const data = S.trend;
+  const tMax = data.length ? data[data.length-1].t : 0;
+  const tMin = Math.max(0, tMax - trendWindow);
+  const pts = data.filter(p=>p.t>=tMin);
+  ctx.fillStyle = "#7C8A99"; ctx.font = "9px Consolas,monospace"; ctx.textAlign = "right";
+  for (let i=0;i<=4;i++){
+    const y = padT + plotH*i/4;
+    ctx.fillText(String(Math.round(100-i*25)) + "%", padL-4, y+3);
+  }
+  if (!pts.length){
+    ctx.fillStyle = "#7C8A99"; ctx.font = "12px Segoe UI,Microsoft YaHei"; ctx.textAlign = "center";
+    ctx.fillText("等待采样…", W/2, H/2);
+    return;
+  }
+  SERIES.forEach(s=>{
+    if (!s.on) return;
+    ctx.strokeStyle = s.color; ctx.lineWidth = 2; ctx.beginPath();
+    let started = false;
+    pts.forEach(p=>{
+      const x = padL + (p.t-tMin)/Math.max(1,(tMax-tMin))*plotW;
+      const v = (p[s.key]-s.min)/(s.max-s.min);
+      const y = padT + (1-Math.max(0,Math.min(1,v)))*plotH;
+      if (!started){ ctx.moveTo(x,y); started = true; } else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+  });
+  if (trendCursorX !== null && pts.length){
+    const x = Math.max(padL, Math.min(W-padR, trendCursorX));
+    const t = tMin + (x-padL)/plotW*(tMax-tMin);
+    let nearest = pts[0];
+    pts.forEach(p=>{ if (Math.abs(p.t-t) < Math.abs(nearest.t-t)) nearest = p; });
+    const nx = padL + (nearest.t-tMin)/Math.max(1,(tMax-tMin))*plotW;
+    ctx.strokeStyle = "#A9B7C6"; ctx.setLineDash([3,3]); ctx.beginPath(); ctx.moveTo(nx,padT); ctx.lineTo(nx,padT+plotH); ctx.stroke(); ctx.setLineDash([]);
+    $("#trendCursor").textContent = "t+" + nearest.t.toFixed(1) + "s · " + SERIES.filter(s=>s.on).map(s=>s.name+" "+nearest[s.key].toFixed(s.key==="pressure"?3:1)+s.unit).join(" · ");
+  } else {
+    $("#trendCursor").textContent = "—";
+  }
+  $("#trendState").textContent = trendPaused ? "PAUSED" : "LIVE";
+  $("#trendState").className = "pill " + (trendPaused ? "off" : "ok");
+}
+$("#trendCanvas").addEventListener("mousemove", e=>{
+  const r = e.currentTarget.getBoundingClientRect();
+  trendCursorX = (e.clientX-r.left) * (e.currentTarget.width/r.width);
+  drawTrend();
+});
+$("#trendCanvas").addEventListener("mouseleave", ()=>{ trendCursorX = null; drawTrend(); });
+$$("[data-window]").forEach(b=>b.addEventListener("click", ()=>{
+  trendWindow = parseInt(b.dataset.window,10);
+  $$("[data-window]").forEach(x=>x.setAttribute("aria-pressed", x===b ? "true":"false"));
+  drawTrend();
+}));
+$("#trendPause").addEventListener("click", ()=>{
+  trendPaused = !trendPaused;
+  $("#trendPause").textContent = trendPaused ? "继续" : "暂停";
+  drawTrend();
+});
+renderLegend();
+drawTrend();
+
+/* 组合屏里的迷你趋势 */
+function drawCompTrend(){
+  const c = $("#compTrend"); if (!c) return;
+  const ctx = c.getContext("2d"), W = c.width, H = c.height;
+  ctx.clearRect(0,0,W,H);
+  const pts = S.trend.slice(-120);
+  if (pts.length < 2) return;
+  const pad = 6;
+  SERIES.forEach(s=>{
+    ctx.strokeStyle = s.color; ctx.lineWidth = 1.5; ctx.beginPath();
+    pts.forEach((p,i)=>{
+      const x = pad + i/(pts.length-1)*(W-pad*2);
+      const v = (p[s.key]-s.min)/(s.max-s.min);
+      const y = pad + (1-Math.max(0,Math.min(1,v)))*(H-pad*2);
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+  });
+}
+drawCompTrend();
+
+/* ---------------- 声音 ---------------- */
+let audioCtx = null, muteUntil = 0, muteTimer = null;
+function ac(){ if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); return audioCtx; }
+function beep(freq, dur, delay){
+  try{
+    const c = ac(), t0 = c.currentTime + (delay||0);
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = "square"; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0001, ($("#soundVol").value/100)*0.18), t0+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    o.connect(g).connect(c.destination); o.start(t0); o.stop(t0+dur+0.02);
+  }catch(e){ toast("声音不可用：" + e.message, "bad"); }
+}
+function playPattern(kind){
+  if (kind === "cont"){ beep(880,.45,0); beep(880,.45,.5); }
+  else if (kind === "once"){ beep(880,.16,0); }
+  else { beep(988,.12,0); beep(784,.12,.16); }
+}
+$("#soundTest").addEventListener("click", ()=>{ playPattern($("#soundKind").value); });
+$("#soundMute").addEventListener("click", ()=>{
+  if (S.alarm.level === "紧急"){ toast("紧急级不可静音", "bad"); return; }
+  muteUntil = Date.now() + 5*60*1000;
+  S.alarm.muted = true;
+  $("#soundState").textContent = "已静音";
+  $("#soundHint").textContent = "静音 5 分钟后自动恢复";
+  toast("已静音 5 分钟（报警仍在）", "warn");
+  clearInterval(muteTimer);
+  muteTimer = setInterval(()=>{
+    const left = Math.max(0, muteUntil - Date.now());
+    $("#soundMuteLeft").textContent = left ? "静音剩余 " + pad(Math.floor(left/60000)) + ":" + pad(Math.floor(left%60000/1000)) : "";
+    if (!left){ S.alarm.muted = false; clearInterval(muteTimer); $("#soundState").textContent="报警中"; $("#soundHint").textContent="间歇音，2s 一次"; }
+  }, 500);
+});
+$("#soundAck").addEventListener("click", ()=>{
+  S.alarm.acked = true; S.alarm.muted = false;
+  clearInterval(muteTimer); muteUntil = 0; $("#soundMuteLeft").textContent = "";
+  $("#soundState").textContent = "已确认";
+  $("#soundLevel").textContent = "高 · 已确认";
+  $("#soundHint").textContent = "仍有 0 条未确认，停止发声";
+  $("#soundIcon").style.color = "var(--p-success)";
+  $("#soundIcon").style.background = "rgba(34,197,94,.12)";
+  $("#soundIcon").style.borderColor = "rgba(34,197,94,.4)";
+  toast("已确认，声音停止", "ok");
+});
+$("#soundOn").addEventListener("change", e=>{
+  if (e.target.checked){ playPattern($("#soundKind").value); toast("声音已启用（需用户手势后才能播放）"); }
+});
+
+/* ---------------- 运行计时 ---------------- */
+function fmtRun(sec){
+  const f = $("#meterFormat").value;
+  if (f === "hours") return (sec/3600).toFixed(1) + " h";
+  if (f === "dh"){ const d = Math.floor(sec/86400); const rest = sec%86400; return d + " 天 " + pad(Math.floor(rest/3600)) + ":" + pad(Math.floor(rest%3600/60)); }
+  return hms(sec);
+}
+function updateMeter(){
+  if (!$("#meterRun")) return;
+  const stopped = $("#meterStop").checked;
+  $("#meterRun").textContent = fmtRun(S.runSec);
+  $("#meterCycle").textContent = stopped ? "—" : hms(S.cycle).slice(3);
+  $("#meterCount").textContent = S.count;
+  $("#meterPct").textContent = (S.count/S.target*100).toFixed(1) + "%";
+  $("#meterBar").style.width = Math.min(100, S.count/S.target*100) + "%";
+  $("#meterState").textContent = stopped ? "停机" : "运行中";
+  const tag = $("#meterCycleTag");
+  if (stopped){ tag.textContent = "暂停"; tag.className = "pill off"; }
+  else if (S.cycle <= 45){ tag.textContent = "达标"; tag.className = "pill ok"; }
+  else if (S.cycle <= 54){ tag.textContent = "偏慢"; tag.className = "pill warn"; }
+  else { tag.textContent = "超时"; tag.className = "pill bad"; }
+}
+$("#meterFormat").addEventListener("change", updateMeter);
+$("#meterStop").addEventListener("change", updateMeter);
+$("#meterReset").addEventListener("click", ()=>{
+  if (!confirm("复位运行计时与产量计数？此操作会写审计。")) return;
+  S.runSec = 0; S.count = 0; updateMeter();
+  toast("已复位（审计已记录）", "ok");
+});
+updateMeter();
+
+/* ---------------- 组合屏小交互 ---------------- */
+$("#compStart").addEventListener("click", ()=>{
+  toast("联锁未满足：液位低，已拦截启动", "warn");
+});
+(function compQr(){
+  const g = $("#compQr"); if (!g) return;
+  const n = 21, cell = 2, off = 7;
+  let h = hash32("SN-2026-0042");
+  for (let y=0;y<n;y++) for (let x=0;x<n;x++){
+    const inFinder = (x<7&&y<7) || (x>=n-7&&y<7) || (x<7&&y>=n-7);
+    if (inFinder) continue;
+    h = (Math.imul(h, 1103515245) + 12345) >>> 0;
+    if ((h>>>16)&1){
+      const r = document.createElementNS(NS,"rect");
+      r.setAttribute("x", off+x*cell); r.setAttribute("y", off+y*cell);
+      r.setAttribute("width",cell); r.setAttribute("height",cell); r.setAttribute("fill","#0F172A");
+      g.appendChild(r);
+    }
+  }
+  [[0,0],[n-7,0],[0,n-7]].forEach(([fx,fy])=>{
+    const r1 = document.createElementNS(NS,"rect");
+    r1.setAttribute("x",off+fx*cell); r1.setAttribute("y",off+fy*cell); r1.setAttribute("width",7*cell); r1.setAttribute("height",7*cell); r1.setAttribute("fill","#0F172A");
+    const r2 = document.createElementNS(NS,"rect");
+    r2.setAttribute("x",off+(fx+1)*cell); r2.setAttribute("y",off+(fy+1)*cell); r2.setAttribute("width",5*cell); r2.setAttribute("height",5*cell); r2.setAttribute("fill","#FFFFFF");
+    const r3 = document.createElementNS(NS,"rect");
+    r3.setAttribute("x",off+(fx+2)*cell); r3.setAttribute("y",off+(fy+2)*cell); r3.setAttribute("width",3*cell); r3.setAttribute("height",3*cell); r3.setAttribute("fill","#0F172A");
+    g.append(r1,r2,r3);
+  });
+})();
+$("#compLogo").src = assetUrl("logo");
+$("#compBgImage").setAttribute("href", assetUrl("pid"));
+
+/* 深色 / 浅色预览切换 */
+$("#themeToggle").addEventListener("click", ()=>{
+  const on = !document.querySelector(".stage.light");
+  $$(".stage").forEach(s=>s.classList.toggle("light", on));
+  $("#themeToggle").textContent = on ? "切换深色预览" : "切换浅色预览";
+});
+
+/* 初始 toast */
+setTimeout(()=>toast("设计稿可直接操作：拖线端点、按住 ＋/−、查询历史、切换开关看事件日志"), 400);
+</script>
+</body>
+</html>

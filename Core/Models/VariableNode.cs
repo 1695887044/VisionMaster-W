@@ -136,6 +136,26 @@ namespace VisionMaster.Models
         public string Name { get; set; }
 
         /// <summary>
+        /// 完整变量名（仅复合系统变量的字段行使用）。
+        ///
+        /// 字段行显示的是短名（<c>Position</c>，挂在父行 <c>System.Motion.X</c> 下面已经说明了归属），
+        /// 而"复制变量名"要的是注册表里的完整路径（<c>System.Motion.X.Position</c>）。
+        /// 数组元素行为 null —— 它们的寻址是"父变量 + 下标"，不是一个独立名字。
+        /// </summary>
+        public string? FullName { get; set; }
+
+        /// <summary>名称列/工具提示用：有完整名就给完整名，否则用 Name。</summary>
+        public string DisplayFullName => string.IsNullOrEmpty(FullName) ? Name : FullName!;
+
+        /// <summary>
+        /// 操作列是否显示。
+        /// <para>根行照旧；复合系统变量的字段行也要显示——否则"复制变量名"这一格
+        /// 对字段行整块不可见（命令本身支持子行，但入口被藏了，用户拿不到完整路径）。
+        /// 重命名/删除按钮另有 <c>IsSystemOwned</c> 触发器自行隐藏，字段行只会剩复制与"只读"chip。</para>
+        /// </summary>
+        public bool ShowRowActions => IsRootNode || !string.IsNullOrEmpty(FullName);
+
+        /// <summary>
         /// 数据类型
         /// </summary>
         public Type DataType { get; set; }

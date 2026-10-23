@@ -138,6 +138,7 @@ namespace VisionMaster.Scada.Controls
 
         private Border? _surface;
         private Rectangle? _gridLayer;
+        private Rectangle? _backgroundImage;
         private Canvas? _elementLayer;
         private Canvas? _selectionLayer;
         private Canvas? _diagnosticLayer;
@@ -264,6 +265,29 @@ namespace VisionMaster.Scada.Controls
         public static readonly DependencyProperty PageBackgroundProperty = DependencyProperty.Register(
             nameof(PageBackground), typeof(Brush), typeof(ScadaCanvas),
             new FrameworkPropertyMetadata(new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E))));
+
+        /// <summary>
+        /// 页面背景图（来自 <see cref="ScadaPage.BackgroundImage"/>，由宿主解析相对路径后传入）。
+        /// null = 只用背景色。它在图元层之下、网格层之下，且不参与命中测试。
+        /// </summary>
+        public static readonly DependencyProperty PageBackgroundImageProperty = DependencyProperty.Register(
+            nameof(PageBackgroundImage), typeof(ImageSource), typeof(ScadaCanvas),
+            new FrameworkPropertyMetadata(null, OnPageBackgroundImageChanged));
+
+        /// <summary>页面背景图填充方式（Uniform / UniformToFill / Fill / Tile 由宿主换算成 Stretch）</summary>
+        public static readonly DependencyProperty PageBackgroundStretchProperty = DependencyProperty.Register(
+            nameof(PageBackgroundStretch), typeof(Stretch), typeof(ScadaCanvas),
+            new FrameworkPropertyMetadata(Stretch.Uniform, OnPageBackgroundImageChanged));
+
+        /// <summary>页面背景图不透明度（0~1；模型里是 10~100，由宿主换算）</summary>
+        public static readonly DependencyProperty PageBackgroundOpacityProperty = DependencyProperty.Register(
+            nameof(PageBackgroundOpacity), typeof(double), typeof(ScadaCanvas),
+            new FrameworkPropertyMetadata(1d, OnPageBackgroundImageChanged));
+
+        /// <summary>背景图平铺（Stretch 表达不了平铺，单独一位；true 时忽略 Stretch）</summary>
+        public static readonly DependencyProperty PageBackgroundTileProperty = DependencyProperty.Register(
+            nameof(PageBackgroundTile), typeof(bool), typeof(ScadaCanvas),
+            new FrameworkPropertyMetadata(false, OnPageBackgroundImageChanged));
 
         /// <summary>是否显示设计网格</summary>
         public static readonly DependencyProperty ShowGridProperty = DependencyProperty.Register(
@@ -396,6 +420,61 @@ namespace VisionMaster.Scada.Controls
         {
             get => (Brush?)GetValue(PageBackgroundProperty);
             set => SetValue(PageBackgroundProperty, value);
+        }
+
+        /// <summary>页面背景图（null = 只用背景色）</summary>
+        public ImageSource? PageBackgroundImage
+        {
+            get => (ImageSource?)GetValue(PageBackgroundImageProperty);
+            set => SetValue(PageBackgroundImageProperty, value);
+        }
+
+        /// <summary>背景图填充方式（<see cref="PageBackgroundTile"/> 为 true 时忽略）</summary>
+        public Stretch PageBackgroundStretch
+        {
+            get => (Stretch)GetValue(PageBackgroundStretchProperty);
+            set => SetValue(PageBackgroundStretchProperty, value);
+        }
+
+        /// <summary>背景图不透明度（0~1）</summary>
+        public double PageBackgroundOpacity
+        {
+            get => (double)GetValue(PageBackgroundOpacityProperty);
+            set => SetValue(PageBackgroundOpacityProperty, value);
+        }
+
+        /// <summary>背景图平铺（按原始像素重复；true 时忽略 Stretch）</summary>
+        public bool PageBackgroundTile
+        {
+            get => (bool)GetValue(PageBackgroundTileProperty);
+            set => SetValue(PageBackgroundTileProperty, value);
+        }
+
+        /// <summary>
+        /// 方案图片解析器（相对路径 → 位图），注入给每个图元控件（Hmi.Picture 用）。
+        /// 由宿主按“方案目录 + Image\ 相对路径”实现；断言/无方案场景保持 null。
+        /// </summary>
+        public static readonly DependencyProperty ImageAssetResolverProperty = DependencyProperty.Register(
+            nameof(ImageAssetResolver), typeof(Func<string, ImageSource?>), typeof(ScadaCanvas),
+            new FrameworkPropertyMetadata(null, OnImageAssetResolverChanged));
+
+        /// <summary>方案图片解析器（相对路径 → 位图），注入给每个图元控件（Hmi.Picture 用）</summary>
+        public Func<string, ImageSource?>? ImageAssetResolver
+        {
+            get => (Func<string, ImageSource?>?)GetValue(ImageAssetResolverProperty);
+            set => SetValue(ImageAssetResolverProperty, value);
+        }
+
+        private static void OnImageAssetResolverChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var canvas = (ScadaCanvas)d;
+            var resolver = (Func<string, ImageSource?>?)e.NewValue;
+
+            foreach (var control in canvas.EnumerateControls())
+            {
+                control.ImageAssetResolver = resolver;
+                control.Refresh();
+            }
         }
 
         /// <summary>本页引用的基座画面（单基座兼容视图；null = 不引用）。见 <see cref="BasePageProperty"/>。</summary>
@@ -576,6 +655,9 @@ namespace VisionMaster.Scada.Controls
 
         private static void OnGridAppearanceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
             => ((ScadaCanvas)d).RebuildGrid();
+
+        private static void OnPageBackgroundImageChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+            => ((ScadaCanvas)d).ApplyPageBackgroundImage();
 
         private static void OnZoomChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
@@ -993,6 +1075,7 @@ namespace VisionMaster.Scada.Controls
 
             _surface = GetTemplateChild("PART_Surface") as Border;
             _gridLayer = GetTemplateChild("PART_GridLayer") as Rectangle;
+            _backgroundImage = GetTemplateChild("PART_BackgroundImage") as Rectangle;
             _elementLayer = GetTemplateChild("PART_ElementLayer") as Canvas;
             _selectionLayer = GetTemplateChild("PART_SelectionLayer") as Canvas;
             _diagnosticLayer = GetTemplateChild("PART_DiagnosticLayer") as Canvas;
@@ -1007,6 +1090,7 @@ namespace VisionMaster.Scada.Controls
 
             ApplyTransform();
             ApplyPageSize();
+            ApplyPageBackgroundImage();
             RebuildGrid();
             RebuildElements();
             EnsureSelectionVisual();
@@ -1051,6 +1135,47 @@ namespace VisionMaster.Scada.Controls
                 _gridLayer.Width = _surface.Width;
                 _gridLayer.Height = _surface.Height;
             }
+        }
+
+        /// <summary>
+        /// 把背景图铺到画面层：用 <see cref="ImageBrush"/> 填充一个 Rectangle，而不是 Image 控件
+        /// ——只有 ImageBrush 能表达“平铺”（TileMode + 绝对视口），Image 控件不行。
+        ///
+        /// 背景图在网格层之下、图元层之下，且模板里 <c>IsHitTestVisible=False</c>：
+        /// 它不参与框选/命中，永远不会挡住上面的按钮。
+        /// </summary>
+        private void ApplyPageBackgroundImage()
+        {
+            if (_backgroundImage == null)
+                return;
+
+            var source = PageBackgroundImage;
+            if (source == null)
+            {
+                _backgroundImage.Fill = null;
+                _backgroundImage.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            var brush = new ImageBrush(source)
+            {
+                Stretch = PageBackgroundStretch,
+                Opacity = Math.Clamp(PageBackgroundOpacity, 0d, 1d),
+                TileMode = PageBackgroundTile ? TileMode.Tile : TileMode.None,
+            };
+
+            if (PageBackgroundTile)
+            {
+                // 平铺按“原始像素”重复：视口尺寸 = 图片像素尺寸，否则会被 Stretch 拉成一块。
+                brush.ViewportUnits = BrushMappingMode.Absolute;
+                brush.Viewport = new Rect(0, 0,
+                    Math.Max(1, source.Width),
+                    Math.Max(1, source.Height));
+            }
+
+            brush.Freeze();
+            _backgroundImage.Fill = brush;
+            _backgroundImage.Visibility = Visibility.Visible;
         }
 
         /// <summary>把画面中心摆到视口中心（首次显示、适应窗口后调用）</summary>
@@ -1345,6 +1470,7 @@ namespace VisionMaster.Scada.Controls
             {
                 control.LayerVisibilityResolver = IsElementShown;
                 control.LayerZOffset = ResolveLayerZOffset(element);
+                control.ImageAssetResolver = ImageAssetResolver;
 
                 // 控件构造时已经按模型刷过一次几何，那时层偏移还是 0；补一次让 ZIndex 落到正确层段。
                 control.Refresh();

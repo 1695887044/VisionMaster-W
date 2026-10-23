@@ -73,6 +73,27 @@ namespace FlowCanvasChecks
             return null;
         }
 
+        /// <summary>绑定弹窗断言用的空插件表（它只用端口定义，不查插件字典）。</summary>
+        private sealed class EmptyPluginProvider : IPluginProvider
+        {
+            private static readonly System.Collections.Generic.Dictionary<string, ToolItemModel> Empty = new();
+
+            public System.Collections.Generic.IReadOnlyDictionary<string, ToolItemModel> ModulePlugins => Empty;
+            public System.Collections.Generic.IReadOnlyDictionary<string, ToolItemModel> CameraPlugins => Empty;
+            public System.Collections.Generic.IReadOnlyDictionary<string, ToolItemModel> LaserPlugins => Empty;
+            public System.Collections.Generic.IReadOnlyDictionary<string, ToolItemModel> MotionPlugins => Empty;
+
+            public void RegisterModule(ToolItemModel plugin) { }
+            public void RegisterCamera(ToolItemModel plugin) { }
+            public void RegisterLaser(ToolItemModel plugin) { }
+            public void RegisterMotion(ToolItemModel plugin) { }
+
+            public ToolItemModel GetModule(string name) => null;
+            public ToolItemModel GetCamera(string name) => null;
+            public ToolItemModel GetLaser(string name) => null;
+            public ToolItemModel GetMotion(string name) => null;
+        }
+
         private static FlowEngineService NewEngine(WorkspaceContext workspace, StubLog log)
             => new(new RuntimeManager(), log, workspace, null, new ResourceLockService(), NullCameraProvider.Instance);
 
@@ -470,12 +491,15 @@ namespace FlowCanvasChecks
                 loadError = ex.Message;
             }
 
+            if (pluginType == null && loadError.Length == 0)
+                loadError = $"类型未找到（{pluginDll}）";
             Check("（前提）Plugin.RunFlow.dll 可装载（候选断言）", pluginType != null,
                 pluginType == null ? loadError : pluginType.AssemblyQualifiedName!);
             if (pluginType == null) return;
 
             // ---- ① 端口声明：封闭候选 + 候选类别 ----
             IInputPort port = null;
+            string portError = string.Empty;
             try
             {
                 var instance = Activator.CreateInstance(pluginType);
@@ -483,13 +507,13 @@ namespace FlowCanvasChecks
             }
             catch (Exception ex)
             {
-                Check("（前提）能创建插件实例读端口", false, ex.Message);
+                portError = ex.Message;
             }
 
             Check("★FlowName 端口声明为封闭候选（IsFunctionalEnum + SubroutineFlowName）",
                 port != null && port.IsFunctionalEnum && port.OptionKind == StepConfigOptionKind.SubroutineFlowName,
                 port == null
-                    ? "端口反射失败"
+                    ? (portError.Length > 0 ? portError : "端口反射失败")
                     : $"IsFunctionalEnum={port.IsFunctionalEnum} OptionKind={port.OptionKind}");
 
             // ---- ② 候选过滤：只列子程序位；禁用/加密/当前流程照列并标注 ----
@@ -502,11 +526,16 @@ namespace FlowCanvasChecks
             var encrypted = new FlowModel { FlowName = "加密子流程", InvokeType = FlowInvokeType.Subroutine, StepsEncrypted = true };
             var manual = new FlowModel { FlowName = "普通流程", InvokeType = FlowInvokeType.Manual };
             var timer = new FlowModel { FlowName = "定时流程", InvokeType = FlowInvokeType.Timer };
+            // 边界：同名（人工编辑 .vms）+ 名字首尾带空格（Trim 后按 Ordinal 永远命中不了）
+            var duplicate = new FlowModel { FlowName = "回原", InvokeType = FlowInvokeType.Subroutine };
+            var spaced = new FlowModel { FlowName = " 带空格子流程 ", InvokeType = FlowInvokeType.Subroutine };
             solution.Flows.Add(sub);
             solution.Flows.Add(disabled);
             solution.Flows.Add(encrypted);
             solution.Flows.Add(manual);
             solution.Flows.Add(timer);
+            solution.Flows.Add(duplicate);
+            solution.Flows.Add(spaced);
             workspace.SwitchSolution(solution);
             // 当前流程选普通流程：先测"正常子程序显示纯名字"，当前流程后缀单独测
             workspace.SwitchFlow(manual);
@@ -526,6 +555,16 @@ namespace FlowCanvasChecks
                 && displays.TryGetValue("禁用子流程", out var disabledText) && disabledText == "禁用子流程（已禁用）"
                 && displays.TryGetValue("加密子流程", out var encryptedText) && encryptedText == "加密子流程（步序已加密）",
                 string.Join(" | ", options.Select(o => o.Display)));
+
+            Check("候选按名字升序（下拉顺序稳定，不随流程表顺序漂）",
+                values.SequenceEqual(new[] { "加密子流程", "回原", "禁用子流程" }, StringComparer.Ordinal),
+                string.Join(",", values));
+
+            Check("同名流程只列一条（FindFlow 也只认第一条，列两项会让人以为选哪个都行）",
+                values.Count(v => v == "回原") == 1, string.Join(",", values));
+
+            Check("名字首尾带空格的流程不列（FlowInvoker 先 Trim 再按 Ordinal 比，永远命中不了）",
+                !values.Contains("带空格子流程") && !values.Contains(" 带空格子流程 "), string.Join(",", values));
 
             // 当前流程：照列 + 后缀（自己调自己会被"正在运行中"拦下，界面上先说清）
             workspace.SwitchFlow(sub);
@@ -557,13 +596,21 @@ namespace FlowCanvasChecks
             string editorProbe = "未执行";
             var editorThread = new Thread(() =>
             {
-                var editor = new Core.Controls.LinkableValueEditor { Port = port };
-                editor.Measure(new System.Windows.Size(520, 40));
-                editor.Arrange(new System.Windows.Rect(0, 0, 520, 40));
-                editor.UpdateLayout();
-                editorProbe = $"只能选={editor.IsOptionPort} 候选数={editor.EnumOptions.Count}"
-                              + $" 首项={editor.EnumOptions.FirstOrDefault()?.Display ?? "-"}";
-            });
+                try
+                {
+                    var editor = new Core.Controls.LinkableValueEditor { Port = port };
+                    editor.Measure(new System.Windows.Size(520, 40));
+                    editor.Arrange(new System.Windows.Rect(0, 0, 520, 40));
+                    editor.UpdateLayout();
+                    editorProbe = $"只能选={editor.IsOptionPort} 候选数={editor.EnumOptions.Count}"
+                                  + $" 首项={editor.EnumOptions.FirstOrDefault()?.Display ?? "-"}";
+                }
+                catch (Exception ex)
+                {
+                    editorProbe = "异常：" + ex;
+                }
+            })
+            { IsBackground = true };
             editorThread.SetApartmentState(ApartmentState.STA);
             editorThread.Start();
             editorThread.Join(8000);
@@ -572,12 +619,149 @@ namespace FlowCanvasChecks
                 editorProbe.Contains("只能选=True") && editorProbe.Contains($"候选数={selfOptions.Count}"),
                 editorProbe);
 
+            // ---- ③c 老 .vms 的上游连线：下拉照常显示，选一项即拆线写固定值 ----
+            var legacyStep = new ActionStep("R", "调用流程", pluginType.AssemblyQualifiedName, "老连线步骤");
+            legacyStep.SetLink("FlowName", new LinkReference(
+                LinkKind.StepPort, Guid.NewGuid(), "Out", "上游步骤.Out"));
+
+            string legacyProbe = "未执行";
+            var legacyThread = new Thread(() =>
+            {
+                try
+                {
+                    var editor = new Core.Controls.LinkableValueEditor { Port = port, StepData = legacyStep };
+                    editor.Measure(new System.Windows.Size(520, 40));
+                    editor.Arrange(new System.Windows.Rect(0, 0, 520, 40));
+                    editor.UpdateLayout();
+                    var combo = editor.FindName("PART_EnumBox") as System.Windows.Controls.ComboBox;
+                    var linkBox = editor.FindName("PART_LinkBox") as System.Windows.Controls.TextBox;
+                    var before = $"链接={editor.IsLinked} 只能选={editor.IsOptionPort} 封闭={editor.IsClosedValuePort}"
+                               + $" 下拉={combo?.Visibility} 链接框={linkBox?.Visibility}";
+                    editor.PortValue = "回原";   // 模拟用户在下拉里选一项
+                    legacyProbe = before
+                        + $" → 仍链接={editor.IsLinked} 模型链接={legacyStep.IsLinked("FlowName")} 值={editor.Port.Value}";
+                }
+                catch (Exception ex)
+                {
+                    legacyProbe = "异常：" + ex;
+                }
+            })
+            { IsBackground = true };
+            legacyThread.SetApartmentState(ApartmentState.STA);
+            legacyThread.Start();
+            legacyThread.Join(8000);
+
+            Check("★老 .vms 的 FlowName 连线：下拉照常显示，选一项即拆线并写固定值",
+                legacyProbe.Contains("链接=True") && legacyProbe.Contains("只能选=True")
+                && legacyProbe.Contains("下拉=Visible") && legacyProbe.Contains("链接框=Collapsed")
+                && legacyProbe.Contains("仍链接=False") && legacyProbe.Contains("模型链接=False")
+                && legacyProbe.Contains("值=回原"),
+                legacyProbe);
+
+            // ---- ③c2 老连线 + 候选为空：手填框必须还在（否则整行空白，改不了也拆不掉） ----
+            var emptyPort = new InputPort<string>("FlowName", "", "目标流程名")
+            {
+                IsRequired = true,
+                IsFunctionalEnum = true,
+                // 本宿主没有任何来源回答这个类别 → 候选必为空
+                OptionKind = StepConfigOptionKind.CommunicationVariableName,
+            };
+            var emptyStep = new ActionStep("R", "调用流程", pluginType.AssemblyQualifiedName, "老连线空候选");
+            emptyStep.SetLink("FlowName", new LinkReference(
+                LinkKind.StepPort, Guid.NewGuid(), "Out", "上游步骤.Out"));
+
+            string emptyProbe = "未执行";
+            var emptyThread = new Thread(() =>
+            {
+                try
+                {
+                    var editor = new Core.Controls.LinkableValueEditor { Port = emptyPort, StepData = emptyStep };
+                    editor.Measure(new System.Windows.Size(520, 40));
+                    editor.Arrange(new System.Windows.Rect(0, 0, 520, 40));
+                    editor.UpdateLayout();
+                    var box = editor.FindName("PART_ValueBox") as System.Windows.Controls.TextBox;
+                    emptyProbe = $"只能选={editor.IsOptionPort} 手填退化={editor.IsHandFillFallback}"
+                                 + $" 链接={editor.IsLinked} 文本框={(box == null ? "找不到" : box.Visibility.ToString())}";
+                }
+                catch (Exception ex)
+                {
+                    emptyProbe = "异常：" + ex;
+                }
+            })
+            { IsBackground = true };
+            emptyThread.SetApartmentState(ApartmentState.STA);
+            emptyThread.Start();
+            emptyThread.Join(8000);
+
+            Check("★老连线 + 候选为空：封闭端口仍保留手填文本框（否则整行空白）",
+                emptyProbe.Contains("只能选=False") && emptyProbe.Contains("手填退化=True")
+                && emptyProbe.Contains("链接=True") && emptyProbe.Contains("文本框=Visible"),
+                emptyProbe);
+
+            // ---- ③d 绑定弹窗：封闭端口即使候选为空也必须强制常量模式 ----
+            // 画布拖线进入的绑定弹窗是另一条"给值"的入口；旧判据是
+            // `IsFunctionalEnum && items.Count > 0`，空候选时会放开上游面板 —— 那等于 R33 漏了。
+            var vm = new VisionMaster.ViewModels.VariableBindingViewModel(workspace, new EmptyPluginProvider());
+            vm.SelectedInputPort = new InputPortUIModel(new PortDefinition
+            {
+                Name = "FlowName",
+                DataTypeName = typeof(string).AssemblyQualifiedName,
+                IsFunctionalEnum = true,
+                // 本宿主没有任何来源回答这个类别 → 候选必为空
+                OptionKind = StepConfigOptionKind.CommunicationVariableName,
+            }, null);
+
+            Check("★绑定弹窗：封闭端口即使候选为空也强制常量模式（上游面板不出现）",
+                vm.HasFunctionalEnumPort && vm.IsConstantMode && !vm.IsUpstreamMode && vm.PresetOptions.Count == 0,
+                $"封闭={vm.HasFunctionalEnumPort} 常量={vm.IsConstantMode} 上游={vm.IsUpstreamMode} 候选={vm.PresetOptions.Count}");
+
+            vm.SelectedInputPort = new InputPortUIModel(new PortDefinition
+            {
+                Name = "FlowName",
+                DataTypeName = typeof(string).AssemblyQualifiedName,
+                IsFunctionalEnum = true,
+                OptionKind = StepConfigOptionKind.SubroutineFlowName,
+            }, null);
+
+            Check("绑定弹窗：有候选时列出全部候选并默认选中第一项",
+                vm.HasFunctionalEnumPort && vm.PresetOptions.Count == 3
+                && !string.IsNullOrWhiteSpace(vm.ConstantValue)
+                && vm.ConstantValue == vm.PresetOptions[0].Option,
+                $"候选={vm.PresetOptions.Count} 默认={vm.ConstantValue}");
+
+            // ---- ③e 确认前的状态：Confirm 必走常量分支 ----
+            // 不直接调 ConfirmCommand：Prism 的 DialogCloseListener 未由 DialogService 初始化时，
+            // Invoke 会在 ThreadPool 上抛未处理异常，把整个断言宿主带崩（实测）。
+            // 这里断"决定 Confirm 走哪条分支"的输入状态；常量分支的写法由既有
+            // VariableBindingCheck 的绑定用例覆盖。
+            var confirmVm = new VisionMaster.ViewModels.VariableBindingViewModel(workspace, new EmptyPluginProvider());
+            confirmVm.OnDialogOpened(new Prism.Dialogs.DialogParameters
+            {
+                { "TargetStep", new ActionStep("R", "调用流程", pluginType.AssemblyQualifiedName, "确认状态") },
+                { "IsSingleBindMode", false },
+            });
+            confirmVm.SelectedInputPort = new InputPortUIModel(new PortDefinition
+            {
+                Name = "FlowName",
+                DataTypeName = typeof(string).AssemblyQualifiedName,
+                IsFunctionalEnum = true,
+                OptionKind = StepConfigOptionKind.SubroutineFlowName,
+            }, null);
+
+            Check("★绑定弹窗确认前的状态：常量模式 + 有值（Confirm 必走常量分支，不写上游连线）",
+                confirmVm.IsConstantMode && !confirmVm.IsUpstreamMode
+                && !string.IsNullOrWhiteSpace(confirmVm.ConstantValue),
+                $"常量模式={confirmVm.IsConstantMode} 上游={confirmVm.IsUpstreamMode} 值={confirmVm.ConstantValue}");
+
             // ---- ④ 宿主真接线：FlowEngineModule 启动时必须注册这个来源 ----
             var modulePath = ResolveRepoFile(@"Engine\FlowEngineModule.cs");
             var moduleText = modulePath == null ? string.Empty : File.ReadAllText(modulePath);
+            var moduleWired = moduleText.Contains("SubroutineFlowOptions.Register(", StringComparison.Ordinal);
             Check("★FlowEngineModule 启动时注册流程候选来源（静态扫描：没接上等于面板永远退回手填）",
-                moduleText.Contains("SubroutineFlowOptions.Register(", StringComparison.Ordinal),
-                modulePath == null ? "定位不到 Engine\\FlowEngineModule.cs" : "已找到注册调用");
+                modulePath != null && moduleWired,
+                modulePath == null
+                    ? "定位不到 Engine\\FlowEngineModule.cs"
+                    : (moduleWired ? "已找到注册调用" : "FlowEngineModule.cs 里没有 SubroutineFlowOptions.Register("));
         }
 
         // ==================================================================

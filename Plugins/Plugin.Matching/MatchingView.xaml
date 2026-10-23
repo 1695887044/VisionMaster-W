@@ -809,8 +809,21 @@
                                 </UniformGrid>
 
                                 <StackPanel Style="{StaticResource FieldStackStyle}">
-                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="使用极性" ToolTip="使用极性 = 黑白方向必须一致才算命中（更快）；光照会反相的场合选忽略极性" />
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="匹配算法" ToolTip="基于形状：看边缘几何，抗光照变化、可缩放；NCC：看灰度纹理，适合边缘弱但纹理稳定的对象（如丝印、织物、低对比度塑料件）。改算法必须重新学习模板" />
                                     <ComboBox
+                                        ItemsSource="{Binding AlgorithmOptions}"
+                                        SelectedIndex="{Binding AlgorithmIndex}"
+                                        Style="{StaticResource DialogCombo}" />
+                                    <TextBlock
+                                        Margin="0,4,0,0"
+                                        Style="{StaticResource HelpTextStyle}"
+                                        Text="NCC 不支持缩放匹配，也忽略极性与梯度阈值" />
+                                </StackPanel>
+
+                                <StackPanel Style="{StaticResource FieldStackStyle}">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="使用极性" ToolTip="使用极性 = 黑白方向必须一致才算命中（更快）；光照会反相的场合选忽略极性。NCC 算法下此项不生效" />
+                                    <ComboBox
+                                        IsEnabled="{Binding IsShapeAlgorithm}"
                                         ItemsSource="{Binding PolarityOptions}"
                                         SelectedIndex="{Binding PolarityIndex}"
                                         Style="{StaticResource DialogCombo}" />
@@ -822,9 +835,10 @@
                                     FontSize="12"
                                     Foreground="{StaticResource DialogTextSecondaryBrush}"
                                     IsChecked="{Binding EditingEntry.ScaleEnabled, Mode=TwoWay}"
+                                    IsEnabled="{Binding IsShapeAlgorithm}"
                                     VerticalContentAlignment="Center" />
 
-                                <UniformGrid Columns="2">
+                                <UniformGrid Columns="2" IsEnabled="{Binding IsShapeAlgorithm}">
                                     <StackPanel Margin="0,0,6,11">
                                         <TextBlock Style="{StaticResource FieldLabelStyle}" Text="最小比例 (倍)" ToolTip="相对模板尺寸的最小倍率（0.5~2）" />
                                         <ui:NumericBox

@@ -35,6 +35,9 @@ namespace VisionMaster.Scada
         private string? _axisName;
         private double? _targetMm;
         private double? _velocityMmPerS;
+        private double? _step;
+        private double? _min;
+        private double? _max;
         private bool _onlyIfPreviousSucceeded;
 
         /// <summary>动作类型（决定下面哪几组字段有意义）</summary>
@@ -327,6 +330,41 @@ namespace VisionMaster.Scada
         }
 
         /// <summary>
+        /// 增量/减量的步长（正数）。null = 默认 1；0 与负数由执行侧拒绝（配置期也应拦）。
+        /// </summary>
+        public double? Step
+        {
+            get => _step;
+            set
+            {
+                if (SetProperty(ref _step, value))
+                    RaisePropertyChanged(nameof(Detail));
+            }
+        }
+
+        /// <summary>增量/减量的下限（null = 不夹紧；填 0 是合法边界，不能用 0 表示“没填”）</summary>
+        public double? Min
+        {
+            get => _min;
+            set
+            {
+                if (SetProperty(ref _min, value))
+                    RaisePropertyChanged(nameof(Detail));
+            }
+        }
+
+        /// <summary>增量/减量的上限（null = 不夹紧）</summary>
+        public double? Max
+        {
+            get => _max;
+            set
+            {
+                if (SetProperty(ref _max, value))
+                    RaisePropertyChanged(nameof(Detail));
+            }
+        }
+
+        /// <summary>
         /// 本动作的关键参数（属性面板上"这一行右边要显示的短文本"）。
         /// 单独开一个只读属性，是为了让界面不必各自去 switch 一遍动作类型——
         /// 那份 switch 与 <see cref="Describe"/> 是同一份知识，只该存在一处。
@@ -335,6 +373,8 @@ namespace VisionMaster.Scada
         {
             ScadaActionType.Log => _text ?? string.Empty,
             ScadaActionType.WriteVariable => $"{ToReference().DisplayText} := {_value}",
+            ScadaActionType.Increment => $"{ToReference().DisplayText} +{_step ?? 1d}",
+            ScadaActionType.Decrement => $"{ToReference().DisplayText} -{_step ?? 1d}",
             ScadaActionType.Navigate => _targetPageName ?? string.Empty,
             ScadaActionType.NavigateBack => string.Empty,
             ScadaActionType.OpenPopup => _targetPageName ?? string.Empty,
@@ -481,6 +521,12 @@ namespace VisionMaster.Scada
             ScadaActionType.WriteVariable => _variableId == Guid.Empty && string.IsNullOrEmpty(_variableName)
                 ? "写变量（未选变量）"
                 : $"写变量 {ToReference().DisplayText} := {_value}",
+            ScadaActionType.Increment => _variableId == Guid.Empty && string.IsNullOrEmpty(_variableName)
+                ? "增量（未选变量）"
+                : $"增量 {ToReference().DisplayText} +{_step ?? 1d}",
+            ScadaActionType.Decrement => _variableId == Guid.Empty && string.IsNullOrEmpty(_variableName)
+                ? "减量（未选变量）"
+                : $"减量 {ToReference().DisplayText} -{_step ?? 1d}",
             ScadaActionType.Navigate => _targetPageId == Guid.Empty && string.IsNullOrEmpty(_targetPageName)
                 ? "切换画面（未选画面）"
                 : $"切换画面 → {_targetPageName}",

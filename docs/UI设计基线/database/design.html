@@ -549,12 +549,12 @@
   </div>
 
   <div class="state-card">
-    <h3>删除确认 · 有流程引用（推荐禁止删除）</h3>
+    <h3>删除确认 · 有流程引用（禁止删除）</h3>
     <div class="sub">删除 profile 会同时删除其命名语句</div>
     <div class="modal">
       <h4>删除数据库「生产追溯」？</h4>
       <p>将同时删除 <b>3 条命名语句</b>。<br>当前方案有 <b>2 个步骤</b>引用 <code>WriteResult</code>（Test_Report.写追溯、Test_Vision.写结果）。删除后这些步骤会编译失败。</p>
-      <div class="banner danger" style="margin-top:8px"><span class="bico">!</span><span>有引用时禁止删除：请先在流程里解除引用，或保留该数据库。</span></div>
+      <div class="banner danger" style="margin-top:8px"><span class="bico">!</span><span>有引用时禁止删除（已确认）：请先在流程里解除引用，或保留该数据库。</span></div>
       <div class="acts"><button class="btn ghost">取消</button><button class="btn danger" disabled>仍然删除</button></div>
     </div>
   </div>
@@ -580,7 +580,7 @@
   <ul>
     <li><b>数据库页负责配置 + 封装</b>：添加/编辑/删除 profile；管理命名语句（SQL + 参数定义 + 测试）；不做流程执行。</li>
     <li><b>插件层只调用</b>：<code>Plugin.Database</code> 只选 <code>ProfileId</code> + <code>StatementId</code> + 填参数；SQL / 连接串不进入 <code>.vms</code>。</li>
-    <li><b>身份稳定</b>：ProfileId / StatementId 用 GUID；显示名可改，改名不断链；删除前检查当前方案引用。</li>
+    <li><b>身份稳定</b>：ProfileId / StatementId 用 GUID；显示名可改，改名不断链；<b>有引用时禁止删除</b>（已确认）。</li>
     <li><b>SQLite v1</b>：文件路径 + 读写/只读；无密码。SQL Server/MySQL 后续版本；密码走 DPAPI，<code>.vms</code> 只存 CredentialId。</li>
     <li><b>安全硬闸</b>：只允许命名语句 + 参数化；单条语句；只读 profile 只允许 Query；测试写操作回滚；日志不记参数值。</li>
     <li><b>视觉</b>：全部走 <code>Dialog*</code> 令牌；不新增硬编码颜色；圆角/间距按 README 刻度。</li>

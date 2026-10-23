@@ -23,7 +23,13 @@ namespace VisionMaster.Models
         // IStepConfigData 显式实现
         Guid IStepConfigData.StepId => StepID;
 
-        public string Icon { get; init; }
+        /// <summary>
+        /// 工具箱图标（Font Awesome 码点，来自插件 DisplayAttribute.ShortName）。
+        /// 建步骤时快照进 .vms；老方案（或插件补图标之前建的步骤）会是空串，
+        /// 由 <see cref="VisionMaster.Services.StepIconBackfill"/> 在方案加载后按插件表补全。
+        /// 所以这里是 set 而不是 init：补全发生在构造之后，且不触发流程版本递增。
+        /// </summary>
+        public string Icon { get; set; }
         public string PluginName { get; set; }
 
         /// <summary>

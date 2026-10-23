@@ -67,6 +67,18 @@ namespace VisionMaster.Scada.Snapshots
         public string Background { get; init; } = string.Empty;
 
         /// <summary>
+        /// 页面背景图（方案内相对路径，如 <c>Image\pid.png</c>；空 = 只用背景色）。
+        /// Web 渲染器由宿主按方案路由取图，快照里只带相对路径，不带绝对路径。
+        /// </summary>
+        public string BackgroundImage { get; init; } = string.Empty;
+
+        /// <summary>背景图填充方式（成员名：Uniform / UniformToFill / Fill / Tile）</summary>
+        public string BackgroundStretch { get; init; } = "Uniform";
+
+        /// <summary>背景图不透明度（10~100）</summary>
+        public double BackgroundOpacity { get; init; } = 100;
+
+        /// <summary>
         /// 本页引用的<b>全部基座</b>快照（按渲染顺序：靠前的在下面）。
         ///
         /// <see cref="BasePage"/> 是它的第一项（单基座兼容视图）；新渲染器按本列表逐层叠。

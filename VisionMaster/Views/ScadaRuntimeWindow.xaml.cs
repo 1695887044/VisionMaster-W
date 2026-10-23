@@ -157,6 +157,12 @@ namespace VisionMaster.Views
             // 没量到也没关系——随后的 SizeChanged 会再兜一遍（见 OnCanvasSizeChanged）
             FitCanvas();
             UpdateStatusBar();
+            ApplyPageBackgrounds();
+
+            // 方案图片解析器：画布把它注入给每个图元（Hmi.Picture 用），
+            // 与背景图同一条“方案目录 + 相对路径”口径。
+            Canvas.ImageAssetResolver = ResolveImageAsset;
+            PopupCanvas.ImageAssetResolver = ResolveImageAsset;
 
             // 报警面板的运行态上下文来自画布：宿主在 StartAlarms 里把它装到画布上，
             // 而 StartAlarms 排在 Show() 之前（见 ScadaRuntimeHost.Start），所以走到 Loaded
@@ -211,7 +217,52 @@ namespace VisionMaster.Views
 
             // 切页/开关弹窗时，正在编辑的字段已经离开表面：先收键盘，避免它继续对着旧控件输入。
             if (e.PropertyName is nameof(ScadaRuntime.CurrentPage) or nameof(ScadaRuntime.CurrentPopup))
+            {
                 CloseSoftKeyboard();
+                ApplyPageBackgrounds();
+            }
+        }
+
+        /// <summary>
+        /// 方案目录（背景图相对路径的解析根）。由宿主在创建窗口后、Show 之前赋值。
+        /// 为空时背景图一律回退背景色——方案还没保存过就没有 Image 目录。
+        /// </summary>
+        public string? SolutionRoot { get; set; }
+
+        /// <summary>方案图片解析器（相对路径 → 位图）；失败返回 null，图元显示占位。</summary>
+        private ImageSource? ResolveImageAsset(string relativePath)
+            => SolutionAssetService.TryLoad(SolutionRoot, relativePath, out var image, out _) ? image : null;
+
+        /// <summary>把当前页/弹窗页的背景图铺到两张画布上（相对路径 → 位图由资产服务解析）。</summary>
+        private void ApplyPageBackgrounds()
+        {
+            ApplyPageBackground(Canvas, _session.CurrentPage);
+            ApplyPageBackground(PopupCanvas, _session.CurrentPopup);
+        }
+
+        private void ApplyPageBackground(ScadaCanvas canvas, ScadaPage? page)
+        {
+            if (canvas == null)
+                return;
+
+            if (page == null || string.IsNullOrWhiteSpace(page.BackgroundImage))
+            {
+                canvas.PageBackgroundImage = null;
+                return;
+            }
+
+            if (!SolutionAssetService.TryLoad(SolutionRoot, page.BackgroundImage, out var image, out _))
+            {
+                // 缺失/解码失败：回退背景色，运行态不弹窗（设计基线 §页面背景）。
+                canvas.PageBackgroundImage = null;
+                return;
+            }
+
+            // 先写填充参数再写图：每次赋值都会重建 ImageBrush，最后写图那一次用的是最终参数。
+            canvas.PageBackgroundStretch = ScadaBackgroundStretch.Parse(page.BackgroundStretch);
+            canvas.PageBackgroundOpacity = ScadaBackgroundStretch.ToOpacity(page.BackgroundOpacity);
+            canvas.PageBackgroundTile = ScadaBackgroundStretch.IsTile(page.BackgroundStretch);
+            canvas.PageBackgroundImage = image;
         }
 
         /// <summary>换弹窗时重挂锚点订阅；弹窗页自己的锚点/偏移变了也要重新摆放。</summary>

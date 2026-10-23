@@ -281,6 +281,21 @@ namespace VisionMaster
                         $"[IO→通讯] 已折算 {connections} 条连接 / {variables} 个变量");
                 }
             };
+
+            // 步骤图标补全钩子：Icon 是"建步骤时"从工具箱快照进 .vms 的，老方案（或插件补
+            // ShortName 之前建的步骤）会是空串。插件表只有容器知道，所以在这里注入。
+            // 与上面同一注意点：lambda 在**方案加载时**执行，那时容器已就绪，可以 Resolve。
+            SolutionService.StepIconBackfillHook = solution =>
+            {
+                try
+                {
+                    StepIconBackfill.Apply(solution, Container.Resolve<IPluginProvider>());
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[方案加载] 步骤图标补全失败（已忽略）：{ex.Message}");
+                }
+            };
             // 收图服务放在最后：它初始化时要解析 IRuntimeManager / IFlowEngine / FlowCompiler，
             // 这几个都由上面的引擎模块注册，顺序错了 Initialize 会解析不到
             _modules.Add(new HttpImageServerModule());
@@ -291,6 +306,12 @@ namespace VisionMaster
             // 让相机先就绪更贴合实际使用顺序；而且运动卡自动连接会**给伺服上电**，
             // 这类会动的东西排在收图/相机等外围服务之后，出问题时日志里更好定位。
             _modules.Add(new MotionModule());
+            // 系统变量模块：把通讯设备与相机接进统一宿主（运动轴由 MotionModule 自己接）。
+            // 必须排在 CameraModule / MotionModule 之后：它初始化时要解析 ICameraProvider 与
+            // 已挂好运动目录的 SystemVariableHost，早于两者会拿到空设备表。
+            _modules.Add(new SystemVariableModule());
+            // 数据库模块：只做配置存储与 SQLite 执行，不参与设备连接；排在设备模块之后即可
+            _modules.Add(new DatabaseModule());
             // 注：IO 接入层已下线——设备/点位配置改由"通讯连接 + 网络变量"承载
             // （旧 IO 配置在方案加载时由 IoMigrationHook 一次性折算，见下方注册）。
 
@@ -340,6 +361,12 @@ namespace VisionMaster
             containerRegistry.RegisterSingleton<ImageCollectionService>();
             containerRegistry.Register<IReadOnlyWorkspaceContext>(c => c.Resolve<WorkspaceContext>());
             containerRegistry.Register<IWorkspaceManager>(c => c.Resolve<WorkspaceContext>());
+            // 系统变量统一宿主：**必须显式注册**，且集合只能是 workspace.SystemVariables。
+            // 漏了这条不报任何错——Unity 会自己构造一个 SystemVariableHost，连它要的集合也新造一份空的；
+            // 运动目录据此进入"托管模式"，投影全写进没人读的孤儿集合，界面「系统变量」恒为 0
+            // （2026-10-23 实测：方案里 3 根启用轴，36 条变量一条都没上屏）。
+            containerRegistry.RegisterSingleton<SystemVariableHost>(c =>
+                new SystemVariableHost(c.Resolve<IWorkspaceManager>().SystemVariables));
             containerRegistry.RegisterForNavigation<LogView,LogViewModel>();
             containerRegistry.RegisterForNavigation<ProcessView, ProcessViewModel>();
             containerRegistry.RegisterForNavigation<MonitorView, MonitorViewModel>();

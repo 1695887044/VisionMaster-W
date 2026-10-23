@@ -107,10 +107,20 @@
                     <Style TargetType="TextBox">
                         <Setter Property="Visibility" Value="Visible" />
                         <Style.Triggers>
-                            <!--  已链接：隐藏固定值框  -->
-                            <DataTrigger Binding="{Binding IsLinked, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                            <!--
+                                已链接：隐藏固定值框。
+                                但**封闭候选端口**例外：老 .vms 的连线还在、候选又恰好为空时，
+                                下拉（无候选）与链接地址框（封闭端口不显示）都不在，
+                                再把文本框藏掉这一行就彻底空白了 —— 用户既看不到值也改不了。
+                                封闭端口即使已链接也保留输入框（手填一项即拆线，见 OnPortValueChanged ③）。
+                            -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsLinked, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+                                    <Condition Binding="{Binding IsClosedValuePort, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False" />
+                                </MultiDataTrigger.Conditions>
                                 <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
+                            </MultiDataTrigger>
                             <!--  不可文本输入（如 HImage）：隐藏固定值框  -->
                             <DataTrigger Binding="{Binding IsTextEditable, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -247,14 +257,15 @@
                     <Style TargetType="ComboBox">
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
-                            <!--  仅在"只能选且未链接"时显示：已链接时应显示链接地址，让位给下面的只读框  -->
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding IsOptionPort, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
-                                    <Condition Binding="{Binding IsLinked, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False" />
-                                </MultiDataTrigger.Conditions>
+                            <!--
+                                封闭候选端口一律显示下拉（**不再看 IsLinked**）。
+                                老工程里这类端口可能还留着上游连线（当年是普通 string 端口时绑的）：
+                                下拉被藏起来的话，🔗/✕ 又对封闭端口恒隐藏，用户既改不了也拆不掉。
+                                用户选一项时由 OnPortValueChanged 拆掉旧连线（见那里的 ③）。
+                            -->
+                            <DataTrigger Binding="{Binding IsOptionPort, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
                                 <Setter Property="Visibility" Value="Visible" />
-                            </MultiDataTrigger>
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </ComboBox.Style>
@@ -285,9 +296,18 @@
                     <Style TargetType="TextBox">
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsLinked, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                            <!--
+                                封闭候选端口不显示"已链接地址"：那一行现在由下拉接管
+                                （老连线在下拉上方用 ToolTip 说明，选一项即清除）。
+                                只对普通端口显示链接地址，保持"已链接时看得到来源"的既有语义。
+                            -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsLinked, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+                                    <Condition Binding="{Binding IsClosedValuePort, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False" />
+                                </MultiDataTrigger.Conditions>
                                 <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
+                            </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
                 </TextBox.Style>

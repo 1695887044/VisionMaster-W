@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Core.Interfaces;
 using Prism.Mvvm;
 using VisionMaster.Communications;
@@ -6,7 +7,8 @@ using VisionMaster.Communications;
 namespace VisionMaster.Models
 {
     /// <summary>
-    /// 系统变量模型：**派生出来的只读量**（当前只有运动轴状态投影，见 <c>SystemVariableCatalog</c>）。
+    /// 系统变量模型：**派生出来的只读量**（运动轴 / 通讯设备 / 相机，见各自目录）。
+    /// 复合变量（整根轴/整台设备）用 <see cref="Fields"/> 挂子字段；叶子变量 Fields 为空。
     ///
     /// 三条刻意的取舍
     /// ---------
@@ -23,7 +25,7 @@ namespace VisionMaster.Models
     /// 同一根轴的同一个字段在任何机器、任何次启动都得到同一个 Id，
     /// 于是按 Id 寻址的连线/画面绑定在重启后仍然命中，不需要任何"登记"动作。
     /// </summary>
-    public class SystemVariableModel : BindableBase, IVariable, IVariableDisplaySource
+    public class SystemVariableModel : BindableBase, IVariable, IVariableDisplaySource, ISystemVariableContainer
     {
         private string _name;
         private object? _value;
@@ -32,16 +34,54 @@ namespace VisionMaster.Models
         /// 构造系统变量。
         /// </summary>
         /// <param name="variableId">确定性身份（由轴 Id + 字段名推导，调用方保证）</param>
-        /// <param name="name">派生名字，形如 <c>Motion.X.Position</c></param>
+        /// <param name="name">派生名字，形如 <c>System.Motion.X.Position</c></param>
         /// <param name="dataType">值的声明类型（决定下游绑定的编辑器与转换规则）</param>
         /// <param name="description">给操作员看的说明（含单位与"只读"提示）</param>
-        public SystemVariableModel(Guid variableId, string name, Type dataType, string description)
+        /// <param name="fields">
+        /// 子字段（复合变量才有）。给空表示普通叶子变量；父变量本身仍是可解析、可整块绑定的
+        /// <see cref="IVariable"/>，子字段各自有确定性 Id，老绑定按 Id/名字寻址不受影响。
+        /// </param>
+        public SystemVariableModel(
+            Guid variableId,
+            string name,
+            Type dataType,
+            string description,
+            IReadOnlyList<IVariable>? fields = null,
+            string owner = "")
         {
             VariableId = variableId;
             _name = name ?? string.Empty;
             DataType = dataType ?? typeof(object);
             Description = description ?? string.Empty;
+            Fields = fields ?? Array.Empty<IVariable>();
+            Owner = owner ?? string.Empty;
         }
+
+        /// <summary>
+        /// 提供方名字（Motion / Comm / Camera）。
+        ///
+        /// 为什么需要它：系统变量集合由多个目录合并写入，而各目录的"是否已最新"判定要能
+        /// **只数自己的那一份**。按类型数会把别家的变量算进来（运动目录因此每拍都判"集合被外部动过"
+        /// → 100ms 全量重建一次）。名字前缀也能凑合，但那是约定不是事实，改名/换前缀就失效。
+        /// </summary>
+        public string Owner { get; }
+
+        /// <summary>
+        /// 子字段（只读、有序）。空集合 = 叶子变量。
+        /// <para>顺序即变量管理里的展开顺序，由目录在构造时决定（位置/速度在前）。</para>
+        /// <para>复用父实例时由目录调 <see cref="UpdateFields"/> 换一份新列表——将来字段表
+        /// 增删时，父行不会继续指向已经不在目录里的旧字段实例。</para>
+        /// </summary>
+        public IReadOnlyList<IVariable> Fields { get; private set; }
+
+        /// <summary>刷新子字段列表（目录内部用：复用父实例时同步）。</summary>
+        internal void UpdateFields(IReadOnlyList<IVariable> fields)
+        {
+            Fields = fields ?? Array.Empty<IVariable>();
+        }
+
+        /// <summary>是否复合变量（有子字段）。界面据此决定是否展开子行。</summary>
+        public bool IsComposite => Fields.Count > 0;
 
         /// <inheritdoc />
         public Guid VariableId { get; }

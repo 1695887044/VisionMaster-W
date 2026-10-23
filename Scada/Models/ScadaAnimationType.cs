@@ -34,6 +34,12 @@ namespace VisionMaster.Scada
 
         /// <summary>可见性：变量值命中范围时显示或隐藏（手册 7.5.1.10）</summary>
         Visibility = 4,
+
+        /// <summary>
+        /// 启用对象：变量为 0 时禁用（不可交互）、非 0 时启用（手册 7.5.1.2）。
+        /// 与可见性分开：禁用仍占布局、仍可见，只是点不动并给出原因。
+        /// </summary>
+        Enable = 5,
     }
 
     /// <summary>
@@ -53,6 +59,7 @@ namespace VisionMaster.Scada
             ScadaAnimationType.HorizontalMove => "水平移动",
             ScadaAnimationType.VerticalMove => "垂直移动",
             ScadaAnimationType.Visibility => "可见性",
+            ScadaAnimationType.Enable => "启用对象",
             // 高版本软件存下的动画类型读进低版本会落到这里（Newtonsoft 按数值反序列化，不校验取值范围）。
             // 报出数值而不是抛异常：坏在一条动画上，不该让整张画面打不开。
             _ => $"未知动画({(int)type})",

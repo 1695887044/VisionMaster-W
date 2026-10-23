@@ -1,0 +1,302 @@
+<UserControl
+    x:Class="Plugin.Database.DatabasePluginView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:cv="clr-namespace:Core.Controls;assembly=Core.Controls"
+    Background="{StaticResource DialogBackgroundBrush}">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </UserControl.Resources>
+
+    <Grid Margin="20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ============================ 左栏：数据库 / 语句 / SQL 预览 ============================ -->
+        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+
+            <TextBlock
+                Margin="0,0,0,8"
+                FontSize="12"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource DialogTextPrimaryBrush}"
+                Text="数据库与语句" />
+
+            <Border
+                Margin="0,0,0,10"
+                Padding="12"
+                Background="{StaticResource DialogSurfaceBrush}"
+                BorderBrush="{StaticResource DialogBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="10">
+                <StackPanel>
+                    <TextBlock
+                        Margin="0,0,0,6"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="数据库" />
+                    <ComboBox
+                        Height="34"
+                        DisplayMemberPath="Caption"
+                        ItemsSource="{Binding ProfileOptions}"
+                        SelectedItem="{Binding SelectedProfile, Mode=TwoWay}" />
+                    <TextBlock
+                        Margin="0,6,0,0"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="{Binding SelectedProfile.TargetText}"
+                        TextTrimming="CharacterEllipsis" />
+                    <TextBlock
+                        Margin="0,4,0,0"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogWarningTextBrush}"
+                        Text="只读数据库：本步骤只能做查询"
+                        Visibility="{Binding IsReadOnlyProfile, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+            </Border>
+
+            <Border
+                Margin="0,0,0,10"
+                Padding="12"
+                Background="{StaticResource DialogSurfaceBrush}"
+                BorderBrush="{StaticResource DialogBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="10">
+                <StackPanel>
+                    <TextBlock
+                        Margin="0,0,0,6"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="命名语句" />
+                    <ComboBox
+                        Height="34"
+                        DisplayMemberPath="Caption"
+                        ItemsSource="{Binding StatementOptions}"
+                        SelectedItem="{Binding SelectedStatement, Mode=TwoWay}" />
+                    <TextBlock
+                        Margin="0,6,0,0"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="{Binding StatementKindText, StringFormat='本步骤需要：{0}语句'}" />
+                </StackPanel>
+            </Border>
+
+            <Border
+                Padding="12"
+                Background="{StaticResource DialogSurfaceBrush}"
+                BorderBrush="{StaticResource DialogBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="10">
+                <StackPanel>
+                    <TextBlock
+                        Margin="0,0,0,6"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="SQL 预览（只读）" />
+                    <TextBox
+                        Height="150"
+                        Padding="6"
+                        AcceptsReturn="True"
+                        Background="{StaticResource DialogSurfaceBrush}"
+                        BorderBrush="{StaticResource DialogBorderLightBrush}"
+                        FontFamily="Consolas"
+                        FontSize="11"
+                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                        IsReadOnly="True"
+                        Text="{Binding SqlPreview, Mode=OneWay}"
+                        TextWrapping="Wrap"
+                        VerticalScrollBarVisibility="Auto" />
+                    <TextBlock
+                        Margin="0,6,0,0"
+                        FontSize="10"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="SQL 只能在「硬件管理 → 数据库」维护与测试"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- ============================ 右栏：参数 / 输出 / 测试 ============================ -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- 配置问题提示 -->
+            <Border
+                Grid.Row="0"
+                Margin="0,0,0,10"
+                Padding="10,8"
+                Background="{StaticResource DialogWarningSubtleBrush}"
+                BorderBrush="{StaticResource DialogWarningBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Visibility="{Binding HasConfigProblem, Converter={StaticResource BoolToVis}}">
+                <TextBlock
+                    FontSize="11"
+                    Foreground="{StaticResource DialogWarningTextBrush}"
+                    Text="{Binding ConfigProblem}"
+                    TextWrapping="Wrap" />
+            </Border>
+
+            <TextBlock
+                Grid.Row="1"
+                Margin="0,0,0,8"
+                FontSize="12"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource DialogTextPrimaryBrush}"
+                Text="{Binding ParameterRows.Count, StringFormat='参数（{0}）'}" />
+
+            <ScrollViewer
+                Grid.Row="2"
+                Margin="0,0,0,10"
+                VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding ParameterRows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Height="44">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="66" />
+                                    <ColumnDefinition Width="42" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontFamily="Consolas"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                    Text="{Binding DisplayName}"
+                                    ToolTip="{Binding Description}" />
+
+                                <Border
+                                    Grid.Column="1"
+                                    Margin="0,0,8,0"
+                                    Padding="6,2"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Background="{StaticResource DialogAccentSoftBrush}"
+                                    CornerRadius="4">
+                                    <TextBlock
+                                        FontSize="9.5"
+                                        Foreground="{StaticResource DialogAccentTextBrush}"
+                                        Text="{Binding TypeText}" />
+                                </Border>
+
+                                <TextBlock
+                                    Grid.Column="2"
+                                    VerticalAlignment="Center"
+                                    FontSize="10"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text="{Binding RequiredText}" />
+
+                                <cv:LinkableValueEditor
+                                    Grid.Column="3"
+                                    VerticalAlignment="Center"
+                                    Label=""
+                                    Port="{Binding Port}"
+                                    StepData="{Binding DataContext.StepData, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <TextBlock
+                Grid.Row="3"
+                Margin="0,0,0,8"
+                FontSize="12"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource DialogTextPrimaryBrush}"
+                Text="{Binding OutputRows.Count, StringFormat='输出（{0}）'}" />
+
+            <ItemsControl Grid.Row="4" ItemsSource="{Binding OutputRows}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Height="32">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="130" />
+                                <ColumnDefinition Width="66" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontFamily="Consolas"
+                                FontSize="11"
+                                Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                Text="{Binding Name}" />
+                            <TextBlock
+                                Grid.Column="1"
+                                VerticalAlignment="Center"
+                                FontSize="10"
+                                Foreground="{StaticResource DialogAccentTextBrush}"
+                                Text="{Binding TypeText}" />
+                            <TextBlock
+                                Grid.Column="2"
+                                VerticalAlignment="Center"
+                                FontSize="10"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                Text="{Binding Description}"
+                                TextTrimming="CharacterEllipsis" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- 测试结果 banner -->
+            <Border
+                Grid.Row="5"
+                Margin="0,10,0,0"
+                Padding="10,8"
+                BorderThickness="1"
+                CornerRadius="8"
+                Visibility="{Binding HasTestMessage, Converter={StaticResource BoolToVis}}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding TestLevelKey}" Value="ok">
+                                <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                                <Setter Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding TestLevelKey}" Value="fail">
+                                <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                                <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBorderBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock
+                    FontSize="11"
+                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                    Text="{Binding TestMessage}"
+                    TextWrapping="Wrap" />
+            </Border>
+
+            <StackPanel
+                Grid.Row="6"
+                Margin="0,10,0,0"
+                HorizontalAlignment="Right"
+                Orientation="Horizontal">
+                <Button
+                    MinWidth="96"
+                    Height="32"
+                    Click="OnTestClick"
+                    Content="测试语句"
+                    IsEnabled="{Binding CanTest}"
+                    Style="{StaticResource DialogSecondaryButton}" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

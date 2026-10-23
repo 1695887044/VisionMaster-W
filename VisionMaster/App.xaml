@@ -66,6 +66,16 @@
                 <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml" />
+                <!--
+                    2026-10-23：把「输入域」这一册提到 Fluent 之后重挂一次。
+                    原因：资源字典后合并者优先，Fluent 的隐式 TextBox / PasswordBox / Slider
+                    把 UI 自绘的那三份顶掉了 —— 登录框的「显示密码」眼睛与 PlainTextHost 明码通道
+                    因此从未生效（实测运行期 PasswordBox 拿到的是 Fluent 的 Padding 10,5,10,6）。
+                    只重挂这一册（三类控件），不动其它册：Button / ListView / DataGrid 等仍走 Fluent，
+                    R148（自定义模板里的 ToggleButton 依赖 Fluent 的 Left/Center）与 R19（GridView 让路）
+                    的既有前提不变。整册顺序翻转属换肤级改动，需单独评审。
+                -->
+                <ResourceDictionary Source="/UI;component/Themes/Controls/Input.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </prism:PrismApplication.Resources>

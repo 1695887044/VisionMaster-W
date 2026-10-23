@@ -1004,7 +1004,7 @@
                                                                 </Style>
                                                             </TextBlock.Style>
                                                             <TextBlock.ToolTip>
-                                                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="{Binding Name}" />
+                                                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="{Binding DisplayFullName}" />
                                                             </TextBlock.ToolTip>
                                                         </TextBlock>
                                                         <TextBlock
@@ -1644,7 +1644,7 @@
                                                     HorizontalAlignment="Center"
                                                     VerticalAlignment="Center"
                                                     Orientation="Horizontal"
-                                                    Visibility="{Binding IsRootNode, Converter={ui:BooleanToVisibilityConverter}}">
+                                                    Visibility="{Binding ShowRowActions, Converter={ui:BooleanToVisibilityConverter}}">
                                                     <Button
                                                         Command="{Binding DataContext.CopyNameCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                         CommandParameter="{Binding}"

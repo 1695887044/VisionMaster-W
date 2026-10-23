@@ -1,4 +1,5 @@
 using Core.Interfaces;
+using Core.Interfaces.Database;
 using Core.Interfaces.Io;
 using System;
 using System.Runtime.CompilerServices;
@@ -153,7 +154,8 @@ namespace VisionMaster.Services
             ICameraProvider cameras,
             IMotionProvider motions = null,   // 夹具可省略：插件侧拿 NullMotionProvider（取卡即失败并说明原因）
             WriteLeaseRegistry writeLeases = null, // 夹具可省略：无租约时流程写入不互斥
-            ICommVariableAccess comms = null) // 夹具可省略：插件侧拿 NullCommVariableAccess（立刻读写即失败并说明原因）
+            ICommVariableAccess comms = null, // 夹具可省略：插件侧拿 NullCommVariableAccess（立刻读写即失败并说明原因）
+            IDatabaseAccess database = null) // 夹具可省略：插件侧拿 NullDatabaseAccess（数据库步骤即失败并说明原因）
         {
             _runtimeManager = runtimeManager ?? throw new ArgumentNullException(nameof(runtimeManager));
             _logService = logService ?? throw new ArgumentNullException(nameof(logService));
@@ -170,6 +172,8 @@ namespace VisionMaster.Services
             // 通讯变量立刻读写能力：缺省是空实现（调用即失败并说明原因），
             // 与相机/运动/流程调用器同一口径，夹具不必造假的通讯层。
             _comms = comms ?? NullCommVariableAccess.Instance;
+            // 数据库能力：缺省是空实现（调用即失败并说明原因），夹具不必造假的数据库服务
+            _database = database ?? NullDatabaseAccess.Instance;
         }
 
         /// <summary>相机仓库：每次执行都递给 ExecutionContext，插件据此取相机（见 IExecutionContext.Cameras）</summary>
@@ -180,6 +184,9 @@ namespace VisionMaster.Services
 
         /// <summary>通讯变量立刻读写入口：每次执行都递给 ExecutionContext（见 IExecutionContext.Comms）</summary>
         private readonly ICommVariableAccess _comms;
+
+        /// <summary>数据库能力：每次执行都递给 ExecutionContext（见 IExecutionContext.Database）</summary>
+        private readonly IDatabaseAccess _database;
 
         /// <summary>写租约：流程执行期间按 owner 持有，收尾释放。</summary>
         private readonly WriteLeaseRegistry? _writeLeases;
@@ -420,7 +427,8 @@ namespace VisionMaster.Services
                             Cameras = _cameras,
                             Motions = _motions,
                             FlowInvoker = FlowInvoker,
-                            Comms = _comms
+                            Comms = _comms,
+                            Database = _database
                         };
                         // 这一轮开始即广播（画布据此清空/覆盖上一轮的图，见 FlowRunStarted 的注释）
                         NotifyFlowRunStarted(session);

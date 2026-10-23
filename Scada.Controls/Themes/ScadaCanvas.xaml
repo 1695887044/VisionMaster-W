@@ -53,6 +53,11 @@
                                 Background="{TemplateBinding PageBackground}"
                                 SnapsToDevicePixels="True">
                                 <Grid>
+                                    <!--  背景图：最底层、不参与命中；填充由代码用 ImageBrush 写（平铺只能这么表达）  -->
+                                    <Rectangle
+                                        x:Name="PART_BackgroundImage"
+                                        IsHitTestVisible="False"
+                                        Visibility="Collapsed" />
                                     <Rectangle
                                         x:Name="PART_GridLayer"
                                         HorizontalAlignment="Left"

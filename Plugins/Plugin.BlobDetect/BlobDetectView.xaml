@@ -1045,6 +1045,7 @@
                                 </ui:NumericBox.Value>
                             </ui:NumericBox>
                             <TextBlock Style="{StaticResource HelpTextStyle}" Text="接「标定」插件的 MmPerPixel 输出时，运行时以标定值为准；判定仍按像素做。" />
+                            <TextBlock Style="{StaticResource HelpTextStyle}" Text="接错类型会失败：如果把「标定」插件的 Transform 输出连到本步骤的 Transform 端口，请确认那份标定不是「去畸变」类型（*Undistorted 或带内参）。本插件在原始像素上算面积/圆度，去畸变标定给的当量属于去畸变后的图，两者混用会让边角件面积静默偏百分之几，而面积正是 OK/NG 的判据——所以这种组合会直接判失败。" />
 
                             <TextBlock
                                 Margin="0,9,0,5"

@@ -401,6 +401,14 @@
 
 ---
 
+## 40. 输入框模板内缩（R184）
+
+| # | 判据 |
+|---|---|
+| R184 | **`TextBox`/`PasswordBox`/`NumericBox` 模板里的 `PART_ContentHost` 不许再吃一层"由 `Padding` 换算的 `Margin`"**：控件内部已按 `Padding` 内缩一次，二次内缩把固定高度的小框压扁（`Height=38` 只剩 `viewportH=12` < 行高 16.5 → 中文上下被切）。判据是 `PART_ContentHost.ViewportHeight ≥ ExtentHeight` + 数墨迹行数，**别看截图**（禁用态 `Opacity=0.5` 让抗锯齿顶行变淡，像被切）；数字墨迹矮（9~10px）常被误判成"正常"。存量四处已于 2026-10-23 全部修好（运动板卡 `MbTextBox`、`NumericBox.xaml`、`Controls/Input.xaml` 的 PasswordBox、`Plugin.ImageAcquisition/ImageAcquisitionView.xaml`，见 `docs/code-changes/` 同日两篇）；新增代码不得再引入。守门：**人工评审**（无自动闸）。 |
+
+---
+
 ## 附录：常见症状 → 章节
 
-列头消失/类型全名 → §6；流程栏类型全名/分支点不开 → §7；找不到资源名 → §9；图标字被切 → §22；面板不见/切标签闪退 → §18；下拉英文 → §12/§26；属性面板不刷新/两套参数同现 → §29+skill `vm-property-grid`；改了插件仍旧逻辑 → §5/§13/红线③；启动第一次退出 → §15；拖拽胶囊残留 → §37；界面改了没生效 → §30.2+skill `wpf-ui-debug`。
+列头消失/类型全名 → §6；流程栏类型全名/分支点不开 → §7；找不到资源名 → §9；图标字被切 → §22；面板不见/切标签闪退 → §18；下拉英文 → §12/§26；属性面板不刷新/两套参数同现 → §29+skill `vm-property-grid`；改了插件仍旧逻辑 → §5/§13/红线③；启动第一次退出 → §15；拖拽胶囊残留 → §37；界面改了没生效 → §30.2+skill `wpf-ui-debug`；输入框文字上下被切 → §40。

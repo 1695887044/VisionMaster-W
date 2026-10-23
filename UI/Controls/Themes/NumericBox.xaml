@@ -40,21 +40,22 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <!--  TextBox 的模板契约：内容宿主必须叫 PART_ContentHost  -->
+                            <!--  TextBox 的模板契约：内容宿主必须叫 PART_ContentHost。
+                                  不要在这里再套一层"按 Padding 换算的 Margin"——控件内部已经按
+                                  Padding 内缩一次，二次内缩会把固定高度的框压扁（Height=32 只剩 6px 视口）。  -->
                             <ScrollViewer
                                 x:Name="PART_ContentHost"
                                 Grid.Column="0"
-                                Margin="{TemplateBinding Padding}"
                                 VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                 Focusable="False"
                                 HorizontalScrollBarVisibility="Hidden"
                                 VerticalScrollBarVisibility="Hidden" />
 
-                            <!--  单位后缀：空串时整块收起来（留着会白占 10px 右边距）  -->
+                            <!--  单位后缀：空串时整块收起来（留着会白占 10px 右边距）；左 6px 是与输入文字的间隔  -->
                             <TextBlock
                                 x:Name="SuffixText"
                                 Grid.Column="1"
-                                Margin="0,0,10,0"
+                                Margin="6,0,10,0"
                                 VerticalAlignment="Center"
                                 FontSize="12"
                                 Foreground="#909399"

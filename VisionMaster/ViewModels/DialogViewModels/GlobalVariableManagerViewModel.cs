@@ -416,7 +416,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private static bool IsSystemVariable(IVariable? variable)
             => variable?.VariableType is VariableType.System or VariableType.Io;
 
-        private int CountSystemVariables() => CopySystemVariables().Count;
+        private int CountSystemVariables() => RootSystemVariables().Count;
 
         /// <summary>
         /// 系统变量快照。
@@ -447,9 +447,43 @@ namespace VisionMaster.ViewModels.DialogViewModels
             return new List<IVariable>();
         }
 
-        /// <summary>明细树数据源 = 用户变量 + 系统变量快照（系统侧只读展示）。</summary>
+        /// <summary>
+        /// 系统变量的**根**清单：复合变量的字段不是根行。
+        ///
+        /// 为什么必须过滤：<c>Workspace.SystemVariables</c> 里父变量（<c>System.Motion.X</c>）
+        /// 与它的 12 个字段是平级存放的（注册表要能按名字解析每一个）。
+        /// 若把它们全部当根行建树，字段会同时以"根行"和"父行子项"出现两次；
+        /// 计数也会把一台设备算成 13 个变量。
+        /// </summary>
+        private List<IVariable> RootSystemVariables() => SelectRootSystemVariables(CopySystemVariables());
+
+        /// <summary>
+        /// 从系统变量快照里挑出**根行**（复合变量的字段不是根行）。
+        ///
+        /// 抽成纯函数是为了能被断言直接钉住：这段错了不会报错，只会让字段行以"根行"
+        /// 身份再出现一次（重复行），并把一台设备算成 13 个变量。
+        /// </summary>
+        public static List<IVariable> SelectRootSystemVariables(IReadOnlyList<IVariable>? all)
+        {
+            if (all == null || all.Count == 0)
+                return new List<IVariable>();
+
+            var fields = new HashSet<IVariable>();
+            foreach (var container in all.OfType<SystemVariableModel>())
+            {
+                if (!container.IsComposite) continue;
+                foreach (var field in container.Fields)
+                    fields.Add(field);
+            }
+
+            return fields.Count == 0
+                ? all.ToList()
+                : all.Where(v => !fields.Contains(v)).ToList();
+        }
+
+        /// <summary>明细树数据源 = 用户变量 + 系统变量根（复合变量的字段由父行展开）。</summary>
         protected override IEnumerable<IVariable> EnumerateTreeVariables()
-            => _workspace.GlobalVariables.Concat(CopySystemVariables());
+            => _workspace.GlobalVariables.Concat(RootSystemVariables());
 
         private void RefreshSourceStates()
         {
@@ -563,11 +597,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
                         || !node.IsNetwork
                         || node.GroupId == groupId.Value;
 
-                    // 搜索：名称 / 描述 / 地址，任一命中即可
+                    // 搜索：名称 / 描述 / 地址，任一命中即可。
+                    // **复合变量的字段名也算**：否则搜 "Position" 搜不到 System.Motion.X
+                    // （父行描述里没有字段名），用户会以为系统变量没建出来。
+                    // 命中字段时只保留父行（折叠状态下子行不在 DisplayNodes 里），展开即可看到。
                     bool matchSearch = !searching
-                        || node.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0
-                        || (node.Description?.IndexOf(query, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0
-                        || (node.Address?.IndexOf(query, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0;
+                        || MatchesSearchText(node, query)
+                        || node.Children.Any(child => MatchesSearchText(child, query));
 
                     rootAccepted = matchSource && matchGroup && matchSearch;
                     if (!rootAccepted) continue;
@@ -582,6 +618,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             return result;
         }
+
+        /// <summary>搜索命中判据（根行与字段行共用）：名称 / 完整名 / 描述 / 地址。</summary>
+        private static bool MatchesSearchText(VariableNode node, string query)
+            => node.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0
+               || (node.FullName?.IndexOf(query, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0
+               || (node.Description?.IndexOf(query, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0
+               || (node.Address?.IndexOf(query, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0;
 
         #endregion
 
@@ -930,8 +973,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
             EditArrayCommand = new DelegateCommand<VariableNode>(ExecuteEditArray);
             WriteArrayCommand = new DelegateCommand<VariableNode>(ExecuteWriteArray);
             CopyNameCommand = new DelegateCommand<VariableNode>(
-                n => Clipboard.SetText(n?.Name ?? ""),
-                n => n != null && n.IsRootNode);
+                n => Clipboard.SetText(n?.FullName ?? n?.Name ?? ""),
+                n => n != null && (n.IsRootNode || !string.IsNullOrEmpty(n.FullName)));
             RenameCommand = new DelegateCommand<VariableNode>(
                 RenameVariable,
                 n => n != null && n.IsRootNode && n.OriginalModel != null && !IsSystemVariable(n.OriginalModel));
@@ -973,7 +1016,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 ChildValue = gv.Value,
                 Level = 0,
                 IsNetwork = isNetwork,
-                SourceLabel = isNetwork ? gv.ConnectionName : "本地",
+                // 系统变量不是"本地"：它们由宿主按设备派生（运动轴 / 通讯 / 相机）。
+                // 以前这一格写死"本地"，读起来像用户变量，与只读横幅自相矛盾。
+                SourceLabel = isNetwork
+                    ? gv.ConnectionName
+                    : gv.VariableType is VariableType.System or VariableType.Io ? "系统" : "本地",
                 Address = gv.AddressConfig?.Address,
             };
 
@@ -1203,6 +1250,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         protected override void CreateChildNodes(IVariable gv, VariableNode parentNode)
         {
+            // 复合系统变量（每根轴 / 每台通讯设备 / 每台相机）：字段展开成子行。
+            // 字段的 OriginalModel 是字段本身（不是父变量）——这样"当前值"列直接读字段的
+            // 实时值，复制变量名拿到的也是完整路径。
+            if (gv is ISystemVariableContainer { Fields.Count: > 0 } container)
+            {
+                CreateSystemFieldNodes(container, parentNode);
+                return;
+            }
+
             var defArray = gv.DefaultValue as Array;
             var valArray = gv.Value as Array;
             int len = Math.Max(defArray?.Length ?? 0, valArray?.Length ?? 0);
@@ -1240,6 +1296,65 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 child.ValueEditCompleted += OnNodeValueEditCompleted;
                 parentNode.Children.Add(child);
             }
+        }
+
+        /// <summary>
+        /// 复合系统变量也要展开子行（基类只认数组）。
+        /// </summary>
+        protected override bool ShouldCreateChildNodes(IVariable gv)
+            => base.ShouldCreateChildNodes(gv) || gv is ISystemVariableContainer { Fields.Count: > 0 };
+
+        /// <summary>
+        /// 复合系统变量的字段行：<c>Name</c> 是短名（<c>Position</c>），<c>FullName</c> 是完整路径
+        /// （<c>System.Motion.X.Position</c>）。显示用短名（挂在父行下面已经说明了归属），
+        /// 复制变量名/工具提示用完整路径。
+        /// </summary>
+        private static void CreateSystemFieldNodes(ISystemVariableContainer container, VariableNode parentNode)
+        {
+            foreach (var child in BuildSystemFieldNodes(container, parentNode))
+                parentNode.Children.Add(child);
+        }
+
+        /// <summary>
+        /// 生成复合系统变量的字段行（纯函数，供断言直接钉住）。
+        ///
+        /// <c>Name</c> 是短名（<c>Position</c>），<c>FullName</c> 是完整路径
+        /// （<c>System.Motion.X.Position</c>）。显示用短名（挂在父行下面已经说明了归属），
+        /// 复制变量名/工具提示用完整路径。
+        /// </summary>
+        public static List<VariableNode> BuildSystemFieldNodes(
+            ISystemVariableContainer container, VariableNode parentNode)
+        {
+            var result = new List<VariableNode>(container?.Fields.Count ?? 0);
+            if (container == null || parentNode == null) return result;
+
+            var prefix = parentNode.Name + ".";
+
+            foreach (var field in container.Fields)
+            {
+                var shortName = field.Name.StartsWith(prefix, StringComparison.Ordinal)
+                    ? field.Name.Substring(prefix.Length)
+                    : field.Name;
+
+                result.Add(new VariableNode
+                {
+                    // 字段本身作为 OriginalModel：当前值列直接读它的实时值
+                    OriginalModel = field,
+                    Name = shortName,
+                    FullName = field.Name,
+                    DataType = field.DataType,
+                    TypeName = field.DataType?.Name,
+                    Description = field.Description,
+                    ChildDefaultValue = field.DefaultValue,
+                    ChildValue = field.Value,
+                    Level = 1,
+                    SourceLabel = parentNode.SourceLabel,
+                    IsNetwork = parentNode.IsNetwork,
+                    IsConnected = parentNode.IsConnected,
+                });
+            }
+
+            return result;
         }
 
         /// <summary>

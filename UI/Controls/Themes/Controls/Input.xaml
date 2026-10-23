@@ -207,20 +207,22 @@
         <ControlTemplate TargetType="PasswordBox">
           <Grid>
             <Border x:Name="BaseBorder" Background="#FBFBFB" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="5">
-              <Grid Margin="{TemplateBinding Padding}">
+              <!--  外层 Grid 不再吃 Padding：PasswordBox 内部已按 Padding 给内容宿主内缩一次，
+                    这里再套一层会把文本压扁。明码框（PlainTextHost，Padding=0）与眼睛按钮各自补内缩。  -->
+              <Grid>
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*" />
                   <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <ScrollViewer x:Name="PART_ContentHost" Margin="0,0,8,0" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" Focusable="false" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
-                <TextBox x:Name="PlainTextHost" Margin="0,0,8,0" Padding="0" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" Background="Transparent" BorderThickness="0" FontSize="{TemplateBinding FontSize}" Foreground="{TemplateBinding Foreground}" Style="{x:Null}" Text="{Binding Path=(att:PasswordBoxHelper.BindablePassword), RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="Collapsed">
+                <ScrollViewer x:Name="PART_ContentHost" Margin="0" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" Focusable="false" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
+                <TextBox x:Name="PlainTextHost" Margin="{TemplateBinding Padding}" Padding="0" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" Background="Transparent" BorderThickness="0" FontSize="{TemplateBinding FontSize}" Foreground="{TemplateBinding Foreground}" Style="{x:Null}" Text="{Binding Path=(att:PasswordBoxHelper.BindablePassword), RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="Collapsed">
                   <TextBox.Template>
                     <ControlTemplate TargetType="TextBox">
                       <ScrollViewer x:Name="PART_ContentHost" Margin="0" Padding="0" Background="Transparent" BorderThickness="0" />
                     </ControlTemplate>
                   </TextBox.Template>
                 </TextBox>
-                <ToggleButton Grid.Column="1" Width="20" Height="20" Background="Transparent" BorderThickness="0" Cursor="Hand" Focusable="False" IsChecked="{Binding Path=(att:PasswordBoxHelper.IsPasswordVisible), RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                <ToggleButton Grid.Column="1" Width="20" Height="20" Margin="0,0,10,0" Background="Transparent" BorderThickness="0" Cursor="Hand" Focusable="False" IsChecked="{Binding Path=(att:PasswordBoxHelper.IsPasswordVisible), RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
                   <ToggleButton.Template>
                     <ControlTemplate TargetType="ToggleButton">
                       <Border Background="Transparent">

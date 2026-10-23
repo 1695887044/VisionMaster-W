@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Windows 目标：DPAPI 凭据（ProtectedData）只在 Windows 上可用，显式标平台避免 CA1416 -->
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Core.Database</RootNamespace>
+    <AssemblyName>Core.Database</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Provider 只允许出现在这一层：插件与宿主都不直接引用 -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.10" />
+    <PackageReference Include="MySqlConnector" Version="2.6.2" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 断言宿主直调 DPAPI 封装与连接串构造（内部类型，不扩大 public 面） -->
+    <InternalsVisibleTo Include="DatabaseChecks" />
+  </ItemGroup>
+
+</Project>

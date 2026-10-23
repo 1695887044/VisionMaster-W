@@ -34,6 +34,17 @@
 `[CALM] 上游当量=0 → 步骤失败并指「标定」（不给旧值硬算的机会）`、
 `[CALM] 标定失败传导：当量口归 0 → 卡尺明确失败（不拿旧标定硬算）`。
 
+**A3b `Transform` 端口只做守卫、两条判据必须硬失败（P1-B S1）**
+症状：接了去畸变标定的 `Transform`，卡尺照样出数，边角件尺寸系统性偏一点。
+机理：卡尺在原始像素上扫边，消费不了矩阵；`ValidateCalibrationGuard(imgW, imgH)` 是它唯一的落点。
+① `transform.Intrinsics != null || CalibrationKinds.IsUndistorted(transform.Kind)` → 失败；
+② `SourceImageWidth/Height` 都 >0 且与当前图不符 → 失败；`Transform` 为空 → 通过（老行为逐字不变）。
+守门：`[CALM] Transform 接 NonUndistorted（如 Perspective）→ 通过`、
+`[CALM] Transform 接 PerspectiveUndistorted → 失败，文案含「去畸变标定」`、
+`[CALM] SourceImageWidth/Height 与输入图不符 → 失败，文案含两个尺寸`、
+`[CALM] 不接 Transform → 结果与升级前逐字相同`。
+**反向判据**：把守卫删掉后前两条必须变红——如果全绿说明断言没真的接到 `ValidateCalibrationGuard` 的返回上。
+
 **A4 长度类数值真的乘上当量（端到端）**
 症状：改了当量数值不动，或倍数不对。
 机理：`MeasureValueMm = MeasureValuePx × 生效当量`（角度分支除外）。
@@ -158,11 +169,14 @@ baker 释放后再 `Bake` 是"返回 null + 一条 Warn"，不是抛。
 错误表现却像"边太弱"，会把人一路引向降阈值。
 守门：无断言，靠人工核对（N=1000 时预览仍出图）。
 
-**B4 "全部"与"第一条"取同一个点**
-症状：数值稳定但一直量在最内侧那条边上。
-机理：`CollectRegionEdgePoints` 统一取 `rowEdge[0]`；`Select='all'` 只是让算子多返回几个点，插件不铺开用。
-这是**有意的口径**（写进用户文档"选择"一节），改动它等于改变所有已配好方案的含义。
-守门：无断言，靠人工核对（把「选择」在"第一条/全部"间切换，测量值必须一模一样）。
+**B4 每把卡尺只取一个点（`Select` 只有 first / last）**
+症状：数值稳定但一直量在某一条固定边上（不是最内侧也不是最外侧）。
+机理：`CollectRegionEdgePoints` 统一取 `rowEdge[0]`；`Select='first'` 时它本就是首条，
+`Select='last'` 时 HALCON 只返回最后那条、`[0]` 就是它。
+**P1-B S2 删掉了 `EdgeSelect.All`**：原来那档会让算子多返回几个点、插件只取首条——
+界面写"全部"、实际只用一条，属于"看起来正常其实口径错"。
+守门：无断言，靠人工核对（同一组卡尺在"第一条/最后一条"之间切换，测量值应换到另一条边上，
+而不是完全相同——完全相同说明 `Select` 没传到算子）。
 
 **B5 "必须全检"被改成"部分平均"**
 症状：一批次里偶尔缺边的工件读数仍在公差内，缺陷漏检。

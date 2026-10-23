@@ -103,6 +103,9 @@ namespace FlowCanvasChecks
             ["DlClassifyPlugin"] = ManualTier.M,
             ["ExcelExportPlugin"] = ManualTier.M,
             ["GeometryRelationPlugin"] = ManualTier.M,
+            // ImageDiff：5 用户页 / 3 开发页 / 最长开发页 237 行 —— 超 M（4/2/150），
+            // 未到 L（5/3/300），按"交了的必须合法、必须够厚"登记 M（HM13 按此下限判）。
+            ["ImageDiffPlugin"] = ManualTier.M,
             ["HandEyePlugin"] = ManualTier.M,
             ["HikvisionCameraDevice"] = ManualTier.M,
             ["VirtualMotionCard"] = ManualTier.M,
@@ -133,6 +136,9 @@ namespace FlowCanvasChecks
             ["MotionReadStatusPlugin"] = ManualTier.S,
             ["MotionStopPlugin"] = ManualTier.S,
             ["MotionWaitPlugin"] = ManualTier.S,
+            ["DatabaseQueryPlugin"] = ManualTier.S,
+            ["DatabaseExecutePlugin"] = ManualTier.S,
+            ["DatabaseWriteRowPlugin"] = ManualTier.S,
         };
 
         private static ManualTier TierOf(string pluginClass)

@@ -273,13 +273,19 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     _all.Add(new ScadaVariableRow(variable));
             }
 
-            // 系统变量（Motion.*）：派生只读量，每次打开都现取——它们随轴表变化，
+            // 系统变量（Motion.* / Comm.* / Camera.*）：派生只读量，每次打开都现取——它们随设备表变化，
             // 缓存下来会给出"清单里有一条已经不存在的轴"的幽灵条目。
             // 放在用户变量之后：同名冲突时用户变量在前，与 VariableRegistry 的"用户优先"口径一致。
+            //
+            // 复合变量的父行（整根轴/整台设备）**不列**：图元绑定要的是标量，
+            // 父行的值是一个结构体快照，选中它只会在转换那一步失败。
+            // 它的字段本来就在清单里（名字是完整路径 System.Motion.X.Position），用户不会少东西可选。
             foreach (var variable in CopySystemVariables())
             {
-                if (variable != null)
-                    _all.Add(new ScadaVariableRow(variable));
+                if (variable == null) continue;
+                if (variable is ISystemVariableContainer { Fields.Count: > 0 }) continue;
+
+                _all.Add(new ScadaVariableRow(variable));
             }
 
             // 关键字归零 + 无条件重建一次清单。

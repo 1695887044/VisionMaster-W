@@ -145,6 +145,25 @@ namespace VisionMaster.Services
         internal static string ManifestPath(string pluginsDir)
             => Path.Combine(pluginsDir, "PluginCache", "manifest.json");
 
+        /// <summary>
+        /// 作废清单（删除文件）。用于"本次全量扫描不完整"的场合：
+        /// 只要有插件 DLL 加载失败，就不能把扫描产物写成缓存——
+        /// 否则"这个 DLL 没有插件"会被当成事实缓存下来，下次直接命中并跳过反射与实例化，
+        /// 插件从此永久消失，而且日志里只有一条当时才可见的加载失败。
+        /// </summary>
+        internal static void Invalidate(string pluginsDir)
+        {
+            try
+            {
+                var path = ManifestPath(pluginsDir);
+                if (File.Exists(path)) File.Delete(path);
+            }
+            catch
+            {
+                // 删不掉最多是下次仍读到旧清单；调用方还会跳过 Save，旧清单里的 mtime 也会让它失效
+            }
+        }
+
         /// <summary>一个 DLL 的当前指纹（写缓存与核对用同一口径，大小+修改时间）</summary>
         internal static PluginDllEntry FingerprintOf(string dllPath)
         {

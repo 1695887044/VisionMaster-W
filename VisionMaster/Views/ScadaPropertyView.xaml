@@ -743,8 +743,59 @@
                     </TextBlock>
                 </DataTemplate>
 
-                <!--  轴候选清单：值不是手打的（是轴 Id + 名字的规范 JSON），
-                      所以这一行给"摘要 + 选择轴…"按钮；它是设计期配置，不挂 ƒx。  -->
+                <!--  方案内图片文件（页面背景图）：缩略图 + 文件名 + 选择/清除。
+                      与上面的 Image（由变量提供的运行态图像）区分：这一行选的是方案资产。  -->
+                <DataTemplate x:Key="EditImageFile">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border
+                            Width="42"
+                            Height="28"
+                            Margin="0,0,8,0"
+                            Background="{StaticResource ScadaSurfaceBrush}"
+                            BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="3">
+                            <Image Source="{Binding ImagePreview}" Stretch="Uniform" />
+                        </Border>
+                        <TextBlock
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                            Text="{Binding ImageSummary}"
+                            TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding ErrorText}" />
+                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <Button
+                                Margin="6,0,0,0"
+                                Padding="8,2"
+                                Background="{StaticResource ScadaHoverBrush}"
+                                BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                BorderThickness="1"
+                                Command="{Binding PickImageCommand}"
+                                Content="选择…"
+                                Cursor="Hand"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaTextBrush}" />
+                            <Button
+                                Margin="4,0,0,0"
+                                Padding="8,2"
+                                Background="{StaticResource ScadaSurfaceBrush}"
+                                BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                BorderThickness="1"
+                                Command="{Binding ClearImageCommand}"
+                                Content="清除"
+                                Cursor="Hand"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaSecondaryTextBrush}" />
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
                 <DataTemplate x:Key="EditAxisList">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -847,6 +898,9 @@
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Kind}" Value="Image">
                             <Setter Property="ContentTemplate" Value="{StaticResource EditImage}" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Kind}" Value="ImageFile">
+                            <Setter Property="ContentTemplate" Value="{StaticResource EditImageFile}" />
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Kind}" Value="AxisList">
                             <Setter Property="ContentTemplate" Value="{StaticResource EditAxisList}" />

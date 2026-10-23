@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-10-21",
+  "updated": "2026-10-23",
   "note": "仓库根目录白名单（唯一事实源）。files = 允许的根文件；dirs = 允许的根目录。新增顶层条目必须先登记，否则 tools\\audit_root.ps1 判红。",
   "files": [
     "VisionMaster.sln",
@@ -35,6 +35,7 @@
     "CommPerf",
     "CommTest",
     "DataPipelineChecks",
+    "DatabaseChecks",
     "UIThemeSmokeTest",
     "HelpProbe",
     "docs",

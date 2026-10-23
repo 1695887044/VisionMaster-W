@@ -469,6 +469,299 @@ namespace Plugin.PreProcessing.Services
 
         #endregion
 
+        #region 算术运算（图像 × 图像）
+
+        /// <summary>
+        /// 逐像素算术的两个输入必须"同形同型"：尺寸一致、通道数一致。
+        /// 为什么在这里做守卫而不是靠 Halcon：sub_image / add_image / mult_image 在尺寸不符时
+        /// 是**报错**（#1201 之类，还算友好），但通道数不符（3 通道对 1 通道）在部分版本上会
+        /// 按"每个通道各自配一张"去广播 —— 结果是一张看起来正常、语义整个错掉的图。
+        /// 差分这类用途恰恰最怕静默错，所以一律先判后算，不符直接抛中文异常。
+        /// </summary>
+        public static void EnsureSameShape(HImage a, HImage b, string operationName)
+        {
+            ImageSize(a, out int aw, out int ah);
+            ImageSize(b, out int bw, out int bh);
+            if (aw != bw || ah != bh)
+            {
+                throw new InvalidOperationException(
+                    $"{operationName}：两张图像尺寸不一致（{aw}×{ah} vs {bw}×{bh}）。" +
+                    "算术运算要求逐像素一一对应，请先裁剪/缩放或改用「固定框裁剪」对齐尺寸");
+            }
+
+            int ca = CountChannels(a);
+            int cb = CountChannels(b);
+            if (ca != cb)
+            {
+                throw new InvalidOperationException(
+                    $"{operationName}：两张图像通道数不一致（{ca} vs {cb}）。" +
+                    "彩色图与灰度图不能直接做逐像素算术（Halcon 会按通道广播，得到语义错误的图），" +
+                    "请先把两者统一成灰度（如加一步「转灰度」算子）或统一成彩色");
+            }
+        }
+
+        /// <summary>
+        /// 逐像素相加。mult/add 是 Halcon 的线性项：out = (a + b) * mult + add。
+        /// <paramref name="mult"/> 传 1、<paramref name="add"/> 传 0 即纯加法。
+        /// </summary>
+        public static HImage AddImage(HImage a, HImage b, double mult, double add)
+        {
+            EnsureSameShape(a, b, "图像相加");
+            HObject result;
+            HOperatorSet.AddImage(a, b, out result, mult, add);
+            try { return new HImage(result); }
+            finally { result.Dispose(); }
+        }
+
+        /// <summary>
+        /// 逐像素相减：out = (a − b) * mult + add。
+        ///
+        /// 【重要】默认参数下 byte 图**负值被截到 0**（Halcon 的 byte 无符号）——
+        /// 所以"目标比基准暗多少"这种带符号的差分必须走 <see cref="AbsDiffImage"/> 或先转 real。
+        /// 使用者要带符号结果时，用 mult/add 把结果平移到灰阶中点（如 add = 128）。
+        /// </summary>
+        public static HImage SubImage(HImage a, HImage b, double mult, double add)
+        {
+            EnsureSameShape(a, b, "图像相减");
+            HObject result;
+            HOperatorSet.SubImage(a, b, out result, mult, add);
+            try { return new HImage(result); }
+            finally { result.Dispose(); }
+        }
+
+        /// <summary>
+        /// 逐像素绝对差：|a − b|，结果非负，是"两张图差多少"最安全的口径
+        /// （不会像 sub_image 那样把负差静默截成 0）。
+        /// </summary>
+        /// <remarks>
+        /// HalconDotNet 的 abs_diff_image 只有 4 参重载（image1, image2, imageAbsDiff, mult），
+        /// **没有 add**——与 sub_image 的 5 参签名不对称，照文档写会 CS1501。
+        /// </remarks>
+        public static HImage AbsDiffImage(HImage a, HImage b, double mult)
+        {
+            EnsureSameShape(a, b, "图像绝对差");
+            HObject result;
+            HOperatorSet.AbsDiffImage(a, b, out result, mult);
+            try { return new HImage(result); }
+            finally { result.Dispose(); }
+        }
+
+        /// <summary>逐像素相乘：out = (a × b) * mult + add。byte × byte 很容易溢出到 255，mult 常用 1/255 之类的缩放</summary>
+        public static HImage MultImage(HImage a, HImage b, double mult, double add)
+        {
+            EnsureSameShape(a, b, "图像相乘");
+            HObject result;
+            HOperatorSet.MultImage(a, b, out result, mult, add);
+            try { return new HImage(result); }
+            finally { result.Dispose(); }
+        }
+
+        /// <summary>
+        /// 逐像素相除：out = (a / b) * mult + add。
+        /// <paramref name="b"/> 里有 0 时 Halcon 的行为是"饱和到最大值"，不抛异常 ——
+        /// 所以这里显式把"除数为 0"体检一遍，报告有多少像素会被污染，避免静默出一堆白点。
+        /// </summary>
+        public static HImage DivImage(HImage a, HImage b, double mult, double add, out int zeroDivisorCount)
+        {
+            EnsureSameShape(a, b, "图像相除");
+
+            // 统计除数为 0 的像素数：不是错误（Halcon 会饱和），但必须让用户看见
+            HObject zeroRegion;
+            HOperatorSet.Threshold(b, out zeroRegion, 0, 0);
+            try
+            {
+                // HalconDotNet 没有 count_region 的托管名 CountRegion；区域面积统一用 area_center
+                HOperatorSet.AreaCenter(zeroRegion, out HTuple area, out _, out _);
+                zeroDivisorCount = area.Length > 0 ? (int)area.D : 0;
+            }
+            finally
+            {
+                zeroRegion.Dispose();
+            }
+
+            HObject result;
+            HOperatorSet.DivImage(a, b, out result, mult, add);
+            try { return new HImage(result); }
+            finally { result.Dispose(); }
+        }
+
+        /// <summary>逐像素取较小值（min_image），常用于"夹住过亮的背景"</summary>
+        public static HImage MinImage(HImage a, HImage b)
+        {
+            EnsureSameShape(a, b, "图像取较小值");
+            HObject result;
+            HOperatorSet.MinImage(a, b, out result);
+            try { return new HImage(result); }
+            finally { result.Dispose(); }
+        }
+
+        /// <summary>逐像素取较大值（max_image），常用于"取两张图里更亮的那份"</summary>
+        public static HImage MaxImage(HImage a, HImage b)
+        {
+            EnsureSameShape(a, b, "图像取较大值");
+            HObject result;
+            HOperatorSet.MaxImage(a, b, out result);
+            try { return new HImage(result); }
+            finally { result.Dispose(); }
+        }
+
+        /// <summary>
+        /// 逐像素与常数相加（add_image_const），不需要第二张图 ——
+        /// 这正是 PreProcessing 链内算子能做的"常数版"算术（链内算子是单图变换）。
+        /// </summary>
+        public static HImage AddConst(HImage image, double value)
+            => ConstantArithmetic(image, value, AddKernel);
+
+        /// <summary>逐像素与常数相减：out = image − value（byte 图负值截到 0）</summary>
+        public static HImage SubConst(HImage image, double value)
+            => ConstantArithmetic(image, value, SubKernel);
+
+        /// <summary>逐像素与常数相乘（mult_image 的常数形态）：out = image × value，高光易饱和到 255</summary>
+        public static HImage MultImageConst(HImage image, double value)
+            => ConstantArithmetic(image, value, MultKernel);
+
+        private static void AddKernel(HObject image, HObject constImage, out HObject result, double mult, double add)
+            => HOperatorSet.AddImage(image, constImage, out result, mult, add);
+
+        private static void SubKernel(HObject image, HObject constImage, out HObject result, double mult, double add)
+            => HOperatorSet.SubImage(image, constImage, out result, mult, add);
+
+        private static void MultKernel(HObject image, HObject constImage, out HObject result, double mult, double add)
+            => HOperatorSet.MultImage(image, constImage, out result, mult, add);
+
+        /// <summary>
+        /// 常数算术的统一外壳：HalconDotNet 的 add_image/sub_image/mult_image **没有常数重载**
+        /// （第二个 HObject 参数不接受 HTuple，照文档写会 CS1503），
+        /// 所以这里用 gen_image_const + gen_image_proto 造一张与输入同尺寸同类型的常数图，
+        /// 再走双图算子。常数图与结果图都在 finally 里释放。
+        /// </summary>
+        private static HImage ConstantArithmetic(
+            HImage image,
+            double value,
+            ConstantArithmeticKernel kernel)
+        {
+            HOperatorSet.GetImageSize(image, out HTuple w, out HTuple h);
+            string type = GetImageTypeName(image);
+
+            HObject proto;
+            HObject constImage;
+            HOperatorSet.GenImageConst(out proto, type, w, h);
+            try
+            {
+                HOperatorSet.GenImageProto(proto, out constImage, value);
+            }
+            finally
+            {
+                proto.Dispose();
+            }
+
+            try
+            {
+                HObject result;
+                kernel(image, constImage, out result, 1, 0);
+                try { return new HImage(result); }
+                finally { result.Dispose(); }
+            }
+            finally
+            {
+                constImage.Dispose();
+            }
+        }
+
+        /// <summary>常数算术的算子选择器（第一个参数是输入图，第二个是造出来的常数图）</summary>
+        private delegate void ConstantArithmeticKernel(
+            HObject image, HObject constImage, out HObject result, double mult, double add);
+
+        /// <summary>取图像像素类型的 Halcon 名（byte / int1 / uint2 / real …），失败回落 byte</summary>
+        private static string GetImageTypeName(HImage image)
+        {
+            try
+            {
+                HOperatorSet.GetImageType(image, out HTuple type);
+                return type.Length > 0 ? type.S : "byte";
+            }
+            catch
+            {
+                return "byte";
+            }
+        }
+
+        /// <summary>绝对值（abs_image）：把"带符号的 real 差分"变成可直接上屏的亮度图</summary>
+        public static HImage AbsImage(HImage image)
+        {
+            HObject result;
+            HOperatorSet.AbsImage(image, out result);
+            try { return new HImage(result); }
+            finally { result.Dispose(); }
+        }
+
+        /// <summary>
+        /// 转 real 图（convert_image_type 到 'real'）。
+        /// 用途：做带符号差分前先把 byte 升上去，否则负差会被截断成 0 —— 这是差分类功能最常见的静默错误。
+        /// </summary>
+        public static HImage ToReal(HImage image)
+        {
+            HObject result;
+            HOperatorSet.ConvertImageType(image, out result, "real");
+            try { return new HImage(result); }
+            finally { result.Dispose(); }
+        }
+
+        /// <summary>
+        /// 把 real 图按 min/max 线性映射回 [0, 255] 的 byte 图（scale_image 一族），
+        /// 用于"差分结果直接上屏"：real 图的原始动态范围常常远超 byte，不归一化就是一片白或一片黑。
+        /// </summary>
+        public static HImage RealToByteNormalized(HImage image)
+        {
+            // 取真实极值：min_max_gray 的 Percent=0 即"不做百分位裁剪"
+            HOperatorSet.MinMaxGray(image, image, 0, out HTuple min, out HTuple max, out _);
+            double lo = min.D;
+            double hi = max.D;
+
+            HObject scaled;
+            if (System.Math.Abs(hi - lo) < 1e-9)
+            {
+                // 全图一个值：没有任何对比信息，直接给一张全 0 的图（比塞 random 噪声更可判读）
+                HOperatorSet.GenImageConst(out scaled, "byte", 1, 1);
+                try { return new HImage(scaled); }
+                finally { scaled.Dispose(); }
+            }
+
+            HObject result;
+            HOperatorSet.ScaleImage(image, out result, 255.0 / (hi - lo), -lo * 255.0 / (hi - lo));
+            try { return new HImage(result); }
+            finally { result.Dispose(); }
+        }
+
+        /// <summary>
+        /// 按阈值把差分图变成缺陷区域（选中"差分超过阈值"的像素）。
+        /// 返回的 HImage 是 0/255 的 byte 二值图，可直接接下游 Blob / 判定。
+        /// </summary>
+        public static HImage ThresholdBinary(HImage image, double low, double high, bool reverse)
+        {
+            HObject mono = EnsureMono(image);
+            HObject region;
+            try
+            {
+                HOperatorSet.Threshold(mono, out region, low, high);
+                try
+                {
+                    HOperatorSet.GetImageSize(mono, out HTuple w, out HTuple h);
+                    HObject bin;
+                    HOperatorSet.RegionToBin(region, out bin, reverse ? 0 : 255, reverse ? 255 : 0, w, h);
+                    try { return new HImage(bin); }
+                    finally { bin.Dispose(); }
+                }
+                finally { region.Dispose(); }
+            }
+            finally
+            {
+                if (!ReferenceEquals(mono, image)) mono.Dispose();
+            }
+        }
+
+        #endregion
+
         #region 二值化
 
         /// <summary>

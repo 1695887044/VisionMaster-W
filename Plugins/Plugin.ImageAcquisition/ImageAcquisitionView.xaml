@@ -306,9 +306,10 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="{StaticResource PluginCardCornerRadius}">
+                                <!--  不要在内容宿主上再套一层"按 Padding 换算的 Margin"：
+                                      TextBox 内部已按 Padding 内缩一次，二次内缩会少显示一行并挤掉上下留白。  -->
                                 <ScrollViewer
                                     x:Name="PART_ContentHost"
-                                    Margin="{TemplateBinding Padding}"
                                     HorizontalScrollBarVisibility="Disabled"
                                     VerticalScrollBarVisibility="Auto" />
                             </Border>

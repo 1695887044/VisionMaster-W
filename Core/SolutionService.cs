@@ -180,6 +180,18 @@ namespace VisionMaster.Services
                 // 老方案在这里补——认领老默认名 GoHome/MainTask，缺哪个角色建哪条（幂等）
                 MandatoryFlows.Ensure(solution);
 
+                // 步骤图标补全：Icon 是"建步骤时"从工具箱快照进 .vms 的，老方案或插件补
+                // ShortName 之前建的步骤会是空串。这里按插件表补一次（只补空值、只改展示字段）。
+                // 补全失败只记调试痕迹，绝不让一个图标问题把方案加载弄失败。
+                try
+                {
+                    StepIconBackfillHook?.Invoke(solution);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[方案加载] 步骤图标补全失败（已忽略）：{ex.Message}");
+                }
+
                 // 画面/图元补发稳定身份：SCADA 领域模型引入 Id 之前写出的方案文件没有这些字段，
                 // 读入后补一次（幂等），使按 Id 寻址的绑定、画面跳转从第一次打开起就是稳定的
                 solution.Scada.EnsureIdentity();
@@ -211,6 +223,14 @@ namespace VisionMaster.Services
         /// <para>未挂接时跳过折算，行为与改造前一致（旧 IO 字段照常可用）。</para>
         /// </summary>
         public static Action<SolutionModel>? IoMigrationHook { get; set; }
+
+        /// <summary>
+        /// 方案加载后的步骤图标补全钩子（宿主启动时挂接，指向 <c>StepIconBackfill.Apply</c>）。
+        /// <para>为什么用钩子：Core 看不到引擎扫出来的插件表（<c>IPluginProvider</c> 在容器里），
+        /// 而图标来源（DisplayAttribute.ShortName）只有插件表知道。与 IoMigrationHook 同一手法。</para>
+        /// <para>未挂接时跳过：老步骤保持原样（空图标），不影响任何流程语义。</para>
+        /// </summary>
+        public static Action<SolutionModel>? StepIconBackfillHook { get; set; }
 
         /// <summary>
         /// 递归归一化分支类型（含嵌套在分支内的容器步骤）

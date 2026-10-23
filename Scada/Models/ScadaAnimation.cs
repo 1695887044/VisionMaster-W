@@ -205,6 +205,31 @@ namespace VisionMaster.Scada
             }
         }
 
+        private bool _invert;
+
+        /// <summary>
+        /// 启用对象：反转语义（<c>true</c> = 值为 1 时禁用、0 时启用）。
+        /// 现场两种接线都常见：有的 PLC 用 1 表示“允许”，有的用 1 表示“联锁中”。
+        /// </summary>
+        public bool Invert
+        {
+            get => _invert;
+            set
+            {
+                if (SetProperty(ref _invert, value))
+                    RaiseDerived();
+            }
+        }
+
+        private string _disableReason = "当前不可用";
+
+        /// <summary>禁用时给操作员看的原因（联锁/权限/无数据各配一句），悬停提示用。</summary>
+        public string DisableReason
+        {
+            get => _disableReason;
+            set => SetProperty(ref _disableReason, value ?? string.Empty);
+        }
+
         /// <summary>
         /// 「外观变化」的多档值表：自上而下匹配，<b>先命中先用</b>（手册 7.5.1.1：档位不能重复定义）。
         /// 一档都不命中时图元显示自己的默认外观——那是"恢复"，不是"不变"。
@@ -407,6 +432,18 @@ namespace VisionMaster.Scada
             if (value >= low && value <= high)
                 visible = _visibleInRange;
 
+            error = null;
+            return true;
+        }
+
+        /// <summary>
+        /// 「启用对象」求值：0 = 禁用、非 0 = 启用；<see cref="Invert"/> 反转。
+        /// 与可见性不同，它<b>总是</b>接管（没有“不命中就交回”这一档）——一个变量只有开/关两种状态。
+        /// </summary>
+        public bool TryEvaluateEnable(double value, out bool enabled, out string? error)
+        {
+            var on = Math.Abs(value) > 0.000001;
+            enabled = _invert ? !on : on;
             error = null;
             return true;
         }

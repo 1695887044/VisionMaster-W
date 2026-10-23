@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using Prism.Commands;
 using Prism.Dialogs;
 using Prism.Mvvm;
@@ -340,7 +341,13 @@ namespace VisionMaster.ViewModels
             get => _selectedPage;
             set
             {
+                var previous = _selectedPage;
                 if (!SetProperty(ref _selectedPage, value)) return;
+
+                if (previous != null)
+                    previous.PropertyChanged -= OnSelectedPagePropertyChanged;
+                if (value != null)
+                    value.PropertyChanged += OnSelectedPagePropertyChanged;
 
                 // 上一画面的选中图元不属于这一页，留着它会让属性面板改到"看不见的图元"。
                 // 反过来不做的事：不把选中态存进模型——选中是编辑器态，不该落盘。
@@ -366,8 +373,81 @@ namespace VisionMaster.ViewModels
                 RaisePropertyChanged(nameof(HasPage));
                 RaisePropertyChanged(nameof(SelectedBasePage));
                 RaisePropertyChanged(nameof(CanSelectBasePage));
+                RaiseBackgroundProperties();
                 RebuildBasePageOptions();
             }
+        }
+
+        /// <summary>
+        /// 当前方案目录（背景图等方案资产的解析根）；方案还没保存过时为 null。
+        /// 属性面板的图片选择器与画布的背景图解析共用这一条。
+        /// </summary>
+        public string? SolutionRoot
+            => string.IsNullOrWhiteSpace(_workspace.CurrentSolution?.SolutionFilePath)
+                ? null
+                : System.IO.Path.GetDirectoryName(_workspace.CurrentSolution.SolutionFilePath);
+
+        /// <summary>
+        /// 方案图片解析器（相对路径 → 位图），交给画布注入给 Hmi.Picture。
+        /// 失败返回 null（图元显示占位），不抛、不弹窗。
+        /// </summary>
+        public Func<string, ImageSource?> ResolveImageAsset
+            => relativePath => SolutionAssetService.TryLoad(
+                    _workspace.CurrentSolution?.SolutionFilePath,
+                    relativePath,
+                    out var image,
+                    out _)
+                ? image
+                : null;
+
+        /// <summary>
+        /// 当前页背景图（解析成位图给画布；null = 只用背景色）。
+        /// 解析失败（方案未保存 / 文件缺失 / 解码失败）时返回 null，画布回退背景色——
+        /// 编辑器不因此弹窗，属性面板那一行会显示“缺失”。
+        /// </summary>
+        public ImageSource? SelectedPageBackgroundImage
+        {
+            get
+            {
+                var page = SelectedPage;
+                if (page == null || string.IsNullOrWhiteSpace(page.BackgroundImage))
+                    return null;
+
+                return SolutionAssetService.TryLoad(
+                    _workspace.CurrentSolution?.SolutionFilePath,
+                    page.BackgroundImage,
+                    out var image,
+                    out _)
+                    ? image
+                    : null;
+            }
+        }
+
+        /// <summary>背景图填充方式（Tile 由 <see cref="SelectedPageBackgroundTile"/> 单独表达）</summary>
+        public Stretch SelectedPageBackgroundStretch => ScadaBackgroundStretch.Parse(SelectedPage?.BackgroundStretch);
+
+        /// <summary>背景图不透明度（0~1；模型是 10~100）</summary>
+        public double SelectedPageBackgroundOpacity => ScadaBackgroundStretch.ToOpacity(SelectedPage?.BackgroundOpacity ?? 100d);
+
+        /// <summary>背景图平铺（Stretch 表达不了平铺）</summary>
+        public bool SelectedPageBackgroundTile => ScadaBackgroundStretch.IsTile(SelectedPage?.BackgroundStretch);
+
+        private void OnSelectedPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(ScadaPage.BackgroundImage)
+                or nameof(ScadaPage.BackgroundStretch)
+                or nameof(ScadaPage.BackgroundOpacity))
+            {
+                RaiseBackgroundProperties();
+            }
+        }
+
+        private void RaiseBackgroundProperties()
+        {
+            RaisePropertyChanged(nameof(SelectedPageBackgroundImage));
+            RaisePropertyChanged(nameof(SelectedPageBackgroundStretch));
+            RaisePropertyChanged(nameof(SelectedPageBackgroundOpacity));
+            RaisePropertyChanged(nameof(SelectedPageBackgroundTile));
         }
 
         /// <summary>

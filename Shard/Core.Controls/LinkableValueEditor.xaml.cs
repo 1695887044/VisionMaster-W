@@ -151,8 +151,23 @@ namespace Core.Controls
         /// 它表达的是"这个值只能从枚举/方案的名字空间里来，不能由上游运行时决定"，
         /// 所以链接（🔗）与清除（✕）对它们恒隐藏（见 UpdateButtonVisibility），
         /// 空候选退化手填时同样不给链接（R33：名字类端口挂绑定弹窗 = 运行期拿值当名字）。
+        ///
+        /// 必须是依赖属性：XAML 要按它决定"已链接时还显不显示下拉"。
+        /// 老工程里这类端口可能还留着上游连线（当年还是普通 string 端口时绑的），
+        /// 那种情况下下拉要照常显示 —— 否则用户既改不了也拆不掉（🔗/✕ 已隐藏）。
         /// </summary>
-        private bool IsClosedValuePort => Port?.DataType?.IsEnum == true || Port?.IsFunctionalEnum == true;
+        private static readonly DependencyPropertyKey IsClosedValuePortPropertyKey =
+            DependencyProperty.RegisterReadOnly(
+                nameof(IsClosedValuePort), typeof(bool), typeof(LinkableValueEditor),
+                new PropertyMetadata(false));
+
+        public static readonly DependencyProperty IsClosedValuePortProperty = IsClosedValuePortPropertyKey.DependencyProperty;
+
+        public bool IsClosedValuePort
+        {
+            get => (bool)GetValue(IsClosedValuePortProperty);
+            private set => SetValue(IsClosedValuePortPropertyKey, value);
+        }
 
         /// <summary>
         /// 下拉候选（封闭集合端口按需填充；<see cref="IsOptionPort"/> = 候选非空）。
@@ -286,6 +301,7 @@ namespace Core.Controls
             if (port == null)
             {
                 editor.IsTextEditable = true;
+                editor.IsClosedValuePort = false;
                 editor._refillingOptions = true;
                 try { editor.EnumOptions.Clear(); }
                 finally { editor._refillingOptions = false; }
@@ -296,6 +312,7 @@ namespace Core.Controls
 
             // 端口类型驱动可输入性
             editor.IsTextEditable = IsTextEditableType(port.DataType);
+            editor.IsClosedValuePort = port.DataType?.IsEnum == true || port.IsFunctionalEnum;
 
             // ★ R35：重填候选之前记住端口值，重填之后顶回去。
             //   候选与下拉是双向绑定的（SelectedValue ↔ PortValue）：ItemsSource 一清，
@@ -387,6 +404,17 @@ namespace Core.Controls
             //    （手填退化态也走这条：轴名这类名字清空后没有任何合法值可表示，
             //      要换轴直接改成另一个名字即可。）
             if (editor.IsClosedValuePort && string.IsNullOrEmpty(text)) return;
+
+            // ③ 封闭端口上还挂着旧上游连线（老 .vms：当年它还是普通 string 端口时绑的）：
+            //    用户这次选了一项 = 明确要改成固定值，先拆线再写值。
+            //    不拆的话编译期仍会应用旧连线，把用户刚选的值盖掉（面板看起来改了、跑起来没改）。
+            //    只有"非空文本"会走到这里（上面 ② 已挡掉候选重填推回来的空串），
+            //    所以程序灌值不会误拆。
+            if (editor.IsClosedValuePort && editor.IsLinked)
+            {
+                editor.StepData?.RemoveLink(editor.Port.Name);
+                editor.SetCurrentValue(LinkAddressProperty, null);
+            }
 
             try
             {
@@ -490,6 +518,15 @@ namespace Core.Controls
             // 🔗 按钮：枚举恒隐藏（理由见上）
             PART_LinkBtn.Visibility = enumLocked ? Visibility.Collapsed : Visibility.Visible;
 
+            // 封闭端口 + 旧上游连线：下拉照常显示（XAML 里 IsOptionPort 不再看 IsLinked），
+            // 这里给一句解释，否则用户会疑惑"明明连了线，怎么还能选"。
+            if (PART_EnumBox != null)
+            {
+                PART_EnumBox.ToolTip = enumLocked && IsLinked
+                    ? "该端口不接受上游供值；选择一项会改为固定值并清除旧连线"
+                    : null;
+            }
+
             // 空候选提示（占位文案 / ToolTip）跟着 IsLinked、IsHandFillFallback、PortValue 走
             UpdateHandFillHint();
         }
@@ -503,8 +540,10 @@ namespace Core.Controls
         {
             if (PART_NoOptionHint == null || PART_ValueBox == null) return;
 
+            // 不再要求 !IsLinked：封闭端口 + 老连线 + 候选为空时，下拉与链接框都不在，
+            // 只剩这个手填框 —— 提示必须跟着它一起出现，否则用户不知道这里能填。
             PART_NoOptionHint.Visibility =
-                IsHandFillFallback && !IsLinked && string.IsNullOrEmpty(PortValue)
+                IsHandFillFallback && string.IsNullOrEmpty(PortValue)
                     ? Visibility.Visible
                     : Visibility.Collapsed;
 

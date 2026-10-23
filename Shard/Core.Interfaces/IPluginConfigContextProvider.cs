@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Core.Interfaces.Database;
 
 namespace Core.Interfaces
 {
@@ -81,6 +82,15 @@ namespace Core.Interfaces
         /// 不让插件视图持有宿主方案里的活对象。
         /// </summary>
         public List<VariableOption> Variables { get; set; } = new();
+
+        /// <summary>
+        /// 数据库能力（供「数据库查询/执行/写行」的配置窗口做「测试语句」）。
+        ///
+        /// 与 <see cref="Cameras"/> / <see cref="Variables"/> 的"值快照"不同，这是一个**能力对象**：
+        /// 测试必须真连库，快照给不了。插件只能通过它执行命名语句，拿不到连接/事务/SQL 编辑入口，
+        /// 因此不破坏"配置上下文不递活对象"的边界。默认是空实现，未接数据库时测试按钮给出明确失败。
+        /// </summary>
+        public IDatabaseAccess Database { get; set; } = NullDatabaseAccess.Instance;
     }
 
     /// <summary>

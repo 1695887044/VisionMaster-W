@@ -63,6 +63,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private EmbeddedPage? _cameraPage;
         private EmbeddedPage? _commPage;
         private EmbeddedPage? _motionPage;
+        private EmbeddedPage? _databasePage;
         private string? _pendingMotionTab;
         private bool _isClosing;
         private bool _closeSaveInProgress;
@@ -108,6 +109,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             NavItems.Add(new HardwareNavItem("相机", "\uf030", 1));
             NavItems.Add(new HardwareNavItem("通讯", "\uf1e6", 2));
             NavItems.Add(new HardwareNavItem("运动控制", "\uf085", 3));
+            NavItems.Add(new HardwareNavItem("数据库", "\uf1c0", 4));
 
             _timer = new DispatcherTimer(DispatcherPriority.Background)
             {
@@ -139,13 +141,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public UserControl? CameraPageView => _cameraPage?.View;
         public UserControl? CommunicationPageView => _commPage?.View;
         public UserControl? MotionPageView => _motionPage?.View;
+        public UserControl? DatabasePageView => _databasePage?.View;
 
         public int SelectedPage
         {
             get => _selectedPage;
             set
             {
-                var clamped = Math.Max(0, Math.Min(3, value));
+                var clamped = Math.Max(0, Math.Min(4, value));
                 if (!SetProperty(ref _selectedPage, clamped)) return;
                 OnSelectedPageChanged();
             }
@@ -286,6 +289,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _cameraPage = null;
             _commPage = null;
             _motionPage = null;
+            _databasePage = null;
             _pendingMotionTab = null;
             _isClosing = false;
             _closeSaveInProgress = false;
@@ -294,6 +298,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RaisePropertyChanged(nameof(CameraPageView));
             RaisePropertyChanged(nameof(CommunicationPageView));
             RaisePropertyChanged(nameof(MotionPageView));
+            RaisePropertyChanged(nameof(DatabasePageView));
             MotionEmergencyStopCommand.RaiseCanExecuteChanged();
         }
 
@@ -318,6 +323,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 1 => _cameraPage,
                 2 => _commPage,
                 3 => _motionPage,
+                4 => _databasePage,
                 _ => null,
             };
             if (existing != null) return existing;
@@ -327,6 +333,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 1 => new CameraSettingsView(),
                 2 => new CommunicationSettingsView(),
                 3 => new MotionBoardView(),
+                4 => new DatabasePageView(),
                 _ => throw new ArgumentOutOfRangeException(nameof(index)),
             };
 
@@ -342,6 +349,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     1 => typeof(CameraSettingsViewModel),
                     2 => typeof(CommunicationSettingsViewModel),
                     3 => typeof(MotionBoardViewModel),
+                    4 => typeof(DatabasePageViewModel),
                     _ => throw new ArgumentOutOfRangeException(nameof(index)),
                 };
                 var vm = _container.Resolve(vmType);
@@ -376,11 +384,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 case 1: _cameraPage = host; break;
                 case 2: _commPage = host; break;
                 case 3: _motionPage = host; break;
+                case 4: _databasePage = host; break;
             }
 
             RaisePropertyChanged(nameof(CameraPageView));
             RaisePropertyChanged(nameof(CommunicationPageView));
             RaisePropertyChanged(nameof(MotionPageView));
+            RaisePropertyChanged(nameof(DatabasePageView));
             MotionEmergencyStopCommand.RaiseCanExecuteChanged();
             return host;
         }
@@ -448,6 +458,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             yield return _cameraPage;
             yield return _commPage;
             yield return _motionPage;
+            yield return _databasePage;
         }
 
         private bool CanClosePages()

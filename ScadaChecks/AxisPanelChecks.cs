@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -59,6 +61,7 @@ namespace ScadaChecks
             AxisPublisherChecks();
             MotionActionChecks();
             SystemVariableChecks();
+            SystemDeviceCatalogChecks();
             AxisCommandChecks();
             AxisPointTableChecks();
             AxisConsoleMergeChecks();
@@ -608,13 +611,31 @@ namespace ScadaChecks
 
             catalog.Rebuild(registry.Snapshot());
 
-            Check("[AX8] 一根轴投影出 12 个只读系统变量",
-                catalog.Variables.Count == 12, $"{catalog.Variables.Count} 个");
+            Check("[AX8] 一根轴投影出 1 个父变量 + 12 个只读字段（共 13 条）",
+                catalog.Variables.Count == 13, $"{catalog.Variables.Count} 个");
+
+            Check("[AX8] 父变量是 MotionAxis 类型的整轴快照，名字是 System.Motion.X",
+                catalog.TryGet("System.Motion.X", out var axisDevice)
+                && axisDevice.DataType == typeof(VisionMaster.Models.MotionAxis)
+                && axisDevice is VisionMaster.Models.ISystemVariableContainer { Fields.Count: 12 }
+                && axisDevice.VariableType == VisionMaster.VariableType.System,
+                $"{axisDevice?.DataType.Name} / 字段 {(axisDevice as VisionMaster.Models.ISystemVariableContainer)?.Fields.Count}");
+
+            Check("[AX8] 清单顺序是「父 → 12 字段」（界面按这个顺序展开）",
+                ReferenceEquals(catalog.Variables[0], axisDevice)
+                && catalog.Variables.Skip(1).All(v => v.Name.StartsWith("System.Motion.X.", StringComparison.Ordinal)),
+                string.Join("、", catalog.Variables.Take(3).Select(v => v.Name)));
 
             Check("[AX8] 名字带 Motion. 前缀且能按名查到",
                 catalog.TryGet("System.Motion.X.Position", out var position)
                 && position.DataType == typeof(double),
                 string.Join("、", catalog.Variables.Take(3).Select(v => v.Name)));
+
+            // 兼容红线：叶子的身份推导一个字节都不能变，否则老方案里按 Id 绑定的
+            // 连线 / 画面 / 监视项在重构后全部失联。
+            Check("[AX8] 叶子变量 Id 与重构前逐字节一致（老 .vms 零迁移）",
+                position.VariableId == LegacyMotionLeafId(axisId, "Position"),
+                $"{position.VariableId} vs {LegacyMotionLeafId(axisId, "Position")}");
 
             Check("[AX8] 身份是确定性的（同一份轴表重建得到同一个变量 Id）",
                 position.VariableId != Guid.Empty
@@ -631,12 +652,41 @@ namespace ScadaChecks
                 rebuilt != null && rebuilt.VariableId == position.VariableId,
                 $"{position.VariableId} vs {rebuilt?.VariableId}");
 
+            second.TryGet("System.Motion.X", out var rebuiltDevice);
+            Check("[AX8] 父变量同样是确定性身份（模拟重启后同一个 Id）",
+                rebuiltDevice != null && axisDevice != null
+                && rebuiltDevice.VariableId == axisDevice.VariableId
+                && rebuiltDevice.VariableId != position.VariableId,
+                $"{axisDevice?.VariableId} vs {rebuiltDevice?.VariableId}");
+
             // 实例复用：重建后必须是同一个对象（否则订阅方全部失联）
             var before = position;
             catalog.Rebuild(registry.Snapshot());
             catalog.TryGet("System.Motion.X.Position", out var after);
             Check("[AX8] 重建投影复用同一模型实例（订阅方不会失联）",
                 ReferenceEquals(before, after), "");
+
+            // 拓扑与名字都没变 → 必须短路（100ms 一拍，不能每拍重建表/触发宿主刷新）
+            var snapshotBefore = catalog.Snapshot();
+            catalog.Rebuild(registry.Snapshot());
+
+            Check("[AX8] 拓扑与名字都没变时重建短路（不重建表）",
+                ReferenceEquals(snapshotBefore, catalog.Snapshot()), string.Empty);
+
+            // 集合里挂着别家（通讯/相机）的系统变量时，本目录仍必须判"已最新"。
+            // 这条打的是"按类型数变量"的写法：那种写法在有第二个提供方之后永远对不上，
+            // 表现是运动目录每 100ms 全量重建一次（不报错，只是白烧 CPU）。
+            var foreign = new VisionMaster.Models.SystemVariableModel(
+                Guid.NewGuid(), "System.Comm.PLC_X", typeof(string), "外来变量", owner: "Comm");
+            workspace.SystemVariables.Add(foreign);
+            var snapshotWithForeign = catalog.Snapshot();
+            catalog.Rebuild(registry.Snapshot());
+
+            Check("[AX8] 集合里有别家系统变量时本目录仍短路（不按类型全数）",
+                ReferenceEquals(snapshotWithForeign, catalog.Snapshot()),
+                $"集合 {workspace.SystemVariables.Count} 条");
+
+            workspace.SystemVariables.Remove(foreign);
 
             // 不落盘：工作区的用户变量集合里一条系统变量都不许出现
             // （GlobalVariables 由 InitializeCommonVariables 铺了演示变量，所以判据是"没有 Motion. 前缀的"，
@@ -662,6 +712,29 @@ namespace ScadaChecks
                 Convert.ToDouble(after.Value) == 12.5 && raised == 1,
                 $"value={after.Value} / raised={raised}");
 
+            Check("[AX8] 父变量的值是整根轴的 MotionAxis 快照（与字段同一拍）",
+                axisDevice?.Value is VisionMaster.Models.MotionAxis axisSnapshot
+                && axisSnapshot.IsValid
+                && axisSnapshot.AxisName == "X"
+                && Math.Abs(axisSnapshot.PositionMm - 12.5) < 1e-9
+                && Math.Abs(axisSnapshot.VelocityMmPerS) < 1e-9,
+                axisDevice?.Value?.GetType().Name ?? "(null)");
+
+            // ★ 差分推送：MotionAxis 含 TimestampUtc，而发布器每拍都会写新时间戳。
+            //   若时间戳参与 Equals，父变量就会每 100ms 发一次 ValueChanged（一屏几十个绑定白刷）。
+            //   这里连发两拍同值：必须只通知一次（第一拍变值，第二拍同值）。
+            int parentRaised = 0;
+            axisDevice!.ValueChanged += (_, _) => parentRaised++;
+
+            catalog.Publish(axisId, Sample(13.0, 0, enabled: true, alarm: false, moving: false));
+            catalog.Publish(axisId, Sample(13.0, 0, enabled: true, alarm: false, moving: false));
+
+            Check("[AX8] 父变量同值只通知一次（时间戳不参与相等判断）",
+                parentRaised == 1, $"{parentRaised} 次");
+
+            // 还原成后面离线断言期望的位置
+            catalog.Publish(axisId, Sample(12.5, 0, enabled: true, alarm: false, moving: false));
+
             // 离线：数值保留上次已知值、状态文本换成原因（不把未知伪装成 0）
             catalog.Publish(axisId, ScadaAxisSample.Invalid("运动卡「卡A」未连接"));
             catalog.TryGet("System.Motion.X.StatusText", out var statusText);
@@ -671,6 +744,13 @@ namespace ScadaChecks
                 && statusText.Value is string s && s.Contains("未连接"),
                 $"{after.Value} / {statusText.Value}");
 
+            Check("[AX8] 离线时父变量保留上次位置、Error 写明原因（同样不编 0）",
+                axisDevice?.Value is VisionMaster.Models.MotionAxis offlineAxis
+                && !offlineAxis.IsValid
+                && Math.Abs(offlineAxis.PositionMm - 12.5) < 1e-9
+                && (offlineAxis.Error?.Contains("未连接") ?? false),
+                axisDevice?.Value?.ToString() ?? "(null)");
+
             // ★★ 反向：轴改名之后，**新名必须能查到、旧名必须查不到**。
             // 这条打的是"实例复用只改 Name、集合不增不减 → 名字索引永久停在旧名"那一类静默断链：
             // 表面一切正常（按 Id 仍命中、值照常刷新），只有"按新名查找"永远失败。
@@ -679,10 +759,12 @@ namespace ScadaChecks
 
             bool newNameResolves = workspace.VariableRegistry.FindByName("System.Motion.X2.Position") != null;
             bool oldNameGone = workspace.VariableRegistry.FindByName("System.Motion.X.Position") == null;
+            bool newDeviceResolves = workspace.VariableRegistry.FindByName("System.Motion.X2") != null;
+            bool oldDeviceGone = workspace.VariableRegistry.FindByName("System.Motion.X") == null;
 
             Check("[AX8] 轴改名后按新名可查、按旧名查不到（名字索引随派生名刷新）",
-                newNameResolves && oldNameGone,
-                $"新名命中={newNameResolves} / 旧名仍命中={!oldNameGone}");
+                newNameResolves && oldNameGone && newDeviceResolves && oldDeviceGone,
+                $"字段 新名={newNameResolves}/旧名仍命中={!oldNameGone}；父变量 新名={newDeviceResolves}/旧名仍命中={!oldDeviceGone}");
 
             Check("[AX8] 轴改名后变量 Id 不变（按 Id 的绑定不会断）",
                 ReferenceEquals(workspace.VariableRegistry.FindById(after.VariableId), after),
@@ -709,6 +791,239 @@ namespace ScadaChecks
             Check("[AX8] 改名同样拒绝 System. 保留前缀（两条入口同一句话）",
                 !renamedReserved && renameError.Contains("保留前缀"),
                 renameError);
+        }
+
+        /// <summary>
+        /// 重构前的叶子身份推导（原样抄一份，作为"零迁移"的外部锚点）。
+        /// 不从产品代码里调同一个函数：那样改了推导也一起变，断言等于自证。
+        /// </summary>
+        private static Guid LegacyMotionLeafId(Guid axisId, string field)
+        {
+            var key = $"motion-var|{axisId:N}|{field}";
+            var hash = SHA1.HashData(Encoding.UTF8.GetBytes(key));
+
+            Span<byte> bytes = stackalloc byte[16];
+            hash.AsSpan(0, 16).CopyTo(bytes);
+            return new Guid(bytes);
+        }
+
+        /// <summary>
+        /// [AX-8b] 通讯 / 相机的系统变量目录：设备级复合变量 + 字段投影。
+        ///
+        /// 这两块是新增能力（重构前根本没有），所以断言覆盖三件事：
+        /// ① 拓扑（一台设备 = 1 父 + N 字段，设备移除后整组消失）；
+        /// ② 值投影（状态/错误/计数来自设备，不是编的）；
+        /// ③ 名字与身份（父变量按名字可解析、重名相机不撞名、实例复用）。
+        /// </summary>
+        private static void SystemDeviceCatalogChecks()
+        {
+            // ================= 通讯 =================
+            var commSource = new FakeCommDeviceStateSource();
+            commSource.Devices.Add(new VisionMaster.Binding.CommDeviceState(
+                "PLC_Modbus", "Modbus TCP", true, "Connected", "已连接", string.Empty, true, 200));
+            commSource.Devices.Add(new VisionMaster.Binding.CommDeviceState(
+                "Meter_Modbus", "Modbus TCP", false, "Reconnecting", "重连中", "连接被拒绝", true, 500));
+
+            var comm = new VisionMaster.Binding.CommSystemVariableCatalog(commSource);
+            comm.Refresh();
+
+            Check("[AX8b] 两台通讯设备 → 2 个父变量 + 14 个字段（共 16 条）",
+                comm.Snapshot().Count == 16, $"{comm.Snapshot().Count} 条");
+
+            Check("[AX8b] 通讯父变量是 CommDevice 类型、名字 System.Comm.{连接名}",
+                comm.TryGet("System.Comm.PLC_Modbus", out var plc)
+                && plc.DataType == typeof(VisionMaster.Models.CommDevice)
+                && plc is VisionMaster.Models.ISystemVariableContainer { Fields.Count: 7 },
+                $"{plc?.DataType.Name} / 字段 {(plc as VisionMaster.Models.ISystemVariableContainer)?.Fields.Count}");
+
+            comm.TryGet("System.Comm.PLC_Modbus.Connected", out var plcConnected);
+            comm.TryGet("System.Comm.Meter_Modbus.State", out var meterState);
+            comm.TryGet("System.Comm.Meter_Modbus.LastError", out var meterError);
+
+            Check("[AX8b] 通讯字段值来自链路状态（已连接 / 重连中 / 最后错误）",
+                plcConnected?.Value is true
+                && Equals(meterState?.Value, "Reconnecting")
+                && (meterError?.Value as string)?.Contains("拒绝") == true,
+                $"Connected={plcConnected?.Value} / State={meterState?.Value} / LastError={meterError?.Value}");
+
+            Check("[AX8b] 通讯父变量快照是 CommDevice（整台设备一份）",
+                plc.Value is VisionMaster.Models.CommDevice { Connected: true, Protocol: "Modbus TCP" },
+                plc.Value?.GetType().Name ?? "(null)");
+
+            // 设备移除：父变量与 7 个字段必须一起消失（不能留下"还在列表里但永远不刷新"的幽灵）
+            commSource.Devices.RemoveAll(d => d.Name == "Meter_Modbus");
+            comm.Refresh();
+
+            Check("[AX8b] 设备移除后父变量与字段一起消失（不残留幽灵变量）",
+                !comm.TryGet("System.Comm.Meter_Modbus", out _)
+                && !comm.TryGet("System.Comm.Meter_Modbus.State", out _)
+                && comm.Snapshot().Count == 8,
+                $"{comm.Snapshot().Count} 条");
+
+            // 实例复用：同一设备再次刷新必须沿用同一个模型（否则订阅方全部失联）
+            comm.TryGet("System.Comm.PLC_Modbus", out var plcBefore);
+            comm.Refresh();
+            comm.TryGet("System.Comm.PLC_Modbus", out var plcAfter);
+
+            Check("[AX8b] 通讯目录重建复用同一实例（订阅方不会失联）",
+                ReferenceEquals(plcBefore, plcAfter), string.Empty);
+
+            // ================= 相机 =================
+            var provider = new FakeCameraProvider();
+            var cameraDescriptor = new CameraDescriptor
+            {
+                Id = Guid.NewGuid(),
+                SerialNo = "SN-001",
+                DisplayName = "上相机"
+            };
+            var cameraDevice = new FakeCameraDevice(cameraDescriptor)
+            {
+                State = CameraConnectionState.Streaming,
+                StateDetail = "正在出图",
+                ReceivedFrameCount = 120,
+                DroppedFrameCount = 2,
+                OverflowCount = 1,
+                PendingFrameCount = 3
+            };
+            provider.Add(cameraDescriptor, cameraDevice);
+
+            var cam = new VisionMaster.Binding.CameraSystemVariableCatalog(provider);
+            cam.Refresh();
+
+            Check("[AX8b] 一台相机 → 1 个父变量 + 8 个字段（共 9 条）",
+                cam.Snapshot().Count == 9, $"{cam.Snapshot().Count} 条");
+
+            Check("[AX8b] 相机父变量是 CameraDevice 类型、名字 System.Camera.{显示名}",
+                cam.TryGet("System.Camera.上相机", out var camDevice)
+                && camDevice.DataType == typeof(VisionMaster.Models.CameraDevice)
+                && camDevice is VisionMaster.Models.ISystemVariableContainer { Fields.Count: 8 },
+                $"{camDevice?.DataType.Name}");
+
+            cam.TryGet("System.Camera.上相机.Online", out var camOnline);
+            cam.TryGet("System.Camera.上相机.StateText", out var camStateText);
+            cam.TryGet("System.Camera.上相机.ReceivedFrameCount", out var camReceived);
+
+            Check("[AX8b] 相机字段值来自设备（在线 / 采流中 / 收帧计数）",
+                camOnline?.Value is true
+                && Equals(camStateText?.Value, "采流中")
+                && Convert.ToInt64(camReceived?.Value) == 120,
+                $"Online={camOnline?.Value} / StateText={camStateText?.Value} / 收帧={camReceived?.Value}");
+
+            Check("[AX8b] 相机父变量快照是 CameraDevice（整台相机一份）",
+                camDevice.Value is VisionMaster.Models.CameraDevice { Online: true, ReceivedFrameCount: 120 },
+                camDevice.Value?.GetType().Name ?? "(null)");
+
+            // 设备拿不到（驱动未加载 / 尚未创建）：状态改成不可用，计数保留上一拍（不编 0）
+            provider.RemoveDevice(cameraDescriptor.Id);
+            cam.Refresh();
+
+            cam.TryGet("System.Camera.上相机.Online", out var camOnline2);
+            cam.TryGet("System.Camera.上相机.StateText", out var camStateText2);
+            cam.TryGet("System.Camera.上相机.ReceivedFrameCount", out var camReceived2);
+
+            Check("[AX8b] 相机设备不可用时状态改为不可用、计数保留上一拍（不编 0）",
+                camOnline2?.Value is false
+                && Equals(camStateText2?.Value, "设备不可用")
+                && Convert.ToInt64(camReceived2?.Value) == 120,
+                $"Online={camOnline2?.Value} / StateText={camStateText2?.Value} / 收帧={camReceived2?.Value}");
+
+            // 重名相机：第二台自动加序列号后缀，名字索引里不打架
+            var duplicateProvider = new FakeCameraProvider();
+            var first = new CameraDescriptor { Id = Guid.NewGuid(), SerialNo = "SN-A", DisplayName = "Cam" };
+            var secondCam = new CameraDescriptor { Id = Guid.NewGuid(), SerialNo = "SN-B", DisplayName = "Cam" };
+            duplicateProvider.Add(first, new FakeCameraDevice(first));
+            duplicateProvider.Add(secondCam, new FakeCameraDevice(secondCam));
+
+            var duplicateCatalog = new VisionMaster.Binding.CameraSystemVariableCatalog(duplicateProvider);
+            duplicateCatalog.Refresh();
+
+            Check("[AX8b] 同名相机自动加序列号后缀（名字索引不打架）",
+                duplicateCatalog.TryGet("System.Camera.Cam", out _)
+                && duplicateCatalog.TryGet("System.Camera.Cam_SN-B", out _)
+                && duplicateCatalog.Snapshot().Count == 18,
+                $"{duplicateCatalog.Snapshot().Count} 条");
+
+            // ================= 三源合并（生产路径） =================
+            // 运动目录走宿主托管模式，通讯/相机直接 Register——这正是 MotionModule +
+            // SystemVariableModule 的接线方式。这里验的是"三份快照真的合并进同一个集合"，
+            // 而不是三个目录各自能跑（那三条上面已经分别验过）。
+            var mergeWorkspace = new WorkspaceContext();
+            var mergeHost = new VisionMaster.Binding.SystemVariableHost(mergeWorkspace.SystemVariables);
+
+            var mergeMotion = new VisionMaster.Binding.SystemVariableCatalog(
+                mergeWorkspace, mergeWorkspace.VariableRegistry);
+            mergeMotion.AttachToHost(mergeHost);
+
+            var mergeCommSource = new FakeCommDeviceStateSource();
+            mergeCommSource.Devices.Add(new VisionMaster.Binding.CommDeviceState(
+                "PLC_Modbus", "Modbus TCP", true, "Connected", "已连接", string.Empty, true, 200));
+            var mergeComm = new VisionMaster.Binding.CommSystemVariableCatalog(mergeCommSource);
+            mergeHost.Register(mergeComm);
+            mergeComm.Refresh();
+
+            var mergeProvider = new FakeCameraProvider();
+            var mergeCameraDescriptor = new CameraDescriptor
+            {
+                Id = Guid.NewGuid(),
+                SerialNo = "SN-M",
+                DisplayName = "上相机"
+            };
+            mergeProvider.Add(mergeCameraDescriptor, new FakeCameraDevice(mergeCameraDescriptor));
+            var mergeCamera = new VisionMaster.Binding.CameraSystemVariableCatalog(mergeProvider);
+            mergeHost.Register(mergeCamera);
+            mergeCamera.Refresh();
+
+            var mergeCard = new MotionDescriptor { Id = Guid.NewGuid(), DisplayName = "卡A" };
+            mergeCard.Axes.Add(new AxisMapping
+            {
+                AxisId = Guid.NewGuid(),
+                LogicalName = "X",
+                PhysicalIndex = 0
+            });
+            var mergeRegistry = new MotionAxisRegistry(() => new[] { mergeCard });
+            mergeMotion.Rebuild(mergeRegistry.Snapshot());
+
+            Check("[AX8b] 宿主把运动/通讯/相机三源合并进同一个集合（父与字段都在）",
+                mergeWorkspace.SystemVariables.Count == 13 + 8 + 9
+                && mergeWorkspace.SystemVariables.Any(v => v.Name == "System.Motion.X")
+                && mergeWorkspace.SystemVariables.Any(v => v.Name == "System.Motion.X.Position")
+                && mergeWorkspace.SystemVariables.Any(v => v.Name == "System.Comm.PLC_Modbus")
+                && mergeWorkspace.SystemVariables.Any(v => v.Name == "System.Camera.上相机"),
+                $"{mergeWorkspace.SystemVariables.Count} 条");
+
+            // ================= 变量管理的根行筛选 =================
+            // 这段错了不报错，只会让字段以"根行"再出现一次（清单翻倍、计数把一台设备算成 13）。
+            var uiFields = new IVariable[]
+            {
+                new SystemVariableModel(Guid.NewGuid(), "System.Motion.X.Position", typeof(double), "位置"),
+                new SystemVariableModel(Guid.NewGuid(), "System.Motion.X.Velocity", typeof(double), "速度"),
+            };
+            var uiParent = new SystemVariableModel(
+                Guid.NewGuid(), "System.Motion.X", typeof(MotionAxis), "轴 X", uiFields);
+            var uiLeaf = new SystemVariableModel(
+                Guid.NewGuid(), "System.Camera.Cam0.Online", typeof(bool), "相机在线");
+
+            var uiRoots = GlobalVariableManagerViewModel.SelectRootSystemVariables(
+                new IVariable[] { uiParent, uiFields[0], uiFields[1], uiLeaf });
+
+            Check("[AX8b] 变量管理的根行只含父变量与独立叶子（字段不重复成根行）",
+                uiRoots.Count == 2
+                && ReferenceEquals(uiRoots[0], uiParent)
+                && ReferenceEquals(uiRoots[1], uiLeaf),
+                string.Join("、", uiRoots.Select(r => r.Name)));
+
+            // 字段行映射：显示短名、复制完整名、只读、OriginalModel 指向字段本身
+            var parentNode = new VariableNode { Name = "System.Motion.X", Level = 0, SourceLabel = "系统" };
+            var fieldNodes = GlobalVariableManagerViewModel.BuildSystemFieldNodes(uiParent, parentNode);
+
+            Check("[AX8b] 字段行：短名显示 + 完整名可复制 + 只读（OriginalModel 指向字段）",
+                fieldNodes.Count == 2
+                && fieldNodes[0].Name == "Position"
+                && fieldNodes[0].FullName == "System.Motion.X.Position"
+                && fieldNodes[0].Level == 1
+                && fieldNodes[0].IsValueReadOnly
+                && ReferenceEquals(fieldNodes[0].OriginalModel, uiFields[0]),
+                $"{fieldNodes.Count} 行 / {fieldNodes.FirstOrDefault()?.Name} / {fieldNodes.FirstOrDefault()?.FullName}");
         }
 
         // ==================================================================
