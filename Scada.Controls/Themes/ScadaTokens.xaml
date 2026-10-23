@@ -25,6 +25,8 @@
     <SolidColorBrush x:Key="HmiCanvasBackgroundBrush" Color="#0E1318" />
     <SolidColorBrush x:Key="HmiSurfaceBrush" Color="#151C23" />
     <SolidColorBrush x:Key="HmiSurfaceRaisedBrush" Color="#1B242D" />
+    <!--  二维码/条码的码面：扫描要求固定白底，深色主题下也不反色（本批新增令牌）  -->
+    <SolidColorBrush x:Key="HmiCodeSurfaceBrush" Color="#FFFFFF" />
 
     <!--  描边  -->
     <SolidColorBrush x:Key="HmiBorderBrush" Color="#2A3745" />
@@ -44,6 +46,8 @@
     <!--  成功态实心填充（白字对比足够）：选中档/确认态用，不另造第二套语义  -->
     <SolidColorBrush x:Key="HmiSuccessFillBrush" Color="#15803D" />
     <SolidColorBrush x:Key="HmiWarningBrush" Color="#F59E0B" />
+    <!--  警告横幅底：不透明深琥珀，盖在行上时文字才读得清  -->
+    <SolidColorBrush x:Key="HmiWarningBannerBrush" Color="#3B2A12" />
     <SolidColorBrush x:Key="HmiDangerBrush" Color="#EF4444" />
     <SolidColorBrush x:Key="HmiInfoBrush" Color="#3B82F6" />
     <SolidColorBrush x:Key="HmiOffBrush" Color="#64748B" />

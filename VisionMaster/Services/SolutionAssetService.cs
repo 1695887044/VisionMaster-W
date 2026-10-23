@@ -28,8 +28,8 @@ namespace VisionMaster.Services
     /// </summary>
     public static class SolutionAssetService
     {
-        /// <summary>方案目录下随方案走的图片子目录（与 <see cref="SolutionAssetFolders"/> 同名）</summary>
-        public const string ImageFolderName = "Image";
+        /// <summary>方案目录下随方案走的图片子目录（与 <see cref="SolutionPaths"/> 同名）</summary>
+        public const string ImageFolderName = SolutionPaths.ImageFolderName;
 
         private static readonly string[] SupportedExtensions = { ".png", ".jpg", ".jpeg", ".bmp", ".gif" };
 
@@ -48,9 +48,38 @@ namespace VisionMaster.Services
                && SupportedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
+        /// 把“方案配置文件路径”或“方案根目录”统一成方案根目录。
+        ///
+        /// 为什么两种都收：调用方手里不一定有 `.vms` 路径——
+        /// 运行窗口与属性面板只有方案目录（<c>SolutionRoot</c>），编辑器画布与保存链有文件路径。
+        /// 只按“是不是 .vms”判，不靠 <c>Directory.Exists</c>：方案还没保存时目录可能不存在，
+        /// 那种情况下仍然要把图片导进 `<根>\Image`。
+        /// </summary>
+        public static string? NormalizeSolutionRoot(string? solutionFilePathOrRoot)
+        {
+            if (string.IsNullOrWhiteSpace(solutionFilePathOrRoot))
+                return null;
+
+            try
+            {
+                return string.Equals(Path.GetExtension(solutionFilePathOrRoot), SolutionPaths.ConfigExtension,
+                           StringComparison.OrdinalIgnoreCase)
+                    ? SolutionPaths.GetSolutionRoot(solutionFilePathOrRoot)
+                    : Path.GetFullPath(solutionFilePathOrRoot!);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
         /// 把一张外部图片导入当前方案，返回写进 <c>.vms</c> 的相对路径（形如 <c>Image\pid.png</c>）。
         ///
-        /// 方案还没保存（没有 <paramref name="solutionFilePath"/>）时拒绝导入：没有方案目录就
+        /// <paramref name="solutionFilePath"/> 既可以是方案配置文件路径，也可以是方案根目录
+        /// （见 <see cref="NormalizeSolutionRoot"/>）。
+        ///
+        /// 方案还没保存（没有路径）时拒绝导入：没有方案目录就
         /// 没有“跟着方案走”的落点，硬塞到软件目录只会让下一次另存为漏掉它。
         /// </summary>
         public static bool TryImport(
@@ -81,14 +110,14 @@ namespace VisionMaster.Services
                 return false;
             }
 
-            var solutionRoot = Path.GetDirectoryName(Path.GetFullPath(solutionFilePath));
+            var solutionRoot = NormalizeSolutionRoot(solutionFilePath);
             if (string.IsNullOrWhiteSpace(solutionRoot))
             {
                 error = "方案路径无效";
                 return false;
             }
 
-            var imageDirectory = Path.Combine(solutionRoot, ImageFolderName);
+            var imageDirectory = Path.Combine(solutionRoot!, ImageFolderName);
 
             try
             {
@@ -163,6 +192,8 @@ namespace VisionMaster.Services
         /// <summary>
         /// 相对路径 → 绝对路径。拒绝绝对路径、盘符与 <c>..</c> 越界，
         /// 保证 <c>.vms</c> 里的引用永远落在方案目录内。
+        ///
+        /// <paramref name="solutionFilePath"/> 既可以是方案配置文件路径，也可以是方案根目录。
         /// </summary>
         public static bool TryResolve(
             string? solutionFilePath,
@@ -191,15 +222,15 @@ namespace VisionMaster.Services
                 return false;
             }
 
-            var solutionRoot = Path.GetDirectoryName(Path.GetFullPath(solutionFilePath));
+            var solutionRoot = NormalizeSolutionRoot(solutionFilePath);
             if (string.IsNullOrWhiteSpace(solutionRoot))
             {
                 error = "方案路径无效";
                 return false;
             }
 
-            var imageRoot = Path.GetFullPath(Path.Combine(solutionRoot, ImageFolderName));
-            var candidate = Path.GetFullPath(Path.Combine(solutionRoot, relativePath));
+            var imageRoot = Path.GetFullPath(Path.Combine(solutionRoot!, ImageFolderName));
+            var candidate = Path.GetFullPath(Path.Combine(solutionRoot!, relativePath));
 
             if (!candidate.StartsWith(imageRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
                 && !string.Equals(candidate, imageRoot, StringComparison.OrdinalIgnoreCase))

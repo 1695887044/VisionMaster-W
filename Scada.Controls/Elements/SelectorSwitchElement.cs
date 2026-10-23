@@ -317,6 +317,10 @@ namespace VisionMaster.Scada.Controls
             // 不在这里 RaiseScadaEvent(Pressed)：画布在运行态已经对命中的图元统一发一次 Pressed
             //（ScadaCanvas.Interaction），控件再发一次会让同一条事件钩子执行两遍。
             // 写失败时本来也不该发声；成功路径只负责写变量，事件源保持画布唯一。
+            RaiseScadaEvent(ScadaEventType.ObjectChanged);
+            if (count == 2)
+                RaiseScadaEvent(index == 1 ? ScadaEventType.Opened : ScadaEventType.Closed);
+
             return true;
         }
 

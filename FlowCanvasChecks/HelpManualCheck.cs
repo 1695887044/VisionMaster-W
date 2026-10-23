@@ -98,6 +98,13 @@ namespace FlowCanvasChecks
             // —— M 档（标准检测 / 数据 / 单卡驱动）——
             ["CSharpScriptPlugin"] = ManualTier.M,
             ["CodeReaderPlugin"] = ManualTier.M,
+            // DlAnomaly：5 用户页 / 3 开发页 / 最长开发页 210 行 —— 超 M（4/2/150），
+            // 未到 L（5/3/300，最长开发页差 90 行），按"交了的必须合法、必须够厚"登记 M。
+            // 后续把 12-dev-invariants.md 补到 300 行以上再升 L。
+            ["DlAnomalyPlugin"] = ManualTier.M,
+            // DlSegment：5 用户页 / 3 开发页 / 最长开发页 185 行 —— 超 M（4/2/150），
+            // 未到 L（5/3/300），与 DlAnomaly 同档登记 M。
+            ["DlSegmentPlugin"] = ManualTier.M,
             ["RegionColorPlugin"] = ManualTier.M,
             ["DataRecordPlugin"] = ManualTier.M,
             ["DlClassifyPlugin"] = ManualTier.M,

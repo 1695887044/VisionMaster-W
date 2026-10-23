@@ -265,7 +265,10 @@ namespace FlowCanvasChecks
             using HImage tube = MakeWithSquare();
             try
             {
-                // 基线：三条上限都不设 → Success=true 但有差异（HasDiff 记"有差异"，不是"判 NG"）
+                // 基线：三条上限都不设 → 不判 NG。
+                // 语义提醒：HasDiff 是"判定结论（是否 NG）"，不是"有没有差异像素"——
+                // 三个上限全为 0 时 reasons 为空 → HasDiff=false → 不调 Fail → Success=true。
+                // 有差异这件事由 DiffArea/DiffCount 表达（900 px / 1 片）。
                 var baseline = NewPlugin();
                 try
                 {
@@ -276,11 +279,13 @@ namespace FlowCanvasChecks
                     baseline.DisplayViewIndex = 0;
                     baseline.Execute(NewContext());
 
-                    Check("[Diff][C3a] 不设上限 → Success=true、HasDiff=true、DiffCount=1",
+                    double baselineArea = baseline.DiffArea.Value is double ba ? ba : -1;
+                    Check("[Diff][C3a] 不设上限 → 不判 NG（Success=true、HasDiff=false），但差异本身照实产出",
                         baseline.Success.Value is true
-                        && baseline.HasDiff.Value is true
-                        && baseline.DiffCount.Value is int bc && bc == 1,
-                        $"Success={baseline.Success.Value} HasDiff={baseline.HasDiff.Value} count={baseline.DiffCount.Value}");
+                        && baseline.HasDiff.Value is false
+                        && baseline.DiffCount.Value is int bc && bc == 1
+                        && Math.Abs(baselineArea - DiffSquarePixels) <= 1.0,
+                        $"Success={baseline.Success.Value} HasDiff={baseline.HasDiff.Value} count={baseline.DiffCount.Value} area={baselineArea:0.##}");
                 }
                 finally
                 {
@@ -333,13 +338,16 @@ namespace FlowCanvasChecks
             using HImage reference = MakeUniform(RefGray);
             try
             {
-                // ---- B2：掩膜整块盖住差异区 → 零差异 ----
+                // ---- B2：掩膜只框住空白区、差异块落在框外 → 零差异 ----
+                // MaskRegion 的语义是"只算框内"（差异区与它求交），不是"排除框内"。
+                // 所以要让掩膜真的把差异裁掉，必须把框放在差异块之外；
+                // 框盖在差异块上时面积不变，那是 B2c 的反证。
                 using (HImage full = MakeWithSquare())
                 {
                     var masked = NewPlugin();
                     try
                     {
-                        using HRegion mask = MakeMaskRegion(DiffRow1 - 5, DiffCol1 - 5, DiffRow2 + 5, DiffCol2 + 5);
+                        using HRegion mask = MakeMaskRegion(100, 100, ImgH - 1, ImgW - 1);
                         masked.Reference.Value = reference;
                         masked.Test.Value = full;
                         masked.MaskRegion.Value = mask;
@@ -350,13 +358,39 @@ namespace FlowCanvasChecks
 
                         double area = masked.DiffArea.Value is double a ? a : -1;
                         int count = masked.DiffCount.Value is int c ? c : -1;
-                        Check("[Diff][B2] 掩膜盖住差异区 → 总面积 0、片数 0",
+                        Check("[Diff][B2] 掩膜框住空白区、差异块在框外 → 总面积 0、片数 0",
                             masked.Success.Value is true && area < 0.51 && count == 0,
                             $"Success={masked.Success.Value} area={area:0.##} count={count}");
                     }
                     finally
                     {
                         masked.Dispose();
+                    }
+                }
+
+                // ---- B2c：掩膜盖在差异块上 → 面积不变（证明是"求交"不是"排除"） ----
+                using (HImage full = MakeWithSquare())
+                {
+                    var covered = NewPlugin();
+                    try
+                    {
+                        using HRegion mask = MakeMaskRegion(DiffRow1 - 5, DiffCol1 - 5, DiffRow2 + 5, DiffCol2 + 5);
+                        covered.Reference.Value = reference;
+                        covered.Test.Value = full;
+                        covered.MaskRegion.Value = mask;
+                        covered.Threshold = 30;
+                        covered.MinArea = 20;
+                        covered.DisplayViewIndex = 0;
+                        covered.Execute(NewContext());
+
+                        double area = covered.DiffArea.Value is double a ? a : -1;
+                        Check("[Diff][B2c] 掩膜盖在差异块上 → 面积不变（只算框内，不是排除框内）",
+                            covered.Success.Value is true && Math.Abs(area - DiffSquarePixels) <= 1.0,
+                            $"Success={covered.Success.Value} area={area:0.##} 期望={DiffSquarePixels}");
+                    }
+                    finally
+                    {
+                        covered.Dispose();
                     }
                 }
 

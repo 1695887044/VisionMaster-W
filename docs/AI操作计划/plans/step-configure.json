@@ -1,0 +1,66 @@
+{
+  "schema": "vm-plan/1",
+  "id": "step-configure",
+  "title": "配置一个 ActionStep 的步骤参数",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "双击画布节点打开参数窗（标题=步骤名），按字段显示名填值，点「确认」。条件/For/等待步骤请用 step-configure-condition。",
+  "params": {
+    "step_name": {
+      "type": "string",
+      "required": true,
+      "example": "图像采集"
+    },
+    "fields": {
+      "type": "object",
+      "required": true,
+      "example": {
+        "图像路径": "D:\\images\\part001.png",
+        "显示窗口号": "1"
+      },
+      "description": "键=属性面板上的显示名（AutomationProperties.Name），值=要填的文本"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "element_exists", "target": "canvas.step_title" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "double_click",
+      "target": "canvas.step_title",
+      "target_name": "${step_name}",
+      "expect": { "window": "dialog.plugin_config", "name": "${step_name}", "state": "visible" },
+      "timeout_ms": 8000
+    },
+    {
+      "n": 2,
+      "do": "fill",
+      "target": "dialog.plugin_config.form",
+      "fields": "${fields}",
+      "expect": { "element": "dialog.plugin_config.form", "state": "exists" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "dialog.plugin_config.confirm",
+      "expect": { "window": "dialog.plugin_config", "state": "closed" },
+      "timeout_ms": 10000
+    },
+    {
+      "n": 4,
+      "do": "assert",
+      "assert": "element_exists",
+      "target": "canvas.step_title",
+      "name_contains": "${step_name}",
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    { "assert": "element_exists", "target": "canvas.step_title", "name_contains": "${step_name}", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["flow", "step", "config"]
+}

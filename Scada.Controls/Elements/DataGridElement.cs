@@ -2,7 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 using VisionMaster.Scada;
 
@@ -51,6 +54,25 @@ namespace VisionMaster.Scada.Controls
     }
 
     /// <summary>
+    /// 历史范围下拉的一项：<see cref="Value"/> 是落盘值，<see cref="Label"/> 是界面文字。
+    ///
+    /// 为什么值不直接存中文：范围会写进 <c>.vms</c>，改显示文案（"最近 7 天" → "近一周"）
+    /// 不该让已配好的画面变成未知值。与 <c>StepConfigOption.ForEnum</c> 同一条口径。
+    /// </summary>
+    public sealed class ScadaHistoryRangeOption
+    {
+        public ScadaHistoryRangeOption(string value, string label)
+        {
+            Value = value;
+            Label = label;
+        }
+
+        public string Value { get; }
+
+        public string Label { get; }
+    }
+
+    /// <summary>
     /// 数据表格图元（<c>Hmi.DataGrid</c>）：把"最近 N 条记录"摆出来。
     ///
     /// 三条边界
@@ -74,7 +96,26 @@ namespace VisionMaster.Scada.Controls
 
         private IReadOnlyList<ScadaGridColumn> _columns = Array.Empty<ScadaGridColumn>();
 
+        /// <summary>属性袋里配的实时列（历史模式下 <see cref="_columns"/> 会被换成历史列，切回实时要用回这一份）</summary>
+        private IReadOnlyList<ScadaGridColumn> _configuredColumns = Array.Empty<ScadaGridColumn>();
+
         private readonly List<ScadaGridRow> _rows = new();
+
+        /// <summary>历史模式的分页状态（0 基）</summary>
+        private int _historyPageIndex;
+        private int _historyTotal;
+        private int _historyPageSize = 50;
+
+        /// <summary>在飞查询的取消源（切页/改范围/关窗时取消旧请求）</summary>
+        private CancellationTokenSource? _historyCts;
+
+        private bool _historyBusy;
+
+        private readonly ScadaRelayCommand _queryHistoryCommand;
+        private readonly ScadaRelayCommand _previousHistoryPageCommand;
+        private readonly ScadaRelayCommand _nextHistoryPageCommand;
+        private readonly ScadaRelayCommand _refreshHistoryCommand;
+        private readonly ScadaRelayCommand _cycleHistoryRangeCommand;
 
         /// <summary>上一拍的采行信号（边沿判定的唯一状态）</summary>
         private bool _signalHigh;
@@ -151,6 +192,105 @@ namespace VisionMaster.Scada.Controls
         public static readonly DependencyProperty ZebraProperty = DependencyProperty.Register(
             nameof(Zebra), typeof(bool), typeof(DataGridElement), new PropertyMetadata(true));
 
+        /// <summary>
+        /// 数据源：<c>Live</c>（默认，采行信号攒行）或 <c>History</c>（查方案历史 CSV）。
+        ///
+        /// 为什么只换源不新建图元：列定义、行模板、斑马纹、空态、最大行数这些"怎么摆"
+        /// 与"数据从哪来"无关；再造一个 HistoryGrid 等于把同一套模板复制一遍，
+        /// 之后每个视觉修补都要改两处（设计基线 §历史数据第一条）。
+        /// </summary>
+        public static readonly DependencyProperty SourceProperty = DependencyProperty.Register(
+            nameof(Source), typeof(string), typeof(DataGridElement),
+            new PropertyMetadata("Live", OnSourceChanged));
+
+        /// <summary>历史范围（Today / Yesterday / Last7Days / Last30Days）</summary>
+        public static readonly DependencyProperty HistoryRangeProperty = DependencyProperty.Register(
+            nameof(HistoryRange), typeof(string), typeof(DataGridElement),
+            new PropertyMetadata("Last7Days", OnHistoryFilterChanged));
+
+        /// <summary>每页条数（默认 50，1~500）</summary>
+        public static readonly DependencyProperty HistoryPageSizeProperty = DependencyProperty.Register(
+            nameof(HistoryPageSize), typeof(int), typeof(DataGridElement),
+            new FrameworkPropertyMetadata(50, null, CoerceHistoryPageSize));
+
+        /// <summary>时间列名（空 = 自动识别表头里含时间/日期的列）</summary>
+        public static readonly DependencyProperty HistoryTimestampColumnProperty = DependencyProperty.Register(
+            nameof(HistoryTimestampColumn), typeof(string), typeof(DataGridElement),
+            new PropertyMetadata(string.Empty, OnHistoryFilterChanged));
+
+        /// <summary>关键字过滤（空 = 不过滤；匹配任意列，忽略大小写）</summary>
+        public static readonly DependencyProperty HistoryKeywordProperty = DependencyProperty.Register(
+            nameof(HistoryKeyword), typeof(string), typeof(DataGridElement),
+            new PropertyMetadata(string.Empty, OnHistoryFilterChanged));
+
+        private static readonly DependencyPropertyKey IsHistoryModePropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(IsHistoryMode), typeof(bool), typeof(DataGridElement), new PropertyMetadata(false));
+
+        /// <summary>当前是否历史源模式（模板用它切工具栏）</summary>
+        public static readonly DependencyProperty IsHistoryModeProperty = IsHistoryModePropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey HistoryToolbarVisibilityPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(HistoryToolbarVisibility), typeof(Visibility), typeof(DataGridElement),
+            new PropertyMetadata(Visibility.Collapsed));
+
+        /// <summary>历史工具栏显隐</summary>
+        public static readonly DependencyProperty HistoryToolbarVisibilityProperty =
+            HistoryToolbarVisibilityPropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey HistoryBusyVisibilityPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(HistoryBusyVisibility), typeof(Visibility), typeof(DataGridElement),
+            new PropertyMetadata(Visibility.Collapsed));
+
+        /// <summary>查询中骨架显隐</summary>
+        public static readonly DependencyProperty HistoryBusyVisibilityProperty =
+            HistoryBusyVisibilityPropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey HistoryPageTextPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(HistoryPageText), typeof(string), typeof(DataGridElement), new PropertyMetadata("1 / 1"));
+
+        /// <summary>分页读数（如 <c>2 / 7 · 共 312 条</c>）</summary>
+        public static readonly DependencyProperty HistoryPageTextProperty = HistoryPageTextPropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey HistoryRangeLabelPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(HistoryRangeLabel), typeof(string), typeof(DataGridElement), new PropertyMetadata("最近 7 天"));
+
+        /// <summary>范围按钮上的文字（落盘值 → 中文名，读 <see cref="ScadaChoiceNames"/>）</summary>
+        public static readonly DependencyProperty HistoryRangeLabelProperty =
+            HistoryRangeLabelPropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey TitleCountTextPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(TitleCountText), typeof(string), typeof(DataGridElement), new PropertyMetadata("0 条"));
+
+        /// <summary>
+        /// 标题右侧的计数：实时模式是缓冲行数，历史模式是<b>过滤后的总数</b>。
+        /// 历史模式若还显示本页行数，会和工具栏的"共 312 条"打架（5 vs 312）。
+        /// </summary>
+        public static readonly DependencyProperty TitleCountTextProperty = TitleCountTextPropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey HistoryBannerVisibilityPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(HistoryBannerVisibility), typeof(Visibility), typeof(DataGridElement),
+            new PropertyMetadata(Visibility.Collapsed));
+
+        /// <summary>历史查询失败横幅显隐（不可用/超时/范围非法；有旧行时旧行仍在下面）</summary>
+        public static readonly DependencyProperty HistoryBannerVisibilityProperty =
+            HistoryBannerVisibilityPropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey HistoryBannerTextPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(HistoryBannerText), typeof(string), typeof(DataGridElement), new PropertyMetadata(string.Empty));
+
+        /// <summary>横幅文字（失败原因 + 重试提示）</summary>
+        public static readonly DependencyProperty HistoryBannerTextProperty =
+            HistoryBannerTextPropertyKey.DependencyProperty;
+
+        /// <summary>历史范围下拉的选项（XAML 用 <c>x:Static</c> 取）</summary>
+        public static IReadOnlyList<ScadaHistoryRangeOption> HistoryRangeOptions { get; } = new[]
+        {
+            new ScadaHistoryRangeOption("Today", "今天"),
+            new ScadaHistoryRangeOption("Yesterday", "昨天"),
+            new ScadaHistoryRangeOption("Last7Days", "最近 7 天"),
+            new ScadaHistoryRangeOption("Last30Days", "最近 30 天"),
+        };
+
         static DataGridElement()
         {
             DefaultStyleKeyProperty.OverrideMetadata(
@@ -160,7 +300,49 @@ namespace VisionMaster.Scada.Controls
 
         public DataGridElement()
         {
-            SizeChanged += (_, _) => RebuildRowViews();
+            // SizeChanged 必须重算列宽：首次布局前 ActualWidth=0，余量列按 480 的保守宽度分，
+            // 布局完成后不重算的话，列宽会一直停在"布局前"那一版（SN 列被截成 SN-2026-00…）。
+            SizeChanged += (_, _) =>
+            {
+                RecomputeCellWidths();
+                RebuildRowViews();
+            };
+
+            _queryHistoryCommand = new ScadaRelayCommand(() => _ = QueryHistoryAsync());
+            _refreshHistoryCommand = new ScadaRelayCommand(() => _ = QueryHistoryAsync());
+            _cycleHistoryRangeCommand = new ScadaRelayCommand(
+                () =>
+                {
+                    var index = 0;
+                    for (var i = 0; i < HistoryRangeOptions.Count; i++)
+                    {
+                        if (string.Equals(HistoryRangeOptions[i].Value, HistoryRange, StringComparison.OrdinalIgnoreCase))
+                        {
+                            index = i;
+                            break;
+                        }
+                    }
+
+                    HistoryRange = HistoryRangeOptions[(index + 1) % HistoryRangeOptions.Count].Value;
+                    _ = QueryHistoryAsync();
+                });
+            _previousHistoryPageCommand = new ScadaRelayCommand(
+                () =>
+                {
+                    if (_historyPageIndex <= 0) return;
+                    _historyPageIndex--;
+                    _ = QueryHistoryAsync();
+                },
+                () => !_historyBusy && _historyPageIndex > 0);
+            _nextHistoryPageCommand = new ScadaRelayCommand(
+                () =>
+                {
+                    var pageCount = PageCount;
+                    if (_historyPageIndex + 1 >= pageCount) return;
+                    _historyPageIndex++;
+                    _ = QueryHistoryAsync();
+                },
+                () => !_historyBusy && _historyPageIndex + 1 < PageCount);
         }
 
         /// <summary>行（视图模型）</summary>
@@ -232,11 +414,120 @@ namespace VisionMaster.Scada.Controls
             set => SetValue(ZebraProperty, value);
         }
 
+        /// <summary>数据源（Live / History）</summary>
+        public string Source
+        {
+            get => (string)GetValue(SourceProperty);
+            set => SetValue(SourceProperty, value);
+        }
+
+        /// <summary>历史范围（Today / Yesterday / Last7Days / Last30Days）</summary>
+        public string HistoryRange
+        {
+            get => (string)GetValue(HistoryRangeProperty);
+            set => SetValue(HistoryRangeProperty, value);
+        }
+
+        /// <summary>每页条数</summary>
+        public int HistoryPageSize
+        {
+            get => (int)GetValue(HistoryPageSizeProperty);
+            set => SetValue(HistoryPageSizeProperty, value);
+        }
+
+        /// <summary>时间列名（空 = 自动识别）</summary>
+        public string HistoryTimestampColumn
+        {
+            get => (string)GetValue(HistoryTimestampColumnProperty);
+            set => SetValue(HistoryTimestampColumnProperty, value);
+        }
+
+        /// <summary>关键字过滤</summary>
+        public string HistoryKeyword
+        {
+            get => (string)GetValue(HistoryKeywordProperty);
+            set => SetValue(HistoryKeywordProperty, value);
+        }
+
+        /// <summary>当前是否历史源模式</summary>
+        public bool IsHistoryMode => (bool)GetValue(IsHistoryModeProperty);
+
+        /// <summary>历史工具栏显隐</summary>
+        public Visibility HistoryToolbarVisibility => (Visibility)GetValue(HistoryToolbarVisibilityProperty);
+
+        /// <summary>查询中骨架显隐</summary>
+        public Visibility HistoryBusyVisibility => (Visibility)GetValue(HistoryBusyVisibilityProperty);
+
+        /// <summary>分页读数</summary>
+        public string HistoryPageText => (string)GetValue(HistoryPageTextProperty);
+
+        /// <summary>范围按钮文字</summary>
+        public string HistoryRangeLabel => (string)GetValue(HistoryRangeLabelProperty);
+
+        /// <summary>标题右侧计数（历史模式 = 总数）</summary>
+        public string TitleCountText => (string)GetValue(TitleCountTextProperty);
+
+        /// <summary>历史失败横幅显隐</summary>
+        public Visibility HistoryBannerVisibility => (Visibility)GetValue(HistoryBannerVisibilityProperty);
+
+        /// <summary>历史失败横幅文字</summary>
+        public string HistoryBannerText => (string)GetValue(HistoryBannerTextProperty);
+
+        /// <summary>当前页码（0 基；断言用）</summary>
+        public int HistoryPageIndex => _historyPageIndex;
+
+        /// <summary>过滤后的总条数（断言用）</summary>
+        public int HistoryTotalCount => _historyTotal;
+
+        /// <summary>查询中（断言用）</summary>
+        public bool IsHistoryBusy => _historyBusy;
+
+        /// <summary>查询按钮</summary>
+        public ICommand QueryHistoryCommand => _queryHistoryCommand;
+
+        /// <summary>刷新按钮（语义与查询相同；分开是为了工具栏上两个入口各自可点）</summary>
+        public ICommand RefreshHistoryCommand => _refreshHistoryCommand;
+
+        /// <summary>上一页</summary>
+        public ICommand PreviousHistoryPageCommand => _previousHistoryPageCommand;
+
+        /// <summary>下一页</summary>
+        public ICommand NextHistoryPageCommand => _nextHistoryPageCommand;
+
+        /// <summary>范围按钮（点击循环：今天 → 昨天 → 最近 7 天 → 最近 30 天）</summary>
+        public ICommand CycleHistoryRangeCommand => _cycleHistoryRangeCommand;
+
+        private int PageCount
+            => _historyTotal <= 0 ? 0 : (_historyTotal + _historyPageSize - 1) / _historyPageSize;
+
         private static object CoerceMaxRows(DependencyObject d, object baseValue)
         {
             int value = (int)baseValue;
             if (value < 1) return 1;
             return value > MaxRowsLimit ? MaxRowsLimit : value;
+        }
+
+        private static object CoerceHistoryPageSize(DependencyObject d, object baseValue)
+        {
+            int value = (int)baseValue;
+            if (value < 1) return 1;
+            return value > MaxRowsLimit ? MaxRowsLimit : value;
+        }
+
+        private static void OnSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is DataGridElement grid)
+                grid.ApplySourceMode();
+        }
+
+        /// <summary>范围/时间列/关键字变了：回到第一页（在第三页改筛选还停在第三页 = 空表）</summary>
+        private static void OnHistoryFilterChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is DataGridElement grid)
+            {
+                grid._historyPageIndex = 0;
+                grid.UpdateHistoryRangeLabel();
+            }
         }
 
         /// <summary>
@@ -247,7 +538,8 @@ namespace VisionMaster.Scada.Controls
         {
             if (string.Equals(key, ScadaGridColumnsCodec.Key, StringComparison.Ordinal))
             {
-                _columns = ScadaGridColumnsCodec.Parse(value);
+                _configuredColumns = ScadaGridColumnsCodec.Parse(value);
+                _columns = IsHistoryMode ? _columns : _configuredColumns;
                 RecomputeCellWidths();
                 RebuildRowViews();
                 RefreshEmptyState();
@@ -269,8 +561,20 @@ namespace VisionMaster.Scada.Controls
             _signalHigh = false;
             _recorded = 0;
             _rows.Clear();
+
+            // 在飞的历史查询也要停：新上下文的数据源可能已经换了一份。
+            _historyCts?.Cancel();
+            _historyCts = null;
+            _historyPageIndex = 0;
+            _historyTotal = 0;
+
+            ApplySourceMode(queryIfHistory: false);
             RebuildRowViews();
             RefreshEmptyState();
+
+            // 历史模式：进入运行就查一次（"先看到最近记录"是打开画面的默认预期）。
+            if (IsHistoryMode && newContext?.History != null)
+                _ = QueryHistoryAsync();
         }
 
         /// <summary>
@@ -278,8 +582,15 @@ namespace VisionMaster.Scada.Controls
         ///
         /// 只在 UI 线程上跑（节拍源由宿主在运行窗口的 Dispatcher 上养）。
         /// 没有任何变量句柄时安静返回：设计态与"还没配变量"都是正常状态。
+        /// 历史模式不采行：那张表的数据来自查询，采行信号在这里没有意义。
         /// </summary>
-        private void OnBeat(TimeSpan elapsed) => Sample();
+        private void OnBeat(TimeSpan elapsed)
+        {
+            if (IsHistoryMode)
+                return;
+
+            Sample();
+        }
 
         /// <summary>
         /// 采一次（节拍每拍调一次）。
@@ -532,6 +843,7 @@ namespace VisionMaster.Scada.Controls
 
             SetValue(RowsPropertyKey, (IReadOnlyList<GridRowView>)views);
             RebuildHeaderCells();
+            UpdateTitleCount();
         }
 
         /// <summary>列头格：与行同宽同对齐（同一个格子模板渲染，列线才在一条竖线上）。</summary>
@@ -563,6 +875,340 @@ namespace VisionMaster.Scada.Controls
 
         private void SetStatus(string text) => SetValue(StatusTextPropertyKey, text ?? string.Empty);
 
+        // ------------------------------------------------------------------
+        // 历史源模式
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 按 <see cref="Source"/> 切模式：实时 → 历史（清缓冲、换列、提示先查询）；
+        /// 历史 → 实时（把列换回属性袋里那一份）。
+        /// </summary>
+        private void ApplySourceMode() => ApplySourceMode(queryIfHistory: true);
+
+        private void ApplySourceMode(bool queryIfHistory)
+        {
+            var history = string.Equals(Source, "History", StringComparison.OrdinalIgnoreCase);
+
+            SetValue(IsHistoryModePropertyKey, history);
+            SetValue(HistoryToolbarVisibilityPropertyKey, history ? Visibility.Visible : Visibility.Collapsed);
+            HideHistoryBanner();
+            UpdateHistoryRangeLabel();
+
+            if (!history)
+            {
+                _historyCts?.Cancel();
+                _historyCts = null;
+                _historyBusy = false;
+                SetValue(HistoryBusyVisibilityPropertyKey, Visibility.Collapsed);
+
+                // 历史行不属于实时缓冲：切回来还留着，操作员会以为那是刚采到的产品。
+                _rows.Clear();
+                _columns = _configuredColumns;
+                RecomputeCellWidths();
+                RebuildRowViews();
+                RefreshEmptyState();
+                UpdateHistoryPagingUi();
+                return;
+            }
+
+            // 进历史模式：实时缓冲不属于这里（否则会先显示上一轮的采行记录，
+            // 用户以为那就是查询结果）。
+            _rows.Clear();
+            _signalHigh = false;
+            _columns = Array.Empty<ScadaGridColumn>();
+            RecomputeCellWidths();
+            RebuildRowViews();
+            SetValue(EmptyVisibilityPropertyKey, Visibility.Visible);
+            SetValue(EmptyTitlePropertyKey, "选择范围后点「查询」");
+            SetValue(EmptyHintPropertyKey, "历史记录从方案目录 History\\ 下的 CSV 账本读取。");
+            SetStatus(string.Empty);
+            UpdateHistoryPagingUi();
+
+            if (queryIfHistory && RuntimeContext?.History != null)
+                _ = QueryHistoryAsync();
+        }
+
+        /// <summary>
+        /// 查一页历史。
+        ///
+        /// <b>public 是给断言用的</b>（与 <see cref="Sample"/> 同一口径）：真实查询是异步的，
+        /// 断言用同步完成的假数据源 await 它，就能在无 Dispatcher 的宿主里验完整个状态机。
+        /// 生产路径只有命令调它。
+        /// </summary>
+        public async Task QueryHistoryAsync()
+        {
+            if (!IsHistoryMode)
+                return;
+
+            var source = RuntimeContext?.History;
+            if (source == null)
+            {
+                ShowHistoryProblem("未接入历史数据源", "宿主没有提供 IScadaHistorySource。");
+                return;
+            }
+
+            if (!source.IsAvailable)
+            {
+                ShowHistoryProblem("历史数据源不可用", source.UnavailableReason ?? "目录不存在或不可访问。");
+                return;
+            }
+
+            var (from, to) = ResolveHistoryRange(HistoryRange, DateTime.Now);
+            if (from >= to)
+            {
+                ShowHistoryProblem("时间范围无效", "起点必须早于终点。");
+                return;
+            }
+
+            // 新查询取代旧查询：旧请求取消，结果回来时也不再写界面（见下面的引用判断）。
+            _historyCts?.Cancel();
+            var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            _historyCts = cts;
+
+            _historyBusy = true;
+            HideHistoryBanner();
+            SetValue(HistoryBusyVisibilityPropertyKey, Visibility.Visible);
+            SetValue(EmptyVisibilityPropertyKey, Visibility.Collapsed);
+            SetStatus("正在查询…");
+            CommandManager.InvalidateRequerySuggested();
+
+            try
+            {
+                var result = await source.QueryAsync(
+                    new ScadaHistoryQuery
+                    {
+                        FromLocal = from,
+                        ToLocal = to,
+                        PageIndex = _historyPageIndex,
+                        PageSize = HistoryPageSize,
+                        TimestampColumn = HistoryTimestampColumn,
+                        Keyword = HistoryKeyword,
+                    },
+                    cts.Token);
+
+                if (!ReferenceEquals(_historyCts, cts) || cts.IsCancellationRequested)
+                    return;
+
+                ApplyHistoryResult(result);
+            }
+            catch (OperationCanceledException)
+            {
+                // 被新查询取代：新查询会自己更新界面。
+            }
+            catch (Exception ex)
+            {
+                ShowHistoryProblem("历史查询失败", ex.Message);
+            }
+            finally
+            {
+                if (ReferenceEquals(_historyCts, cts))
+                {
+                    _historyCts = null;
+                    _historyBusy = false;
+                    SetValue(HistoryBusyVisibilityPropertyKey, Visibility.Collapsed);
+                    RefreshEmptyState();
+                    CommandManager.InvalidateRequerySuggested();
+                }
+
+                cts.Dispose();
+            }
+        }
+
+        private void ApplyHistoryResult(ScadaHistoryResult result)
+        {
+            switch (result.Status)
+            {
+                case ScadaHistoryStatus.Ok:
+                {
+                    _historyTotal = result.TotalCount;
+                    _historyPageIndex = result.PageIndex;
+                    _historyPageSize = Math.Max(1, result.PageSize);
+
+                    ApplyHistoryColumns(result.Columns);
+
+                    _rows.Clear();
+                    foreach (var cells in result.Rows)
+                        _rows.Add(new ScadaGridRow(cells, -1, DateTime.Now));
+
+                    RecomputeCellWidths();
+                    RebuildRowViews();
+
+                    HideHistoryBanner();
+                    SetValue(EmptyVisibilityPropertyKey, _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed);
+                    if (_rows.Count == 0)
+                    {
+                        SetValue(EmptyTitlePropertyKey, "该页没有记录");
+                        SetValue(EmptyHintPropertyKey, "总数不为 0 但本页为空：换一页看看。");
+                    }
+
+                    SetStatus(BuildHistoryStatus(result));
+                    break;
+                }
+
+                case ScadaHistoryStatus.Empty:
+                {
+                    _historyTotal = 0;
+                    _historyPageIndex = result.PageIndex;
+                    _historyPageSize = Math.Max(1, result.PageSize);
+
+                    ApplyHistoryColumns(result.Columns);
+                    _rows.Clear();
+                    RecomputeCellWidths();
+                    RebuildRowViews();
+
+                    ShowHistoryProblem(
+                        "该范围没有记录",
+                        result.Message ?? "换个时间范围，或确认 History 目录里有 CSV 账本。",
+                        banner: false);
+                    break;
+                }
+
+                case ScadaHistoryStatus.Cancelled:
+                    // 取消不是错误：界面保持原样（下一次查询会更新）。
+                    return;
+
+                default:
+                    // Unavailable / InvalidRange / Timeout：不清空上一次结果，
+                    // 只把原因写到脚注与空态（有旧行时脚注就是全部提示）。
+                    ShowHistoryProblem(HistoryStatusTitle(result.Status), result.Message ?? "历史查询未完成。");
+                    break;
+            }
+
+            UpdateHistoryPagingUi();
+        }
+
+        private static string HistoryStatusTitle(ScadaHistoryStatus status) => status switch
+        {
+            ScadaHistoryStatus.Unavailable => "历史数据源不可用",
+            ScadaHistoryStatus.InvalidRange => "时间范围无效",
+            ScadaHistoryStatus.Timeout => "历史查询超时",
+            ScadaHistoryStatus.Cancelled => "历史查询已取消",
+            _ => "历史查询未完成",
+        };
+
+        private static string BuildHistoryStatus(ScadaHistoryResult result)
+        {
+            var parts = new List<string>(3);
+            parts.Add($"共 {result.TotalCount} 条");
+
+            if (result.PageCount > 0)
+                parts.Add($"第 {result.PageIndex + 1}/{result.PageCount} 页");
+
+            if (!string.IsNullOrWhiteSpace(result.SourceName))
+                parts.Add($"来源：{result.SourceName}");
+
+            var text = string.Join(" · ", parts);
+            return string.IsNullOrWhiteSpace(result.Message) ? text : $"{text} · {result.Message}";
+        }
+
+        /// <summary>历史列 → 表格列：时间列定宽等宽，其余平分剩余宽度。</summary>
+        private void ApplyHistoryColumns(IReadOnlyList<string> columns)
+        {
+            if (columns == null || columns.Count == 0)
+            {
+                _columns = Array.Empty<ScadaGridColumn>();
+                return;
+            }
+
+            var list = new List<ScadaGridColumn>(columns.Count);
+
+            foreach (var header in columns)
+            {
+                var text = header ?? string.Empty;
+                var isTime = LooksLikeTimeColumn(text);
+
+                list.Add(new ScadaGridColumn(
+                    header: text,
+                    variable: string.Empty,
+                    width: isTime ? 148 : 0,
+                    align: "left",
+                    format: string.Empty,
+                    monospace: isTime));
+            }
+
+            _columns = list;
+        }
+
+        private static bool LooksLikeTimeColumn(string header)
+        {
+            if (string.IsNullOrWhiteSpace(header))
+                return false;
+
+            return header.Contains("时间", StringComparison.Ordinal)
+                || header.Contains("日期", StringComparison.Ordinal)
+                || header.Contains("time", StringComparison.OrdinalIgnoreCase)
+                || header.Contains("date", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static (DateTime From, DateTime To) ResolveHistoryRange(string? range, DateTime now)
+        {
+            var today = now.Date;
+
+            return (range ?? string.Empty).Trim().ToLowerInvariant() switch
+            {
+                "today" => (today, today.AddDays(1)),
+                "yesterday" => (today.AddDays(-1), today),
+                "last30days" => (today.AddDays(-29), today.AddDays(1)),
+                _ => (today.AddDays(-6), today.AddDays(1)),
+            };
+        }
+
+        /// <summary>
+        /// 历史侧的失败/空态。有旧行时只写脚注、不遮住旧行（设计基线：不可用"不清空上一次结果"）。
+        /// </summary>
+        private void ShowHistoryProblem(string title, string hint, bool banner = true)
+        {
+            SetValue(EmptyTitlePropertyKey, title);
+            SetValue(EmptyHintPropertyKey, hint);
+            SetValue(EmptyVisibilityPropertyKey, _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed);
+            SetStatus(hint);
+
+            SetValue(HistoryBannerVisibilityPropertyKey, banner ? Visibility.Visible : Visibility.Collapsed);
+            SetValue(HistoryBannerTextPropertyKey, banner ? $"{title}：{hint}" : string.Empty);
+        }
+
+        private void HideHistoryBanner()
+        {
+            SetValue(HistoryBannerVisibilityPropertyKey, Visibility.Collapsed);
+            SetValue(HistoryBannerTextPropertyKey, string.Empty);
+        }
+
+        private void UpdateHistoryPagingUi()
+        {
+            var pageCount = PageCount;
+            SetValue(
+                HistoryPageTextPropertyKey,
+                pageCount <= 0
+                    ? "0 / 0"
+                    : $"{_historyPageIndex + 1} / {pageCount} · 共 {_historyTotal} 条");
+
+            UpdateTitleCount();
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        private void UpdateHistoryRangeLabel()
+        {
+            var label = HistoryRange;
+
+            foreach (var option in HistoryRangeOptions)
+            {
+                if (string.Equals(option.Value, HistoryRange, StringComparison.OrdinalIgnoreCase))
+                {
+                    label = option.Label;
+                    break;
+                }
+            }
+
+            SetValue(HistoryRangeLabelPropertyKey, label);
+        }
+
+        private void UpdateTitleCount()
+        {
+            SetValue(
+                TitleCountTextPropertyKey,
+                IsHistoryMode ? $"{_historyTotal} 条" : $"{_rows.Count} 条");
+        }
+
         /// <summary>
         /// 空态：两种成因分开说（没配采行信号 / 配了但还没来第一行）——
         /// 混成一句"暂无数据"会让用户去怀疑表格，而问题在配置。
@@ -575,12 +1221,48 @@ namespace VisionMaster.Scada.Controls
             if (!empty)
                 return;
 
+            // 历史模式的文案由查询结果写（空范围 / 不可用 / 未接入各说各的），
+            // 这里只负责"有没有行"这一半；查询进行中则由骨架层接管。
+            if (IsHistoryMode)
+            {
+                if (_historyBusy)
+                    SetValue(EmptyVisibilityPropertyKey, Visibility.Collapsed);
+                return;
+            }
+
             bool configured = !string.IsNullOrWhiteSpace(SampleVariable) && _columns.Count > 0;
 
             SetValue(EmptyTitlePropertyKey, configured ? "等待第一条记录" : "还没有配置采集");
             SetValue(EmptyHintPropertyKey, configured
                 ? "采行信号还没触发。产品过站后会在这里逐条出现。"
                 : "在属性面板「数据」里绑定采行信号、在「列」里配置列，表格才会开始记录。");
+        }
+    }
+
+    /// <summary>
+    /// 图元内最小的命令实现（不引 Prism：控件库不该为三个按钮拉一套 MVVM 框架）。
+    /// <see cref="CanExecuteChanged"/> 挂 <see cref="CommandManager.RequerySuggested"/>，
+    /// 分页按钮的可用态就会跟着界面交互自动重算。
+    /// </summary>
+    internal sealed class ScadaRelayCommand : ICommand
+    {
+        private readonly Action _execute;
+        private readonly Func<bool>? _canExecute;
+
+        public ScadaRelayCommand(Action execute, Func<bool>? canExecute = null)
+        {
+            _execute = execute ?? throw new ArgumentNullException(nameof(execute));
+            _canExecute = canExecute;
+        }
+
+        public bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? true;
+
+        public void Execute(object? parameter) => _execute();
+
+        public event EventHandler? CanExecuteChanged
+        {
+            add => CommandManager.RequerySuggested += value;
+            remove => CommandManager.RequerySuggested -= value;
         }
     }
 }

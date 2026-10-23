@@ -240,6 +240,8 @@ namespace VisionMaster.Scada.Controls
 
             if (!writer.TryWriteText(element, ValueKey, Value.ToString(CultureInfo.InvariantCulture), out var error))
                 WriteError = string.IsNullOrWhiteSpace(error) ? "写入失败" : error;
+            else
+                RaiseScadaEvent(ScadaEventType.ObjectChanged);
         }
 
         partial void OnValuePropertyChanged() => UpdateSelectedText();

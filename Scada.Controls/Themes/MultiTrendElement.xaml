@@ -1,0 +1,35 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--
+        多曲线趋势：卡片底 + 一块自绘面（TrendSurface）。
+        网格、曲线、图例、游标全在 OnRender 里画，模板里没有 N 个 Polyline。
+    -->
+    <Style TargetType="{x:Type local:MultiTrendElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:MultiTrendElement}">
+                    <Border
+                        Background="{TemplateBinding Fill}"
+                        BorderBrush="{TemplateBinding Stroke}"
+                        BorderThickness="{TemplateBinding StrokeThickness}"
+                        CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}">
+                        <local:TrendSurface
+                            x:Name="TrendChart"
+                            Margin="4"
+                            ClipToBounds="True" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

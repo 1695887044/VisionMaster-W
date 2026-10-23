@@ -41,42 +41,60 @@ namespace VisionMaster.Services
             if (runtime == null || compiler == null) { error = "会话准备缺少运行管理器或编译器"; return false; }
             if (flow == null) { error = "流程为空"; return false; }
 
-            var existing = runtime.GetSessionByName(flow.FlowName);
-            if (existing != null && !IsStale(existing, flow))
+            // 配方切换期间拒绝新的流程启动：否则编译会读到半写入的步骤参数。
+            // 租约只覆盖“查会话→编译→注册”这段；启动到运行之间的极短窗口由
+            // FlowEngineService.TryOccupySession 的二次检查兜底。
+            if (!RecipeApplyGate.TryBeginStart(out var gateLease))
             {
-                session = existing;
+                error = "正在切换配方，流程启动已取消";
+                return false;
+            }
+
+            try
+            {
+                var existing = runtime.GetSessionByName(flow.FlowName);
+                if (existing != null && !IsStale(existing, flow))
+                {
+                    session = existing;
+                    return true;
+                }
+
+                if (existing?.IsRunning == true)
+                {
+                    error = $"流程「{flow.FlowName}」正在运行中，不能在此时重建会话";
+                    return false;
+                }
+
+                // 编译前快照：编译期间若有 Version++，会话必须判为过期，不能把混合图纸当新鲜。
+                var versionBeforeCompile = flow.Version;
+                var compiled = compiler.Compile(flow.Steps, flow.FlowName);
+                if (!compiled.Success)
+                {
+                    error = $"流程「{flow.FlowName}」编译失败：{string.Join("；", compiled.Errors.Select(e => e.Message))}";
+                    return false;
+                }
+
+                session = new FlowSession
+                {
+                    FlowName = flow.FlowName,
+                    ExecutionEngine = compiled.Data,
+                    CompiledVersion = versionBeforeCompile,
+                    CompiledFlowId = flow.FlowID ?? string.Empty,
+                };
+
+                // 蓝图必须填充（含嵌套步骤）：否则运行期步骤状态无法回写 UI / 画布
+                session.AddBlueprintsDeep(flow.Steps);
+                runtime.RegisterSession(session);
+
+                // 补编译是一个"发生过就值得记"的动作：现场排查"某一轮为什么慢/为什么跑了新图纸"要靠它
+                log?.Info($"[会话准备] 已为流程「{flow.FlowName}」重新编译并注册会话（Version={versionBeforeCompile}，"
+                    + $"{(string.IsNullOrEmpty(session.CompiledFlowId) ? "旧调用方未填身份" : "已记录流程身份")}）");
                 return true;
             }
-
-            if (existing?.IsRunning == true)
+            finally
             {
-                error = $"流程「{flow.FlowName}」正在运行中，不能在此时重建会话";
-                return false;
+                gateLease?.Dispose();
             }
-
-            var compiled = compiler.Compile(flow.Steps, flow.FlowName);
-            if (!compiled.Success)
-            {
-                error = $"流程「{flow.FlowName}」编译失败：{string.Join("；", compiled.Errors.Select(e => e.Message))}";
-                return false;
-            }
-
-            session = new FlowSession
-            {
-                FlowName = flow.FlowName,
-                ExecutionEngine = compiled.Data,
-                CompiledVersion = flow.Version,
-                CompiledFlowId = flow.FlowID ?? string.Empty,
-            };
-
-            // 蓝图必须填充（含嵌套步骤）：否则运行期步骤状态无法回写 UI / 画布
-            session.AddBlueprintsDeep(flow.Steps);
-            runtime.RegisterSession(session);
-
-            // 补编译是一个"发生过就值得记"的动作：现场排查"某一轮为什么慢/为什么跑了新图纸"要靠它
-            log?.Info($"[会话准备] 已为流程「{flow.FlowName}」重新编译并注册会话（Version={flow.Version}，"
-                + $"{(string.IsNullOrEmpty(session.CompiledFlowId) ? "旧调用方未填身份" : "已记录流程身份")}）");
-            return true;
         }
 
         /// <summary>会话是否过期（换了方案的同名流程，或图纸改过）</summary>

@@ -1,0 +1,57 @@
+{
+  "schema": "vm-plan/1",
+  "id": "flow-create",
+  "title": "新建流程",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "在流程导航顶部的流程胶囊列表里右键任意流程 → 流程 → 添加。没有常驻「+」按钮，只能走右键菜单。",
+  "params": {
+    "anchor_flow": {
+      "type": "string",
+      "required": false,
+      "default": "主流程",
+      "example": "主流程",
+      "description": "右键落在哪条现有流程上；只作为菜单入口，不会修改它"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.view", "app.menu.view.process"],
+      "expect": { "element": "flow.panel", "state": "visible" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 2,
+      "do": "right_click",
+      "target": "flow.capsule",
+      "target_name": "${anchor_flow}",
+      "expect": { "element": "flow.context.flow", "state": "visible" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "flow.context.flow",
+      "expect": { "element": "flow.context.add", "state": "visible" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 4,
+      "do": "click",
+      "target": "flow.context.add",
+      "expect": { "element": "flow.capsule", "name_contains": "新建流程", "state": "exists" },
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    { "assert": "element_exists", "target": "flow.capsule", "name_contains": "新建流程", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["flow", "create"]
+}

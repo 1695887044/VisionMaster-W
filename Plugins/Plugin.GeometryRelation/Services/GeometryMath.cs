@@ -145,6 +145,103 @@ namespace Plugin.GeometryRelation.Services
             return GeometryParam.Line(row, col, phi);
         }
 
+        #region 残差（P1-B A2）
+
+        /// <summary>
+        /// 单点到基元的**像素距离**（残差）。
+        /// · Line：点到直线距离 |v × d|（d = (sin φ, cos φ)，行主口径）；
+        /// · Circle：| 点到圆心距离 − R |；
+        /// · Ellipse：把点投到长轴坐标系后代入椭圆方程，用"代数残差 × 短半轴"近似像素距离——
+        ///   这是**近似值**（法向距离与径向量不成比例），Help 与断言都按近似口径写，不当精确值用；
+        /// · Point：点-点距离；
+        /// · 其它（Contour 等）：返回 NaN，**由调用方明确失败**，不许静默给 0。
+        /// </summary>
+        public static double PointResidual(GeometryParam geometry, double row, double col)
+        {
+            switch (geometry.Kind)
+            {
+                case GeometryKind.Point:
+                    return Math.Sqrt((row - geometry.Row) * (row - geometry.Row)
+                                   + (col - geometry.Col) * (col - geometry.Col));
+
+                case GeometryKind.Line:
+                    return DistancePointLine(GeometryParam.Point(row, col), geometry);
+
+                case GeometryKind.Circle:
+                {
+                    var dr = row - geometry.Row;
+                    var dc = col - geometry.Col;
+                    return Math.Abs(Math.Sqrt(dr * dr + dc * dc) - geometry.Radius);
+                }
+
+                case GeometryKind.Ellipse:
+                {
+                    var phi = geometry.Phi * DegToRad;
+                    var dr = Math.Sin(phi);
+                    var dc = Math.Cos(phi);
+                    var pr = Math.Cos(phi);
+                    var pc = -Math.Sin(phi);
+                    var vr = row - geometry.Row;
+                    var vc = col - geometry.Col;
+                    var u = vr * dr + vc * dc;      // 长轴分量
+                    var v = vr * pr + vc * pc;      // 短轴分量
+                    var major = Math.Max(geometry.Radius, 1e-9);
+                    var minor = Math.Max(geometry.Radius2, 1e-9);
+                    var norm = Math.Sqrt((u / major) * (u / major) + (v / minor) * (v / minor));
+                    return Math.Abs(norm - 1.0) * minor;
+                }
+
+                default:
+                    return double.NaN;
+            }
+        }
+
+        /// <summary>
+        /// 一组点对基元的残差统计：RMS（像素）、最大（像素）、参与点数。
+        /// points 形如 [r0,c0,r1,c1,...]；长度奇数或为 0 时 count=0 且 rms/max 为 NaN。
+        /// 任一元素非有限值 → 跳过该点并在 skipped 里计数（不静默当成 0 参与平均）。
+        /// </summary>
+        public static (double Rms, double Max, int Count, int Skipped) ResidualStats(
+            GeometryParam geometry, double[]? points)
+        {
+            if (points == null || points.Length < 2 || (points.Length & 1) == 1)
+                return (double.NaN, double.NaN, 0, 0);
+
+            var count = points.Length / 2;
+            var sumSq = 0.0;
+            var max = 0.0;
+            var used = 0;
+            var skipped = 0;
+
+            for (var i = 0; i < count; i++)
+            {
+                var row = points[2 * i];
+                var col = points[2 * i + 1];
+                if (double.IsNaN(row) || double.IsInfinity(row)
+                    || double.IsNaN(col) || double.IsInfinity(col))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                var d = PointResidual(geometry, row, col);
+                if (double.IsNaN(d) || double.IsInfinity(d))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                sumSq += d * d;
+                if (d > max) max = d;
+                used++;
+            }
+
+            if (used == 0) return (double.NaN, double.NaN, 0, skipped);
+            return (Math.Sqrt(sumSq / used), max, used, skipped);
+        }
+
+        #endregion
+
         /// <summary>三点构造外接圆；三点共线返回 false（明确失败）</summary>
         public static bool TryCircleThroughThreePoints(GeometryParam a, GeometryParam b, GeometryParam c,
             out GeometryParam circle)

@@ -88,17 +88,21 @@ namespace VisionMaster.Services
         {
             try
             {
+                // 先序列化再建目录：序列化失败（坏对象/循环引用）不该在磁盘上留下一个空方案文件夹。
+                var json = Serialize(targetSolution);
+
                 var directory = Path.GetDirectoryName(filePath);
+                var createdDirectory = false;
                 if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
                 {
                     Directory.CreateDirectory(directory);
+                    createdDirectory = true;
                 }
-
-                var json = Serialize(targetSolution);
 
                 // 原子写：临时文件与目标同目录（跨盘 File.Replace 会失败），
                 // 先落临时文件再整体替换；目标已存在走 Replace（保留旧文件到备份位可空），
-                // 不存在才 Move。失败时临时文件清掉，不给用户留垃圾。
+                // 不存在才 Move。失败时临时文件清掉，不给用户留垃圾；
+                // 本次刚建出来的目录若已空，一并删掉（保存失败不该留下“看起来像方案”的空壳）。
                 var tmp = filePath + ".tmp";
                 try
                 {
@@ -109,6 +113,7 @@ namespace VisionMaster.Services
                 catch
                 {
                     try { if (File.Exists(tmp)) File.Delete(tmp); } catch { /* 清理失败不影响主流程 */ }
+                    if (createdDirectory) SolutionPaths.TryDeleteEmptyFolder(directory);
                     throw;
                 }
 

@@ -73,6 +73,35 @@ namespace VisionMaster.Views
         public ScadaCanvas PopupCanvasHost => PopupCanvas;
 
         /// <summary>
+        /// 报警声音服务（宿主在 <see cref="Window.Show"/> 之前交来；null = 本轮没有声音设施）。
+        ///
+        /// 为什么由宿主塞进来而不是窗口自己去 <see cref="ScadaRuntimeContext"/> 里找：
+        /// 声音服务挂在方案级监控宿主上，它的生命周期比运行窗口长（关窗后报警照常评估）。
+        /// 窗口只是"借来用一下"的消费者，借用关系由宿主显式建立，窗口不猜。
+        /// </summary>
+        public ScadaSoundAlarmService? SoundAlarm
+        {
+            get => _soundAlarm;
+            set
+            {
+                if (ReferenceEquals(_soundAlarm, value))
+                    return;
+
+                if (_soundAlarm != null)
+                    _soundAlarm.StateChanged -= OnSoundStateChanged;
+
+                _soundAlarm = value;
+
+                if (_soundAlarm != null)
+                    _soundAlarm.StateChanged += OnSoundStateChanged;
+
+                UpdateSoundUi();
+            }
+        }
+
+        private ScadaSoundAlarmService? _soundAlarm;
+
+        /// <summary>
         /// 按软件配置（AppConfig.json 的 <c>RunWindowMode</c>）定窗口形态。**必须在 <see cref="Window.Show"/> 之前调用**。
         ///
         /// 两种形态各自解决一个真实场景
@@ -176,6 +205,8 @@ namespace VisionMaster.Views
             // 用框架自带的 IsVisibleChanged 而不是让面板再开一个事件——那是现成的、且一定会发。
             AlarmHistory.IsVisibleChanged += OnAlarmHistoryVisibleChanged;
             AlarmHistoryToggle.IsChecked = AlarmHistory.IsOpen;
+
+            UpdateSoundUi();
         }
 
         private void OnWindowClosed(object sender, EventArgs e)
@@ -199,6 +230,10 @@ namespace VisionMaster.Views
 
             // 面板先摘订阅（引擎的三个事件 + 节拍），随后宿主的 TeardownAlarms 才去停节拍、拆引擎。
             AlarmHistory.Attach(null);
+
+            // 声音服务归方案级监控宿主所有，这里只摘窗口的订阅——不能 Dispose，
+            // 关掉运行窗口后报警仍在评估，声音开关与静音状态该原样留着。
+            SoundAlarm = null;
         }
 
         // ---- 弹窗层（特殊画面） ----
@@ -525,6 +560,130 @@ namespace VisionMaster.Views
         /// <summary>抽屉被谁关掉都要让顶条按钮跟着弹起来（× 按钮关的，不是按钮自己关的）</summary>
         private void OnAlarmHistoryVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
             => AlarmHistoryToggle.IsChecked = AlarmHistory.IsOpen;
+
+        // ---- 报警声音 ----
+
+        private void OnSoundToggleClick(object sender, RoutedEventArgs e)
+        {
+            if (_soundAlarm == null)
+                return;
+
+            _soundAlarm.Enabled = SoundToggle.IsChecked == true;
+            UpdateSoundUi();
+        }
+
+        private void OnSoundMenuOpened(object sender, RoutedEventArgs e)
+        {
+            var service = _soundAlarm;
+            if (service == null)
+            {
+                SoundTestMenuItem.IsEnabled = false;
+                SoundMuteMenuItem.IsEnabled = false;
+                return;
+            }
+
+            SoundTestMenuItem.IsEnabled = service.IsAvailable;
+
+            // 紧急级不可静音：菜单项直接灰掉，别让用户点了才被告知"不行"。
+            var critical = service.HighestUnacknowledgedSeverity == ScadaAlarmSeverity.Critical;
+            SoundMuteMenuItem.IsEnabled = !critical;
+            SoundMuteMenuItem.Header = service.IsMuted
+                ? "取消静音"
+                : $"静音 {service.MuteMinutes} 分钟";
+        }
+
+        private void OnSoundTestClick(object sender, RoutedEventArgs e)
+        {
+            var service = _soundAlarm;
+            if (service == null)
+                return;
+
+            if (!service.Test())
+            {
+                MessageBox.Show(
+                    this,
+                    service.UnavailableReason ?? "音频设备不可用，无法试听。",
+                    "报警声音",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+        }
+
+        private void OnSoundMuteClick(object sender, RoutedEventArgs e)
+        {
+            var service = _soundAlarm;
+            if (service == null)
+                return;
+
+            if (service.IsMuted)
+            {
+                service.Unmute();
+            }
+            else if (!service.Mute())
+            {
+                MessageBox.Show(
+                    this,
+                    "当前有紧急级未确认报警。紧急报警不可静音，请先确认报警。",
+                    "报警声音",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+
+            UpdateSoundUi();
+        }
+
+        /// <summary>
+        /// 把声音状态写回顶条。服务的事件可能来自变量轮询线程，所以先切回本窗口的 Dispatcher。
+        /// </summary>
+        private void OnSoundStateChanged(object? sender, EventArgs e)
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action(UpdateSoundUi));
+                return;
+            }
+
+            UpdateSoundUi();
+        }
+
+        private void UpdateSoundUi()
+        {
+            if (SoundToggle == null)
+                return;
+
+            var service = _soundAlarm;
+            if (service == null)
+            {
+                SoundToggle.IsEnabled = false;
+                SoundToggle.IsChecked = false;
+                SoundStateText.Text = "声音";
+                SoundToggle.ToolTip = "本轮运行没有声音设施";
+                return;
+            }
+
+            SoundToggle.IsEnabled = service.IsAvailable;
+            SoundToggle.IsChecked = service.Enabled;
+
+            if (!service.IsAvailable)
+            {
+                SoundStateText.Text = "声音不可用";
+                SoundToggle.ToolTip = service.UnavailableReason ?? "音频设备不可用";
+                return;
+            }
+
+            if (service.IsMuted)
+            {
+                var left = service.MuteRemaining;
+                SoundStateText.Text = $"静音 {(int)left.TotalMinutes}:{left.Seconds:00}";
+                SoundToggle.ToolTip = "静音中：报警仍在记录，紧急报警不受静音约束（右键可取消）";
+                return;
+            }
+
+            SoundStateText.Text = service.Enabled ? "声音 开" : "声音 关";
+            SoundToggle.ToolTip = service.Enabled
+                ? "报警声音已开启（右键：试听 / 静音）"
+                : "报警声音已关闭（点击开启，右键可试听）";
+        }
 
         // ---- 取景 ----
 

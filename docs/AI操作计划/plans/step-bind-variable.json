@@ -1,0 +1,99 @@
+{
+  "schema": "vm-plan/1",
+  "id": "step-bind-variable",
+  "title": "把一个输入端口绑定到变量或上游端口",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "右键节点 → 编辑绑定…（打开变量绑定）；选端口 → 选来源分类 → 搜索候选 → 确认绑定。",
+  "params": {
+    "step_name": {
+      "type": "string",
+      "required": true,
+      "example": "图像采集"
+    },
+    "port_name": {
+      "type": "string",
+      "required": true,
+      "example": "图像路径",
+      "description": "左侧输入端口行的显示名"
+    },
+    "source_kind": {
+      "type": "string",
+      "required": false,
+      "default": "变量",
+      "example": "变量",
+      "description": "数据来源分段：全部 / 变量 / 上游算子"
+    },
+    "source_name": {
+      "type": "string",
+      "required": true,
+      "example": "Global.ImagePath"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "element_exists", "target": "canvas.step_title" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "right_click",
+      "target": "canvas.step_title",
+      "target_name": "${step_name}",
+      "expect": { "element": "canvas.context.bind", "state": "visible" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "canvas.context.bind",
+      "expect": { "window": "dialog.variable_binding", "state": "visible" },
+      "timeout_ms": 8000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "dialog.variable_binding.port",
+      "target_name": "${port_name}",
+      "expect": { "element": "dialog.variable_binding.port", "name_contains": "${port_name}", "state": "exists" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 4,
+      "do": "click",
+      "target": "dialog.variable_binding.source_tab",
+      "target_name": "${source_kind}",
+      "expect": { "element": "dialog.variable_binding.source_tab", "name_contains": "${source_kind}", "state": "exists" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 5,
+      "do": "type",
+      "target": "dialog.variable_binding.source_search",
+      "text": "${source_name}",
+      "clear": true,
+      "expect": { "element": "dialog.variable_binding.candidate", "name_contains": "${source_name}", "state": "exists" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 6,
+      "do": "click",
+      "target": "dialog.variable_binding.candidate",
+      "target_name": "${source_name}",
+      "expect": { "element": "dialog.variable_binding.candidate", "name_contains": "${source_name}", "state": "exists" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 7,
+      "do": "click",
+      "target": "dialog.variable_binding.confirm",
+      "expect": { "window": "dialog.variable_binding", "state": "closed" },
+      "timeout_ms": 8000
+    }
+  ],
+  "postconditions": [
+    { "assert": "window_closed", "window": "dialog.variable_binding", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["flow", "step", "binding", "variable"]
+}

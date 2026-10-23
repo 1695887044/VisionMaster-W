@@ -100,6 +100,12 @@ namespace VisionMaster.Scada
 
         /// <summary>减量：读当前值 − <see cref="ScadaAction.Step"/>，按 Min/Max 夹紧后写回。</summary>
         Decrement = 22,
+
+        /// <summary>
+        /// 应用方案级配方（v3）：经 <see cref="IRecipeCommandSink"/> 走宿主 RecipeService，
+        /// 权限/运行闸/整单预检/回滚/终检/审计全复用；只应用，不保存方案。
+        /// </summary>
+        ApplyRecipe = 23,
     }
 
     /// <summary>
@@ -138,6 +144,7 @@ namespace VisionMaster.Scada
             ScadaActionType.ClosePopup => "关闭弹窗",
             ScadaActionType.Increment => "增量",
             ScadaActionType.Decrement => "减量",
+            ScadaActionType.ApplyRecipe => "应用配方",
             // 高版本软件存下的动作类型读进低版本会落到这里（Newtonsoft 按数值反序列化，不校验取值范围）。
             // 报出数值而不是抛异常：坏在一条动作上，不该让整张画面打不开。
             _ => $"未知动作({(int)type})",
@@ -155,7 +162,8 @@ namespace VisionMaster.Scada
             ScadaActionType.StartFlow or ScadaActionType.StopFlow or ScadaActionType.RunFlowOnce
             or ScadaActionType.MotionStop or ScadaActionType.MotionDisable
             or ScadaActionType.MotionMoveAbsolute or ScadaActionType.MotionMoveRelative
-            or ScadaActionType.MotionHome or ScadaActionType.MotionJogStart;
+            or ScadaActionType.MotionHome or ScadaActionType.MotionJogStart
+            or ScadaActionType.ApplyRecipe;
 
         /// <summary>
         /// 这条动作"在运行侧还没接通"的一句话原因；<c>null</c> = 已经接通。
@@ -202,6 +210,7 @@ namespace VisionMaster.Scada
             ScadaActionType.NavigateBack => null,
             ScadaActionType.OpenPopup => null,
             ScadaActionType.ClosePopup => null,
+            ScadaActionType.ApplyRecipe => null,
             _ => "本版本不认识该动作",
         };
     }

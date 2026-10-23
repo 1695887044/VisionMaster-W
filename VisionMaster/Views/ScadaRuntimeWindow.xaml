@@ -323,39 +323,71 @@
                         ToolTip="回到进入当前页之前的那一页" />
                 </StackPanel>
 
-                <!--  ====================  报警历史入口  ====================  -->
+                <!--  ====================  报警历史入口 + 声音  ====================  -->
                 <!--  放在"停止运行"左边：顶条右侧是动作区，左侧是"我在看哪一页"的读数区，
                       两者不混。徽标只在有未确认报警时亮出来（数到 0 就整块收掉）——
                       一个永远挂着的"0"会让操作员很快学会无视它。  -->
-                <ToggleButton
-                    x:Name="AlarmHistoryToggle"
+                <StackPanel
                     Grid.Column="2"
-                    Margin="0,0,12,0"
                     HorizontalAlignment="Right"
-                    Click="OnAlarmHistoryClick"
-                    Style="{StaticResource AlarmToggleButton}"
-                    ToolTip="查看本次运行的报警记录：可搜索、可筛选、可逐条确认、可导出 CSV">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock VerticalAlignment="Center" Text="报警历史" />
-                        <Border
-                            MinWidth="16"
-                            Height="16"
-                            Margin="6,0,0,0"
-                            VerticalAlignment="Center"
-                            Background="{StaticResource ScadaRunStopBrush}"
-                            CornerRadius="8"
-                            Visibility="{Binding DataContext.HasUnacknowledged, ElementName=AlarmHistory, Converter={StaticResource BoolToVisibility}}">
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+
+                    <!--  声音开关：左键开关，右键试听/静音。
+                          用 ToggleButton 而不是 Button：它有"开/关"两个状态，选中态直接写在模板触发器里，
+                          不必靠代码去改底色告诉用户现在是什么状态。  -->
+                    <ToggleButton
+                        x:Name="SoundToggle"
+                        Margin="0,0,8,0"
+                        Click="OnSoundToggleClick"
+                        Style="{StaticResource AlarmToggleButton}"
+                        ToolTip="报警声音（右键：试听 / 静音）">
+                        <ToggleButton.ContextMenu>
+                            <ContextMenu Opened="OnSoundMenuOpened">
+                                <MenuItem x:Name="SoundTestMenuItem" Click="OnSoundTestClick" Header="试听" />
+                                <MenuItem x:Name="SoundMuteMenuItem" Click="OnSoundMuteClick" Header="静音 5 分钟" />
+                            </ContextMenu>
+                        </ToggleButton.ContextMenu>
+                        <StackPanel Orientation="Horizontal">
                             <TextBlock
-                                Margin="5,0"
-                                HorizontalAlignment="Center"
+                                x:Name="SoundGlyph"
                                 VerticalAlignment="Center"
-                                FontSize="10"
-                                FontWeight="SemiBold"
-                                Foreground="White"
-                                Text="{Binding DataContext.UnacknowledgedText, ElementName=AlarmHistory}" />
-                        </Border>
-                    </StackPanel>
-                </ToggleButton>
+                                Text="♪" />
+                            <TextBlock
+                                x:Name="SoundStateText"
+                                Margin="4,0,0,0"
+                                VerticalAlignment="Center"
+                                Text="声音" />
+                        </StackPanel>
+                    </ToggleButton>
+
+                    <ToggleButton
+                        x:Name="AlarmHistoryToggle"
+                        Click="OnAlarmHistoryClick"
+                        Style="{StaticResource AlarmToggleButton}"
+                        ToolTip="查看本次运行的报警记录：可搜索、可筛选、可逐条确认、可导出 CSV">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock VerticalAlignment="Center" Text="报警历史" />
+                            <Border
+                                MinWidth="16"
+                                Height="16"
+                                Margin="6,0,0,0"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource ScadaRunStopBrush}"
+                                CornerRadius="8"
+                                Visibility="{Binding DataContext.HasUnacknowledged, ElementName=AlarmHistory, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock
+                                    Margin="5,0"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="10"
+                                    FontWeight="SemiBold"
+                                    Foreground="White"
+                                    Text="{Binding DataContext.UnacknowledgedText, ElementName=AlarmHistory}" />
+                            </Border>
+                        </StackPanel>
+                    </ToggleButton>
+                </StackPanel>
 
                 <Button
                     Grid.Column="3"

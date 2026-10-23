@@ -1,0 +1,82 @@
+{
+  "schema": "vm-plan/1",
+  "id": "step-add",
+  "title": "从工具箱拖入一个算子",
+  "version": "1.1.0",
+  "risk": "medium",
+  "description": "先打开流程画布与工具箱，再搜索算子并拖到画布。工具箱只支持拖拽入画布（没有双击添加）；拖放必须走 gong 的拖放链路。",
+  "params": {
+    "tool_name": {
+      "type": "string",
+      "required": true,
+      "example": "图像采集",
+      "description": "工具箱里的算子显示名；执行器先搜索再拖第一条命中项"
+    },
+    "anchor_step": {
+      "type": "string",
+      "required": false,
+      "default": "",
+      "example": "图像采集",
+      "description": "拖到哪个步骤下方；留空则落到画布中央"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.view", "app.menu.view.flow_canvas"],
+      "expect": { "element": "canvas.editor", "state": "visible" },
+      "timeout_ms": 8000
+    },
+    {
+      "n": 2,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.view", "app.menu.view.toolbox"],
+      "expect": { "element": "toolbox.panel", "state": "visible" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "toolbox.search",
+      "expect": { "element": "toolbox.search", "state": "enabled" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 4,
+      "do": "type",
+      "target": "toolbox.search",
+      "text": "${tool_name}",
+      "clear": true,
+      "expect": { "element": "toolbox.item", "name_contains": "${tool_name}", "state": "exists" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 5,
+      "do": "drag",
+      "from": "toolbox.item",
+      "from_name": "${tool_name}",
+      "to": "canvas.after_step",
+      "to_name": "${anchor_step}",
+      "expect": { "element": "canvas.step_title", "name_contains": "${tool_name}", "state": "exists" },
+      "timeout_ms": 8000
+    },
+    {
+      "n": 6,
+      "do": "assert",
+      "assert": "element_exists",
+      "target": "process.step_row",
+      "name_contains": "${tool_name}",
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    { "assert": "element_exists", "target": "canvas.step_title", "name_contains": "${tool_name}", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["flow", "step", "toolbox", "drag"]
+}

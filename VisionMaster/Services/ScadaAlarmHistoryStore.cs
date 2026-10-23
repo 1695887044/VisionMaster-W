@@ -25,8 +25,8 @@ namespace VisionMaster.Services
     /// 为什么放在方案目录而不是软件目录
     /// ---------
     /// 报警历史与画面、变量、图片一样属于“这份方案自己的运行资料”。放在
-    /// <c>Path.GetDirectoryName(SolutionFilePath)\Alarms</c> 之后，复制/移动整个方案文件夹
-    /// 就带走了自己的历史；同一台机器上的两条产线也不会互相看到对方的报警。
+    /// <c>&lt;方案根&gt;\Alarms</c>（方案根 = <see cref="SolutionPaths.GetSolutionRoot"/>，即 .vms 所在目录）
+    /// 之后，复制/移动整个方案文件夹就带走了自己的历史；同一台机器上的两条产线也不会互相看到对方的报警。
     ///
     /// 线程
     /// ---------
@@ -61,20 +61,16 @@ namespace VisionMaster.Services
         public string FilePath => _path;
 
         /// <summary>
-        /// 解析方案自己的报警目录：<c>Path.GetDirectoryName(SolutionFilePath)\Alarms</c>。
+        /// 解析方案自己的报警目录：<c>&lt;方案根&gt;\Alarms</c>（见 <see cref="SolutionPaths.GetSolutionRoot"/>）。
         /// 未保存的方案没有路径，回落到软件目录下的 <c>Alarms</c>（与旧行为一致，至少不丢数据）。
         /// </summary>
         public static string ResolveDirectory(SolutionModel? solution)
         {
-            var solutionPath = solution?.SolutionFilePath;
-            if (!string.IsNullOrWhiteSpace(solutionPath))
-            {
-                var root = Path.GetDirectoryName(solutionPath);
-                if (!string.IsNullOrWhiteSpace(root))
-                    return Path.Combine(root, "Alarms");
-            }
+            var root = SolutionPaths.GetSolutionRoot(solution?.SolutionFilePath);
+            if (root != null)
+                return Path.Combine(root, SolutionPaths.AlarmsFolderName);
 
-            return Path.Combine(AppContext.BaseDirectory, "Alarms");
+            return Path.Combine(AppContext.BaseDirectory, SolutionPaths.AlarmsFolderName);
         }
 
         /// <summary>

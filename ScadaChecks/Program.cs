@@ -167,6 +167,7 @@ namespace ScadaChecks
             SystemSettingsExtendedChecks();
             SolutionListAuditChecks();
             PackagingChecks();
+            SolutionFolderChecks();
             VariableEventDialogChecks();
             AlarmConfigDialogChecks();
             if (stress) StressRoundTrip();
@@ -2444,9 +2445,9 @@ namespace ScadaChecks
                 "Hmi.Panel", "Hmi.AxisConsole", "Hmi.AxisPanel", "Hmi.AxisPointTable",
                 "Hmi.Tank", "Hmi.KpiBoard",
                 "Hmi.SelectorSwitch", "Hmi.TextField", "Hmi.ComboBox", "Hmi.AckButton",
-                "Hmi.DataGrid",
+                "Hmi.DataGrid", "Hmi.RunMeter", "Hmi.QRCode", "Hmi.Barcode", "Hmi.MultiTrend",
             };
-            Check("31 个内置图元全部注册（含容器图元 Hmi.Panel、轴控台/轴面板/旧点位表、罐体/KPI 看板、Phase 2 输入四件套、数据表格、模拟量滑块、本地图片、线）",
+            Check("35 个内置图元全部注册（含容器图元 Hmi.Panel、轴控台/轴面板/旧点位表、罐体/KPI 看板、Phase 2 输入四件套、数据表格、模拟量滑块、本地图片、线、运行计时、二维码/条码、多曲线趋势）",
                 builtIns.All(ElementRegistry.IsRegistered),
                 string.Join("、", ElementRegistry.All.Select(d => d.TypeKey)));
 
@@ -5386,7 +5387,7 @@ namespace ScadaChecks
             //
             // 注意未注册图元（ElementRegistry.Find 返回 null）走的是"不认识"那一支，一行都不出，
             // 动画行也不出；画面模式同理（动画只长在图元上）。
-            const int AnimationRows = 4;
+            const int AnimationRows = 5;
 
             static ScadaElement Named(string typeKey, string name)
             {
@@ -5486,7 +5487,7 @@ namespace ScadaChecks
                 panel.HeaderTitle == "1#料箱", panel.HeaderTitle);
 
             editor.SelectedElement = Named("Hmi.Ellipse", "罐体");
-            Check("换选中即整份重建：椭圆 12 条属性 + 4 条动画 + 1 条通用关系 = 17 行 6 组，且写入目标已换成新图元",
+            Check("换选中即整份重建：椭圆 12 条属性 + 5 条动画 + 1 条通用关系 = 18 行 6 组，且写入目标已换成新图元",
                 Total(panel) == 12 + AnimationRows + UniversalRows && panel.Groups.Count == 6
                 && panel.Element?.TypeKey == "Hmi.Ellipse",
                 $"{Total(panel)} 行 / {panel.Groups.Count} 组");
@@ -5526,7 +5527,7 @@ namespace ScadaChecks
             // 把它插在按钮那一节中间会把面板切到另一个图元上，后面那些 Row("Event.x") 就会读到别人的行。
             editor.SelectedElement = Named("Hmi.BitButton", "启动");
             var bitButtonDescriptor = ElementRegistry.Find("Hmi.BitButton")!;
-            Check("位按钮：21 条属性 + 2 条事件 + 4 条动画 + 2 条通用关系 = 29 行 8 组（组序取自目录：状态组排在几何之后、交互之前，动画组恒在交互之后）",
+            Check("位按钮：21 条属性 + 2 条事件 + 5 条动画 + 2 条通用关系 = 30 行 8 组（组序取自目录：状态组排在几何之后、交互之前，动画组恒在交互之后）",
                 Total(panel) == bitButtonDescriptor.Properties.Count + bitButtonDescriptor.Events.Count + AnimationRows + UniversalRows
                 && bitButtonDescriptor.Properties.Count == 21
                 && string.Join("/", panel.Groups.Select(g => g.Name))
@@ -5536,7 +5537,7 @@ namespace ScadaChecks
             var startBtn = Named("Hmi.Button", "启动");
             editor.SelectedElement = startBtn;
             var buttonDescriptor = ElementRegistry.Find("Hmi.Button")!;
-            Check("按钮：14 条属性 + 2 条事件 + 4 条动画 + 2 条通用关系 = 22 行 7 组（组序取自目录，不是按字典序凑的）",
+            Check("按钮：14 条属性 + 2 条事件 + 5 条动画 + 2 条通用关系 = 23 行 7 组（组序取自目录，不是按字典序凑的）",
                 Total(panel) == buttonDescriptor.Properties.Count + buttonDescriptor.Events.Count + AnimationRows + UniversalRows
                 && buttonDescriptor.Events.Count == 2
                 && string.Join("/", panel.Groups.Select(g => g.Name)) == "基本/外观/文本/布局/交互/事件/动画",
@@ -5680,6 +5681,7 @@ namespace ScadaChecks
                     ScadaActionType.MotionHome, ScadaActionType.MotionStop,
                     ScadaActionType.MotionClearAlarm, ScadaActionType.MotionJogStart,
                     ScadaActionType.MotionJogStop,
+                    ScadaActionType.ApplyRecipe,
                 }),
                 string.Join("/", eventRow.ActionTypeChoices.Select(o => o.DisplayName)));
 
@@ -9772,12 +9774,15 @@ namespace ScadaChecks
                 {
                     if (declared != ScadaEventType.Pressed
                         && declared != ScadaEventType.Released
-                        && declared != ScadaEventType.InputCompleted)
+                        && declared != ScadaEventType.InputCompleted
+                        && declared != ScadaEventType.ObjectChanged
+                        && declared != ScadaEventType.Opened
+                        && declared != ScadaEventType.Closed)
                         premature.Add($"{descriptor.TypeKey} → {declared}");
                 }
             }
 
-            Check("图元描述符只声明当前真能触发的事件（Pressed/Released/InputCompleted）：清单里不许有发不出来的事件",
+            Check("图元描述符只声明当前真能触发的事件（Pressed/Released/InputCompleted + 对象更改/打开/关闭）：清单里不许有发不出来的事件",
                 premature.Count == 0, string.Join(" | ", premature));
 
             // 反向一条：能触发的事件必须有人声明。少了它，上面那条只要把所有声明都删掉就"通过"了。

@@ -212,6 +212,15 @@
                                 <TextBlock Text="&#xf0c7;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
+                            <MenuItem
+                                Command="{Binding SolutionCommand}"
+                                CommandParameter="{x:Static local:SolutionAction.SaveAs}"
+                                Header="另存为"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf0c5;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
                         </MenuItem>
 
                         <MenuItem Header="视图(V)">
@@ -468,6 +477,14 @@
                                 <TextBlock Text="&#xf121;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
+                            <MenuItem
+                                Command="{Binding Recipe.OpenManagerCommand}"
+                                Header="配方管理"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf0ca;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
                             <Separator />
                             <MenuItem
                                 Command="{Binding SystemCommand}"
@@ -593,6 +610,12 @@
                     Content="&#xf2db;"
                     Style="{StaticResource TitleButton}"
                     ToolTip="硬件管理" />
+                <!--  配方入口：与 Shell.xaml 同步，落在顶栏全局命令区  -->
+                <Button
+                    Command="{Binding Recipe.OpenManagerCommand}"
+                    Content="&#xf0ca;"
+                    Style="{StaticResource TitleButton}"
+                    ToolTip="{Binding Recipe.ChipToolTip}" />
             </StackPanel>
 
             <!--  居中：当前方案名  -->

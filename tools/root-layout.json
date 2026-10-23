@@ -30,6 +30,7 @@
     "DLL",
     "FlowCanvasChecks",
     "ScadaChecks",
+    "RecipeChecks",
     "CommChecks",
     "CommStress",
     "CommPerf",

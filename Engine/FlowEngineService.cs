@@ -220,6 +220,14 @@ namespace VisionMaster.Services
         /// <returns>抢到则返回释放句柄，抢不到返回 null（调用方直接放弃启动）</returns>
         private IDisposable TryOccupySession(FlowSession session)
         {
+            // 配方切换窗口内拒绝新的执行权占用：TryEnsureSession 的租约在返回时就释放了，
+            // 从“会话准备好”到“真正置 IsRunning”之间还有一个极短窗口，这里做二次兜底。
+            if (RecipeApplyGate.IsApplying)
+            {
+                _logService.Warn($"[配方切换] 流程「{session.FlowName}」启动请求被拒绝：正在切换配方");
+                return null;
+            }
+
             if (_resourceLocks.TryAcquireLock(StartLockKey(session), out var handle, session.SessionID))
                 return handle;
 

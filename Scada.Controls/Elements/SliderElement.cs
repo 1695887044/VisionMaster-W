@@ -590,6 +590,7 @@ namespace VisionMaster.Scada.Controls
             WriteError = string.Empty;
             UpdateVisuals();
             RaiseScadaEvent(ScadaEventType.InputCompleted);
+            RaiseScadaEvent(ScadaEventType.ObjectChanged);
             return true;
         }
 

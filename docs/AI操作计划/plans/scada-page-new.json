@@ -1,0 +1,48 @@
+{
+  "schema": "vm-plan/1",
+  "id": "scada-page-new",
+  "title": "新建一个组态画面",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "视图 → 组态画面 → 顶栏「新建」。默认页名是「画面_N」，新建后页面下拉自动选中新页。",
+  "params": {
+    "expected_page_name": {
+      "type": "string",
+      "required": false,
+      "default": "画面_1",
+      "example": "画面_1"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.view", "app.menu.view.scada_editor"],
+      "expect": { "element": "dialog.scada.canvas", "state": "visible" },
+      "timeout_ms": 8000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "dialog.scada.new",
+      "expect": { "element": "dialog.scada.page_selector", "state": "exists" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 3,
+      "do": "assert",
+      "assert": "text_exists",
+      "text": "${expected_page_name}",
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    { "assert": "text_exists", "text": "${expected_page_name}", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["scada", "page", "create"]
+}

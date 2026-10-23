@@ -1,0 +1,70 @@
+{
+  "schema": "vm-plan/1",
+  "id": "help-search",
+  "title": "在帮助手册里搜索并打开一页",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "帮助 → 帮助文档；Ctrl+F 聚焦目录搜索框（只搜标题），输入关键词后点命中项。Esc 关闭弹窗。",
+  "params": {
+    "query": {
+      "type": "string",
+      "required": true,
+      "example": "图像采集"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.help", "app.menu.help.docs"],
+      "expect": { "window": "dialog.help", "state": "visible" },
+      "timeout_ms": 10000
+    },
+    {
+      "n": 2,
+      "do": "key",
+      "keys": "Ctrl+F",
+      "expect": { "element": "dialog.help.search", "state": "enabled" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "type",
+      "target": "dialog.help.search",
+      "text": "${query}",
+      "clear": true,
+      "expect": { "element": "dialog.help.result", "name_contains": "${query}", "state": "exists" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 4,
+      "do": "click",
+      "target": "dialog.help.result",
+      "target_name": "${query}",
+      "timeout_ms": 5000
+    },
+    {
+      "n": 5,
+      "do": "assert",
+      "assert": "text_exists",
+      "text": "${query}",
+      "timeout_ms": 5000
+    },
+    {
+      "n": 6,
+      "do": "key",
+      "keys": "Escape",
+      "expect": { "window": "dialog.help", "state": "closed" },
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    { "assert": "window_closed", "window": "dialog.help", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["help", "search"]
+}

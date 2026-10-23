@@ -1,0 +1,101 @@
+{
+  "schema": "vm-plan/1",
+  "id": "variable-add-local",
+  "title": "新增一个本地变量",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "系统 → 全局变量 → 左栏「本地变量」→ ＋ 添加变量 → 填名称/类型/初始值 → 确定 → 关闭。",
+  "params": {
+    "variable_name": {
+      "type": "string",
+      "required": true,
+      "example": "DemoCounter"
+    },
+    "data_type": {
+      "type": "string",
+      "required": false,
+      "default": "整数 (int)",
+      "example": "整数 (int)",
+      "description": "显示名，必须是 AvailableTypes 里的字符串：整数 (int) / 小数 (double) / 单精度 (float) / 文本 (string) / 布尔 (bool) / 图像 (HImage) / 各数组类型"
+    },
+    "initial_value": {
+      "type": "string",
+      "required": false,
+      "default": "0",
+      "example": "0"
+    },
+    "description": {
+      "type": "string",
+      "required": false,
+      "default": "",
+      "example": "AI 计划任务创建"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" },
+    { "assert": "text_absent", "text": "未加载方案", "timeout_ms": 3000 }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.system", "app.menu.system.global_vars"],
+      "expect": { "window": "dialog.variable_manager", "state": "visible" },
+      "timeout_ms": 8000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "dialog.variable_manager.local_source",
+      "expect": { "element": "dialog.variable_manager.local_source", "state": "exists" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "dialog.variable_manager.add",
+      "expect": { "window": "dialog.add_variable", "state": "visible" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 4,
+      "do": "fill",
+      "target": "dialog.add_variable",
+      "fields": {
+        "变量名称": "${variable_name}",
+        "数据类型": "${data_type}",
+        "初始值（选填）": "${initial_value}",
+        "变量描述（选填）": "${description}"
+      },
+      "expect": { "element": "dialog.add_variable.name", "value": "${variable_name}" }
+    },
+    {
+      "n": 5,
+      "do": "click",
+      "target": "dialog.add_variable.ok",
+      "expect": { "window": "dialog.add_variable", "state": "closed" },
+      "timeout_ms": 8000
+    },
+    {
+      "n": 6,
+      "do": "assert",
+      "assert": "element_exists",
+      "target": "dialog.variable_manager.row",
+      "name_contains": "${variable_name}",
+      "timeout_ms": 5000
+    },
+    {
+      "n": 7,
+      "do": "click",
+      "target": "dialog.variable_manager.close",
+      "expect": { "window": "dialog.variable_manager", "state": "closed" },
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    { "assert": "window_closed", "window": "dialog.variable_manager", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["variable", "local", "create"]
+}

@@ -383,9 +383,7 @@ namespace VisionMaster.ViewModels
         /// 属性面板的图片选择器与画布的背景图解析共用这一条。
         /// </summary>
         public string? SolutionRoot
-            => string.IsNullOrWhiteSpace(_workspace.CurrentSolution?.SolutionFilePath)
-                ? null
-                : System.IO.Path.GetDirectoryName(_workspace.CurrentSolution.SolutionFilePath);
+            => SolutionPaths.GetSolutionRoot(_workspace.CurrentSolution?.SolutionFilePath);
 
         /// <summary>
         /// 方案图片解析器（相对路径 → 位图），交给画布注入给 Hmi.Picture。

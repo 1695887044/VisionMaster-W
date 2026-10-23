@@ -19,6 +19,7 @@
     <ResourceDictionary.MergedDictionaries>
         <!-- 运行画面令牌：必须排在最前，后续各分册在本地也各合并一次（R30：兄弟分册互相看不见） -->
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaIcons.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaElementBase.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/RectangleElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/EllipseElement.xaml" />
@@ -42,6 +43,10 @@
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ImageViewElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/PictureElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/LineElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/RunMeterElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/QRCodeElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/BarcodeElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/MultiTrendElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/TankElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/KpiBoardElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/SelectorSwitchElement.xaml" />

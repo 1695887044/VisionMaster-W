@@ -1,0 +1,124 @@
+{
+  "schema": "vm-plan/1",
+  "id": "comm-add-device",
+  "title": "新增一台通讯设备（Modbus TCP 示例）",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "硬件管理 → 通讯 → 添加设备 → 创建新通信。协议切换会整表重建，必须分两次填：先填名称/协议，再填链路参数。关闭硬件管理会先保存通讯配置。",
+  "params": {
+    "connection_name": {
+      "type": "string",
+      "required": true,
+      "example": "PLC_01"
+    },
+    "protocol": {
+      "type": "string",
+      "required": false,
+      "default": "Modbus TCP",
+      "example": "Modbus TCP",
+      "description": "显示名：Modbus TCP / Modbus RTU / 西门子 S7（未实现协议会被 Validate 拒绝）"
+    },
+    "ip": {
+      "type": "string",
+      "required": true,
+      "example": "192.168.1.10"
+    },
+    "port": {
+      "type": "string",
+      "required": false,
+      "default": "502",
+      "example": "502"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" },
+    { "assert": "text_absent", "text": "未加载方案", "timeout_ms": 3000 }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.system", "app.menu.system.hardware"],
+      "expect": { "window": "dialog.hardware", "state": "visible" },
+      "timeout_ms": 8000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "dialog.hardware.tab_comm",
+      "expect": { "element": "dialog.hardware.add_device", "state": "enabled" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "dialog.hardware.add_device",
+      "expect": { "window": "dialog.create_comm", "state": "visible" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 4,
+      "do": "fill",
+      "target": "dialog.create_comm",
+      "fields": {
+        "连接名称": "${connection_name}",
+        "协议类型": "${protocol}"
+      },
+      "expect": { "element": "dialog.create_comm.name", "value": "${connection_name}" }
+    },
+    {
+      "n": 5,
+      "do": "wait",
+      "for": "element",
+      "target": "dialog.create_comm.link_group",
+      "timeout_ms": 5000,
+      "note": "协议 setter 触发 RequireRefresh 整表重建，等新表单稳定"
+    },
+    {
+      "n": 6,
+      "do": "click",
+      "target": "dialog.create_comm.link_group",
+      "expect": { "element": "dialog.create_comm.ip", "state": "exists" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 7,
+      "do": "fill",
+      "target": "dialog.create_comm",
+      "fields": {
+        "IP 地址": "${ip}",
+        "端口号": "${port}"
+      },
+      "expect": { "element": "dialog.create_comm.ip", "value": "${ip}" }
+    },
+    {
+      "n": 8,
+      "do": "click",
+      "target": "dialog.create_comm.ok",
+      "expect": { "window": "dialog.create_comm", "state": "closed" },
+      "timeout_ms": 10000
+    },
+    {
+      "n": 9,
+      "do": "assert",
+      "assert": "element_exists",
+      "target": "dialog.hardware.row",
+      "name_contains": "${connection_name}",
+      "timeout_ms": 5000
+    },
+    {
+      "n": 10,
+      "do": "click",
+      "target": "dialog.hardware.close",
+      "expect": { "window": "dialog.hardware", "state": "closed" },
+      "timeout_ms": 15000,
+      "note": "通讯配置脏时关闭会先保存，可能耗时数秒"
+    }
+  ],
+  "postconditions": [
+    { "assert": "window_closed", "window": "dialog.hardware", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["communication", "hardware", "create"]
+}

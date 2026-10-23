@@ -24,6 +24,9 @@ namespace VisionMaster.Scada
             ScadaEventType.ValueOverUpperLimit => "上限",
             ScadaEventType.ValueUnderLowerLimit => "下限",
             ScadaEventType.InputCompleted => "输入完成时",
+            ScadaEventType.ObjectChanged => "对象状态改变",
+            ScadaEventType.Opened => "打开",
+            ScadaEventType.Closed => "关闭",
             _ => $"未知事件({(int)type})",
         };
     }

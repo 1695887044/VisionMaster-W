@@ -1,0 +1,55 @@
+{
+  "schema": "vm-plan/1",
+  "id": "solution-new",
+  "title": "新建方案（内存态）",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "创建一个新的空白方案。只改内存，不落盘；需要持久化请接着执行 solution-save。",
+  "params": {
+    "solution_name": {
+      "type": "string",
+      "required": true,
+      "example": "Demo_20261023",
+      "description": "方案名称；不能为空，不能与现有方案重名"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.file", "app.menu.file.new"],
+      "expect": { "window": "dialog.new_solution", "state": "visible" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 2,
+      "do": "fill",
+      "target": "dialog.new_solution",
+      "fields": { "解决方案名称": "${solution_name}" },
+      "expect": { "element": "dialog.new_solution.name", "value": "${solution_name}" }
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "dialog.new_solution.ok",
+      "expect": { "window": "dialog.new_solution", "state": "closed" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 4,
+      "do": "assert",
+      "assert": "text_exists",
+      "text": "${solution_name}",
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    { "assert": "text_exists", "text": "${solution_name}", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["solution", "create"]
+}

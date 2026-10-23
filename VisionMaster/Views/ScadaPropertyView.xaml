@@ -6,6 +6,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
     xmlns:controls="clr-namespace:VisionMaster.Views.Controls"
+    xmlns:scada="clr-namespace:VisionMaster.Scada.Controls;assembly=VM.Scada.Controls"
     xmlns:ui="clr-namespace:UI.CustomControl;assembly=UI"
     d:DesignHeight="600"
     d:DesignWidth="260"
@@ -778,10 +779,14 @@
                                 BorderBrush="{StaticResource ScadaPanelBorderBrush}"
                                 BorderThickness="1"
                                 Command="{Binding PickImageCommand}"
-                                Content="选择…"
                                 Cursor="Hand"
                                 FontSize="11"
-                                Foreground="{StaticResource ScadaTextBrush}" />
+                                Foreground="{StaticResource ScadaTextBrush}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Margin="0,0,4,0" scada:ScadaIconHelper.Glyph="FolderOpen" FontSize="11" />
+                                    <TextBlock Text="选择…" FontSize="11" />
+                                </StackPanel>
+                            </Button>
                             <Button
                                 Margin="4,0,0,0"
                                 Padding="8,2"
@@ -789,10 +794,14 @@
                                 BorderBrush="{StaticResource ScadaPanelBorderBrush}"
                                 BorderThickness="1"
                                 Command="{Binding ClearImageCommand}"
-                                Content="清除"
                                 Cursor="Hand"
                                 FontSize="11"
-                                Foreground="{StaticResource ScadaSecondaryTextBrush}" />
+                                Foreground="{StaticResource ScadaSecondaryTextBrush}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Margin="0,0,4,0" scada:ScadaIconHelper.Glyph="Xmark" FontSize="11" />
+                                    <TextBlock Text="清除" FontSize="11" />
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
                     </Grid>
                 </DataTemplate>
@@ -1421,6 +1430,23 @@
                                     FontSize="11"
                                     IsChecked="{Binding VisibleInRange, Mode=TwoWay}"
                                     ToolTip="不命中范围时不接管可见性，交回图层判定（该显示还是显示）" />
+                            </StackPanel>
+
+                            <!--  启用对象：0 = 禁用（点不动）、非 0 = 启用；原因挂在 ToolTip 上。  -->
+                            <StackPanel Visibility="{Binding IsEnable, Converter={StaticResource BoolVis}}">
+                                <CheckBox
+                                    Margin="0,4,0,0"
+                                    Content="反转语义（勾上 = 值为 1 时禁用）"
+                                    FontSize="11"
+                                    IsChecked="{Binding EnableInvert, Mode=TwoWay}"
+                                    ToolTip="有的 PLC 用 1 表示允许，有的用 1 表示联锁中；按现场接线选" />
+                                <TextBox
+                                    Margin="0,4,0,0"
+                                    Padding="3,2"
+                                    BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                    FontSize="11"
+                                    Text="{Binding DisableReason, UpdateSourceTrigger=LostFocus}"
+                                    ToolTip="禁用时鼠标悬停显示的原因（联锁/权限/无数据各配一句）" />
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>

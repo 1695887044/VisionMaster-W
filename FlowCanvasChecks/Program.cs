@@ -227,6 +227,12 @@ namespace FlowCanvasChecks
             // 深度学习分类：缩放几何 / 布局嗅探 / softmax 归一化 / TopK + 端口契约
             ClassifyChecks.Run();
 
+            // 深度学习异常检测：按秩嗅探输出契约 / 会话守卫 / 端口契约 / 补边与缩放口径
+            AnomalyChecks.Run();
+
+            // 深度学习分割：只认 [1,C,H,W]（C≥2）的语义分割契约 / 会话守卫 / 端口契约 / 补边几何
+            SegmentChecks.Run();
+
             BlobDetectChecks.Run();
             PreProcessingChecks.Run();
 

@@ -139,7 +139,11 @@ namespace VisionMaster.Scada.Controls
                 Description = "一根开关量变量的操作化身：绑上变量后点击即对该位做置位/复位/取反/按下ON/按下OFF，"
                             + "并按变量值显示两种状态（启停、手自动切换、复位、点动）。"
                             + "与「按钮」的分工：按钮是动作入口（事件里配动作表），位按钮是变量的化身（直接读写这根量）",
-                Events = new[] { ScadaEventType.Pressed, ScadaEventType.Released },
+                Events = new[]
+                {
+                    ScadaEventType.Pressed, ScadaEventType.Released,
+                    ScadaEventType.ObjectChanged, ScadaEventType.Opened, ScadaEventType.Closed,
+                },
                 Properties = GeometryProperties.WithGroups(
                     ScadaPropertyCatalog.Collect(typeof(BitButtonElement)),
                     TextProperties.Text("文字", "按钮",
@@ -200,7 +204,7 @@ namespace VisionMaster.Scada.Controls
                 DefaultHeight = 48,
                 Description = "连续量拖动即写：拖动只改显示，松手写一次变量（也可选 100ms 节流）；写失败回弹并显示原因。" +
                               "把「当前值」绑到变量上即可；量程、步长、走向、只读/读写、写入前确认都在属性面板",
-                Events = new[] { ScadaEventType.InputCompleted },
+                Events = new[] { ScadaEventType.InputCompleted, ScadaEventType.ObjectChanged },
                 Properties = GeometryProperties.WithGroups(
                     ScadaPropertyCatalog.Collect(typeof(SliderElement)),
                     AppearanceProperties.Fill("#FF2D7DD2", "已填充那一段的颜色"),
@@ -499,6 +503,84 @@ namespace VisionMaster.Scada.Controls
 
             new()
             {
+                TypeKey = "Hmi.RunMeter",
+                DisplayName = "运行计时 / 计数器",
+                ControlType = typeof(RunMeterElement),
+                Category = "数值",
+                DefaultWidth = 240,
+                DefaultHeight = 96,
+                Description = "两种模式共用一个图元：RunTime 按运行信号累计时长（停机暂停），Counter 按计数脉冲加一。" +
+                              "节拍走全画面统一节拍源，累计值每 5 秒回写模型（掉电最多丢 5 秒）",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(RunMeterElement)),
+                    AppearanceProperties.Fill("#FF151C23"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("8"),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "数值颜色"),
+                    TextProperties.FontSize("28", displayName: "数值字号")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.QRCode",
+                DisplayName = "二维码",
+                ControlType = typeof(QRCodeElement),
+                Category = "数据",
+                DefaultWidth = 120,
+                DefaultHeight = 120,
+                Description = "把文本编码成二维码（ZXing，真实可扫）：SN、批次、追溯码。内容可绑字符串变量；" +
+                              "空内容/超长/编码失败显示原因，不画半个码",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(QRCodeElement)),
+                    AppearanceProperties.Fill("#00000000"),
+                    AppearanceProperties.Stroke("#00000000"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("4"),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "码下文字颜色"),
+                    TextProperties.FontSize("11")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.Barcode",
+                DisplayName = "条形码",
+                ControlType = typeof(BarcodeElement),
+                Category = "数据",
+                DefaultWidth = 240,
+                DefaultHeight = 100,
+                Description = "把文本编码成条形码（Code128 / Code39 / EAN13，ZXing，真实可扫）：批次、料号、序列号。" +
+                              "码面固定白底黑码，不随深色主题反色",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(BarcodeElement)),
+                    AppearanceProperties.Fill("#00000000"),
+                    AppearanceProperties.Stroke("#00000000"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("4"),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "码下文字颜色"),
+                    TextProperties.FontSize("11")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.MultiTrend",
+                DisplayName = "多曲线趋势",
+                ControlType = typeof(MultiTrendElement),
+                Category = "数值",
+                DefaultWidth = 360,
+                DefaultHeight = 200,
+                Description = "最多 4 条曲线同屏（PV/SP/OP + 辅助量）：每条独立绑变量、独立颜色与名称；" +
+                              "滚动时间窗、独立/共享量程、图例与鼠标游标。设计期没有节拍时用系统时钟预览",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(MultiTrendElement)),
+                    AppearanceProperties.Fill("#FF151C23"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("8")),
+            },
+
+            new()
+            {
                 TypeKey = "Hmi.AxisConsole",
                 DisplayName = "轴控台",
                 ControlType = typeof(AxisPanelElement),
@@ -673,6 +755,10 @@ namespace VisionMaster.Scada.Controls
                 DefaultHeight = 36,
                 Description = "2~4 档保持式转换开关：点哪一档就把档位号写回变量（手/自动、本地/远程、工位选择）。" +
                               "选中档用「填充色」高亮、未选档用「未选中底色」；写失败时原因留在图元上，不会假装已经拨过去",
+                Events = new[]
+                {
+                    ScadaEventType.ObjectChanged, ScadaEventType.Opened, ScadaEventType.Closed,
+                },
                 // 刻意不声明 Pressed：画布在运行态已对命中的图元统一发一次 Pressed（见 ScadaCanvas.Interaction），
                 // 本控件又按契约在“档位写成功”时发一次。两条同时可配会让同一个动作执行两遍；
                 // 描述符不声明它，属性面板就不会长出这条永远双响的钩子（控件仍按契约在成功路径 raise）。
@@ -723,6 +809,7 @@ namespace VisionMaster.Scada.Controls
                 Description = "枚举型下拉：绑一个 int 变量，用「选项映射」（0=手动;1=自动;2=检修）把数值翻译成显示名。" +
                               "用户选择后写回变量；运行态变量变化只更新显示、不回写（否则会形成回写环）。" +
                               "把「呈现方式」切到 Text 就是只读状态文本：不写变量、不带 chevron/原始值",
+                Events = new[] { ScadaEventType.ObjectChanged },
                 Properties = GeometryProperties.WithGroups(
                     ScadaPropertyCatalog.WithVisibility(
                         ScadaPropertyCatalog.Collect(typeof(ComboBoxElement)),
@@ -871,6 +958,63 @@ namespace VisionMaster.Scada.Controls
                             Group = ScadaPropertyGroups.Data,
                             DefaultValue = "True",
                             TargetProperty = DataGridElement.ZebraProperty,
+                        },
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "Source",
+                            DisplayName = "数据源",
+                            Kind = ElementPropertyKind.Choice,
+                            Group = ScadaPropertyGroups.Data,
+                            DefaultValue = "Live",
+                            Choices = new[] { "Live", "History" },
+                            TargetProperty = DataGridElement.SourceProperty,
+                            Description = "Live = 采行信号攒行（显示缓冲）；History = 查方案目录 History\\ 下的 CSV 账本，" +
+                                          "带范围/分页/三态。只换数据源，列与模板复用同一套",
+                        },
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "HistoryRange",
+                            DisplayName = "历史范围",
+                            Kind = ElementPropertyKind.Choice,
+                            Group = ScadaPropertyGroups.Data,
+                            DefaultValue = "Last7Days",
+                            Choices = new[] { "Today", "Yesterday", "Last7Days", "Last30Days" },
+                            TargetProperty = DataGridElement.HistoryRangeProperty,
+                            Description = "历史模式的默认查询范围（运行态工具栏还能改）。按行时间列过滤，不按文件名",
+                        },
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "HistoryPageSize",
+                            DisplayName = "历史每页条数",
+                            Kind = ElementPropertyKind.Number,
+                            Group = ScadaPropertyGroups.Data,
+                            DefaultValue = "50",
+                            Min = 1,
+                            Max = DataGridElement.MaxRowsLimit,
+                            TargetProperty = DataGridElement.HistoryPageSizeProperty,
+                            Description = "分页而不是全量：一页最多 500 条，总数只用来算页数",
+                        },
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "HistoryTimestampColumn",
+                            DisplayName = "历史时间列",
+                            Kind = ElementPropertyKind.Text,
+                            Group = ScadaPropertyGroups.Data,
+                            DefaultValue = string.Empty,
+                            IsBindable = false,
+                            TargetProperty = DataGridElement.HistoryTimestampColumnProperty,
+                            Description = "留空 = 自动识别表头里含「时间 / 日期 / time / date」的列。识别不到时查询报「时间范围无效」",
+                        },
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "HistoryKeyword",
+                            DisplayName = "历史关键字",
+                            Kind = ElementPropertyKind.Text,
+                            Group = ScadaPropertyGroups.Data,
+                            DefaultValue = string.Empty,
+                            IsBindable = false,
+                            TargetProperty = DataGridElement.HistoryKeywordProperty,
+                            Description = "留空 = 不过滤；填了就匹配任意列（忽略大小写）。只过滤查询结果，不改账本",
                         },
                     },
                     TextProperties.Text("标题", "产品记录", isBindable: false,

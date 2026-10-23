@@ -531,6 +531,12 @@ namespace VisionMaster.Models
         /// <summary>报警历史的默认保留天数（含今天）。与 <c>ScadaAlarmHistoryWriter.DefaultRetentionDays</c> 同源</summary>
         public const int DefaultAlarmHistoryRetentionDays = 365;
 
+        /// <summary>报警声音默认音量（0~100）。与 <c>ScadaSoundAlarmService.DefaultVolume</c> 同源</summary>
+        public const int DefaultAlarmSoundVolume = 55;
+
+        /// <summary>报警声音默认静音时长（分钟）。与 <c>ScadaSoundAlarmService.DefaultMuteMinutes</c> 同源</summary>
+        public const int DefaultAlarmSoundMuteMinutes = 5;
+
         /// <summary>
         /// 默认启动方案路径（软件启动时自动加载；空 = 不自动加载）
         /// </summary>
@@ -602,6 +608,19 @@ namespace VisionMaster.Models
         /// 比审计留得久：现场要翻很久以前的同类故障作对比。
         /// </summary>
         public int AlarmHistoryRetentionDays { get; set; } = DefaultAlarmHistoryRetentionDays;
+
+        /// <summary>
+        /// 报警声音开关。<b>默认关闭</b>——设计基线 Q4 的口径：声音由工程设置显式打开。
+        /// 为什么默认关：软件装到办公机上、或现场只想看屏幕时，一启动就周期性响会让人
+        /// 第一件事去找怎么关掉它；反过来，"该响没响"至少还能在报警条上看见。
+        /// </summary>
+        public bool AlarmSoundEnabled { get; set; } = false;
+
+        /// <summary>报警声音音量（0~100）。0 = 静默但保持启用状态</summary>
+        public int AlarmSoundVolume { get; set; } = DefaultAlarmSoundVolume;
+
+        /// <summary>报警声音静音时长（分钟）。紧急级报警不受静音约束</summary>
+        public int AlarmSoundMuteMinutes { get; set; } = DefaultAlarmSoundMuteMinutes;
 
         /// <summary>
         /// 把 <see cref="IdleTimeoutMinutes"/> 翻成会话超时口径

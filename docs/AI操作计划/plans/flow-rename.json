@@ -1,0 +1,76 @@
+{
+  "schema": "vm-plan/1",
+  "id": "flow-rename",
+  "title": "重命名流程",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "右键流程胶囊 → 流程 → 重命名，在文本输入弹窗里改名。",
+  "params": {
+    "old_name": {
+      "type": "string",
+      "required": true,
+      "example": "新建流程"
+    },
+    "new_name": {
+      "type": "string",
+      "required": true,
+      "example": "定位流程"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "right_click",
+      "target": "flow.capsule",
+      "target_name": "${old_name}",
+      "expect": { "element": "flow.context.flow", "state": "visible" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "flow.context.flow",
+      "expect": { "element": "flow.context.rename", "state": "visible" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "flow.context.rename",
+      "expect": { "window": "dialog.flow_rename", "state": "visible" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 4,
+      "do": "type",
+      "target": "dialog.flow_rename.input",
+      "text": "${new_name}",
+      "clear": true,
+      "expect": { "element": "dialog.flow_rename.input", "value": "${new_name}" }
+    },
+    {
+      "n": 5,
+      "do": "click",
+      "target": "dialog.flow_rename.ok",
+      "expect": { "window": "dialog.flow_rename", "state": "closed" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 6,
+      "do": "assert",
+      "assert": "element_exists",
+      "target": "flow.capsule",
+      "name_contains": "${new_name}",
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    { "assert": "element_exists", "target": "flow.capsule", "name_contains": "${new_name}", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["flow", "rename"]
+}

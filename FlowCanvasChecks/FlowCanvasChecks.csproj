@@ -30,6 +30,24 @@
     -->
     <ProjectReference Include="..\Plugins\Plugin.DlClassify\Plugin.DlClassify.csproj" />
     <!--
+      深度学习异常检测：同样直接引用插件工程。
+      它多带一层 OnnxRuntime 依赖（与 DlClassify 相同的两个托管 DLL + 两个原生库），
+      引用它也让构建把原生库投递到位——否则断言里只要碰到 InkSession 就 DllNotFound。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.DlAnomaly\Plugin.DlAnomaly.csproj" />
+    <!--
+      深度学习分割：同上。它自带 OnnxRuntime 依赖，引用它也让构建把原生库投递到位。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.DlSegment\Plugin.DlSegment.csproj" />
+    <!--
+      OnnxRuntime 托管程序集要显式引用：断言里要直接构造 NodeMetadata 喂给契约嗅探
+      （NodeMetadata 是 OnnxRuntime 的公开类型）。经 Plugin.DlAnomaly 的传递引用
+      不带 HintPath，编译期解析不到 Microsoft.ML.OnnxRuntime，报 CS0234。
+    -->
+    <Reference Include="Microsoft.ML.OnnxRuntime">
+      <HintPath>..\DLL\OnnxRuntime\Microsoft.ML.OnnxRuntime.dll</HintPath>
+    </Reference>
+    <!--
       Blob 缺陷检测：直接引用插件工程（而不是从 Modules\ 反射加载），
       这样"触边排除 / 长宽比 / 合并 / 填孔 / 排序 / 像素当量 / 位深底图"这些契约
       能在编译期就拿到类型检查，失败信息也更好读。

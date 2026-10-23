@@ -1,0 +1,70 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--
+        二维码：白色码面 + 下方原文。
+        码面固定白底黑码（扫描要求，深色主题下也不反色）；外层底/描边/圆角仍走图元外观属性。
+        码面、图像、占位、文本四块都由控件代码翻显隐（SetPartVisible），模板不写 Visibility 初值。
+    -->
+    <Style TargetType="{x:Type local:QRCodeElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:QRCodeElement}">
+                    <Border
+                        Background="{TemplateBinding Fill}"
+                        BorderBrush="{TemplateBinding Stroke}"
+                        BorderThickness="{TemplateBinding StrokeThickness}"
+                        CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}">
+                        <Grid Margin="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Border
+                                x:Name="CodeSurface"
+                                Padding="2"
+                                Background="{StaticResource HmiCodeSurfaceBrush}"
+                                CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}">
+                                <Image x:Name="CodeImage" Stretch="Uniform" />
+                            </Border>
+
+                            <TextBlock
+                                x:Name="CodePlaceholder"
+                                Margin="6"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                Foreground="{StaticResource HmiTextMutedBrush}"
+                                Text="未绑定内容"
+                                TextAlignment="Center"
+                                TextWrapping="Wrap" />
+
+                            <TextBlock
+                                x:Name="CodeText"
+                                Grid.Row="1"
+                                Margin="0,3,0,0"
+                                HorizontalAlignment="Center"
+                                FontFamily="Cascadia Mono,Consolas,Microsoft YaHei UI"
+                                FontSize="{TemplateBinding FontSize}"
+                                Foreground="{TemplateBinding Foreground}"
+                                Text="{TemplateBinding CodeContent}"
+                                TextTrimming="CharacterEllipsis" />
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

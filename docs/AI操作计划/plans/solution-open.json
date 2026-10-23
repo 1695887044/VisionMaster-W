@@ -1,0 +1,55 @@
+{
+  "schema": "vm-plan/1",
+  "id": "solution-open",
+  "title": "从磁盘打开方案",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "打开 .vms 方案会替换当前方案、清空上一份方案的运行会话，并按方案记忆恢复布局。运行中禁止打开。",
+  "params": {
+    "solution_path": {
+      "type": "string",
+      "required": true,
+      "example": "D:\\C#\\VM\\解决方案\\Demo_20261023.vms"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.file", "app.menu.file.open"],
+      "expect": { "window": "dialog.open_solution", "state": "visible" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 2,
+      "do": "type",
+      "target": "dialog.open_solution.filename",
+      "text": "${solution_path}",
+      "clear": true,
+      "expect": { "element": "dialog.open_solution.filename", "value": "${solution_path}" }
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "dialog.open_solution.open",
+      "expect": { "window": "dialog.open_solution", "state": "closed" },
+      "timeout_ms": 20000
+    },
+    {
+      "n": 4,
+      "do": "assert",
+      "assert": "toast_contains",
+      "text": "加载成功",
+      "timeout_ms": 20000
+    }
+  ],
+  "postconditions": [
+    { "assert": "text_absent", "text": "未加载方案", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["solution", "open", "file"]
+}

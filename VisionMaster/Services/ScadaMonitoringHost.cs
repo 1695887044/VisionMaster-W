@@ -56,6 +56,7 @@ namespace VisionMaster.Services
         private ScadaBeatSource? _beat;
         private ScadaAlarmHistoryWriter? _writer;
         private ScadaAlarmHistoryStore? _store;
+        private ScadaSoundAlarmService? _soundAlarm;
         private IReadOnlyList<ScadaAlarmRecord> _priorAlarms = Array.Empty<ScadaAlarmRecord>();
         private ScadaRuntimeContext? _context;
         private Dispatcher? _uiDispatcher;
@@ -111,6 +112,15 @@ namespace VisionMaster.Services
         public bool IsActive => _active;
 
         /// <summary>
+        /// 报警声音服务；没启动/已收场时为 null。
+        ///
+        /// 为什么挂在方案级监控而不是运行窗口：报警在"只跑流程、不开运行窗口"时照样评估
+        /// （见本类注释），声音也该跟着同一份事实走——否则操作员在编辑器里看着报警条变红，
+        /// 却听不到任何提示，得先点"运行"才知道有报警。
+        /// </summary>
+        public ScadaSoundAlarmService? SoundAlarm => _soundAlarm;
+
+        /// <summary>
         /// 确保当前文档正在被监控。同一文档重复调用是空操作；换文档会先停旧的再起新的。
         /// 只能从 UI 线程调用（节拍源要 Dispatcher）。
         /// </summary>
@@ -144,6 +154,21 @@ namespace VisionMaster.Services
             _alarms = new ScadaAlarmEngine(document, _values);
             _alarms.AlarmRaised += OnAlarmRaised;
             _alarms.AlarmChanged += OnAlarmChanged;
+
+            // 声音服务必须在 Attach() 之前建：Attach 会对每条定义立即初判一次，
+            // "启动那一刻早就越限"的报警正是最该响的那一类，晚一步就漏掉了。
+            _soundAlarm = new ScadaSoundAlarmService(_alarms, new SystemSoundPlayer(), OnDiagnostic);
+            _soundAlarm.Volume = Math.Clamp(
+                _appSettings.Current.AlarmSoundVolume,
+                0,
+                100);
+            _soundAlarm.MuteMinutes = Math.Clamp(
+                _appSettings.Current.AlarmSoundMuteMinutes,
+                1,
+                1440);
+            _soundAlarm.EnabledChanged += OnSoundEnabledChanged;
+            _soundAlarm.Enabled = _appSettings.Current.AlarmSoundEnabled;
+
             _alarms.Attach();
 
             _variableEvents = new ScadaVariableEventEngine(document, _values);
@@ -154,6 +179,11 @@ namespace VisionMaster.Services
             _beat.Beat += OnBeat;
             _beat.Start();
 
+            // 历史数据源：<方案根>\History 下的 CSV 账本（与「CSV 记录」插件的输出目录同一个约定）。
+            // 方案没保存过时目录为 null，数据表格会显示"未接入历史数据源"而不是空表。
+            var historyDirectory = SolutionPaths.GetHistoryDirectory(_workspace.CurrentSolution?.SolutionFilePath);
+            var history = new CsvFolderHistorySource(historyDirectory);
+
             _context = new ScadaRuntimeContext(
                 _alarms,
                 _beat,
@@ -163,7 +193,8 @@ namespace VisionMaster.Services
                 _axisCommands,
                 _confirmations,
                 _values,
-                _priorAlarms);
+                _priorAlarms,
+                history);
 
             _active = true;
 
@@ -180,6 +211,15 @@ namespace VisionMaster.Services
                 return;
 
             _active = false;
+
+            // 先退声音：它的节拍与引擎订阅都该在引擎 Detach 之前收干净，
+            // 反过来的话最后一拍可能对着已经收场的引擎取值。
+            if (_soundAlarm != null)
+            {
+                _soundAlarm.EnabledChanged -= OnSoundEnabledChanged;
+                _soundAlarm.Dispose();
+                _soundAlarm = null;
+            }
 
             if (_beat != null)
             {
@@ -295,6 +335,30 @@ namespace VisionMaster.Services
                 _log.Error(message);
             else
                 _log.Warn(message);
+        }
+
+        /// <summary>
+        /// 运行期开关声音：把偏好落盘，下次启动沿用。
+        /// 只订阅 <see cref="ScadaSoundAlarmService.EnabledChanged"/> 而不订阅 <c>StateChanged</c>：
+        /// 后者每 2 秒就会因为重复音触发一次，拿它落盘等于每 2 秒写一次配置文件。
+        /// </summary>
+        private void OnSoundEnabledChanged(object? sender, EventArgs e)
+        {
+            var service = _soundAlarm;
+            if (service == null || _appSettings.Current.AlarmSoundEnabled == service.Enabled)
+                return;
+
+            _appSettings.Current.AlarmSoundEnabled = service.Enabled;
+
+            try
+            {
+                _appSettings.Save();
+            }
+            catch (Exception ex)
+            {
+                // 存不下不该让"开关声音"这个动作失败：本次运行照常按新状态发声。
+                _log.Warn($"[报警] 保存声音开关失败：{ex.Message}");
+            }
         }
 
         public void Dispose()

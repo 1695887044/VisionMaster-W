@@ -18,6 +18,10 @@ namespace VisionMaster.Services
     /// 文件通道：后台队列写入（不阻塞调用线程），按天滚动 <c>{日志目录}\yyyy-MM-dd.log</c>，
     /// 自动清理保留期外的旧文件。写入失败静默忽略，不影响业务。
     ///
+    /// <b>双写（2026-10-23）</b>：全局日志（<see cref="LogDirectory"/>）总是写；当前有方案时
+    /// 再写一份到 <c>&lt;方案根&gt;\Logs</c>（见 <see cref="SolutionRootProvider"/>）。
+    /// 全局那份是排障底稿（启动链/退出链/方案切换只在这里），方案那份随方案文件夹走。
+    ///
     /// 【配置从哪来（2026-10-21）】保留天数 / 目录 / 落盘最小级别原先都是本文件里的硬编码，
     /// 现在一律<b>每次现读</b> <see cref="AppConfigService"/> 的 <c>Current</c>：
     ///   · 保留天数：每次清理时读（口径与审计 / 报警落盘端一致：0 或负数 = 永不清理）；
@@ -41,6 +45,24 @@ namespace VisionMaster.Services
         /// <summary>请求把当前写入器关掉、按最新配置重开（目录改了之后由设置弹窗调用）</summary>
         private volatile bool _reopenRequested;
 
+        /// <summary>
+        /// 当前方案根目录的提供口（宿主在启动时挂接）。
+        ///
+        /// 为什么是"现读"而不是在打开/保存处逐个推送：方案切换入口有四个（新建 / 打开 /
+        /// 方案列表 / 启动自动加载），漏一处就会出现"这份方案的日志写进上一份方案的目录"，
+        /// 而症状要等到翻日志时才发现。落盘线程每轮读一次当前方案路径，入口再多也不会漏。
+        ///
+        /// 返回 null / 空 = 当前没有方案（或方案尚未保存）→ 只写全局日志。
+        /// </summary>
+        private static volatile Func<string?>? _solutionRootProvider;
+
+        /// <summary>方案根目录提供口（宿主挂接；断言里可临时替换再还原）</summary>
+        public static Func<string?>? SolutionRootProvider
+        {
+            get => _solutionRootProvider;
+            set => _solutionRootProvider = value;
+        }
+
         public LogService(AppSettingsService? settings = null)
         {
             _settings = settings;
@@ -63,8 +85,9 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
-        /// 日志目录：配置为空 = 程序目录下的 <c>Logs</c>（= 历史行为）。
+        /// 全局日志目录：配置为空 = 程序目录下的 <c>Logs</c>（= 历史行为）。
         /// 每次现读——设置弹窗改完目录后不需要重启软件。
+        /// 方案自己的日志目录是 <c>&lt;方案根&gt;\Logs</c>，与这里无关（见 <see cref="CurrentSolutionLogDirectory"/>）。
         /// </summary>
         public string LogDirectory
         {
@@ -79,6 +102,23 @@ namespace VisionMaster.Services
 
         /// <summary>保留天数（&lt;= 0 = 永不清理）。每次现读配置</summary>
         public int RetentionDays => _settings?.Current?.LogRetentionDays ?? DefaultRetentionDays;
+
+        /// <summary>
+        /// 当前方案的日志目录：<c>&lt;方案根&gt;\Logs</c>；没有方案时 null。
+        /// 提供口抛异常（容器已释放 / 退出链）时按"没有方案"处理——日志服务不能反过来把进程带走。
+        /// </summary>
+        private static string? CurrentSolutionLogDirectory()
+        {
+            try
+            {
+                var root = _solutionRootProvider?.Invoke();
+                return string.IsNullOrWhiteSpace(root) ? null : Path.Combine(root!, SolutionPaths.LogsFolderName);
+            }
+            catch
+            {
+                return null;
+            }
+        }
 
         /// <summary>落盘最小级别（面板不受它影响）</summary>
         private LogFileLevel MinimumFileLevel => _settings?.Current?.LogFileLevel ?? LogFileLevel.Info;
@@ -179,26 +219,59 @@ namespace VisionMaster.Services
             _ => "INFO"
         };
 
-        /// <summary>后台落盘循环：单线程顺序写，按天切换文件</summary>
+        /// <summary>
+        /// 后台落盘循环：单线程顺序写，按天切换文件。
+        ///
+        /// 双通道：全局日志（<see cref="LogDirectory"/>）**总是**写；当前有方案时再写一份到
+        /// <c>&lt;方案根&gt;\Logs</c>。两份都要的理由：
+        ///  · 全局那份是排障底稿——方案加载前的启动链、退出链、方案切换本身都只在这里；
+        ///  · 方案那份随文件夹走——把方案目录拷给售后，日志不用另外找。
+        /// 两者解析到同一目录时只写一份（避免同一行落两遍）。
+        /// </summary>
         private void FlushLoop()
         {
             var currentDate = DateTime.Now.Date;
             var lastOpenAttempt = DateTime.MinValue;
-            StreamWriter? writer = null;
+            StreamWriter? globalWriter = null;
+            StreamWriter? solutionWriter = null;
+            string? openSolutionDirectory = null;
 
             try
             {
                 while (true)
                 {
-                    // 目录改了（RequestReopen）或上次没打开成功：按当前配置重开。
-                    // 失败重试间隔 5 秒——目录不可写时别把 CPU 烧在重试上。
-                    if (_reopenRequested
-                        || (writer == null && (DateTime.UtcNow - lastOpenAttempt).TotalSeconds >= 5))
+                    // 方案目录现读：打开/保存/切换方案后，下一轮就换到新目录。
+                    var solutionDirectory = CurrentSolutionLogDirectory();
+                    if (string.Equals(solutionDirectory, LogDirectory, StringComparison.OrdinalIgnoreCase))
+                        solutionDirectory = null; // 同一目录不写两遍
+
+                    if (_reopenRequested)
                     {
                         _reopenRequested = false;
-                        lastOpenAttempt = DateTime.UtcNow;
-                        try { writer?.Flush(); writer?.Dispose(); } catch { }
-                        writer = TryOpenWriter(currentDate);
+                        lastOpenAttempt = DateTime.MinValue;
+                        CloseWriter(ref globalWriter);
+                        CloseWriter(ref solutionWriter);
+                        openSolutionDirectory = null;
+                    }
+
+                    if (!string.Equals(openSolutionDirectory, solutionDirectory, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // 换方案：关掉旧方案的文件，下一段立即按新目录重开（不排队等 5 秒）
+                        CloseWriter(ref solutionWriter);
+                        openSolutionDirectory = solutionDirectory;
+                        lastOpenAttempt = DateTime.MinValue;
+                    }
+
+                    // 打开失败重试间隔 5 秒——目录不可写时别把 CPU 烧在重试上。
+                    var now = DateTime.UtcNow;
+                    var needOpen = globalWriter == null
+                                   || (openSolutionDirectory != null && solutionWriter == null);
+                    if (needOpen && (now - lastOpenAttempt).TotalSeconds >= 5)
+                    {
+                        lastOpenAttempt = now;
+                        globalWriter ??= TryOpenWriter(LogDirectory, currentDate);
+                        if (openSolutionDirectory != null)
+                            solutionWriter ??= TryOpenWriter(openSolutionDirectory, currentDate);
                     }
 
                     if (!_fileQueue!.TryDequeue(out var line))
@@ -214,38 +287,56 @@ namespace VisionMaster.Services
                     if (today != currentDate)
                     {
                         currentDate = today;
-                        try { writer?.Flush(); writer?.Dispose(); } catch { }
-                        writer = TryOpenWriter(currentDate);
+                        CloseWriter(ref globalWriter);
+                        CloseWriter(ref solutionWriter);
+                        globalWriter = TryOpenWriter(LogDirectory, currentDate);
+                        if (openSolutionDirectory != null)
+                            solutionWriter = TryOpenWriter(openSolutionDirectory, currentDate);
                     }
 
-                    try { writer?.WriteLine(line); }
-                    catch { writer = null; } // 写失败（磁盘满/被占用）：本次丢弃，下次重开
+                    WriteLine(ref globalWriter, line);
+                    WriteLine(ref solutionWriter, line);
                 }
             }
             finally
             {
-                try { writer?.Flush(); writer?.Dispose(); } catch { }
+                CloseWriter(ref globalWriter);
+                CloseWriter(ref solutionWriter);
             }
         }
 
-        /// <summary>
-        /// 打开写入器。目录每次现读（改完调 <see cref="RequestReopen"/> 立刻生效），
-        /// 并且自己确保目录存在——配置指向一个还没建的目录是正常用法。
-        /// </summary>
-        private StreamWriter OpenWriter(DateTime date)
+        /// <summary>写一行；失败（磁盘满/被占用）就关掉这个通道，等下一轮重开，另一通道不受影响</summary>
+        private static void WriteLine(ref StreamWriter? writer, string line)
         {
-            var dir = LogDirectory;
-            Directory.CreateDirectory(dir);
+            if (writer == null) return;
 
-            var path = Path.Combine(dir, $"{date:yyyy-MM-dd}.log");
+            try { writer.WriteLine(line); }
+            catch { CloseWriter(ref writer); }
+        }
+
+        private static void CloseWriter(ref StreamWriter? writer)
+        {
+            try { writer?.Flush(); writer?.Dispose(); } catch { }
+            writer = null;
+        }
+
+        /// <summary>
+        /// 打开写入器。目录由调用方给（全局配置目录或当前方案的 Logs 目录），
+        /// 并且自己确保目录存在——配置指向一个还没建的目录、方案刚保存还没建 Logs 都是正常用法。
+        /// </summary>
+        private static StreamWriter OpenWriter(string directory, DateTime date)
+        {
+            Directory.CreateDirectory(directory);
+
+            var path = Path.Combine(directory, $"{date:yyyy-MM-dd}.log");
             var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
             return new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
         }
 
-        /// <summary>打开失败不许把落盘线程带走：文件通道降级为"只丢文件"，面板照常</summary>
-        private StreamWriter? TryOpenWriter(DateTime date)
+        /// <summary>打开失败不许把落盘线程带走：该通道降级为"只丢文件"，其它通道照常</summary>
+        private static StreamWriter? TryOpenWriter(string directory, DateTime date)
         {
-            try { return OpenWriter(date); }
+            try { return OpenWriter(directory, date); }
             catch { return null; }
         }
 

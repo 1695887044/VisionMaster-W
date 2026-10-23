@@ -428,7 +428,7 @@ namespace VisionMaster.Services
                 window = new ScadaRuntimeWindow(session);
 
                 // 背景图按“方案目录 + 相对路径”解析；方案还没保存过就为空（背景回退背景色）。
-                window.SolutionRoot = Path.GetDirectoryName(_workspaceManager.CurrentSolution?.SolutionFilePath);
+                window.SolutionRoot = SolutionPaths.GetSolutionRoot(_workspaceManager.CurrentSolution?.SolutionFilePath);
 
                 // 形态必须在 Show() 之前定死：WindowStyle/WindowState 这类属性在窗口显示之后再改，
                 // WPF 会重建非客户区，表现为闪一下、尺寸跳一格（依附形态下更明显）。
@@ -500,6 +500,10 @@ namespace VisionMaster.Services
                 window.CanvasHost.RuntimeContext = _monitoring.Context
                     ?? throw new InvalidOperationException("方案监控未启动，无法提供报警/变量事件上下文");
                 window.PopupCanvasHost.RuntimeContext = window.CanvasHost.RuntimeContext;
+
+                // 声音服务归方案级监控宿主（关窗后报警仍评估、声音状态要留着），
+                // 运行窗口只是借用：在 Show 之前交过去，顶条按钮首帧就能显示真实开关。
+                window.SoundAlarm = _monitoring.SoundAlarm;
 
                 stage = "显示运行窗口";
                 window.Show();

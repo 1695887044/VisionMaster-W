@@ -60,6 +60,9 @@ namespace VisionMaster.Scada.Controls
         /// 本轮开始前从方案目录读回的历史报警记录（最新在前）。历史面板把这份与
         /// <see cref="Alarms"/> 的本轮记录合并显示；历史记录只读，不许点确认。
         /// </param>
+        /// <param name="history">
+        /// 本轮的历史数据源（数据表格 <c>Source=History</c> 用）；纯监视画面可以不给。
+        /// </param>
         public ScadaRuntimeContext(
             ScadaAlarmEngine alarms,
             ScadaBeatSource beat,
@@ -69,7 +72,8 @@ namespace VisionMaster.Scada.Controls
             IScadaAxisCommandSink? axisCommands = null,
             IScadaConfirmationService? confirmations = null,
             IScadaValueSource? values = null,
-            IReadOnlyList<ScadaAlarmRecord>? priorAlarms = null)
+            IReadOnlyList<ScadaAlarmRecord>? priorAlarms = null,
+            IScadaHistorySource? history = null)
         {
             Alarms = alarms ?? throw new ArgumentNullException(nameof(alarms));
             Beat = beat ?? throw new ArgumentNullException(nameof(beat));
@@ -80,6 +84,7 @@ namespace VisionMaster.Scada.Controls
             Confirmations = confirmations;
             Values = values;
             PriorAlarms = priorAlarms ?? Array.Empty<ScadaAlarmRecord>();
+            History = history;
         }
 
         /// <summary>
@@ -170,5 +175,13 @@ namespace VisionMaster.Scada.Controls
         /// 图元库刻意不引用 VM.Core，宿主是唯一知道"变量注册表长什么样"的地方。
         /// </summary>
         public IScadaValueSource? Values { get; }
+
+        /// <summary>
+        /// 本轮的历史数据源（<b>可为 null</b>：方案没有历史目录、或宿主没接）。
+        ///
+        /// 只有数据表格的 <c>Source=History</c> 会用它。没有它时表格显示
+        /// "未接入历史数据源"，而不是显示空表——空表会被当成"这段时间没生产"。
+        /// </summary>
+        public IScadaHistorySource? History { get; }
     }
 }

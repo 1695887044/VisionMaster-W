@@ -142,11 +142,24 @@ namespace FlowCanvasChecks
             var svcFull = new PluginService(providerFull, new SilentNotifier(), new ListLog(log));
             svcFull.InitPlugins();
 
+            // ---- 前置：本次断言进程必须真正"写过一次缓存" ----
+            // 生产路径里 InitPlugins() 只有在"缓存失效"时才会 Save/Invalidate；如果磁盘上已有的清单
+            // 恰好命中（正常情况），这里根本没写过，接下来读到的可能是上一次进程留下的旧清单。
+            // 而本仓常态是"刚构建过 → Modules\ 里 37 个 DLL 的 mtime 刚变" → 旧清单指纹必然对不上 →
+            // TryLoad 返回 null → 断言把"缓存失效（合法路径）"误判成"写缓存没生效"。
+            // 做法：先删掉清单，再让 InitPlugins() 走一次真·全量重扫，这样 Save 一定会被调用。
+            var manifestPath = PluginCache.ManifestPath(modulesDir);
+            try { if (File.Exists(manifestPath)) File.Delete(manifestPath); } catch { }
+
+            var providerWrite = new RecordingProvider();
+            var svcWrite = new PluginService(providerWrite, new SilentNotifier(), new ListLog(new List<string>()));
+            svcWrite.InitPlugins();
+
             var manifest = PluginCache.TryLoad(modulesDir, PluginCache.ComputeContractFingerprint());
             if (manifest == null)
             {
                 Check("PC6：缓存产物与全量扫描一致", false,
-                    "全量扫完缓存却读不出来（写缓存那一步没生效？）");
+                    $"删清单后重扫仍读不出缓存（清单 {manifestPath}）——写缓存那一步没生效");
                 return;
             }
 

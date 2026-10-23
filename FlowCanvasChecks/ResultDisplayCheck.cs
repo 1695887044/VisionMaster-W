@@ -166,6 +166,75 @@ namespace FlowCanvasChecks
                 shortOne.DisposeTemps();
             }
 
+            // ---- A3b：数组类输出（CodeReader.Codes / Yolo.ClassNames / Boxes…）不再落到"不支持的类型" ----
+            //   落 default 的旧行为：`string[]` 不是 IConvertible → 图上写一行红字「不支持的类型 System.String[]」，
+            //   而上游输出本身是好的。这一组断言把"数组必须出文字、必须不 Warn 不支持"钉死。
+            {
+                var res = Build(new[] { "ABC123", "DEF456" }, W, H);
+                string all = string.Join(" | ", res.Plan.Texts.Select(t => t.Text));
+                Check("A3b string[] → 出文字行（含两个元素，逗号分隔）",
+                    res.Plan.Texts.Any(t => t.Text.Contains("ABC123") && t.Text.Contains("DEF456")),
+                    "texts=[" + all + "]");
+                Check("A3b string[] → **不**报「不支持的类型」（这是本次修的核心误伤）",
+                    !res.Warnings.Any(w => w.Contains("不支持的类型")),
+                    "warns=[" + string.Join(" | ", res.Warnings) + "]");
+                res.DisposeTemps();
+            }
+            {
+                var res = Build(new[] { 1, 2, 3 }, W, H);
+                Check("A3b int[] → 出文字行且不报不支持",
+                    res.Plan.Texts.Any(t => t.Text.Contains("1") && t.Text.Contains("3"))
+                    && !res.Warnings.Any(w => w.Contains("不支持的类型")),
+                    "texts=[" + string.Join(" | ", res.Plan.Texts.Select(t => t.Text)) + "]");
+                res.DisposeTemps();
+            }
+            {
+                // 33 个元素：MaxTupleElements=32，必须截断并追加 …(+1)
+                var many = Enumerable.Range(0, 33).ToArray();
+                var res = Build(many, W, H);
+                Check("A3b 超 32 个元素 → 截断并追加 …(+1)，不静默丢数据",
+                    res.Plan.Texts.Any(t => t.Text.Contains("…(+1)")),
+                    "texts=[" + string.Join(" | ", res.Plan.Texts.Select(t => t.Text)) + "]");
+                res.DisposeTemps();
+            }
+            {
+                var res = Build(Array.Empty<string>(), W, H);
+                Check("A3b 空数组 → 只写悬停「(空数组)」，不画字、不 Warn",
+                    res.Warnings.Count == 0 && res.InfoRows.Any(r => r.Value.Contains("(空数组)")),
+                    "warns=[" + string.Join(" | ", res.Warnings) + "] info=[" + string.Join(" | ", res.InfoRows.Select(r => r.Label + "=" + r.Value)) + "]");
+                res.DisposeTemps();
+            }
+            {
+                // YOLO 扁平框：每 4 个一组 x1,y1,x2,y2，两组 → 8 条 Line（4 条边 × 2 个框）+ 2 个序号文字
+                var boxes = new double[] { 10, 20, 60, 80, 100, 120, 160, 200 };
+                var res = Build(boxes, W, H);
+                var lines = res.Plan.Shapes.Where(s => s.Kind == BakeShapeKind.Line).ToList();
+                Check("A3b【YOLO 框】8 元扁平数组 → 画 2 个框（8 条 Line）",
+                    lines.Count == 8,
+                    "lines=" + lines.Count + " P=" + string.Join(" ", lines.Select(l => "[" + Fmt(l.P) + "]")));
+                Check("A3b【YOLO 框】框边用 (row,col) 口径：上边是 P=[y1,x1,y1,x2]=[20,10,20,60]",
+                    lines.Any(l => Eq(l.P[0], 20) && Eq(l.P[1], 10) && Eq(l.P[2], 20) && Eq(l.P[3], 60)),
+                    "P=" + string.Join(" ", lines.Select(l => "[" + Fmt(l.P) + "]")));
+                Check("A3b【YOLO 框】每个框左上角带序号文字（项1 / 项2）",
+                    res.Plan.Texts.Count(t => t.Text.Contains("项1") || t.Text.Contains("项2")) == 2,
+                    "texts=[" + string.Join(" | ", res.Plan.Texts.Select(t => t.Text)) + "]");
+                Check("A3b【YOLO 框】框仍走文字行（数组本身可读）+ 不报不支持",
+                    res.Plan.Texts.Any(t => t.Text.Contains("100")) && !res.Warnings.Any(w => w.Contains("不支持的类型")),
+                    "warns=[" + string.Join(" | ", res.Warnings) + "]");
+                res.DisposeTemps();
+            }
+            {
+                // 反向框 = 不是"每 4 个一组 x1,y1,x2,y2"这种布局 → 整批退化为纯文字 + Warn，绝不猜
+                var reversed = new double[] { 60, 20, 10, 80, 100, 120, 160, 200 };
+                var res = Build(reversed, W, H);
+                Check("A3b【YOLO 框】任一组反向（x2<=x1）→ 整批不画框、只出文字并 Warn",
+                    res.Plan.Shapes.All(s => s.Kind != BakeShapeKind.Line)
+                    && res.Warnings.Any(w => w.Contains("不是正向框")),
+                    "lines=" + res.Plan.Shapes.Count(s => s.Kind == BakeShapeKind.Line)
+                    + " warns=[" + string.Join(" | ", res.Warnings) + "]");
+                res.DisposeTemps();
+            }
+
             // ---- A5：非有限值 / 超大坐标 / 色名白名单 / 元素上限 ----
             {
                 var res = Build(GeometryParam.Circle(double.NaN, 300, 50), W, H);

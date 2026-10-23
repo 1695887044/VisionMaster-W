@@ -304,12 +304,19 @@ namespace VisionMaster.Scada.Controls
         /// 失败原因由写通道记进运行日志（没绑变量 / 绑定停用 / 变量不存在 / 写不进去），
         /// 这里不吞也不另造提示——图元够不着变量注册表，编不出更准的话。
         /// </summary>
-        private void Write(bool value)
+        private bool Write(bool value)
         {
             if (RuntimeContext?.Writer is not { } writer || Element is not { } element)
-                return;
+                return false;
 
-            writer.TryWriteText(element, StateKey, value ? "1" : "0", out _);
+            if (!writer.TryWriteText(element, StateKey, value ? "1" : "0", out _))
+                return false;
+
+            // 用户把开关拨到另一个状态：先发「对象状态改变」，二态开关再补「打开/关闭」。
+            // 只在写入成功后发——失败时图元留在原状态，发事件等于谎报。
+            RaiseScadaEvent(ScadaEventType.ObjectChanged);
+            RaiseScadaEvent(value ? ScadaEventType.Opened : ScadaEventType.Closed);
+            return true;
         }
 
         private bool IsMode(string mode)

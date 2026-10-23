@@ -1,0 +1,94 @@
+{
+  "schema": "vm-plan/1",
+  "id": "recipe-capture",
+  "title": "从当前参数捕获一份配方",
+  "version": "1.1.0",
+  "risk": "medium",
+  "description": "系统 → 配方管理 → 填配方名/产品编码/备注 → 捕获当前值。左栏三个输入框没有 AutomationName，走 Tab 顺序 + type_focused。",
+  "params": {
+    "recipe_name": {
+      "type": "string",
+      "required": true,
+      "example": "ProductA"
+    },
+    "recipe_code": {
+      "type": "string",
+      "required": false,
+      "default": "",
+      "example": "WO-20261023-001"
+    },
+    "notes": {
+      "type": "string",
+      "required": false,
+      "default": "",
+      "example": "AI 计划任务捕获"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" },
+    { "assert": "text_absent", "text": "未加载方案", "timeout_ms": 3000 }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.system", "app.menu.system.recipe"],
+      "expect": { "window": "dialog.recipe", "state": "visible" },
+      "timeout_ms": 8000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "dialog.recipe.name",
+      "expect": { "element": "dialog.recipe.name", "state": "enabled" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "type_focused",
+      "text": "${recipe_name}"
+    },
+    {
+      "n": 4,
+      "do": "key",
+      "keys": "Tab",
+      "note": "焦点从配方名称移到产品编码"
+    },
+    {
+      "n": 5,
+      "do": "type_focused",
+      "text": "${recipe_code}"
+    },
+    {
+      "n": 6,
+      "do": "key",
+      "keys": "Tab",
+      "note": "焦点从产品编码移到备注"
+    },
+    {
+      "n": 7,
+      "do": "type_focused",
+      "text": "${notes}"
+    },
+    {
+      "n": 8,
+      "do": "click",
+      "target": "dialog.recipe.capture",
+      "expect": { "element": "dialog.recipe.row", "name_contains": "${recipe_name}", "state": "exists" },
+      "timeout_ms": 8000
+    },
+    {
+      "n": 9,
+      "do": "click",
+      "target": "dialog.recipe.close",
+      "expect": { "window": "dialog.recipe", "state": "closed" },
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    { "assert": "window_closed", "window": "dialog.recipe", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["recipe", "capture", "keyboard"]
+}

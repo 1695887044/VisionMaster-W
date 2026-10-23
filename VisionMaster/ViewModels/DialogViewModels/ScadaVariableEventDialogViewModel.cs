@@ -95,6 +95,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// 纯变量场景不该被迫解析它）。
         /// </summary>
         private readonly IScadaAxisPicker? _axisPicker;
+
+        /// <summary>
+        /// 「选配方」入口（「应用配方」动作行用）。可为 null——没有它时该按钮不可用，
+        /// 而不是点了没反应；配方是方案级能力，纯变量场景不必被迫解析它。
+        /// </summary>
+        private readonly IScadaRecipePicker? _recipePicker;
         private readonly ScadaAuditWriter? _audit;
         private readonly Func<string?>? _actorProvider;
 
@@ -126,6 +132,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// 运行起来"配了半天一条审计都没有"而且不报错（见 App.xaml.cs 的注册处）。
         /// </param>
         /// <param name="actorProvider">"此刻登录着谁"；取不到时 <see cref="ScadaAuditEntry"/> 自己回落"未登录"</param>
+        /// <param name="axisPicker">「选轴」入口，同上（运动命令动作行用）；可为 null</param>
+        /// <param name="recipePicker">「选配方」入口（「应用配方」动作行用）；可为 null</param>
         public ScadaVariableEventDialogViewModel(
             IWorkspaceManager workspace,
             IScadaVariablePicker picker,
@@ -133,13 +141,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
             IScadaFlowPicker flowPicker,
             ScadaAuditWriter? audit = null,
             Func<string?>? actorProvider = null,
-            IScadaAxisPicker? axisPicker = null)
+            IScadaAxisPicker? axisPicker = null,
+            IScadaRecipePicker? recipePicker = null)
         {
             _workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
             _picker = picker ?? throw new ArgumentNullException(nameof(picker));
             _pagePicker = pagePicker ?? throw new ArgumentNullException(nameof(pagePicker));
             _flowPicker = flowPicker ?? throw new ArgumentNullException(nameof(flowPicker));
             _axisPicker = axisPicker;
+            _recipePicker = recipePicker;
             _audit = audit;
             _actorProvider = actorProvider;
 
@@ -459,7 +469,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
                         _picker,
                         _pagePicker,
                         _flowPicker,
-                        _axisPicker));
+                        _axisPicker,
+                        _recipePicker));
                 }
             }
 

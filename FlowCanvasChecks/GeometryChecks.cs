@@ -120,6 +120,98 @@ namespace FlowCanvasChecks
             Check("枚举端口接受下拉回写的值（Kind → 圆）",
                 finder.Kind.Value is Plugin.GeometryFinder.GeometryFindKind.Circle,
                 finder.Kind.Value?.ToString() ?? "null");
+
+            RunResidualChecks();
+        }
+
+        /// <summary>
+        /// 残差（P1-B A2）：点到几何的最小距离统计。
+        ///
+        /// 这一组守两件事：
+        ///   · <see cref="GeometryMath.PointResidual"/> 的公式（点距/线距/圆半径差/椭圆长轴系归一化）；
+        ///   · 「没接点集 = 合法跳过，接了但空/类型不可算 = 明确失败」这条三态纪律——
+        ///     它决定了下游能不能把 ResidualCount=0 当成"完美拟合"来用。
+        /// 断言全用合成点集，误差控到 1e-6；椭圆那条刻意放宽到 5%，因为实现是近似式。
+        /// </summary>
+        private static void RunResidualChecks()
+        {
+            Section("[GEO-A2] 几何残差：PointResidual 公式 + 残差三态纪律");
+
+            // ── 点到点 ──
+            Check("残差 点几何：点(3,4) 到 Point(0,0) = 5",
+                Math.Abs(GeometryMath.PointResidual(GeometryParam.Point(0, 0), 3, 4) - 5.0) < 1e-6,
+                GeometryMath.PointResidual(GeometryParam.Point(0, 0), 3, 4).ToString("0.####"));
+
+            // ── 点到线 ──
+            // row=0 水平线（phi=0 → 方向 +Col），点(5,0) 距离 5；线上点距离 0
+            var hLine2 = GeometryParam.Line(0, 0, 0);
+            Check("残差 线几何：点(5,0) 到 row=0 水平线 = 5",
+                Math.Abs(GeometryMath.PointResidual(hLine2, 5, 0) - 5.0) < 1e-6, "");
+            Check("残差 线几何：线上的点残差 = 0",
+                Math.Abs(GeometryMath.PointResidual(hLine2, 0, 42) ) < 1e-9, "");
+
+            // ── 点到圆：|距离 − 半径| ──
+            var circle5 = GeometryParam.Circle(0, 0, 5);
+            Check("残差 圆几何：点(8,0) → |8−5| = 3",
+                Math.Abs(GeometryMath.PointResidual(circle5, 8, 0) - 3.0) < 1e-6, "");
+            Check("残差 圆几何：圆上点 (0,5) 残差 = 0",
+                Math.Abs(GeometryMath.PointResidual(circle5, 0, 5)) < 1e-6, "");
+
+            // ── 点到椭圆（长轴系归一化近似）──
+            // 轴对齐椭圆：中心(0,0) phi=0 长半轴 10（沿 Col）短半轴 5（沿 Row）
+            // 点(0,10) 在长轴端点 → 残差 0；点(5,0) 在短轴端点 → 残差 0
+            var ellipse = GeometryParam.Ellipse(0, 0, 0, 10, 5);
+            Check("残差 椭圆几何：长轴端点在椭圆上 → 0",
+                Math.Abs(GeometryMath.PointResidual(ellipse, 0, 10)) < 1e-6, "");
+            Check("残差 椭圆几何：短轴端点在椭圆上 → 0",
+                Math.Abs(GeometryMath.PointResidual(ellipse, 5, 0)) < 1e-6, "");
+
+            // 轴外点的近似口径：点(5,12) → norm=sqrt(1.2²+1²)=1.562，残差 = 0.562×5 = 2.81
+            // 真值（法向距离）约 2.6，这就是"近似值"的偏差量级；断言按实现口径钉死，
+            // 将来若要改成精确解，这条会红——提醒同步改 Help 与断言，而不是让偏差悄悄漂。
+            Check("残差 椭圆几何：轴外点(5,12) ≈ 2.81（长轴系归一化近似，非精确法向距）",
+                Math.Abs(GeometryMath.PointResidual(ellipse, 5, 12) - 2.8105) <= 0.005,
+                GeometryMath.PointResidual(ellipse, 5, 12).ToString("0.####"));
+
+            // 长轴上外溢点(0,12)：归一化式子给的是 |sqrt(1.44)−1|×5 = 1，真实法向距是 2。
+            // 这就是"近似值"的已知偏差（≤ 长短轴比 × 越界量），**按实现口径钉死并把偏差写成判据**，
+            // 将来改精确解时这条会红——提醒同步改 Help/断言，不允许偏差悄悄漂。
+            Check("残差 椭圆几何：长轴外溢点(0,12) = 1（归一化近似，真实法向距 2 —— 已知偏差）",
+                Math.Abs(GeometryMath.PointResidual(ellipse, 0, 12) - 1.0) <= 0.005,
+                GeometryMath.PointResidual(ellipse, 0, 12).ToString("0.####"));
+
+            // ── 不可算的类型 → NaN（不编造 0）──
+            var contourGeo = GeometryParam.Contour(new[] { 0.0, 0.0, 1.0, 1.0 });
+            Check("残差 轮廓几何 → NaN（明确表示不可算，不给 0）",
+                double.IsNaN(GeometryMath.PointResidual(contourGeo, 0, 0)), "");
+
+            // ── ResidualStats ──
+            // 水平线 row=0，四个点 row 依次 0,2,-2,0（col 任意）→ 残差 0,2,2,0
+            // RMS = sqrt((0+4+4+0)/4) = sqrt(2) ≈ 1.41421，Max = 2
+            var stats = GeometryMath.ResidualStats(hLine2, new[] { 0.0, 0.0, 2.0, 10.0, -2.0, 20.0, 0.0, 30.0 });
+            Check("残差统计：RMS=√2、Max=2、Count=4、Skipped=0",
+                stats.Count == 4 && stats.Skipped == 0
+                && Math.Abs(stats.Rms - Math.Sqrt(2)) < 1e-6
+                && Math.Abs(stats.Max - 2.0) < 1e-6,
+                $"RMS={stats.Rms:0.####} Max={stats.Max:0.####} n={stats.Count} skip={stats.Skipped}");
+
+            // 含 NaN/Inf → 跳过并计数，其余照算（不因一个坏点整组报废）
+            var withBad = GeometryMath.ResidualStats(hLine2, new[] { double.NaN, 0.0, 0.0, 0.0, double.PositiveInfinity, 5.0 });
+            Check("残差统计：NaN/Inf 点被跳过且计入 Skipped，好点照算",
+                withBad.Count == 1 && withBad.Skipped == 2 && Math.Abs(withBad.Rms) < 1e-9,
+                $"n={withBad.Count} skip={withBad.Skipped}");
+
+            // 全无效 → Count=0（调用方据此判失败），不返回 NaN 冒充结果
+            var allBad = GeometryMath.ResidualStats(hLine2, new[] { double.NaN, double.NaN });
+            Check("残差统计：全部无效 → Count=0（调用方判失败）",
+                allBad.Count == 0 && allBad.Skipped == 1, $"n={allBad.Count} skip={allBad.Skipped}");
+
+            // 形状不合法（奇数长度 / 空）→ 明确 Count=0，不越界
+            Check("残差统计：奇数长度点集 → Count=0（不当成坏点硬读）",
+                GeometryMath.ResidualStats(hLine2, new[] { 1.0, 2.0, 3.0 }).Count == 0, "");
+            Check("残差统计：空点集 → Count=0",
+                GeometryMath.ResidualStats(hLine2, Array.Empty<double>()).Count == 0
+                && GeometryMath.ResidualStats(hLine2, null).Count == 0, "");
         }
     }
 }

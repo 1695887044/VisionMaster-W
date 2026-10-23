@@ -14,6 +14,41 @@
 
 > **关于「威纶通」**：本机没有 Weintek EasyBuilder 的手册文件；仓库代码与两份旧基线引用的「手册第 7 章」就是上面这份 InoTouchPad 帮助。若后续拿到威纶通手册，对象菜单有差异（配方/宏指令/窗口的位置不同），需按那份再核一次。
 
+## 实施进度（2026-10-23）
+
+| 项 | 状态 | 证据 / 说明 |
+| --- | --- | --- |
+| 页面背景图 | **已实施** | `ScadaPage.BackgroundImage/Stretch/Opacity` + 页面属性面板（缩略图 + 选择/清除）+ 画布 `PART_BackgroundImage` + 快照三字段；`ScadaChecks [BA]` |
+| 方案图片资产 | **已实施** | `SolutionAssetService`：复制进 `Image\`、SHA-256 查重、同名不同内容 `(2)` 重命名、越界拒绝、缺失回退；`ScadaChecks [BA3]` |
+| `Hmi.Picture` | **已实施** | 图元类 + 主题 + 描述符 + Web 渲染器；`SourcePath` 用 `ImageFile` 选方案文件；`[BB1][BB2]` |
+| `Hmi.Line` | **已实施** | 图元类 + 主题 + 描述符 + Web 渲染器；`Points`（0~1 相对坐标）/`Dash`/`Arrow`；`[BB3]` |
+| 增量 / 减量 | **已实施** | `ScadaActionType.Increment/Decrement` + 分发器（读-加-写、夹紧、非数值拒绝）+ 动作面板（步长/上下限）；`[BB4]~[BB9]` |
+| 启用对象动画 | **已实施** | `ScadaAnimationType.Enable` + `Invert`/`DisableReason` + 交互闸门（`IsEnabled`/`IsHitTestVisible`/ToolTip/0.55 压暗）+ 属性面板；`[BC1]~[BC5]` |
+| 文字图标库 | **已内置** | Font Awesome 6 Pro Solid 链接进 `VM.Scada.Controls`；`ScadaIconFont`/`ScadaIconText` + `ScadaIconGlyphs` 名字表 + `ScadaIconHelper.Glyph`；用法见 `docs\图标字体使用.md`；`[BD1]~[BD4]` |
+| 历史数据 | **已实施** | `IScadaHistorySource` 契约 + `CsvFolderHistorySource`（方案 `History\*.csv`，时间列识别/分页/超时/坏文件计数）+ DataGrid `Source=History`（范围循环/分页/骨架/三态/失败横幅）；`[BJ1]~[BJ21]`；渲染 `08~11-history-*.png` |
+| 二维码 / 条形码 | **已实施** | `Hmi.QRCode` / `Hmi.Barcode` + ZXing.Net 真编码（QR L/M/Q/H、Code128/39/EAN13），断言做编码→解码回读；`[BG1]~[BG5]`；渲染 `06-qrcode-barcode.png` |
+| 多曲线趋势 | **已实施** | `Hmi.MultiTrend` + `TrendSurface`（4 曲线、时间窗、共享/独立量程、图例、游标）；`[BH1][BH2]`；渲染 `07-multitrend.png` |
+| 声音报警 | **已实施** | `ScadaSoundAlarmService`（紧急连续/警告 2s/提示单次、确认即停、静音 5 分钟自动恢复、紧急不可静音、设备不可用诊断）+ 运行窗口开关/试听/静音；`[BI1]~[BI21]`；真机播放日志 `artifacts/logs/20261023/soundprobe.log` |
+| 运行计时 / 计数器 | **已实施** | `Hmi.RunMeter`（RunTime/Counter、节拍驱动、5 秒落盘累计值）；渲染 `05-runmeter.png` |
+| 对象更改 / 开关事件 | **已实施** | `ObjectChanged/Opened/Closed` 追加进事件枚举；位按钮/选择开关/滑块/下拉框在用户提交成功后发；`[BF1]~[BF4]`；渲染 `04-object-events.png` |
+
+> 当前断言：`ScadaChecks` **2637 通过 / 0 失败**（含 `[BA]`~`[BJ]`）；Web 渲染器覆盖 `[WR1]` 35/35；`UIThemeSmokeTest` 全段通过。
+> **10 项已全部落地**（配方除外，由另一条会话并行交付）；渲染证据在 `artifacts/render/20261023/scada-batch3/01~11`。
+> `tools\run_gates.ps1` **10 步全绿**（`audit_root` / `audit_artifacts` / 六个断言宿主 + Database/Recipe）；过程与负载 flake 记录见 code-changes §九。
+
+### 已落地部分的已知偏差
+
+- **SVG 不在支持范围**：WPF 没有内置 SVG 解码器，`SolutionAssetService` 只收 png/jpg/jpeg/bmp/gif；设计稿里“支持 svg”的说法作废，需要 SVG 的用户先导出位图。
+- **线的端点编辑走属性文本**：`Points` 是 `0,0;1,1` 形式的文本属性；画布上的端点手柄/拖拽尚未实现（设计稿演示的是目标交互，WPF 版先给可配置路径）。
+- **禁用视觉是 0.55 压暗**：设计稿的 58% 遮罩 + 右上角原因角标需要模板层统一加遮罩，本版先用 `IsEnabled=false` + `IsHitTestVisible=false` + `ToolTip=原因` 保证“点不动 + 说得清”；与外观闪烁共用 Opacity 的冲突已知。
+- **长按连续增量未做**：动作本身已支持单次增减；按住连续需要按钮控件按动作类型起定时器，留到下一批。
+- **Web 端方案图片尚未接资源路由**：`Hmi.Picture` 的 Web 渲染器已注册（覆盖闸通过），但 `ctx.assetUrl` 还没有服务端实现，当前显示“文件名（Web 未接资源）”占位；页面背景图的 Web 渲染同样待接。
+- **声音没有设置页**：音量/静音时长走 `AppConfig.json`（`AlarmSoundVolume` / `AlarmSoundMuteMinutes`）；运行窗口提供开关、试听、静音，不提供滑杆。
+- **历史导出 CSV 未接**：本版先交付查询/分页/三态；导出留待与通用导出通路一起做。
+- **历史范围用循环按钮而不是下拉**：ComboBox 弹出层受应用级主题控制，深色 HMI 画面上会出现白底下拉；按钮文字即当前范围，点击切下一档并立即查询。
+- **Web 端历史/声音/二维码/趋势仍是占位**：R132A 只要求“已设计画面的运行态查看”，历史查询在 Web 是非目标。
+- **历史只认 CSV**：数据记录插件的账本目录要指到 `<方案根>\History`；不自动发现插件配置里的其他目录。
+
 ## 一、定位
 
 按 `AGENTS.md` §30 / R127 的四步流程，本目录是**第 ① 步（Web 设计基线）**的产物：
@@ -124,10 +159,10 @@
 
 ### 方案文件夹与资源（2026-10-23 补，用户口径）
 
-- **方案 = 一个文件夹**：`<方案名>\<方案名>.vms` + `Image\` + `Alarms\`；现有 `SolutionAssetFolders` 已按这个约定实现，本批不改结构。
+- **方案 = 一个文件夹**：`<方案名>\<方案名>.vms` + `Image\` + `Alarms\` + `History\` + `Logs\`；`SolutionAssetFolders` 按这个约定实现（`History\` 是本批新增，数据表格历史源读它）。
 - **图片拖入即复制进 `Image\`**：`.vms` 只记相对路径（如 `Image\pid-layout.png`），绝不写绝对路径、绝不引用方案目录之外的文件。
 - **查重与命名**：同名同内容（哈希相同）复用已有文件；同名不同内容重命名为 `name (2).ext`，不覆盖。
-- **另存为带走资产**：`SolutionAssetFolders.CopyAlongside` 已实现；目标目录已有同名文件不覆盖，失败只提示、不回滚保存。
+- **另存为带走资产**：`SolutionAssetFolders.CopyAlongside` 把 `Image` / `Alarms` / `History` / `Logs` 一起复制；目标目录已有同名文件不覆盖，失败只提示、不回滚保存。
 - **孤儿文件**：删除图元/换图不自动删文件（避免误删别的页面还在引用的图）；后续可做「清理未引用资源」。
 - **迁移/备份 = 复制整个文件夹**：不做软件级全局图片库；多方案复用走「另存为 + 替换」，不引入共享引用。
 
@@ -179,6 +214,9 @@
 | `evidence/design-v3-07-composition.png` | 组合示例（深色） |
 | `evidence/design-v3-08-meter.png` | 运行计时/计数器 |
 | `evidence/design-v3-09-composition-light.png` | 组合示例（浅色） |
+| `artifacts/render/20261023/scada-batch3/01-picture-line.png` | **真实 WPF 渲染**：页面背景 + Picture 真图 + 直线/折线箭头 + 按钮 |
+| `artifacts/render/20261023/scada-batch3/02-button-disabled.png` | 真实渲染：启用对象=0 的禁用按钮（0.55 压暗） |
+| `artifacts/render/20261023/scada-batch3/03-no-resolver-placeholder.png` | 真实渲染：无解析器时的“未设置图片”占位卡片（对照） |
 
 ## 七、边界与已知偏差
 

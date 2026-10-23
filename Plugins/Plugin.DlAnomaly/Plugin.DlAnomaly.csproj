@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0-windows</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Plugin.DlAnomaly</RootNamespace>
+    <AssemblyName>Plugin.DlAnomaly</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Services\Core.Halcon\Core.Halcon.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+    <ProjectReference Include="..\..\UI\Controls\UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- HALCON 受管程序集：本工程直接 using HalconDotNet（HImage/HObject），
+         不能只靠 Core.Halcon 的项目引用传递——传递引用不带 HintPath，编译期解析不到类型。 -->
+    <Reference Include="halcondotnet">
+      <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ONNX Runtime 托管包。只在插件内使用，宿主不引用（DLL 由下游 deps 带过去）。 -->
+    <Reference Include="Microsoft.ML.OnnxRuntime">
+      <HintPath>..\..\DLL\OnnxRuntime\Microsoft.ML.OnnxRuntime.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- DenseTensor。必须随插件带：宿主的 deps.json 里没有它，漏带 = 运行期 FileNotFoundException。 -->
+    <Reference Include="System.Numerics.Tensors">
+      <HintPath>..\..\DLL\OnnxRuntime\System.Numerics.Tensors.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 原生库：运行时由 onnxruntime 自己按 deps 找，必须与托管 DLL 同目录。 -->
+    <None Include="..\..\DLL\OnnxRuntime\onnxruntime.dll">
+      <Link>onnxruntime.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\DLL\OnnxRuntime\onnxruntime_providers_shared.dll">
+      <Link>onnxruntime_providers_shared.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <!-- 宿主运行目录里也要有一份原生库，否则真机加载 ONNX 会话会 DllNotFoundException。 -->
+  <Target Name="DeployOnnxRuntimeToHost" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy &quot;$(MSBuildThisFileDirectory)..\..\DLL\OnnxRuntime&quot; &quot;$(HostBinDir)&quot; /Y /Q /I" ContinueOnError="true" />
+  </Target>
+
+</Project>

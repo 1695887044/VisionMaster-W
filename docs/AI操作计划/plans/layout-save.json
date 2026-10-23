@@ -1,0 +1,49 @@
+{
+  "schema": "vm-plan/1",
+  "id": "layout-save",
+  "title": "保存当前停靠布局",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "工具 → 保存布局。命令没有成功提示，只能靠 Layout.xml 的 mtime 证明真的写了。",
+  "params": {
+    "app_dir": {
+      "type": "string",
+      "required": true,
+      "example": "D:\\C#\\VM\\VisionMaster\\bin\\Debug\\net9.0-windows",
+      "description": "VisionMaster.exe 所在目录；Layout.xml 与 AppConfig.json 同级"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.tool", "app.menu.tool.save_layout"],
+      "expect": { "element": "app.menu.tool.save_layout", "state": "exists" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "assert",
+      "assert": "file_exists",
+      "path": "${app_dir}\\Layout.xml",
+      "timeout_ms": 5000
+    },
+    {
+      "n": 3,
+      "do": "assert",
+      "assert": "file_mtime_after",
+      "path": "${app_dir}\\Layout.xml",
+      "after": "${run_started_at}",
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    { "assert": "file_mtime_after", "path": "${app_dir}\\Layout.xml", "after": "${run_started_at}", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["layout", "file"]
+}

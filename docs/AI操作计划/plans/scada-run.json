@@ -1,0 +1,56 @@
+{
+  "schema": "vm-plan/1",
+  "id": "scada-run",
+  "title": "运行组态画面并退出",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "组态画面顶栏「运行画面」按启动页全屏运行内存里的方案（不存盘）；退出只有「■ 停止运行」一条路，Esc 不退出。",
+  "params": {
+    "page_name": {
+      "type": "string",
+      "required": false,
+      "default": "",
+      "example": "画面_1",
+      "description": "用于断言运行窗口标题；留空则只断言窗口出现"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.view", "app.menu.view.scada_editor"],
+      "expect": { "element": "dialog.scada.run", "state": "enabled" },
+      "timeout_ms": 8000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "dialog.scada.run",
+      "expect": { "window": "runtime.scada", "state": "visible" },
+      "timeout_ms": 10000
+    },
+    {
+      "n": 3,
+      "do": "assert",
+      "assert": "element_exists",
+      "target": "runtime.scada.stop",
+      "timeout_ms": 10000
+    },
+    {
+      "n": 4,
+      "do": "click",
+      "target": "runtime.scada.stop",
+      "expect": { "window": "runtime.scada", "state": "closed" },
+      "timeout_ms": 10000
+    }
+  ],
+  "postconditions": [
+    { "assert": "window_closed", "window": "runtime.scada", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["scada", "runtime"]
+}

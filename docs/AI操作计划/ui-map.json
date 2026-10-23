@@ -1,0 +1,1011 @@
+{
+  "schema": "vm-ui-map/1",
+  "app": "VisionMaster",
+  "calibrated_at": null,
+  "calibration_note": "首次使用前运行 tools\\dump-vm-uia.ps1 -Depth 8 校准 name/class/坐标；本表未标注 calibrated 的坐标仅为 100% DPI 估算值。",
+  "selector_policy": [
+    "automation_id > name + control_type + scope > name_contains > 窗口相对坐标",
+    "坐标只作兜底，且必须记录 DPI 与窗口尺寸；分辨率变化后重新校准",
+    "图标按钮的 UIA Name 可能是 FontAwesome 私有区字形，不要按字形写死，优先用 scope + 相邻文本或坐标"
+  ],
+  "windows": {
+    "app.main": {
+      "title": "VisionMaster",
+      "process": "VisionMaster",
+      "kind": "main"
+    },
+    "dialog.new_solution": {
+      "title": "创建新解决方案",
+      "process": "VisionMaster",
+      "kind": "dialog"
+    },
+    "dialog.save_solution": {
+      "title": "保存解决方案",
+      "process": "VisionMaster",
+      "kind": "file_dialog"
+    },
+    "dialog.open_solution": {
+      "title": "打开解决方案",
+      "process": "VisionMaster",
+      "kind": "file_dialog"
+    },
+    "dialog.solution_list": {
+      "title": "方案列表",
+      "process": "VisionMaster",
+      "kind": "dialog"
+    },
+    "dialog.flow_rename": {
+      "title": "流程重命名",
+      "process": "VisionMaster",
+      "kind": "dialog"
+    },
+    "dialog.plugin_config": {
+      "title_param": "step_name",
+      "process": "VisionMaster",
+      "kind": "dialog",
+      "title_confidence": "high",
+      "title_note": "PluginConfigShellViewModel.Title = 步骤名"
+    },
+    "dialog.condition": {
+      "title_one_of": [
+        "条件逻辑配置中心",
+        "For 循环配置",
+        "等待条件配置",
+        "分支匹配配置"
+      ],
+      "process": "VisionMaster",
+      "kind": "dialog"
+    },
+    "dialog.variable_manager": {
+      "title": "变量管理",
+      "process": "VisionMaster",
+      "kind": "dialog"
+    },
+    "dialog.add_variable": {
+      "title": "添加变量",
+      "process": "VisionMaster",
+      "kind": "dialog"
+    },
+    "dialog.hardware": {
+      "title": "硬件管理",
+      "process": "VisionMaster",
+      "kind": "dialog"
+    },
+    "dialog.create_comm": {
+      "title": "创建新通信",
+      "process": "VisionMaster",
+      "kind": "dialog"
+    },
+    "dialog.recipe": {
+      "title": "配方管理",
+      "process": "VisionMaster",
+      "kind": "dialog"
+    },
+    "dialog.system_settings": {
+      "title": "系统设置",
+      "process": "VisionMaster",
+      "kind": "dialog"
+    },
+    "dialog.help": {
+      "title": "帮助手册",
+      "process": "VisionMaster",
+      "kind": "dialog",
+      "title_confidence": "low",
+      "anchor_text": "搜索目录（只搜标题）",
+      "title_note": "HelpViewModel 未显式提供 Title；若窗口标题不符，按 anchor_text 定位"
+    },
+    "runtime.scada": {
+      "title_contains": "组态运行 - ",
+      "process": "VisionMaster",
+      "kind": "window",
+      "title_note": "ScadaRuntimeWindow.Title = 组态运行 - {页面名}"
+    },
+    "dialog.overwrite": {
+      "title": "确认另存为",
+      "process": "VisionMaster",
+      "kind": "file_dialog",
+      "title_confidence": "medium"
+    },
+    "dialog.variable_binding": {
+      "title": "变量绑定",
+      "process": "VisionMaster",
+      "kind": "dialog"
+    }
+  },
+  "elements": {
+    "app.menu.root": {
+      "window": "app.main",
+      "control_type": "Menu",
+      "class_name": "Menu",
+      "index": 0,
+      "fallback_coord": [20, 18],
+      "confidence": "medium",
+      "notes": "顶栏最左汉堡菜单；UIA 里是 Menu（唯一子项是汉堡 MenuItem），UIA Name 是 FontAwesome 字形。优先按 class_name=Menu 定位，坐标兜底 100% DPI"
+    },
+    "app.menu.file": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "文件(F)",
+      "confidence": "high"
+    },
+    "app.menu.file.new": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "新建方案",
+      "path": ["文件(F)"],
+      "confidence": "high"
+    },
+    "app.menu.file.list": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "方案列表",
+      "path": ["文件(F)"],
+      "confidence": "high"
+    },
+    "app.menu.file.open": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "打开方案",
+      "path": ["文件(F)"],
+      "confidence": "high"
+    },
+    "app.menu.file.save": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "保存方案",
+      "path": ["文件(F)"],
+      "confidence": "high"
+    },
+    "app.menu.view": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "视图(V)",
+      "confidence": "high"
+    },
+    "app.menu.view.process": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "流程导航",
+      "path": ["视图(V)"],
+      "confidence": "high"
+    },
+    "app.menu.view.flow_canvas": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "流程画布",
+      "path": ["视图(V)"],
+      "confidence": "high"
+    },
+    "app.menu.view.toolbox": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "工具箱",
+      "path": ["视图(V)"],
+      "confidence": "high"
+    },
+    "app.menu.view.console": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "控制台",
+      "path": ["视图(V)"],
+      "confidence": "high"
+    },
+    "app.menu.view.scada_editor": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "组态画面",
+      "path": ["视图(V)"],
+      "confidence": "high"
+    },
+    "app.menu.view.scada_toolbox": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "图元工具箱",
+      "path": ["视图(V)"],
+      "confidence": "high"
+    },
+    "app.menu.tool": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "工具(T)",
+      "confidence": "high"
+    },
+    "app.menu.tool.save_layout": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "保存布局",
+      "path": ["工具(T)"],
+      "confidence": "high"
+    },
+    "app.menu.tool.load_layout": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "加载布局",
+      "path": ["工具(T)"],
+      "confidence": "high"
+    },
+    "app.menu.tool.reset_layout": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "恢复默认布局",
+      "path": ["工具(T)"],
+      "confidence": "high"
+    },
+    "app.menu.system": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "系统(S)",
+      "confidence": "high"
+    },
+    "app.menu.system.global_vars": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "全局变量",
+      "path": ["系统(S)"],
+      "confidence": "high"
+    },
+    "app.menu.system.recipe": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "配方管理",
+      "path": ["系统(S)"],
+      "confidence": "high"
+    },
+    "app.menu.system.hardware": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "硬件管理",
+      "path": ["系统(S)"],
+      "confidence": "high"
+    },
+    "app.menu.system.settings": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "系统设置",
+      "path": ["系统(S)"],
+      "confidence": "high"
+    },
+    "app.menu.help": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "帮助(H)",
+      "confidence": "high"
+    },
+    "app.menu.help.docs": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "帮助文档",
+      "path": ["帮助(H)"],
+      "confidence": "high"
+    },
+    "app.mode.debug": {
+      "window": "app.main",
+      "control_type": "Button",
+      "name": "调试",
+      "confidence": "high"
+    },
+    "app.mode.run": {
+      "window": "app.main",
+      "control_type": "Button",
+      "name": "运行",
+      "confidence": "high"
+    },
+    "app.mode.config": {
+      "window": "app.main",
+      "control_type": "Button",
+      "name": "组态",
+      "confidence": "high"
+    },
+    "app.mode.free": {
+      "window": "app.main",
+      "control_type": "Button",
+      "name": "自由",
+      "confidence": "high"
+    },
+    "app.command_palette.input": {
+      "window": "app.main",
+      "control_type": "Edit",
+      "class_name": "TextBox",
+      "fallback_coord": [720, 250],
+      "confidence": "medium",
+      "notes": "Ctrl+K 打开后焦点已在此框；优先直接键盘输入，不点击"
+    },
+    "app.command_palette.item": {
+      "window": "app.main",
+      "control_type": "ListItem",
+      "dynamic": true,
+      "confidence": "medium",
+      "notes": "命令面板结果项；按标题 name_contains，回车执行选中项"
+    },
+    "runbar.compile": {
+      "window": "app.main",
+      "control_type": "Button",
+      "name": "编译",
+      "scope": "VisionMaster",
+      "confidence": "high"
+    },
+    "runbar.run_once": {
+      "window": "app.main",
+      "control_type": "Button",
+      "name": "运行主流程",
+      "confidence": "high"
+    },
+    "runbar.run_loop": {
+      "window": "app.main",
+      "control_type": "Button",
+      "name": "循环主流程",
+      "confidence": "high"
+    },
+    "runbar.pause": {
+      "window": "app.main",
+      "control_type": "Button",
+      "name": "暂停",
+      "confidence": "high"
+    },
+    "runbar.resume": {
+      "window": "app.main",
+      "control_type": "Button",
+      "name": "继续",
+      "confidence": "high"
+    },
+    "runbar.step": {
+      "window": "app.main",
+      "control_type": "Button",
+      "name": "单步",
+      "confidence": "high"
+    },
+    "runbar.stop": {
+      "window": "app.main",
+      "control_type": "Button",
+      "name": "停止",
+      "confidence": "high"
+    },
+    "flow.panel": {
+      "window": "app.main",
+      "control_type": "Pane",
+      "name_contains": "流程导航",
+      "confidence": "medium",
+      "notes": "AvalonDock 面板；UIA 可能是 Pane/TabItem，按 name_contains 定位"
+    },
+    "flow.capsule": {
+      "window": "app.main",
+      "control_type": "ListItem",
+      "dynamic": true,
+      "scope": "流程导航",
+      "confidence": "medium",
+      "notes": "流程胶囊；UIA Name 可能是名称+徽标拼接，用 name_contains"
+    },
+    "flow.context.flow": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "流程",
+      "confidence": "high"
+    },
+    "flow.context.add": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "添加",
+      "path": ["流程"],
+      "confidence": "high"
+    },
+    "flow.context.rename": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "重命名",
+      "path": ["流程"],
+      "confidence": "high"
+    },
+    "flow.context.manager": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "流程管理",
+      "confidence": "high"
+    },
+    "process.tree": {
+      "window": "app.main",
+      "control_type": "Tree",
+      "scope": "流程导航",
+      "confidence": "medium"
+    },
+    "process.step_row": {
+      "window": "app.main",
+      "control_type": "TreeItem",
+      "dynamic": true,
+      "scope": "流程导航",
+      "confidence": "medium",
+      "notes": "按步骤名 name_contains；UIA Name 可能是“步骤名 + 插件名”拼接"
+    },
+    "canvas.editor": {
+      "window": "app.main",
+      "control_type": "Pane",
+      "class_name": "NodifyEditor",
+      "scope": "流程画布",
+      "confidence": "medium"
+    },
+    "canvas.center": {
+      "window": "app.main",
+      "control_type": "Pane",
+      "class_name": "NodifyEditor",
+      "scope": "流程画布",
+      "relative_point": [0.5, 0.55],
+      "confidence": "medium"
+    },
+    "canvas.step_title": {
+      "window": "app.main",
+      "control_type": "Text",
+      "dynamic": true,
+      "scope": "流程画布",
+      "confidence": "medium",
+      "notes": "节点标题 TextBlock；双击它等价于双击节点"
+    },
+    "canvas.after_step": {
+      "window": "app.main",
+      "control_type": "Text",
+      "dynamic": true,
+      "scope": "流程画布",
+      "relative_offset": [0, 40],
+      "confidence": "medium",
+      "notes": "以锚点步骤标题的包围盒为基准，向下偏移 40px 作为拖放落点"
+    },
+    "canvas.context.params": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "步骤参数…",
+      "confidence": "high"
+    },
+    "canvas.context.bind": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "编辑绑定…（打开变量绑定）",
+      "confidence": "high"
+    },
+    "canvas.context.copy": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "复制",
+      "confidence": "high"
+    },
+    "canvas.context.delete": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "删除",
+      "confidence": "high"
+    },
+    "canvas.context.breakpoint": {
+      "window": "app.main",
+      "control_type": "MenuItem",
+      "name": "切换断点",
+      "confidence": "high"
+    },
+    "toolbox.panel": {
+      "window": "app.main",
+      "control_type": "Pane",
+      "name_contains": "工具箱",
+      "confidence": "medium"
+    },
+    "toolbox.search": {
+      "window": "app.main",
+      "control_type": "Edit",
+      "scope": "工具箱",
+      "fallback_coord": [1180, 420],
+      "confidence": "medium",
+      "notes": "占位文字“搜索节点...”；UIA 可能无 Name，优先按 scope 内第一个 Edit 定位"
+    },
+    "toolbox.item": {
+      "window": "app.main",
+      "control_type": "ListItem",
+      "dynamic": true,
+      "scope": "工具箱",
+      "confidence": "medium",
+      "notes": "按算子名 name_contains；拖拽源必须用 gong 的拖动，不能用裸鼠标拖影"
+    },
+    "dialog.new_solution.name": {
+      "window": "dialog.new_solution",
+      "control_type": "Edit",
+      "name": "解决方案名称",
+      "confidence": "high",
+      "notes": "FlatPropertyGrid 给控件设置 AutomationProperties.Name = 显示名"
+    },
+    "dialog.new_solution.ok": {
+      "window": "dialog.new_solution",
+      "control_type": "Button",
+      "name_contains": "确 定",
+      "confidence": "high",
+      "notes": "EasyDialog 的按钮文案是「确 定」（中间有空格），不是「确定」"
+    },
+    "dialog.new_solution.cancel": {
+      "window": "dialog.new_solution",
+      "control_type": "Button",
+      "name_contains": "取 消",
+      "confidence": "high",
+      "notes": "EasyDialog 的按钮文案是「取 消」"
+    },
+    "dialog.save_solution.filename": {
+      "window": "dialog.save_solution",
+      "control_type": "Edit",
+      "automation_id": "1001",
+      "confidence": "high",
+      "notes": "Win32 公共保存对话框的文件名编辑框；AutomationId 1001 是系统标准"
+    },
+    "dialog.save_solution.save": {
+      "window": "dialog.save_solution",
+      "control_type": "Button",
+      "automation_id": "1",
+      "name_contains": "保存",
+      "confidence": "high"
+    },
+    "dialog.save_solution.cancel": {
+      "window": "dialog.save_solution",
+      "control_type": "Button",
+      "automation_id": "2",
+      "name_contains": "取消",
+      "confidence": "high"
+    },
+    "dialog.overwrite.yes": {
+      "window": "dialog.overwrite",
+      "control_type": "Button",
+      "name_contains": "是",
+      "confidence": "medium"
+    },
+    "dialog.open_solution.filename": {
+      "window": "dialog.open_solution",
+      "control_type": "Edit",
+      "automation_id": "1148",
+      "confidence": "high",
+      "notes": "Win32 公共打开对话框的文件名框；不同 Windows 版本可能是 1148，校准一次"
+    },
+    "dialog.open_solution.open": {
+      "window": "dialog.open_solution",
+      "control_type": "Button",
+      "automation_id": "1",
+      "name_contains": "打开",
+      "confidence": "high"
+    },
+    "dialog.solution_list.row": {
+      "window": "dialog.solution_list",
+      "control_type": "DataItem",
+      "dynamic": true,
+      "confidence": "medium",
+      "notes": "按方案名 name_contains；表格行"
+    },
+    "dialog.solution_list.open": {
+      "window": "dialog.solution_list",
+      "control_type": "Button",
+      "name_contains": "打开方案",
+      "confidence": "high",
+      "notes": "按钮内容是图标 + 文本的 StackPanel，用 name_contains"
+    },
+    "dialog.solution_list.set_default": {
+      "window": "dialog.solution_list",
+      "control_type": "Button",
+      "name_contains": "设为默认启动",
+      "confidence": "high"
+    },
+    "dialog.flow_rename.input": {
+      "window": "dialog.flow_rename",
+      "control_type": "Edit",
+      "confidence": "medium",
+      "notes": "EasyDialog 文本输入框；窗口内唯一 Edit"
+    },
+    "dialog.flow_rename.ok": {
+      "window": "dialog.flow_rename",
+      "control_type": "Button",
+      "name_contains": "确 定",
+      "confidence": "high",
+      "notes": "EasyDialog 按钮文案「确 定」"
+    },
+    "dialog.plugin_config.confirm": {
+      "window": "dialog.plugin_config",
+      "control_type": "Button",
+      "name": "确认",
+      "confidence": "high"
+    },
+    "dialog.plugin_config.cancel": {
+      "window": "dialog.plugin_config",
+      "control_type": "Button",
+      "name": "取消",
+      "confidence": "high"
+    },
+    "dialog.plugin_config.run": {
+      "window": "dialog.plugin_config",
+      "control_type": "Button",
+      "name": "执行",
+      "confidence": "high"
+    },
+    "dialog.plugin_config.form": {
+      "window": "dialog.plugin_config",
+      "control_type": "Pane",
+      "confidence": "medium",
+      "notes": "fill 原语的容器；按字段 AutomationProperties.Name 查找 Edit/ComboBox/CheckBox"
+    },
+    "dialog.condition.save": {
+      "window": "dialog.condition",
+      "control_type": "Button",
+      "name": "保存并应用",
+      "confidence": "high"
+    },
+    "dialog.condition.cancel": {
+      "window": "dialog.condition",
+      "control_type": "Button",
+      "name": "取消",
+      "confidence": "high"
+    },
+    "dialog.condition.poll_interval": {
+      "window": "dialog.condition",
+      "control_type": "Edit",
+      "name_contains": "轮询间隔",
+      "confidence": "medium",
+      "notes": "等待模式专用；标签为“轮询间隔 (ms)”"
+    },
+    "dialog.condition.max_timeout": {
+      "window": "dialog.condition",
+      "control_type": "Edit",
+      "name_contains": "最大超时",
+      "confidence": "medium"
+    },
+    "dialog.condition.expression": {
+      "window": "dialog.condition",
+      "control_type": "Edit",
+      "confidence": "low",
+      "notes": "表达式编辑区（txtExpression）没有 AutomationName；首次使用必须用 dump-vm-uia 校准，或按窗口内最大 Edit 定位"
+    },
+    "dialog.variable_manager.local_source": {
+      "window": "dialog.variable_manager",
+      "control_type": "TreeItem",
+      "name_contains": "本地变量",
+      "confidence": "medium"
+    },
+    "dialog.variable_manager.add": {
+      "window": "dialog.variable_manager",
+      "control_type": "Button",
+      "name_contains": "添加变量",
+      "confidence": "high"
+    },
+    "dialog.variable_manager.close": {
+      "window": "dialog.variable_manager",
+      "control_type": "Button",
+      "name": "关闭",
+      "confidence": "high"
+    },
+    "dialog.variable_manager.row": {
+      "window": "dialog.variable_manager",
+      "control_type": "DataItem",
+      "dynamic": true,
+      "confidence": "medium",
+      "notes": "变量明细行；按变量名 name_contains"
+    },
+    "dialog.variable_binding.port": {
+      "window": "dialog.variable_binding",
+      "control_type": "ListItem",
+      "dynamic": true,
+      "confidence": "medium",
+      "notes": "左侧输入端口行；按端口名 name_contains"
+    },
+    "dialog.variable_binding.source_tab": {
+      "window": "dialog.variable_binding",
+      "control_type": "ListItem",
+      "dynamic": true,
+      "confidence": "medium",
+      "notes": "数据来源分段：全部 / 变量 / 上游算子"
+    },
+    "dialog.variable_binding.source_search": {
+      "window": "dialog.variable_binding",
+      "control_type": "Edit",
+      "confidence": "medium",
+      "notes": "占位文字“搜索来源名 / 描述”；中间栏唯一 Edit"
+    },
+    "dialog.variable_binding.candidate": {
+      "window": "dialog.variable_binding",
+      "control_type": "ListItem",
+      "dynamic": true,
+      "confidence": "medium",
+      "notes": "右侧候选项；按来源名 name_contains"
+    },
+    "dialog.variable_binding.confirm": {
+      "window": "dialog.variable_binding",
+      "control_type": "Button",
+      "name": "确认绑定",
+      "confidence": "high"
+    },
+    "dialog.add_variable.name": {
+      "window": "dialog.add_variable",
+      "control_type": "Edit",
+      "name": "变量名称",
+      "confidence": "high"
+    },
+    "dialog.add_variable.type": {
+      "window": "dialog.add_variable",
+      "control_type": "ComboBox",
+      "name": "数据类型",
+      "confidence": "high"
+    },
+    "dialog.add_variable.initial": {
+      "window": "dialog.add_variable",
+      "control_type": "Edit",
+      "name": "初始值（选填）",
+      "confidence": "high"
+    },
+    "dialog.add_variable.desc": {
+      "window": "dialog.add_variable",
+      "control_type": "Edit",
+      "name": "变量描述（选填）",
+      "confidence": "high"
+    },
+    "dialog.add_variable.ok": {
+      "window": "dialog.add_variable",
+      "control_type": "Button",
+      "name_contains": "确 定",
+      "confidence": "high",
+      "notes": "EasyDialog 按钮文案「确 定」"
+    },
+    "dialog.hardware.tab_comm": {
+      "window": "dialog.hardware",
+      "control_type": "TabItem",
+      "name": "通讯",
+      "confidence": "high"
+    },
+    "dialog.hardware.tab_camera": {
+      "window": "dialog.hardware",
+      "control_type": "TabItem",
+      "name": "相机",
+      "confidence": "high"
+    },
+    "dialog.hardware.tab_motion": {
+      "window": "dialog.hardware",
+      "control_type": "TabItem",
+      "name": "运动控制",
+      "confidence": "high"
+    },
+    "dialog.hardware.add_device": {
+      "window": "dialog.hardware",
+      "control_type": "Button",
+      "name_contains": "添加设备",
+      "confidence": "high"
+    },
+    "dialog.hardware.add_camera": {
+      "window": "dialog.hardware",
+      "control_type": "Button",
+      "name_contains": "添加相机",
+      "confidence": "high"
+    },
+    "dialog.hardware.close": {
+      "window": "dialog.hardware",
+      "control_type": "Button",
+      "name": "关闭",
+      "confidence": "high"
+    },
+    "dialog.hardware.row": {
+      "window": "dialog.hardware",
+      "control_type": "DataItem",
+      "dynamic": true,
+      "confidence": "medium",
+      "notes": "通讯/相机列表行；按设备名或序列号 name_contains"
+    },
+    "dialog.create_comm.link_group": {
+      "window": "dialog.create_comm",
+      "control_type": "Group",
+      "name_contains": "底层链路参数",
+      "confidence": "medium",
+      "notes": "嵌套分组；部分属性网格默认展开，未展开时先点它"
+    },
+    "dialog.create_comm.name": {
+      "window": "dialog.create_comm",
+      "control_type": "Edit",
+      "name": "连接名称",
+      "confidence": "high"
+    },
+    "dialog.create_comm.protocol": {
+      "window": "dialog.create_comm",
+      "control_type": "ComboBox",
+      "name": "协议类型",
+      "confidence": "high"
+    },
+    "dialog.create_comm.ip": {
+      "window": "dialog.create_comm",
+      "control_type": "Edit",
+      "name": "IP 地址",
+      "confidence": "medium",
+      "notes": "嵌套在“底层链路参数”分组；标签以校准为准"
+    },
+    "dialog.create_comm.port": {
+      "window": "dialog.create_comm",
+      "control_type": "Edit",
+      "name": "端口号",
+      "confidence": "high"
+    },
+    "dialog.create_comm.ok": {
+      "window": "dialog.create_comm",
+      "control_type": "Button",
+      "name_contains": "确 定",
+      "confidence": "high",
+      "notes": "EasyDialog 按钮文案「确 定」"
+    },
+    "dialog.camera.driver": {
+      "window": "dialog.hardware",
+      "control_type": "ComboBox",
+      "scope": "相机",
+      "index": 0,
+      "confidence": "medium",
+      "notes": "内联添加表单的第一个下拉；表单没有 AutomationName，按页内第一个 ComboBox 定位"
+    },
+    "dialog.camera.serial": {
+      "window": "dialog.hardware",
+      "control_type": "Edit",
+      "scope": "相机",
+      "confidence": "low",
+      "notes": "内联表单序列号输入框没有 AutomationName；优先用 Tab 顺序 + type_focused，校准时可补 AutomationId"
+    },
+    "dialog.camera.display": {
+      "window": "dialog.hardware",
+      "control_type": "Edit",
+      "scope": "相机",
+      "confidence": "low",
+      "notes": "内联表单显示名输入框没有 AutomationName；优先用 Tab 顺序 + type_focused"
+    },
+    "dialog.camera.add": {
+      "window": "dialog.hardware",
+      "control_type": "Button",
+      "name": "添加",
+      "confidence": "high"
+    },
+    "dialog.recipe.name": {
+      "window": "dialog.recipe",
+      "control_type": "Edit",
+      "scope": "配方管理",
+      "index": 0,
+      "confidence": "medium",
+      "notes": "左栏第一个输入框（配方名称）；表单没有 AutomationName，按 Tab 顺序"
+    },
+    "dialog.recipe.code": {
+      "window": "dialog.recipe",
+      "control_type": "Edit",
+      "scope": "配方管理",
+      "index": 1,
+      "confidence": "medium",
+      "notes": "左栏第二个输入框（产品编码）"
+    },
+    "dialog.recipe.notes": {
+      "window": "dialog.recipe",
+      "control_type": "Edit",
+      "scope": "配方管理",
+      "index": 2,
+      "confidence": "medium",
+      "notes": "左栏第三个输入框（备注）"
+    },
+    "dialog.recipe.capture": {
+      "window": "dialog.recipe",
+      "control_type": "Button",
+      "name": "捕获当前值",
+      "confidence": "high"
+    },
+    "dialog.recipe.apply_save": {
+      "window": "dialog.recipe",
+      "control_type": "Button",
+      "name": "应用并保存",
+      "confidence": "high"
+    },
+    "dialog.recipe.close": {
+      "window": "dialog.recipe",
+      "control_type": "Button",
+      "name": "关闭",
+      "confidence": "high"
+    },
+    "dialog.recipe.row": {
+      "window": "dialog.recipe",
+      "control_type": "ListItem",
+      "dynamic": true,
+      "confidence": "medium",
+      "notes": "左侧配方列表项；按配方名 name_contains"
+    },
+    "dialog.scada.page_selector": {
+      "window": "app.main",
+      "control_type": "ComboBox",
+      "scope": "组态画面",
+      "confidence": "medium",
+      "notes": "顶栏「画面」下拉；新建后选中项变成新页"
+    },
+    "dialog.scada.toolbox.item": {
+      "window": "app.main",
+      "control_type": "ListItem",
+      "dynamic": true,
+      "scope": "图元工具箱",
+      "confidence": "medium",
+      "notes": "图元条目；按图元显示名 name_contains"
+    },
+    "dialog.scada.element": {
+      "window": "app.main",
+      "control_type": "Pane",
+      "dynamic": true,
+      "scope": "组态画面",
+      "confidence": "low",
+      "notes": "画布图元容器；UIA 结构未校准，优先用点击坐标 + 属性面板标题确认"
+    },
+    "dialog.scada.element_title": {
+      "window": "app.main",
+      "control_type": "Text",
+      "dynamic": true,
+      "scope": "组态画面",
+      "confidence": "low",
+      "notes": "图元上的文本/标题；按图元名 name_contains；无文本图元无法用此锚点"
+    },
+    "dialog.scada.prop.x": {
+      "window": "app.main",
+      "control_type": "Edit",
+      "scope": "属性",
+      "confidence": "low",
+      "notes": "属性面板「X」行；行结构为自定义模板，按相邻标签定位，首次使用必须校准"
+    },
+    "dialog.scada.prop.y": {
+      "window": "app.main",
+      "control_type": "Edit",
+      "scope": "属性",
+      "confidence": "low",
+      "notes": "属性面板「Y」行"
+    },
+    "dialog.scada.new": {
+      "window": "app.main",
+      "control_type": "Button",
+      "name_contains": "新建",
+      "scope": "组态画面",
+      "confidence": "medium"
+    },
+    "dialog.scada.toolbox_panel": {
+      "window": "app.main",
+      "control_type": "Pane",
+      "name_contains": "图元工具箱",
+      "confidence": "medium"
+    },
+    "dialog.scada.canvas": {
+      "window": "app.main",
+      "control_type": "Pane",
+      "class_name": "ScadaCanvas",
+      "scope": "组态画面",
+      "confidence": "medium"
+    },
+    "dialog.scada.property_panel": {
+      "window": "app.main",
+      "control_type": "Pane",
+      "name_contains": "属性",
+      "confidence": "medium"
+    },
+    "dialog.scada.run": {
+      "window": "app.main",
+      "control_type": "Button",
+      "name_contains": "运行画面",
+      "scope": "组态画面",
+      "confidence": "high",
+      "notes": "按钮内容是图标 + 文本的 StackPanel，用 name_contains"
+    },
+    "runtime.scada.stop": {
+      "window": "runtime.scada",
+      "control_type": "Button",
+      "name": "■ 停止运行",
+      "confidence": "high"
+    },
+    "dialog.help.search": {
+      "window": "dialog.help",
+      "control_type": "Edit",
+      "confidence": "medium",
+      "notes": "Ctrl+F 已聚焦；占位文字“搜索目录（只搜标题）”"
+    },
+    "dialog.help.result": {
+      "window": "dialog.help",
+      "control_type": "TreeItem",
+      "dynamic": true,
+      "confidence": "medium",
+      "notes": "按页面标题 name_contains"
+    },
+    "dialog.system_settings.ok": {
+      "window": "dialog.system_settings",
+      "control_type": "Button",
+      "name": "确定",
+      "confidence": "high"
+    },
+    "dialog.system_settings.cancel": {
+      "window": "dialog.system_settings",
+      "control_type": "Button",
+      "name": "取消",
+      "confidence": "high"
+    }
+  }
+}

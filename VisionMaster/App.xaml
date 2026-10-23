@@ -65,6 +65,8 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
+                <!--  SCADA 文字图标库：应用级挂一次，任何视图都能用 {StaticResource ScadaIconFont} / ScadaIconText  -->
+                <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaIcons.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml" />
                 <!--
                     2026-10-23：把「输入域」这一册提到 Fluent 之后重挂一次。

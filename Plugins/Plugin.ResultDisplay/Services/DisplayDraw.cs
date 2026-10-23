@@ -155,6 +155,24 @@ namespace Plugin.ResultDisplay.Services
                 case HTuple tuple:
                     DrawTuple(label, def, tuple, ctx);
                     return;
+                // ★ A3：数组类输出（CodeReader.Codes / Yolo.ClassNames/Confidences/Boxes …）**必须排在 default 之前**。
+                //   `string[]` / `int[]` / `double[]` 都不是 IConvertible，落到 default 会被当成「不支持的类型」
+                //   在图上写一行红字——输出本身是好的，红字纯属误伤。
+                case string[] sarr:
+                    DrawArray(label, def, sarr, ctx);
+                    return;
+                case int[] iarr:
+                    DrawArray(label, def, iarr, ctx);
+                    return;
+                case double[] darr:
+                    DrawArray(label, def, darr, ctx);
+                    return;
+                case bool[] barr:
+                    DrawArray(label, def, barr, ctx);
+                    return;
+                case Array array:
+                    DrawArray(label, def, array, ctx);
+                    return;
                 case HObject obj:
                     DrawHalconObject(label, obj, "对象", ctx);
                     return;
@@ -223,6 +241,71 @@ namespace Plugin.ResultDisplay.Services
             string joined = string.Join(", ", parts);
             ctx.AddTextLine($"{label}: {Trunc(joined, 240)}", ctx.TextColor);
             ctx.Info(label, joined);
+        }
+
+        /// <summary>
+        /// A3：数组类输出 → 一行文字（逐元素上限 <see cref="MaxTupleElements"/>）。
+        ///
+        /// ★ 特例：**扁平框数组画框**。YOLO 的 <c>Boxes</c> 是 <c>double[]</c>，每 4 个一组 <c>x1,y1,x2,y2</c>
+        /// （见 <c>Plugin.Yolo\YoloPlugin.cs</c> 端口注释）。长度是 4 的倍数且每组的 x2&gt;x1、y2&gt;y1 时，
+        /// 除了文字还画 N 个绿框 + 序号，用户不用再自己去对"第 3 个框在哪"。
+        /// 判据不满足（长度不是 4 的倍数 / 有反向框）就**只出文字**并 Warn —— 绝不猜测另一种布局。
+        /// </summary>
+        private static void DrawArray(string label, DisplayItemDef def, Array array, Ctx ctx)
+        {
+            int n = array.Length;
+            if (n == 0)
+            {
+                ctx.Info(label, "(空数组)");
+                return;
+            }
+
+            // 先做文字行（与 HTuple 同口径：截断 + 省略号，不静默丢数据）
+            int take = Math.Min(n, MaxTupleElements);
+            var parts = new List<string>(take);
+            for (int i = 0; i < take; i++)
+                parts.Add(FormatScalar(array.GetValue(i), def.Format));
+            if (n > take) parts.Add($"…(+{n - take})");
+
+            string joined = string.Join(", ", parts);
+            ctx.AddTextLine($"{label}: {Trunc(joined, 240)}", ctx.TextColor);
+            ctx.Info(label, joined);
+
+            if (array is double[] boxes)
+                TryDrawFlatBoxes(label, boxes, ctx);
+        }
+
+        /// <summary>
+        /// 扁平框数组 → N 个框。用 4 条 <see cref="BakeShapeKind.Line"/> 而不是 Rectangle：
+        /// <c>BakeShapeKind</c> 的矩形参数口径（角点 vs 中心 + 角度）与这里的 x1,y1,x2,y2 不是一回事，
+        /// 硬套会把框画歪；四条边没有任何歧义。
+        /// </summary>
+        private static void TryDrawFlatBoxes(string label, double[] boxes, Ctx ctx)
+        {
+            if (boxes.Length < 4 || boxes.Length % 4 != 0) return;
+
+            int count = boxes.Length / 4;
+            for (int i = 0; i < count; i++)
+            {
+                double x1 = boxes[i * 4], y1 = boxes[i * 4 + 1], x2 = boxes[i * 4 + 2], y2 = boxes[i * 4 + 3];
+                if (!double.IsFinite(x1) || !double.IsFinite(y1) || !double.IsFinite(x2) || !double.IsFinite(y2)) return;
+                if (x2 <= x1 || y2 <= y1)
+                {
+                    // 反向框 = 不是"每 4 个一组 x1,y1,x2,y2"这种布局，退化为纯文字，不猜
+                    ctx.Warn($"结果项「{label}」的数组长度是 4 的倍数但第 {i + 1} 组不是正向框（{x1},{y1},{x2},{y2}），已只按文字显示");
+                    return;
+                }
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                double x1 = boxes[i * 4], y1 = boxes[i * 4 + 1], x2 = boxes[i * 4 + 2], y2 = boxes[i * 4 + 3];
+                ctx.AddShape(BakeShapeKind.Line, new[] { y1, x1, y1, x2 }, OkColor, 2);   // 上边
+                ctx.AddShape(BakeShapeKind.Line, new[] { y2, x1, y2, x2 }, OkColor, 2);   // 下边
+                ctx.AddShape(BakeShapeKind.Line, new[] { y1, x1, y2, x1 }, OkColor, 2);   // 左边
+                ctx.AddShape(BakeShapeKind.Line, new[] { y1, x2, y2, x2 }, OkColor, 2);   // 右边
+                ctx.AddTextAt($"{label}{i + 1}", Math.Max(0, y1 - ctx.FontSize), x1, OkColor);
+            }
         }
 
         // ────────────────────────── GeometryParam → 图形 ──────────────────────────

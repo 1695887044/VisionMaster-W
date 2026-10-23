@@ -73,6 +73,9 @@ namespace VisionMaster.ViewModels
             ScadaActionType.MotionClearAlarm => 26,
             ScadaActionType.MotionJogStart => 27,
             ScadaActionType.MotionJogStop => 28,
+            // 方案级配方：排在流程/运动之后——它是"整单换参数"，不是单步动作，
+            // 与运动命令族混排会让"这条动作到底动没动设备"变得难判断。
+            ScadaActionType.ApplyRecipe => 30,
             _ => 100,
         };
 
@@ -85,6 +88,10 @@ namespace VisionMaster.ViewModels
         /// 而本类的既有消费者（属性面板的事件行、变量事件弹窗）与断言工程都在按老签名构造。
         /// 为 null 时「选轴」按钮不可用（而不是静默空跑）——见 <see cref="PickAxisCommand"/>。
         /// </param>
+        /// <param name="recipePicker">
+        /// 「选配方」入口（「应用配方」动作用）。同样是<b>可选</b>参数：老消费者按 8 参构造，
+        /// 为 null 时「选择配方」按钮不可用——见 <see cref="PickRecipeCommand"/>。
+        /// </param>
         public ScadaEventEditorViewModel(
             IScadaEventHost host,
             ScadaEventType eventType,
@@ -93,7 +100,8 @@ namespace VisionMaster.ViewModels
             IScadaVariablePicker picker,
             IScadaPagePicker pagePicker,
             IScadaFlowPicker flowPicker,
-            IScadaAxisPicker? axisPicker = null)
+            IScadaAxisPicker? axisPicker = null,
+            IScadaRecipePicker? recipePicker = null)
         {
             Host = host ?? throw new ArgumentNullException(nameof(host));
             EventType = eventType;
@@ -103,6 +111,13 @@ namespace VisionMaster.ViewModels
             _pagePicker = pagePicker ?? throw new ArgumentNullException(nameof(pagePicker));
             _flowPicker = flowPicker ?? throw new ArgumentNullException(nameof(flowPicker));
             _axisPicker = axisPicker;
+            _recipePicker = recipePicker;
+
+            // 配方切换只允许挂在按钮事件上（用户口径：SCADA 只能通过按钮切配方）。
+            // 页面加载/变量事件里即使手改 .vms 配了，运行侧仍会执行；这里收的是配置入口。
+            ActionTypeChoices = AllowsRecipeSwitch()
+                ? TypeChoices
+                : TypeChoices.Where(t => t.Type != ScadaActionType.ApplyRecipe).ToArray();
 
             AddActionCommand = new DelegateCommand(OnAddAction);
             RemoveActionCommand = new DelegateCommand<ScadaAction>(OnRemoveAction, a => IndexOf(a) >= 0);
@@ -113,6 +128,8 @@ namespace VisionMaster.ViewModels
             PickFlowCommand = new DelegateCommand<ScadaAction>(OnPickFlow, a => a != null);
             // 没接选轴入口时按钮必须是"灰的"：能点却什么都不发生，用户只会怀疑软件坏了。
             PickAxisCommand = new DelegateCommand<ScadaAction>(OnPickAxis, a => a != null && _axisPicker != null);
+            // 「选配方」同一口径：没接入口就灰掉，不留"点了没反应"的按钮。
+            PickRecipeCommand = new DelegateCommand<ScadaAction>(OnPickRecipe, a => a != null && _recipePicker != null);
         }
 
         /// <summary>「选变量」入口（弹窗怎么弹、弹哪个由这一层决定，见 IScadaVariablePicker）</summary>
@@ -126,6 +143,9 @@ namespace VisionMaster.ViewModels
 
         /// <summary>「选轴」入口（运动命令族用）；可为 null = 没接（见构造参数说明）</summary>
         private readonly IScadaAxisPicker? _axisPicker;
+
+        /// <summary>「选配方」入口（「应用配方」动作用）；可为 null = 没接（见构造参数说明）</summary>
+        private readonly IScadaRecipePicker? _recipePicker;
 
         /// <summary>当前盯住的钩子（只为刷新危险标记/确认开关，见 <see cref="WatchHook"/>）</summary>
         private ScadaEventHook? _watchedHook;
@@ -233,8 +253,8 @@ namespace VisionMaster.ViewModels
         /// </summary>
         public bool IsDangerous => Actions?.Any(a => a != null && a.Type.IsDangerous()) == true;
 
-        /// <summary>动作类型下拉的候选（所有事件共用同一份静态列表）</summary>
-        public IReadOnlyList<ScadaActionTypeOption> ActionTypeChoices => TypeChoices;
+        /// <summary>动作类型下拉的候选（所有事件共用同一份静态列表，按宿主/事件裁剪「应用配方」）</summary>
+        public IReadOnlyList<ScadaActionTypeOption> ActionTypeChoices { get; }
 
         public DelegateCommand AddActionCommand { get; }
 
@@ -259,6 +279,12 @@ namespace VisionMaster.ViewModels
         /// 没接选轴入口时 CanExecute 为假（按钮灰掉），不会出现"点了没反应"。
         /// </summary>
         public DelegateCommand<ScadaAction> PickAxisCommand { get; }
+
+        /// <summary>
+        /// 「选配方」：参数是那条「应用配方」动作（弹窗确认后回填它的 Id 与名字）。
+        /// 没接选择器时 CanExecute 为假（按钮灰掉），不会出现"点了没反应"。
+        /// </summary>
+        public DelegateCommand<ScadaAction> PickRecipeCommand { get; }
 
         /// <summary>
         /// 勾选框真值的文本形态：供 <see cref="ScadaEventRow"/> 沿用基类
@@ -332,6 +358,21 @@ namespace VisionMaster.ViewModels
                 RaisePropertyChanged(nameof(IsDangerous));
             else if (e.PropertyName == nameof(ScadaEventHook.RequireConfirmation))
                 RaisePropertyChanged(nameof(RequireConfirmation));
+        }
+
+        /// <summary>
+        /// 「应用配方」是否允许出现在本事件的动作下拉里。
+        /// 只认按钮图元（TypeKey 以 <c>Button</c> 结尾：Hmi.Button / Hmi.BitButton / Hmi.AckButton）
+        /// 的按下/释放事件；页面事件、变量事件、普通图元一律不出这一项。
+        /// </summary>
+        private bool AllowsRecipeSwitch()
+        {
+            if (EventType is not (ScadaEventType.Pressed or ScadaEventType.Released))
+                return false;
+
+            return Host is ScadaElement element
+                && !string.IsNullOrEmpty(element.TypeKey)
+                && element.TypeKey.EndsWith("Button", StringComparison.OrdinalIgnoreCase);
         }
 
         private void OnAddAction()
@@ -452,6 +493,24 @@ namespace VisionMaster.ViewModels
                 using (Host.BeginEdit($"选择轴 [{picked.Name}]"))
                 {
                     action.BindAxis(picked.AxisId, picked.Name);
+                }
+            });
+        }
+
+        /// <summary>
+        /// 「选配方」：把这条「应用配方」动作当前的目标交给选择器，选中后回填。
+        /// 与「选变量」/「选画面」/「选流程」/「选轴」同一口径：Id 是权威身份，名字只作显示与兜底寻址。
+        /// 取消时回调<b>一次都不触发</b>（取消不该被翻译成"清空原配方"这种破坏性动作）。
+        /// </summary>
+        private void OnPickRecipe(ScadaAction? action)
+        {
+            if (action == null || _recipePicker == null) return;
+
+            _recipePicker.Pick(action.TargetRecipeId, action.TargetRecipeName, (id, name) =>
+            {
+                using (Host.BeginEdit($"选择配方 [{name}]"))
+                {
+                    action.BindRecipe(id, name);
                 }
             });
         }

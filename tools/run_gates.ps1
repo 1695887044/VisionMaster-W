@@ -205,6 +205,7 @@ $hosts = @(
     @{ N = 'DataPipelineChecks'; P = 'DataPipelineChecks\DataPipelineChecks.csproj' }
     @{ N = 'DatabaseChecks';     P = 'DatabaseChecks\DatabaseChecks.csproj' }
     @{ N = 'ScadaChecks';        P = 'ScadaChecks\ScadaChecks.csproj' }
+    @{ N = 'RecipeChecks';       P = 'RecipeChecks\RecipeChecks.csproj' }
     @{ N = 'FlowCanvasChecks';   P = 'FlowCanvasChecks\FlowCanvasChecks.csproj' }
     @{ N = 'UIThemeSmokeTest';   P = 'UIThemeSmokeTest\UIThemeSmokeTest.csproj' }
     @{ N = 'HelpProbe';          P = 'HelpProbe\HelpProbe.csproj' }

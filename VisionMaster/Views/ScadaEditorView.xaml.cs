@@ -50,13 +50,32 @@ namespace VisionMaster.Views
         {
             if (IsLoaded)
                 (e.NewValue as ScadaEditorViewModel)?.Activate();
+
+            AttachImageAssetResolver();
         }
 
         private void OnViewLoaded(object sender, RoutedEventArgs e)
         {
             (DataContext as ScadaEditorViewModel)?.Activate();
+            AttachImageAssetResolver();
             AttachCanvasWatchers();
             FitCanvasIfNeeded();
+        }
+
+        /// <summary>
+        /// 把“方案图片解析器”接到画布上（Hmi.Picture 用）。
+        ///
+        /// XAML 里虽然也绑了 <c>ImageAssetResolver="{Binding ResolveImageAsset}"</c>，
+        /// 但这里再显式赋一次：委托型 DP 的绑定在部分宿主/初始化顺序下会拿到 null，
+        /// 表现是“属性面板有缩略图、画布上的图元却一直显示未设置图片”。
+        /// 与运行窗口 <c>ScadaRuntimeWindow</c> 的设置方式保持一致。
+        /// </summary>
+        private void AttachImageAssetResolver()
+        {
+            if (Canvas is null)
+                return;
+
+            Canvas.ImageAssetResolver = (DataContext as ScadaEditorViewModel)?.ResolveImageAsset;
         }
 
         private void OnViewUnloaded(object sender, RoutedEventArgs e)

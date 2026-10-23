@@ -457,6 +457,76 @@
                             </TextBlock>
                         </StackPanel>
 
+                        <!--  应用配方（方案级）：只需选一个目标配方。目标存"身份 + 名字"两份，
+                              Id 优先、名字只用于显示与兜底寻址，回填口径在 ScadaAction.BindRecipe 一处。
+                              与"切换画面"同形：这条动作没有值要填，只有一个选择入口。  -->
+                        <StackPanel Margin="0,3,0,0">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Type}" Value="ApplyRecipe">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Text="{Binding TargetRecipeName, TargetNullValue=（还没选配方）}"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTip="{Binding TargetRecipeName}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasRecipe}" Value="False">
+                                                    <Setter Property="Foreground" Value="{StaticResource ScadaWarningBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <Button
+                                    Grid.Column="1"
+                                    Padding="6,1"
+                                    FontSize="11"
+                                    Command="{Binding DataContext.PickRecipeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}"
+                                    Content="选择配方"
+                                    ToolTip="从当前方案的配方清单里挑一条" />
+                            </Grid>
+
+                            <!--  没选配方：执行侧会照实警告并跳过，先把这件事说在界面上  -->
+                            <TextBlock
+                                Margin="0,3,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaWarningBrush}"
+                                Text="还没选配方，这条动作运行时会跳过。"
+                                TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasRecipe}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+
                         <!--  运动命令族（轴使能 / 失能 / 绝对定位 / 相对定位 / 回零 / 停止 / 清报警 / 点动开始 / 点动结束）：
                               一条运动动作只操作一根轴，所以这里只有一个「选轴」入口；
                               定位类动作再多两格"目标 / 速度"，点动多一格"方向"。

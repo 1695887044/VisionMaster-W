@@ -1,0 +1,164 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://visionmaster.local/schemas/vm-plan-1.json",
+  "title": "VisionMaster 计划任务 (vm-plan/1)",
+  "type": "object",
+  "required": ["schema", "id", "title", "version", "steps", "on_fail"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "vm-plan/1" },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "任务 ID，必须与文件名（不含 .json）一致"
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "risk": { "enum": ["low", "medium", "high"], "default": "low" },
+    "description": { "type": "string" },
+    "params": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type"],
+        "additionalProperties": false,
+        "properties": {
+          "type": { "enum": ["string", "number", "boolean", "object", "array"] },
+          "required": { "type": "boolean", "default": false },
+          "default": {},
+          "example": {},
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "preconditions": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/assertion" }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/step" }
+    },
+    "postconditions": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/assertion" }
+    },
+    "on_fail": { "enum": ["stop_and_report", "retry_step", "continue"] },
+    "tags": { "type": "array", "items": { "type": "string" } }
+  },
+  "definitions": {
+    "step": {
+      "type": "object",
+      "required": ["n", "do"],
+      "additionalProperties": false,
+      "properties": {
+        "n": { "type": "integer", "minimum": 1 },
+        "do": {
+          "enum": [
+            "menu",
+            "click",
+            "double_click",
+            "right_click",
+            "type",
+            "type_focused",
+            "fill",
+            "key",
+            "select",
+            "check",
+            "uncheck",
+            "drag",
+            "wait",
+            "assert",
+            "screenshot",
+            "call",
+            "note"
+          ]
+        },
+        "target": { "type": "string" },
+        "target_name": { "type": "string" },
+        "scope": { "type": "string" },
+        "path": { "type": "array", "items": { "type": "string" } },
+        "text": { "type": "string" },
+        "keys": { "type": "string" },
+        "clear": { "type": "boolean", "default": false },
+        "fields": { "type": "object" },
+        "from": { "type": "string" },
+        "from_name": { "type": "string" },
+        "to": { "type": "string" },
+        "to_name": { "type": "string" },
+        "plan": { "type": "string" },
+        "args": { "type": "object" },
+        "assert": { "type": "string" },
+        "value": {},
+        "timeout_ms": { "type": "integer", "minimum": 0 },
+        "interval_ms": { "type": "integer", "minimum": 0 },
+        "expect": { "$ref": "#/definitions/assertion" },
+        "skip_if": { "$ref": "#/definitions/assertion" },
+        "on_fail": { "enum": ["abort", "retry", "skip"] },
+        "retry": { "type": "integer", "minimum": 0, "default": 0 },
+        "note": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "do": { "enum": ["click", "double_click", "right_click", "type", "fill", "select", "check", "uncheck"] } } },
+          "then": { "required": ["target"] }
+        },
+        {
+          "if": { "properties": { "do": { "const": "menu" } } },
+          "then": { "required": ["path"] }
+        },
+        {
+          "if": { "properties": { "do": { "const": "drag" } } },
+          "then": { "required": ["from", "to"] }
+        },
+        {
+          "if": { "properties": { "do": { "const": "type_focused" } } },
+          "then": { "required": ["text"] }
+        },
+        {
+          "if": { "properties": { "do": { "const": "call" } } },
+          "then": { "required": ["plan"] }
+        },
+        {
+          "if": { "properties": { "do": { "const": "assert" } } },
+          "then": { "required": ["assert"] }
+        }
+      ]
+    },
+    "assertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "assert": {
+          "enum": [
+            "process_running",
+            "window",
+            "window_closed",
+            "element_exists",
+            "element_absent",
+            "element_enabled",
+            "element_value",
+            "text_exists",
+            "text_absent",
+            "toast_contains",
+            "file_exists",
+            "file_mtime_after",
+            "param_equals"
+          ]
+        },
+        "process": { "type": "string" },
+        "target": { "type": "string" },
+        "window": { "type": "string" },
+        "name": { "type": "string" },
+        "name_contains": { "type": "string" },
+        "text": { "type": "string" },
+        "value": {},
+        "path": { "type": "string" },
+        "after": { "type": "string" },
+        "state": { "enum": ["visible", "closed", "exists", "enabled", "disabled"] },
+        "timeout_ms": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

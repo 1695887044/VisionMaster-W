@@ -1,0 +1,41 @@
+{
+  "schema": "vm-plan/1",
+  "id": "run-stop",
+  "title": "停止所有运行中的流程",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "停止按钮的语义是 StopAll：界面发起的整体运行、单流程运行、HTTP/定时触发一起停。",
+  "params": {},
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "key",
+      "keys": "Ctrl+1",
+      "expect": { "element": "runbar.stop", "state": "enabled" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "runbar.stop",
+      "expect": { "element": "runbar.run_once", "state": "enabled" },
+      "timeout_ms": 15000
+    },
+    {
+      "n": 3,
+      "do": "assert",
+      "assert": "text_exists",
+      "text": "未启动",
+      "timeout_ms": 15000
+    }
+  ],
+  "postconditions": [
+    { "assert": "text_exists", "text": "未启动", "timeout_ms": 15000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["run", "stop"]
+}

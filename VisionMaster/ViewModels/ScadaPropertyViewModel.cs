@@ -582,12 +582,21 @@ namespace VisionMaster.ViewModels
     /// </summary>
     public class ScadaPropertyRow : ScadaPropertyRowBase
     {
-        public ScadaPropertyRow(ScadaElement element, ElementPropertyDescriptor descriptor)
+        private readonly Func<string?>? _solutionPath;
+
+        public ScadaPropertyRow(
+            ScadaElement element,
+            ElementPropertyDescriptor descriptor,
+            Func<string?>? solutionPath = null)
             : base(descriptor ?? throw new ArgumentNullException(nameof(descriptor)),
                    ElementValueAccess.Read(element ?? throw new ArgumentNullException(nameof(element)), descriptor))
         {
             Element = element;
             Descriptor = descriptor;
+            _solutionPath = solutionPath;
+
+            PickImageCommand = new DelegateCommand(OnPickImage, () => IsImageFile);
+            ClearImageCommand = new DelegateCommand(OnClearImage, () => IsImageFile && !string.IsNullOrWhiteSpace(Value));
         }
 
         /// <summary>本行写入的目标图元</summary>
@@ -595,6 +604,21 @@ namespace VisionMaster.ViewModels
 
         /// <summary>本行对应的属性声明（面板之外的人按它判断，如命令的 CanExecute）</summary>
         public ElementPropertyDescriptor Descriptor { get; }
+
+        /// <summary>这一行是不是“方案内图片文件”（Hmi.Picture.SourcePath）</summary>
+        public bool IsImageFile => Kind == ElementPropertyKind.ImageFile;
+
+        /// <summary>选择图片：复制进方案 Image\，把相对路径写回属性（走基类提交，进撤销栈）</summary>
+        public DelegateCommand PickImageCommand { get; }
+
+        /// <summary>清除图片（只清引用，不删文件）</summary>
+        public DelegateCommand ClearImageCommand { get; }
+
+        /// <summary>图片文件名摘要（属性面板那一行显示用）</summary>
+        public string ImageSummary => IsImageFile ? ScadaImageFileRowSupport.Summary(Value) : string.Empty;
+
+        /// <summary>缩略图（缺失/解码失败时为 null）</summary>
+        public ImageSource? ImagePreview => IsImageFile ? ScadaImageFileRowSupport.Preview(_solutionPath, Value) : null;
 
         /// <summary>是不是几何键（不落属性袋，直接改模型字段）</summary>
         public bool IsGeometry => Descriptor.IsGeometry;
@@ -645,6 +669,39 @@ namespace VisionMaster.ViewModels
 
             RaisePropertyChanged(nameof(HasBinding));
             RaisePropertyChanged(nameof(BindingVariableName));
+
+            if (!IsImageFile)
+                return;
+
+            RaisePropertyChanged(nameof(ImageSummary));
+            RaisePropertyChanged(nameof(ImagePreview));
+            ClearImageCommand.RaiseCanExecuteChanged();
+        }
+
+        private void OnPickImage()
+        {
+            if (!ScadaImageFileRowSupport.TryPick(_solutionPath, out var relativePath, out var error))
+            {
+                // 取消：error 为空，什么都不做；失败：把原因写进行内红字（不弹窗）
+                if (!string.IsNullOrEmpty(error))
+                    SetError(error);
+                return;
+            }
+
+            SetError(null);
+            Value = relativePath; // 基类提交：写模型 + 撤销栈 + 回填规范值
+            RaisePropertyChanged(nameof(ImageSummary));
+            RaisePropertyChanged(nameof(ImagePreview));
+            ClearImageCommand.RaiseCanExecuteChanged();
+        }
+
+        private void OnClearImage()
+        {
+            SetError(null);
+            Value = string.Empty;
+            RaisePropertyChanged(nameof(ImageSummary));
+            RaisePropertyChanged(nameof(ImagePreview));
+            ClearImageCommand.RaiseCanExecuteChanged();
         }
     }
 
@@ -815,35 +872,10 @@ namespace VisionMaster.ViewModels
         public DelegateCommand ClearImageCommand { get; }
 
         /// <summary>图片文件名摘要（属性面板那一行显示用；不暴露完整路径）</summary>
-        public string ImageSummary
-        {
-            get
-            {
-                if (!IsImageFile)
-                    return string.Empty;
-
-                if (string.IsNullOrWhiteSpace(Value))
-                    return "未设置（点「选择图片…」）";
-
-                var normalized = Value.Replace('/', '\\');
-                var index = normalized.LastIndexOf('\\');
-                return index >= 0 ? normalized[(index + 1)..] : normalized;
-            }
-        }
+        public string ImageSummary => IsImageFile ? ScadaImageFileRowSupport.Summary(Value) : string.Empty;
 
         /// <summary>缩略图（缺失/解码失败时为 null，模板回退占位）</summary>
-        public ImageSource? ImagePreview
-        {
-            get
-            {
-                if (!IsImageFile || string.IsNullOrWhiteSpace(Value))
-                    return null;
-
-                return SolutionAssetService.TryLoad(_solutionPath?.Invoke(), Value, out var image, out _)
-                    ? image
-                    : null;
-            }
-        }
+        public ImageSource? ImagePreview => IsImageFile ? ScadaImageFileRowSupport.Preview(_solutionPath, Value) : null;
 
         public override void RefreshValue()
         {
@@ -859,23 +891,10 @@ namespace VisionMaster.ViewModels
 
         private void OnPickImage()
         {
-            var dialog = new Microsoft.Win32.OpenFileDialog
+            if (!ScadaImageFileRowSupport.TryPick(_solutionPath, out var relativePath, out var error))
             {
-                Title = "选择图片（复制进方案 Image 目录）",
-                Filter = SolutionAssetService.FileDialogFilter,
-                CheckFileExists = true,
-            };
-
-            if (dialog.ShowDialog() != true)
-                return;
-
-            if (!SolutionAssetService.TryImport(
-                    _solutionPath?.Invoke(),
-                    dialog.FileName,
-                    out var relativePath,
-                    out var error))
-            {
-                SetError(error);
+                if (!string.IsNullOrEmpty(error))
+                    SetError(error);
                 return;
             }
 
@@ -1015,14 +1034,14 @@ namespace VisionMaster.ViewModels
 
         /// <param name="host">本行勾选的目标宿主：图元或画面，见 <see cref="IScadaEventHost"/></param>
         /// <param name="group">本行落在哪一组（图元事件用 <see cref="ElementGroup"/>，画面事件用 <see cref="ScadaPageEvents.Group"/>）</param>
-        public ScadaEventRow(IScadaEventHost host, ScadaEventType eventType, string group, IScadaVariablePicker picker, IScadaPagePicker pagePicker, IScadaFlowPicker flowPicker, IScadaAxisPicker? axisPicker = null)
+        public ScadaEventRow(IScadaEventHost host, ScadaEventType eventType, string group, IScadaVariablePicker picker, IScadaPagePicker pagePicker, IScadaFlowPicker flowPicker, IScadaAxisPicker? axisPicker = null, IScadaRecipePicker? recipePicker = null)
             : base(new ScadaEventSpec(eventType, group),
                    (host ?? throw new ArgumentNullException(nameof(host))).FindEventHook(eventType) != null
                        ? "True" : "False")
         {
             // 显示名与悬停说明沿用声明里的那一份：面板上勾的那一行和运行日志里出现的那一行
             // 必须对得上号，否则用户对不上"我配的"和"响的"。
-            Editor = new ScadaEventEditorViewModel(host, eventType, DisplayName, Description, picker, pagePicker, flowPicker, axisPicker);
+            Editor = new ScadaEventEditorViewModel(host, eventType, DisplayName, Description, picker, pagePicker, flowPicker, axisPicker, recipePicker);
 
             // 本行仍是"面板面向的那张脸"：编辑器对外状态（动作表整块、命令可用性）一变就转出去，
             // 既有的绑定与断言（认 ScadaEventRow.Actions / HasActions）不必知道底下换了实现。
@@ -1508,6 +1527,9 @@ namespace VisionMaster.ViewModels
 
         public bool IsVisibility => Type == ScadaAnimationType.Visibility;
 
+        /// <summary>启用对象动画的参数区</summary>
+        public bool IsEnable => Type == ScadaAnimationType.Enable;
+
         // ---- 外观变化：档位卡片表 ----
 
         /// <summary>
@@ -1621,6 +1643,32 @@ namespace VisionMaster.ViewModels
             }
         }
 
+        /// <summary>启用对象：反转语义（true = 1 禁用、0 启用）</summary>
+        public bool EnableInvert
+        {
+            get => Animation?.Invert ?? false;
+            set
+            {
+                if (Animation is not { } animation || animation.Invert == value) return;
+
+                using (animation.BeginEdit("动画反转"))
+                    animation.Invert = value;
+            }
+        }
+
+        /// <summary>启用对象：禁用时给操作员看的原因</summary>
+        public string DisableReason
+        {
+            get => Animation?.DisableReason ?? "当前不可用";
+            set
+            {
+                if (Animation is not { } animation || animation.DisableReason == (value ?? string.Empty)) return;
+
+                using (animation.BeginEdit("动画禁用原因"))
+                    animation.DisableReason = value ?? string.Empty;
+            }
+        }
+
         protected override string Read() => Element.FindAnimation(Type) != null ? "True" : "False";
 
         protected override bool Commit(string text)
@@ -1666,6 +1714,8 @@ namespace VisionMaster.ViewModels
             RaisePropertyChanged(nameof(EndYText));
             RaisePropertyChanged(nameof(StartPositionText));
             RaisePropertyChanged(nameof(VisibleInRange));
+            RaisePropertyChanged(nameof(EnableInvert));
+            RaisePropertyChanged(nameof(DisableReason));
 
             // 上/下/删的可用性取决于"这一档在表里的位置"，位置一变就得重算——
             // 否则第一档的"↑"按钮还亮着，点下去没反应。
@@ -2127,6 +2177,9 @@ namespace VisionMaster.ViewModels
         private readonly IScadaFlowPicker _flowPicker;
         private readonly IScadaAxisPicker _axisPicker;
 
+        /// <summary>「选配方」入口（「应用配方」动作行用）；可为 null = 没接（按钮灰掉，不静默空跑）</summary>
+        private readonly IScadaRecipePicker? _recipePicker;
+
         /// <summary>轴身份 → 最新轴名的权威来源（属性行摘要按 Id 取显示名，不信任落盘时那份旧名）</summary>
         private readonly MotionAxisRegistry _axisRegistry;
 
@@ -2146,7 +2199,7 @@ namespace VisionMaster.ViewModels
         /// <summary>搜索词（空串 = 不过滤）。只影响"显示哪些行"，不影响行本身，见 <see cref="SearchText"/></summary>
         private string _searchText = string.Empty;
 
-        public ScadaPropertyViewModel(ScadaEditorViewModel editor, IUserNotifier notifier, IScadaVariablePicker picker, IScadaPagePicker pagePicker, IScadaFlowPicker flowPicker, IScadaAxisPicker axisPicker, MotionAxisRegistry axisRegistry)
+        public ScadaPropertyViewModel(ScadaEditorViewModel editor, IUserNotifier notifier, IScadaVariablePicker picker, IScadaPagePicker pagePicker, IScadaFlowPicker flowPicker, IScadaAxisPicker axisPicker, MotionAxisRegistry axisRegistry, IScadaRecipePicker? recipePicker = null)
         {
             _editor = editor ?? throw new ArgumentNullException(nameof(editor));
             _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
@@ -2155,6 +2208,7 @@ namespace VisionMaster.ViewModels
             _flowPicker = flowPicker ?? throw new ArgumentNullException(nameof(flowPicker));
             _axisPicker = axisPicker ?? throw new ArgumentNullException(nameof(axisPicker));
             _axisRegistry = axisRegistry ?? throw new ArgumentNullException(nameof(axisRegistry));
+            _recipePicker = recipePicker;
             _dispatcher = Dispatcher.CurrentDispatcher;
             RefreshAxisNames();
 
@@ -2522,7 +2576,7 @@ namespace VisionMaster.ViewModels
                     {
                         ElementPropertyKind.AxisList => new ScadaAxisListRow(element, property, OnPickAxes, ResolveAxisName),
                         ElementPropertyKind.ColumnList => new ScadaGridColumnsRow(element, property, OnPickColumns),
-                        _ => new ScadaPropertyRow(element, property),
+                        _ => new ScadaPropertyRow(element, property, () => _editor.SolutionRoot),
                     });
                 }
 
@@ -2535,7 +2589,7 @@ namespace VisionMaster.ViewModels
                 // 不是面板漏列；反过来，面板绝不自行罗列全部事件，那会把
                 // "勾上了却永远不响的钩子"（Unloaded/ValueChanged 还没接触发源）漏给用户。
                 foreach (var eventType in descriptor.Events)
-                    _rows.Add(new ScadaEventRow(element, eventType, ScadaEventRow.ElementGroup, _picker, _pagePicker, _flowPicker, _axisPicker));
+                    _rows.Add(new ScadaEventRow(element, eventType, ScadaEventRow.ElementGroup, _picker, _pagePicker, _flowPicker, _axisPicker, _recipePicker));
 
                 // r4 动画行：四种动画各一行，与描述符无关——"图元会不会动"不是类型的表态，
                 // 而是这一台设备上这个图元要不要跟变量联动，任何图元都可能需要。
@@ -2574,7 +2628,7 @@ namespace VisionMaster.ViewModels
                 // 比"面板上没这个选项"糟得多。落在「运行」组，紧接「启动画面」之后：
                 // 组的首现次序决定显示次序，而这一组的第一行是上面那条 StartupPage。
                 foreach (var eventType in ScadaPageEvents.All)
-                    _rows.Add(new ScadaEventRow(page, eventType, ScadaPageEvents.Group, _picker, _pagePicker, _flowPicker, _axisPicker));
+                    _rows.Add(new ScadaEventRow(page, eventType, ScadaPageEvents.Group, _picker, _pagePicker, _flowPicker, _axisPicker, _recipePicker));
             }
 
             RaisePropertyChanged(nameof(Element));
@@ -2752,6 +2806,62 @@ namespace VisionMaster.ViewModels
 
             if (!page.TryRemoveBinding(elementRow.Element, elementRow.Key, out var error))
                 _notifier.ShowError(error);
+        }
+    }
+
+    /// <summary>
+    /// 图片文件行（<see cref="ElementPropertyKind.ImageFile"/>）的共用逻辑：
+    /// 摘要、缩略图、选择/清除。页面背景行与图元（Hmi.Picture）行共用这一份，
+    /// 避免“页面能选、图元点了没反应”这种两条路径各写一半的分叉。
+    /// </summary>
+    internal static class ScadaImageFileRowSupport
+    {
+        /// <summary>文件名摘要（不暴露完整路径）</summary>
+        public static string Summary(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "未设置（点「选择…」）";
+
+            var normalized = value.Replace('/', '\\');
+            var index = normalized.LastIndexOf('\\');
+            return index >= 0 ? normalized[(index + 1)..] : normalized;
+        }
+
+        /// <summary>缩略图（缺失/解码失败时为 null，模板回退占位）</summary>
+        public static ImageSource? Preview(Func<string?>? solutionPath, string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            return SolutionAssetService.TryLoad(solutionPath?.Invoke(), value, out var image, out _)
+                ? image
+                : null;
+        }
+
+        /// <summary>
+        /// 打开文件对话框并导入。取消返回 false 且 <paramref name="error"/> 为空；
+        /// 失败返回 false 且 <paramref name="error"/> 是可直接上屏的原因。
+        /// </summary>
+        public static bool TryPick(Func<string?>? solutionPath, out string relativePath, out string error)
+        {
+            relativePath = string.Empty;
+            error = string.Empty;
+
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "选择图片（复制进方案 Image 目录）",
+                Filter = SolutionAssetService.FileDialogFilter,
+                CheckFileExists = true,
+            };
+
+            if (dialog.ShowDialog() != true)
+                return false;
+
+            return SolutionAssetService.TryImport(
+                solutionPath?.Invoke(),
+                dialog.FileName,
+                out relativePath,
+                out error);
         }
     }
 }

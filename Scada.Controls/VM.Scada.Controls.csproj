@@ -24,6 +24,23 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!--
+      文字图标库内置：把 VM 已有的 Font Awesome 6 Pro Solid 以链接方式编进本程序集。
+      为什么不用 UI 的 FA.Solid 键：本库刻意不引用 UI（见文件头），而 StaticResource
+      在无 Application 的断言宿主里跨程序集查不到；链接进来后 ScadaIconFont 是本册自带资源，
+      纯宿主也能解析。文件不复制，只链接。
+    -->
+    <Resource Include="..\UI\Controls\Asserts\FontFamilys\Font Awesome 6 Pro-Solid-900.otf"
+              Link="Assets\FontAwesomeSolid.otf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 二维码 / 条码编码器：不自己造码制（Reed-Solomon / 校验位写错会得到“看起来像码、扫不出来”的图）。
+         ZXing.Net 同时给 WPF 与 Web 宿主用，保证两端编码结果一致。 -->
+    <PackageReference Include="ZXing.Net" Version="0.16.9" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- 画面领域层：图元模型（ScadaElement / ScadaBinding / ScadaPage） -->
     <ProjectReference Include="..\Scada\VM.Scada.csproj" />
   </ItemGroup>

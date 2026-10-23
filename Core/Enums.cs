@@ -124,7 +124,12 @@ namespace VisionMaster
         /// 刻意加在末尾而不是插在中间——枚举的整数值可能已经落进过 Layout.xml / 旧配置文件，
         /// 中间插一个会把后面所有成员的值整体挪一位，读回来就是另一个动作了。
         /// </summary>
-        AlarmConfig
+        AlarmConfig,
+        /// <summary>
+        /// 另存为：选一个保存位置，在其中建以方案命名的文件夹（配置 + 资产一起搬过去）。
+        /// 同样加在末尾——理由见 <see cref="AlarmConfig"/>。
+        /// </summary>
+        SaveAs
     }
 
     /// <summary>

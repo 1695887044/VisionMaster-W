@@ -31,6 +31,8 @@ namespace VisionMaster.Scada
         private string? _targetPageName;
         private string? _flowId;
         private string? _flowName;
+        private Guid _targetRecipeId;
+        private string? _targetRecipeName;
         private Guid _axisId;
         private string? _axisName;
         private double? _targetMm;
@@ -229,6 +231,47 @@ namespace VisionMaster.Scada
         public bool HasFlow => !string.IsNullOrWhiteSpace(_flowId) || !string.IsNullOrWhiteSpace(_flowName);
 
         /// <summary>
+        /// 目标配方稳定身份（<see cref="ScadaActionType.ApplyRecipe"/>）。
+        /// <c>Guid.Empty</c> = 旧数据/手填，只能按名字兜底。
+        /// </summary>
+        public Guid TargetRecipeId
+        {
+            get => _targetRecipeId;
+            set
+            {
+                if (SetProperty(ref _targetRecipeId, value))
+                {
+                    RaisePropertyChanged(nameof(Detail));
+                    RaisePropertyChanged(nameof(HasRecipe));
+                }
+            }
+        }
+
+        /// <summary>目标配方名（展示串 + 旧数据兜底键；与 <see cref="FlowName"/> 同一分工）</summary>
+        public string? TargetRecipeName
+        {
+            get => _targetRecipeName;
+            set
+            {
+                if (SetProperty(ref _targetRecipeName, value))
+                {
+                    RaisePropertyChanged(nameof(Detail));
+                    RaisePropertyChanged(nameof(HasRecipe));
+                }
+            }
+        }
+
+        /// <summary>是否已经选好目标配方（Id 或名字任一非空白即算）。</summary>
+        public bool HasRecipe => _targetRecipeId != Guid.Empty || !string.IsNullOrWhiteSpace(_targetRecipeName);
+
+        /// <summary>绑定/回填目标配方（Id 权威、名字兜底）。</summary>
+        public void BindRecipe(Guid recipeId, string? recipeName)
+        {
+            TargetRecipeId = recipeId;
+            TargetRecipeName = recipeName;
+        }
+
+        /// <summary>
         /// 目标轴稳定身份（运动九条）。<c>Guid.Empty</c> = 旧数据只能按名找。
         ///
         /// 与变量/画面同一条口径：<b>Id 优先、名字兜底</b>。轴的 <c>AxisId</c> 由运动模块的
@@ -385,6 +428,8 @@ namespace VisionMaster.Scada
             ScadaActionType.RunFlowOnce => _flowName ?? string.Empty,
             ScadaActionType.PauseFlow => _flowName ?? string.Empty,
             ScadaActionType.ResumeFlow => _flowName ?? string.Empty,
+            ScadaActionType.ApplyRecipe => _targetRecipeName
+                ?? (_targetRecipeId == Guid.Empty ? string.Empty : "配方#" + _targetRecipeId.ToString("N").Substring(0, 8)),
             // 运动九条的行内摘要（属性面板 260px 宽，只放"哪根轴 + 关键数字"，
             // 完整的措辞在 Describe 里给日志与审计用）。
             // 轴一律走 AxisLabel：没选轴时它给"（未选轴）"，只剩 Id 时给"轴#前8位"，
@@ -551,6 +596,10 @@ namespace VisionMaster.Scada
             ScadaActionType.ResumeFlow => !HasFlow
                 ? "恢复流程（未选流程）"
                 : $"恢复流程 {_flowName}",
+            ScadaActionType.ApplyRecipe => !HasRecipe
+                ? "应用配方（未选配方）"
+                : $"应用配方 → {(_targetRecipeName
+                    ?? "配方#" + _targetRecipeId.ToString("N").Substring(0, 8))}",
             // 运动九条：未选轴的措辞与另外三种同款（"××（未选轴）"），面板据此亮橙色提示。
             // 速度只在"配了才提"：没配速度走卡级默认是常态，每行都缀一句"默认速度"会把日志读花。
             ScadaActionType.MotionEnable => !HasAxis

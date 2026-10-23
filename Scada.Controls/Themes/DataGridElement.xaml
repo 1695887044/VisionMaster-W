@@ -98,6 +98,51 @@
         </DataTemplate.Triggers>
     </DataTemplate>
 
+    <!--
+        历史工具栏按钮：22 高、显式 Padding（R68：写了 Height 的按钮必须挂 Style 或 Padding，
+        否则吃 Fluent 隐式样式的 11,5,11,6，文字被模板里的 Border 切掉）。
+    -->
+    <Style x:Key="DataGridToolButton" TargetType="Button">
+        <Setter Property="Height" Value="22" />
+        <Setter Property="Padding" Value="9,0" />
+        <Setter Property="Margin" Value="6,0,0,0" />
+        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextSecondaryBrush}" />
+        <Setter Property="Background" Value="{StaticResource HmiSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HmiBorderStrongBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Bd"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="3"
+                        SnapsToDevicePixels="True">
+                        <ContentPresenter
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HmiSurfaceRaisedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HmiSurfaceRaisedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style TargetType="{x:Type local:DataGridElement}">
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Focusable" Value="False" />
@@ -111,6 +156,7 @@
                         CornerRadius="8">
                         <Grid>
                             <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
@@ -148,13 +194,62 @@
                                         FontFamily="Consolas"
                                         FontSize="10.5"
                                         Foreground="{StaticResource HmiTextMutedBrush}"
-                                        Text="{Binding Rows.Count, RelativeSource={RelativeSource TemplatedParent}, StringFormat='{}{0} 条'}" />
+                                        Text="{Binding TitleCountText, RelativeSource={RelativeSource TemplatedParent}}" />
+                                </Grid>
+                            </Border>
+
+                            <!--  历史工具栏：只在 Source=History 时出现（实时模式的采集配置在属性面板里）  -->
+                            <Border
+                                Grid.Row="1"
+                                Height="34"
+                                Background="{StaticResource HmiSurfaceRaisedBrush}"
+                                BorderBrush="{StaticResource HmiBorderBrush}"
+                                BorderThickness="0,0,0,1"
+                                Visibility="{Binding HistoryToolbarVisibility, RelativeSource={RelativeSource TemplatedParent}}">
+                                <Grid Margin="8,0">
+                                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                        <!--  范围用循环按钮而不是下拉：ComboBox 的弹出层由应用级主题决定，
+                                              深色 HMI 画面上会突然出现一块白底下拉，且跨主题难以压住。
+                                              按钮上的文字就是当前范围，点一次切下一档。  -->
+                                        <Button
+                                            Margin="0"
+                                            Command="{Binding CycleHistoryRangeCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                            Content="{Binding HistoryRangeLabel, RelativeSource={RelativeSource TemplatedParent}}"
+                                            Style="{StaticResource DataGridToolButton}"
+                                            ToolTip="点击切换时间范围：今天 → 昨天 → 最近 7 天 → 最近 30 天（切换后立即查询）" />
+
+                                        <Button
+                                            Command="{Binding QueryHistoryCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                            Content="查询"
+                                            Style="{StaticResource DataGridToolButton}"
+                                            ToolTip="按当前范围查询第一页" />
+
+                                        <Button
+                                            Margin="12,0,0,0"
+                                            Command="{Binding PreviousHistoryPageCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                            Content="上一页"
+                                            Style="{StaticResource DataGridToolButton}" />
+
+                                        <TextBlock
+                                            Margin="8,0"
+                                            VerticalAlignment="Center"
+                                            FontFamily="Consolas"
+                                            FontSize="10"
+                                            Foreground="{StaticResource HmiTextMutedBrush}"
+                                            Text="{Binding HistoryPageText, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                                        <Button
+                                            Margin="0"
+                                            Command="{Binding NextHistoryPageCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                            Content="下一页"
+                                            Style="{StaticResource DataGridToolButton}" />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
 
                             <!--  列头（没有列定义时整行收起：空表头比空白更让人以为坏了）  -->
                             <Border
-                                Grid.Row="1"
+                                Grid.Row="2"
                                 Height="26"
                                 BorderBrush="{StaticResource HmiBorderBrush}"
                                 BorderThickness="0,0,0,1">
@@ -181,7 +276,7 @@
                             </Border>
 
                             <!--  行区  -->
-                            <Grid Grid.Row="2">
+                            <Grid Grid.Row="3">
                                 <ScrollViewer
                                     HorizontalScrollBarVisibility="Disabled"
                                     VerticalScrollBarVisibility="Auto">
@@ -190,6 +285,39 @@
                                         ItemTemplate="{StaticResource DataGridRow}"
                                         ItemsSource="{Binding Rows, RelativeSource={RelativeSource TemplatedParent}}" />
                                 </ScrollViewer>
+
+                                <!--  查询中骨架：不盖转圈遮罩，也不清空旧行——
+                                      骨架层是整块不透明底，视觉上就是"这一页正在换"，不会让人以为表坏了。  -->
+                                <Border
+                                    Background="{StaticResource HmiSurfaceBrush}"
+                                    IsHitTestVisible="False"
+                                    Visibility="{Binding HistoryBusyVisibility, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <StackPanel Margin="14,12" VerticalAlignment="Top">
+                                        <Border
+                                            Height="10"
+                                            Margin="0,0,60,12"
+                                            Background="{StaticResource HmiBorderStrongBrush}"
+                                            CornerRadius="3"
+                                            Opacity="0.45" />
+                                        <Border
+                                            Height="10"
+                                            Margin="0,0,30,12"
+                                            Background="{StaticResource HmiBorderStrongBrush}"
+                                            CornerRadius="3"
+                                            Opacity="0.35" />
+                                        <Border
+                                            Height="10"
+                                            Margin="0,0,90,12"
+                                            Background="{StaticResource HmiBorderStrongBrush}"
+                                            CornerRadius="3"
+                                            Opacity="0.25" />
+                                        <TextBlock
+                                            Margin="0,6,0,0"
+                                            FontSize="10"
+                                            Foreground="{StaticResource HmiTextMutedBrush}"
+                                            Text="正在查询历史记录…" />
+                                    </StackPanel>
+                                </Border>
 
                                 <!--  空态：两种成因分开说（没配采集 / 配了但还没来第一行）  -->
                                 <StackPanel
@@ -213,11 +341,45 @@
                                         TextAlignment="Center"
                                         TextWrapping="Wrap" />
                                 </StackPanel>
+
+                                <!--  查询失败横幅：压在本页顶部，不遮住下面的旧行
+                                      （设计基线：不可用要保留上一次结果）。重试与查询同一条命令。  -->
+                                <Border
+                                    Margin="8,8,8,0"
+                                    Padding="10,6"
+                                    VerticalAlignment="Top"
+                                    Background="{StaticResource HmiWarningBannerBrush}"
+                                    BorderBrush="{StaticResource HmiWarningBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Visibility="{Binding HistoryBannerVisibility, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock
+                                            Grid.Column="0"
+                                            VerticalAlignment="Center"
+                                            FontSize="10.5"
+                                            Foreground="{StaticResource HmiTextBrush}"
+                                            Text="{Binding HistoryBannerText, RelativeSource={RelativeSource TemplatedParent}}"
+                                            TextTrimming="CharacterEllipsis" />
+
+                                        <Button
+                                            Grid.Column="1"
+                                            Margin="10,0,0,0"
+                                            Command="{Binding QueryHistoryCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                            Content="重试"
+                                            Style="{StaticResource DataGridToolButton}" />
+                                    </Grid>
+                                </Border>
                             </Grid>
 
                             <!--  脚注：坏列 / 确认写入失败 / 空 = 正常  -->
                             <Border
-                                Grid.Row="3"
+                                Grid.Row="4"
                                 Height="24"
                                 BorderBrush="{StaticResource HmiBorderBrush}"
                                 BorderThickness="0,1,0,0"
@@ -228,13 +390,25 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
+                                    <!--  实时模式的红字是"坏列/写失败"；历史模式的脚注是正常读数（共 N 条·来源），
+                                          用红字会让每一次查询都像出了错。  -->
                                     <TextBlock
                                         Grid.Column="0"
                                         VerticalAlignment="Center"
                                         FontSize="10"
-                                        Foreground="{StaticResource HmiDangerBrush}"
                                         Text="{Binding StatusText, RelativeSource={RelativeSource TemplatedParent}}"
-                                        TextTrimming="CharacterEllipsis" />
+                                        TextTrimming="CharacterEllipsis">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource HmiDangerBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsHistoryMode, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource HmiTextMutedBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
 
                                     <TextBlock
                                         Grid.Column="1"

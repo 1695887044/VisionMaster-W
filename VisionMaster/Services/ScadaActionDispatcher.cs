@@ -146,6 +146,13 @@ namespace VisionMaster.Services
         private readonly MotionActionExecutor? _motions;
 
         /// <summary>
+        /// 配方应用出口（组态动作表的「应用配方」）。可为 null——没接线时按"未接入"如实跳过。
+        /// 实现方必须是宿主 RecipeService：权限、运行闸、整单预检、回滚、终检、审计都在那里，
+        /// 分发器只负责把动作翻译成一次调用。
+        /// </summary>
+        private readonly IRecipeCommandSink? _recipes;
+
+        /// <summary>
         /// 执行前二次确认出口（P0）。可为 null——没接线时按“取消”处理，
         /// 绝不静默放行；断言工程/离线场景可以注入一个假实现。
         /// </summary>
@@ -168,7 +175,8 @@ namespace VisionMaster.Services
             ScadaAuditWriter? audit = null,
             IScadaFlowRunner? flows = null,
             MotionActionExecutor? motions = null,
-            IScadaConfirmationService? confirmations = null)
+            IScadaConfirmationService? confirmations = null,
+            IRecipeCommandSink? recipes = null)
         {
             _log = log ?? throw new ArgumentNullException(nameof(log));
             _values = values ?? throw new ArgumentNullException(nameof(values));
@@ -177,6 +185,7 @@ namespace VisionMaster.Services
             _flows = flows;
             _motions = motions;
             _confirmations = confirmations;
+            _recipes = recipes;
         }
 
         /// <inheritdoc/>
@@ -488,6 +497,10 @@ namespace VisionMaster.Services
                 ExecuteFlowAction(action, head, stamp);
                 return;
 
+                case ScadaActionType.ApplyRecipe:
+                    ExecuteRecipeAction(action, head, stamp);
+                    return;
+
                 // 运动九条：取轴、门禁、下发全在 executor 里（那层认识 IMotionDevice 与门禁，
                 // 本类只认识"动作语义"）。这里只做"接没接运动模块"与"成没成"两档交代。
                 case ScadaActionType.MotionEnable:
@@ -661,6 +674,37 @@ namespace VisionMaster.Services
 
             // 成功照实记一行；审计"说明"列补上净效果（"已启动" / "已在运行，未重复启动" /
             // "已下发单次执行" / "已发出停止" / "本就未在运行"）——那是只有出口拿得到的一句话。
+            Ok(stamp, action, $"{head} → {action.Describe()}", reason);
+        }
+
+        /// <summary>
+        /// 执行一条「应用配方」动作：只调 <see cref="IRecipeCommandSink.TryApply"/>。
+        /// 权限、运行闸、整单预检、回滚、终检、审计全在宿主 RecipeService 里；
+        /// 本方法只做"接没接配方服务 / 选没选配方 / 成没成"三档交代。
+        /// </summary>
+        private void ExecuteRecipeAction(ScadaAction action, string head, AuditStamp stamp)
+        {
+            if (_recipes == null)
+            {
+                Skipped(stamp, action,
+                    $"{head} → {action.Describe()}：未接入配方服务，本条未执行", "未接入配方服务");
+                return;
+            }
+
+            if (!action.HasRecipe)
+            {
+                Skipped(stamp, action,
+                    $"{head} → {action.Describe()}：还没选配方，本条未执行", "还没选配方");
+                return;
+            }
+
+            var accepted = _recipes.TryApply(action.TargetRecipeId, action.TargetRecipeName, out var reason);
+            if (!accepted)
+            {
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
             Ok(stamp, action, $"{head} → {action.Describe()}", reason);
         }
 

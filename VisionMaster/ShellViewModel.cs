@@ -7,6 +7,7 @@ using Prism.Common;
 using Prism.Dialogs;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Reflection.Metadata;
 using System.Threading.Tasks;
 using System.Windows;
@@ -103,6 +104,10 @@ namespace VisionMaster
 
 
         public IWorkspaceManager Workspace { get; }
+
+        /// <summary>标题栏配方 chip 的展示与入口（切换/编辑都进管理器）。</summary>
+        public RecipeViewModel Recipe { get; }
+
         private string CurrentFlowName => Workspace.CurrentFlow?.FlowName;
         public SolutionService solutionService { get; }
 
@@ -513,6 +518,7 @@ namespace VisionMaster
             LayoutHelper.LayoutLoaded += OnLayoutLoaded;
             this.solutionService = solutionService;
             this.Workspace = workspaceManager;
+            this.Recipe = ContainerLocator.Container.Resolve<RecipeViewModel>();
             this.flowEngine = flowEngine;
             this.executionContext = executionContext;
             this.dialogService = dialogService;
@@ -657,7 +663,12 @@ namespace VisionMaster
         }
 
         /// <summary>
-        /// 方案操作互锁：保存永远可用；新建/打开/浏览列表都会丢弃当前运行中的会话，运行中一律禁用。
+        /// 方案操作互锁：保存永远可用；新建/打开/另存为/浏览列表都会丢弃或改变当前运行上下文，运行中一律禁用。
+        ///
+        /// 另存为也必须拦：它改的是同一个 <see cref="SolutionModel.SolutionFilePath"/>，而本次运行的
+        /// 报警历史与运行窗口图片根是在 Start 时按旧目录解析好的——运行中另存为会让“日志写新目录、
+        /// 报警写旧目录”劈成两半。停掉再存。
+        ///
         /// 判据除 MainRunState 外还要看"是否真有流程在跑"：单流程运行 / HTTP 触发都不写 MainRunState，
         /// 只认它会让"边跑边换方案"从这两个入口溜进来（会话被 ClearAll 丢掉 = 静默拆台）。
         /// </summary>
@@ -745,7 +756,7 @@ namespace VisionMaster
             // 防御纵深：菜单/工具栏正常已被 CanExecute 置灰，这里兜住快捷键等旁路调用
             if (!CanExecuteSolution(action))
             {
-                Notifier.ShowWarning("流程运行中，禁止新建/打开/切换方案或修改报警配置；如需操作请先点击“停止”");
+                Notifier.ShowWarning("流程运行中，禁止新建/打开/另存为/切换方案或修改报警配置；如需操作请先点击“停止”");
                 return;
             }
 
@@ -803,7 +814,9 @@ namespace VisionMaster
                     break;
                 case SolutionAction.Save:
                     await SaveSolutionAsync();
-
+                    break;
+                case SolutionAction.SaveAs:
+                    await SaveSolutionAsAsync();
                     break;
                 case SolutionAction.BrowseList:
                     dialogService.ShowDialog("SolutionListView");
@@ -949,50 +962,155 @@ namespace VisionMaster
         }
 
         /// <summary>
-        /// 保存解决方案
+        /// 保存解决方案：已落过盘的直接写回原文件；从未保存过的走“另存为”。
+        ///
+        /// 一个方案 = 一个以方案命名的文件夹（目录约定见 <see cref="SolutionPaths"/>）：
+        /// <c>&lt;保存位置&gt;\方案A\方案A.vms</c>，旁边是 Image / Alarms / Logs。
+        /// 因此“保存”不再让用户挑 .vms 文件，只有“另存为”才选保存位置。
         /// </summary>
         private async Task SaveSolutionAsync()
         {
-            if (Workspace.CurrentSolution == null)
+            var solution = Workspace.CurrentSolution;
+            if (solution == null)
             {
                 Notifier.ShowWarning("当前没有打开的解决方案");
                 return;
             }
 
-            var dialog = new Microsoft.Win32.SaveFileDialog
+            // 从未保存过，或当前文件不符合“<位置>\<方案名>\<方案名>.vms”约定
+            // （散装老方案 / 用户改过方案名）→ 走另存为，由用户选位置落成规范文件夹。
+            // 读侧不受影响：散装老方案照样能打开，只是第一次保存会搬进文件夹。
+            if (string.IsNullOrWhiteSpace(solution.SolutionFilePath)
+                || !SolutionPaths.IsFolderLayout(solution.SolutionFilePath, solution.SolutionName))
             {
-                Filter = "VisionMaster方案 (*.vms)|*.vms|所有文件 (*.*)|*.*",
-                Title = "保存解决方案",
-                DefaultExt = ".vms",
-                FileName = $"{Workspace.CurrentSolution.SolutionName}.vms"
+                await SaveSolutionAsAsync();
+                return;
+            }
+
+            await PersistSolutionAsync(solution, solution.SolutionFilePath);
+        }
+
+        /// <summary>
+        /// 另存为：选一个保存位置，在其中建「方案名」文件夹，配置与资产一起搬过去。
+        /// 选中的是**父目录**而不是文件——文件夹名必须等于方案名，否则“一个方案一个文件夹”这条约定
+        /// 从第一次保存就破了（用户可以把方案A.vms 放进“新建文件夹(3)”里）。
+        /// </summary>
+        private async Task SaveSolutionAsAsync()
+        {
+            var solution = Workspace.CurrentSolution;
+            if (solution == null)
+            {
+                Notifier.ShowWarning("当前没有打开的解决方案");
+                return;
+            }
+
+            var dialog = new Microsoft.Win32.OpenFolderDialog
+            {
+                Title = "选择方案保存位置（将在其中创建以方案命名的文件夹）",
+                Multiselect = false
             };
 
-            var result = dialog.ShowDialog() == true;
-            if (result == true)
+            // 默认定位到当前方案文件夹的上一级：连续另存为时不用每次从头找盘。
+            var currentRoot = SolutionPaths.GetSolutionRoot(solution.SolutionFilePath);
+            var currentParent = string.IsNullOrWhiteSpace(currentRoot) ? null : Path.GetDirectoryName(currentRoot);
+            if (!string.IsNullOrWhiteSpace(currentParent) && Directory.Exists(currentParent))
+                dialog.InitialDirectory = currentParent;
+
+            if (dialog.ShowDialog() != true) return;
+
+            if (!SolutionPaths.TryValidateSaveTarget(
+                    dialog.FolderName, solution.SolutionName,
+                    out var solutionFolder, out var configFilePath, out var error))
             {
-                var previousPath = Workspace.CurrentSolution.SolutionFilePath;
-                CaptureLayoutToConfig();
-                VariablePersistenceService.Capture(Workspace.CurrentSolution, Workspace); // 变量快照随方案落盘
-                // 通信配置快照：通信设置里的增删改只更新管理器内存，保存时经绑定器同步进方案
-                // （与"打开方案时 Apply"配对，保存走同一个类，避免两处各写一遍集合替换逻辑）
-                CommunicationBinder.Capture(Workspace.CurrentSolution);
-                var saveResult = await solutionService.SaveAsync(Workspace.CurrentSolution, dialog.FileName);
-                if (saveResult.Success)
-                {
-                    Workspace.CurrentSolution.SolutionFilePath = dialog.FileName;
+                Notifier.ShowError(error);
+                return;
+            }
 
-                    // 另存为：把旧方案目录下的 Image / Alarms 一起带到新目录。
-                    // 用户复制的是“这个方案”，不是只复制一个 .vms 文件；失败只提示、不回滚保存。
-                    var assetFailures = SolutionAssetFolders.CopyAlongside(previousPath, dialog.FileName);
-                    if (assetFailures.Length > 0)
-                        Notifier.ShowWarning("方案已保存，但部分资产未复制：" + string.Join("；", assetFailures));
+            await PersistSolutionAsync(solution, configFilePath, solutionFolder);
+        }
 
-                    Notifier.ShowSuccess($"方案 [{Workspace.CurrentSolution.SolutionName}] 保存成功");
-                }
-                else
+        /// <summary>
+        /// 落盘主链（保存与另存为共用）：Capture → 原子写 → 建目录骨架 → 搬资产。
+        ///
+        /// 顺序不能换：SaveAsync 内部先序列化再建目录、写失败会把本次新建的空目录删掉，
+        /// 所以“配置没写成功”不会在磁盘上留下一个像方案的空壳。
+        /// 目录骨架（Image / Alarms / Logs）建失败只提示不回滚——配置已经落盘，
+        /// 资产目录等到第一次用时也会被各自的写端建出来。
+        /// </summary>
+        private async Task PersistSolutionAsync(SolutionModel solution, string filePath, string? solutionFolder = null)
+        {
+            var previousPath = solution.SolutionFilePath;
+
+            CaptureLayoutToConfig();
+            VariablePersistenceService.Capture(solution, Workspace); // 变量快照随方案落盘
+            // 通信配置快照：通信设置里的增删改只更新管理器内存，保存时经绑定器同步进方案
+            // （与"打开方案时 Apply"配对，保存走同一个类，避免两处各写一遍集合替换逻辑）
+            CommunicationBinder.Capture(solution);
+
+            var saveResult = await solutionService.SaveAsync(solution, filePath);
+            if (!saveResult.Success)
+            {
+                Notifier.ShowError(saveResult.Message);
+                return;
+            }
+
+            solution.SolutionFilePath = filePath;
+
+            // 另存为/搬进方案文件夹后，软件级配置里指向旧路径的两处（默认启动方案、方案清单）一起改掉。
+            // 不改的话，散装老方案搬进文件夹后下次启动仍加载旧副本、清单点开的也还是旧文件。
+            SyncSolutionReferences(previousPath, filePath);
+
+            if (!SolutionPaths.EnsureStructure(filePath, out var structureError))
+                Notifier.ShowWarning("方案已保存，但目录结构未建全：" + structureError);
+
+            // 另存为：把旧方案目录下的 Image / Alarms / Logs 一起带到新目录。
+            // 用户复制的是“这个方案”，不是只复制一个 .vms 文件；失败只提示、不回滚保存。
+            var assetFailures = SolutionAssetFolders.CopyAlongside(previousPath, filePath);
+            if (assetFailures.Length > 0)
+                Notifier.ShowWarning("方案已保存，但部分资产未复制：" + string.Join("；", assetFailures));
+
+            var folder = solutionFolder ?? SolutionPaths.GetSolutionRoot(filePath) ?? filePath;
+            Notifier.ShowSuccess($"方案 [{solution.SolutionName}] 已保存到 {folder}");
+        }
+
+        /// <summary>
+        /// 另存为/搬进方案文件夹后，把软件级配置里仍指向旧路径的两处一起改掉：
+        /// 「默认启动方案」与「方案清单」。不改的话，散装老方案搬进文件夹后，
+        /// 下次启动仍加载旧副本，清单里点开的也还是那份不会再更新的 .vms。
+        ///
+        /// 失败只记调试痕迹：保存本身已经成功，配置同步不该把结果翻成失败。
+        /// </summary>
+        private static void SyncSolutionReferences(string? previousPath, string newPath)
+        {
+            if (string.IsNullOrWhiteSpace(previousPath)
+                || string.Equals(previousPath, newPath, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            try
+            {
+                var settings = ContainerLocator.Container.Resolve<AppSettingsService>();
+                var changed = false;
+
+                if (string.Equals(settings.Current.StartupSolutionPath, previousPath, StringComparison.OrdinalIgnoreCase))
                 {
-                    Notifier.ShowError(saveResult.Message);
+                    settings.Current.StartupSolutionPath = newPath;
+                    changed = true;
                 }
+
+                foreach (var entry in settings.Current.Solutions ?? new System.Collections.Generic.List<AppSolutionEntry>())
+                {
+                    if (entry == null || !string.Equals(entry.Path, previousPath, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    entry.Path = newPath;
+                    changed = true;
+                }
+
+                if (changed) settings.Save();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[方案保存] 同步方案清单/启动路径失败（已忽略）：{ex.Message}");
             }
         }
 

@@ -3,6 +3,7 @@ using Prism.Ioc;
 using VisionMaster.Binding;
 using VisionMaster.Communications;
 using VisionMaster.Lifetime;
+using VisionMaster.Services;
 using VisionMaster.Services.SystemVariables;
 
 namespace VisionMaster
@@ -33,21 +34,33 @@ namespace VisionMaster
             // 相机：ICameraProvider 本身就是窄接口（清单 + 按 Id 取设备）
             registry.RegisterSingleton<CameraSystemVariableCatalog>(c =>
                 new CameraSystemVariableCatalog(c.Resolve<ICameraProvider>()));
+
+            // 配方：当前生效配方的名称/编码/版本/偏离/参数摘要，供 SCADA 文本图元只读绑定。
+            // 适配器在宿主层（读 RecipeService），目录在 Core（投影成 SystemVariableModel）。
+            registry.RegisterSingleton<RecipeVariableSource>(c =>
+                new RecipeVariableSource(
+                    c.Resolve<RecipeService>(),
+                    c.Resolve<IWorkspaceManager>()));
+            registry.RegisterSingleton<RecipeVariableCatalog>(c =>
+                new RecipeVariableCatalog(c.Resolve<RecipeVariableSource>()));
         }
 
         public void Initialize(IContainerProvider container, AppLifetimeService lifetime)
         {
             var host = container.Resolve<SystemVariableHost>();
+            var recipe = container.Resolve<RecipeVariableCatalog>();
             var comm = container.Resolve<CommSystemVariableCatalog>();
             var camera = container.Resolve<CameraSystemVariableCatalog>();
 
-            // 注册顺序 = 合并顺序：运动（已在 MotionModule 注册）→ 通讯 → 相机。
-            // 名字/Id 冲突时先注册者优先，这条顺序保证"设备变量"不会遮住运动轴。
+            // 注册顺序 = 合并顺序：运动（已在 MotionModule 注册）→ 配方 → 通讯 → 相机。
+            // 名字/Id 冲突时先注册者优先，这条顺序保证"设备变量"不会遮住运动轴与配方。
+            host.Register(recipe);
             host.Register(comm);
             host.Register(camera);
 
             // 先同步刷新一拍：不刷的话，启动后 0~500ms 内「变量管理」里看不到通讯/相机变量，
             // 用户第一眼会以为"设备加了但变量没出来"（这类"慢半拍"最容易被当成功能缺失）。
+            recipe.Publish();
             comm.Refresh();
             camera.Refresh();
 
@@ -65,7 +78,7 @@ namespace VisionMaster
 
             // 启动插桩落 ILogService（R78：弹泡 3 秒就消，日志才留得住）。
             // 计数 = 父变量 + 字段（一台设备 1 + N 条），排查"变量怎么没出来"时先看这一行。
-            log.Info($"[系统变量] 通讯 {comm.Snapshot().Count} 条 / 相机 {camera.Snapshot().Count} 条已接入统一宿主");
+            log.Info($"[系统变量] 配方 {recipe.Snapshot().Count} 条 / 通讯 {comm.Snapshot().Count} 条 / 相机 {camera.Snapshot().Count} 条已接入统一宿主");
 
             lifetime.RegisterExitTask(ExitTask.Of("停止系统变量刷新（通讯/相机）", () =>
             {

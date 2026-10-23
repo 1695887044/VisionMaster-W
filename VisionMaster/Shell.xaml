@@ -765,6 +765,16 @@
                                     <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf0c7;" />
                                 </MenuItem.Icon>
                             </MenuItem>
+                            <MenuItem
+                                Command="{Binding SolutionCommand}"
+                                CommandParameter="{x:Static local:SolutionAction.SaveAs}"
+                                Header="另存为"
+                                ui:MenuItemEx.Description="把当前方案另存为新的方案文件夹"
+                                ui:MenuItemEx.Tone="Green">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf0c5;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                         </MenuItem>
 
                         <MenuItem
@@ -1058,7 +1068,7 @@
                             Header="系统(S)"
                             FontFamily="Microsoft YaHei"
                             Style="{StaticResource MenuFlyoutStyle}"
-                            ui:MenuItemEx.FlyoutDescription="用户、变量与硬件设置"
+                            ui:MenuItemEx.FlyoutDescription="用户、变量、配方与硬件设置"
                             ui:MenuItemEx.FlyoutIcon="&#xf013;"
                             ui:MenuItemEx.FlyoutTitle="系统">
                             <MenuItem.Resources>
@@ -1082,6 +1092,17 @@
                                 ui:MenuItemEx.Tone="Slate">
                                 <MenuItem.Icon>
                                     <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf121;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <!--  配方是方案级资源（同一方案下按产品切换参数），与全局变量同属"系统"菜单；
+                                  不放标题栏中央：那里是"当前方案是谁"的身份区，不是命令区。  -->
+                            <MenuItem
+                                Command="{Binding Recipe.OpenManagerCommand}"
+                                Header="配方管理"
+                                ui:MenuItemEx.Description="按产品切换步骤参数"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf0ca;" />
                                 </MenuItem.Icon>
                             </MenuItem>
                             <Separator Style="{StaticResource MenuFlyoutSeparatorStyle}" />
@@ -1244,6 +1265,13 @@
                     Content="&#xf2db;"
                     Style="{StaticResource TitleButton}"
                     ToolTip="硬件管理" />
+                <!--  配方入口：与全局变量/硬件管理同属顶栏全局命令区（R47）。
+                      不放标题栏中央：那里只显示"当前方案是谁"，不承担命令。  -->
+                <Button
+                    Command="{Binding Recipe.OpenManagerCommand}"
+                    Content="&#xf0ca;"
+                    Style="{StaticResource TitleButton}"
+                    ToolTip="{Binding Recipe.ChipToolTip}" />
             </StackPanel>
 
             <!--  居中：当前方案名  -->

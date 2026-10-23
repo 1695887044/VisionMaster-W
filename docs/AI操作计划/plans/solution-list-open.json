@@ -1,0 +1,54 @@
+{
+  "schema": "vm-plan/1",
+  "id": "solution-list-open",
+  "title": "从方案列表打开指定方案",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "方案列表是 AppConfig.json 里的软件级清单；选中一行后点「打开方案」加载。",
+  "params": {
+    "solution_name": {
+      "type": "string",
+      "required": true,
+      "example": "Demo_20261023"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.file", "app.menu.file.list"],
+      "expect": { "window": "dialog.solution_list", "state": "visible" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "dialog.solution_list.row",
+      "target_name": "${solution_name}",
+      "expect": { "element": "dialog.solution_list.row", "name": "${solution_name}", "state": "exists" }
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "dialog.solution_list.open",
+      "expect": { "window": "dialog.solution_list", "state": "closed" },
+      "timeout_ms": 20000
+    },
+    {
+      "n": 4,
+      "do": "assert",
+      "assert": "toast_contains",
+      "text": "加载成功",
+      "timeout_ms": 20000
+    }
+  ],
+  "postconditions": [
+    { "assert": "text_exists", "text": "${solution_name}", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["solution", "open", "list"]
+}

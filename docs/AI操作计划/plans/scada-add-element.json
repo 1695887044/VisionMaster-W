@@ -1,0 +1,59 @@
+{
+  "schema": "vm-plan/1",
+  "id": "scada-add-element",
+  "title": "往组态画面拖入一个图元",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "视图 → 组态画面 / 图元工具箱 → 搜索图元 → 拖到画布。图元拖放同样必须走 gong 的拖放链路。",
+  "params": {
+    "element_name": {
+      "type": "string",
+      "required": true,
+      "example": "按钮",
+      "description": "图元工具箱里的显示名"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.view", "app.menu.view.scada_editor"],
+      "expect": { "element": "dialog.scada.canvas", "state": "visible" },
+      "timeout_ms": 8000
+    },
+    {
+      "n": 2,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.view", "app.menu.view.scada_toolbox"],
+      "expect": { "element": "dialog.scada.toolbox_panel", "state": "visible" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 3,
+      "do": "drag",
+      "from": "dialog.scada.toolbox.item",
+      "from_name": "${element_name}",
+      "to": "dialog.scada.canvas",
+      "expect": { "element": "dialog.scada.element", "state": "exists" },
+      "timeout_ms": 8000
+    },
+    {
+      "n": 4,
+      "do": "assert",
+      "assert": "element_exists",
+      "target": "dialog.scada.property_panel",
+      "state": "exists",
+      "timeout_ms": 5000,
+      "note": "拖入后图元通常自动选中，右侧属性面板出现对应对象头；若未选中，点击图元再断言"
+    }
+  ],
+  "postconditions": [
+    { "assert": "element_exists", "target": "dialog.scada.property_panel", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["scada", "element", "drag"]
+}

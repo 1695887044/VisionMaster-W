@@ -148,8 +148,14 @@ namespace VisionMaster
             // 正常关闭与严重异常退出都会走退出链，所以两条路都受这一项保护。
             _lifetime.RegisterExitTask(ExitTask.Of("未保存草稿转存", () =>
             {
-                var result = Container.Resolve<SolutionDraftService>()
-                    .Capture(Container.Resolve<WorkspaceContext>().CurrentSolution);
+                var workspace = Container.Resolve<WorkspaceContext>();
+                var solution = workspace.CurrentSolution;
+                // v2：草稿只序列化 SolutionModel；变量值在 VariableSnapshots 里，
+                // 不先 Capture 就会把「配方刚写过的变量」存成上一次保存的旧值。
+                if (solution != null)
+                    VariablePersistenceService.Capture(solution, workspace);
+
+                var result = Container.Resolve<SolutionDraftService>().Capture(solution);
 
                 if (result.Status == DraftCaptureStatus.Captured)
                     Container.Resolve<ILogService>().Warn($"[退出链] 方案有未保存改动，已转存草稿：{result.Path}");
@@ -259,6 +265,27 @@ namespace VisionMaster
 
             // ===== 基础服务最先注册：Unity 注册工厂时可能提前解析依赖，必须保证已就位 =====
             containerRegistry.RegisterSingleton<ILogService, LogService>();
+
+            // 方案级日志：同一行同时写全局日志与当前方案的 <方案根>\Logs
+            // （没有方案 / 方案尚未保存时只写全局）。
+            //
+            // 用"现读"提供口而不是在新建/打开/列表/启动自动加载四个入口逐个推送：
+            // 漏推一处，这份方案的日志就会一直写进上一份方案的目录，而且要到翻日志时才发现。
+            // 容器还没建好或已释放（退出链）时一律按"没有方案"处理——日志服务不能反过来把进程带走。
+            WorkspaceContext? logScopeWorkspace = null;
+            LogService.SolutionRootProvider = () =>
+            {
+                try
+                {
+                    logScopeWorkspace ??= ContainerLocator.Container.Resolve<WorkspaceContext>();
+                    return SolutionPaths.GetSolutionRoot(logScopeWorkspace.CurrentSolution?.SolutionFilePath);
+                }
+                catch
+                {
+                    return null;
+                }
+            };
+
             containerRegistry.RegisterSingleton<IPerformanceMonitor, PerformanceMonitor>();
             containerRegistry.RegisterSingleton<AppSettingsService>();
             containerRegistry.RegisterSingleton<AppLifetimeService>();
@@ -499,7 +526,11 @@ namespace VisionMaster
                 // "未接入运动模块"（而且不报错）。它持有"哪根轴在点动"的状态与看门狗，所以是单例。
                 c.Resolve<MotionActionExecutor>(),
                 // 执行前二次确认（P0）：显式接上，没接线时按取消处理（fail-safe）。
-                c.Resolve<IScadaConfirmationService>()));
+                c.Resolve<IScadaConfirmationService>(),
+                // 配方应用出口：必须显式接上 RecipeService，否则 SCADA 的「应用配方」会永远
+                // 记一行“未接入配方服务”（而且不报错）。配方服务在下方注册；工厂是惰性解析，
+                // 首次用到分发器时它已经就绪。
+                c.Resolve<RecipeService>()));
             // 运行态的切页出口：分发器是长命单例，运行态会话是每次点"运行"现建、关窗口即废，
             // 中间得有人记住"此刻活着的是哪一个会话"。宿主 Start 时 Attach、关窗口收尾时摘掉。
             // 也必须是单例：两份实例各记一个会话，动作落到哪一份上就变成了随机。
@@ -577,6 +608,12 @@ namespace VisionMaster
             containerRegistry.RegisterSingleton<IScadaFlowPicker, ScadaFlowPicker>();
             containerRegistry.RegisterDialog<ScadaFlowPickerView, ScadaFlowPickerViewModel>(
                 ScadaFlowPicker.DialogName);
+            // 组态「选配方」入口：清单来自当前方案的配方表（RecipeService），身份是 Guid 型 RecipeId。
+            // 与上三个同一手法：运行态「应用配方」按 Id 寻址，所以"选得到就一定应用得到"；
+            // 配方名只作展示与旧数据兜底。
+            containerRegistry.RegisterSingleton<IScadaRecipePicker, ScadaRecipePicker>();
+            containerRegistry.RegisterDialog<ScadaRecipePickerView, ScadaRecipePickerViewModel>(
+                ScadaRecipePicker.DialogName);
             containerRegistry.RegisterDialog<VariableBindingView, VariableBindingViewModel>("DataBindView");
             containerRegistry.RegisterDialog<GlobalVariableView, GlobalVariableManagerViewModel>("GlobalVariable");
             // 单设备变量表批量导入/导出（xlsx）：入口在变量管理卡片头，仅网络来源可见。
@@ -620,6 +657,20 @@ namespace VisionMaster
             containerRegistry.RegisterSingleton<IFlowRunState, WorkspaceFlowRunState>();
             containerRegistry.RegisterSingleton<IHardwareEditGate, HardwareEditGate>();
             containerRegistry.RegisterDialog<HardwareManagerView, HardwareManagerViewModel>("HardwareManagerView");
+            // 方案级配方（v1：步骤参数）。服务是单例：生效指针、偏离计算与审计口径只有一份；
+            // 保存协调器复用主窗口同一套 Capture（布局/变量/通讯），避免“步骤新值、变量旧值”。
+            containerRegistry.RegisterSingleton<RecipeService>(c => new RecipeService(
+                c.Resolve<IWorkspaceManager>(),
+                c.Resolve<IRuntimeManager>(),
+                c.Resolve<IFlowRunState>(),
+                c.Resolve<ScadaAccessPolicy>(),
+                c.Resolve<ScadaAuditWriter>(),
+                c.Resolve<ILogService>()));
+            containerRegistry.RegisterSingleton<RecipeSaveCoordinator>();
+            containerRegistry.RegisterSingleton<RecipeFileService>(c => new RecipeFileService(
+                c.Resolve<RecipeService>(), c.Resolve<ScadaAuditWriter>()));
+            containerRegistry.RegisterSingleton<RecipeViewModel>();
+            containerRegistry.RegisterDialog<RecipeManagerView, RecipeManagerViewModel>("RecipeManagerView");
             // 扫描组编辑器：从连接设置的设备表格操作列进入，编辑的是**连接级**的组表
             // （一条连接一个组表；变量只存组名引用，见 ScanGroupEditorViewModel 注释）
             containerRegistry.RegisterDialog<ScanGroupEditorView, ScanGroupEditorViewModel>(
@@ -723,7 +774,9 @@ namespace VisionMaster
                     () => Container.Resolve<ScadaAccessPolicy>().CurrentUserName,
                     // 第四个 picker（轴）：运动命令动作行的「选轴」用。同样是可选参数，
                     // 漏传的表现是"按钮灰着、点了没反应"，而不是编译错误。
-                    Container.Resolve<IScadaAxisPicker>()));
+                    Container.Resolve<IScadaAxisPicker>(),
+                    // 第五个 picker（配方）：「应用配方」动作行的「选择配方」用。同一口径。
+                    Container.Resolve<IScadaRecipePicker>()));
             // 报警配置弹窗同一手法。它同样"每一次编辑都当场写回模型"，没有统一的提交点，
             // 所以 audit / actorProvider 两个可选参数漏接的话，一条线索都不会留下。
             // picker 也必须显式传：它是"为报警选监视变量"那个按钮用的，

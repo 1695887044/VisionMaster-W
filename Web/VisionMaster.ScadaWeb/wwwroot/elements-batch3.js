@@ -216,4 +216,160 @@
         node.appendChild(svg);
         return { node: node, update: function () { } };
     };
+
+    // ----------------------------------------------------------------------
+    //  Hmi.RunMeter 运行计时 / 计数器
+    //
+    //  Web 端没有运行节拍源：显示快照里的累计值（服务端每 5 秒回写模型），
+    //  不自己计时——否则浏览器与桌面会各走一套时间，刷新页面就漂移。
+    // ----------------------------------------------------------------------
+    registry['Hmi.RunMeter'] = function (el, ctx) {
+        var node = global.document.createElement('div');
+        node.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;'
+            + 'padding:12px;box-sizing:border-box;overflow:hidden;';
+
+        var label = global.document.createElement('div');
+        label.style.cssText = 'font-size:11.5px;color:#A9B7C6;';
+
+        var value = global.document.createElement('div');
+        value.style.cssText = 'font-family:"Cascadia Mono",Consolas,monospace;font-variant-numeric:tabular-nums;'
+            + 'font-size:28px;font-weight:600;color:#E6EEF7;line-height:1.2;';
+
+        var sub = global.document.createElement('div');
+        sub.style.cssText = 'font-size:11px;color:#7C8A99;';
+
+        node.appendChild(label);
+        node.appendChild(value);
+        node.appendChild(sub);
+
+        function formatTime(seconds, fmt) {
+            seconds = Math.max(0, Number(seconds) || 0);
+            fmt = (fmt || 'hms').toLowerCase();
+            if (fmt === 'hours') return (seconds / 3600).toFixed(1) + ' h';
+            if (fmt === 'dh') {
+                var days = Math.floor(seconds / 86400);
+                var rest = seconds - days * 86400;
+                var h = Math.floor(rest / 3600);
+                var m = Math.floor((rest - h * 3600) / 60);
+                return days + ' 天 ' + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+            }
+            var total = Math.floor(seconds);
+            return String(Math.floor(total / 3600)).padStart(2, '0') + ':'
+                + String(Math.floor(total % 3600 / 60)).padStart(2, '0') + ':'
+                + String(total % 60).padStart(2, '0');
+        }
+
+        function formatCount(count, fmt) {
+            count = Math.max(0, Number(count) || 0);
+            return (fmt || '').toLowerCase() === 'thousands'
+                ? Math.round(count).toLocaleString('en-US')
+                : String(Math.round(count));
+        }
+
+        function refresh() {
+            var mode = rawProp(el, 'Mode') || 'RunTime';
+            var fmt = rawProp(el, 'Format') || 'hms';
+            label.textContent = rawProp(el, 'Label') || '';
+
+            if (mode.toLowerCase() === 'counter') {
+                var count = numProp(el, 'Count', 0);
+                var target = numProp(el, 'Target', 0);
+                value.textContent = formatCount(count, fmt);
+                sub.textContent = target > 0
+                    ? '目标 ' + formatCount(target, 'integer') + ' · ' + Math.min(100, count / target * 100).toFixed(1) + '%'
+                    : '累计计数';
+            } else {
+                value.textContent = formatTime(numProp(el, 'AccumulatedSeconds', 0), fmt);
+                sub.textContent = '已暂停';
+            }
+        }
+
+        refresh();
+        return { node: node, update: refresh };
+    };
+
+    // ----------------------------------------------------------------------
+    //  Hmi.QRCode / Hmi.Barcode 二维码 / 条码
+    //
+    //  Web 端暂未接编码路由：显示内容 + 明确说明，不画一个“像码但扫不出来”的图案。
+    //  编码结果由桌面/服务端统一生成后下发是后续批次（两端必须同一份矩阵）。
+    // ----------------------------------------------------------------------
+    function createCodePlaceholder(el, title) {
+        var node = global.document.createElement('div');
+        node.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;'
+            + 'padding:4px;box-sizing:border-box;';
+
+        var surface = global.document.createElement('div');
+        surface.style.cssText = 'width:100%;height:100%;background:#FFFFFF;border-radius:4px;'
+            + 'display:flex;flex-direction:column;align-items:center;justify-content:center;'
+            + 'padding:8px;box-sizing:border-box;overflow:hidden;';
+
+        var caption = global.document.createElement('div');
+        caption.textContent = title;
+        caption.style.cssText = 'font-size:10px;color:#7C8A99;';
+
+        var content = global.document.createElement('div');
+        content.textContent = rawProp(el, 'CodeContent') || '未绑定内容';
+        content.style.cssText = 'font-family:"Cascadia Mono",Consolas,monospace;font-size:10px;color:#0F172A;'
+            + 'word-break:break-all;text-align:center;margin-top:4px;';
+
+        var note = global.document.createElement('div');
+        note.textContent = 'Web 端编码待接';
+        note.style.cssText = 'font-size:9px;color:#94A3B8;margin-top:6px;';
+
+        surface.appendChild(caption);
+        surface.appendChild(content);
+        surface.appendChild(note);
+        node.appendChild(surface);
+
+        return { node: node, update: function () { } };
+    }
+
+    registry['Hmi.QRCode'] = function (el, ctx) { return createCodePlaceholder(el, '二维码'); };
+    registry['Hmi.Barcode'] = function (el, ctx) { return createCodePlaceholder(el, '条形码'); };
+
+    // ----------------------------------------------------------------------
+    //  Hmi.MultiTrend 多曲线趋势
+    //
+    //  Web 端暂未接历史/采样通道：画出图例与当前值，曲线区域明确说明“待接”，
+    //  不画一条伪造的平滑线（那会让操作员以为看到的是真实趋势）。
+    // ----------------------------------------------------------------------
+    registry['Hmi.MultiTrend'] = function (el, ctx) {
+        var node = global.document.createElement('div');
+        node.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;'
+            + 'padding:10px;box-sizing:border-box;overflow:hidden;';
+
+        var legend = global.document.createElement('div');
+        legend.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px;font-size:10.5px;color:#A9B7C6;';
+
+        // 四条曲线的键逐条写全（不用 'Series' + i + 'Name' 拼）：静态闸 [WR5]
+        // 只认字面键，拼出来的键它看不见，等于这八项默认值永远没人核。
+        var series = [
+            { name: rawProp(el, 'Series1Name') || '曲线 1', color: cssColor(rawProp(el, 'Series1Color'), '#38BDF8') },
+            { name: rawProp(el, 'Series2Name') || '曲线 2', color: cssColor(rawProp(el, 'Series2Color'), '#22C55E') },
+            { name: rawProp(el, 'Series3Name') || '曲线 3', color: cssColor(rawProp(el, 'Series3Color'), '#F59E0B') },
+            { name: rawProp(el, 'Series4Name') || '曲线 4', color: cssColor(rawProp(el, 'Series4Color'), '#A855F7') }
+        ];
+
+        for (var i = 0; i < series.length; i++) {
+            var item = global.document.createElement('span');
+            item.style.cssText = 'display:inline-flex;align-items:center;gap:5px;';
+            var swatch = global.document.createElement('i');
+            swatch.style.cssText = 'width:12px;height:2px;display:inline-block;background:' + series[i].color + ';';
+            var text = global.document.createElement('span');
+            text.textContent = series[i].name;
+            item.appendChild(swatch);
+            item.appendChild(text);
+            legend.appendChild(item);
+        }
+
+        var body = global.document.createElement('div');
+        body.textContent = 'Web 端趋势待接';
+        body.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;'
+            + 'font-size:11px;color:#7C8A99;border-top:1px solid #2A3745;margin-top:8px;';
+
+        node.appendChild(legend);
+        node.appendChild(body);
+        return { node: node, update: function () { } };
+    };
 })(typeof window !== 'undefined' ? window : globalThis);

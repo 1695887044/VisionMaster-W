@@ -1,0 +1,71 @@
+{
+  "schema": "vm-plan/1",
+  "id": "solution-save",
+  "title": "保存当前方案到指定 .vms 路径",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "保存方案、变量快照、通讯配置与布局快照。保存对话框每次都会弹出，必须显式给完整路径；父目录必须已存在。",
+  "params": {
+    "save_path": {
+      "type": "string",
+      "required": true,
+      "example": "D:\\C#\\VM\\解决方案\\Demo_20261023.vms",
+      "description": "完整文件路径（含 .vms）；执行器直接填入文件名框，避免逐级浏览目录"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.file", "app.menu.file.save"],
+      "expect": { "window": "dialog.save_solution", "state": "visible" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 2,
+      "do": "type",
+      "target": "dialog.save_solution.filename",
+      "text": "${save_path}",
+      "clear": true,
+      "expect": { "element": "dialog.save_solution.filename", "value": "${save_path}" }
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "dialog.save_solution.save",
+      "expect": { "window": "dialog.save_solution", "state": "closed" },
+      "timeout_ms": 20000
+    },
+    {
+      "n": 4,
+      "do": "click",
+      "target": "dialog.overwrite.yes",
+      "skip_if": { "window": "dialog.overwrite", "state": "absent" },
+      "expect": { "window": "dialog.overwrite", "state": "closed" },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 5,
+      "do": "assert",
+      "assert": "toast_contains",
+      "text": "保存成功",
+      "timeout_ms": 15000
+    },
+    {
+      "n": 6,
+      "do": "assert",
+      "assert": "file_exists",
+      "path": "${save_path}",
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    { "assert": "file_exists", "path": "${save_path}", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["solution", "save", "file"]
+}

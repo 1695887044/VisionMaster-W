@@ -248,5 +248,24 @@ namespace VisionMaster.Models
                 RaisePropertyChanged();
             }
         }
+
+        // ── 配方（v1）──────────────────────────────────────────────────────
+        // 三个字段全部可空、默认 null、setter 不兜底 new()：
+        //   null  = 从未启用配方（老文件零回归，NullValueHandling.Ignore 不写键）
+        //   []    = 已启用但配方被删光（必须保留“空集合”与“从未启用”的区别）
+        // Order=100+ 让它们排在所有既有属性之后；不要给既有属性补 Order。
+        // 首次实体化配方时由 RecipeSolutionExtensions.EnsureRecipes 把 Version 抬到 2.0。
+
+        /// <summary>方案内配方集合。null = 功能未启用；空集合 = 已启用但无配方。</summary>
+        [JsonProperty(Order = 100, ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public List<RecipeDefinition>? Recipes { get; set; }
+
+        /// <summary>当前生效配方；null = 未应用。Guid.Empty 读入时按“未应用”处理。</summary>
+        [JsonProperty(Order = 101)]
+        public Guid? ActiveRecipeId { get; set; }
+
+        /// <summary>配方结构版本；null = 无配方，有配方写 1。高于当前支持版本时拒绝应用。</summary>
+        [JsonProperty(Order = 102)]
+        public int? RecipeSchemaVersion { get; set; }
     }
 }

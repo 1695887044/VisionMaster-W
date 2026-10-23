@@ -1,0 +1,46 @@
+{
+  "schema": "vm-plan/1",
+  "id": "mode-switch",
+  "title": "切换工作模式",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "Ctrl+1 调试 / Ctrl+2 运行 / Ctrl+3 组态 / Ctrl+4 自由。注意：Ctrl+2 是运行驾驶舱，不是「开始运行」；组态与运行模式下运行条隐藏。",
+  "params": {
+    "mode_key": {
+      "type": "string",
+      "required": true,
+      "example": "Ctrl+3",
+      "description": "Ctrl+1 / Ctrl+2 / Ctrl+3 / Ctrl+4"
+    },
+    "expect_text": {
+      "type": "string",
+      "required": true,
+      "example": "基座",
+      "description": "该模式下应出现的标志文本：调试/自由=编译；组态=基座；运行=停止运行"
+    }
+  },
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "key",
+      "keys": "${mode_key}",
+      "timeout_ms": 5000
+    },
+    {
+      "n": 2,
+      "do": "assert",
+      "assert": "text_exists",
+      "text": "${expect_text}",
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    { "assert": "text_exists", "text": "${expect_text}", "timeout_ms": 5000 }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["mode", "view"]
+}

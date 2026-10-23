@@ -1,0 +1,27 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        SCADA 图元库自带的文字图标字体（Font Awesome 6 Pro Solid）。
+
+        为什么在本册再放一份（链接编译，不复制文件）：本库刻意不引用 UI 工程，
+        而 StaticResource 在无 Application 的断言宿主里不会跨程序集去找 UI 的 FA.Solid。
+        资源编进本程序集后，纯宿主（断言、独立预览）也能用 {StaticResource ScadaIconFont}。
+
+        用法一（XAML 文字）：
+            <TextBlock FontFamily="{StaticResource ScadaIconFont}" Text="&#xF013;" />
+        用法二（附加属性，按名字取图标）：
+            <TextBlock scada:ScadaIconHelper.Glyph="Gear" />
+        名字表见 ScadaIconGlyphs（Gear / Image / Play / Stop / Warning / Check …）。
+    -->
+    <FontFamily x:Key="ScadaIconFont">pack://application:,,,/VM.Scada.Controls;component/Assets/FontAwesomeSolid.otf#Font Awesome 6 Pro Solid</FontFamily>
+
+    <!-- 图标文字的统一尺码：只定字体/字号/对齐，颜色由使用处决定（状态色不在这里写死） -->
+    <Style x:Key="ScadaIconText" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource ScadaIconFont}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
+    </Style>
+</ResourceDictionary>

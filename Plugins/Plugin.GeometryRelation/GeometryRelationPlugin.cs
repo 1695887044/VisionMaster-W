@@ -83,6 +83,15 @@ namespace Plugin.GeometryRelation
         public InputPort<int> DisplayViewIndex { get; } = new("DisplayViewIndex", 1, "显示窗口(0=不显示,1~9=窗口号)")
         { IsRequired = false };
 
+        /// <summary>
+        /// 残差用的轮廓点集（P1-B A2）：接「几何查找」的 Contours（HXLD）或上游任意点集，
+        /// 本步骤把它摊成 [r0,c0,r1,c1,...] 再算各点到 A 的距离统计。
+        /// · 不接 = 不算残差（ResidualRms/Max 保持 NaN，ResidualCount = 0），**不报错**——绝大多数流程不需要残差；
+        /// · 接了但点集为空 / A 是 Point 之外的不可算基元（如 Contour）= **明确失败**，不许静默给 0。
+        /// </summary>
+        public InputPort<HObject> ResidualPoints { get; } = new("ResidualPoints", null, "残差点集（可选）：接「几何查找」的 Contours（XLD），算各点到 A 的残差统计")
+        { IsRequired = false };
+
         #endregion
 
         #region 输出端口
@@ -96,6 +105,15 @@ namespace Plugin.GeometryRelation
         /// <summary>判定结果（true = OK）</summary>
         public OutputPort<bool> IsOk { get; } = new("IsOk", "判定结果（true = OK）");
 
+        /// <summary>残差 RMS（像素）：参与点集到 A 的距离均方根；未接 ResidualPoints 或点集不可算时为 NaN</summary>
+        public OutputPort<double> ResidualRms { get; } = new("ResidualRms", "残差均方根（像素；未接点集或不可算=NaN）");
+
+        /// <summary>残差最大值（像素）</summary>
+        public OutputPort<double> ResidualMax { get; } = new("ResidualMax", "残差最大值（像素）");
+
+        /// <summary>参与残差统计的点数（0 = 没算）</summary>
+        public OutputPort<int> ResidualCount { get; } = new("ResidualCount", "参与残差统计的点数（0=没算）");
+
         #endregion
 
         public override void RunAlgorithm(IExecutionContext context)
@@ -105,6 +123,10 @@ namespace Plugin.GeometryRelation
             Value.Value = 0;
             Geometry.Value = null;
             IsOk.Value = false;
+            // 残差默认 NaN = "没算 / 算不了"。给 0 会让下游把"没算"当成"完美拟合"（A2 的静默陷阱）。
+            ResidualRms.Value = double.NaN;
+            ResidualMax.Value = double.NaN;
+            ResidualCount.Value = 0;
 
             var op = Op.ActualValue;
             var a = A.ActualValue;
@@ -136,7 +158,17 @@ namespace Plugin.GeometryRelation
             }
 
             if (Success.Value is true)
+            {
+                // A2：残差在模式算完之后、发布之前算。失败不牵连主结果——
+                // 残差是"拟合质量的旁证"，不是主判定；但**不可算时必须红着嘴说清楚**，不许静默 0。
+                if (!TryComputeResidual(a, out var residualError))
+                {
+                    Fail(residualError);
+                    return;
+                }
+
                 Publish(a, b, op);
+            }
         }
 
         public override void Initialize() { }
@@ -337,6 +369,117 @@ namespace Plugin.GeometryRelation
             var manual = MmPerPixel.ActualValue;
             scale = (double.IsNaN(manual) || manual <= 0) ? 1.0 : manual;
             return true;
+        }
+
+        /// <summary>
+        /// 残差统计（P1-B A2）：把 ResidualPoints（HXLD / HRegion）摊成 [r,c,r,c,…]，算各点到 A 的距离统计。
+        ///
+        /// 三条口径（都是为了"不许静默"）：
+        /// · **没接点集 = 合法跳过**（ResidualCount 保持 0、RMS/Max 保持 NaN），返回 true——绝大多数流程不看残差；
+        /// · **接了但点集为空** → 失败，文案说清"接了点集但一个点都没有，多半是上游几何查找没找到"；
+        /// · **A 的基元类型不可算残差**（Contour 等）→ 失败，文案列出支持的类型。
+        ///
+        /// 像素口径：残差恒以**像素**输出（拟合质量与物理当量无关），乘当量会让人误以为"残差越小越好"随单位变。
+        /// </summary>
+        private bool TryComputeResidual(GeometryParam a, out string error)
+        {
+            error = string.Empty;
+
+            var pointsSource = ResidualPoints.ActualValue;
+            if (pointsSource == null || !pointsSource.IsInitialized())
+                return true;   // 没接 = 不算，合法
+
+            if (a.Kind is not (GeometryKind.Point or GeometryKind.Line
+                               or GeometryKind.Circle or GeometryKind.Ellipse))
+            {
+                error = $"几何计算：A 是 {a.Kind}，残差只支持 点/线/圆/椭圆（拟合基元）；请把拟合结果作为 A 接入";
+                return false;
+            }
+
+            if (!TryGetPointArray(pointsSource, out var points, out var count))
+            {
+                error = "几何计算：残差点集无法读取（只支持 XLD 轮廓或区域，且必须有轮廓点）";
+                return false;
+            }
+
+            if (count == 0)
+            {
+                error = "几何计算：残差点集为空（接了点集但一个点都没有）——多半是上游「几何查找」本轮没找到轮廓，请检查它的判定与阈值";
+                return false;
+            }
+
+            var stats = GeometryMath.ResidualStats(a, points);
+            if (stats.Count == 0)
+            {
+                error = "几何计算：残差点集里全部是无效坐标（NaN/Inf），无法统计";
+                return false;
+            }
+
+            ResidualRms.Value = stats.Rms;
+            ResidualMax.Value = stats.Max;
+            ResidualCount.Value = stats.Count;
+
+            if (stats.Skipped > 0)
+            {
+                // 跳过是"信息"，不失败；但要能看见，否则会有人对着少算的点集下结论。
+                LastResidualSkipped = stats.Skipped;
+            }
+
+            return true;
+        }
+
+        /// <summary>本轮被跳过的无效点数（0 = 全部参与）；仅供排查，不进端口（避免下游误接）。</summary>
+        internal int LastResidualSkipped { get; private set; }
+
+        /// <summary>把 XLD 轮廓 / 区域轮廓摊成 [r,c,r,c,…]。区域先取边界再摊点。</summary>
+        private static bool TryGetPointArray(HObject source, out double[] points, out int count)
+        {
+            points = Array.Empty<double>();
+            count = 0;
+
+            HObject? contours = null;
+            var owned = false;
+            try
+            {
+                if (source is HXLD)
+                {
+                    contours = source;
+                }
+                else
+                {
+                    // 区域 → 边界（XLD）。GenContourRegionXld 的 'border' 模式给区域外边界。
+                    HOperatorSet.GenContourRegionXld(source, out var generated, "border");
+                    contours = generated;
+                    owned = true;
+                }
+
+                HOperatorSet.CountObj(contours, out var n);
+                if (n.Length == 0 || n[0].I <= 0)
+                    return true;   // 空：count 保持 0，由调用方判失败
+
+                HOperatorSet.GetContourXld(contours, out var rows, out var cols);
+                var total = Math.Min(rows.Length, cols.Length);
+                if (total <= 0)
+                    return true;
+
+                points = new double[total * 2];
+                for (var i = 0; i < total; i++)
+                {
+                    points[2 * i] = rows[i].D;
+                    points[2 * i + 1] = cols[i].D;
+                }
+
+                count = total;
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            finally
+            {
+                if (owned) contours?.Dispose();
+            }
         }
 
         #endregion

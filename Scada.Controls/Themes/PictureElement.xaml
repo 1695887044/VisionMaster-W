@@ -35,17 +35,29 @@
                             Margin="{TemplateBinding Padding}"
                             Stretch="{TemplateBinding Stretch}" />
 
-                        <TextBlock
+                        <!--
+                            未设置/缺失时的占位：浅色文字 + 一圈描边。
+                            只写一个深色 TextBlock 在深色画布上等于看不见（实测渲染图里几乎读不出字）。
+                            Border 就是 PartPlaceholder，代码按“有没有图”整体显隐。
+                        -->
+                        <Border
                             x:Name="Placeholder"
-                            Margin="{TemplateBinding Padding}"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            FontFamily="{TemplateBinding FontFamily}"
-                            FontSize="{TemplateBinding FontSize}"
-                            Foreground="{TemplateBinding Foreground}"
-                            Text="{TemplateBinding PlaceholderText}"
-                            TextAlignment="Center"
-                            TextWrapping="Wrap" />
+                            Margin="4"
+                            Padding="8"
+                            Background="{StaticResource HmiSurfaceBrush}"
+                            BorderBrush="{StaticResource HmiBorderStrongBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="{TemplateBinding FontFamily}"
+                                FontSize="{TemplateBinding FontSize}"
+                                Foreground="{StaticResource HmiTextMutedBrush}"
+                                Text="{TemplateBinding PlaceholderText}"
+                                TextAlignment="Center"
+                                TextWrapping="Wrap" />
+                        </Border>
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>
